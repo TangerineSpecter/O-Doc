@@ -169,7 +169,7 @@ class SyncManager:
         travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>4:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>5:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
@@ -1230,7 +1230,7 @@ class SyncManager:
 
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
-        if remote_meta and remote_meta.get('combat_schema_version',0)>4:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>5:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:

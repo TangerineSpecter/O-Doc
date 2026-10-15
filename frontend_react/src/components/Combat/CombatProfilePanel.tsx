@@ -37,7 +37,7 @@ export default function CombatProfilePanel({
     onOpenHistory?: () => void;
     historyCount?: number;
 }) {
-    const [preview, setPreview] = useState<{item: CombatEquipment; remove?: boolean} | null>(null);
+    const [preview, setPreview] = useState<{item: CombatEquipment; remove?: boolean; slot?: string} | null>(null);
     const [preparationOpen, setPreparationOpen] = useState(false);
     const [tab, setTab] = useState<'equipment' | 'market' | 'skills'>('equipment');
     const [qualityFilter, setQualityFilter] = useState<'all' | 'gold' | 'blue' | 'white'>('all');
@@ -253,7 +253,7 @@ export default function CombatProfilePanel({
                 <CombatLoadoutSlots
                     profile={profile}
                     disabled={busy}
-                    onInspect={(item, remove) => setPreview({item, remove})}
+                    onInspect={(item, remove, slot) => setPreview({item, remove, slot})}
                 />
 
                 {/* 3. 高密度战斗属性面板 */}
@@ -495,15 +495,16 @@ export default function CombatProfilePanel({
                     key={preview.item.id}
                     profile={profile}
                     item={preview.item}
+                    initialSlot={preview.slot}
                     remove={preview.remove}
                     busy={actions.busy}
                     onClose={() => setPreview(null)}
-                    onConfirm={() => {
+                    onConfirm={slot => {
                         void actions
                             .act({
                                 operation: 'equip',
                                 equipment: {
-                                    [preview.item.snapshot.slot]: preview.remove ? null : preview.item.id,
+                                    [slot]: preview.remove ? null : preview.item.id,
                                 },
                             })
                             .then(result => {

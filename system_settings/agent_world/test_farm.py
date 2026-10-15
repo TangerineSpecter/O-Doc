@@ -540,11 +540,11 @@ class FarmTests(TestCase):
         initial = json.dumps({'choices': [expand['id']], 'reason': '扩地只要500'})
         with life_scope(item, {}), patch('system_settings.decision.routing.complete',
                 side_effect=[initial, '{"choices":[],"reason":"先照料，暂不扩地"}']) as call:
-            decision = decide(self.task, self.agent, farm, options)
+            with self.assertRaisesRegex(ValueError, '经营候选无效'):
+                decide(self.task, self.agent, farm, options)
             context = json.loads(call.call_args.args[1].split('\n资料：', 1)[1].split('\n补充经营偏好：')[0])
             self.assertEqual(context['spending']['spendable'], '500.00')
             self.assertIn('需要 1000', call.call_args.args[1])
-            self.assertEqual(decision['choices'], [])
             self.assertEqual(call.call_count, 2)
         item.refresh_from_db()
         self.assertEqual(item.spent, 0)
@@ -569,6 +569,30 @@ class FarmTests(TestCase):
                    return_value=json.dumps({'choices': [options[0]['id']], 'reason': '只执行剩余的一项'})):
             result = decide(self.task, self.agent, farm, options)
         self.assertEqual(result['choices'], [options[0]['id']])
+        self.assertFalse(FarmOperation.objects.exists())
+
+    def test_empty_stage_plan_requires_an_affordable_operation_and_enough_stamina(self):
+        from .farm_runner import decide
+        from .life_scope import life_scope
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        options = candidates(farm, self.agent.money)
+        self.assertTrue(options)
+        item = self.farm_life_item('farm-no-op', 100)
+        for budget, energy, allowed in ((100, 10, True), (10000, 1, True), (10000, 2, False)):
+            with self.subTest(budget=budget, stamina=energy):
+                item.budget = budget
+                item.save(update_fields=['budget'])
+                with life_scope(item, {}), \
+                        patch('system_settings.agent_world.farm_runner.stamina', return_value=energy), \
+                        patch('system_settings.decision.routing.complete', return_value='{"choices":[],"reason":"预算或体力不足"}'):
+                    if allowed:
+                        result = decide(self.task, self.agent, farm, options)
+                        self.assertEqual(result['choices'], [])
+                    else:
+                        with self.assertRaisesRegex(ValueError, '有可执行候选时至少选择一项'):
+                            decide(self.task, self.agent, farm, options)
+        item.refresh_from_db()
+        self.assertEqual(item.spent, 0)
         self.assertFalse(FarmOperation.objects.exists())
 
     def test_plan_checks_combined_cost_and_allows_explicit_budget_adjustment(self):
@@ -637,8 +661,10 @@ class FarmTests(TestCase):
         from .farm_runner import decide
         farm = AgentFarm.objects.get(pk=self.agent.pk)
         options = candidates(farm, self.agent.money)
+        response = json.dumps({'choices': [options[0]['id']] if options else [],
+                               'reason': '执行可行操作' if options else '当前没有可执行操作'})
         with patch('system_settings.decision.routing.complete', autospec=True,
-                   return_value='{"choices":[],"reason":"休息"}') as call:
+                   return_value=response) as call:
             decide(self.task, self.agent, farm, options)
             before = call.call_args.args[1].split('\n资料：', 1)[1]
             farm.state['operation_keys'] = [f'{i:064x}:0' for i in range(10000)]

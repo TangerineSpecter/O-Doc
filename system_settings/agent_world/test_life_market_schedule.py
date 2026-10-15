@@ -198,7 +198,7 @@ class DailyMarketScheduleTests(TestCase):
         tomorrow = NOW + timedelta(days=1)
         recover(self.config, tomorrow, resume_actor=agent.pk)
         item.refresh_from_db()
-        self.assertEqual(item.status, 'rest')
+        self.assertEqual(item.status, 'cancelled')
         ensure_daily_market(self.config, tomorrow)
         self.assertTrue(LifeItem.objects.filter(pk=stable_id(self.config.pk, agent.pk, tomorrow.date().isoformat(), 'market-prepare')).exists())
 

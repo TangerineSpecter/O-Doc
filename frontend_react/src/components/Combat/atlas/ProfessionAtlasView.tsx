@@ -21,6 +21,7 @@ interface SkillRankItem {
     costBase: string;
     costPerLevel: string;
     costRankFactor: string;
+    unlockCost: number;
     cooldownRounds: string;
     description: string;
     effectsText: string;
@@ -42,6 +43,14 @@ const stageFilters = [
     {value: '2', label: '二转 (2阶)'},
     {value: '3', label: '三转 (3阶)'},
 ] as const;
+
+function skillCostAtUnlockLevel(rank: Pick<SkillRankItem, 'requiredLevel' | 'costBase' | 'costPerLevel' | 'costRankFactor'>) {
+    const level = Number(rank.requiredLevel) || 1;
+    const base = Number(rank.costBase) || 0;
+    const perLevel = Number(rank.costPerLevel) || 0;
+    const rankFactor = Number(rank.costRankFactor) || 1;
+    return Math.max(1, Math.ceil((base + perLevel * level) * rankFactor));
+}
 
 export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
     const tables = catalog.tables;
@@ -104,7 +113,7 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                     .filter(r => r.skillId === skill.id)
                     .map(rank => {
                         const effects = skillEffects.filter(f => f.skillLevelId === rank.id);
-                        return {
+                        const item: SkillRankItem = {
                             id: rank.id,
                             skillId: String(rank.skillId || ''),
                             rank: String(rank.rank || '1'),
@@ -112,10 +121,13 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                             costBase: String(rank.costBase || '0'),
                             costPerLevel: String(rank.costPerLevel || '0'),
                             costRankFactor: String(rank.costRankFactor || '1'),
+                            unlockCost: 0,
                             cooldownRounds: String(rank.cooldownRounds || '0'),
                             description: String(rank.description || ''),
                             effectsText: effects.map(effectText).join('；'),
                         };
+                        item.unlockCost = skillCostAtUnlockLevel(item);
+                        return item;
                     });
                 return {
                     id: skill.id,
@@ -387,9 +399,11 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                                             className="group rounded-lg bg-white p-1.5 border border-slate-100 text-[11px]"
                                                         >
                                                             <summary className="flex cursor-pointer items-center justify-between font-medium text-slate-700 hover:text-orange-600">
-                                                                <span>
+                                                                <span className="min-w-0">
                                                                     Rank {rank.rank} · 学习 Lv.{rank.requiredLevel}
-                                                                    {skill.kind === 'active' && ` · 冷却 ${rank.cooldownRounds} 回合`}
+                                                                    {skill.kind === 'active'
+                                                                        ? ` · 耗蓝 ${rank.unlockCost} MP（解锁时） · 冷却 ${rank.cooldownRounds} 回合`
+                                                                        : ' · 不消耗 MP'}
                                                                 </span>
                                                                 <span className="text-[10px] text-slate-400 group-open:rotate-90 transition-transform">
                                                                     ▸
@@ -401,8 +415,8 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                                                     {rank.description || rank.effectsText || '无特殊效果'}
                                                                 </p>
                                                                 {skill.kind === 'active' && (
-                                                                    <p className="text-[10px] text-slate-400">
-                                                                        基础 MP 消耗：向上取整(({rank.costBase} + {rank.costPerLevel} ×角色等级) ×{rank.costRankFactor})
+                                                                    <p className="text-[10px] text-slate-500">
+                                                                        解锁等级时消耗 {rank.unlockCost} MP；角色等级提高后耗蓝会增加，减耗被动会降低实际消耗。计算：向上取整(({rank.costBase} + {rank.costPerLevel} ×角色等级) × {rank.costRankFactor})，再应用减耗被动，最低 1 MP。
                                                                     </p>
                                                                 )}
                                                             </div>

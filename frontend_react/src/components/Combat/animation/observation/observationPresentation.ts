@@ -30,7 +30,7 @@ export function observationVisual(snapshot:CombatSnapshot,disconnected:boolean):
 
 export function basicObservationAttack(weapon:string):AtlasSkillProfile {
     const source=weapon==='equip.bow'?getAtlasSkill('skill.player.007')
-        :weapon==='equip.staff'||weapon==='equip.holy_staff'?getAtlasSkill('skill.player.004')
+        :weapon==='equip.staff'||weapon==='equip.mage_staff'||weapon==='equip.holy_staff'?getAtlasSkill('skill.player.004')
             :getAtlasSkill('preview.novice.strike');
     return {...source!,id:'observation.basic',name:weapon==='equip.bow'?'普通射击':'普通攻击',weapon};
 }

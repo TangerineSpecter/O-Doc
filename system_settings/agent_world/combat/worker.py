@@ -68,6 +68,7 @@ def advance():
         CombatRuntime.objects.filter(pk='combat-worker',token=token).update(requests={'process_id':os.getpid()})
         from .recovery import recover
         recover()
+        recover_expired_rests()
         for row in Exploration.objects.filter(status='active',next_tick_at__lte=storage_time(local_time())).values('id','revision'):
             tick(row['id'],row['revision'])
         for identity in Exploration.objects.filter(status='preparing',id__in=CombatRuntime.objects.filter(authorized=True).values('id')).values_list('id',flat=True):
@@ -92,6 +93,22 @@ def advance():
             threading.Thread(target=promote_one,args=(run.pk,),name='combat-promotion',daemon=True).start()
         for key,worker in list(_preparations.items()):
             if not worker.is_alive():_preparations.pop(key,None)
+
+
+def recover_expired_rests(now=None):
+    """Periodically self-heal fallen residents even when nobody opens the UI."""
+    from django.db import transaction
+    from .models import CombatProfile
+    from .profiles import recover_expired_rest
+    point=local_time(now)
+    identities=CombatProfile.objects.filter(rest_until__isnull=False,rest_until__lte=storage_time(point)).values_list('pk',flat=True)
+    for identity in identities:
+        try:
+            with farm_gate(),transaction.atomic():
+                profile=CombatProfile.objects.select_for_update().filter(pk=identity).first()
+                if profile:recover_expired_rest(profile,point)
+        except Exception:
+            logger.exception('倒地休息到期恢复失败 actor=%s',identity)
 
 
 def loop():

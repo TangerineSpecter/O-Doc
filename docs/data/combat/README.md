@@ -1,10 +1,10 @@
 # 战斗内容配置设计包
 
-版本：design-0.5；engine_schema=4；状态：design_only；更新日期：2026-10-14。
+版本：design-0.13；engine_schema=5；状态：design_only；更新日期：2026-10-16。
 
 这是配合 [系统规划](../../agents/Agent迷宫探索与战斗系统规划.md) 的可校验配置草案，**尚未接入生产启动、数据库、Agent 日程或 WebDAV**。生产启动器必须拒绝安装 design_only 包。发布版本须增加固定发布时间、兼容版本和迁移说明，不使用本机启动时间决定版本优先级。
 
-本版更新了盾卫路线、盾墙反伤、磐石之躯、11 项装备精通及七槽装备配置；增加 `reflect` 和装备条件被动效果码。装备判定机会仍为每 5 分钟一次、普通/精英未中即消耗。设计包不代表生产战斗目录，也不代表完整战斗平衡验收。
+本版采用九槽穿戴，增加两个戒指位；戒指等级为 1～30，吊坠改为 10～30，Boss 专属饰品统一称为吊坠。训练木剑在目录中标记为通用类型。新增 50～70 级双手剑；剑士路线 30 级获得精通，达到装备等级后即可穿戴，狂战士路线在 50 级获得精通后也可穿戴。所有精通装备只按已学精通与装备等级判定，不再叠加职业白名单；没有精通条件的普通武器仍按职业权限限制。普通武器先开放到 30 级；类型防具按对应精通等级起步，每 20 级分段并封顶 99。词条池按装备位置开放：武器不出防御词条、防具不出攻击词条、暴击率与暴击伤害只出现在戒指和吊坠、命中只出现在手套、闪避只出现在靴子。白/蓝/金装备仍按品质生成 1/2/3 条不重复词条。法师冥想战斗中每 15 秒恢复最大法力的 2% / 3% / 5%；牧师新增圣愈被动，每 15 秒恢复最大生命和最大法力各 1% / 2% / 3%。三转门槛为 50 级，大盾为 50～70 级。设计包不代表生产战斗目录，也不代表完整战斗平衡验收。
 
 ## 生成与校验
 
@@ -27,22 +27,22 @@ manifest.json 包含全部 CSV 的 SHA-256、行数、版本及结构版本。�
 | 文件 | 行数 | 用途 | 实际列 |
 | --- | ---: | --- | --- |
 | professions.csv | 29 | 职业树及最终每级六维、固定 HP/MP 成长 | id、name、parent_id、stage、required_level、hp_growth、mp_growth、enabled、strength_growth、dexterity_growth、intelligence_growth、vitality_growth、spirit_growth、luck_growth |
-| skills.csv | 81 | 玩家 71 项、魔物 10 项技能身份及归属 | id、name、profession_id、learn_level、kind、enabled |
-| skill_levels.csv | 223 | 自动学习、升级、耗蓝及冷却 | id、skill_id、rank、required_level、cost_base、cost_per_level、cost_rank_factor、cooldown_rounds、description、enabled |
-| skill_effects.csv | 338 | 每级技能的可执行数字效果 | id、skill_level_id、code、stat、value、duration、target、damage_type、group、hits、chance |
+| skills.csv | 84 | 玩家 74 项、魔物 10 项技能身份及归属 | id、name、profession_id、learn_level、kind、enabled |
+| skill_levels.csv | 232 | 自动学习、升级、耗蓝及冷却 | id、skill_id、rank、required_level、cost_base、cost_per_level、cost_rank_factor、cooldown_rounds、description、enabled |
+| skill_effects.csv | 350 | 每级技能的可执行数字效果 | id、skill_level_id、code、stat、value、duration、target、damage_type、group、hits、chance |
 | dungeons.csv | 6 | 地牢范围及唯一 Boss 概率参数 | id、name、recommended_level_min、recommended_level_max、boss_id、boss_level_min、boss_level_max、boss_start_kills、boss_probability_step、boss_probability_cap、enabled |
 | monsters.csv | 24 | 怪物等级、品阶与成长档案 | id、name、rank、profile、level_min、level_max、enabled |
 | dungeon_monsters.csv | 18 | 非 Boss 遭遇权重与区域关联 | id、dungeon_id、monster_id、level_min、level_max、encounter_weight、drop_table_id、enabled |
 | monster_actions.csv | 53 | 普攻/技能权重和条件码 | id、monster_id、action_kind、skill_id、weight、condition |
 | materials.csv | 24 | 固定材料等级和商店回收价格 | id、name、level、sale_price、enabled |
 | drops.csv | 48 | 各怪物的材料和普通装备池来源 | id、monster_id、item_kind、item_id、weight、quantity_min、quantity_max |
-| equipment_templates.csv | 36 | 七槽装备、等级成长、类型、精通限制与 Boss 专属标记 | id、name、slot、root_job、level_min、level_max、physical_attack_base、physical_attack_growth、magic_attack_base、magic_attack_growth、hp_base、hp_growth、mp_base、mp_growth、physical_defense_base、physical_defense_growth、magic_defense_base、magic_defense_growth、healing_base、healing_growth、evasion、boss_only、enabled、equipment_type、required_mastery、grip |
-| boss_drops.csv | 6 | Boss 专属护符及概率 | id、monster_id、equipment_id、exclusive_probability |
+| equipment_templates.csv | 97 | 九槽装备、等级成长、类型、精通限制与 Boss 专属标记 | id、name、slot、root_job、level_min、level_max、physical_attack_base、physical_attack_growth、magic_attack_base、magic_attack_growth、hp_base、hp_growth、mp_base、mp_growth、physical_defense_base、physical_defense_growth、magic_defense_base、magic_defense_growth、healing_base、healing_growth、evasion、boss_only、enabled、equipment_type、required_mastery、grip |
+| boss_drops.csv | 6 | Boss 专属吊坠及概率 | id、monster_id、equipment_id、exclusive_probability |
 | affixes.csv | 17 | 随机词条范围及单位 | id、stat、min_base、min_growth、max_base、max_growth、unit、enabled |
-| affix_slots.csv | 77 | 词条适用槽位 | id、affix_id、slot |
-| equipment_professions.csv | 904 | 装备职业权限 | id、equipment_id、profession_id |
-| equipment_affixes.csv | 365 | 各装备可抽词条与权重 | id、equipment_id、affix_id、weight |
-| equipment_pools.csv | 180 | 区域普通装备池 | id、pool_id、equipment_id、weight |
+| affix_slots.csv | 83 | 词条适用槽位 | id、affix_id、slot |
+| equipment_professions.csv | 1034 | 装备职业权限（精通装备按技能继承展开） | id、equipment_id、profession_id |
+| equipment_affixes.csv | 1147 | 各装备可抽词条与权重 | id、equipment_id、affix_id、weight |
+| equipment_pools.csv | 546 | 区域普通装备池 | id、pool_id、equipment_id、weight |
 | potions.csv | 8 | 常驻补给的购买条件、价格和恢复量 | id、name、kind、restore_value、required_level、purchase_price、shared_cooldown_rounds、enabled |
 | styles.csv | 5 | 五种风格的动作参数 | id、name、attack_weight、skill_weight、heal_threshold、mana_threshold、defend_factor、enabled |
 | level_experience.csv | 99 | 1～99 级升级需求，99 级下一等级需求为 0 | id、level、experience_to_next |
@@ -57,14 +57,14 @@ manifest.json 包含全部 CSV 的 SHA-256、行数、版本及结构版本。�
 - professions 的 growth 已是当前职业最终每级成长，不再叠加父职业；累计成长按每次实际升级时的职业保存。父职业关联同时用于继承已学技能与装备权限。
 - skill_levels 中 cost_rank_factor 已包含技能等级倍率，实际耗蓝为 ceil((cost_base + cost_per_level × 角色等级) × cost_rank_factor × 节流系数)，至少 1 MP。被动技能不耗蓝。
 - skill_effects.value 已包含该技能等级增幅，执行时不再乘一遍成长系数。modifier 的 accuracy/evasion/reduction/damage_taken 为比率加减，attack/defense/physical_defense/magic_defense 为原值百分比变化；attack/defense 同时作用物理与魔法。damage 的 hits 是独立段数；shared_hit 使混合伤害共享同次判定。summon 按配置的弱/中/强权重选择分支，分支决定段数、伤害倍率和命中后的减益；强档可追加持续伤害。shield_break 与同 skill_level_id、target、group 的 shield 配对；护盾耗尽时触发一次普通魔法伤害。group 标识非叠加状态，空值代表无持续状态。
-- passive_percent 对指定属性按百分比增益；passive_flat 是比率或数值直接相加；passive_cost 降耗蓝；passive_conversion 按 strength_to_magic/spirit_to_magic 转换；passive_low_hp 在 HP 低于 30% 生效；passive_damage 按 burn/poison/contract/elite_boss 增伤；passive_duration 仅延长指定攻击和防御减益。六维被动先算，再派生属性，不循环回流。
+- passive_percent 对指定属性按百分比增益；passive_flat 是比率或数值直接相加；passive_cost 降耗蓝；passive_conversion 按 strength_to_magic/spirit_to_magic 转换；passive_low_hp 在 HP 低于 30% 生效；passive_damage 按 burn/poison/contract/elite_boss 增伤；passive_duration 仅延长指定攻击和防御减益。passive_recovery 在交战回合开始按最大生命/法力比例恢复，向下取整且至少 1 点、封顶于对应最大值；等待刻度不触发。六维被动先算，再派生属性，不循环回流。
 - monster_profiles 的 HP 为 floor((constant + linear×L + quadratic×L²) × profile_multiplier × rank_multiplier)，攻击/防御同理；MP 只用线性公式。普攻类型由 damage_type 指定，怪物伤害技能必须有相应攻击来源。等级抽样与 Boss 规则见规划，不在 CSV 执行字符串公式。
 - monster_actions.condition 只接受 always、hp_below_50、not_active；后两者分别要求生命低于 50%、技能自己的同组效果当前不存在。法力、冷却和目标过滤后再归一化剩余权重；普攻是兜底。
 - dungeon_monsters.drop_table_id 是兼容逻辑别名 drop.{怪物键}，实际 drops 以 monster_id 连接，不建立第二套重复掉落表。
 - drops.weight 只表示**对应来源池内部**的选择权重，不能把材料行与装备池行直接归一化成 50%/50%。奖励大类先由全局 20% 装备规则/特殊 Boss 规则和时间额度决定，再抽该大类的来源行。
-- Boss 首次物品机会在有装备额度时优先装备；boss_drops 的 50% 只决定专属护符或通用池。两次物品机会仍最多一件装备。Boss 专属模板不出现在普通 equipment_pools。
-- 通用装备等级在区域下限到 min(实际怪物等级,区域上限) 抽样。专属护符还需限制到模板 level_min，最低不高于 Boss 实际等级；不以 99 级模板上限直接生成高等级奖励。
-- affixes 的整数范围为 min_base + ceil(min_growth×L) 到 max_base + ceil(max_growth×L)；ratio 无等级增长时按万分点均匀抽样。装备抽不同词条 ID，不能用重复词条凑金装三条。equipment_affixes 和 equipment_professions 为最终权限关系，不再仅按 root_job 推断。
+- Boss 首次物品机会在有装备额度时优先装备；boss_drops 的 50% 只决定专属吊坠或通用池。两次物品机会仍最多一件装备。Boss 专属模板不出现在普通 equipment_pools。
+- 通用装备等级在区域下限到 min(实际怪物等级,区域上限) 抽样。专属吊坠还需限制到模板 level_min，最低不高于 Boss 实际等级；不以 99 级模板上限直接生成高等级奖励。
+- affixes 的整数范围为 min_base + ceil(min_growth×L) 到 max_base + ceil(max_growth×L)；ratio 无等级增长时按万分点均匀抽样。每个装备模板从该槽位允许的完整词条池中等权抽取，装备抽不同词条 ID，不能用重复词条凑金装三条；戒指和吊坠拥有攻击、防御、暴击、暴击伤害等饰品词条，但命中与闪避仍分别只分配给手套和靴子。equipment_affixes 为每个模板精确列出允许池，equipment_professions 为最终职业穿戴权限关系，不再仅按 root_job 推断。
 - materials.sale_price 已固化模板等级价格。装备价值在实例生成时按品质与词条质量均值计算、按分四舍五入，不随日后配置改变；无耐久、强化、穿透、经验或现金词条。
 - styles 中概率需要当回合真实 HP/MP、威胁与合法动作重算。无药剂、无技能或冷却中对应权重为 0，风格没有固定动作概率，也没有随机逃跑动作。
 - level_experience 99 级的 0 表示停止积累升级经验，不可解释成免费循环升级。怪物经验按等级差与越级基础上限结算。

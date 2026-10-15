@@ -39,7 +39,7 @@ def decide(task, agent, options):
     prompt = role_text(agent, 'planning')
     from .memory.recall import memory_context
     prompt += '\n' + memory_context(agent, '美食 制作 厨艺 ' + task.prompt)
-    prompt += '\n你用自己的食材制作美食。根据偏好、原料机会成本、预期收益和成长选择可制作菜，合计最多六份，也可休息。每道菜选择 low_stars_first（日常制作）或 high_stars_first（精品制作），同星先进先出；高星材料不保证加工盈利，挂牌溢价不计保证收入。quality_previews 按当前等级估算，实际每份采用制作时等级。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1,"ingredient_strategy":"low_stars_first"}],"reason":"简短理由"}。不修改规则。'
+    prompt += '\n你用自己的食材制作美食。从当前可制作菜里至少选择一道，合计最多六份；根据偏好、原料机会成本、预期收益和成长决定数量。每道菜选择 low_stars_first（日常制作）或 high_stars_first（精品制作），同星先进先出；高星材料不保证加工盈利，挂牌溢价不计保证收入。quality_previews 按当前等级估算，实际每份采用制作时等级。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1,"ingredient_strategy":"low_stars_first"}],"reason":"简短理由"}。不修改规则。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False) + '\n制作偏好：' + task.prompt}]
     from system_settings.decision.routing import complete_json
     def validate(value):
@@ -75,7 +75,8 @@ def project_recipe(row):
 
 def validate_decision(value, options):
     choices = value['choices']
-    if not isinstance(choices, list) or len(choices) > 6 or not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500:
+    if (not isinstance(choices, list) or (options and not choices) or len(choices) > 6
+            or not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500):
         raise ValueError('制作计划格式无效')
     available = {row['id']: row for row in options}
     total, seen = 0, set()
@@ -127,7 +128,7 @@ def run_cooking_opportunity(task, scheduler=None, *, key=None, manual=False, loc
     task.refresh_from_db()
     if not task.enabled:
         return None
-    agent = select_agent(task, cost=1)
+    agent = select_agent(task, cost=2)
     record = AgentRunRecord.objects.create(task=task, task_name=task.name, agent=agent, agent_name=agent.name if agent else '',
         trigger='手动执行' if manual else '系统行动', status='running', summary='正在查看美食制作',
         agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,

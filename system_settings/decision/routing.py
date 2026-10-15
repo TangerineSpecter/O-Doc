@@ -143,18 +143,21 @@ def choose_scene(owner, agent, scene, state, choices, *, deadline):
     if not jev_enabled(owner, scene) or len(choices) > 255:
         return None
     from .jev import choose, DecisionUnavailable
+    from .config import selected_connection_id
     from system_settings.agent_role import role_text
     from utils.token_usage import usage_scope
     check_ai_control()
     if time.monotonic() >= deadline:
         raise TimeoutError('当前阶段总时限已耗尽')
     try:
+        connection_id = selected_connection_id(owner)
         with usage_scope(owner_id=owner, agent=agent, purpose='social' if scene == 'social_action' else 'task' if scene.startswith('travel_') else 'planning', phase=SCENES[scene]):
             result, _ = choose(owner, {'role': role_text(agent, 'social' if scene == 'social_action' else 'decision'),
                                       'context': state}, choices, deadline=deadline,
-                               instructions='根据人物偏好和当前真实条件，从合法候选中选择一个。未执行计划不是经历。', question_id=scene)
+                               instructions='根据人物偏好和当前真实条件，从合法候选中选择一个。未执行计划不是经历。',
+                               question_id=scene, connection_id=connection_id)
         check_ai_control()
         return result
     except DecisionUnavailable as exc:
-        report(scene, 'decision:jev', exc)
+        report(scene, f'decision:{connection_id}', exc)
         return None

@@ -11,6 +11,7 @@ skill.player.009,灵巧,job.ranger,20,passive,1
 skill.player.010,治愈术,job.priest,10,active,1
 skill.player.011,圣光,job.priest,15,active,1
 skill.player.012,信念,job.priest,20,passive,1
+skill.player.074,圣愈,job.priest,20,passive,1
 skill.player.013,连斩,job.swordsman,30,active,1
 skill.player.014,剑术精通,job.swordsman,45,passive,1
 skill.player.015,盾击,job.guardian,30,active,1
@@ -69,7 +70,9 @@ skill.player.067,魔法盾精通,job.mage,10,passive,1
 skill.player.068,小盾精通,job.guardian,30,passive,1
 skill.player.069,双手杖精通,job.elementalist,30,passive,1
 skill.player.070,圣杖精通,job.cleric,30,passive,1
-skill.player.071,大盾精通,job.spellblade,70,passive,1
+skill.player.071,大盾精通,job.spellblade,50,passive,1
+skill.player.072,双手剑精通,job.swordsman,30,passive,1
+skill.player.073,双手剑精通,job.berserker,50,passive,1
 skill.monster.strike,重击,,1,monster,1
 skill.monster.magic_strike,灵击,,1,monster,1
 skill.monster.evasion,闪身,,1,monster,1

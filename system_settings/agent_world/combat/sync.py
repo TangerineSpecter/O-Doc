@@ -21,7 +21,7 @@ ENCOUNTER=LABEL+'combatencounter'
 
 def validate_source(data,meta=None):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>4:
+    if meta and meta.get('combat_schema_version',0)>5:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
     profiles={pk:r for (model,pk),r in rows.items() if model==PROFILE}
@@ -36,8 +36,11 @@ def validate_source(data,meta=None):
             from .catalog_validation import validate_tables
             # Keep legacy immutable catalogs readable while requiring the expanded
             # player skill set for the newly released equipment/mastery catalog.
-            expected_skills = 71 if row['id'] == 'combat-1.0.4' else None
-            try:validate_tables(row['tables'], expected_player_skills=expected_skills)
+            expected_skills = 74 if row['id'] == 'combat-1.0.13' else 73 if row['id'] in {'combat-1.0.11','combat-1.0.12'} else 71 if row['id'] in {'combat-1.0.4', 'combat-1.0.5', 'combat-1.0.6', 'combat-1.0.7', 'combat-1.0.8', 'combat-1.0.9', 'combat-1.0.10'} else None
+            expected_promotion_level = 50 if row['id'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13'} else 70
+            try:validate_tables(row['tables'], expected_player_skills=expected_skills,
+                                expected_promotion_level=expected_promotion_level,
+                                catalog_version=row['id'])
             except (ValueError,KeyError,TypeError,IndexError) as exc:raise SyncError('战斗目录业务规则无效') from exc
         if model==LABEL+'combatconfig' and (type(row['daily_minutes']) is not int or not 30<=row['daily_minutes']<=120):
             raise SyncError('每日探索额度无效')
@@ -70,7 +73,8 @@ def validate_source(data,meta=None):
                 if progression is not None:raise SyncError('居民初始化重复')
                 if payload['progression']!=attributes.initial():raise SyncError('居民初始成长无效')
                 progression=deepcopy(payload['progression'])
-                expected_gear[payload['equipment_id']]=equipment_rules.generate(event_catalog,'equip.sword',1,'white',random.Random(actor),starter=True)
+                starter_template='equip.training_sword' if 'equip.training_sword' in event_catalog.index['equipment_templates'] else 'equip.sword'
+                expected_gear[payload['equipment_id']]=equipment_rules.generate(event_catalog,starter_template,1,'white',random.Random(actor),starter=True)
             elif kind=='catalog':
                 skills=event_catalog.learned(progression['job'],progression['level'],progression.get('skills'))
                 if skills!=payload['skills']:raise SyncError('目录更新的自动学习不一致')
@@ -81,12 +85,7 @@ def validate_source(data,meta=None):
                 for identity in payload['loadout'].values():
                     if identity.startswith('promotion:') and identity not in expected_gear:
                         level=int(event_catalog.row('professions',payload['arguments'])['required_level'])
-                        template=next(r['equipment_id'] for r in event_catalog.tables['equipment_professions']
-                                      if r['profession_id']==payload['arguments'] and
-                                      event_catalog.row('equipment_templates',r['equipment_id'])['slot']=='weapon' and
-                                      int(event_catalog.row('equipment_templates',r['equipment_id'])['level_min'])<=level<=
-                                      int(event_catalog.row('equipment_templates',r['equipment_id'])['level_max']) and
-                                      equipment_rules.allowed(event_catalog,r['equipment_id'],payload['arguments'],level,level))
+                        template=equipment_rules.promotion_weapon(event_catalog,payload['arguments'],level)
                         expected_gear[identity]=equipment_rules.generate(event_catalog,template,level,'white',random.Random(row['id']),starter=True)
             elif kind=='depart':
                 stock.subtract({'combat.'+sid:n for sid,n in payload['plan'].get('potions',{}).items()})
@@ -114,15 +113,21 @@ def validate_source(data,meta=None):
         for item in equipment:
             if item['owner_id']!=profile['owner_id'] or (CATALOG,item['catalog_id']) not in rows or (expected_gear[item['id']] is not None and expected_gear[item['id']]!=item['snapshot']):raise SyncError('装备来源或属性不一致')
         loadout=profile['loadout']
-        valid_slots={'weapon','offhand','head','body','hands','feet','accessory'}
+        valid_slots={'weapon','offhand','head','body','hands','feet','accessory','ring_1','ring_2'}
         if not isinstance(loadout,dict) or any(slot not in valid_slots for slot in loadout):
             raise SyncError('战斗装备部位无效')
         for slot,identity in loadout.items():
             worn_item=rows.get((GEAR,identity))
-            if not worn_item or worn_item['snapshot'].get('slot')!=slot or worn_item['sold']:
+            if not worn_item or worn_item['sold']:
                 raise SyncError('穿戴装备部位或来源无效')
             try:
                 template_id=worn_item['template_id']
+                if template_id in catalog.index['equipment_templates']:
+                    slot_catalog=catalog
+                else:
+                    slot_catalog=Catalog(rows[(CATALOG,worn_item['catalog_id'])]['tables'],worn_item['catalog_id'])
+                if not equipment_rules.loadout_slot_matches(slot_catalog,template_id,worn_item['snapshot'],slot):
+                    raise SyncError('穿戴装备部位或来源无效')
                 job,level=profile['progression']['job'],profile['progression']['level']
                 item_level=worn_item['snapshot']['level']
                 permitted=(template_id in catalog.index['equipment_templates'] and
@@ -220,4 +225,4 @@ def revoke(*, disable_auto=True):
 
 def metadata(data=None):
     actors=sorted(CombatProfile.objects.values_list('pk',flat=True)) if data is None else sorted(str(r['pk']) for r in data if r['model']==PROFILE)
-    return {'combat_schema_version':4,'combat_actors':actors}
+    return {'combat_schema_version':5,'combat_actors':actors}

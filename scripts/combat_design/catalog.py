@@ -30,6 +30,7 @@ SKILL_NAMES = [{'圣盾_Holy_Aegis': '圣盾 (Holy Aegis)',
                 '魔灵契约_Spirit_Pact': '魔灵契约 (Spirit Pact)'}.get(name, name) for name in SKILL_NAMES]
 # 编号固定，不能因文档排序改变身份；新增技能在末尾分配新编号，改名保留原编号。
 SKILL_IDS = {name:f'skill.player.{index:03d}' for index,name in enumerate(SKILL_NAMES,1)}
+SKILL_IDS['圣愈'] = 'skill.player.074'
 MASTERY_SKILLS = [
     ('skill.player.061', '布甲精通', '法师', 10, 'cloth_armor', [('percent', 'magic_attack', (.05,.075,.10)), ('percent', 'magic_defense', (.03,.045,.06)), ('percent', 'mp_max', (.03,.045,.06))]),
     ('skill.player.062', '布甲精通', '牧师', 10, 'cloth_armor', [('percent', 'magic_attack', (.05,.075,.10)), ('percent', 'magic_defense', (.03,.045,.06)), ('percent', 'mp_max', (.03,.045,.06))]),
@@ -41,7 +42,9 @@ MASTERY_SKILLS = [
     ('skill.player.068', '小盾精通', '守卫', 30, 'small_shield', [('percent', 'physical_defense', (.05,.075,.10))]),
     ('skill.player.069', '双手杖精通', '元素师', 30, 'two_handed_staff', [('percent', 'weapon_attack', (.10,.15,.20)), ('percent', 'mp_max', (.05,.075,.10))]),
     ('skill.player.070', '圣杖精通', '祭司', 30, 'holy_staff', [('percent', 'magic_attack', (.05,.07,.10)), ('percent', 'healing', (.05,.075,.10))]),
-    ('skill.player.071', '大盾精通', '盾卫', 70, 'large_shield', [('percent', 'physical_defense', (.08,.12,.16)), ('percent', 'magic_defense', (.05,.075,.10))]),
+    ('skill.player.071', '大盾精通', '盾卫', 50, 'large_shield', [('percent', 'physical_defense', (.08,.12,.16)), ('percent', 'magic_defense', (.05,.075,.10))]),
+    ('skill.player.072', '双手剑精通', '剑士', 30, 'two_handed_sword', [('percent', 'weapon_attack', (.10,.15,.20))]),
+    ('skill.player.073', '双手剑精通', '狂战士', 50, 'two_handed_sword', [('percent', 'weapon_attack', (.10,.15,.20))]),
 ]
 
 
@@ -102,6 +105,12 @@ def player_effects() -> dict[str, list[dict]]:
 
 
 def skill_description(name: str, description: str, rank: int) -> str:
+    if name == '冥想':
+        recovery = (.02, .03, .05)[rank - 1]
+        return f'战斗中每 15 秒恢复最大法力的 {recovery * 100:g}%'
+    if name == '圣愈':
+        recovery = (.01, .02, .03)[rank - 1]
+        return f'战斗中每 15 秒恢复最大生命与最大法力各 {recovery * 100:g}%'
     if name != '魔灵契约 (Spirit Pact)':
         return description
     scale = 1 + .1 * (rank - 1)
@@ -115,7 +124,8 @@ def skill_description(name: str, description: str, rank: int) -> str:
 def passive_effects() -> dict[str, list[tuple[str,str,tuple[float,...]]]]:
     p=(.05,.075,.10); small=(.03,.045,.06); large=(.08,.12,.16)
     return {
-        '健壮':[('percent','hp_max',p)],'冥想':[('percent','mp_max',p)],
+        '健壮':[('percent','hp_max',p)],'冥想':[('recovery','mp_max',(.02,.03,.05))],
+        '圣愈':[('recovery','hp_max',(.01,.02,.03)),('recovery','mp_max',(.01,.02,.03))],
         '灵巧':[('percent','dexterity',p)],'信念':[('percent','spirit',p)],
         '剑术精通':[('percent','weapon_attack',(.10,.15,.20))],
         '坚壁':[('percent','physical_defense',p)],'元素专注':[('percent','magic_attack',p)],
@@ -173,7 +183,7 @@ def build() -> dict[str, list[dict]]:
     for job, key in JOB_KEYS.items():
         stage = 0 if job == '新手' else 1 if parents[job] == '新手' else 2 if parents[job] in ('战士','法师','游侠','牧师') else 3
         row = dict(id='job.'+key, name=job, parent_id='job.'+JOB_KEYS[parents[job]] if stage else '', stage=stage,
-                   required_level=(1,10,30,70)[stage], hp_growth=fixed[job][0], mp_growth=fixed[job][1], enabled=1)
+                   required_level=(1,10,30,50)[stage], hp_growth=fixed[job][0], mp_growth=fixed[job][1], enabled=1)
         row.update({stat+'_growth': value for stat,value in zip(STATS,growth[job])})
         put('professions',row)
 
@@ -181,6 +191,8 @@ def build() -> dict[str, list[dict]]:
     for row in table('### 8.2 一转技能候选'):
         for cell,level,kind in zip(row[1:4],(10,15,20),('active','active','passive')):
             ownership[cell.split('：')[0]]=(row[0],level,kind)
+        if len(row) > 4 and row[4].strip():
+            ownership[row[4].split('：')[0]]=(row[0],20,'passive')
     for heading,levels in [('### 8.3 二转技能候选',(30,45)),('### 8.4 三转技能候选',(70,80))]:
         for row in table(heading):
             for cell,level,kind in zip(row[2:4],levels,('active','passive')):
@@ -197,7 +209,7 @@ def build() -> dict[str, list[dict]]:
             cost=(0,0)
             if name in active:
                 cost=tuple(map(float,active[name][2].rstrip('L').split('+')))
-            description=skill_description(name, active[name][1], rank) if kind=='active' else passive[name]
+            description=skill_description(name, active[name][1] if kind=='active' else passive[name], rank)
             put('skill_levels',dict(id=rid,skill_id=sid,rank=rank,required_level=min(99,learn+10*(rank-1)),
                  cost_base=cost[0],cost_per_level=cost[1],cost_rank_factor=1+.15*(rank-1),
                  cooldown_rounds=int(active[name][3]) if kind=='active' else 0,description=description,enabled=1))
@@ -221,20 +233,23 @@ def build() -> dict[str, list[dict]]:
         put('skills',dict(id=sid,name=name,profession_id=profession_id,learn_level=learn,kind='passive',enabled=1))
         for rank in (1,2,3):
             rid=f'{sid}.r{rank}'
+            description=f'穿戴对应类型的装备时生效：{equipment_type}'
+            if equipment_type == 'two_handed_sword':
+                description=f'装备双手剑时武器攻击贡献 +{int(bonuses[0][2][rank-1]*100)}%'
             put('skill_levels',dict(id=rid,skill_id=sid,rank=rank,required_level=min(99,learn+10*(rank-1)),
                  cost_base=0,cost_per_level=0,cost_rank_factor=1,cooldown_rounds=0,
-                 description=f'穿戴对应类型的装备时生效：{equipment_type}',enabled=1))
+                 description=description,enabled=1))
             for number,(kind,stat,values) in enumerate(bonuses,1):
                 put('skill_effects',dict(id=f'{rid}.e{number}',skill_level_id=rid,
                      **effect('passive_equipment_'+kind,stat,values[rank-1],target='self',group=equipment_type),chance=1))
 
     regions = [
-        ('moss_cave','苔石洞窟',1,12,[('slime','软泥怪',1,5,'plain'),('cave_bat','洞穴蝙蝠',3,8,'agile'),('moss_beast','苔石兽',8,12,'armored')],('moss_king','苔冠巨兽',10,12,'armored'),['黏液','蝠翼','苔石碎片'],'苔冠护符'),
-        ('abandoned_mine','废弃矿坑',10,25,[('mine_rat','矿洞鼠',10,16,'agile'),('ore_golem','矿石傀儡',14,22,'armored'),('iron_guard','铁甲矿卫',20,25,'armored')],('mine_giant','深矿巨像',22,25,'armored'),['矿鼠皮','铁矿','傀儡核心'],'深矿护符'),
-        ('mist_forest','迷雾林地',20,35,[('toxic_mushroom','毒蘑菇',20,27,'magic'),('mist_wolf','迷雾狼',24,32,'agile'),('ancient_guard','古树守卫',30,35,'armored')],('mist_treant','迷雾树王',32,35,'magic'),['孢子','狼牙','古木树脂'],'迷雾护符'),
-        ('sunken_ruins','沉没遗迹',30,50,[('ruin_skeleton','遗迹骷髅',30,40,'plain'),('water_spirit','幽水灵',36,46,'magic'),('ruin_knight','遗迹骑士',45,50,'armored')],('tide_priest','潮汐祭司',47,50,'magic'),['骨片','水灵精华','遗迹碎晶'],'潮汐护符'),
-        ('ember_fortress','灰烬堡垒',45,70,[('ash_demon','灰烬魔',45,56,'magic'),('lava_beast','熔岩兽',52,65,'plain'),('furnace_guard','熔炉守卫',63,70,'armored')],('ash_lord','灰烬领主',65,70,'magic'),['灰烬粉','熔岩碎片','火焰核心'],'灰烬护符'),
-        ('star_rift','星蚀裂隙',70,99,[('rift_walker','裂隙行者',70,88,'agile'),('star_golem','星蚀魔像',82,99,'armored'),('rift_lord','裂隙领主',90,99,'magic')],('star_overlord','星蚀主宰',95,99,'magic'),['裂隙粉尘','星蚀结晶','领主残核'],'星蚀护符')]
+        ('moss_cave','苔石洞窟',1,12,[('slime','软泥怪',1,5,'plain'),('cave_bat','洞穴蝙蝠',3,8,'agile'),('moss_beast','苔石兽',8,12,'armored')],('moss_king','苔冠巨兽',10,12,'armored'),['黏液','蝠翼','苔石碎片'],'苔冠吊坠'),
+        ('abandoned_mine','废弃矿坑',10,25,[('mine_rat','矿洞鼠',10,16,'agile'),('ore_golem','矿石傀儡',14,22,'armored'),('iron_guard','铁甲矿卫',20,25,'armored')],('mine_giant','深矿巨像',22,25,'armored'),['矿鼠皮','铁矿','傀儡核心'],'深矿吊坠'),
+        ('mist_forest','迷雾林地',20,35,[('toxic_mushroom','毒蘑菇',20,27,'magic'),('mist_wolf','迷雾狼',24,32,'agile'),('ancient_guard','古树守卫',30,35,'armored')],('mist_treant','迷雾树王',32,35,'magic'),['孢子','狼牙','古木树脂'],'迷雾吊坠'),
+        ('sunken_ruins','沉没遗迹',30,50,[('ruin_skeleton','遗迹骷髅',30,40,'plain'),('water_spirit','幽水灵',36,46,'magic'),('ruin_knight','遗迹骑士',45,50,'armored')],('tide_priest','潮汐祭司',47,50,'magic'),['骨片','水灵精华','遗迹碎晶'],'潮汐吊坠'),
+        ('ember_fortress','灰烬堡垒',45,70,[('ash_demon','灰烬魔',45,56,'magic'),('lava_beast','熔岩兽',52,65,'plain'),('furnace_guard','熔炉守卫',63,70,'armored')],('ash_lord','灰烬领主',65,70,'magic'),['灰烬粉','熔岩碎片','火焰核心'],'灰烬吊坠'),
+        ('star_rift','星蚀裂隙',70,99,[('rift_walker','裂隙行者',70,88,'agile'),('star_golem','星蚀魔像',82,99,'armored'),('rift_lord','裂隙领主',90,99,'magic')],('star_overlord','星蚀主宰',95,99,'magic'),['裂隙粉尘','星蚀结晶','领主残核'],'星蚀吊坠')]
     enemy_fx = {'strike':[damage(1.35)],'magic_strike':[damage(1.35,True)],
                 'evasion':[status('evasion',.1,2,'self')], 'guard':[status('reduction',.2,2,'self')],
                 'armor_break':[damage(1.2),status('physical_defense',-.2,2)],
@@ -278,25 +293,27 @@ def build() -> dict[str, list[dict]]:
         put('equipment_templates',dict(id='equip.boss.'+key,name=trophy,slot='accessory',root_job='',level_min=boss[2],level_max=99,
              physical_attack_base=0,physical_attack_growth=0,magic_attack_base=0,magic_attack_growth=0,hp_base=10,hp_growth=1,
              mp_base=5,mp_growth=1,physical_defense_base=0,physical_defense_growth=0,magic_defense_base=0,magic_defense_growth=0,
-             healing_base=0,healing_growth=0,evasion=0,boss_only=1,enabled=1,equipment_type='',required_mastery='',grip=''))
+             healing_base=0,healing_growth=0,evasion=0,boss_only=1,enabled=1,equipment_type='pendant',required_mastery='',grip=''))
         put('boss_drops',dict(id=did+'.trophy',monster_id='monster.'+boss[0],equipment_id='equip.boss.'+key,exclusive_probability=.5))
 
     gear=[
-        ('sword','长剑','weapon','warrior',1,99,'','','one_handed'),
-        ('axe','战斧','weapon','warrior',1,99,'','','one_handed'),
-        ('bow','长弓','weapon','ranger',1,99,'','','one_handed'),
-        ('dagger','匕首','weapon','ranger',1,99,'','','one_handed'),
-        ('staff','法杖','weapon','mage',1,99,'','','one_handed'),
-        ('holy_staff','圣杖','weapon','priest',30,99,'holy_staff','skill.player.070','one_handed'),
-        ('staff.two_handed','双手杖','weapon','',30,99,'two_handed_staff','skill.player.069','two_handed'),
-        ('head','头饰','head','',1,99,'','',''),
-        ('body','新手护甲','body','',1,30,'','',''),
-        ('hands','新手手套','hands','',1,30,'','',''),
-        ('feet','新手靴子','feet','',1,30,'','',''),
-        ('charm','护符','accessory','',1,99,'','',''),
-        ('offhand.magic_shield','魔法盾','offhand','',10,99,'magic_shield','skill.player.067',''),
-        ('offhand.small_shield','小盾','offhand','',30,99,'small_shield','skill.player.068',''),
-        ('offhand.large_shield','大盾','offhand','',70,99,'large_shield','skill.player.071',''),
+        ('training_sword','训练木剑','weapon','',1,10,'generic','','one_handed'),
+        ('sword','长剑','weapon','warrior',10,30,'long_sword','','one_handed'),
+        ('axe','战斧','weapon','warrior',10,30,'axe','','one_handed'),
+        ('bow','长弓','weapon','ranger',10,30,'bow','','one_handed'),
+        ('dagger','匕首','weapon','ranger',10,30,'dagger','','one_handed'),
+        ('mage_staff','法杖','weapon','mage',10,30,'mage_staff','','one_handed'),
+        ('staff','双手杖','weapon','mage',30,50,'two_handed_staff','skill.player.069','two_handed'),
+        ('holy_staff','圣杖','weapon','priest',30,50,'holy_staff','skill.player.070','one_handed'),
+        ('body','新手护甲','body','',1,10,'','',''),
+        ('hands','新手手套','hands','',1,10,'','',''),
+        ('feet','新手靴子','feet','',1,10,'','',''),
+        ('charm','吊坠','accessory','',10,30,'pendant','',''),
+        ('ring','戒指','accessory','',1,30,'ring','',''),
+        ('offhand.magic_shield','魔法盾','offhand','',10,30,'magic_shield','skill.player.067',''),
+        ('offhand.small_shield','小盾','offhand','',30,50,'small_shield','skill.player.068',''),
+        ('offhand.large_shield','大盾','offhand','',50,70,'large_shield','skill.player.071',''),
+        ('two_handed_sword','双手剑','weapon','',50,70,'two_handed_sword','skill.player.072;skill.player.073','two_handed'),
     ]
     armor_types=[
         ('cloth','布甲','cloth_armor','skill.player.061;skill.player.062',10),
@@ -312,9 +329,24 @@ def build() -> dict[str, list[dict]]:
         'light':('轻甲外衣','轻甲手套','轻甲短靴'),
         'plate':('板甲胸甲','板甲护手','板甲战靴'),
     }
+    def level_tiers(start: int) -> list[tuple[int,int]]:
+        result=[]
+        low=start
+        while low < 99:
+            high=min(99,low+20)
+            result.append((low,high))
+            low=high
+        return result
+
+    # Basic headwear and mastered armor progress in 20-level bands. A mastery
+    # tier starts at the level where its equipment skill becomes available.
+    for low,high in level_tiers(10):
+        gear.append((f'head{("."+str(low)) if low>10 else ""}','头饰','head','',low,high,'','',''))
     for key,label,equipment_type,mastery,level_min in armor_types:
         for slot,name in zip(('body','hands','feet'),armor_names[key]):
-            gear.append((f'armor.{key}.{slot}',name,slot,'',level_min,99,equipment_type,mastery,''))
+            for low,high in level_tiers(level_min):
+                suffix=f'.{low}' if low>level_min else ''
+                gear.append((f'armor.{key}.{slot}{suffix}',name,slot,'',low,high,equipment_type,mastery,''))
 
     for key,name,slot,root_job,level_min,level_max,equipment_type,required_mastery,grip in gear:
         row=dict(id='equip.'+key,name=name,slot=slot,root_job=root_job,level_min=level_min,level_max=level_max,
@@ -334,19 +366,26 @@ def build() -> dict[str, list[dict]]:
         elif key=='offhand.large_shield':row.update(physical_defense_base=4,physical_defense_growth=.8,magic_defense_base=3,magic_defense_growth=.7)
         else:row.update(hp_base=10,hp_growth=1,mp_base=5,mp_growth=1)
         put('equipment_templates',row)
-    affixes=[(stat,1,.04,2,.08,'all') for stat in STATS]+[
-        ('physical_attack',2,.12,5,.24,'weapon;hands;accessory'),('magic_attack',2,.12,5,.24,'weapon;hands;accessory'),
-        ('hp_max',10,2,20,4,'head;body;accessory'),('mp_max',8,1,16,2,'head;accessory'),
-        ('physical_defense',1,.06,2,.12,'head;body;feet;accessory'),('magic_defense',1,.06,2,.12,'head;body;feet;accessory'),
-        ('healing',2,.1,4,.2,'weapon;head;accessory'),('critical',.005,0,.02,0,'weapon;hands;accessory'),
-        ('critical_damage',.03,0,.08,0,'weapon;hands;accessory'),('accuracy',.01,0,.03,0,'weapon;hands'),('evasion',.01,0,.03,0,'feet;accessory')]
-    for stat,lo,lg,hi,hg,slots in affixes:
+    affixes=[(stat,1,.04,2,.08) for stat in STATS]+[
+        ('physical_attack',2,.12,5,.24),('magic_attack',2,.12,5,.24),
+        ('hp_max',10,2,20,4),('mp_max',8,1,16,2),
+        ('physical_defense',1,.06,2,.12),('magic_defense',1,.06,2,.12),
+        ('healing',2,.1,4,.2),('critical',.005,0,.02,0),
+        ('critical_damage',.03,0,.08,0),('accuracy',.01,0,.03,0),('evasion',.01,0,.03,0)]
+    equipment_slots=('weapon','offhand','head','body','hands','feet','accessory')
+    affix_slots_by_stat={
+        **{stat:set(equipment_slots) for stat in (*STATS,'hp_max','mp_max','healing')},
+        'physical_attack':{'weapon','accessory'},'magic_attack':{'weapon','accessory'},
+        'physical_defense':{'offhand','head','body','hands','feet','accessory'},
+        'magic_defense':{'offhand','head','body','hands','feet','accessory'},
+        'critical':{'accessory'},'critical_damage':{'accessory'},
+        'accuracy':{'hands'},'evasion':{'feet'},
+    }
+    for stat,lo,lg,hi,hg in affixes:
         put('affixes',dict(id='affix.'+stat,stat=stat,min_base=lo,min_growth=lg,max_base=hi,max_growth=hg,
             unit='ratio' if stat in ('critical','critical_damage','accuracy','evasion') else 'integer',enabled=1))
-        for slot in (['weapon','head','body','hands','feet','accessory'] if slots=='all' else slots.split(';')):
+        for slot in sorted(affix_slots_by_stat[stat]):
             put('affix_slots',dict(id=f'affix.{stat}.{slot}',affix_id='affix.'+stat,slot=slot))
-    for stat in ('strength','vitality','intelligence','spirit','hp_max','mp_max','physical_defense','magic_defense','healing'):
-        put('affix_slots',dict(id=f'affix.{stat}.offhand',affix_id='affix.'+stat,slot='offhand'))
     templates=result['equipment_templates']
     for row in result['professions']:
         job=row['name']; cursor=job
@@ -355,32 +394,29 @@ def build() -> dict[str, list[dict]]:
         branch=job
         while branch in parents and parents[branch] not in ('新手','战士','法师','游侠','牧师'):branch=parents[branch]
         for equip in templates:
-            allowed=not equip['root_job'] or equip['root_job']==root
-            if root=='novice':allowed=not equip['root_job'] or equip['root_job'] in ('warrior','ranger')
-            if branch=='弓手' and equip['slot']=='weapon':allowed=equip['id']=='equip.bow'
-            if branch=='刺客' and equip['slot']=='weapon':allowed=equip['id']=='equip.dagger'
+            required_mastery=[value for value in equip.get('required_mastery','').split(';') if value]
+            if required_mastery:
+                ancestry=set()
+                cursor=row
+                while cursor:
+                    ancestry.add(cursor['id'])
+                    cursor=next((candidate for candidate in result['professions'] if candidate['id']==cursor['parent_id']),None) if cursor['parent_id'] else None
+                mastery_professions={skill['id']:skill['profession_id'] for skill in result['skills'] if skill['kind']=='passive'}
+                allowed=any(mastery_professions.get(identity) in ancestry for identity in required_mastery)
+            else:
+                allowed=not equip['root_job'] or equip['root_job']==root
+            if not required_mastery and branch=='弓手' and equip['slot']=='weapon':allowed=equip['id']=='equip.bow'
+            if not required_mastery and branch=='刺客' and equip['slot']=='weapon':allowed=equip['id']=='equip.dagger'
+            if equip['id']=='equip.training_sword':allowed=True
             if allowed:put('equipment_professions',dict(id=equip['id']+'.'+row['id'],equipment_id=equip['id'],profession_id=row['id']))
     for equip in templates:
-        for slotrow in result['affix_slots']:
-            if slotrow['slot']!=equip['slot']:continue
-            stat=slotrow['affix_id'].removeprefix('affix.')
-            if equip['slot']=='weapon':
-                physical=bool(equip['physical_attack_base'])
-                if stat=='healing' and equip['id']!='equip.holy_staff':continue
-                if stat=='physical_attack' and not physical:continue
-                if stat=='magic_attack' and physical:continue
-                if physical and stat in ('intelligence','spirit'):continue
-                if not physical and stat=='strength':continue
-            if equip['slot']=='offhand':
-                allowed_stats={
-                    'equip.offhand.magic_shield':{'intelligence','magic_defense','healing'},
-                    'equip.offhand.small_shield':{'strength','vitality','physical_defense'},
-                    'equip.offhand.large_shield':{'vitality','physical_defense','magic_defense'},
-                }[equip['id']]
-                if stat not in allowed_stats:continue
-            put('equipment_affixes',dict(id=equip['id']+'.'+slotrow['affix_id'],equipment_id=equip['id'],affix_id=slotrow['affix_id'],weight=1))
+        for affix in result['affixes']:
+            if equip['slot'] in affix_slots_by_stat[affix['stat']]:
+                put('equipment_affixes',dict(id=equip['id']+'.'+affix['id'],equipment_id=equip['id'],affix_id=affix['id'],weight=1))
     for key,*_ in regions:
-        for eid,*_ in gear:put('equipment_pools',dict(id=f'pool.{key}.{eid}',pool_id='pool.'+key,equipment_id='equip.'+eid,weight=1))
+        for equip in templates:
+            if int(equip['boss_only']) == 0:
+                put('equipment_pools',dict(id=f'pool.{key}.{equip["id"].removeprefix("equip.")}',pool_id='pool.'+key,equipment_id=equip['id'],weight=1))
     for kind,values in [('heal',[60,250,1000,2500]),('mana',[40,150,600,1500])]:
         for tier,(value,level,price) in enumerate(zip(values,[1,10,30,70],[6,14,30,60]),1):
             put('potions',dict(id=f'potion.{kind}.{tier}',name=('治疗' if kind=='heal' else '回蓝')+f'药剂{tier}',kind=kind,restore_value=value,
@@ -429,7 +465,7 @@ def main() -> None:
         with path.open('w',newline='',encoding='utf-8') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(values[0]));writer.writeheader();writer.writerows(values)
         files[path.name]={'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'rows':len(values)}
-    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.5',status='design_only',engine_schema=4,files=files),ensure_ascii=False,indent=2)+'\n')
+    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.13',status='design_only',engine_schema=5,files=files),ensure_ascii=False,indent=2)+'\n')
     print(json.dumps({key:len(value) for key,value in rows.items()},ensure_ascii=False))
 
 

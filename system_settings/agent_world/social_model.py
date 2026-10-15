@@ -68,7 +68,7 @@ def decide_social(agent, context, *, owner=None):
     # The decision stage does not need image inventories or publishing schemas.
     selection_context = {k: v for k, v in projected.items() if k not in ('image_choices', 'existing_images')}
     selected_key = choose_scene(owner, agent, 'social_action', selection_context, descriptions, deadline=deadline)
-    source = '唯一合法候选' if len(options) == 1 else 'JEV' if selected_key else '普通模型'
+    source = '唯一合法候选' if len(options) == 1 else '结构化决策模型' if selected_key else '普通模型'
     if selected_key is None:
         def validate_selection(value):
             if value.get('choice') not in options:

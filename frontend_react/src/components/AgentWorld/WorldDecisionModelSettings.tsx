@@ -15,6 +15,7 @@ export function WorldDecisionModelSettings() {
     const toast = useToast();
     const decisionConfig = useDecisionConfig();
     const [jevEnabled, setJevEnabled] = useState(false);
+    const [decisionConnectionId, setDecisionConnectionId] = useState('jev');
     const [excluded, setExcluded] = useState<string[]>([]);
     const [config, setConfig] = useState<LifeConfig | null>(null);
     const [models, setModels] = useState<ChatModel[]>([]);
@@ -40,6 +41,7 @@ export function WorldDecisionModelSettings() {
                 setModels(chatModels);
                 setConfig(lifeConfig);
                 setJevEnabled(lifeConfig.settings.jevEnabled ?? false);
+                setDecisionConnectionId(lifeConfig.settings.decisionConnectionId || 'jev');
                 setExcluded(lifeConfig.settings.jevExcludedScenes || []);
                 setModelId(configuredModelExists ? configuredModelId : '');
                 setMissingSavedModel(Boolean(configuredModelId && !configuredModelExists));
@@ -61,7 +63,8 @@ export function WorldDecisionModelSettings() {
         setSaving(true);
         setError('');
         try {
-            const saved = await saveLifeConfig({...config.settings, decisionModelId: modelId, jevEnabled, jevExcludedScenes: excluded});
+            const saved = await saveLifeConfig({...config.settings, decisionModelId: modelId,
+                decisionConnectionId, jevEnabled, jevExcludedScenes: excluded});
             setConfig(saved);
             setModelId(saved.settings.decisionModelId || '');
             setMissingSavedModel(false);
@@ -86,6 +89,16 @@ export function WorldDecisionModelSettings() {
             label: `${model.providerName} / ${model.displayName || model.name}`,
         })),
     ];
+    const decisionConnections = decisionConfig.config?.connections || decisionConfig.config?.providers || [];
+    const connectionOptions = decisionConnections.map(connection => ({
+        value: connection.id,
+        label: connection.name,
+        description: `${connection.protocol === 'systemone' ? 'JEV / System One' : 'OpenAI Chat + JSON'} · ${connection.apiKeyConfigured ? '本机密钥已配置' : connection.id === 'jev' ? '本机需配置密钥' : '无本机密钥'}`,
+    }));
+    const savedConnectionExists = decisionConnections.some(connection => connection.id === decisionConnectionId);
+    if (decisionConnectionId && !savedConnectionExists) {
+        connectionOptions.push({value: decisionConnectionId, label: `不可用连接（${decisionConnectionId}）`, description: '连接已删除或尚未从 WebDev 同步'});
+    }
 
     return (
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -94,21 +107,21 @@ export function WorldDecisionModelSettings() {
                     <BrainCircuit className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-bold text-slate-800">统一决策模型</h3>
+                    <h3 className="text-sm font-bold text-slate-800">统一决策设置</h3>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                        JEV 优先处理有限候选选择；普通决策按任务或世界模型、居民模型、系统默认逐层兜底。正文生成使用任务、居民和系统模型。
+                        有限候选选择使用结构化决策连接；不可用时回退普通文本模型。正文生成仍使用任务、居民和系统模型。
                     </p>
                 </div>
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                <p className="text-xs font-semibold text-slate-700">模型优先级</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">世界决策模型 → 居民模型 → 系统默认对话模型</p>
+                <p className="text-xs font-semibold text-slate-700">决策优先级</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">所选结构化决策连接 → 普通文本决策模型 → 居民模型 → 系统默认对话模型</p>
             </div>
 
             <div className="mt-5 max-w-2xl space-y-2">
                 <label className="block space-y-2 text-sm font-semibold text-slate-700">
-                    <span>世界决策模型</span>
+                    <span>普通文本决策模型（兜底）</span>
                     {loading ? (
                         <span className="flex min-h-10 items-center gap-2 text-xs font-normal text-slate-400">
                             <Loader2 className="h-4 w-4 animate-spin" />正在加载模型…
@@ -122,16 +135,33 @@ export function WorldDecisionModelSettings() {
                                 setModelId(value);
                                 setMissingSavedModel(false);
                             }}
-                            placeholder="选择决策模型"
+                            placeholder="选择普通文本模型"
+                            disabled={saving || !config}
+                        />
+                    )}
+                </label>
+                <label className="block space-y-2 text-sm font-semibold text-slate-700">
+                    <span>结构化决策连接</span>
+                    {decisionConfig.loading ? (
+                        <span className="flex min-h-10 items-center gap-2 text-xs font-normal text-slate-400"><Loader2 className="h-4 w-4 animate-spin"/>正在加载连接…</span>
+                    ) : decisionConfig.error ? (
+                        <span className="text-xs font-normal text-red-600">{decisionConfig.error}</span>
+                    ) : (
+                        <Select
+                            menuPortal
+                            value={decisionConnectionId}
+                            options={connectionOptions}
+                            onChange={setDecisionConnectionId}
+                            placeholder="选择决策连接"
                             disabled={saving || !config}
                         />
                     )}
                 </label>
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <Checkbox checked={jevEnabled} onChange={setJevEnabled} disabled={loading || saving} label="优先使用 JEV 处理有限候选决策"/>
-                    <p className="text-xs leading-5 text-slate-500">密钥仅保存在本机，在 AI 模型接入 → 决策模型中配置。未配置或调用失败时自动转普通模型。</p>
+                    <Checkbox checked={jevEnabled} onChange={setJevEnabled} disabled={loading || saving} label="启用结构化决策连接处理有限候选选择"/>
+                    <p className="text-xs leading-5 text-slate-500">连接信息和选择随 WebDev 同步；API Key 仅保存在本机。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。未配置或调用失败时使用普通文本模型。</p>
                     {decisionConfig.error && <p role="alert" className="text-xs text-red-600">{decisionConfig.error}<button type="button" onClick={() => void decisionConfig.refresh()} className="ml-2 underline">重试</button></p>}
-                    {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">本机 JEV：{decisionConfig.config?.providers.some(provider => provider.id === 'jev' && provider.configured) ? '已配置' : '未配置'}</p>}
+                    {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">所选连接：{decisionConnections.find(connection => connection.id === decisionConnectionId)?.configured ? '连接信息完整' : '本机可能需要补充 API Key 或同步连接信息'}</p>}
                     {jevEnabled && <div className="space-y-2"><p className="text-xs font-semibold text-slate-600">排除场景（勾选后使用普通模型）</p><div className="grid gap-2 sm:grid-cols-2">
                         {Object.entries({market: '市场选择', life_activity: '生活活动选择', social_action: '社交行为选择', travel_destination: '旅行目的地', travel_visit: '旅行游览', travel_event: '旅行遭遇'}).map(([key, label]) => <Checkbox key={key} checked={excluded.includes(key)} disabled={saving} onChange={checked => setExcluded(previous => checked ? [...previous, key] : previous.filter(item => item !== key))} label={label}/>)}
                     </div></div>}

@@ -47,7 +47,8 @@ from .agent_world.social_views import SocialView
 from .agent_world.cooking_views import CookingRecipesView, CookingRecipeView, CookingSkillView, CookingHistoryView
 
 from .token_usage.views import TokenUsageView
-from .decision.views import DecisionConfigView, DecisionTestView
+from .decision.views import (DecisionConfigView, DecisionTestView,
+                             DecisionConnectionCollectionView, DecisionConnectionDetailView)
 
 from .agent_world.combat.views import CombatView
 
@@ -56,6 +57,9 @@ from .agent_world.publish_media_views import PostPhotoView
 urlpatterns = [
     path('decision-models/', DecisionConfigView.as_view()),
     path('decision-models/test/', DecisionTestView.as_view()),
+    path('decision-models/connections/', DecisionConnectionCollectionView.as_view()),
+    path('decision-models/connections/<str:connection_id>/', DecisionConnectionDetailView.as_view()),
+    path('decision-models/connections/<str:connection_id>/test/', DecisionTestView.as_view()),
     path('agent-world/posts/<str:post_id>/photo/', PostPhotoView.as_view()),
     path('agent-world/combat/catalog/', CombatView.as_view()),
     path('agent-world/combat/config/', CombatView.as_view(kind='config')),

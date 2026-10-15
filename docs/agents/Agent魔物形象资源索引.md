@@ -174,7 +174,7 @@
 | 资源 | 登记与实现 | 接入状态 |
 | --- | --- | --- |
 | 29 职业外观与独立氛围 | `Combat/art/professionConcepts.ts`、`professionAuras.ts`、`animation/playerAppearance/` | 列表同源缓存图、详情同一 Actor 待机 |
-| 6 独立武器 | `equip.sword`、`equip.axe`、`equip.bow`、`equip.dagger`、`equip.staff`、`equip.holy_staff` | 装备列表/详情展示原源图，未重新设计 |
+| 6 件武器素材 | `equip.sword`、`equip.axe`、`equip.bow`、`equip.dagger`、`equip.mage_staff`、`equip.staff`、`equip.holy_staff` | 法杖与双手杖共用水晶杖裁片；装备列表/详情展示原源图，未重新设计 |
 | 32 目录主动技能 | `Combat/animation/skillPreview/`、`atlas/SkillPreviewDialog.tsx` | 各职业详情与主动技能行可播放，暂停/拖动/换演示武器 |
 | 新手基础攻击 | `preview.novice.strike` | 仅前端示意，未加入持久技能目录 |
 | 24 现有材料 | `Combat/art/materialVisuals.ts`、`materialArtDrawing.ts`、`atlas/MaterialPortrait.tsx` | 同源列表/详情像素图，价格与掉落不变 |

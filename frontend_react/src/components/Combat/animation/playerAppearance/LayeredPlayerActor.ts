@@ -120,7 +120,7 @@ export class LayeredPlayerActor extends Container {
                 this.weaponRestRotation=registration.rotation;
                 // Registered in item texture coordinates; read the live transform
                 // after placement so a replaced weapon never emits from the wrist.
-                this.emitter=options.weapon==='equip.staff'?{x:width*.58,y:height*.13}
+                this.emitter=options.weapon==='equip.staff'||options.weapon==='equip.mage_staff'?{x:width*.58,y:height*.13}
                     :options.weapon==='equip.bow'?registration.grip:{x:width*.55,y:height*.16};
             }
         }

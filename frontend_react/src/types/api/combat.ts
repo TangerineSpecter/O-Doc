@@ -3,7 +3,7 @@ import type {BattleAppearanceOverlays} from './setting';
 export interface CombatRow {id: string; name?: string; [key: string]: string | undefined}
 export interface CombatCatalog {version: string; tables: Record<string, CombatRow[]>; monsterPreviews: {id: string; level: number; attributes: Record<string, number | string>}[]}
 export interface EquipmentSnapshot {templateId: string; name: string; slot: string; equipmentType?: string; grip?: string; level: number; quality: string; value: string; stats: Record<string, number>; affixes: {id: string; stat: string; value: number}[]}
-export interface CombatEquipment {id: string; templateId?:string; snapshot: EquipmentSnapshot; bound: boolean; locked: boolean; value: string}
+export interface CombatEquipment {id: string; templateId?:string; displayType?: string; snapshot: EquipmentSnapshot; bound: boolean; locked: boolean; value: string}
 export interface CombatProfile {
     discoveries: {encountered: string[]; defeated: string[]; equipment: string[]}; initialized: boolean; actorId: string; progression: {level: number; experience: number; job: string; stats: Record<string, number>; skills: Record<string, number>};
     attributes: Record<string, number | string>; hp: number; mp: number; loadout: Record<string, string>; equipment: CombatEquipment[];

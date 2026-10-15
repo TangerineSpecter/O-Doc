@@ -43,10 +43,14 @@ class CombatView(APIView):
             with farm_gate(),transaction.atomic():
                 if self.kind=='catalog':return respond(queries.catalog_view())
                 if self.kind=='config':return respond(queries.config(owner))
-                if self.kind in ('profile','history'):
+                if self.kind=='profile':
+                    agent=actor_for(owner,identity)
+                    profile=CombatProfile.objects.select_for_update().filter(pk=identity,owner_id=owner).first()
+                    if profile:profiles.recover_expired_rest(profile)
+                    return respond(queries.profile_view(owner,agent))
+                if self.kind=='history':
                     profile=CombatProfile.objects.filter(pk=identity,owner_id=owner).first()
-                    agent=actor_for(owner,identity) if not profile or self.kind=='profile' else None
-                    if self.kind=='profile':return respond(queries.profile_view(owner,agent))
+                    if not profile:actor_for(owner,identity)
                     page=int(request.GET.get('page',1))
                     if page<1:raise ValueError('页码无效')
                     return respond(queries.history(owner,identity,page))

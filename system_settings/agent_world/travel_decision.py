@@ -10,7 +10,14 @@ def selection_for(journey, node, context):
         from decimal import Decimal
         available = Decimal(str(funds.get('available', context.get('balance', '0'))))
         choices = {row['id']: row for row in context.get('candidates', []) if Decimal(str(row['price'])) <= available}
-        choices['skip'] = '本次不去'
+        from .life_scope import CURRENT
+        scope = CURRENT.get()
+        scheduled_life_trip = bool(
+            scope and scope.get('actor_id') == journey.actor_id
+            and (scope.get('context') or {}).get('current', {}).get('activity') == 'travel'
+        )
+        if not scheduled_life_trip:
+            choices['skip'] = '本次不去'
         scene, field = 'travel_destination', 'destination_id'
     elif phase.startswith('visit-'):
         choices = {key: key for key in ('游览', '拍照', '休息', '略过')}

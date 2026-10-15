@@ -11,7 +11,7 @@ from ..farm_gate import guarded
 from ..life_time import local_time, storage_time
 
 OPEN = ('preparing', 'active', 'paused', 'settling')
-EQUIPMENT_SLOTS = {'weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'accessory'}
+EQUIPMENT_SLOTS = {'weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'accessory', 'ring_1', 'ring_2'}
 
 
 def two_handed(item, catalog) -> bool:
@@ -32,12 +32,17 @@ def apply_loadout_changes(profile, catalog, changes, owner):
             candidate.pop(slot, None)
             continue
         item = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, owner_id=owner, sold=False).first()
-        if (not item or item.snapshot['slot'] != slot or
+        if (not item or not equipment.loadout_slot_matches(catalog, item.template_id, item.snapshot, slot) or
                 not equipment.allowed(catalog, item.template_id, profile.progression['job'],
                                       profile.progression['level'], item.snapshot['level'])):
             raise ValueError('装备不属于居民或不满足穿戴条件')
+        for current_slot, current_identity in list(candidate.items()):
+            if current_identity == identity and current_slot != slot:
+                candidate.pop(current_slot)
         candidate[slot] = identity
 
+    if len(set(candidate.values())) != len(candidate):
+        raise ValueError('同一件装备不能同时占用多个装备槽')
     weapon = EquipmentInstance.objects.filter(pk=candidate.get('weapon'), actor_id=profile.pk, sold=False).first()
     if two_handed(weapon, catalog):
         if changes.get('offhand') is not None:
@@ -67,7 +72,7 @@ def ensure(owner, agent, now=None):
     identity,_=LifeProfile.objects.get_or_create(pk=agent.pk,defaults={'owner_id':owner})
     if identity.owner_id!=owner:raise ValueError('居民所属账号不一致')
     catalog = current()
-    item = equipment.generate(catalog, 'equip.sword', 1, 'white', random.Random(agent.pk), starter=True)
+    item = equipment.generate(catalog, 'equip.training_sword', 1, 'white', random.Random(agent.pk), starter=True)
     gear = EquipmentInstance.objects.create(pk='starter:'+agent.pk, owner_id=owner, actor_id=agent.pk, catalog_id=catalog.version,
         template_id=item['template_id'], snapshot=item, bound=True)
     profile = CombatProfile.objects.create(pk=agent.pk, owner_id=owner, actor_name=agent.name, catalog_id=catalog.version,
@@ -102,6 +107,20 @@ def recover(profile, now):
         profile.mp=min(derived['mp_max'],profile.mp+max(1,int(derived['mp_max']*.1))*mp_blocks)
         profile.recovered_at=recovery_base+timedelta(seconds=mp_blocks*300)
     profile.save()
+
+
+def recover_expired_rest(profile, now=None):
+    """Clear a fallen resident's elapsed rest deadline and record the recovery."""
+    now = local_time(now)
+    if not profile.rest_until:
+        return False
+    rest_until = local_time(profile.rest_until)
+    if now < rest_until or Exploration.objects.filter(actor_id=profile.pk, status__in=OPEN).exists():
+        return False
+    recover(profile, now)
+    key = 'rest:' + profile.pk + ':' + hashlib.sha256(rest_until.isoformat().encode()).hexdigest()[:24]
+    append(profile, key, 'rest_recovery', {'rest_until': rest_until.isoformat(), 'hp': profile.hp, 'mp': profile.mp})
+    return True
 
 
 def adopt_catalog(profile,catalog):
@@ -152,17 +171,16 @@ def promote(owner, agent, key, job, *, exploration_id='', reason=''):
         item = EquipmentInstance.objects.get(pk=identity)
         if not equipment.allowed(catalog,item.template_id,job,profile.progression['level'],item.snapshot['level']):
             del profile.loadout[slot]
+    if job == 'job.mage' and 'equip.mage_staff' in catalog.index['equipment_templates']:
+        weapon = EquipmentInstance.objects.filter(pk=profile.loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
+        if weapon and weapon.template_id == 'equip.training_sword':
+            profile.loadout.pop('weapon', None)
     weapon = EquipmentInstance.objects.filter(pk=profile.loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
     if two_handed(weapon, catalog):
         profile.loadout.pop('offhand', None)
     if 'weapon' not in profile.loadout:
         level = int(catalog.row('professions',job)['required_level'])
-        template = next(r['equipment_id'] for r in catalog.tables['equipment_professions']
-                        if r['profession_id'] == job and
-                        catalog.row('equipment_templates', r['equipment_id'])['slot'] == 'weapon' and
-                        int(catalog.row('equipment_templates', r['equipment_id'])['level_min']) <= level <=
-                        int(catalog.row('equipment_templates', r['equipment_id'])['level_max']) and
-                        equipment.allowed(catalog, r['equipment_id'], job, level, level))
+        template = equipment.promotion_weapon(catalog, job, level)
         item = equipment.generate(catalog,template,level,'white',random.Random(key),starter=True)
         gear = EquipmentInstance.objects.create(pk='promotion:'+hashlib.sha256(key.encode()).hexdigest()[:54],owner_id=owner,actor_id=agent.pk,catalog_id=catalog.version,template_id=template,snapshot=item,bound=True)
         profile.loadout['weapon'] = gear.pk

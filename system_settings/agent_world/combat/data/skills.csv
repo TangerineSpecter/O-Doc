@@ -69,7 +69,7 @@ skill.player.067,魔法盾精通,job.mage,10,passive,1
 skill.player.068,小盾精通,job.guardian,30,passive,1
 skill.player.069,双手杖精通,job.elementalist,30,passive,1
 skill.player.070,圣杖精通,job.cleric,30,passive,1
-skill.player.071,大盾精通,job.spellblade,70,passive,1
+skill.player.071,大盾精通,job.spellblade,50,passive,1
 skill.monster.strike,重击,,1,monster,1
 skill.monster.magic_strike,灵击,,1,monster,1
 skill.monster.evasion,闪身,,1,monster,1
@@ -80,3 +80,6 @@ skill.monster.heal,再生,,1,monster,1
 skill.monster.shield,灵盾,,1,monster,1
 skill.monster.burn,炎灼,,1,monster,1
 skill.monster.curse,星蚀咒,,1,monster,1
+skill.player.072,双手剑精通,job.swordsman,30,passive,1
+skill.player.073,双手剑精通,job.berserker,50,passive,1
+skill.player.074,圣愈,job.priest,20,passive,1

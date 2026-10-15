@@ -48,6 +48,17 @@ def profile_view(owner,agent):
     progression=profile.progression if profile else attributes.initial()
     derived=stats(profile,catalog) if profile else attributes.attributes(catalog,progression,[])
     equipment=list(EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False).order_by('-created_at').values())
+    discovered_equipment=set(EquipmentInstance.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('template_id',flat=True))
+    for item in equipment:
+        snapshot=item.get('snapshot') or {}
+        template=catalog.index['equipment_templates'].get(item['template_id'])
+        if (not snapshot.get('equipment_type') and template and not template.get('root_job') and
+                not template.get('required_mastery')):
+            item['display_type']='generic'
+        elif (item['template_id']=='equip.sword' and item.get('bound') and snapshot.get('name')=='训练木剑'):
+            # Existing starter snapshots keep their original template ID and catalog version.
+            item['display_type']='generic'
+            discovered_equipment.add('equip.training_sword')
     skills=[{'id':sid,'rank':rank,**catalog.row('skills',sid),'parameters':{**catalog.skill(sid,rank)[0],'current_cost':str(engine.cost(catalog,{'level':progression['level'],'passives':attributes.passives(catalog,progression['skills'])},sid,rank))},'effects':catalog.skill(sid,rank)[1]} for sid,rank in progression['skills'].items()]
     run=Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,status__in=['preparing','active','paused','settling']).first()
     options=attributes.promotion_options(catalog,progression)
@@ -60,7 +71,7 @@ def profile_view(owner,agent):
         'materials':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['materials']],
         'active_exploration_id':run.pk if run else None,'promotion_options':options,'promotion_busy':promotion_busy,
         'rest_until':local_time(profile.rest_until).isoformat() if profile and profile.rest_until else None,
-        'loot_progress':profile.loot_progress if profile else {},'discoveries':{'encountered':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('monster__id',flat=True))),'defeated':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk,result__killed=True).values_list('monster__id',flat=True))),'equipment':sorted(set(EquipmentInstance.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('template_id',flat=True)))}}
+        'loot_progress':profile.loot_progress if profile else {},'discoveries':{'encountered':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('monster__id',flat=True))),'defeated':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk,result__killed=True).values_list('monster__id',flat=True))),'equipment':sorted(discovered_equipment)}}
 
 
 def snapshot(run,cursor=0,limit=100):

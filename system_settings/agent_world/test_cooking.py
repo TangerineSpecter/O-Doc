@@ -43,10 +43,9 @@ class CookingRuleTests(SimpleTestCase):
 
     def test_plan_limits(self):
         options = [{'id': 'x', 'max_portions': 6}, {'id': 'y', 'max_portions': 6}]
-        for choices in ([{'recipe_id': 'x', 'quantity': 7}], [{'recipe_id': 'x', 'quantity': 4}, {'recipe_id': 'y', 'quantity': 3}], [{'recipe_id': 'bad', 'quantity': 1}], [{'recipe_id': 'x', 'quantity': True}], [{'recipe_id': 'x', 'quantity': 1, 'price': 1}]):
+        for choices in ([], [{'recipe_id': 'x', 'quantity': 7}], [{'recipe_id': 'x', 'quantity': 4}, {'recipe_id': 'y', 'quantity': 3}], [{'recipe_id': 'bad', 'quantity': 1}], [{'recipe_id': 'x', 'quantity': True}], [{'recipe_id': 'x', 'quantity': 1, 'price': 1}]):
             with self.subTest(choices=choices), self.assertRaises(ValueError):
                 validate_decision({'choices': choices, 'reason': '制作'}, options)
-        self.assertEqual(validate_decision({'choices': [], 'reason': '休息'}, options)['choices'], [])
 
 
 class CookingTests(TestCase):

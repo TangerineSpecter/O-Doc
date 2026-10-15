@@ -35,14 +35,15 @@ def finish_running(config, now):
         if trip:
             if trip.status in ('completed','skipped','failed','cancelled') or trip.phase=='done':
                 action=WorldAction.objects.filter(pk=trip.pk).first() or WorldAction.objects.filter(pk=key).first()
-                revise(item,'旅行工作流结束',status='completed' if trip.status=='completed' else 'rest' if trip.status=='skipped' else 'cancelled' if trip.status=='cancelled' else 'failed',record_id=action.record_id if action and action.record_id else '',result={'reason':trip.snapshot.get('skip_reason','旅行结束')})
+                revise(item,'旅行工作流结束',status='completed' if trip.status=='completed' else 'cancelled' if trip.status=='cancelled' else 'failed',record_id=action.record_id if action and action.record_id else '',result={'reason':trip.snapshot.get('skip_reason','旅行结束')})
                 if trip.agent:check_goals(config.pk,trip.agent)
             elif trip.status in ('manual','paused') and item.result.get('reason')!='旅行工作流待人工处理，可在旅行面板继续或说明原因取消':
                 revise(item,'旅行需要人工接续',result={'reason':'旅行工作流待人工处理，可在旅行面板继续或说明原因取消'})
             continue
         action=WorldAction.objects.filter(pk=key).first()
         if action and action.status in ('success','failed','skipped'):
-            revise(item,'已核对实际执行事实',status={'success':'completed','failed':'failed','skipped':'rest'}[action.status],record_id=action.record_id or '',result=action.result)
+            status = 'completed' if action.status == 'success' else 'rest' if item.activity == 'market_prepare' and action.status == 'skipped' else 'failed'
+            revise(item,'已核对实际执行事实',status=status,record_id=action.record_id or '',result=action.result)
         elif local_time(item.updated_at) < now-timedelta(minutes=15) and not action:
             revise(item,'准备阶段中断，没有业务提交，本机会结束',status='failed',result={'reason':'执行准备中断'})
 
@@ -87,37 +88,49 @@ def execute_item(item: LifeItem, scheduler) -> None:
     if item.activity == 'market_prepare':
         execute_daily_market(config, agent, item, scheduler)
         return
-    task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
-    if not task or item.activity=='unplanned':
+    if item.activity in ('unplanned', ''):
         try:
             plan_items(config,agent,[item]);item.refresh_from_db()
-            task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
         except Exception as exc:
             revise(item,'条件已失效且无法重新规划',status='failed',result={'reason':str(exc)[:500]});return
     if item.activity=='rest':
         revise(item,'居民选择休息',status='rest',result={'reason':item.intent});check_goals(item.owner_id,agent);return
+    task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
+    if not task:
+        revise(item,'已安排活动不可用',status='failed',result={'reason':'活动能力已停用或删除'});return
     from .travel_candidates import travelling_ids
     from system_settings.models import AgentExecutionLease
-    costs={'cooking':1,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
+    costs={'cooking':2,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
     from .combat.schedule import occupied_ids
     busy=item.actor_id in occupied_ids() or item.actor_id in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists()
     queue_farm = item.activity == 'farm' and bool(item.context.get('farm_plan_id'))
-    if not queue_farm and (busy or stamina(agent)<costs.get(item.activity,2)):
+    if item.activity == 'exploration':
+        from .combat.explorations import energy as exploration_energy
+        required_energy = exploration_energy(30 * 60)
+    else:
+        required_energy = costs.get(item.activity, 2)
+    energy_insufficient = stamina(agent) < required_energy
+    if not queue_farm and (busy or energy_insufficient):
         if item.attempts>=3:
-            revise(item,'持续忙碌或体力不足，本机会结束',status='rest',result={'reason':'持续不可执行'});return
+            if energy_insufficient:
+                revise(item,'体力不足，顺延重试后仍无法执行',status='rest',
+                       result={'reason':f'当前体力不足以启动活动，至少需要 {required_energy} 点'});return
+            revise(item,'持续忙碌，本次活动无法执行',status='failed',
+                   result={'reason':'居民持续忙碌，已达到顺延上限'});return
         item.attempts+=1
         point=local_time()+timedelta(minutes=config.settings.get('min_gap_minutes',15))
         left,right=window(config.settings,point.date())
         if point>=right:point=window(config.settings,point.date()+timedelta(days=1))[0]
         revise(item,'暂时忙碌或体力不足，顺延',status='deferred',scheduled_at=max(point,left));return
-    # 即使资源变化也先给居民一次重新安排预算的机会。
+    # 付费活动可按最新余额复核预算；活动类型保持原安排。未固化的农场计划只补充队列。
     prior_status=item.status
     try:
-        if not queue_farm:
-            plan_items(config,agent,[item]);item.refresh_from_db()
+        from .life_budget_policy import allows_spending
+        if not queue_farm and (item.activity == 'farm' or allows_spending(item.activity)):
+            plan_items(config,agent,[item],preserve_activities=True);item.refresh_from_db()
         task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
-        if item.activity=='rest':
-            revise(item,'执行前选择休息',status='rest',result={'reason':item.intent});return
+        if not task:
+            revise(item,'已安排活动不可用',status='failed',result={'reason':'活动能力已停用或删除'});return
         # 重新规划可能耗时，执行前再确认一次，避免把本轮记成休息或失败。
         if world_execution_busy():
             logger.warning('世界执行位忙碌，到期生活安排留到下一轮 item=%s',item.pk)
@@ -165,9 +178,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
         if item.activity in ('travel','exploration'):
             return  # 后续节点只继续本次 workflow。
         action=WorldAction.objects.filter(pk=execution_key(item)).first()
-        status='failed' if outcome and outcome.status=='failed' else 'rest' if action and action.status=='skipped' else 'completed'
-        if not outcome:
-            status='failed'
+        skipped = bool(action and action.status == 'skipped')
+        status = 'failed' if not outcome or outcome.status in ('failed', 'skipped') or skipped else 'completed'
         revise(item,'本次活动结束',status=status,record_id=outcome.pk if outcome else '',result={'reason':outcome.summary if outcome else '活动未能启动'})
         check_goals(item.owner_id,agent)
     except WorldLeaseBusy:

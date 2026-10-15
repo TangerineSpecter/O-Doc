@@ -28,7 +28,7 @@ def select_activities(agent, context, ask):
         if selection == 'farm':
             farm_days.add(day)
         plans.append({'id': slot['id'], 'activity': selection,
-                      'reason': f'系统选择说明：JEV选择了{selection}，这不是人物感受或真实经历。'})
+                      'reason': f'系统选择说明：结构化决策模型选择了{selection}，这不是人物感受或真实经历。'})
     updates = []
     if context.get('goals'):
         value = ask(agent, '只更新已提供的生活目标，不安排活动。返回 {"goal_updates":[]}；'

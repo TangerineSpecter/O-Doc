@@ -48,8 +48,8 @@ def accrue(
     equipment_interval_seconds = max(1, int(equipment_interval_seconds))
     reduction = _percentage(equipment_interval_reduction_percentage, cap=HUNDRED) / HUNDRED
     reduced_interval = int((Decimal(equipment_interval_seconds) * (1 - reduction)).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-    # Equipment rolls share the ordinary loot cadence and only one can be pending.
-    effective_gear_interval = max(loot_interval_seconds, reduced_interval)
+    # Equipment checks have their own cadence; at most one can be pending until a kill.
+    effective_gear_interval = max(1, reduced_interval)
     progress['loot'] = min(2,progress.get('loot',0)+progress['loot_time']//loot_interval_seconds)
     progress['gear'] = min(1,progress.get('gear',0)+progress['gear_time']//effective_gear_interval)
     progress['loot_time'] %= loot_interval_seconds
@@ -98,33 +98,35 @@ def drops(
     equipment_chance = min(1.0, max(0.0, float(catalog.rules['normal_equipment_chance']) + float(equipment_bonus / HUNDRED)))
     rewards = []
     opportunities = min(progress.get('loot',0),2 if boss else 1)
-    for index in range(opportunities):
-        has_gear_chance = progress.get('gear',0)>0 and index==0
-        gear = has_gear_chance and bool(pool) and (boss or rng.random()<equipment_chance)
-        progress['loot'] -= 1
-        if has_gear_chance:
-            # A missed roll spends this opportunity; only a later time accrual grants another.
-            progress['gear'] -= 1
-        if gear:
-            trophy = next((r for r in catalog.tables['boss_drops'] if r['monster_id']==monster_id),None)
-            if boss and trophy and catalog.row('equipment_templates',trophy['equipment_id'])['enabled']=='1' and int(catalog.row('equipment_templates',trophy['equipment_id'])['level_min'])<=upper and rng.random()<float(trophy['exclusive_probability']):
-                identity = trophy['equipment_id']
-            else:
-                identity = rng.choices(pool,weights=[float(r['weight']) for r in pool])[0]['equipment_id']
-            quality = rng.choices(catalog.tables['qualities'],weights=[float(r[template['rank']+'_weight']) for r in catalog.tables['qualities']])[0]['id']
-            definition=catalog.row('equipment_templates',identity)
-            gear_level=rng.randint(max(lower,int(definition['level_min'])),min(upper,int(definition['level_max'])))
-            rewards.append({'kind':'equipment','item':equipment.generate(catalog,identity,gear_level,quality,rng)})
+    has_gear_chance = progress.get('gear',0)>0
+    gear = has_gear_chance and bool(pool) and (boss or rng.random()<equipment_chance)
+    if has_gear_chance:
+        # A missed roll spends the equipment check; material opportunities remain available.
+        progress['gear'] -= 1
+    if gear:
+        trophy = next((r for r in catalog.tables['boss_drops'] if r['monster_id']==monster_id),None)
+        if boss and trophy and catalog.row('equipment_templates',trophy['equipment_id'])['enabled']=='1' and int(catalog.row('equipment_templates',trophy['equipment_id'])['level_min'])<=upper and rng.random()<float(trophy['exclusive_probability']):
+            identity = trophy['equipment_id']
         else:
-            row = catalog.row('materials',material['item_id'])
-            base_quantity = rng.randint(int(material['quantity_min']),int(material['quantity_max']))
-            bonus_quantity = (
-                _material_bonus_quantity(progress, row['id'], base_quantity, material_bonus)
-                if material_bonus else 0
-            )
-            rewards.append({
-                'kind': 'material', 'item': row, 'quantity': base_quantity + bonus_quantity,
-                'base_quantity': base_quantity, 'profession_bonus_quantity': bonus_quantity,
-                'profession_bonus_percentage': str(material_bonus),
-            })
+            identity = rng.choices(pool,weights=[float(r['weight']) for r in pool])[0]['equipment_id']
+        quality = rng.choices(catalog.tables['qualities'],weights=[float(r[template['rank']+'_weight']) for r in catalog.tables['qualities']])[0]['id']
+        definition=catalog.row('equipment_templates',identity)
+        gear_level=rng.randint(max(lower,int(definition['level_min'])),min(upper,int(definition['level_max'])))
+        rewards.append({'kind':'equipment','item':equipment.generate(catalog,identity,gear_level,quality,rng)})
+    for index in range(opportunities):
+        progress['loot'] -= 1
+        if gear and index==0:
+            # When both opportunities coincide, equipment replaces one material reward.
+            continue
+        row = catalog.row('materials',material['item_id'])
+        base_quantity = rng.randint(int(material['quantity_min']),int(material['quantity_max']))
+        bonus_quantity = (
+            _material_bonus_quantity(progress, row['id'], base_quantity, material_bonus)
+            if material_bonus else 0
+        )
+        rewards.append({
+            'kind': 'material', 'item': row, 'quantity': base_quantity + bonus_quantity,
+            'base_quantity': base_quantity, 'profession_bonus_quantity': bonus_quantity,
+            'profession_bonus_percentage': str(material_bonus),
+        })
     return rewards

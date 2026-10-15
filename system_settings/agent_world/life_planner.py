@@ -1,5 +1,6 @@
 """居民提议活动及预算；服务端验证后才固化，不在规划中执行业务。"""
 from utils.token_usage import attributed
+import copy
 import json
 from decimal import Decimal
 from django.db import transaction
@@ -99,7 +100,7 @@ def ask_detail(agent, instruction: str, context: dict) -> dict:
 
 @guarded
 @transaction.atomic
-def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None:
+def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip_unchanged: bool = False) -> None:
     require_active_agent(agent)
     agent.refresh_from_db()
     from .travel_config import bound_skill
@@ -147,6 +148,7 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None
     for row in other:
         if row.pk in changes and row.budget!=changes[row.pk]:revise(row,adjustment_reason,budget=changes[row.pk])
     for item, activity, reason, budget, needs_market in updates:
+        before = (item.activity, item.intent, item.budget, item.task_id, item.status, copy.deepcopy(item.context))
         if activity == 'farm':
             from .farm_queue_plan import install
             specification = next(p for p in plans if p['id'] == item.pk).get('farm_plan')
@@ -154,9 +156,15 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None
         elif item.context.get('farm_plan_id'):
             from .farm_queue_schedule import cancel
             cancel(item, reason)
-        revise(item, reason, activity=activity, intent=reason, budget=budget,
-               task_id=available[activity].pk if activity!='rest' else '', status='pending',
-               context={**item.context,'planned_on':local_time().date().isoformat(),'goals':list(LifeGoal.objects.filter(owner_id=owner,actor_id=agent.pk,status='active').values('id','title','progress')[:20]),'needs_market':needs_market})
+        task_id = available[activity].pk if activity != 'rest' else ''
+        context = {**item.context, 'planned_on': local_time().date().isoformat(),
+                   'goals': list(LifeGoal.objects.filter(owner_id=owner, actor_id=agent.pk,
+                                                        status='active').values('id', 'title', 'progress')[:20]),
+                   'needs_market': needs_market}
+        after = (activity, reason, budget, task_id, 'pending', context)
+        if not skip_unchanged or before != after:
+            revise(item, reason, activity=activity, intent=reason, budget=budget,
+                   task_id=task_id, status='pending', context=context)
     # 主观目标只能引用已经完成的实际经历；客观目标由检查器核实。
     for update in proposal.get('goal_updates',[])[:20]:
         goal = LifeGoal.objects.filter(pk=update.get('id'),owner_id=owner,actor_id=agent.pk,status='active').first()
@@ -198,18 +206,31 @@ def check_goals(owner: str, agent) -> None:
             goal.save()
 
 
-def plan_items(config, agent, items: list[LifeItem]) -> None:
+def plan_items(config, agent, items: list[LifeItem], *, preserve_activities: bool = False) -> None:
     from system_settings.agent_availability import agent_operation
     with agent_operation(agent) as current:
-        return _plan_items(config, current, items)
+        return _plan_items(config, current, items, preserve_activities=preserve_activities)
 
 
-def _plan_items(config, agent, items: list[LifeItem]) -> None:
+def _plan_items(config, agent, items: list[LifeItem], *, preserve_activities: bool = False) -> None:
     if not items:
         return
+    if preserve_activities and any(item.activity in ('unplanned', '') for item in items):
+        raise ValueError('执行前复核必须保留已安排的活动')
     check_goals(config.pk,agent)
     context = build_planning_selection_context(config.pk, agent, items)
     from .life_plan_proposal import propose
+    locked_plans = None
+    if preserve_activities:
+        locked_plans = {
+            item.pk: {
+                'activity': item.activity,
+                'reason': item.intent or '按已安排活动执行',
+                'budget': str(item.budget),
+                'needs_market': bool(item.context.get('needs_market', False)),
+            }
+            for item in items
+        }
     proposal = propose(
         agent,
         context,
@@ -217,6 +238,7 @@ def _plan_items(config, agent, items: list[LifeItem]) -> None:
         ask_detail,
         load_budget_context=lambda paid: build_planning_budget_context(config.pk, agent, paid),
         load_farm_context=lambda _farms: build_planning_farm_context(config.pk, agent),
+        locked_plans=locked_plans,
     )
-    apply_plan(config.pk,agent,items,proposal)
+    apply_plan(config.pk,agent,items,proposal,skip_unchanged=preserve_activities)
     check_goals(config.pk,agent)

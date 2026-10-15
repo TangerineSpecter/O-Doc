@@ -110,6 +110,40 @@ export function useCombat(actorId: string) {
         return () => {active = false;controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange', visibility);};
     }, [actorId, refreshCombatState]);
 
+    const restUntil = data?.actor === actorId ? data.profile?.restUntil : null;
+    useEffect(() => {
+        if (!actorId || !restUntil) return;
+        let active = true;
+        const controller = new AbortController();
+        const deadline = Date.parse(restUntil);
+        const refresh = async () => {
+            try {
+                const profile = await getCombatProfile(actorId, controller.signal);
+                if (!active || currentActorRef.current !== actorId) return;
+                setData(previous => {
+                    if (!previous || previous.actor !== actorId) return previous;
+                    profileCache.set(actorId, {profile, history: previous.history});
+                    return {...previous, profile};
+                });
+                setError('');
+            } catch (e) {
+                if (active && !controller.signal.aborted && currentActorRef.current === actorId)
+                    setError(e instanceof Error ? e.message : '休息状态刷新失败');
+            }
+        };
+        const timer = window.setTimeout(() => {void refresh();}, Math.max(0, deadline - Date.now() + 250));
+        const visibility = () => {
+            if (!document.hidden && Date.now() >= deadline) void refresh();
+        };
+        document.addEventListener('visibilitychange', visibility);
+        return () => {
+            active = false;
+            controller.abort();
+            window.clearTimeout(timer);
+            document.removeEventListener('visibilitychange', visibility);
+        };
+    }, [actorId, restUntil]);
+
     return {
         data: data?.actor === actorId ? data : null,
         loading,

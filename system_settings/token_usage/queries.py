@@ -46,9 +46,9 @@ def filtered_usage(request: Request) -> QuerySet:
 
 
 def metrics() -> dict:
-    # JEV has a dedicated model/provider key; provider/model snapshots keep this
-    # classification stable even if a later adapter changes its internal key.
-    decision_model = (Q(model_key='decision:jev') | Q(provider_key='decision:jev') |
+    # Structured decision connections share a stable namespace; keep legacy JEV
+    # snapshots classified correctly after the connection registry was added.
+    decision_model = (Q(model_key__startswith='decision:') | Q(provider_key__startswith='decision:') |
                      Q(provider_name__iexact='TypeSafe JEV') | Q(model_name__istartswith='jev-'))
     return {
         'input_tokens': Coalesce(Sum('input_tokens'), 0, output_field=BigIntegerField()),

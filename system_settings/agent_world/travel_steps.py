@@ -56,7 +56,7 @@ def decide(journey, node, instruction, context, validate, skill=''):
             if value.get(selected['field']) != selected['value']:
                 raise ValueError('不能改变已确认旅行选择')
             if selected['field'] == 'destination_id':
-                value['reason'] = '系统选择说明：JEV选择目的地，不是人物感受。'
+                value['reason'] = '系统选择说明：结构化决策模型选择目的地，不是人物感受。'
             return original_validate(value)
     result = ask(journey, instruction, context, validate, skill=skill)
     node.result = result
@@ -94,21 +94,34 @@ def advance(journey):
             next_phase = 'choose' if len(state['previews']) == len(state['candidates']) else 'preview'
     elif phase == 'choose':
         funds = available_funds(journey)
+        from .life_scope import CURRENT
+        scope = CURRENT.get()
+        scheduled_life_item = bool(
+            scope and scope.get('actor_id') == journey.actor_id
+            and (scope.get('context') or {}).get('current', {}).get('activity') == 'travel'
+        )
         def validate(v):
             reason = text(v, 'reason', 1000)
             if v.get('destination_id') == 'skip':
+                if scheduled_life_item:
+                    raise ValueError('已安排的旅行必须从可行候选中选择目的地')
                 return {'destination_id': 'skip', 'reason': reason, 'shopping_budget': '0'}
             selected = next((c for c in state['candidates'] if c['id'] == v.get('destination_id')), None)
+            if not selected:
+                raise ValueError('必须从可行候选中选择一个目的地')
             budget = Decimal(str(v.get('shopping_budget')))
-            if not selected or not budget.is_finite() or budget < 0 or Decimal(selected['price'])+budget > agent.money:
+            if not budget.is_finite() or budget < 0 or Decimal(selected['price'])+budget > agent.money:
                 raise ValueError('所选路线或购物预算超过余额')
             if Decimal(selected['price']) > Decimal(funds['available']):
-                raise ValueError('所选路线超过本次可用旅行预算，请选择预算内路线或本次不去')
+                raise ValueError('所选路线超过本次可用旅行预算，请改选其他预算内路线')
             shopping_available = max(Decimal(0), Decimal(funds['available'])-Decimal(selected['price']))
             if budget > shopping_available:
                 raise ValueError(f'扣除路线费用后本次可分配购物额度为{shopping_available}，请缩减购物预算；总预算与购物上限须分别判断')
             return {'destination_id': selected['id'], 'reason': reason, 'shopping_budget': str(budget.quantize(Decimal('.01')))}
-        selection = decide(journey, node, '自主决定旅行或本次不去。返回 {"destination_id":"候选ID或skip","reason":"原因","shopping_budget":"非负金额字符串"}。购物预算由你自主选择，不是固定为0；结合生活安排总预算、路线费用、真实余额和其他安排预留分配。若选择0请在reason说明不购买的原因。购物预算是另行记录的上限，旅行总预算减去路线费不自动变成购物额度，不提前扣除。',
+        instruction = ('从可行候选中选择本次旅行目的地。' if scheduled_life_item else '自主决定旅行或本次不去。')
+        destination_option = '候选ID' if scheduled_life_item else '候选ID或skip'
+        instruction += f'返回 {{"destination_id":"{destination_option}","reason":"原因","shopping_budget":"非负金额字符串"}}。购物预算由你自主选择，不是固定为0；结合生活安排总预算、路线费用、真实余额和其他安排预留分配。若选择0请在reason说明不购买的原因。购物预算是另行记录的上限，旅行总预算减去路线费不自动变成购物额度，不提前扣除。'
+        selection = decide(journey, node, instruction,
             {'candidates': state['candidates'], 'previews': state['previews'], 'balance': str(agent.money), 'past_travels': [], 'funds': funds}, validate)
         state['selection'] = selection
         if selection['destination_id'] == 'skip':

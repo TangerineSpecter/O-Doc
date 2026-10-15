@@ -1,4 +1,4 @@
-"""One market session shared by text decisions, JEV and the single-operation helper."""
+"""One market session shared by structured decisions, text and the single-operation helper."""
 from system_settings.agent_role import role_text
 import hashlib
 import json
@@ -190,7 +190,7 @@ class MarketExecution:
             payload['objective'] = objective.strip()
         if selected:
             payload['selected_operation'] = selected
-            prompt += '\nJEV已选定挂牌操作、物品和数量或挂牌版本，只需决定unit_price并提交selected_operation指定操作；不能改变其arguments，不能改买其他商品。也可选择离场。'
+            prompt += '\n结构化决策模型已选定挂牌操作、物品和数量或挂牌版本，只需决定unit_price并提交selected_operation指定操作；不能改变其arguments，不能改买其他商品。也可选择离场。'
         else:
             payload['available_actions'] = action_options(candidate_rows)
         self.helper, self.helper_completed = helper, False
@@ -208,7 +208,7 @@ class MarketExecution:
                     return {'error': '当前市场阶段不开放该详情主题'}
             if selected:
                 if name == selected['tool'] and any(arguments.get(k) != v for k, v in selected['arguments'].items()):
-                    return {'error': '不能改变JEV已选定的操作参数，请使用selected_operation.arguments'}
+                    return {'error': '不能改变结构化决策模型已选定的操作参数，请使用selected_operation.arguments'}
             for effect in prior_effects:
                 if effect['tool'] == name and {k:v for k,v in effect.get('arguments', {}).items() if k not in ('request_id', 'reason')} == {k:v for k,v in arguments.items() if k not in ('request_id', 'reason')}:
                     return {**effect['result'], 'already_completed': True}
@@ -219,7 +219,7 @@ class MarketExecution:
                 raise ToolOperationFailure('市场工具执行失败，须核实当前状态后重试') from exc
             if selected and name == selected['tool'] and 'error' in result:
                 self.helper_failure = result
-                raise ComplexStepFinished('挂牌操作失败，返回JEV刷新真实状态')
+                raise ComplexStepFinished('挂牌操作失败，返回结构化决策模型刷新真实状态')
             return result
 
         try:
@@ -270,5 +270,5 @@ class MarketExecution:
             return decide(self, ai_service)
         except DecisionUnavailable as exc:
             self.check()  # Expired/stopped sessions must never be revived by fallback.
-            progress(self.record, 'JEV 回退文本模型', str(exc), 'info')
-            return self.text(ai_service, phase='市场决策回退', objective='JEV不可用；从当前真实状态继续，已完成操作不得重复。')
+            progress(self.record, '决策模型回退文本模型', str(exc), 'info')
+            return self.text(ai_service, phase='市场决策回退', objective='结构化决策连接不可用；从当前真实状态继续，已完成操作不得重复。')

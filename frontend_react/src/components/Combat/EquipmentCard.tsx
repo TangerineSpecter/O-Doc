@@ -1,5 +1,5 @@
 import type {CombatEquipment} from '../../types/api/combat';
-import {equipmentTypeLabels, qualityLabels, slotLabels, statLabels} from './presentation';
+import {equipmentSlotLabel, equipmentTypeLabels, qualityLabels, statLabels} from './presentation';
 import {Heart, ShieldCheck, Tag} from 'lucide-react';
 
 export default function EquipmentCard({
@@ -20,6 +20,7 @@ export default function EquipmentCard({
     onSell?: () => void;
 }) {
     const gear = item.snapshot;
+    const displayType = gear.equipmentType || item.displayType;
     const isGold = gear.quality === 'gold';
     const isBlue = gear.quality === 'blue';
 
@@ -52,10 +53,10 @@ export default function EquipmentCard({
                         </div>
                         {/* 槽位与状态标签 */}
                         <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500">
-                            <span className="font-medium text-slate-600">{slotLabels[gear.slot] || gear.slot}</span>
-                            {gear.equipmentType && (
+                            <span className="font-medium text-slate-600">{equipmentSlotLabel(gear.slot, displayType)}</span>
+                            {displayType && (
                                 <span className="rounded-md bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
-                                    {equipmentTypeLabels[gear.equipmentType] || gear.equipmentType}
+                                    {equipmentTypeLabels[displayType] || displayType}
                                 </span>
                             )}
                             {worn && (

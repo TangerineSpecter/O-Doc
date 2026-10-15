@@ -93,7 +93,7 @@ class DecisionTests(TestCase):
         self.assertEqual(row.model_name, 'jev-1.13.0')
         self.assertEqual(row.provider_name, 'TypeSafe JEV')
         self.assertTrue(row.usage_complete)
-        self.assertLessEqual(post.call_args.kwargs['timeout'], 20)
+        self.assertLessEqual(post.call_args.kwargs['timeout'], 60)
         data['answers']['next_action']['choice'] = 'unknown'
         with usage_scope(owner_id='admin', purpose='task'):
             with self.assertRaises(DecisionUnavailable):
@@ -111,3 +111,21 @@ class DecisionTests(TestCase):
         row = AgentTokenUsage.objects.get()
         self.assertIsNone(row.total_tokens)
         self.assertFalse(row.usage_complete)
+
+    @patch('system_settings.decision.jev.requests.post')
+    def test_network_failure_finishes_capture_and_allows_scene_fallback(self, post):
+        from requests import ConnectionError
+        from .routing import choose_scene
+        save_key('admin', 'safe-secret')
+        post.side_effect = ConnectionError('unreachable')
+        with patch('system_settings.decision.routing.jev_enabled', return_value=True), \
+                patch('system_settings.agent_role.role_text', return_value='角色偏好'), \
+                patch('system_settings.decision.routing.report') as report:
+            result = choose_scene('admin', SimpleNamespace(pk='', name='测试居民'), 'life_activity', {},
+                                  {'farm': '经营农场', 'rest': '休息'}, deadline=time.monotonic() + 60)
+        self.assertIsNone(result)
+        self.assertEqual(post.call_count, 1)
+        report.assert_called_once()
+        row = AgentTokenUsage.objects.get()
+        self.assertEqual(row.status, 'failed')
+        self.assertIsNotNone(row.ended_at)

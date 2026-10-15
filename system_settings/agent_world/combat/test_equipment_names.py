@@ -21,9 +21,9 @@ class EquipmentNameTests(unittest.TestCase):
     def test_recognizable_combinations_and_single_affixes(self):
         staff = self.catalog.row('equipment_templates', 'equip.staff')
         body = self.catalog.row('equipment_templates', 'equip.body')
-        self.assertEqual(equipment_name(staff, affixes('intelligence')), '睿智的法杖')
-        self.assertEqual(equipment_name(staff, affixes('intelligence', 'magic_attack')), '辉耀的法杖')
-        self.assertEqual(equipment_name(staff, affixes('intelligence', 'magic_attack', 'mp_max')), '辉耀的法杖')
+        self.assertEqual(equipment_name(staff, affixes('intelligence')), '睿智的双手杖')
+        self.assertEqual(equipment_name(staff, affixes('intelligence', 'magic_attack')), '辉耀的双手杖')
+        self.assertEqual(equipment_name(staff, affixes('intelligence', 'magic_attack', 'mp_max')), '辉耀的双手杖')
         self.assertEqual(equipment_name(body, affixes('hp_max', 'physical_defense', 'magic_defense')), '不破的护甲')
 
     def test_every_ordinary_pool_combination_is_named_and_order_value_independent(self):
@@ -51,7 +51,7 @@ class EquipmentNameTests(unittest.TestCase):
         c = self.catalog
         for quality, size in [('white', 1), ('blue', 2), ('gold', 3)]:
             rng = random.Random(14)
-            drop = generate(c, 'equip.staff', 20, quality, rng)
+            drop = generate(c, 'equip.staff', 30, quality, rng)
             state = rng.getstate()
             original = copy.deepcopy(drop)
             self.assertEqual(len(drop['affixes']), size)
@@ -59,10 +59,10 @@ class EquipmentNameTests(unittest.TestCase):
             equipment_name(c.row('equipment_templates', 'equip.staff'), drop['affixes'])
             self.assertEqual(rng.getstate(), state)
             self.assertEqual(drop, original)
-            self.assertEqual(drop, generate(c, 'equip.staff', 20, quality, random.Random(14)))
+            self.assertEqual(drop, generate(c, 'equip.staff', 30, quality, random.Random(14)))
             baseline_rng = random.Random(14)
-            with patch('system_settings.agent_world.combat.equipment.equipment_name', return_value='法杖'):
-                baseline = generate(c, 'equip.staff', 20, quality, baseline_rng)
+            with patch('system_settings.agent_world.combat.equipment.equipment_name', return_value='双手杖'):
+                baseline = generate(c, 'equip.staff', 30, quality, baseline_rng)
             self.assertEqual({key: value for key, value in drop.items() if key != 'name'},
                              {key: value for key, value in baseline.items() if key != 'name'})
             self.assertEqual(state, baseline_rng.getstate())

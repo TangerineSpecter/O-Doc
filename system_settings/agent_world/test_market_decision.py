@@ -148,7 +148,7 @@ class MarketDecisionTests(TestCase):
         row = AgentTokenUsage.objects.get()
         self.assertEqual((row.owner_key, row.agent_key, row.task_key, row.record_key),
                          ('admin', self.a.pk, self.task.pk, record.pk))
-        self.assertEqual(row.phase, 'JEV 市场选择')
+        self.assertEqual(row.phase, '决策模型市场选择')
         self.assertEqual(row.model_name, 'jev-1.13.0')
 
     def test_stock_conflict_refreshes_without_provider_fallback(self):

@@ -1,5 +1,5 @@
 from system_settings.agent_role import role_text
-"""JEV selects from finite live choices; text handles one complex step at a time."""
+"""A structured decision connection selects live choices; text handles complex steps."""
 import json
 import uuid
 from django.core.serializers.json import DjangoJSONEncoder
@@ -25,11 +25,11 @@ def decide(runtime, ai_service) -> str:
         from system_settings.decision.routing import jev_enabled
         if not jev_enabled(runtime.owner, 'market'):
             from system_settings.decision.jev import DecisionUnavailable
-            raise DecisionUnavailable('世界设置已关闭或排除市场JEV，转普通模型继续当前状态')
+            raise DecisionUnavailable('世界设置已关闭或排除市场决策连接，转普通模型继续当前状态')
         visited += 1
         if visited > 64:
             raise MarketFinished('市场决策达到执行上限')
-        runtime.phase = 'JEV 市场选择'
+        runtime.phase = '决策模型市场选择'
         state = json.loads(json.dumps(state, cls=DjangoJSONEncoder, ensure_ascii=False))
         criteria = json.loads(json.dumps(criteria, cls=DjangoJSONEncoder, ensure_ascii=False))
         with usage_scope(owner_id=runtime.owner, agent=runtime.agent, task=runtime.task, record=runtime.record, purpose='task', phase=runtime.phase):

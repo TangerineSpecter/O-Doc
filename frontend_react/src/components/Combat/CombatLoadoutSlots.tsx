@@ -11,6 +11,8 @@ const slotIcons: Record<string, ComponentType<{className?: string}>> = {
     hands: Hand,
     feet: Footprints,
     accessory: Gem,
+    ring_1: Gem,
+    ring_2: Gem,
 };
 
 // 按照 RPG 身体拓扑重排：主手与副手相邻，防护部位沿右列排列。
@@ -21,6 +23,8 @@ const topologySlots: {slot: string; group: 'offense' | 'defense'}[] = [
     {slot: 'hands', group: 'offense'},
     {slot: 'body', group: 'defense'},
     {slot: 'accessory', group: 'offense'},
+    {slot: 'ring_1', group: 'offense'},
+    {slot: 'ring_2', group: 'offense'},
     {slot: 'feet', group: 'defense'},
 ];
 
@@ -31,7 +35,7 @@ export default function CombatLoadoutSlots({
 }: {
     profile: CombatProfile;
     disabled?: boolean;
-    onInspect: (item: CombatEquipment, remove?: boolean) => void;
+    onInspect: (item: CombatEquipment, remove?: boolean, slot?: string) => void;
 }) {
     const equippedCount = Object.values(profile.loadout).filter(Boolean).length;
 
@@ -40,16 +44,16 @@ export default function CombatLoadoutSlots({
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Shield className="w-3.5 h-3.5 text-orange-500" />
-                    <span>装备装配（纸娃娃七槽）</span>
+                    <span>装备装配（纸娃娃九槽）</span>
                 </h4>
                 <div className="flex items-center gap-2">
                     <span className="text-[11px] text-slate-400">
-                         已装配 <strong className="text-orange-600 font-bold">{equippedCount}</strong> / 7
+                         已装配 <strong className="text-orange-600 font-bold">{equippedCount}</strong> / 9
                     </span>
                 </div>
             </div>
 
-            {/* 七槽位网格：主副手并列，护甲部位独立显示 */}
+            {/* 九槽位网格：双戒指独立占位 */}
             <div className="grid grid-cols-2 gap-2">
                 {topologySlots.map(({slot}) => {
                     const equipmentId = profile.loadout[slot];
@@ -78,7 +82,7 @@ export default function CombatLoadoutSlots({
                                 key={slot}
                                 type="button"
                                 disabled={disabled}
-                                onClick={() => onInspect(item, true)}
+                                onClick={() => onInspect(item, true, slot)}
                                 title={`已装备：${gear.name} (Lv.${gear.level})，点击卸下或查看`}
                                 className={`group flex flex-col justify-between rounded-xl border p-2 text-left transition-all active:scale-[0.98] ${borderStyle}`}
                             >

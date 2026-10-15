@@ -5,7 +5,7 @@ export const observationPreviewRewards:CombatReward[]=[
     {id:'preview.slime',kind:'material',item:{id:'material.moss_cave.1',name:'黏液',level:'1',salePrice:'4'},quantity:3,elapsedSeconds:15},
     {id:'preview.wing',kind:'material',item:{id:'material.moss_cave.2',name:'蝠翼',level:'3',salePrice:'8'},quantity:2,elapsedSeconds:30},
     {id:'preview.stone',kind:'material',item:{id:'material.moss_cave.3',name:'苔石',level:'5',salePrice:'12'},quantity:1,elapsedSeconds:45},
-    {id:'preview.staff',kind:'equipment',equipmentId:'preview.gear',item:{templateId:'equip.staff',name:'水晶法杖',slot:'weapon',level:10,quality:'blue',value:'48',stats:{magicAttack:28},affixes:[{id:'preview.affix',stat:'intelligence',value:3}]},elapsedSeconds:45},
+    {id:'preview.staff',kind:'equipment',equipmentId:'preview.gear',item:{templateId:'equip.staff',name:'水晶双手杖',slot:'weapon',equipmentType:'two_handed_staff',grip:'two_handed',level:10,quality:'blue',value:'48',stats:{magicAttack:28},affixes:[{id:'preview.affix',stat:'intelligence',value:3}]},elapsedSeconds:45},
     {id:'preview.slime.extra',kind:'material',item:{id:'material.moss_cave.1',name:'黏液',level:'1',salePrice:'4'},quantity:1,elapsedSeconds:60},
 ];
 export function observationPreviewEvents(enemy:{id:string;name:string},skills:boolean):CombatEvent[] {

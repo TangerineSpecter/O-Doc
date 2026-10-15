@@ -18,7 +18,7 @@ const roles=[
     {id:'job.novice',name:'新手',weapon:'none',skills:[]},
     {id:'job.warrior',name:'战士',weapon:'equip.sword',skills:['skill.player.001','skill.player.002']},
     {id:'job.ranger',name:'游侠',weapon:'equip.bow',skills:['skill.player.007']},
-    {id:'job.mage',name:'法师',weapon:'equip.staff',skills:['skill.player.004','skill.player.005']},
+    {id:'job.mage',name:'法师',weapon:'equip.mage_staff',skills:['skill.player.004','skill.player.005']},
     {id:'job.pyromancer',name:'炎术师',weapon:'equip.staff',skills:['skill.player.004','skill.player.005','skill.player.017','skill.player.037']},
 ];
 

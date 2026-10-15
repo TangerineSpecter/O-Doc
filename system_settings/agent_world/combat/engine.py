@@ -126,6 +126,32 @@ def enemy_action(catalog: Catalog, enemy: dict, player: dict, template_id: str, 
     return apply(catalog, enemy, player, effects, catalog.row('skills', sid)['name'], tick, rng)
 
 
+def recover_passives(catalog: Catalog, entity: dict) -> list[dict]:
+    """Apply percentage recovery passives once at the start of an active combat round."""
+    events = []
+    for effect in entity['passives']:
+        if effect['code'] != 'passive_recovery' or effect['stat'] not in {'hp_max', 'mp_max'}:
+            continue
+        field = effect['stat'][:-4]
+        maximum = int(entity['stats'][effect['stat']])
+        before = int(entity[field])
+        if entity['hp'] <= 0 or before >= maximum:
+            continue
+        amount = max(1, math.floor(maximum * float(effect['value'])))
+        entity[field] = min(maximum, before + amount)
+        restored = entity[field] - before
+        if restored <= 0:
+            continue
+        skill_level = catalog.row('skill_levels', effect['skill_level_id'])
+        skill_name = catalog.row('skills', skill_level['skill_id'])['name']
+        resource = '生命' if field == 'hp' else '法力'
+        event = {'actor': entity['name'], 'action': f'{skill_name}·恢复{resource}',
+                 'kind': 'passive_recovery'}
+        event['healing' if field == 'hp' else 'restored'] = restored
+        events.append(event)
+    return events
+
+
 def step(catalog: Catalog, state: dict, style_id: str, tick: int, rng, *, waiting=False) -> tuple[dict, list[dict]]:
     result = deepcopy(state)
     player, enemy = result['player'], result.get('enemy')
@@ -135,6 +161,7 @@ def step(catalog: Catalog, state: dict, style_id: str, tick: int, rng, *, waitin
     if player['hp'] <= 0 or waiting or not enemy or enemy['hp'] <= 0:
         return result, events
     expire(enemy, tick)
+    events.extend(recover_passives(catalog, player))
     events.extend(player_action(catalog, player, enemy, result['potions'], tick, catalog.row('styles', style_id), rng))
     if enemy['hp'] > 0:
         upkeep(enemy, tick, events, opponent=player, catalog=catalog, rng=rng)

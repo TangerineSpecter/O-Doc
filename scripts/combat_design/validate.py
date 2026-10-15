@@ -12,11 +12,22 @@ from pathlib import Path
 DIRECTORY = Path(__file__).resolve().parents[2] / 'docs/data/combat'
 SLOTS = {'weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'accessory'}
 EQUIPMENT_TYPES = {'cloth_armor', 'heavy_armor', 'leather_armor', 'light_armor', 'plate_armor',
-                   'magic_shield', 'small_shield', 'large_shield', 'two_handed_staff', 'holy_staff'}
+                   'magic_shield', 'small_shield', 'large_shield', 'mage_staff', 'two_handed_staff', 'holy_staff',
+                   'long_sword', 'axe', 'bow', 'dagger', 'two_handed_sword', 'ring', 'pendant', 'generic'}
+AFFIX_ALLOWED_SLOTS = {
+    **{stat: SLOTS for stat in ('strength','dexterity','intelligence','vitality','spirit','luck','hp_max','mp_max','healing')},
+    'physical_attack': {'weapon','accessory'}, 'magic_attack': {'weapon','accessory'},
+    'physical_defense': {'offhand','head','body','hands','feet','accessory'},
+    'magic_defense': {'offhand','head','body','hands','feet','accessory'},
+    'critical': {'accessory'}, 'critical_damage': {'accessory'},
+    'accuracy': {'hands'}, 'evasion': {'feet'},
+}
+MASTERY_EQUIPMENT_TYPES = {'cloth_armor','heavy_armor','leather_armor','light_armor','plate_armor',
+                           'magic_shield','small_shield','large_shield','two_handed_staff','holy_staff','two_handed_sword'}
 EFFECTS = {
     'damage', 'heal', 'shield', 'shield_break', 'summon', 'dot', 'hot', 'modifier', 'attack_accuracy',
     'attack_critical', 'attack_penetration', 'missing_hp_damage', 'shared_hit',
-    'passive_percent', 'passive_flat', 'passive_cost', 'passive_conversion',
+    'passive_percent', 'passive_flat', 'passive_cost', 'passive_conversion', 'passive_recovery',
     'passive_low_hp', 'passive_damage', 'passive_duration', 'passive_equipment_percent',
     'passive_equipment_flat', 'reflect',
 }
@@ -43,7 +54,7 @@ def number(row: dict, field: str) -> float:
 def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
     manifest = json.loads((directory / 'manifest.json').read_text())
     require(manifest['status'] == 'design_only', 'Unexpected release status')
-    require(manifest['engine_schema'] == 4, 'Unknown schema')
+    require(manifest['engine_schema'] == 5, 'Unknown schema')
     require(set(manifest['files']) == {p.name for p in directory.glob('*.csv')}, 'Unlisted or missing CSV')
     tables = {}
     for name, info in manifest['files'].items():
@@ -87,7 +98,7 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
     require(Counter(int(r['stage']) for r in jobs.values()) == {0: 1, 1: 4, 2: 8, 3: 16}, 'Profession tree cardinality')
     for job in jobs.values():
         stage = int(job['stage'])
-        require(int(job['required_level']) == (1, 10, 30, 70)[stage], f'Promotion level: {job["id"]}')
+        require(int(job['required_level']) == (1, 10, 30, 50)[stage], f'Promotion level: {job["id"]}')
         seen = set()
         cursor = job
         while cursor['parent_id']:
@@ -125,11 +136,15 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
         if row['code'] == 'reflect':
             require(row['target'] == 'self' and bool(row['group']) and int(row['duration']) > 0,
                     'Invalid reflection status')
+        if row['code'] == 'passive_recovery':
+            require(row['target'] == 'self' and row['stat'] in {'hp_max', 'mp_max'} and
+                    0 < number(row, 'value') <= 1 and int(row['duration']) == 0,
+                    'Invalid passive recovery')
         if row['code'] in {'passive_equipment_percent', 'passive_equipment_flat'}:
             require(row['target'] == 'self' and row['group'] in EQUIPMENT_TYPES,
                     'Invalid equipment mastery condition')
     players = [r for r in tables['skills'] if r['kind'] != 'monster']
-    require(len(players) == 71, 'Player skill count')
+    require(len(players) == 74, 'Player skill count')
     for skill in tables['skills']:
         require(skill['kind'] in {'active', 'passive', 'monster'}, 'Skill kind')
         ordered = sorted(ranks[skill['id']], key=lambda r: int(r['rank']))
@@ -187,6 +202,11 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
         require(number(row, 'weight') > 0, 'Affix weight')
         slot = indexes['equipment_templates'][row['equipment_id']]['slot']
         require(any(a['affix_id'] == row['affix_id'] and a['slot'] == slot for a in tables['affix_slots']), 'Wrong affix slot')
+        stat = indexes['affixes'][row['affix_id']]['stat']
+        require(slot in AFFIX_ALLOWED_SLOTS[stat], 'Affix is not eligible for equipment slot')
+    for row in tables['affix_slots']:
+        stat = indexes['affixes'][row['affix_id']]['stat']
+        require(row['slot'] in AFFIX_ALLOWED_SLOTS[stat], 'Affix slot policy mismatch')
     for row in tables['equipment_templates']:
         require(row['slot'] in SLOTS, 'Equipment slot')
         require(1 <= int(row['level_min']) <= int(row['level_max']) <= 99, 'Equipment level')
@@ -201,17 +221,61 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
             require(row['slot'] in {'body', 'hands', 'feet'}, 'Armor type on non-armor slot')
         if equipment_type in {'magic_shield', 'small_shield', 'large_shield'}:
             require(row['slot'] == 'offhand', 'Shield type on non-offhand slot')
-        if equipment_type in {'two_handed_staff', 'holy_staff'}:
-            require(row['slot'] == 'weapon', 'Staff type on non-weapon slot')
+        if equipment_type in {'mage_staff', 'two_handed_staff', 'holy_staff','long_sword','axe','bow','dagger','two_handed_sword'}:
+            require(row['slot'] == 'weapon', 'Weapon type on non-weapon slot')
         required_mastery = [value for value in row.get('required_mastery', '').split(';') if value]
         require(all(identity in indexes['skills'] and indexes['skills'][identity]['kind'] == 'passive'
                     for identity in required_mastery), 'Unknown equipment mastery')
-        if equipment_type:
+        if equipment_type in MASTERY_EQUIPMENT_TYPES:
             require(required_mastery, 'Typed equipment has no mastery requirement')
+        if equipment_type in {'mage_staff','long_sword','axe','bow','dagger'}:
+            require(row['slot'] == 'weapon' and not required_mastery, 'Weapon type classification')
+        if equipment_type == 'mage_staff':
+            require(grip == 'one_handed' and not required_mastery, 'Mage staff classification')
         if equipment_type == 'two_handed_staff':
             require(grip == 'two_handed', 'Two-handed staff grip')
         if equipment_type == 'holy_staff':
             require(grip == 'one_handed', 'Holy staff grip')
+        if equipment_type == 'two_handed_sword':
+            require(row['slot'] == 'weapon' and grip == 'two_handed' and row['level_min'] == '50' and row['level_max'] == '70', 'Two-handed sword definition')
+            require(required_mastery == ['skill.player.072','skill.player.073'], 'Two-handed sword mastery routes')
+        if equipment_type in {'ring','pendant'}:
+            require(row['slot'] == 'accessory' and not required_mastery, 'Accessory type classification')
+        eligible_affixes={affix['id'] for affix in tables['affixes'] if row['slot'] in AFFIX_ALLOWED_SLOTS[affix['stat']]}
+        require(allowed_affixes[row['id']]==eligible_affixes, 'Equipment affix pool must match its slot policy')
+    require((indexes['equipment_templates']['equip.charm']['level_min'],indexes['equipment_templates']['equip.charm']['level_max'])==('10','30'), 'Pendant level range')
+    require((indexes['equipment_templates']['equip.ring']['level_min'],indexes['equipment_templates']['equip.ring']['level_max'])==('1','30'), 'Ring level range')
+    permission_map=defaultdict(set)
+    for row in tables['equipment_professions']:
+        permission_map[row['equipment_id']].add(row['profession_id'])
+    jobs_by_root=defaultdict(set)
+    for job in jobs.values():
+        cursor=job
+        while cursor['parent_id'] and cursor['parent_id'] != 'job.novice':
+            cursor=jobs[cursor['parent_id']]
+        jobs_by_root[cursor['id']].add(job['id'])
+    require(permission_map['equip.training_sword']==set(jobs), 'Training sword must be universal')
+    require(permission_map['equip.sword']==jobs_by_root['job.warrior'], 'Long sword must stay on warrior lineage')
+    require(permission_map['equip.axe']==jobs_by_root['job.warrior'], 'Axe must stay on warrior lineage')
+    require(permission_map['equip.bow'] <= jobs_by_root['job.ranger'] and 'job.novice' not in permission_map['equip.bow'], 'Bow profession restriction')
+    require(permission_map['equip.dagger'] <= jobs_by_root['job.ranger'] and 'job.novice' not in permission_map['equip.dagger'], 'Dagger profession restriction')
+    for equipment in tables['equipment_templates']:
+        mastery_ids=[identity for identity in equipment.get('required_mastery','').split(';') if identity]
+        if not mastery_ids:
+            continue
+        mastery_jobs={indexes['skills'][identity]['profession_id'] for identity in mastery_ids}
+        eligible=set()
+        for job_id in jobs:
+            cursor=jobs[job_id]
+            while cursor:
+                if cursor['id'] in mastery_jobs:
+                    eligible.add(job_id)
+                    break
+                cursor=jobs[cursor['parent_id']] if cursor['parent_id'] else None
+        require(permission_map[equipment['id']]==eligible,
+                f"{equipment['id']} permissions must follow learned mastery inheritance")
+    require('job.swordsman' in permission_map['equip.two_handed_sword'],
+            'Swordsman with mastery may wear two-handed sword')
     for row in tables['boss_drops']:
         require(indexes['monsters'][row['monster_id']]['rank'] == 'boss', 'Exclusive drop on normal monster')
         require(indexes['equipment_templates'][row['equipment_id']]['boss_only'] == '1', 'Exclusive gear flag')

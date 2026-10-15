@@ -62,7 +62,7 @@ def recover_daily_market(item: LifeItem, config: LifeConfig, now: datetime) -> N
     settings = {**DEFAULTS, **effective_settings(config, now)}
     _, right = window(settings, local_time(item.original_at).date())
     if now >= right:
-        revise(item, '当天市场机会已过期，不跨天补跑', status='rest', result={'reason': '当天市场机会已过期'})
+        revise(item, '当天市场机会已过期，不跨天补跑', status='cancelled', result={'reason': '当天市场机会已过期'})
     elif item.actor_id in config.paused_agents:
         if item.status != 'paused':
             revise(item, '居民暂停，保留当天市场机会', status='paused')
@@ -94,7 +94,10 @@ def execute_daily_market(config: LifeConfig, agent: Agent, item: LifeItem, sched
         point = now + timedelta(minutes=settings['min_gap_minutes'])
         _, right = window(settings, local_time(item.original_at).date())
         if item.attempts >= 3 or point >= right:
-            revise(item, '当天无法逛市场，本次机会结束', status='rest', result={'reason': '居民忙碌或体力不足'})
+            energy_insufficient = stamina(agent) < 5
+            status = 'rest' if energy_insufficient else 'failed'
+            reason = '体力不足以进入市场' if energy_insufficient else '居民持续忙碌，已达到顺延上限'
+            revise(item, '当天无法逛市场，本次机会结束', status=status, result={'reason': reason})
         else:
             revise(item, '居民忙碌或体力不足，当天顺延市场机会', status='deferred',
                    scheduled_at=point, attempts=item.attempts + 1)
@@ -113,8 +116,8 @@ def execute_daily_market(config: LifeConfig, agent: Agent, item: LifeItem, sched
             record = run_market_opportunity(task, scheduler, key=execution_key(item))
         item.refresh_from_db()
         action = WorldAction.objects.filter(pk=execution_key(item)).first()
-        status = ('failed' if record and record.status == 'failed' else
-                  'rest' if not record or (action and action.status == 'skipped') else 'completed')
+        status = ('failed' if not record or record.status == 'failed' else
+                  'rest' if action and action.status == 'skipped' else 'completed')
         revise(item, '每日市场机会结束', status=status, record_id=record.pk if record else '',
                result={'reason': record.summary if record else '居民未能进入市场'})
         check_goals(config.pk, agent)

@@ -16,7 +16,7 @@ class RuleTests(SimpleTestCase):
         with self.assertRaises(ValueError):validate(Path(__file__).resolve().parents[3]/'docs/data/combat')
         c=self.catalog
         self.assertEqual((len(c.tables['dungeons']),len(c.tables['monsters']),len(c.tables['professions'])),(6,24,29))
-        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),71)
+        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),74)
         for row in c.tables['skills']:
             for rank in c.ranks[row['id']]:
                 progress=attributes.initial();progress['skills']={row['id']:int(rank['rank'])};progress['level']=99
@@ -29,13 +29,30 @@ class RuleTests(SimpleTestCase):
                     self.assertGreaterEqual(a['hp'],0);self.assertGreaterEqual(b['hp'],0)
 
     def test_repeatability_pure_inputs_and_gear_no_duplicate_affix(self):
-        c=self.catalog;p=attributes.initial();g=equipment.generate(c,'equip.sword',1,'gold',random.Random(1))
+        c=self.catalog;p=attributes.initial();g=equipment.generate(c,'equip.training_sword',1,'gold',random.Random(1))
         self.assertEqual(len({r['id'] for r in g['affixes']}),3)
         state={'player':engine.fighter(attributes.attributes(c,p,[g]),'A',1),'enemy':engine.fighter(attributes.monster(c,c.row('monsters','monster.slime'),1),'B',1),'potions':{},'monster_id':'monster.slime'}
         original=copy.deepcopy(state)
         self.assertEqual(engine.step(c,state,'style.balanced',1,random.Random(1)),engine.step(c,state,'style.balanced',1,random.Random(1)))
         self.assertEqual(state,original)
         self.assertEqual(attributes.attributes(c,p,[g]),attributes.attributes(c,p,[g]))
+
+    def test_recovery_passives_restore_empty_mana_and_do_not_revive(self):
+        c = self.catalog
+        for sid, expected_hp, expected_mp in (('skill.player.006', 50, 5), ('skill.player.074', 53, 3)):
+            with self.subTest(skill=sid):
+                player = engine.fighter({'hp_max': 100, 'mp_max': 100}, 'A', 40, hp=50, mp=0,
+                                        passives=attributes.passives(c, {sid: 3}))
+                events = engine.recover_passives(c, player)
+                self.assertEqual((player['hp'], player['mp']), (expected_hp, expected_mp))
+                self.assertEqual(sum(row.get('restored', 0) for row in events), expected_mp)
+                player.update(hp=99, mp=99)
+                engine.recover_passives(c, player)
+                self.assertEqual(player['mp'], 100)
+                self.assertEqual(player['hp'], 100 if sid == 'skill.player.074' else 99)
+                player.update(hp=0, mp=0)
+                self.assertEqual(engine.recover_passives(c, player), [])
+                self.assertEqual((player['hp'], player['mp']), (0, 0))
 
     def test_growth_boundaries_and_no_retroactive_job_growth(self):
         c=self.catalog;p=attributes.initial()

@@ -1,11 +1,11 @@
-import {useMemo, useState} from 'react';
-import {Search, X, Shield, Sparkles, CheckCircle2, Tag} from 'lucide-react';
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {Search, X, Shield, Sparkles, CheckCircle2, Tag, Info} from 'lucide-react';
 import type {CombatCatalog, CombatProfile} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {EquipmentPortrait} from './EquipmentPortrait';
 import {RankBadge, BossCrownIcon} from './RankBadge';
 import {getEquipmentVisual} from './atlasIcons';
-import {equipmentTypeLabels, slotLabels, statLabels} from '../presentation';
+import {equipmentSlotLabel, equipmentTypeLabels, statLabels} from '../presentation';
 
 export interface EquipmentAtlasViewProps {
     catalog: CombatCatalog;
@@ -20,13 +20,14 @@ const slotFilters = [
     {value: 'body', label: '护甲'},
     {value: 'hands', label: '手套'},
     {value: 'feet', label: '靴子'},
-    {value: 'accessory', label: '护符'},
+    {value: 'accessory', label: '饰品'},
 ] as const;
 
 export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewProps) {
     const tables = catalog.tables;
     const equipmentTemplates = tables.equipmentTemplates || [];
     const equipmentAffixes = tables.equipmentAffixes || [];
+    const equipmentProfessions = tables.equipmentProfessions || [];
     const affixes = tables.affixes || [];
     const professions = tables.professions || [];
     const skills = tables.skills || [];
@@ -34,6 +35,26 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
     const [slotFilter, setSlotFilter] = useState<string>('all');
     const [search, setSearch] = useState('');
     const [selectedId, setSelectedId] = useState<string>(equipmentTemplates[0]?.id || '');
+    const [showEquipmentRules, setShowEquipmentRules] = useState(false);
+    const equipmentRulesRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!showEquipmentRules) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (equipmentRulesRef.current && !equipmentRulesRef.current.contains(event.target as Node)) {
+                setShowEquipmentRules(false);
+            }
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setShowEquipmentRules(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [showEquipmentRules]);
 
     // 统计各部位数量
     const slotCounts = useMemo(() => {
@@ -97,6 +118,22 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                 return mastery ? `${mastery.name}${profession ? `（${profession.name}）` : ''}` : '';
             }).filter(Boolean).join('、');
 
+        const permittedProfessionIds = equipmentProfessions
+            .filter(row => row.equipmentId === selected.id)
+            .map(row => row.professionId)
+            .filter((id): id is string => Boolean(id));
+        const permittedProfessions = professions
+            .filter(job => permittedProfessionIds.includes(job.id))
+            .map(job => job.name || job.id);
+        const isUniversal = permittedProfessionIds.length
+            ? permittedProfessionIds.length === professions.length
+            : !selected.rootJob && !requiredMasteryLabel;
+        const allowedProfessionLabel = isUniversal
+            ? '全职业'
+            : permittedProfessions.length
+                ? permittedProfessions.join('、')
+                : requiredMasteryLabel || rootJobName;
+
         // 词条池
         const affixPool = equipmentAffixes
             .filter(a => a.equipmentId === selected.id)
@@ -120,10 +157,12 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
             baseStats,
             rootJobName,
             requiredMasteryLabel,
-            equipmentTypeLabel: equipmentTypeLabels[String(selected.equipmentType || '')] || '',
+            isUniversal,
+            allowedProfessionLabel,
+            equipmentTypeLabel: equipmentTypeLabels[String(selected.equipmentType || '')] || (isUniversal ? equipmentTypeLabels.generic : ''),
             uniqueAffixes,
         };
-    }, [selected, discoveries, equipmentAffixes, affixes, professions, skills]);
+    }, [selected, discoveries, equipmentAffixes, equipmentProfessions, affixes, professions, skills]);
 
     const visual = selected
         ? getEquipmentVisual(selected.slot || '', selected.name, selectedDetails?.isBossOnly)
@@ -162,24 +201,62 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                     })}
                 </div>
 
-                <label className="relative flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-2xs transition-all focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-500/20 w-56">
-                    <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <input
-                        placeholder="搜索装备名称..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="w-full min-w-0 bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400"
-                    />
-                    {search && (
+                <div className="flex items-center gap-2">
+                    <div ref={equipmentRulesRef} className="relative">
                         <button
                             type="button"
-                            onClick={() => setSearch('')}
-                            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                            aria-label="查看装备词条与回收规则"
+                            aria-expanded={showEquipmentRules}
+                            aria-controls="equipment-rules-popover"
+                            onClick={() => setShowEquipmentRules(open => !open)}
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/30 ${
+                                showEquipmentRules
+                                    ? 'border-orange-200 bg-orange-50 text-orange-600'
+                                    : 'border-slate-200 bg-white text-slate-400 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
+                            }`}
                         >
-                            <X className="h-3 w-3" />
+                            <Info className="h-4 w-4" />
                         </button>
-                    )}
-                </label>
+                        {showEquipmentRules && (
+                            <div
+                                id="equipment-rules-popover"
+                                role="dialog"
+                                aria-label="装备词条与回收规则"
+                                className="absolute right-0 top-full z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-3.5 text-xs shadow-xl"
+                            >
+                                <div className="mb-1.5 flex items-center gap-1.5 font-semibold text-slate-700">
+                                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                    <span>随机词条数量规则</span>
+                                </div>
+                                <p className="text-[11px] leading-relaxed text-slate-500">
+                                    白装拥有 1 条随机词条；蓝装 2 条；金装 3 条。等级越高，词条数值范围越高；蓝装、金装还拥有更高的基础属性和词条数值。数值在掉落时随机生成并固定，百分比词条采用独立成长曲线。
+                                </p>
+                                <p className="mt-2 border-t border-slate-200/60 pt-1.5 text-[11px] leading-relaxed text-slate-400">
+                                    回收基础价：10 + 0.5 ×装备等级，根据品质与词条品质额外加成。
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    <label className="relative flex w-56 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-2xs transition-all focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-500/20">
+                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <input
+                            placeholder="搜索装备名称..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full min-w-0 bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400"
+                        />
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={() => setSearch('')}
+                                className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                aria-label="清除搜索"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
+                        )}
+                    </label>
+                </div>
             </div>
 
             {/* 双栏布局 */}
@@ -213,7 +290,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                         key={equip.id}
                                         id={equip.id}
                                         name={equip.name || equip.id}
-                                        title={`${equip.name} · ${slotLabels[equip.slot || ''] || equip.slot}${equip.equipmentType ? ` · ${equipmentTypeLabels[equip.equipmentType] || equip.equipmentType}` : ''} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
+                                        title={`${equip.name} · ${equipmentSlotLabel(equip.slot || '', String(equip.equipmentType || ''))}${equip.equipmentType ? ` · ${equipmentTypeLabels[equip.equipmentType] || equip.equipmentType}` : !equip.rootJob && !equip.requiredMastery ? ` · ${equipmentTypeLabels.generic}` : ''} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(equip.id)}
                                         icon={<EquipmentPortrait equipmentId={equip.id} name={equip.name} slot={equip.slot} bossOnly={isBossOnly} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
@@ -252,16 +329,18 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                     <div className="flex items-center gap-1">
                                         <span className="inline-flex items-center gap-1 rounded-full border border-slate-200/60 bg-white/90 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
                                             <Tag className="h-2.5 w-2.5 text-slate-400" />
-                                            {slotLabels[selected.slot || ''] || selected.slot}
+                                            {equipmentSlotLabel(selected.slot || '', String(selected.equipmentType || ''))}
                                         </span>
                                         {selectedDetails.equipmentTypeLabel && (
                                             <span className="rounded-full border border-orange-200/70 bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
                                                 {selectedDetails.equipmentTypeLabel}
                                             </span>
                                         )}
-                                        <span className="rounded-full bg-white/90 border border-slate-200/60 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
-                                            {selectedDetails.requiredMasteryLabel || selectedDetails.rootJobName}
-                                        </span>
+                                        {(selectedDetails.requiredMasteryLabel || selected.rootJob) && (
+                                            <span className="rounded-full bg-white/90 border border-slate-200/60 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
+                                                {selectedDetails.requiredMasteryLabel || selectedDetails.rootJobName}
+                                            </span>
+                                        )}
                                         {selectedDetails.isBossOnly && (
                                             <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-2xs">
                                                 <BossCrownIcon className="h-2.5 w-2.5 text-amber-600 shrink-0" />
@@ -285,6 +364,9 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                 <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>
                                 <p className="mt-1 text-xs text-slate-500">
                                     适用装备等级：Lv.{selected.levelMin}–{selected.levelMax}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    可穿职业：{selectedDetails.allowedProfessionLabel}
                                 </p>
                             </div>
 
@@ -335,18 +417,6 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                 </div>
                             )}
 
-                            {/* 品质与词条机制说明 */}
-                            <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-xs">
-                                <div className="flex items-center justify-between font-semibold text-slate-700">
-                                    <span>随机词条数量规则</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 leading-relaxed">
-                                    白装拥有 1 条随机词条；蓝装 2 条；金装 3 条。等级越高，词条数值范围越高；蓝装、金装还拥有更高的基础属性和词条数值。数值在掉落时随机生成并固定，百分比词条采用独立成长曲线。
-                                </p>
-                                <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-200/60 leading-relaxed">
-                                    回收基础价：10 + 0.5 ×装备等级，根据品质与词条品质额外加成。
-                                </p>
-                            </div>
                         </div>
                     </section>
                 )}

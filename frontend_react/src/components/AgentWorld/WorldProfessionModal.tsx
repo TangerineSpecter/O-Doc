@@ -26,7 +26,7 @@ export function WorldProfessionModal({
     const [farmYieldPercentage, setFarmYieldPercentage] = useState(profession?.farmYieldPercentage ?? '0');
     const [mazeEquipmentDropBonusPercentage, setMazeEquipmentDropBonusPercentage] = useState(profession?.mazeEquipmentDropBonusPercentage ?? '0');
     const [mazeMaterialYieldPercentage, setMazeMaterialYieldPercentage] = useState(profession?.mazeMaterialYieldPercentage ?? '0');
-    const mazeEquipmentIntervalReductionPercentage = profession?.mazeEquipmentIntervalReductionPercentage ?? '0';
+    const [mazeEquipmentIntervalReductionPercentage, setMazeEquipmentIntervalReductionPercentage] = useState(profession?.mazeEquipmentIntervalReductionPercentage ?? '0');
     const [mazeExperienceBonusPercentage, setMazeExperienceBonusPercentage] = useState(profession?.mazeExperienceBonusPercentage ?? '0');
     const ai = useProfessionDescription();
     const [bonuses, setBonuses] = useState<WorldBonus[]>(
@@ -168,11 +168,12 @@ export function WorldProfessionModal({
                             <p className="mt-2 text-xs leading-5 text-slate-500">材料基础数量按原掉落表抽取后再增加；不足 1 件的部分按居民和材料分别累计，累计满 1 件时发放。</p>
                         </div>
                         <div>
-                            <label htmlFor="maze-equipment-interval-reduction" className="block text-xs font-semibold text-slate-700">装备间隔缩短旧配置（%）</label>
-                            <input id="maze-equipment-interval-reduction" type="number" min="0" max="100" step="0.0001" disabled
+                            <label htmlFor="maze-equipment-interval-reduction" className="block text-xs font-semibold text-slate-700">装备判定间隔缩短（%）</label>
+                            <input id="maze-equipment-interval-reduction" type="number" min="0" max="100" step="0.0001" required
                                 value={mazeEquipmentIntervalReductionPercentage}
-                                className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500 disabled:cursor-not-allowed" />
-                            <p className="mt-2 text-xs leading-5 text-slate-500">新探索每 5 分钟进行一次装备判定，未中即消耗；进行中的探索仍使用出发时规则。此历史值为兼容已同步配置保留，不再影响新探索。</p>
+                                onChange={e => setMazeEquipmentIntervalReductionPercentage(e.target.value)}
+                                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800" />
+                            <p className="mt-2 text-xs leading-5 text-slate-500">按目录基础间隔缩短：例如基础 5 分钟、填写 20% 时，每 4 分钟获得一次装备判定机会；间隔最短 1 秒，最多暂存 1 次，并在下一次击杀时判定。未中即消耗机会；若同时有材料机会，出装备会占用一次材料机会。进行中的探索仍使用出发时配置。</p>
                         </div>
                         <div>
                             <label htmlFor="maze-experience-bonus" className="block text-xs font-semibold text-slate-700">迷宫经验加成（%）</label>

@@ -201,7 +201,7 @@ class ExplorationTests(TestCase):
         from .models import EquipmentInstance
 
         catalog = bundled()[0]
-        item = generate(catalog, 'equip.staff', 1, 'gold', random.Random(14))
+        item = generate(catalog, 'equip.staff', 30, 'gold', random.Random(14))
         run = self.run_trip()
 
         def defeated_enemy(_catalog, state, *_args, **_kwargs):
@@ -214,7 +214,7 @@ class ExplorationTests(TestCase):
             run = explorations.tick(run.pk, now=self.now + timedelta(seconds=15))
         reward = run.result['rewards'][0]
         gear = EquipmentInstance.objects.get(pk=reward['equipment_id'])
-        self.assertIn('的法杖', gear.snapshot['name'])
+        self.assertIn('的双手杖', gear.snapshot['name'])
         self.assertEqual(gear.snapshot, reward['item'])
         round_fact = CombatFact.objects.get(kind='round')
         kill = next(event for event in round_fact.payload['events'] if event['kind'] == 'kill')
@@ -235,9 +235,9 @@ class ExplorationTests(TestCase):
         offhand_snapshot=generate(catalog,'equip.offhand.magic_shield',10,'white',random.Random(11))
         offhand=EquipmentInstance.objects.create(pk='test-two-hand-offhand',owner_id='admin',actor_id=self.agent.pk,
             catalog_id=catalog.version,template_id='equip.offhand.magic_shield',snapshot=offhand_snapshot)
-        weapon_snapshot=generate(catalog,'equip.staff.two_handed',30,'white',random.Random(12))
+        weapon_snapshot=generate(catalog,'equip.staff',30,'white',random.Random(12))
         weapon=EquipmentInstance.objects.create(pk='test-two-hand-staff',owner_id='admin',actor_id=self.agent.pk,
-            catalog_id=catalog.version,template_id='equip.staff.two_handed',snapshot=weapon_snapshot)
+            catalog_id=catalog.version,template_id='equip.staff',snapshot=weapon_snapshot)
         profile.loadout={**profile.loadout,'offhand':offhand.pk}
         replaced=apply_loadout_changes(profile,catalog,{'weapon':weapon.pk},'admin')
         self.assertNotIn('offhand',replaced)

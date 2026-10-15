@@ -7,7 +7,8 @@ from .life_models import LifeConfig, LifeProfile, LifeCycle
 KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration')
 DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'interval_minutes': 60, 'active_start': '00:00', 'active_end': '24:00',
-            'min_gap_minutes': 15, 'min_remaining_minutes': 240, 'decision_model_id': '', 'jev_enabled': False, 'jev_excluded_scenes': []}
+            'min_gap_minutes': 15, 'min_remaining_minutes': 240, 'decision_model_id': '',
+            'decision_connection_id': 'jev', 'jev_enabled': False, 'jev_excluded_scenes': []}
 
 
 def task_owner(task: AgentTask) -> str | None:
@@ -48,12 +49,15 @@ def validate_settings(data: dict) -> dict:
         raise ValueError('世界决策模型无效')
     if model_id and not AIModel.objects.filter(pk=model_id, type='chat').exists():
         raise ValueError('世界决策模型不存在或不是对话模型')
+    connection_id = value['decision_connection_id']
+    if not isinstance(connection_id, str) or len(connection_id) > 40:
+        raise ValueError('结构化决策连接无效')
     from system_settings.decision.routing import SCENES
     if type(value['jev_enabled']) is not bool:
-        raise ValueError('JEV 开关无效')
+        raise ValueError('结构化决策开关无效')
     excluded = value['jev_excluded_scenes']
     if not isinstance(excluded, list) or any(not isinstance(key, str) or key not in SCENES for key in excluded) or len(set(excluded)) != len(excluded):
-        raise ValueError('JEV 排除场景无效')
+        raise ValueError('结构化决策排除场景无效')
     ids = value['agent_ids']
     if not isinstance(ids, list) or any(not isinstance(x, str) for x in ids) or len(ids) != len(set(ids)):
         raise ValueError('参与居民列表无效')

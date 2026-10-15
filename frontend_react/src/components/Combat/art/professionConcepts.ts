@@ -70,4 +70,5 @@ const weaponOutfits = [
 ] as const;
 const weaponRegions = [[29,165,409,469],[539,188,382,440],[1014,84,251,576],[1375,296,266,338],[1758,115,400,534]];
 export const weaponConcepts: WeaponConcept[] = weaponOutfits.map(([id,name,description],i)=>({id:`equip.${id}`,name,description,art:sheetArt(weaponSheet,2172,724,weaponRegions[i])}));
-weaponConcepts.splice(4,0,{id:'equip.staff',name:'法杖',description:'已确认的青色水晶法杖，沿用原素材。',approved:true,art:{url:playerSheetUrl,size:playerSheetSize,region:crystalStaffRegion}});
+weaponConcepts.splice(4,0,{id:'equip.staff',name:'双手杖',description:'已确认的青色水晶双手杖，沿用原素材。',approved:true,art:{url:playerSheetUrl,size:playerSheetSize,region:crystalStaffRegion}});
+weaponConcepts.splice(4,0,{id:'equip.mage_staff',name:'法杖',description:'法师路线单手法杖，沿用青色水晶杖素材。',approved:true,art:{url:playerSheetUrl,size:playerSheetSize,region:crystalStaffRegion}});

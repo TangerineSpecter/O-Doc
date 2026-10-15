@@ -14,9 +14,9 @@ skill.player.004.r3,skill.player.004,3,30,5.0,0.5,1.3,2,1.35 倍魔攻,1
 skill.player.005.r1,skill.player.005,1,15,6.0,0.6,1.0,4,护盾量为 1.0 倍魔攻,1
 skill.player.005.r2,skill.player.005,2,25,6.0,0.6,1.15,4,护盾量为 1.0 倍魔攻,1
 skill.player.005.r3,skill.player.005,3,35,6.0,0.6,1.3,4,护盾量为 1.0 倍魔攻,1
-skill.player.006.r1,skill.player.006,1,20,0,0,1.0,0,法力上限 +5% / 7.5% / 10%,1
-skill.player.006.r2,skill.player.006,2,30,0,0,1.15,0,法力上限 +5% / 7.5% / 10%,1
-skill.player.006.r3,skill.player.006,3,40,0,0,1.3,0,法力上限 +5% / 7.5% / 10%,1
+skill.player.006.r1,skill.player.006,1,20,0,0,1.0,0,战斗中每 15 秒恢复最大法力的 2%,1
+skill.player.006.r2,skill.player.006,2,30,0,0,1.15,0,战斗中每 15 秒恢复最大法力的 3%,1
+skill.player.006.r3,skill.player.006,3,40,0,0,1.3,0,战斗中每 15 秒恢复最大法力的 5%,1
 skill.player.007.r1,skill.player.007,1,10,4.0,0.4,1.0,2,1.25 倍物攻，命中加成 8 个百分点,1
 skill.player.007.r2,skill.player.007,2,20,4.0,0.4,1.15,2,1.25 倍物攻，命中加成 8 个百分点,1
 skill.player.007.r3,skill.player.007,3,30,4.0,0.4,1.3,2,1.25 倍物攻，命中加成 8 个百分点,1
@@ -209,9 +209,9 @@ skill.player.069.r3,skill.player.069,3,50,0,0,1.3,0,使用双手杖时武器魔�
 skill.player.070.r1,skill.player.070,1,30,0,0,1.0,0,使用圣杖时魔攻 +5%、治疗强度 +5%,1
 skill.player.070.r2,skill.player.070,2,40,0,0,1.15,0,使用圣杖时魔攻 +7%、治疗强度 +7.5%,1
 skill.player.070.r3,skill.player.070,3,50,0,0,1.3,0,使用圣杖时魔攻 +10%、治疗强度 +10%,1
-skill.player.071.r1,skill.player.071,1,70,0,0,1.0,0,装备大盾时物防 +8%，魔防 +5%,1
-skill.player.071.r2,skill.player.071,2,80,0,0,1.15,0,装备大盾时物防 +12%，魔防 +7.5%,1
-skill.player.071.r3,skill.player.071,3,90,0,0,1.3,0,装备大盾时物防 +16%，魔防 +10%,1
+skill.player.071.r1,skill.player.071,1,50,0,0,1.0,0,装备大盾时物防 +8%，魔防 +5%,1
+skill.player.071.r2,skill.player.071,2,60,0,0,1.15,0,装备大盾时物防 +12%，魔防 +7.5%,1
+skill.player.071.r3,skill.player.071,3,70,0,0,1.3,0,装备大盾时物防 +16%，魔防 +10%,1
 skill.monster.strike.r1,skill.monster.strike,1,1,4,0.5,1,4,strike,1
 skill.monster.magic_strike.r1,skill.monster.magic_strike,1,1,4,0.5,1,4,magic_strike,1
 skill.monster.evasion.r1,skill.monster.evasion,1,1,4,0.5,1,4,evasion,1
@@ -222,3 +222,12 @@ skill.monster.heal.r1,skill.monster.heal,1,1,4,0.5,1,5,heal,1
 skill.monster.shield.r1,skill.monster.shield,1,1,4,0.5,1,5,shield,1
 skill.monster.burn.r1,skill.monster.burn,1,1,4,0.5,1,4,burn,1
 skill.monster.curse.r1,skill.monster.curse,1,1,4,0.5,1,4,curse,1
+skill.player.072.r1,skill.player.072,1,30,0,0,1,0,装备双手剑时武器攻击贡献 +10%,1
+skill.player.072.r2,skill.player.072,2,40,0,0,1,0,装备双手剑时武器攻击贡献 +15%,1
+skill.player.072.r3,skill.player.072,3,50,0,0,1,0,装备双手剑时武器攻击贡献 +20%,1
+skill.player.073.r1,skill.player.073,1,50,0,0,1,0,装备双手剑时武器攻击贡献 +10%,1
+skill.player.073.r2,skill.player.073,2,60,0,0,1,0,装备双手剑时武器攻击贡献 +15%,1
+skill.player.073.r3,skill.player.073,3,70,0,0,1,0,装备双手剑时武器攻击贡献 +20%,1
+skill.player.074.r1,skill.player.074,1,20,0,0,1.0,0,战斗中每 15 秒恢复最大生命与最大法力各 1%,1
+skill.player.074.r2,skill.player.074,2,30,0,0,1.15,0,战斗中每 15 秒恢复最大生命与最大法力各 2%,1
+skill.player.074.r3,skill.player.074,3,40,0,0,1.3,0,战斗中每 15 秒恢复最大生命与最大法力各 3%,1

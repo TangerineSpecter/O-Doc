@@ -17,7 +17,7 @@ def has_equipment_type(equipment: list[dict], equipment_type: str) -> bool:
         required_slot = 'body'
     elif equipment_type in {'magic_shield', 'small_shield', 'large_shield'}:
         required_slot = 'offhand'
-    elif equipment_type in {'two_handed_staff', 'holy_staff'}:
+    elif equipment_type in {'mage_staff', 'two_handed_staff', 'holy_staff'}:
         required_slot = 'weapon'
     else:
         required_slot = ''
