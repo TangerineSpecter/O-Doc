@@ -91,6 +91,12 @@ class AnthologyListView(APIView):
 
             # 查询用户可见的有效文集，按置顶、排序升序排序
             anthologies = anthologies.select_related('novel').order_by('-is_top', 'sort')
+            try:
+                from system_settings.embedding_recovery import get_local_article_pending_counts
+
+                local_rag_pending_by_collection = get_local_article_pending_counts()
+            except Exception:
+                local_rag_pending_by_collection = None
 
             # 准备返回数据
             result_list = []
@@ -177,6 +183,11 @@ class AnthologyListView(APIView):
                     'title': anthology.title,
                     'count': item_count,
                     'rag_not_synced_count': anthology.rag_not_synced_count,
+                    'local_rag_pending_count': (
+                        local_rag_pending_by_collection.get(str(anthology.coll_id), 0)
+                        if local_rag_pending_by_collection is not None and anthology.type in {'article', 'agent'}
+                        else None
+                    ),
                     'icon_id': anthology.icon_id,
                     'isTop': anthology.is_top,
                     'hideCoverContent': anthology.hide_cover_content,

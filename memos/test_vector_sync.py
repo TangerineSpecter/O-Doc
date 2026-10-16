@@ -47,7 +47,7 @@ class MemoVectorSyncTests(APITestCase):
 
     def test_delete_during_embedding_cannot_reinsert_vector(self):
         memo = Memo.objects.create(content='待删除', user_id='admin')
-        def embed_then_delete(_texts):
+        def embed_then_delete(_texts, **_kwargs):
             Memo.objects.filter(pk=memo.pk).update(is_valid=False)
             return [[0.1, 0.2]]
         with patch('utils.rag_client.RagClient.create_embeddings', side_effect=embed_then_delete), \

@@ -35,18 +35,18 @@ class DecisionTests(TestCase):
         self.assertEqual(self.client.patch(path, {'apiKey': ''}, format='json').status_code, 400)
         self.assertEqual(self.client.patch(path, {'apiKey': None}, format='json').status_code, 200)
         self.assertEqual(api_key('admin'), '')
-        self.assertFalse(SyncEntityState.objects.filter(object_pk=CREDENTIAL_KEY).exists())
+        self.assertTrue(SyncEntityState.objects.filter(object_pk=CREDENTIAL_KEY).exists())
 
-    def test_snapshot_export_and_restore_exclude_secret(self):
+    def test_snapshot_export_and_restore_include_secret(self):
         from utils.sync_manager import SyncManager
         save_key('admin', 'not-in-snapshot')
         manager = SyncManager.__new__(SyncManager)
-        self.assertFalse(manager._queryset_for_export(SystemSetting).filter(pk=CREDENTIAL_KEY).exists())
+        self.assertTrue(manager._queryset_for_export(SystemSetting).filter(pk=CREDENTIAL_KEY).exists())
         remote = [{'model': 'system_settings.systemsetting', 'pk': CREDENTIAL_KEY, 'fields': {'value': {'admin': {'jev': 'remote-secret'}}}}]
-        self.assertEqual(manager._drop_local_only_settings(remote), [])
+        self.assertEqual(manager._drop_local_only_settings(remote), remote)
         self.assertEqual(api_key('admin'), 'not-in-snapshot')
 
-    def test_full_snapshot_restore_keeps_local_credential(self):
+    def test_full_snapshot_restore_restores_remote_credential(self):
         import tempfile
         from django.test import override_settings
         from utils.sync_manager import SyncManager
@@ -58,7 +58,7 @@ class DecisionTests(TestCase):
                 {'model': 'system_settings.systemsetting', 'pk': CREDENTIAL_KEY,
                  'fields': {'value': {'admin': {'jev': 'remote-must-not-replace'}}, 'description': ''}},
             ], full_overwrite=True)
-        self.assertEqual(api_key('admin'), 'local-stays')
+        self.assertEqual(api_key('admin'), 'remote-must-not-replace')
 
     def test_config_defaults_and_partial_update(self):
         self.assertFalse(market_config({})['decision_enabled'])

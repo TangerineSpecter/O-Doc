@@ -2,6 +2,7 @@ import logging
 import os
 import socket
 import threading
+from datetime import timedelta
 
 from django.db import OperationalError, ProgrammingError, close_old_connections
 from django.utils import timezone
@@ -9,7 +10,7 @@ from django.utils import timezone
 from anthology.models import Anthology
 from article.models import Article
 from utils.notification_service import NotificationService
-from utils.rag_client import RagClient
+from utils.rag_client import RagClient, RagDeadlineReached
 from .models import SystemSetting
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
@@ -96,28 +97,31 @@ class ArticleRagScheduler:
             return
 
         now = _local_now()
-        run_time = self._parse_run_time(config.get('runTime') or config.get('run_time') or '02:00')
-        if not run_time:
-            logger.warning('Article RAG scheduler skipped invalid runTime=%s', config.get('runTime'))
+        window = self.resolve_window(now, config)
+        if not window:
             return
-
-        if (now.hour, now.minute) < run_time:
-            return
-
-        today = now.date().isoformat()
+        window_date, window_end = window
+        today = window_date.isoformat()
         runtime = self._get_runtime()
-        if runtime.get('last_run_date') == today:
+        if (runtime.get('last_run_date') == today
+                and runtime.get('status') in {'success', 'partial'}):
             return
 
         last_started_at = str(runtime.get('last_started_at') or '')
-        if runtime.get('status') == 'running' and last_started_at.startswith(today):
+        active_dates = {today, window_end.date().isoformat()}
+        if runtime.get('status') == 'running' and last_started_at[:10] in active_dates:
             return
 
         if not self._run_lock.acquire(blocking=False):
             return
 
         try:
-            self._run(trigger='scheduler', run_date=today, notification_user='admin')
+            self._run(
+                trigger='scheduler',
+                run_date=today,
+                notification_user='admin',
+                window_end=window_end,
+            )
         finally:
             self._run_lock.release()
 
@@ -164,6 +168,42 @@ class ArticleRagScheduler:
 
         return hour, minute
 
+    @classmethod
+    def resolve_window(cls, now, config):
+        """Return the active nightly window's start date and end, or None."""
+        start_time = cls._parse_run_time(config.get('runTime') or config.get('run_time') or '02:00')
+        end_time = cls._parse_run_time(config.get('endTime') or config.get('end_time') or '08:00')
+        if not start_time or not end_time or start_time == end_time:
+            return None
+
+        current = now.hour * 60 + now.minute
+        start = start_time[0] * 60 + start_time[1]
+        end = end_time[0] * 60 + end_time[1]
+        if start < end:
+            if not start <= current < end:
+                return None
+            window_date = now.date()
+            end_date = now.date()
+        elif current >= start:
+            window_date = now.date()
+            end_date = now.date() + timedelta(days=1)
+        elif current < end:
+            window_date = now.date() - timedelta(days=1)
+            end_date = now.date()
+        else:
+            return None
+
+        window_end = now.replace(
+            year=end_date.year,
+            month=end_date.month,
+            day=end_date.day,
+            hour=end_time[0],
+            minute=end_time[1],
+            second=0,
+            microsecond=0,
+        )
+        return window_date, window_end
+
     @staticmethod
     def _get_runtime():
         try:
@@ -191,7 +231,7 @@ class ArticleRagScheduler:
 
         return current
 
-    def _run(self, trigger='scheduler', run_date=None, notification_user=None):
+    def _run(self, trigger='scheduler', run_date=None, notification_user=None, window_end=None):
         started_at = timezone.now()
         runtime_patch = {
             'status': 'running',
@@ -212,16 +252,22 @@ class ArticleRagScheduler:
         total_chunks = 0
         failures = []
         affected_coll_ids = set()
+        window_expired = False
 
         logger.info('Article RAG started, trigger=%s, pending=%s', trigger, total)
 
         for article in queryset.iterator(chunk_size=50):
+            if window_end and _local_now() >= window_end:
+                window_expired = True
+                break
             try:
+                deadline_kwargs = {'deadline': window_end} if window_end else {}
                 chunk_count = RagClient.add_article(
                     article_id=article.article_id,
                     title=article.title,
                     content=article.content,
                     coll_id=article.coll_id,
+                    **deadline_kwargs,
                 )
                 article.is_rag_synced = True
                 article.last_rag_synced_at = timezone.now()
@@ -229,6 +275,9 @@ class ArticleRagScheduler:
                 synced_count += 1
                 total_chunks += chunk_count or 0
                 affected_coll_ids.add(article.coll_id)
+            except RagDeadlineReached:
+                window_expired = True
+                break
             except Exception as exc:
                 failed_count += 1
                 message = str(exc) or '同步失败'
@@ -245,11 +294,19 @@ class ArticleRagScheduler:
             except Exception:
                 logger.exception('Failed to update anthology stats after article RAG sync, coll_id=%s', coll_id)
 
-        status = 'success' if failed_count == 0 else 'partial'
+        has_pending = queryset.filter(is_rag_synced=False).exists()
+        if has_pending and window_end and (_local_now() >= window_end or window_expired):
+            status = 'paused'
+        elif failed_count or has_pending:
+            status = 'partial'
+        else:
+            status = 'success'
         summary = [
             f"待处理 {total} 篇，成功 {synced_count} 篇，失败 {failed_count} 篇",
             f"生成 chunks 数：{total_chunks}",
         ]
+        if status == 'paused':
+            summary.append('已到达本次执行窗口结束时间，剩余文章将在下一个窗口继续处理。')
         if failures:
             summary.extend(
                 f"{item['title']}：{item['message']}"
@@ -257,7 +314,7 @@ class ArticleRagScheduler:
             )
 
         finished_at = timezone.now().isoformat()
-        if synced_count > 0:
+        if synced_count > 0 and (trigger == 'manual' or status != 'paused'):
             self._send_notification(
                 notification_user or 'admin',
                 synced_count=synced_count,

@@ -28,7 +28,7 @@ export function DecisionSettings() {
         try {
             setConfig(await saveDecisionKey(clear ? null : secret.trim()));
             setSecret('');
-            toast.success(clear ? 'JEV 密钥已清除' : 'JEV 密钥已保存到本机');
+            toast.success(clear ? 'JEV 密钥已清除' : 'JEV 密钥已保存');
         } catch (cause) {
             toast.error(cause instanceof Error ? cause.message : '保存 JEV 密钥失败');
         } finally {
@@ -62,7 +62,7 @@ export function DecisionSettings() {
         try {
             setConfig(await updateDecisionConnection(connection.id, {apiKey: null}));
             setResults(previous => ({...previous, [connection.id]: ''}));
-            toast.success('本机 API Key 已清除');
+            toast.success('已保存的 API Key 已清除');
         } catch (cause) {
             toast.error(cause instanceof Error ? cause.message : '清除 API Key 失败');
         }
@@ -119,7 +119,7 @@ export function DecisionSettings() {
                     </div>
                 </div>}
                 {customConnections.map(connection => <DecisionConnectionCard key={connection.id} connection={connection} result={results[connection.id]} busy={testing === connection.id} onTest={() => void test(connection)} onEdit={() => openEdit(connection)} onClearKey={() => void clearConnectionKey(connection)} onDelete={() => setDeleteTarget(connection)}/>) }
-                <p className="text-xs leading-5 text-slate-500">连接名称、协议、地址和模型 ID 随 WebDev 同步；API Key 仅保存在本机。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
+                <p className="text-xs leading-5 text-slate-500">连接信息、选择和 API Key 都随 WebDAV 同步；密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
             </div>}
 
             <DecisionConnectionModal isOpen={modalOpen} initialData={editing} onClose={() => setModalOpen(false)} onSave={saveConnection}/>
@@ -127,7 +127,7 @@ export function DecisionSettings() {
                 <button type="button" aria-label="关闭删除确认" className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" onClick={() => setDeleteTarget(null)}/>
                 <section role="dialog" aria-modal="true" aria-labelledby="delete-decision-title" className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
                     <h3 id="delete-decision-title" className="font-bold text-slate-800">删除决策连接？</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">将删除“{deleteTarget.name}”及本机密钥。若世界当前选中了它，会切回 JEV。</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">将删除“{deleteTarget.name}”及其 API Key。若世界当前选中了它，会切回 JEV。</p>
                     <div className="mt-5 flex justify-end gap-2">
                         <button type="button" onClick={() => setDeleteTarget(null)} className="min-h-9 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">取消</button>
                         <button type="button" onClick={() => void removeConnection()} className="min-h-9 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">删除连接</button>

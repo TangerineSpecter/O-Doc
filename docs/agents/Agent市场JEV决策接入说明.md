@@ -4,7 +4,7 @@
 
 ## 决策连接与协议
 
-连接目录在「AI 模型接入 → 决策模型连接」管理。每个自定义连接保存名称、协议、服务地址和模型 ID；API Key 单独按账号保存在 `SystemSetting.system_decision_credentials`，只在本机保存。连接元数据位于可同步的 `SystemSetting.system_decision_connections`，当前世界选择保存在 `LifeConfig.settings.decision_connection_id`，两者随 WebDAV 同步；切换设备后仍须在该设备填写 API Key。
+连接目录在「AI 模型接入 → 决策模型连接」管理。每个自定义连接保存名称、协议、服务地址和模型 ID；API Key 按账号及连接 ID 保存在 `SystemSetting.system_decision_credentials`，与可同步的连接元数据 `SystemSetting.system_decision_connections`、当前世界选择 `LifeConfig.settings.decision_connection_id` 一起随 WebDAV 同步。
 
 当前提供两个适配器：`systemone` 直接发送 TypeSafe System One `{state, questions}` 并读取 `answers`；`openai_chat_json` 按 OpenAI Chat Completions 外层调用 `/chat/completions`，把同一 `{state, questions}` JSON 序列化到 `messages[0].content`，从 `choices[0].message.content` 解析按问题 ID 返回的 choice JSON。内部统一校验候选、完整概率分布和置信度。JEV 使用 `systemone`；StartLux 可以直连原生 System One，也可以按已验证的 NewAPI Chat 包装选择 `openai_chat_json`。协议不同于这两种格式的服务须新增独立适配器，不要求改写市场业务逻辑。
 
@@ -14,11 +14,11 @@
 
 「AI 模型接入 → 决策模型连接」提供 JEV 内置连接，以及自定义连接的新增、编辑、删除、密钥管理和连接测试。JEV 使用官方 `https://api.typesafe.ai/v1`、`jev-latest`，按 System One 协议连接并记录响应实际版本；协议见 [TypeSafe API](https://docs.typesafe.ai/api) 和 [模型说明](https://docs.typesafe.ai/models)。StartLux 经 NewAPI 时配置 `openai_chat_json`，模型 ID 使用已验证的 `startlux-decision`。
 
-配置读取只返回连接信息和密钥是否已在本机配置，不回传密钥。账号从认证用户取得；测试按所选协议校验结构化决策结果。
+配置读取只返回连接信息和密钥是否已配置，不回传密钥。账号从认证用户取得；测试按所选协议校验结构化决策结果。
 
-`SystemSetting.system_decision_credentials` 属于 `LOCAL_ONLY_SYSTEM_SETTING_KEYS`：不进入 WebDAV、修订或导出快照，完整恢复不覆盖、不清除本机密钥。`SystemSetting.system_decision_connections` 和 `LifeConfig.settings.decision_connection_id` 是可同步的非敏感连接元数据及选择。请求错误不记录凭证。
+`SystemSetting.system_decision_credentials` 自 2026-10-16 起参与 WebDAV 快照、修订和恢复。配置读取接口只返回密钥是否已配置，不回传密钥；请求错误不记录凭证。API Key 会以快照字段进入远端存储，请确保 SFTP/WebDAV 目录访问受控。
 
-`AgentTask.market_config` 的旧 `decision_enabled` / `decision_provider` 值继续随任务同步以兼容历史数据；当前实际开关、排除场景和连接选择由 `LifeConfig.settings` 统一管理。连接元数据和世界选择使用已有 `SystemSetting` / `LifeConfig`，无新增数据库列或迁移；新设备需自行填写密钥。
+`AgentTask.market_config` 的旧 `decision_enabled` / `decision_provider` 值继续随任务同步以兼容历史数据；当前实际开关、排除场景和连接选择由 `LifeConfig.settings` 统一管理。连接元数据、世界选择和 API Key 使用已有 `SystemSetting` / `LifeConfig`，无新增数据库列或迁移。
 
 ## 执行与回退
 

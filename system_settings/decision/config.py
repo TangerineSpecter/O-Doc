@@ -1,4 +1,4 @@
-"""Decision connection metadata syncs; credentials stay on the current device."""
+"""Decision connection metadata and credentials participate in account sync."""
 import re
 import uuid
 from urllib.parse import urlsplit

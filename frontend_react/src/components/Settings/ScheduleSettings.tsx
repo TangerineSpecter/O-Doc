@@ -161,7 +161,7 @@ export const ScheduleSettings = ({
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-800">文章 RAG 定时任务</h3>
-                            <p className="text-xs text-slate-500">到达指定时间后，自动处理所有标记为未 RAG 的有效文章</p>
+                            <p className="text-xs text-slate-500">在夜间窗口内分批补齐文章与本机向量索引，窗口结束后次日续跑</p>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
@@ -199,7 +199,7 @@ export const ScheduleSettings = ({
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                        <label className="mb-2 block text-sm font-semibold text-slate-700">执行时间</label>
+                        <label className="mb-2 block text-sm font-semibold text-slate-700">开始时间</label>
                         <div className="relative">
                             <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <input
@@ -214,9 +214,25 @@ export const ScheduleSettings = ({
                             />
                         </div>
                     </div>
-                    <div className="flex items-end">
-                        <div className="w-full rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700">
-                            后台任务每天只会执行一次；若当天已运行，再次保存同一时间不会重复触发。
+                    <div>
+                        <label className="mb-2 block text-sm font-semibold text-slate-700">结束时间</label>
+                        <div className="relative">
+                            <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="time"
+                                value={articleRagScheduleConfig.endTime}
+                                disabled={!articleRagScheduleConfig.enabled}
+                                onChange={(event) => onArticleRagScheduleConfigChange({
+                                    ...articleRagScheduleConfig,
+                                    endTime: event.target.value,
+                                })}
+                                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            />
+                        </div>
+                    </div>
+                    <div className="sm:col-span-2">
+                        <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700">
+                            任务只在设置的时间窗口内运行，默认 02:00–08:00；到结束时间会暂停，未完成内容会在下一窗口继续。开始和结束时间不能相同。
                         </div>
                     </div>
                 </div>

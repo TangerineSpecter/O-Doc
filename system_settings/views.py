@@ -342,6 +342,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
         default_value = {
             'enabled': False,
             'runTime': '02:00',
+            'endTime': '08:00',
         }
         config, _ = SystemSetting.objects.get_or_create(
             key='system_article_rag_schedule_config',
@@ -447,6 +448,15 @@ class SystemConfigViewSet(viewsets.ViewSet):
         data = request.data
         enabled = bool(data.get('enabled', False))
         run_time = data.get('runTime') or data.get('run_time') or '02:00'
+        end_time = data.get('endTime') or data.get('end_time') or '08:00'
+        from system_settings.article_rag_scheduler import ArticleRagScheduler
+
+        parsed_start = ArticleRagScheduler._parse_run_time(run_time)
+        parsed_end = ArticleRagScheduler._parse_run_time(end_time)
+        if not parsed_start or not parsed_end:
+            return valid_result(msg='开始和结束时间必须使用 24 小时制 HH:MM')
+        if parsed_start == parsed_end:
+            return valid_result(msg='开始时间和结束时间不能相同')
 
         SystemSetting.objects.update_or_create(
             key='system_article_rag_schedule_config',
@@ -454,6 +464,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 'value': {
                     'enabled': enabled,
                     'runTime': run_time,
+                    'endTime': end_time,
                 },
                 'description': '文章 RAG 定时任务配置',
             }

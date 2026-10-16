@@ -74,6 +74,7 @@ export default function SettingsPage() {
     const [articleRagScheduleConfig, setArticleRagScheduleConfig] = useState<ArticleRagScheduleConfig>({
         enabled: false,
         runTime: '02:00',
+        endTime: '08:00',
     });
     const [scheduleAction, setScheduleAction] = useState<'memos' | 'rag' | null>(null);
 
@@ -135,6 +136,7 @@ export default function SettingsPage() {
                     setArticleRagScheduleConfig({
                         enabled: Boolean(ragConfig?.enabled),
                         runTime: ragConfig?.runTime || '02:00',
+                        endTime: ragConfig?.endTime || '08:00',
                     });
                 })
                 .catch((error) => {

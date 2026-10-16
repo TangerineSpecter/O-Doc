@@ -4,6 +4,7 @@ import {
     Bot,
     ChevronDown,
     CloudOff,
+    Database,
     Edit,
     FileText,
     GripHorizontal,
@@ -172,12 +173,38 @@ export const SortableCollectionCard = ({
                         {item.type !== 'image' && !isLearningCollection && !isNovelCollection && item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? (
                             <div
                                 className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 border border-orange-100 text-[10px] font-medium text-orange-600"
-                                title={`${item.ragNotSyncedCount} 篇文档未同步到知识库`}
+                                title={`${item.ragNotSyncedCount} 篇文章尚未标记为 RAG 已同步`}
                             >
                                 <CloudOff className="w-2.5 h-2.5" />
                                 <span>{item.ragNotSyncedCount}</span>
                             </div>
                         ) : null}
+                        {(item.type === 'article' || item.type === 'agent') && (
+                            item.localRagPendingCount == null ? (
+                                <div
+                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-[10px] font-medium text-slate-400"
+                                    title="本机向量状态尚未核验"
+                                >
+                                    <Database className="w-2.5 h-2.5" />
+                                </div>
+                            ) : item.localRagPendingCount > 0 ? (
+                                <div
+                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-100 text-[10px] font-medium text-amber-700"
+                                    title={`本机还有 ${item.localRagPendingCount} 篇文章待建向量`}
+                                >
+                                    <Database className="w-2.5 h-2.5" />
+                                    <span>{item.localRagPendingCount}</span>
+                                </div>
+                            ) : (
+                                <div
+                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-100 text-[10px] font-medium text-emerald-700"
+                                    title="本机文章向量已就绪"
+                                >
+                                    <Database className="w-2.5 h-2.5" />
+                                    <span>✓</span>
+                                </div>
+                            )
+                        )}
                         <span
                             className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center"
                             title={countTitle}

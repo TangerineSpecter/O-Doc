@@ -453,6 +453,7 @@ export interface MemosPushConfig {
 export interface ArticleRagScheduleConfig {
     enabled: boolean;
     runTime: string;
+    endTime: string;
 }
 
 export type SyncProtocol = 'webdav' | 'ftp' | 'sftp';

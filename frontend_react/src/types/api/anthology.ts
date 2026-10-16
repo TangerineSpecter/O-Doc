@@ -45,6 +45,7 @@ export interface Anthology {
     adoptedCount?: number;
     publishedCount?: number;
     ragNotSyncedCount?: number;
+    localRagPendingCount?: number | null;
     iconId: string;
     isTop: boolean;
     hideCoverContent?: boolean;

@@ -86,13 +86,13 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
                         <input value={modelId} onChange={event => setModelId(event.target.value)} maxLength={160} placeholder="例如：startlux-decision" className="min-h-10 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm font-normal text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"/>
                     </label>
                     <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
-                        <span>API Key <span className="font-normal text-slate-400">（仅本机保存，可留空）</span></span>
+                        <span>API Key <span className="font-normal text-slate-400">（随 WebDAV 同步，可留空）</span></span>
                         <input type="password" autoComplete="new-password" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder={initialData?.apiKeyConfigured ? '已保存；留空表示不修改' : '填写服务密钥'} className="min-h-10 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm font-normal text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"/>
                     </label>
                     {initialData?.apiKeyConfigured && (
                         <label className="flex items-center gap-2 text-xs text-slate-500">
                             <input type="checkbox" checked={clearApiKey} onChange={event => setClearApiKey(event.target.checked)}/>
-                            清除本机保存的 API Key
+                            清除已保存的 API Key
                         </label>
                     )}
                     {error && <p role="alert" className="text-xs leading-5 text-red-600">{error}</p>}
