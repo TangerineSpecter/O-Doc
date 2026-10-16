@@ -458,6 +458,90 @@ class FarmQueueTests(TestCase):
         self.assertEqual(FarmOperation.objects.count(), 0)
         self.assertEqual(sum(sum(p['progress'].values()) for p in self.farm().state['planting_plans'].values()), 0)
 
+    def test_exploration_spillover_prepares_and_executes_new_day_farm_queue(self):
+        import json
+        from django.core import serializers
+        from system_settings.models import WorldAction
+        from .farm_models import FarmCatalog
+        from .farm_queue_sync import validate_queue_source
+        from .life_runner import execute_item
+        from .life_schedule import reschedule_after_exploration
+        from .life_time import local_time
+
+        self.stock('seed.potato', 4)
+        self.stock('seed.radish', 2)
+        self.item.scheduled_at = NOW.replace(hour=23, minute=50)
+        self.item.save()
+        old = self.plan([{'sku': 'seed.potato', 'quantity': 4}])
+        source = copy.deepcopy(old['versions'][0])
+        with patch('django.utils.timezone.now', return_value=NOW.replace(hour=23, minute=30)):
+            reschedule_after_exploration('owner', self.agent.pk, NOW.replace(hour=23, minute=30), 7200)
+        self.item.refresh_from_db()
+        target = local_time(self.item.scheduled_at)
+        self.assertEqual(target.date(), (NOW + timedelta(days=1)).date())
+        self.assertEqual(self.item.activity, 'farm')
+        self.assertNotIn('farm_plan_id', self.item.context)
+        self.assertEqual(self.item.context['planned_on'], target.date().isoformat())
+        self.assertEqual(self.item.context['farm_plan_sources'][old['id']], source)
+        cancelled = self.farm().state['planting_plans'][old['id']]
+        self.assertEqual(cancelled['status'], 'cancelled')
+        self.assertEqual(cancelled['cutoff'], old['cutoff'])
+        self.assertEqual(cancelled['starts_at'], old['starts_at'])
+
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+        response = {'plans': [{'id': self.item.pk, 'farm_plan': {
+            'entries': [{'sku': 'seed.radish', 'quantity': 2}], 'procurement_limit': '0',
+        }}]}
+        with patch('django.utils.timezone.now', return_value=target), \
+                patch('system_settings.agent_world.life_planner.ask_detail', return_value=response) as detail:
+            execute_item(self.item, None)
+        self.item.refresh_from_db()
+        new = current(self.farm(), target)
+        self.assertEqual(self.item.status, 'completed')
+        self.assertNotEqual(new['id'], old['id'])
+        self.assertEqual(new['day'], target.date().isoformat())
+        self.assertGreater(new['cutoff'], target.timestamp())
+        self.assertEqual(new['activated_at'], target.timestamp())
+        self.assertEqual(sum(new['progress'].values()), 2)
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'seed.radish'), 0)
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'seed.potato'), 4)
+        self.assertEqual(set(self.item.context['farm_plan_sources']), {old['id'], new['id']})
+        detail.assert_called_once()
+        self.ai.assert_not_called()
+        validate_plan(self.farm())
+        validate_queue_source(json.loads(serializers.serialize(
+            'json', [self.farm(), *FarmCatalog.objects.all(), self.item,
+                     *WorldAction.objects.all(), *FarmOperation.objects.all()],
+        )))
+
+    def test_exploration_same_day_shift_retains_farm_queue(self):
+        from .life_schedule import reschedule_after_exploration
+        old = self.plan()
+        with patch('django.utils.timezone.now', return_value=NOW):
+            reschedule_after_exploration('owner', self.agent.pk, NOW, 1800)
+        self.item.refresh_from_db()
+        plan = current(self.farm(), NOW)
+        self.assertEqual(self.item.context['farm_plan_id'], old['id'])
+        self.assertEqual(plan['status'], 'pending')
+        self.assertEqual(plan['cutoff'], old['cutoff'])
+        self.assertEqual(plan['starts_at'], (NOW + timedelta(minutes=55)).timestamp())
+
+    def test_exploration_moves_next_day_farm_within_its_existing_plan_day(self):
+        from .life_schedule import reschedule_after_exploration
+        target_day = NOW + timedelta(days=1)
+        self.item.scheduled_at = target_day.replace(hour=0, minute=30)
+        self.item.save()
+        old = self.plan()
+        with patch('django.utils.timezone.now', return_value=NOW.replace(hour=23)):
+            reschedule_after_exploration('owner', self.agent.pk, NOW.replace(hour=23), 7200)
+        self.item.refresh_from_db()
+        plan = current(self.farm(), target_day)
+        self.assertEqual(self.item.context['farm_plan_id'], old['id'])
+        self.assertEqual(plan['status'], 'pending')
+        self.assertEqual(plan['cutoff'], old['cutoff'])
+        self.assertEqual(plan['starts_at'], target_day.replace(hour=1, minute=15).timestamp())
+
     def test_cancelled_queue_does_not_limit_ordinary_market_purchase(self):
         from .life_schedule import revise
         self.plan(limit='0')

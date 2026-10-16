@@ -133,6 +133,137 @@ def revise(item: LifeItem, reason: str, **changes) -> None:
         changed(item, reason)
 
 
+def _next_free_slot(candidate: datetime, settings: dict, occupied: list[datetime]) -> datetime | None:
+    """Find the next activity start that respects the day's window and minimum gap."""
+    day = local_time(candidate).date()
+    left, right = window(settings, day)
+    point = max(local_time(candidate), left)
+    gap = timedelta(minutes=settings['min_gap_minutes'])
+    while point < right:
+        conflicts = [at for at in occupied if abs((point - at).total_seconds()) < gap.total_seconds()]
+        if not conflicts:
+            return point
+        point = max(conflicts) + gap
+    return None
+
+
+@guarded
+@transaction.atomic
+def reschedule_after_exploration(owner: str, actor: str, start: datetime, duration_seconds: int, *,
+                                 life_item_id: str = '') -> None:
+    """Move only affected open life items around an exploration reservation.
+
+    The current day's tail moves by the exploration duration. Items pushed into the
+    next day are inserted into gaps without moving that day's unaffected schedule.
+    """
+    start = local_time(start)
+    end = start + timedelta(seconds=duration_seconds)
+    config = LifeConfig.objects.filter(pk=owner).first()
+    from .life_config import DEFAULTS, effective_settings
+    settings = {**DEFAULTS, **(effective_settings(config, start) if config else {})}
+    gap = timedelta(minutes=settings['min_gap_minutes'])
+    day_left, day_right = window(settings, start.date())
+    rows = list(LifeItem.objects.select_for_update().filter(
+        owner_id=owner, actor_id=actor, status__in=('pending', 'deferred'),
+        scheduled_at__gte=storage_time(start),
+    ).exclude(pk=life_item_id).order_by('scheduled_at', 'id'))
+    at_by_id = {row.pk: local_time(row.scheduled_at) for row in rows}
+    overlapping = [row for row in rows if start <= at_by_id[row.pk] < end]
+    if not overlapping:
+        return
+
+    today = start.date()
+    today_conflicts = [at_by_id[row.pk] for row in overlapping if at_by_id[row.pk].date() == today]
+    first_today_conflict = min(today_conflicts) if today_conflicts else None
+    today_tail = [row for row in rows if first_today_conflict is not None
+                  and at_by_id[row.pk].date() == today and at_by_id[row.pk] >= first_today_conflict]
+    tail_ids = {row.pk for row in today_tail}
+    next_day_conflicts = [row for row in overlapping if at_by_id[row.pk].date() > today]
+    next_day_ids = {row.pk for row in next_day_conflicts}
+
+    updates = []
+    failures = []
+    overflow = []
+    same_day_occupied = [at_by_id[row.pk] for row in rows if row.pk not in tail_ids
+                         and at_by_id[row.pk].date() == today]
+    last_tail_target = None
+    for row in today_tail:
+        original = at_by_id[row.pk]
+        target = original + timedelta(seconds=duration_seconds)
+        target = max(target, end + gap)
+        if last_tail_target is not None:
+            target = max(target, last_tail_target + gap)
+        last_tail_target = target
+        if target.date() == today and target < day_right:
+            updates.append((row, target, f'迷宫探索占用 {duration_seconds // 60} 分钟，当天后续日程顺延'))
+            same_day_occupied.append(target)
+        else:
+            if row.activity == 'market_prepare':
+                point = _next_free_slot(max(end + gap, day_left), settings, same_day_occupied)
+                if point is None or point >= day_right:
+                    failures.append((row, '迷宫探索挤占后，当天没有可用的市场机会时段'))
+                else:
+                    updates.append((row, point, '迷宫探索占用后，市场机会移入当天空档'))
+                    same_day_occupied.append(point)
+            else:
+                overflow.append((row, target, original))
+
+    for row in next_day_conflicts:
+        original = at_by_id[row.pk]
+        overflow.append((row, end + gap, original))
+
+    if overflow:
+        next_day = today + timedelta(days=1)
+        _, next_right = window(settings, next_day)
+        moving_ids = tail_ids | next_day_ids
+        occupied = [at_by_id[row.pk] for row in rows if row.pk not in moving_ids
+                    and at_by_id[row.pk].date() == next_day]
+        farm_days = {at_by_id[row.pk].date() for row in rows
+                     if row.pk not in moving_ids and at_by_id[row.pk].date() == next_day
+                     and row.activity == 'farm'}
+        previous_target = None
+        for row, proposed, original in sorted(overflow, key=lambda entry: (entry[2], entry[1], entry[0].pk)):
+            # A daily market opportunity belongs to its original date and cannot roll over.
+            if row.activity == 'market_prepare' and local_time(row.original_at).date() != next_day:
+                failures.append((row, '迷宫探索挤占后，当天没有可用的市场机会时段'))
+                continue
+            candidate = max(proposed, end + gap, window(settings, next_day)[0])
+            if previous_target is not None:
+                candidate = max(candidate, previous_target + gap)
+            if row.activity == 'farm' and next_day in farm_days:
+                point = None
+            else:
+                point = _next_free_slot(candidate, settings, occupied)
+            if point is None or point >= next_right:
+                failures.append((row, '探索顺延后次日没有可用空档，需要重新规划'))
+                continue
+            reason = f'迷宫探索预计 {end.strftime("%Y-%m-%d %H:%M")} 结束，安排到次日空档'
+            updates.append((row, point, reason))
+            occupied.append(point)
+            previous_target = point
+            if row.activity == 'farm':
+                farm_days.add(next_day)
+
+    for row, point, reason in updates:
+        context = dict(row.context)
+        if (row.activity == 'farm' and context.get('farm_plan_id')
+                and point.date() != at_by_id[row.pk].date()):
+            from .farm_queue_schedule import cancel
+            cancel(row, reason + '；跨日后重新准备种植队列')
+            # Keep each plan's original source for sync; execute_item will prepare
+            # a new queue for the chosen farm activity using that day's inventory.
+            context.pop('farm_plan_id')
+            reason += '；农场队列将在开工前按新日期重新规划'
+        if point.date() != today:
+            context = {**context, 'planned_on': point.date().isoformat()}
+        revise(row, reason, scheduled_at=point, status='deferred', context=context)
+    for row, reason in failures:
+        revise(row, reason, status='failed', result={'reason': reason})
+        if row.context.get('farm_plan_id'):
+            from .farm_queue_schedule import cancel
+            cancel(row, reason)
+
+
 def execution_key(item: LifeItem) -> str:
     return item.context.get('execution_key') or item.pk
 
