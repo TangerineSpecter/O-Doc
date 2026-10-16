@@ -12,7 +12,7 @@ from .store import current
 from .permissions import local_runtime
 from .profiles import ensure, stats, wearing, recover, adopt_catalog, OPEN
 from .facts import append
-from . import engine, attributes, rewards
+from . import engine, attributes, rewards, equipment
 from ..farm_gate import guarded
 from ..life_time import local_time, storage_time
 from ..execution import stamina
@@ -218,9 +218,19 @@ def depart(run_id, plan, now=None):
         if count:take_stock(profile.pk,profile.owner_id,'combat.'+sid,count)
     if sum(potions.values())>int(catalog.rules['potion_carry_cap']):raise ValueError('每次最多携带 20 瓶药剂')
     derived=stats(profile,catalog)
-    from .equipment import allowed
-    for item in EquipmentInstance.objects.filter(pk__in=profile.loadout.values()):
-        if not allowed(catalog,item.template_id,profile.progression['job'],profile.progression['level'],item.snapshot['level']):raise ValueError('出发装备已停用或不满足职业/等级条件')
+    loadout_ids=set(profile.loadout.values())
+    worn_items={item.pk:item for item in EquipmentInstance.objects.filter(
+        pk__in=loadout_ids,actor_id=profile.pk,owner_id=run.owner_id,sold=False)}
+    if len(profile.loadout)!=len(loadout_ids) or len(worn_items)!=len(loadout_ids):
+        raise ValueError('出发装备归属或来源无效')
+    source_catalogs={}
+    for slot,identity in profile.loadout.items():
+        item=worn_items[identity]
+        if item.catalog_id not in source_catalogs:
+            source_catalogs[item.catalog_id]=current(item.catalog_id)
+        if not equipment.loadout_slot_matches(
+                source_catalogs[item.catalog_id],item.template_id,item.snapshot,slot):
+            raise ValueError('出发装备槽位记录无效')
     run.duration_seconds=duration
     profession_bonuses = rewards.profession_bonus_snapshot(agent)
     run.snapshot={**run.snapshot,'plan':plan,'equipment':wearing(profile),'progression':profile.progression,
@@ -305,9 +315,7 @@ def settle(run, profile, status, reason, now):
         run.record_id=record.pk;run.save(update_fields=['record_id'])
     record.status='success' if execution_completed(status) else 'failed'
     record.summary,record.output,record.duration=report[:255],report,f'{run.elapsed_seconds//60} 分钟'
-    record.steps=[{'time':local_time(now).strftime('%Y-%m-%d %H:%M:%S'),
-        'status':record.status,'title':'迷宫探索结算','detail':report,
-        'kind':'exploration','exploration_id':run.pk,'result':run.result}]
+    record.steps=[{'kind':'exploration','exploration_id':run.pk,'result':run.result}]
     record.save()
     if run.life_item_id:
         from ..life_models import LifeItem

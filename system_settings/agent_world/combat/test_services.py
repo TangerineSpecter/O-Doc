@@ -99,6 +99,29 @@ class ExplorationTests(TestCase):
             self.assertEqual(lease.token,'')
             self.assertIsNone(lease.until)
 
+    def test_preparation_does_not_revalidate_already_worn_gear_but_checks_new_gear(self):
+        from .models import EquipmentInstance
+        from .preparation import prepare
+        from .profiles import preview_equipment
+
+        profile=ensure('admin',self.agent,self.now)
+        starter=EquipmentInstance.objects.get(pk=profile.loadout['weapon'])
+        starter.template_id='equip.sword'
+        starter.snapshot={**starter.snapshot,'template_id':'equip.sword','name':'训练木剑'}
+        starter.save(update_fields=['template_id','snapshot'])
+        run=explorations.request('admin',self.agent,'worn-gear-still-departs',{},now=self.now)
+        plan={**self.plan,'equipment':{'weapon':starter.pk}}
+
+        with patch('system_settings.agent_world.combat.equipment.allowed',return_value=False):
+            run=prepare(run.pk,planner=lambda *args:plan)
+            self.assertEqual(run.status,'active')
+
+            new_gear=EquipmentInstance.objects.create(pk='new-training-sword',owner_id='admin',
+                actor_id=self.agent.pk,catalog_id=starter.catalog_id,template_id=starter.template_id,
+                snapshot=starter.snapshot)
+            with self.assertRaisesMessage(ValueError,'装备不属于居民或不满足穿戴条件'):
+                preview_equipment(CombatProfile.objects.get(pk=self.agent.pk),{'weapon':new_gear.pk})
+
     def test_unaffordable_optional_potions_are_removed_from_exploration_plan(self):
         from .preparation import fit_potion_plan
         run=explorations.request('admin',self.agent,'unbudgeted-potion-plan',{},now=self.now)

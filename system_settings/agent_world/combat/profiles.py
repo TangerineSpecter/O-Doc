@@ -32,12 +32,21 @@ def apply_loadout_changes(profile, catalog, changes, owner):
             candidate.pop(slot, None)
             continue
         item = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, owner_id=owner, sold=False).first()
-        template_id = equipment.eligibility_template_id(
-            catalog, item.template_id, item.snapshot, bound=item.bound
-        ) if item else ''
-        if (not item or not equipment.loadout_slot_matches(catalog, template_id, item.snapshot, slot) or
-                not equipment.allowed(catalog, template_id, profile.progression['job'],
-                                      profile.progression['level'], item.snapshot['level'])):
+        already_worn_here = profile.loadout.get(slot) == identity
+        if not item:
+            raise ValueError('装备不属于居民或不满足穿戴条件')
+        if already_worn_here:
+            slot_catalog = current(item.catalog_id)
+            slot_template_id = item.template_id
+        else:
+            slot_catalog = catalog
+            slot_template_id = equipment.eligibility_template_id(
+                catalog, item.template_id, item.snapshot, bound=item.bound)
+        if not equipment.loadout_slot_matches(slot_catalog, slot_template_id, item.snapshot, slot):
+            raise ValueError('装备不属于居民或不满足穿戴条件')
+        if not already_worn_here and not equipment.allowed(
+                catalog, slot_template_id, profile.progression['job'],
+                profile.progression['level'], item.snapshot['level']):
             raise ValueError('装备不属于居民或不满足穿戴条件')
         for current_slot, current_identity in list(candidate.items()):
             if current_identity == identity and current_slot != slot:
@@ -170,16 +179,22 @@ def promote(owner, agent, key, job, *, exploration_id='', reason=''):
     idle(profile,excluding=exploration_id)
     catalog = current(profile.catalog_id)
     profile.progression = attributes.promote(catalog,profile.progression,job)
+    # A newer profile catalog must not replace the eligibility rules bound to worn gear.
+    equipment_catalogs = {catalog.version: catalog}
     for slot, identity in list(profile.loadout.items()):
         item = EquipmentInstance.objects.get(pk=identity)
-        if not equipment.allowed(catalog,item.template_id,job,profile.progression['level'],item.snapshot['level']):
+        item_catalog = equipment_catalogs.get(item.catalog_id)
+        if item_catalog is None:
+            item_catalog = equipment_catalogs[item.catalog_id] = current(item.catalog_id)
+        if not equipment.allowed(
+                item_catalog,item.template_id,job,
+                profile.progression['level'],item.snapshot['level']):
             del profile.loadout[slot]
-    if job == 'job.mage' and 'equip.mage_staff' in catalog.index['equipment_templates']:
-        weapon = EquipmentInstance.objects.filter(pk=profile.loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
-        if weapon and weapon.template_id == 'equip.training_sword':
-            profile.loadout.pop('weapon', None)
     weapon = EquipmentInstance.objects.filter(pk=profile.loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
-    if two_handed(weapon, catalog):
+    weapon_catalog = equipment_catalogs.get(weapon.catalog_id) if weapon else None
+    if weapon and weapon_catalog is None:
+        weapon_catalog = equipment_catalogs[weapon.catalog_id] = current(weapon.catalog_id)
+    if two_handed(weapon, weapon_catalog or catalog):
         profile.loadout.pop('offhand', None)
     if 'weapon' not in profile.loadout:
         level = int(catalog.row('professions',job)['required_level'])
