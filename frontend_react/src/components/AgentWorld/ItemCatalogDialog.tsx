@@ -26,6 +26,7 @@ import {CropRuleEditor} from './CropRuleEditor';
 import {uploadItemIcon} from '../../api/itemIcons';
 import {setCatalogItemIcon, setCatalogInventoryIcon} from '../../api/itemCatalog';
 import DataExportButton from '../common/DataExportButton';
+import {itemCatalogExportSheets, itemCategoryLabels} from './itemCatalogExport';
 
 function cropKindFor(item: CatalogItem): CropKind | null {
     if (item.category !== 'crop' && item.category !== 'seed') return null;
@@ -35,19 +36,14 @@ function cropKindFor(item: CatalogItem): CropKind | null {
 
 const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
     {value: 'all', label: '全部'},
-    {value: 'souvenir', label: '纪念品'},
-    {value: 'seed', label: '种子'},
-    {value: 'fertilizer', label: '肥料'},
-    {value: 'feed', label: '饲料'},
-    {value: 'crop', label: '农作物'},
-    {value: 'animal_product', label: '畜产品'},
-    {value: 'other', label: '其他'},
+    ...(['souvenir', 'seed', 'fertilizer', 'feed', 'crop', 'animal_product', 'other'] as const)
+        .map(value => ({value, label: itemCategoryLabels[value]})),
 ];
 
 export function ItemCatalogContent({active = true}: {active?: boolean}) {
     const {items, loading, error, reload} = useItemCatalog();
     const catalogItems = useMemo(() => items.filter(item => item.category !== 'dish'), [items]);
-    const exportSheets = useMemo(() => [{name: '物品', rows: catalogItems}], [catalogItems]);
+    const exportSheets = useMemo(() => itemCatalogExportSheets(catalogItems), [catalogItems]);
     const [category, setCategory] = useState<'all' | ItemCategory>('all');
     const [search, setSearch] = useState('');
     const [selectedId, setSelectedId] = useState('');

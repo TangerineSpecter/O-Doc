@@ -28,7 +28,6 @@ import {
     UserRound,
     Zap,
 } from 'lucide-react';
-import {Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import {Select} from '../common/Select';
@@ -37,6 +36,7 @@ import {useTokenUsageExport} from '../../hooks/useTokenUsageExport';
 import {getAgents, getAgentTasks} from '../../api/setting';
 import type {TokenFilters, TokenGroup} from '../../types/api/tokenUsage';
 import {purposeNames, shanghaiDay, tokenDateRange, tokenNumber} from '../../utils/tokenUsage';
+import TokenUsageTrendChart from './TokenUsageTrendChart';
 import TokenUsageDetails from './TokenUsageDetails';
 
 function TokenUsageInfoButton() {
@@ -280,23 +280,6 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
         filters.all !== '1' && filters.start_date && filters.start_date === filters.end_date
     );
     const showHourly = isSingleDayFilter && Boolean(summary?.hours?.length);
-    const chartData = useMemo((): {day: string; hour: string; totalTokens: number; largeModelTokens: number; decisionModelTokens: number}[] => {
-        if (!summary) return [];
-        if (!showHourly) {
-            return summary.days.map(item => ({day: item.day, hour: '', totalTokens: item.totalTokens,
-                largeModelTokens: item.largeModelTokens, decisionModelTokens: item.decisionModelTokens}));
-        }
-        const byHour = new Map((summary.hours || []).map(item => [item.hour, item]));
-        return Array.from({length: 24}, (_, hour) => {
-            const key = String(hour).padStart(2, '0');
-            const item = byHour.get(key);
-            return {day: key, hour: key, totalTokens: item?.totalTokens || 0,
-                largeModelTokens: item?.largeModelTokens || 0, decisionModelTokens: item?.decisionModelTokens || 0};
-        });
-    }, [summary, showHourly]);
-    const peakDay = summary?.days?.length
-        ? summary.days.reduce((max, d) => (d.totalTokens > max.totalTokens ? d : max), summary.days[0])
-        : null;
 
     return (
         <WorldDialog
@@ -536,109 +519,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
 
                 {/* 单日按小时展示，多日按天展示 */}
                 {summary && (
-                    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <div className="rounded-md bg-orange-50 p-1 text-orange-600">
-                                    <BarChart3 className="h-3.5 w-3.5" />
-                                </div>
-                                <h3 className="text-sm font-bold text-slate-800">
-                                    {showHourly ? '每小时消耗趋势' : '每日消耗趋势'}
-                                </h3>
-                                <span className="text-xs text-slate-400">
-                                    {showHourly ? '(24 小时)' : `(${summary.days.length} 天记录)`}
-                                </span>
-                                <span className="ml-2 inline-flex items-center gap-2 text-[10px] text-slate-500">
-                                    <span className="inline-flex items-center gap-1"><i aria-hidden="true" className="h-2 w-2 rounded-sm bg-orange-500" />大模型</span>
-                                    <span className="inline-flex items-center gap-1"><i aria-hidden="true" className="h-2 w-2 rounded-sm bg-violet-500" />决策</span>
-                                </span>
-                            </div>
-                            {showHourly ? (
-                                <div className="text-xs text-slate-500">
-                                    当日累计：
-                                    <strong className="font-semibold text-orange-600">
-                                        {tokenNumber(summary.totalTokens)}
-                                    </strong>{' '}
-                                    token
-                                </div>
-                            ) : peakDay && (
-                                <div className="text-xs text-slate-500">
-                                    <span>
-                                        单日峰值：
-                                        <strong className="font-semibold text-orange-600">
-                                            {tokenNumber(peakDay.totalTokens)}
-                                        </strong>{' '}
-                                        ({peakDay.day.slice(5)})
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                        {summary.days.length ? (
-                            <div className="h-44 w-full min-w-0">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={chartData}
-                                        margin={{left: -8, right: 12, top: 10, bottom: 0}}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis
-                                            dataKey={showHourly ? 'hour' : 'day'}
-                                            interval={showHourly ? 2 : 0}
-                                            tick={{fontSize: 10, fill: '#64748b'}}
-                                            tickLine={false}
-                                            axisLine={{stroke: '#e2e8f0'}}
-                                            tickFormatter={(value: string) => showHourly ? `${value}:00` : value.slice(5)}
-                                        />
-                                        <YAxis
-                                            width={48}
-                                            tick={{fontSize: 10, fill: '#64748b'}}
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickFormatter={(v: number) =>
-                                                v >= 1000000
-                                                    ? `${(v / 1000000).toFixed(1)}M`
-                                                    : v >= 1000
-                                                      ? `${Math.round(v / 1000)}k`
-                                                      : String(v)
-                                            }
-                                        />
-                                        <Tooltip
-                                            cursor={{fill: '#ffedd5', opacity: 0.4, radius: 6}}
-                                            content={({active, payload, label}) => {
-                                                if (!active || !payload?.length) return null;
-                                                const point = payload[0].payload as typeof chartData[number];
-                                                return (
-                                                    <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-xs">
-                                                        <p className="text-[11px] font-semibold text-slate-600">
-                                                            {showHourly ? `${label}:00` : label}
-                                                        </p>
-                                                        <p className="mt-1 text-xs font-bold text-slate-700">总计 {tokenNumber(point.totalTokens)} token</p>
-                                                        <p className="mt-1 text-[11px] text-orange-600">大模型 {tokenNumber(point.largeModelTokens)}</p>
-                                                        <p className="text-[11px] text-violet-600">决策 {tokenNumber(point.decisionModelTokens)}</p>
-                                                    </div>
-                                                );
-                                            }}
-                                        />
-                                        <Bar
-                                            dataKey="largeModelTokens"
-                                            stackId="model-usage"
-                                            fill="#f97316"
-                                            maxBarSize={44}
-                                        />
-                                        <Bar
-                                            dataKey="decisionModelTokens"
-                                            stackId="model-usage"
-                                            fill="#8b5cf6"
-                                            radius={[6, 6, 0, 0]}
-                                            maxBarSize={44}
-                                        />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        ) : (
-                            <div className="py-8 text-center text-xs text-slate-400">该日期范围暂无采集记录</div>
-                        )}
-                    </section>
+                    <TokenUsageTrendChart summary={summary} showHourly={showHourly} />
                 )}
 
                 {/* 用量构成与排行大卡片（Tab 与列表整合，平滑防闪烁） */}

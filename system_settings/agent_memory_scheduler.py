@@ -95,11 +95,9 @@ class AgentMemoryScheduler:
 
     def _maybe_run(self):
         from .agent_world.memory.consolidate import initialize_states, run_daily
-        from .agent_world.memory.index import refresh_index
         from .agent_world.life_time import local_time
         now = local_time()
         initialize_states()
-        refresh_index()
         if now.hour >= 3:
             run_daily()
         run_time = self._parse_run_time(self.promotion_time)

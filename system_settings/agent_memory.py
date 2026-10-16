@@ -33,8 +33,12 @@ def get_memory_ttl_days():
         return DEFAULT_MEMORY_TTL_DAYS
 
 
-def get_agent_memory_collection():
-    return RagClient.get_collection(name=AGENT_MEMORY_COLLECTION)
+def get_agent_memory_collection(signature=None):
+    signature = signature if signature is not None else _agent_memory_model_signature()
+    if not signature:
+        return RagClient.get_collection(name=AGENT_MEMORY_COLLECTION)
+    suffix = hashlib.sha256(signature.encode('utf-8')).hexdigest()[:12]
+    return RagClient.get_collection(name=f'{AGENT_MEMORY_COLLECTION}_v1_{suffix}')
 
 
 def get_or_create_im_session(agent, record):
@@ -151,7 +155,7 @@ def recall_short_term_memories(agent, record, query_text, limit=DEFAULT_RECALL_L
         results = collection.query(
             query_embeddings=embeddings,
             n_results=limit * 4,
-            where={'agent_id': agent.id},
+            where={'agent_id': str(agent.id)},
             include=['documents', 'metadatas', 'distances'],
         )
     except Exception:
@@ -224,20 +228,23 @@ def store_short_term_memory(agent, record):
     )
 
     try:
+        signature = _agent_memory_model_signature()
         embeddings = RagClient.create_embeddings([content])
         if not embeddings:
             return memory
-        collection = get_agent_memory_collection()
+        collection = get_agent_memory_collection(signature)
         collection.upsert(
             documents=[content],
             embeddings=embeddings,
             metadatas=[{
-                'agent_id': agent.id,
+                'agent_id': str(agent.id),
                 'chat_id': record.chat_id or '',
                 'sender_id': record.sender_id or '',
                 'conversation_id': record.conversation_id or '',
                 'source_message_id': record.id,
                 'expires_at': expires_at.isoformat(),
+                'content_hash': hashlib.sha256(content.encode('utf-8')).hexdigest(),
+                'embedding_model': signature,
             }],
             ids=[memory.id],
         )
@@ -245,6 +252,81 @@ def store_short_term_memory(agent, record):
         logger.exception('Agent short-term memory store failed: memory=%s', memory.id)
 
     return memory
+
+
+def _agent_memory_model_signature():
+    from system_settings.agent_world.memory.index import model_signature
+
+    return model_signature()
+
+
+def refresh_short_term_memory_index(limit=5, deadline=None):
+    """Rebuild this device's short-term memory vectors from synchronized rows."""
+    now = timezone.now()
+    current_rows = list(AgentShortTermMemory.objects.filter(
+        expires_at__gt=now,
+        promoted_at__isnull=True,
+        agent__archived_at__isnull=True,
+    ).select_related('agent').order_by('created_at'))
+    if not current_rows:
+        return {'indexed': 0, 'pending': 0, 'failed': 0}
+
+    signature = _agent_memory_model_signature()
+    if not signature:
+        return {'indexed': 0, 'pending': len(current_rows), 'failed': 0}
+
+    collection = get_agent_memory_collection(signature)
+    existing = collection.get(include=['metadatas'])
+    existing_metadata = dict(zip(existing.get('ids', []), existing.get('metadatas', [])))
+    current_by_id = {memory.pk: memory for memory in current_rows}
+    obsolete_ids = sorted(set(existing_metadata) - set(current_by_id))
+    if obsolete_ids:
+        collection.delete(ids=obsolete_ids)
+
+    changed = []
+    for memory in current_rows:
+        metadata = existing_metadata.get(memory.pk) or {}
+        content_hash = hashlib.sha256(memory.content.encode('utf-8')).hexdigest()
+        if metadata.get('content_hash') != content_hash or metadata.get('embedding_model') != signature:
+            changed.append((memory, content_hash))
+
+    indexed = 0
+    failed = 0
+    for memory, content_hash in changed[:max(1, limit)]:
+        if deadline and timezone.now() >= deadline:
+            break
+        try:
+            vectors = RagClient.create_embeddings([memory.content], strict=True)
+            if len(vectors) != 1:
+                raise ValueError('向量模型未返回有效结果')
+            fresh = AgentShortTermMemory.objects.filter(
+                pk=memory.pk,
+                expires_at__gt=timezone.now(),
+                promoted_at__isnull=True,
+                agent__archived_at__isnull=True,
+            ).select_related('agent').first()
+            if not fresh or hashlib.sha256(fresh.content.encode('utf-8')).hexdigest() != content_hash:
+                continue
+            collection.upsert(
+                documents=[fresh.content],
+                embeddings=vectors,
+                metadatas=[{
+                    'agent_id': str(fresh.agent_id),
+                    'chat_id': fresh.chat_id or '',
+                    'sender_id': fresh.sender_id or '',
+                    'conversation_id': fresh.conversation_id or '',
+                    'expires_at': fresh.expires_at.isoformat(),
+                    'content_hash': content_hash,
+                    'embedding_model': signature,
+                }],
+                ids=[fresh.pk],
+            )
+            indexed += 1
+        except Exception:
+            failed += 1
+            logger.exception('Agent short-term memory index refresh failed: memory=%s', memory.pk)
+
+    return {'indexed': indexed, 'pending': max(0, len(changed) - indexed), 'failed': failed}
 
 
 def promote_due_short_term_memories():

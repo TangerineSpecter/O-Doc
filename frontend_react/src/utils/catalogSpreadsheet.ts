@@ -77,6 +77,10 @@ function cellXml(reference: string, value: unknown, header: boolean): string {
     if (value === null || value === undefined || value === '') return `<c r="${reference}"${style}/>`;
     if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${reference}"${style} t="n"><v>${value}</v></c>`;
     if (typeof value === 'boolean') return `<c r="${reference}"${style} t="b"><v>${value ? 1 : 0}</v></c>`;
+    if (typeof value === 'string' && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)) {
+        const numericValue = Number(value);
+        if (Number.isFinite(numericValue)) return `<c r="${reference}"${style} t="n"><v>${numericValue}</v></c>`;
+    }
     const text = typeof value === 'string' ? value : JSON.stringify(value);
     return `<c r="${reference}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(text)}</t></is></c>`;
 }

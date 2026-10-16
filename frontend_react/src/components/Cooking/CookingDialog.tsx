@@ -12,6 +12,7 @@ import {useCooking} from '../../hooks/useCooking';
 import type {CookingRecipe} from '../../types/api/cooking';
 import type {CatalogItem} from '../../types/api/itemCatalog';
 import DataExportButton from '../common/DataExportButton';
+import {cookingCatalogExportSheets} from './cookingCatalogExport';
 
 export interface CookingDialogProps {
     residents: {id: string; name: string}[];
@@ -38,11 +39,12 @@ export function CookingCatalogContent({
     const ingredientOptions = state.data?.ingredientOptions;
     const currentResident = residents.find(resident => resident.id === agentId);
     const skill = state.data?.skill;
-    const exportSheets = useMemo(() => [
-        {name: '食谱', rows: recipes},
-        {name: '可用食材', rows: ingredientOptions || []},
-        {name: '当前居民', rows: skill ? [{residentId: agentId, residentName: currentResident?.name || '', ...skill}] : []},
-    ], [recipes, ingredientOptions, skill, agentId, currentResident?.name]);
+    const exportSheets = useMemo(() => cookingCatalogExportSheets({
+        recipes,
+        ingredientOptions: ingredientOptions || [],
+        skill,
+        residentName: currentResident?.name || '',
+    }), [recipes, ingredientOptions, skill, currentResident?.name]);
 
     // 统计各筛选状态下的食谱数量
     const filterCounts = useMemo(() => {

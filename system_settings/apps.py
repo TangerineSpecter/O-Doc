@@ -18,6 +18,7 @@ class SystemSettingsConfig(AppConfig):
         from .builtin_skills import start_builtin_skill_sync
         from .agent_task_scheduler import start_agent_task_scheduler
         from .agent_memory_scheduler import start_agent_memory_scheduler
+        from .embedding_recovery_scheduler import start_embedding_recovery_scheduler
         from .article_rag_scheduler import start_article_rag_scheduler
         from .sync_scheduler import start_webdav_scheduler
         from .runtime_tracker import start_runtime_tracker
@@ -30,6 +31,7 @@ class SystemSettingsConfig(AppConfig):
         start_builtin_skill_sync()
         start_agent_task_scheduler()
         start_agent_memory_scheduler()
+        start_embedding_recovery_scheduler()
         start_article_rag_scheduler()
         start_webdav_scheduler()
         start_runtime_tracker()

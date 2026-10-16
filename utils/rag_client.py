@@ -1,9 +1,12 @@
 import logging
 import os
 import math
+import hashlib
+import json
 import chromadb
 from chromadb.config import Settings
 from django.conf import settings
+from django.utils import timezone
 from system_settings.models import SystemSetting, AIModel
 import requests
 
@@ -13,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 class RagSyncError(Exception):
     """Raised when content cannot be embedded or written to the vector store."""
+
+
+class RagDeadlineReached(RagSyncError):
+    """Raised when an embedding task reaches its configured local time window end."""
 
 
 class RagClient:
@@ -32,16 +39,31 @@ class RagClient:
         return cls._instance
 
     @classmethod
-    def get_collection(cls, name="odoc_knowledge_base"):
+    def get_collection(cls, name="odoc_knowledge_base", *, model_signature: str | None = None):
         """获取或创建集合"""
+        # Chroma 的集合维度在首次写入后固定，清空记录也不能重置。
+        # 文章和闪念的读写统一按模型隔离；其他领域沿用各自的集合命名。
+        if name in {'odoc_knowledge_base', 'odoc_memos'}:
+            signature = cls.embedding_model_signature() if model_signature is None else model_signature
+            if signature:
+                name = f'{name}_v1_{signature[:32]}'
         client = cls.get_client()
         # 使用 cosine 相似度，适合大多数 RAG 场景
         return client.get_or_create_collection(name=name, metadata={"hnsw:space": "cosine"})
 
     @classmethod
-    def get_memo_collection(cls):
+    def get_memo_collection(cls, *, model_signature: str | None = None):
         """获取 Memos 专用向量集合"""
-        return cls.get_collection(name="odoc_memos")
+        return cls.get_collection(name="odoc_memos", model_signature=model_signature)
+
+    @classmethod
+    def _delete_from_model_collections(cls, base_name: str, **delete_kwargs) -> None:
+        """同时清理旧模型集合，避免切回旧模型后已删除的内容重新出现。"""
+        client = cls.get_client()
+        for item in client.list_collections():
+            name = item if isinstance(item, str) else item.name
+            if name == base_name or name.startswith(f'{base_name}_v1_'):
+                client.get_collection(name=name).delete(**delete_kwargs)
 
     @staticmethod
     def get_embedding_model():
@@ -62,9 +84,18 @@ class RagClient:
             return None
 
     @classmethod
-    def create_embeddings(cls, texts, *, strict=False):
+    def embedding_model_signature(cls, model=None):
+        model = model or cls.get_embedding_model()
+        if not model:
+            return ''
+        provider = model.provider
+        identity = f'{model.pk}\0{model.name}\0{provider.pk}\0{provider.base_url.rstrip("/")}'
+        return hashlib.sha256(identity.encode('utf-8')).hexdigest()
+
+    @classmethod
+    def create_embeddings(cls, texts, *, strict=False, deadline=None, model=None):
         """调用硅基流动/OpenAI等接口生成向量"""
-        model = cls.get_embedding_model()
+        model = model or cls.get_embedding_model()
         if not model:
             if strict:
                 raise RagSyncError("未配置默认 Embedding 模型，请先在系统设置中配置向量模型")
@@ -85,6 +116,8 @@ class RagClient:
         embeddings = []
         try:
             for index, text in enumerate(texts):
+                if deadline and timezone.now() >= deadline:
+                    raise RagDeadlineReached('已到达向量任务的执行窗口结束时间')
                 # 简单处理换行符，很多 embedding 模型对换行敏感
                 text = text.replace("\n", " ")
                 payload = {
@@ -118,7 +151,7 @@ class RagClient:
         return embeddings
 
     @classmethod
-    def add_article(cls, article_id, title, content, coll_id):
+    def add_article(cls, article_id, title, content, coll_id, *, deadline=None, model=None):
         """添加文章到向量库"""
         if not content or not content.strip():
             raise RagSyncError("文章内容为空，无法生成知识库向量")
@@ -131,20 +164,28 @@ class RagClient:
             raise RagSyncError("文章内容为空，无法生成知识库向量")
 
         # 2. 生成向量
-        embeddings = cls.create_embeddings(chunks, strict=True)
+        model = model or cls.get_embedding_model()
+        model_signature = cls.embedding_model_signature(model) if model else ''
+        deadline_kwargs = {'deadline': deadline} if deadline else {}
+        embeddings = cls.create_embeddings(chunks, strict=True, model=model, **deadline_kwargs)
         if not embeddings or len(embeddings) != len(chunks):
             raise RagSyncError("向量生成失败或数量不匹配，已跳过入库")
 
         # 3. 准备元数据 (关键：存入 article_id 和 title)
+        content_hash = hashlib.sha256(json.dumps(
+            [title or '', content, str(coll_id)], ensure_ascii=False, separators=(',', ':'),
+        ).encode('utf-8')).hexdigest()
         metadatas = [{
             "article_id": str(article_id),
             "title": title,
-            "coll_id": str(coll_id)
+            "coll_id": str(coll_id),
+            "content_hash": content_hash,
+            "embedding_model": model_signature,
         } for _ in chunks]
         ids = [f"{article_id}_{i}" for i in range(len(chunks))]
 
         # 4. 确认新向量生成成功后，再替换旧数据，避免失败时破坏已有知识库内容。
-        collection = cls.get_collection()
+        collection = cls.get_collection(model_signature=model_signature)
         try:
             collection.delete(where={"article_id": str(article_id)})
         except Exception:
@@ -162,12 +203,12 @@ class RagClient:
     def delete_article(cls, article_id):
         """从向量库删除一篇文章的所有分块"""
         try:
-            cls.get_collection().delete(where={"article_id": str(article_id)})
+            cls._delete_from_model_collections('odoc_knowledge_base', where={"article_id": str(article_id)})
         except Exception:
             logger.exception('Failed to delete article vectors: article_id=%s', article_id)
 
     @classmethod
-    def add_memo(cls, memo):
+    def add_memo(cls, memo, *, strict=False):
         """添加或更新一条闪念到向量库"""
         from memos.models import Memo
 
@@ -175,7 +216,9 @@ class RagClient:
         if not content:
             return 0
 
-        embeddings = cls.create_embeddings([content])
+        model = cls.get_embedding_model()
+        signature = cls.embedding_model_signature(model) if model else ''
+        embeddings = cls.create_embeddings([content], strict=strict, model=model)
         if not embeddings:
             logger.warning('Memo vector generation returned no embeddings: memo_id=%s', memo.memo_id)
             return 0
@@ -184,7 +227,8 @@ class RagClient:
         current = Memo.objects.filter(memo_id=memo.memo_id, is_valid=True).first()
         if current is None or current.updated_at != memo.updated_at:
             return 0
-        collection = cls.get_memo_collection()
+        collection = cls.get_memo_collection(model_signature=signature)
+        content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
         collection.upsert(
             documents=[content],
             embeddings=embeddings,
@@ -195,6 +239,8 @@ class RagClient:
                 "is_pinned": bool(memo.is_pinned),
                 "created_at": memo.created_at.isoformat() if memo.created_at else "",
                 "updated_at": memo.updated_at.isoformat() if memo.updated_at else "",
+                "content_hash": content_hash,
+                "embedding_model": signature,
             }],
             ids=[str(memo.memo_id)]
         )
@@ -209,12 +255,12 @@ class RagClient:
     def delete_memo(cls, memo_id):
         """从向量库删除一条闪念"""
         try:
-            cls.get_memo_collection().delete(ids=[str(memo_id)])
+            cls._delete_from_model_collections('odoc_memos', ids=[str(memo_id)])
         except Exception:
             logger.exception('Failed to delete memo vector: memo_id=%s', memo_id)
 
     @classmethod
-    def sync_memos(cls, memos):
+    def sync_memos(cls, memos, *, strict=False, deadline=None):
         """补齐或刷新闪念向量，返回成功同步数量"""
         collection = cls.get_memo_collection()
         memo_list = list(memos)
@@ -234,15 +280,24 @@ class RagClient:
             existing_meta = {}
 
         synced_count = 0
+        signature = cls.embedding_model_signature()
         for memo in memo_list:
+            if deadline and timezone.now() >= deadline:
+                break
             memo_id = str(memo.memo_id)
             current_updated_at = memo.updated_at.isoformat() if memo.updated_at else ""
-            if existing_meta.get(memo_id, {}).get("updated_at") == current_updated_at:
+            content_hash = hashlib.sha256((memo.content or '').strip().encode('utf-8')).hexdigest()
+            metadata = existing_meta.get(memo_id, {})
+            if (metadata.get("updated_at") == current_updated_at
+                    and metadata.get("content_hash") == content_hash
+                    and metadata.get("embedding_model") == signature):
                 continue
             try:
-                synced_count += cls.add_memo(memo)
+                synced_count += cls.add_memo(memo, strict=True) if strict else cls.add_memo(memo)
             except Exception:
                 logger.exception('Failed to synchronize memo vector: memo_id=%s', memo_id)
+                if strict:
+                    raise
 
         return synced_count
 
@@ -305,12 +360,14 @@ class RagClient:
     def search(cls, query, n_results=3):
         """检索相关片段 (仅返回文本)"""
         # 1. 生成查询向量
-        query_embeddings = cls.create_embeddings([query])
+        model = cls.get_embedding_model()
+        signature = cls.embedding_model_signature(model) if model else ''
+        query_embeddings = cls.create_embeddings([query], model=model)
         if not query_embeddings:
             return []
 
         # 2. 获取集合 (修复 AttributeError)
-        collection = cls.get_collection()
+        collection = cls.get_collection(model_signature=signature)
 
         results = collection.query(
             query_embeddings=query_embeddings,
@@ -325,12 +382,14 @@ class RagClient:
         检索并返回 (文档内容列表, 来源元数据列表)
         """
         # 1. 生成查询向量 (修复：必须使用 create_embeddings，否则无法匹配硅基流动的向量空间)
-        query_embeddings = cls.create_embeddings([query_text])
+        model = cls.get_embedding_model()
+        signature = cls.embedding_model_signature(model) if model else ''
+        query_embeddings = cls.create_embeddings([query_text], model=model)
         if not query_embeddings:
             return [], []
 
         # 2. 获取集合对象 (修复：原代码报错 AttributeError: 'NoneType' object has no attribute 'query')
-        collection = cls.get_collection()
+        collection = cls.get_collection(model_signature=signature)
 
         # 3. 执行查询
         query_kwargs = {
