@@ -9,6 +9,22 @@ import {useToast} from '../common/ToastProvider';
 import type {LifeConfig} from '../../types/api/agentLife';
 import type {AIModel} from '../../types/api/setting';
 
+const decisionSceneLabels = {
+    market: '市场选择',
+    life_activity: '生活活动选择',
+    life_budget: '生活预算选择',
+    cooking_recipe: '美食菜谱选择',
+    cooking_quantity: '美食份数选择',
+    cooking_continue: '美食继续制作',
+    cooking_ingredient_strategy: '美食用料策略',
+    social_action: '社交行为选择',
+    travel_destination: '旅行目的地',
+    travel_visit: '旅行游览',
+    travel_event: '旅行遭遇',
+    combat_preparation: '迷宫探索准备',
+    combat_listing_price: '探索装备挂牌定价',
+};
+
 type ChatModel = AIModel & {providerName: string};
 
 export function WorldDecisionModelSettings() {
@@ -163,7 +179,7 @@ export function WorldDecisionModelSettings() {
                     {decisionConfig.error && <p role="alert" className="text-xs text-red-600">{decisionConfig.error}<button type="button" onClick={() => void decisionConfig.refresh()} className="ml-2 underline">重试</button></p>}
                     {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">所选连接：{decisionConnections.find(connection => connection.id === decisionConnectionId)?.configured ? '连接信息完整' : '请检查 API Key 和连接同步状态'}</p>}
                     {jevEnabled && <div className="space-y-2"><p className="text-xs font-semibold text-slate-600">排除场景（勾选后使用普通模型）</p><div className="grid gap-2 sm:grid-cols-2">
-                        {Object.entries({market: '市场选择', life_activity: '生活活动选择', social_action: '社交行为选择', travel_destination: '旅行目的地', travel_visit: '旅行游览', travel_event: '旅行遭遇', combat_preparation: '迷宫探索准备', combat_listing_price: '探索装备挂牌定价'}).map(([key, label]) => <Checkbox key={key} checked={excluded.includes(key)} disabled={saving} onChange={checked => setExcluded(previous => checked ? [...previous, key] : previous.filter(item => item !== key))} label={label}/>)}
+                        {Object.entries(decisionSceneLabels).map(([key, label]) => <Checkbox key={key} checked={excluded.includes(key)} disabled={saving} onChange={checked => setExcluded(previous => checked ? [...previous, key] : previous.filter(item => item !== key))} label={label}/>)}
                     </div></div>}
                 </div>
                 {missingSavedModel && (

@@ -1,4 +1,3 @@
-from system_settings.agent_role import role_text
 """只选择服务端给出的合法候选，模型不能自由改写美食制作或余额。"""
 from utils.token_usage import usage_scope
 import hashlib
@@ -9,18 +8,17 @@ from django.utils import timezone
 from django.db import transaction
 from system_settings.models import AgentRunRecord, WorldAction, WorldActionRuntime, AgentExecutionLease, SystemSetting
 from system_settings.agent_activity import update_work_activity
-from system_settings.agent_prompts import build_agent_system_prompt
-from utils.ai_service import AIService
-from system_settings.agent_task_models import task_model_id, task_model_name
+from system_settings.agent_task_models import task_model_name
 from .run_diagnostics import failure_detail, progress, finish_record
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .action_schedule import select_agent
 from .cooking_models import CookingOperation
 from .cooking_catalog import catalog_for
-from .cooking_queries import recipes, overview, validate_actor
+from .cooking_queries import validate_actor
 from .cooking_service import commit_portion
 from .cooking_plan import build_plan
 from .cooking_quality import STRATEGIES
+from .cooking_limits import MAX_RECIPES, MAX_PORTIONS, MAX_TOTAL
 from .farm_gate import farm_gate
 
 
@@ -28,26 +26,40 @@ logger = logging.getLogger(__name__)
 
 
 def decide(task, agent, options):
-    context = {'skill': overview(task.cooking_config['owner_id'], agent.pk),
-               'stamina': str(stamina(agent)),
-               'recipes': [project_recipe(row) for row in options]}
+    from .cooking_schedule_plan import planning_facts, decide_plan
     from .life_scope import CURRENT
     scope = CURRENT.get()
-    preferences = (scope or {}).get('context', {}).get('preferences')
-    if preferences:
-        context['preferences'] = preferences
-    prompt = role_text(agent, 'planning')
-    from .memory.recall import memory_context
-    prompt += '\n' + memory_context(agent, '美食 制作 厨艺 ' + task.prompt)
-    prompt += '\n你用自己的食材制作美食。从当前可制作菜里至少选择一道，合计最多六份；根据偏好、原料机会成本、预期收益和成长决定数量。每道菜选择 low_stars_first（日常制作）或 high_stars_first（精品制作），同星先进先出；高星材料不保证加工盈利，挂牌溢价不计保证收入。quality_previews 按当前等级估算，实际每份采用制作时等级。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1,"ingredient_strategy":"low_stars_first"}],"reason":"简短理由"}。不修改规则。'
-    messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False) + '\n制作偏好：' + task.prompt}]
-    from system_settings.decision.routing import complete_json
-    def validate(value):
-        decision = validate_decision(value, options)
-        build_plan(task.cooking_config['owner_id'], agent.pk, decision['choices'], options, stamina(agent))
-        return decision
-    return complete_json(agent, prompt + '\n' + messages[1]['content'], validate,
-                         task=task, decision=True, scene='制作计划')
+    exclude = [scope['item_id']] if scope else []
+    owner = task.cooking_config['owner_id']
+    facts = planning_facts(owner, agent, exclude_ids=exclude)
+    plan = decide_plan(agent, owner, facts, key=(scope or {}).get('item_id', str(uuid.uuid4())), task=task)
+    return {'choices': [{key: entry[key] for key in ('recipe_id', 'quantity', 'ingredient_strategy')}
+                        for entry in plan['entries']],
+            'reason': '系统选择说明：按已确认的菜谱、份数和用料策略制作。',
+            'cooking_plan': plan}
+
+
+def prepare_decision(task, agent):
+    from .life_scope import CURRENT
+    from .life_models import LifeItem
+    from .cooking_schedule_plan import validate_plan, planning_facts, recipe_options
+    scope = CURRENT.get()
+    item = LifeItem.objects.filter(pk=scope['item_id']).first() if scope else None
+    saved = item.context.get('cooking_plan') if item else None
+    if saved:
+        saved = validate_plan(saved)
+        decision = {'choices': [{k: entry[k] for k in ('recipe_id', 'quantity', 'ingredient_strategy')}
+                                 for entry in saved['entries']],
+                    'reason': '按日程已经确认的美食计划制作', 'cooking_plan': saved}
+    else:
+        facts = planning_facts(task.cooking_config['owner_id'], agent,
+                               exclude_ids=[item.pk] if item else [])
+        options = list(recipe_options(facts['rules'], facts['level'], facts['pool'], facts['energy']).values())
+        decision = decide(task, agent, options) if options else {'choices': [], 'reason': '暂时没有可执行的制作操作'}
+    if decision.get('cooking_plan'):
+        options = [{**entry['rule'], 'id': entry['recipe_id']}
+                   for entry in decision['cooking_plan']['entries']]
+    return decision, options
 
 
 def project_recipe(row):
@@ -75,7 +87,7 @@ def project_recipe(row):
 
 def validate_decision(value, options):
     choices = value['choices']
-    if (not isinstance(choices, list) or (options and not choices) or len(choices) > 6
+    if (not isinstance(choices, list) or (options and not choices) or len(choices) > MAX_RECIPES
             or not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500):
         raise ValueError('制作计划格式无效')
     available = {row['id']: row for row in options}
@@ -85,12 +97,12 @@ def validate_decision(value, options):
                 or choice.get('ingredient_strategy', 'low_stars_first') not in STRATEGIES):
             raise ValueError('制作选择格式无效')
         key, quantity = choice['recipe_id'], choice['quantity']
-        if not isinstance(key, str) or key not in available or key in seen or type(quantity) is not int or not 1 <= quantity <= available[key]['max_portions']:
+        if not isinstance(key, str) or key not in available or key in seen or type(quantity) is not int or not 1 <= quantity <= min(MAX_PORTIONS, available[key]['max_portions']):
             raise ValueError('食谱或份数无效')
         seen.add(key)
         total += quantity
-    if total > 6:
-        raise ValueError('一次最多制作六份')
+    if total > MAX_TOTAL:
+        raise ValueError('一次最多制作三道、每道十份')
     return value
 
 
@@ -100,7 +112,7 @@ def finish(action, scheduler=None):
     action.result = {**action.result, 'operations': [{'id': o.pk, 'recipe_id': o.recipe_id, 'snapshot': o.snapshot, 'result': o.result} for o in ops]}
     if action.record:
         record = action.record
-        status = 'failed' if action.status == 'failed' else 'success'
+        status = 'success' if action.status == 'success' else 'failed'
         finish_record(record, status, summary, json.dumps(action.result, ensure_ascii=False), '美食制作机会结束')
         if action.agent:
             update_work_activity(record, action.agent, status=status, summary=summary, current_action='美食制作完成' if ops else '本次制作机会结束', output=record.output)
@@ -151,13 +163,16 @@ def run_cooking_opportunity(task, scheduler=None, *, key=None, manual=False, loc
                 owner = task.cooking_config['owner_id']
                 validate_actor(owner, agent.pk)
                 update_work_activity(record, agent, status='running', current_action='正在决定制作哪些美食')
-                options = [row for row in recipes(owner, agent) if row['state'] == 'ready']
-                phase = '模型选择制作计划'
+                phase = '确认美食制作计划'
                 progress(record, phase)
                 with usage_scope(agent=agent, task=task, record=record, purpose='task', phase=phase):
-                    decision = decide(task, agent, options) if options else {'choices': [], 'reason': '暂时没有可执行的制作操作'}
+                    decision, options = prepare_decision(task, agent)
                 with farm_gate(), transaction.atomic():
-                    selected = build_plan(owner, agent.pk, decision['choices'], options, stamina(agent))
+                    from .cooking_schedule_plan import available_pool
+                    from .life_scope import CURRENT
+                    scope = CURRENT.get()
+                    pool = available_pool(owner, agent.pk, exclude_ids=[scope['item_id']] if scope else [])
+                    selected = build_plan(owner, agent.pk, decision['choices'], options, stamina(agent), pool=pool)
                     if selected:
                         # Protect the confirmed plan even if execution stops before
                         # its first portion creates a skill/operation record.

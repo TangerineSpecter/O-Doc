@@ -11,7 +11,10 @@ from utils.completion_options import thinking_options
 from utils.ai_observer import check_ai_control, emit_ai_event
 from system_settings.models import AIModel, SystemSetting
 
-SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'social_action': '社交行为选择',
+SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'life_budget': '生活预算选择',
+          'cooking_recipe': '美食菜谱选择', 'cooking_quantity': '美食份数选择',
+          'cooking_continue': '美食继续制作', 'cooking_ingredient_strategy': '美食用料策略',
+          'social_action': '社交行为选择',
           'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇',
           'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}
 logger = logging.getLogger(__name__)

@@ -43,7 +43,7 @@ class CookingRuleTests(SimpleTestCase):
 
     def test_plan_limits(self):
         options = [{'id': 'x', 'max_portions': 6}, {'id': 'y', 'max_portions': 6}]
-        for choices in ([], [{'recipe_id': 'x', 'quantity': 7}], [{'recipe_id': 'x', 'quantity': 4}, {'recipe_id': 'y', 'quantity': 3}], [{'recipe_id': 'bad', 'quantity': 1}], [{'recipe_id': 'x', 'quantity': True}], [{'recipe_id': 'x', 'quantity': 1, 'price': 1}]):
+        for choices in ([], [{'recipe_id': 'x', 'quantity': 7}], [{'recipe_id': 'x', 'quantity': 1}, {'recipe_id': 'x', 'quantity': 1}], [{'recipe_id': 'bad', 'quantity': 1}], [{'recipe_id': 'x', 'quantity': True}], [{'recipe_id': 'x', 'quantity': 1, 'price': 1}]):
             with self.subTest(choices=choices), self.assertRaises(ValueError):
                 validate_decision({'choices': choices, 'reason': '制作'}, options)
 
@@ -114,13 +114,14 @@ class CookingTests(TestCase):
             self.cook(recipe='tomato_eggs')
         self.assertEqual(stock_quantity(self.agent.pk, 'admin', 'crop.tomato'), 2)
 
-    def test_upgrade_and_six_portions_limit(self):
+    def test_old_six_portion_plan_keeps_boundaries_and_growth(self):
         rule = {**DEFAULT_RULES['baked_potato'], 'experience': 100}
         self.supply(quantity=12); self.prepare(count=6, rule=rule)
         for index in range(6): self.cook(index=index, rule=rule)
         self.assertEqual(CookingSkill.objects.get(pk=self.agent.pk).experience, 600)
         self.assertEqual(stock_quantity(self.agent.pk, 'admin', 'dish.baked_potato'), 6)
-        with self.assertRaisesRegex(ValueError, '六份'): self.cook(index=6, rule=rule)
+        with self.assertRaisesRegex(ValueError, '已确认计划'): self.cook(index=6, rule=rule)
+        with self.assertRaisesRegex(ValueError, '三十份'): self.cook(index=30, rule=rule)
         reconcile_cooking()
 
     def test_fifo_across_rows(self):

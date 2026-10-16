@@ -25,6 +25,11 @@ NOW = datetime(2026, 10, 10, 8, tzinfo=SHANGHAI)
 @override_settings(USE_TZ=True)
 class DailyMarketScheduleTests(TestCase):
     def setUp(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        temp = TemporaryDirectory(); self.addCleanup(temp.cleanup)
+        isolation = override_settings(MEDIA_ROOT=temp.name, ODOC_WORLD_LOCK_PATH=str(Path(temp.name) / 'world.lock'))
+        isolation.enable(); self.addCleanup(isolation.disable)
         provider = AIProvider.objects.create(name='test', base_url='http://example.invalid', api_key='fake')
         model = AIModel.objects.create(provider=provider, name='fake', type='chat')
         self.agents = [Agent.objects.create(name=f'buyer {i}', model=model, money=1000) for i in range(4)]
@@ -86,7 +91,7 @@ class DailyMarketScheduleTests(TestCase):
             tick_life(None)
         self.assertEqual(self.daily_items().count(), 4)
         self.assertTrue(all(item.status == 'pending' for item in self.daily_items()))
-        self.assertTrue(ask.called)
+        ask.assert_not_called()
         self.assertTrue(all('market_prepare' != slot['current_activity']
                             for call in ask.call_args_list for slot in call.args[2]['slots']))
         run.assert_not_called()
@@ -102,7 +107,7 @@ class DailyMarketScheduleTests(TestCase):
         def shop(task, scheduler, *, key):
             self.assertEqual(key, item.pk)
             self.assertEqual(CURRENT.get()['actor_id'], agent.pk)
-            self.assertEqual(CURRENT.get()['context']['current']['budget'], '0.00')
+            self.assertEqual(CURRENT.get()['context']['current']['id'], item.pk)
             adjust_budget(self.config.pk, agent.pk, [{'id': item.pk, 'budget': '100'}], '买种子')
             with transaction.atomic():
                 charge_budget(agent, Decimal('50'))

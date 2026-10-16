@@ -67,6 +67,11 @@ class AllocationTests(SimpleTestCase):
 @override_settings(USE_TZ=True)
 class LifeTests(TestCase):
     def setUp(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        temp = TemporaryDirectory(); self.addCleanup(temp.cleanup)
+        isolation = override_settings(MEDIA_ROOT=temp.name, ODOC_WORLD_LOCK_PATH=str(Path(temp.name) / 'world.lock'))
+        isolation.enable(); self.addCleanup(isolation.disable)
         provider=AIProvider.objects.create(name='test',base_url='http://example.invalid',api_key='fake')
         self.model=AIModel.objects.create(provider=provider,name='fake',type='chat')
         self.agents=[Agent.objects.create(name=f'A{i}',model=self.model,money=10000) for i in range(4)]
@@ -219,7 +224,7 @@ class LifeTests(TestCase):
 
     def test_planning_can_adjust_future_commitments_with_reason(self):
         item=self.item()
-        future=self.item('future',budget=9000)
+        future=self.item('future',activity='travel',budget=9000)
         proposal={'plans':[{'id':item.pk,'activity':'investment','budget':'2000','reason':'增加本次可用金额'}],
                   'budget_allocations':[{'id':future.pk,'budget':'8000'}],'budget_reason':'降低后续购物预期'}
         apply_plan('admin',self.agents[0],[item],proposal)
@@ -228,7 +233,7 @@ class LifeTests(TestCase):
 
     def test_shared_context_has_past_and_future(self):
         first=self.item(status='completed',result={'reason':'已买到种子'})
-        second=self.item('later',budget=2000,intent='下午旅行')
+        second=self.item('later',activity='travel',budget=2000,intent='下午旅行')
         AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='采购',status='success',summary='已买到种子')
         data=build_context('admin',self.agents[0],second)
         self.assertEqual(data['recent_experiences'][0]['summary'],'已买到种子')
@@ -296,13 +301,11 @@ class LifeTests(TestCase):
 
     def test_unified_pipeline_plans_then_consumes_once(self):
         from .life_runner import tick_life
-        item=self.item(scheduled_at=timezone.now(),activity='unplanned')
+        item=self.item(scheduled_at=NOW,activity='unplanned')
         record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='保持现金')
-        def proposal(agent,instruction,context):
-            if '只为slots中的活动提供总预算' in instruction:
-                return {'budgets': [{'id':slot['id'],'budget':'1000'} for slot in context['slots']]}
-            return {'plans':[{'id':slot['id'],'activity':'investment','budget':'1000','reason':'保留现金'} for slot in context['slots']]}
-        with patch('system_settings.agent_world.life_planner.ask',side_effect=proposal), patch('system_settings.agent_world.investment_runner.run_investment_opportunity',return_value=record) as run:
+        with patch('django.utils.timezone.now', return_value=NOW), \
+                patch('system_settings.agent_world.life_choices.choose_scene', return_value='conservative'), \
+                patch('system_settings.agent_world.investment_runner.run_investment_opportunity', return_value=record) as run:
             tick_life(None)
             item.refresh_from_db()
             self.assertEqual(item.status,'completed')
@@ -311,34 +314,30 @@ class LifeTests(TestCase):
             tick_life(None)
             self.assertEqual(run.call_count,1)
 
-    def test_staged_planning_preserves_choice_reason_and_checks_real_balance(self):
+    def test_staged_planning_rejects_non_candidate_budget_and_saves_percentage(self):
         from .life_planner import plan_items
         item = self.item()
-        choices = {'plans': [{'id': item.pk, 'activity': 'investment', 'reason': '想研究投资'}]}
-        with patch('system_settings.agent_world.life_planner.ask', side_effect=[
-                choices, {'budgets': [{'id': item.pk, 'budget': '11000'}]}]):
-            with self.assertRaisesMessage(ValueError, '超过真实余额'):
+        with patch('system_settings.agent_world.life_choices.choose_scene', return_value='11000'):
+            with self.assertRaisesMessage(ValueError, '合法候选'):
                 plan_items(self.config, self.agents[0], [item])
         item.refresh_from_db()
         self.assertEqual(item.activity, 'unplanned')
         self.assertFalse(item.revisions.exists())
-        with patch('system_settings.agent_world.life_planner.ask', side_effect=[
-                choices, {'budgets': [{'id': item.pk, 'budget': '1000'}]}]):
+        with patch('system_settings.agent_world.life_choices.choose_scene', return_value='conservative'):
             plan_items(self.config, self.agents[0], [item])
         item.refresh_from_db()
         self.assertEqual(item.activity, 'investment')
-        self.assertEqual(item.intent, '想研究投资')
         self.assertEqual(item.budget, Decimal('1000'))
+        self.assertIn('10%', item.revisions.get().reason.replace('％', '%'))
 
     def test_new_life_plan_rejects_voluntary_rest(self):
         from .life_planner import plan_items
         item = self.item()
-        with patch('system_settings.agent_world.life_planner.ask', return_value={
-                'plans': [{'id': item.pk, 'activity': 'rest', 'reason': '今天想休息',
-                           'budget': '9000'}]}) as ask:
-            with self.assertRaisesMessage(ValueError, '活动未开放或配置缺失'):
+        AgentTask.objects.create(name='阅读', agent=self.agents[0], task_kind='post_interaction', enabled=True,
+                                 world_state={'owner_id': 'admin'})
+        with patch('system_settings.agent_world.life_choices.choose_scene', return_value='rest'):
+            with self.assertRaisesMessage(ValueError, '合法候选'):
                 plan_items(self.config, self.agents[0], [item])
-        ask.assert_called_once()
         item.refresh_from_db()
         self.assertEqual(item.activity, 'unplanned')
         self.assertEqual(item.budget, Decimal('0'))
@@ -346,13 +345,14 @@ class LifeTests(TestCase):
 
     def test_planning_failure_keeps_model_reason_on_schedule(self):
         from .life_runner import tick_life
-        item=self.item(scheduled_at=timezone.now(),activity='unplanned')
-        with patch('system_settings.agent_world.life_planner.ask',side_effect=ValueError('规划必须为本次每个时间点指定且仅指定一次活动')):
+        item=self.item(scheduled_at=NOW,activity='unplanned')
+        with patch('django.utils.timezone.now', return_value=NOW), \
+                patch('system_settings.agent_world.life_sequential_planner.choose', side_effect=ValueError('模拟候选校验失败')):
             tick_life(None)
         item.refresh_from_db()
         self.assertEqual(item.status,'deferred')
-        self.assertIn('规划必须为本次每个时间点指定',item.result['reason'])
-        self.assertIn('规划必须为本次每个时间点指定',item.revisions.latest('created_at').reason)
+        self.assertIn('模拟候选校验失败',item.result['reason'])
+        self.assertIn('模拟候选校验失败',item.revisions.latest('created_at').reason)
 
     def test_frozen_migration_keeps_future_slots_and_disables_auto(self):
         import importlib
@@ -377,7 +377,7 @@ class LifeTests(TestCase):
         from types import SimpleNamespace
         from .life_travel_budget import review_travel_budget
         item=self.item(activity='travel',budget=1000,status='running')
-        self.item('later',budget=9000)
+        self.item('later',activity='investment',budget=9000)
         trip=SimpleNamespace(pk=item.pk,agent=self.agents[0])
         decision={'allocations':[{'id':item.pk,'budget':'2000'},{'id':'later','budget':'8000'}],'reason':'真实旅费增加，减少后续可选购物'}
         with patch('system_settings.agent_world.travel_ai.ask',return_value=decision):

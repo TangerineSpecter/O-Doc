@@ -58,6 +58,24 @@ def allocate(pool: list[dict], ingredients: list[dict], strategy: str) -> list[d
     return allocations
 
 
+def remove_confirmed_lots(lots: list[dict], confirmed: list[dict]) -> list[dict]:
+    """Keep reserved FIFO batches intact when a free later batch was confirmed."""
+    kept = copy.deepcopy(lots)
+    for allocation in confirmed:
+        needed = allocation['quantity']
+        for lot in kept:
+            if Decimal(lot['price']) != Decimal(allocation['price']):
+                continue
+            used = min(needed, lot['quantity'])
+            lot['quantity'] -= used
+            needed -= used
+            if not needed:
+                break
+        if needed:
+            raise ValueError('已确认制作材料批次发生变化')
+    return [lot for lot in kept if lot['quantity']]
+
+
 @transaction.atomic
 def consume(actor_id: str, owner: str, materials: list[dict]) -> Decimal:
     from .travel_models import AgentInventoryItem
@@ -72,9 +90,10 @@ def consume(actor_id: str, owner: str, materials: list[dict]) -> Decimal:
         lots = row.source.get('lots') or [{'quantity': row.quantity, 'price': str(row.value)}]
         if sum(lot['quantity'] for lot in lots) != row.quantity:
             raise ValueError('库存批次不一致')
-        taken, kept = split_lots(lots, allocation['quantity'])
-        if taken != allocation['lots']:
+        taken = allocation['lots']
+        if sum(lot['quantity'] for lot in taken) != allocation['quantity']:
             raise ValueError('已确认制作材料批次发生变化')
+        kept = remove_confirmed_lots(lots, taken)
         amount += sum((Decimal(lot['price']) * lot['quantity'] for lot in taken), Decimal(0))
         row.quantity -= allocation['quantity']
         if row.quantity:

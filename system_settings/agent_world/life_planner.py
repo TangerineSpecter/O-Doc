@@ -8,11 +8,6 @@ from utils.ai_service import AIService
 from .life_budget_policy import remaining_reservation, validate_activity_budget
 from .life_models import LifeItem, LifeGoal
 from .life_schedule import OPEN, revise
-from .life_context import (
-    build_planning_budget_context,
-    build_planning_farm_context,
-    build_planning_selection_context,
-)
 from .life_config import tasks_for
 from .life_budget import money, future_allocations
 from .farm_gate import guarded
@@ -20,8 +15,6 @@ from .life_time import local_time
 
 
 import re
-from utils.completion_options import thinking_options
-from utils.bounded_completion import complete
 
 
 def parse_life_proposal(raw: str) -> dict:
@@ -106,6 +99,10 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
     from .travel_config import bound_skill
     available = {t.task_kind:t for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))}
     expected = {r.pk:r for r in LifeItem.objects.select_for_update().filter(pk__in=[i.pk for i in items], actor_id=agent.pk, owner_id=owner, status__in=OPEN)}
+    versions = proposal.get('_expected_versions', {})
+    if any(identity in versions and row.updated_at.isoformat() != versions[identity]
+           for identity, row in expected.items()):
+        raise ValueError('日程在决策期间发生变化，请重新规划当前时段')
     if any(item.activity == 'market_prepare' for item in expected.values()):
         raise ValueError('每日市场机会独立排程，不能改作普通生活活动')
     plans = proposal.get('plans')
@@ -120,7 +117,8 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         activity = plan.get('activity')
         # Existing rest plans remain readable, but new planning cannot choose rest.
         existing_rest = item.activity == 'rest' and activity == 'rest'
-        if activity not in available and not existing_rest:
+        automatic_rest = activity == 'rest' and proposal.get('_automatic_rest') is True
+        if activity not in available and not existing_rest and not automatic_rest:
             raise ValueError('活动未开放或配置缺失')
         if activity == 'farm':
             day = local_time(item.scheduled_at).date()
@@ -150,6 +148,7 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
     for row in other:
         if row.pk in changes and row.budget!=changes[row.pk]:revise(row,adjustment_reason,budget=changes[row.pk])
     for item, activity, reason, budget, needs_market in updates:
+        detail = next(p for p in plans if p['id'] == item.pk)
         before = (item.activity, item.intent, item.budget, item.task_id, item.status, copy.deepcopy(item.context))
         if activity == 'farm':
             from .farm_queue_plan import install
@@ -163,9 +162,17 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
                    'goals': list(LifeGoal.objects.filter(owner_id=owner, actor_id=agent.pk,
                                                         status='active').values('id', 'title', 'progress')[:20]),
                    'needs_market': needs_market}
+        if activity == 'cooking' and detail.get('cooking_plan'):
+            from .cooking_schedule_plan import validate_plan, ensure_materials, available_pool
+            specification = copy.deepcopy(validate_plan(detail['cooking_plan']))
+            ensure_materials(specification, available_pool(owner, agent.pk, exclude_ids=expected))
+            context['cooking_plan'] = specification
+        elif activity != 'cooking':
+            context.pop('cooking_plan', None)
         after = (activity, reason, budget, task_id, 'pending', context)
         if not skip_unchanged or before != after:
-            revise(item, reason, activity=activity, intent=reason, budget=budget,
+            revision_reason = reason + ('；' + detail['budget_reason'] if detail.get('budget_reason') else '')
+            revise(item, revision_reason, activity=activity, intent=reason, budget=budget,
                    task_id=task_id, status='pending', context=context)
     # 主观目标只能引用已经完成的实际经历；客观目标由检查器核实。
     for update in proposal.get('goal_updates',[])[:20]:
@@ -220,27 +227,21 @@ def _plan_items(config, agent, items: list[LifeItem], *, preserve_activities: bo
     if preserve_activities and any(item.activity in ('unplanned', '') for item in items):
         raise ValueError('执行前复核必须保留已安排的活动')
     check_goals(config.pk,agent)
-    context = build_planning_selection_context(config.pk, agent, items)
-    from .life_plan_proposal import propose
-    locked_plans = None
     if preserve_activities:
-        locked_plans = {
-            item.pk: {
-                'activity': item.activity,
-                'reason': item.intent or '按已安排活动执行',
-                'budget': str(item.budget),
-                'needs_market': bool(item.context.get('needs_market', False)),
-            }
-            for item in items
-        }
-    proposal = propose(
-        agent,
-        context,
-        ask,
-        ask_detail,
-        load_budget_context=lambda paid: build_planning_budget_context(config.pk, agent, paid),
-        load_farm_context=lambda _farms: build_planning_farm_context(config.pk, agent),
-        locked_plans=locked_plans,
-    )
-    apply_plan(config.pk,agent,items,proposal,skip_unchanged=preserve_activities)
+        from .life_budget_recheck import needs_replanning
+        items = [item for item in items if needs_replanning(config.pk, agent, item)]
+    from .life_sequential_planner import plan_slots
+    selected = plan_slots(config, agent, items, apply=apply_plan, ask=ask, ask_detail=ask_detail,
+                          preserve_activities=preserve_activities)
+    if any(row['activity'] != 'rest' for row in selected) and not preserve_activities:
+        goals = list(LifeGoal.objects.filter(owner_id=config.pk, actor_id=agent.pk, status='active')
+                     .values('id', 'title', 'condition', 'progress')[:20])
+        if goals:
+            from system_settings.models import AgentRunRecord
+            experiences = list(AgentRunRecord.objects.filter(agent_id=agent.pk).order_by('-created_at')
+                               .values('id', 'task_name', 'status', 'summary')[:8])
+            response = ask(agent, '只更新已提供的生活目标，不安排活动。返回 {"goal_updates":[]}；'
+                           '完成目标须引用真实evidence_record_id；允许放弃失效目标并说明原因。',
+                           {'goals': goals, 'recent_experiences': experiences})
+            apply_plan(config.pk, agent, [], {'plans': [], 'goal_updates': response.get('goal_updates', [])})
     check_goals(config.pk,agent)

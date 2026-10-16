@@ -32,6 +32,14 @@ def reconcile_life() -> None:
         if not config:raise SyncError('生活快照缺少所属配置')
         # 已删除居民允许历史保留；活跃配置必须可解释。
         for item in LifeItem.objects.filter(owner_id=owner):
+            if 'cooking_plan' in item.context:
+                from .cooking_schedule_plan import validate_plan
+                try:
+                    if item.activity != 'cooking':
+                        raise ValueError('美食计划属于其他活动')
+                    validate_plan(item.context['cooking_plan'])
+                except (ValueError, TypeError) as exc:
+                    raise SyncError('美食日程计划不一致') from exc
             if item.cycle_id and item.cycle.owner_id!=owner:raise SyncError('生活周期归属不一致')
             if not LifeProfile.objects.filter(pk=item.actor_id,owner_id=owner).exists():raise SyncError('安排缺少居民生活资料')
             if item.record_id:

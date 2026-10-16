@@ -5,6 +5,7 @@ from collections import Counter
 from decimal import Decimal
 from .cooking_materials import material_pool, allocate
 from .cooking_quality import RULES, STRATEGIES, material_stars
+from .cooking_limits import MAX_RECIPES, MAX_PORTIONS, MAX_TOTAL
 
 
 def base_values_for(owner: str) -> dict:
@@ -18,8 +19,14 @@ def base_values_for(owner: str) -> dict:
     return values
 
 
-def build_plan(owner: str, actor_id: str, choices: list[dict], options: list[dict], energy) -> list[dict]:
-    pool, available, selected, spent = material_pool(actor_id, owner), {row['id']: row for row in options}, [], 0
+def build_plan(owner: str, actor_id: str, choices: list[dict], options: list[dict], energy,
+               *, pool: list[dict] | None = None) -> list[dict]:
+    if (not isinstance(choices, list) or len(choices) > MAX_RECIPES
+            or any(type(row.get('quantity')) is not int or not 1 <= row['quantity'] <= MAX_PORTIONS for row in choices)
+            or len({row['recipe_id'] for row in choices}) != len(choices)):
+        raise ValueError('一次最多制作三道、每道一至十份')
+    pool = material_pool(actor_id, owner) if pool is None else copy.deepcopy(pool)
+    available, selected, spent = {row['id']: row for row in options}, [], 0
     base_values = base_values_for(owner)
     for choice in choices:
         row = available[choice['recipe_id']]
@@ -35,8 +42,8 @@ def build_plan(owner: str, actor_id: str, choices: list[dict], options: list[dic
                             base_values={i['sku']: base_values[i['sku']] for i in snapshot['ingredients']},
                             materials=allocate(pool, snapshot['ingredients'], strategy))
             selected.append({'recipe_id': choice['recipe_id'], 'rule': snapshot})
-    if len(selected) > 6:
-        raise ValueError('一次最多制作六份')
+    if len(selected) > MAX_TOTAL:
+        raise ValueError('一次最多制作三十份')
     return selected
 
 

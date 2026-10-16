@@ -14,14 +14,15 @@ from .execution import stamina
 from .cooking_materials import consume
 from .cooking_quality import outcome
 from .life_scope import allowed, check_current_authorization
+from .cooking_limits import MAX_TOTAL
 
 
 @guarded
 @transaction.atomic
 def commit_portion(actor_id: str, opportunity_id: str, index: int, recipe_id: str, snapshot: dict,
                    reason: str, task, agent_token: str, world_token: str, now=None) -> CookingOperation:
-    if type(index) is not int or not 0 <= index < 6:
-        raise ValueError('一次制作最多六份')
+    if type(index) is not int or not 0 <= index < MAX_TOTAL:
+        raise ValueError('一次制作最多三十份')
     key = f'{opportunity_id}:{index}'
     previous = CookingOperation.objects.filter(pk=key).first()
     if previous:

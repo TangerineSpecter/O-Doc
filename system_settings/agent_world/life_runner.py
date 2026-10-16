@@ -279,6 +279,9 @@ def _plan_cycle(config, scheduler, now):
     except Exception as exc:
         detail = str(exc)[:500]
         for entry in entries[:50]:
+            entry.refresh_from_db()
+            if entry.context.get('planned_on') == today and entry.activity not in ('unplanned', ''):
+                continue
             entry.attempts += 1
             terminal = entry.attempts >= 3
             revise(entry, f'生活规划未通过校验：{detail}', status='failed' if terminal else 'deferred',

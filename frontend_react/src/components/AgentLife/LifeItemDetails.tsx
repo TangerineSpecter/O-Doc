@@ -240,6 +240,19 @@ export default function LifeItemDetails({
                             </div>
                         )}
 
+                        {item.activity === 'cooking' && item.context?.cookingPlan && (
+                            <section className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+                                <p className="text-xs font-semibold text-slate-700">已安排的美食制作</p>
+                                <ul className="mt-2 space-y-1.5 text-xs text-slate-600">
+                                    {item.context.cookingPlan.entries.map(entry => (
+                                        <li key={entry.recipeId}>
+                                            {entry.rule.name} · {entry.quantity} 份 · {entry.ingredientStrategy === 'high_stars_first' ? '高星材料优先' : '低星材料优先'}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </section>
+                        )}
+
                         {item.result?.reason && (
                             <div className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs">
                                 {item.status === 'failed' ? (

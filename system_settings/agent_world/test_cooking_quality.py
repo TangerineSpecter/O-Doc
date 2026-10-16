@@ -161,17 +161,17 @@ class CookingQualityTests(TestCase):
         self.assertEqual(plan[0]['rule']['base_values']['crop.potato'], '18')
         reconcile_cooking()
 
-    def test_model_can_correct_resource_conflict_once(self):
+    def test_single_recipe_and_single_quantity_need_no_model(self):
         from .cooking_runner import decide
         self.supply()
         options = recipes('admin', self.agent)
-        bad = {'choices': [{'recipe_id': 'baked_potato', 'quantity': 2}], 'reason': '多做'}
-        good = {'choices': [{'recipe_id': 'baked_potato', 'quantity': 1, 'ingredient_strategy': 'high_stars_first'}], 'reason': '精品'}
-        import json
-        with patch('system_settings.agent_world.cooking_runner.AIService.chat_completion_messages', side_effect=[json.dumps(bad), json.dumps(good)]) as ai:
+        with patch('system_settings.agent_world.life_choices.choose_scene') as structured, \
+                patch('system_settings.agent_world.life_choices.complete_json') as ordinary:
             decision = decide(self.task, self.agent, options)
-        self.assertEqual(ai.call_count, 2)
-        self.assertEqual(decision, good)
+        structured.assert_not_called()
+        ordinary.assert_not_called()
+        self.assertEqual(decision['choices'], [{'recipe_id': 'baked_potato', 'quantity': 1,
+                                              'ingredient_strategy': 'low_stars_first'}])
         self.assertFalse(CookingOperation.objects.exists())
 
     def test_dishes_separate_stars_and_keep_origin_and_prices(self):
@@ -192,7 +192,7 @@ class CookingQualityTests(TestCase):
         manager = SyncManager()
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
-        self.assertEqual(meta['cooking_schema_version'], 2)
+        self.assertEqual(meta['cooking_schema_version'], 3)
         for _ in range(2): manager.apply_snapshot_data(copy.deepcopy(data), meta)
         self.assertEqual(CookingOperation.objects.count(), 1)
         self.assertEqual(CookingOperation.objects.get(pk=original.pk).result, original.result)

@@ -26,7 +26,7 @@ def validate_quality_operation(op, experience: int) -> int:
 def validate_source(data: list[dict], meta: dict | None = None) -> dict:
     from utils.sync_manager import SyncError
     version = (meta or {}).get('cooking_schema_version', 0)
-    if type(version) is not int or not 0 <= version <= 2:
+    if type(version) is not int or not 0 <= version <= 3:
         raise SyncError('烹饪快照版本高于本机，请升级后恢复')
     quality_plans, plan_owners = set(), set()
     for row in data:
@@ -50,7 +50,7 @@ def validate_source(data: list[dict], meta: dict | None = None) -> dict:
     quality_ids = {str(row['pk']) for row in data if row['model'] == 'system_settings.cookingoperation' and 'quality_rules' in row['fields']['snapshot']}
     if version < 2 and (quality_ids or quality_plans):
         raise SyncError('美食品质数据缺少新版同步版本')
-    if version == 2:
+    if version >= 2:
         owners = (meta or {}).get('cooking_owners')
         actual_owners = {str(row['pk']) for row in data if row['model'] == 'system_settings.cookingintegrity'}
         if not isinstance(owners, list) or set(owners) != actual_owners or not plan_owners <= actual_owners:
@@ -71,10 +71,10 @@ def validate_source(data: list[dict], meta: dict | None = None) -> dict:
         else:
             continue
         if source.get('sku', '').startswith('dish.'):
-            stars = source.get('stars', None if version == 2 else 1)
+            stars = source.get('stars', None if version >= 2 else 1)
             if type(stars) is not int or not 1 <= stars <= 5 or (version < 2 and stars != 1):
                 raise SyncError('美食库存星级无效或缺失')
-            if version == 2:
+            if version >= 2:
                 try:
                     quantity = item['quantity']
                     if type(quantity) is not int or quantity < 1:
@@ -87,6 +87,8 @@ def validate_source(data: list[dict], meta: dict | None = None) -> dict:
                 except (ValueError, KeyError, TypeError, ArithmeticError) as exc:
                     raise SyncError('美食库存数量与价格批次不一致') from exc
 
+    from .cooking_schedule_sync import validate_source as validate_scheduled_source
+    validate_scheduled_source(data, version, (meta or {}).get('cooking_schedule_plans'))
     from .cooking_integrity import source_integrity
     return source_integrity(data)
 
@@ -116,6 +118,10 @@ def metadata(data: list[dict] | None = None) -> dict:
                  for row in CookingOperation.objects.values('id', 'snapshot')]
         data += [{'model': 'system_settings.worldaction', 'pk': row['id'], 'fields': row}
                  for row in WorldAction.objects.filter(snapshot__cooking=True).values('id', 'snapshot')]
+        from .life_models import LifeItem
+        data += [{'model': 'system_settings.lifeitem', 'pk': row['id'], 'fields': row}
+                 for row in LifeItem.objects.values('id', 'context')]
+    from .cooking_schedule_sync import plan_ids
     owners, operations, plans = [], [], []
     for row in data:
         snapshot = row['fields'].get('snapshot') or {}
@@ -126,5 +132,5 @@ def metadata(data: list[dict] | None = None) -> dict:
         elif row['model'] == 'system_settings.worldaction' and snapshot.get('cooking') and any(
                 'quality_rules' in part.get('rule', {}) for part in snapshot.get('plan', [])):
             plans.append(str(row['pk']))
-    return {'cooking_schema_version': 2, 'cooking_owners': sorted(owners),
+    return {'cooking_schema_version': 3, 'cooking_schedule_plans': plan_ids(data), 'cooking_owners': sorted(owners),
             'cooking_quality_operations': sorted(operations), 'cooking_quality_plans': sorted(plans)}
