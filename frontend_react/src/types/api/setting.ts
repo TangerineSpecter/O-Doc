@@ -362,10 +362,13 @@ export interface AgentWorldSummary {
 }
 
 export interface AgentRunStepConfig {
-    time: string;
-    status: AgentRunStepStatus;
-    title: string;
+    time?: string;
+    status?: AgentRunStepStatus;
+    title?: string;
     detail?: string;
+    kind?: 'exploration';
+    explorationId?: string;
+    result?: {report?: string; [key: string]: unknown};
 }
 
 export interface AgentRunAgentConfig {

@@ -328,11 +328,23 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
                                 {steps.length > 0 ? (
                                     <div className="relative mt-3 space-y-4 border-l-2 border-slate-100 pl-5 sm:pl-6">
                                         {steps.map((step, index) => {
-                                            const isStepFailed = step.status === 'failed' || step.title.includes('失败');
-                                            const isStepRunning = step.status === 'running';
+                                            const title = typeof step.title === 'string' && step.title
+                                                ? step.title
+                                                : step.kind === 'exploration' ? '迷宫探索结算' : '执行步骤';
+                                            const time = typeof step.time === 'string'
+                                                ? step.time
+                                                : record.updatedAt || record.startedAt || activity.occurredAt;
+                                            const status = typeof step.status === 'string' ? step.status : currentStatus;
+                                            const detail = typeof step.detail === 'string' && step.detail
+                                                ? step.detail
+                                                : step.kind === 'exploration' && typeof step.result?.report === 'string'
+                                                    ? step.result.report
+                                                    : '';
+                                            const isStepFailed = status === 'failed' || title.includes('失败');
+                                            const isStepRunning = status === 'running';
 
                                             return (
-                                                <div key={`${step.time}-${index}`} className="relative">
+                                                <div key={`${time}-${index}`} className="relative">
                                                     {/* 节点图标 */}
                                                     <span className={`absolute -left-[27px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white shadow-2xs sm:-left-[31px] ${
                                                         isStepFailed
@@ -352,19 +364,19 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
 
                                                     {/* 步骤内容 */}
                                                     <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs">
-                                                        <span className="font-bold text-slate-800">{step.title}</span>
+                                                        <span className="font-bold text-slate-800">{title}</span>
                                                         <time className="font-mono text-[11px] text-slate-400">
-                                                            {formatTimeOnly(step.time)}
+                                                            {formatTimeOnly(time)}
                                                         </time>
                                                     </div>
 
-                                                    {step.detail && (
+                                                    {detail && (
                                                         <div className={`mt-1.5 rounded-xl border p-2.5 text-xs font-mono leading-relaxed break-words whitespace-pre-wrap ${
                                                             isStepFailed
                                                                 ? 'border-red-100 bg-red-50/60 text-red-700'
                                                                 : 'border-slate-100 bg-slate-50 text-slate-600'
                                                         }`}>
-                                                            {step.detail}
+                                                            {detail}
                                                         </div>
                                                     )}
                                                 </div>

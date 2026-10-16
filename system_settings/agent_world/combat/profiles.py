@@ -32,8 +32,11 @@ def apply_loadout_changes(profile, catalog, changes, owner):
             candidate.pop(slot, None)
             continue
         item = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, owner_id=owner, sold=False).first()
-        if (not item or not equipment.loadout_slot_matches(catalog, item.template_id, item.snapshot, slot) or
-                not equipment.allowed(catalog, item.template_id, profile.progression['job'],
+        template_id = equipment.eligibility_template_id(
+            catalog, item.template_id, item.snapshot, bound=item.bound
+        ) if item else ''
+        if (not item or not equipment.loadout_slot_matches(catalog, template_id, item.snapshot, slot) or
+                not equipment.allowed(catalog, template_id, profile.progression['job'],
                                       profile.progression['level'], item.snapshot['level'])):
             raise ValueError('装备不属于居民或不满足穿戴条件')
         for current_slot, current_identity in list(candidate.items()):

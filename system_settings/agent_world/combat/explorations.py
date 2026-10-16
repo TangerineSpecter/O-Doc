@@ -305,7 +305,10 @@ def settle(run, profile, status, reason, now):
         run.record_id=record.pk;run.save(update_fields=['record_id'])
     record.status='success' if execution_completed(status) else 'failed'
     record.summary,record.output,record.duration=report[:255],report,f'{run.elapsed_seconds//60} 分钟'
-    record.steps=[{'kind':'exploration','exploration_id':run.pk,'result':run.result}];record.save()
+    record.steps=[{'time':local_time(now).strftime('%Y-%m-%d %H:%M:%S'),
+        'status':record.status,'title':'迷宫探索结算','detail':report,
+        'kind':'exploration','exploration_id':run.pk,'result':run.result}]
+    record.save()
     if run.life_item_id:
         from ..life_models import LifeItem
         from ..life_schedule import revise

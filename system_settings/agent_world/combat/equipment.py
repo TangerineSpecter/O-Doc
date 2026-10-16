@@ -40,6 +40,14 @@ def loadout_slot_matches(catalog: Catalog, template_id: str, snapshot: dict, slo
     return item_slot == slot
 
 
+def eligibility_template_id(catalog: Catalog, template_id: str, snapshot: dict, *, bound: bool) -> str:
+    """Apply current training-sword rules to the immutable legacy starter snapshot."""
+    if (template_id == 'equip.sword' and bound and snapshot.get('name') == '训练木剑' and
+            snapshot.get('level') == 1 and 'equip.training_sword' in catalog.index['equipment_templates']):
+        return 'equip.training_sword'
+    return template_id
+
+
 def promotion_weapon(catalog: Catalog, job: str, level: int) -> str:
     candidates = [r['equipment_id'] for r in catalog.tables['equipment_professions']
                   if r['profession_id'] == job and

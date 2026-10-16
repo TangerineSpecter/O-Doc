@@ -3,7 +3,7 @@ from datetime import datetime
 from .models import CombatProfile, EquipmentInstance, Exploration, CombatFact, CombatEncounter, CombatConfig, CombatRuntime
 from .store import current
 from .catalog import bundled
-from . import attributes, engine
+from . import attributes, engine, equipment
 from .profiles import stats
 from .permissions import local_runtime
 from ..inventory_stock import stock_quantity
@@ -47,15 +47,16 @@ def profile_view(owner,agent):
     catalog=current(profile.catalog_id) if profile else bundled()[0]
     progression=profile.progression if profile else attributes.initial()
     derived=stats(profile,catalog) if profile else attributes.attributes(catalog,progression,[])
-    equipment=list(EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False).order_by('-created_at').values())
+    equipment_items=list(EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False).order_by('-created_at').values())
     discovered_equipment=set(EquipmentInstance.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('template_id',flat=True))
-    for item in equipment:
+    for item in equipment_items:
         snapshot=item.get('snapshot') or {}
         template=catalog.index['equipment_templates'].get(item['template_id'])
         if (not snapshot.get('equipment_type') and template and not template.get('root_job') and
                 not template.get('required_mastery')):
             item['display_type']='generic'
-        elif (item['template_id']=='equip.sword' and item.get('bound') and snapshot.get('name')=='训练木剑'):
+        elif equipment.eligibility_template_id(catalog, item['template_id'], snapshot,
+                                               bound=item.get('bound', False)) == 'equip.training_sword':
             # Existing starter snapshots keep their original template ID and catalog version.
             item['display_type']='generic'
             discovered_equipment.add('equip.training_sword')
@@ -66,7 +67,7 @@ def profile_view(owner,agent):
     promotion_runtime=CombatRuntime.objects.filter(pk=promotion_run.pk).first() if promotion_run else None
     promotion_busy=bool(promotion_runtime and (promotion_runtime.promotion_pending or promotion_runtime.requests.get('promotion_allowed')))
     return {'initialized':bool(profile),'actor_id':agent.pk,'progression':progression,'attributes':derived,'hp':profile.hp if profile else derived['hp_max'],
-        'mp':profile.mp if profile else derived['mp_max'],'loadout':profile.loadout if profile else {},'equipment':equipment,'skills':skills,
+        'mp':profile.mp if profile else derived['mp_max'],'loadout':profile.loadout if profile else {},'equipment':equipment_items,'skills':skills,
         'potions':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['potions']],
         'materials':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['materials']],
         'active_exploration_id':run.pk if run else None,'promotion_options':options,'promotion_busy':promotion_busy,

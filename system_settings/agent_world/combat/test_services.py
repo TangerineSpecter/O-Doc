@@ -25,6 +25,34 @@ class ExplorationTests(TestCase):
         run=explorations.request('admin',self.agent,key,{},now=self.now)
         return explorations.depart(run.pk,self.plan,now=self.now)
 
+    def test_profile_api_serializes_current_and_legacy_starter_equipment(self):
+        from django.contrib.auth.models import User
+        from rest_framework.test import APIClient
+        from .models import EquipmentInstance
+
+        profile = ensure('admin', self.agent, self.now)
+        starter = EquipmentInstance.objects.get(pk=profile.loadout['weapon'])
+        self.assertTrue(starter.snapshot.get('equipment_type'))
+        client = APIClient()
+        client.force_authenticate(User.objects.create_superuser('admin', password='test-password'))
+        url = f'/api/settings/agent-world/combat/agents/{self.agent.pk}/'
+
+        for template_id in ('equip.training_sword', 'equip.sword'):
+            with self.subTest(template_id=template_id):
+                starter.template_id = template_id
+                starter.snapshot = {**starter.snapshot, 'template_id': template_id}
+                starter.save(update_fields=['template_id', 'snapshot'])
+                original_snapshot = json.loads(json.dumps(starter.snapshot))
+                response = client.get(url)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()['data']
+                item = next(row for row in data['equipment'] if row['id'] == starter.pk)
+                self.assertEqual(item['templateId'], template_id)
+                self.assertEqual(item['displayType'], 'generic')
+                self.assertIn('equip.training_sword', data['discoveries']['equipment'])
+                starter.refresh_from_db()
+                self.assertEqual(starter.snapshot, original_snapshot)
+
     def test_snapshot_reads_current_extended_head_layer_for_existing_run(self):
         from assets.models import Asset
         from .queries import snapshot
