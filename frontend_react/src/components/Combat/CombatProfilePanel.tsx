@@ -261,7 +261,7 @@ export default function CombatProfilePanel({
             </div>
 
             {/* 右栏：探索出发 & 整备工作台 (约 7/12 宽度) */}
-            <div className="lg:col-span-7 flex flex-col min-h-0 overflow-y-auto scrollbar-hide lg:overflow-visible space-y-3">
+            <div className="lg:col-span-7 flex flex-col min-h-0 overflow-y-auto overscroll-y-contain scrollbar-hide lg:overflow-visible space-y-3">
                 {/* 1. 探索出发卡片 (内嵌“探索历史”入口按钮) */}
                 <section className="shrink-0 rounded-2xl border border-orange-200/80 bg-gradient-to-br from-orange-50/40 via-white to-amber-50/30 p-3.5 shadow-2xs sm:p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -407,7 +407,7 @@ export default function CombatProfilePanel({
                     </div>
 
                     {/* Tab 内容区 (带独立平滑滚动) */}
-                    <div className="lg:flex-1 min-h-0 lg:overflow-y-auto scrollbar-hide pt-3">
+                    <div className="lg:flex-1 min-h-0 lg:overflow-y-auto lg:overscroll-y-contain scrollbar-hide pt-3">
                         {tab === 'equipment' && (
                             <>
                                 {filteredEquipment.length > 0 ? (

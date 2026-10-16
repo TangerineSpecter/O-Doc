@@ -35,6 +35,11 @@ def apply_loadout_changes(profile, catalog, changes, owner):
         already_worn_here = profile.loadout.get(slot) == identity
         if not item:
             raise ValueError('装备不属于居民或不满足穿戴条件')
+        if not already_worn_here:
+            from ..market_models import MarketListing
+            if MarketListing.objects.filter(owner_id=owner, status='active',
+                    item__source__kind='combat_equipment', item__source__equipment_id=item.pk).exists():
+                raise ValueError('装备正在居民集市挂牌，请先撤回')
         if already_worn_here:
             slot_catalog = current(item.catalog_id)
             slot_template_id = item.template_id

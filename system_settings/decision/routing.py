@@ -12,7 +12,8 @@ from utils.ai_observer import check_ai_control, emit_ai_event
 from system_settings.models import AIModel, SystemSetting
 
 SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'social_action': '社交行为选择',
-          'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇'}
+          'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇',
+          'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}
 logger = logging.getLogger(__name__)
 MODEL_ERRORS = (AIAuthenticationError, OpenAIError, APIError, RequestException, TimeoutError, AIBoundedRequestError, AIOutputTruncated, AIStreamIncomplete)
 
@@ -134,12 +135,14 @@ def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision
                       scene=scene, check=check)
 
 
-def choose_scene(owner, agent, scene, state, choices, *, deadline):
+def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=None,
+                 instructions=None, include_role=True, max_probability=False, return_confidence=False):
     """None means use the normal model. Empty/sole choices never call a provider."""
     if not choices:
         return None
     if len(choices) == 1:
-        return next(iter(choices))
+        result = next(iter(choices))
+        return (result, 1.0) if return_confidence else result
     if not jev_enabled(owner, scene) or len(choices) > 255:
         return None
     from .jev import choose, DecisionUnavailable
@@ -152,12 +155,14 @@ def choose_scene(owner, agent, scene, state, choices, *, deadline):
     try:
         connection_id = selected_connection_id(owner)
         with usage_scope(owner_id=owner, agent=agent, purpose='social' if scene == 'social_action' else 'task' if scene.startswith('travel_') else 'planning', phase=SCENES[scene]):
-            result, _ = choose(owner, {'role': role_text(agent, 'social' if scene == 'social_action' else 'decision'),
-                                      'context': state}, choices, deadline=deadline,
-                               instructions='根据人物偏好和当前真实条件，从合法候选中选择一个。未执行计划不是经历。',
-                               question_id=scene, connection_id=connection_id)
+            decision_state = ({'role': role_text(agent, 'social' if scene == 'social_action' else 'decision'),
+                               'context': state} if include_role else state)
+            result, confidence = choose(owner, decision_state, choices, deadline=deadline,
+                               instructions=instructions or '根据人物偏好和当前真实条件，从合法候选中选择一个。未执行计划不是经历。',
+                               question_id=question_id or scene, connection_id=connection_id,
+                               max_probability=max_probability)
         check_ai_control()
-        return result
+        return (result, confidence) if return_confidence else result
     except DecisionUnavailable as exc:
         report(scene, f'decision:{connection_id}', exc)
         return None

@@ -36,7 +36,7 @@ def _safe_model_name(adapter, data: dict, profile: dict, connection_id: str) -> 
 
 def _send(owner: str, profile: dict, state: dict, criteria: dict[str, object], *,
           deadline: float, instructions: str | None, question_id: str,
-          capture: Capture | None = None, set_stage=None) -> tuple[str, float, str, dict | None]:
+          capture: Capture | None = None, set_stage=None) -> tuple[str, float, str, dict | None, dict[str, float]]:
     connection_id = profile['id']
     secret = api_key(owner, connection_id)
     if connection_id == 'jev' and not secret:
@@ -93,7 +93,7 @@ def _send(owner: str, profile: dict, state: dict, criteria: dict[str, object], *
     if set_stage:
         set_stage('probability_validation')
     usage = adapter.usage(data)
-    return answer['choice'], float(confidence), model_name, usage
+    return answer['choice'], float(confidence), model_name, usage, probabilities
 
 
 class _HttpDecisionError(DecisionUnavailable):
@@ -104,7 +104,7 @@ class _HttpDecisionError(DecisionUnavailable):
 
 def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: float,
            instructions: str | None = None, question_id: str = 'next_action',
-           connection_id: str | None = None) -> tuple[str, float]:
+           connection_id: str | None = None, max_probability: bool = False) -> tuple[str, float]:
     connection_id = connection_id or selected_connection_id(owner)
     try:
         profile = connection(owner, connection_id)
@@ -122,9 +122,12 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
         nonlocal stage
         stage = value
     try:
-        selected, confidence, model_name, usage = _send(
+        selected, confidence, model_name, usage, probabilities = _send(
             owner, profile, state, criteria, deadline=deadline, instructions=instructions,
             question_id=question_id, capture=capture, set_stage=update_stage)
+        if max_probability:
+            selected = max(criteria, key=probabilities.__getitem__)
+            confidence = probabilities[selected]
         stage = 'usage'
         if capture.row:
             capture.row.model_name = model_name[:200]

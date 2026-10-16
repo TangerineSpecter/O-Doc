@@ -32,6 +32,7 @@ MARKET_TOOLS = [
     schema('buy_combat_potion','购买常驻冒险药剂；使用get_market_context中combat_supplies的药剂ID，一次最多20瓶。',{**WRITE,'potion_id':S,'quantity':N},['request_id','potion_id','quantity']),
     schema('sell_combat_material','出售自己的探索材料，使用材料ID及数量，按目录回收价结算。',{**WRITE,'material_id':S,'quantity':N},['request_id','material_id','quantity']),
     schema('sell_combat_equipment','出售自己的闲置装备实例；已穿戴、收藏、绑定或探索占用装备不能出售。',{**WRITE,'equipment_id':S},['request_id','equipment_id']),
+    schema('list_combat_equipment','将出发准备阶段已决定上架的闲置冒险装备挂牌到居民集市；价格由当前定价步骤给出。',{**WRITE,'equipment_id':S,'unit_price':S},['request_id','equipment_id','unit_price']),
     schema('create_market_listing', '自主定价上架农作物、畜产品、美食或纪念品，数量立即转入托管。', {**WRITE,'item_id':S,'quantity':N,'unit_price':S}, ['request_id','item_id','quantity','unit_price']),
     schema('reprice_market_listing', '修改自己挂牌的单价，保留首次上架时间。', {**WRITE,'listing_id':S,'version':N,'unit_price':S}, ['request_id','listing_id','version','unit_price']),
     schema('withdraw_market_listing', '撤回自己的挂牌，将剩余物品返还背包。', {**WRITE,'listing_id':S,'version':N}, ['request_id','listing_id','version']),
@@ -41,7 +42,8 @@ MARKET_TOOLS = [
 NAMES = {t['name'] for t in MARKET_TOOLS}
 KINDS = {'buy_market_shop':'buy_shop','buy_market_listing':'buy_listing','sell_to_market_shop':'sell',
          'create_market_listing':'list','reprice_market_listing':'reprice','withdraw_market_listing':'withdraw',
-         'buy_combat_potion':'buy_potion','sell_combat_material':'sell_combat_material','sell_combat_equipment':'sell_combat_equipment'}
+         'buy_combat_potion':'buy_potion','sell_combat_material':'sell_combat_material','sell_combat_equipment':'sell_combat_equipment',
+         'list_combat_equipment':'list_combat_equipment'}
 
 
 def request_key(actor, value):

@@ -71,6 +71,10 @@ def validate(run: Exploration,plan: dict) -> dict:
     catalog=current(run.catalog_id)
     for field,table in (('dungeon_id','dungeons'),('style_id','styles')):
         if catalog.row(table,plan.get(field)).get('enabled','1')!='1':raise ValueError('计划引用停用配置')
+    dungeon = catalog.row('dungeons', plan.get('dungeon_id'))
+    profile = CombatProfile.objects.get(pk=run.actor_id)
+    if profile.progression['level'] < int(dungeon['recommended_level_min']):
+        raise ValueError('角色等级未达到迷宫推荐等级下限')
     if type(plan.get('duration_seconds'))is not int or plan['duration_seconds'] not in (1800,3600,7200):raise ValueError('计划时长无效')
     for key,value in run.snapshot['constraints'].items():
         if plan.get(key)!=value:raise ValueError('准备计划未遵守用户约束')
@@ -150,13 +154,26 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
             # Persist the proposed preparation before any paid transaction. Retry never asks for a new plan.
             plan=run.snapshot.get('prepared_plan')
             if plan is None:
-                with usage_scope(agent=agent,purpose='exploration_prepare'):
-                    plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。探索本身不需要生活预算；药剂是可选补给，只能使用purchase_funds中的未预留真实余额。若余额不足，减少或放弃采购，并按现有库存决定携带，不要因此放弃探索。装备部位可用 weapon、offhand、head、body、hands、feet、accessory、ring_1、ring_2；accessory 是吊坠位，戒指分别使用 ring_1 和 ring_2。双手武器占用副手，不能同时填写 offhand。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。考虑职业精通、全程体力和推荐等级。',context(run))
+                from system_settings.decision.routing import jev_enabled
+                preparation_decisions = None
+                if jev_enabled(run.owner_id, 'combat_preparation'):
+                    from .preparation_decision import build_plan
+                    def check_preparation():
+                        current_run = Exploration.objects.filter(pk=run_id, status='preparing').first()
+                        if not current_run or not CombatRuntime.objects.filter(pk=run_id, authorized=True).exists():
+                            raise ValueError('准备期间探索已取消')
+                    plan, preparation_decisions = build_plan(run, agent, check=check_preparation)
+                else:
+                    with usage_scope(agent=agent,purpose='exploration_prepare'):
+                        plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。探索本身不需要生活预算；药剂是可选补给，只能使用purchase_funds中的未预留真实余额。若余额不足，减少或放弃采购，并按现有库存决定携带，不要因此放弃探索。装备部位可用 weapon、offhand、head、body、hands、feet、accessory、ring_1、ring_2；accessory 是吊坠位，戒指分别使用 ring_1 和 ring_2。双手武器占用副手，不能同时填写 offhand。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。考虑职业精通、全程体力和推荐等级。',context(run))
                 plan=fit_potion_plan(run,agent,validate(run,plan))
                 with farm_gate(),transaction.atomic():
                     locked=Exploration.objects.select_for_update().get(pk=run_id)
                     if locked.status!='preparing' or not CombatRuntime.objects.filter(pk=run_id,authorized=True).exists():return locked
-                    locked.snapshot={**locked.snapshot,'prepared_plan':plan};locked.revision+=1;locked.save()
+                    locked.snapshot={**locked.snapshot,'prepared_plan':plan}
+                    if preparation_decisions is not None:
+                        locked.snapshot['preparation_decisions'] = preparation_decisions
+                    locked.revision+=1;locked.save()
                     from .facts import append
                     append(CombatProfile.objects.get(pk=run.actor_id),run.pk+':plan','plan',{'plan':plan},locked)
             with farm_gate(),transaction.atomic():

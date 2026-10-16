@@ -1,7 +1,10 @@
 from system_settings.agent_role import role_text
 """A structured decision connection selects live choices; text handles complex steps."""
+import hashlib
 import json
+import time
 import uuid
+from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
 from utils.token_usage import usage_scope
 from system_settings.decision.jev import choose
@@ -11,6 +14,90 @@ from .market_model_execution import MarketFinished
 from .market_decision_options import action_options, for_action
 from .run_diagnostics import progress
 from .market_shopping import SEED_GUIDANCE
+
+
+def process_preparation_equipment(runtime, ai_service) -> list[dict]:
+    """Resolve durable gear sale/list intents whenever the resident enters the market."""
+    from .combat.equipment_market import pending_preparation_actions
+    from .combat.models import CombatProfile
+    from .combat.store import current
+    from system_settings.decision.routing import jev_enabled, choose_scene
+
+    intents = pending_preparation_actions(runtime.owner, runtime.agent.pk)
+    if not intents:
+        return []
+    profile = CombatProfile.objects.get(pk=runtime.agent.pk, owner_id=runtime.owner)
+    catalog = current(profile.catalog_id)
+    role = runtime.agent.role_profile if isinstance(runtime.agent.role_profile, dict) else {}
+    job = catalog.row('professions', profile.progression['job'])
+    character = {'personality': role.get('personality', ''),
+                 'profession': {'id': profile.progression['job'], 'name': job.get('name', profile.progression['job'])},
+                 'level': profile.progression['level']}
+
+    completed = []
+    for intent in intents:
+        runtime.check()
+        item = intent['item']
+        item.refresh_from_db()
+        stable = 'combat-preparation-market:' + hashlib.sha256(
+            f'{runtime.owner}:{runtime.agent.pk}:{item.pk}:{intent["fact_id"]}:{intent["action"]}'.encode()).hexdigest()
+        if intent['action'] == 'sell':
+            result = runtime.execute('sell_combat_equipment', {
+                'request_id': stable + ':sell', 'equipment_id': item.pk})
+        else:
+            state = {'character': character, 'equipment': {
+                'id': item.pk, 'name': item.snapshot.get('name', ''),
+                'slot': item.snapshot.get('slot', ''), 'level': item.snapshot.get('level', 0),
+                'quality': item.snapshot.get('quality', ''), 'stats': item.snapshot.get('stats', {}),
+                'shop_sell_price': str(item.value)}}
+            choices = {}
+            for percent in (10, 20, 30, 40, 50):
+                amount = (Decimal(item.value) * Decimal(percent) / Decimal(100)).quantize(Decimal('.01'))
+                amount = max(Decimal('.01'), amount)
+                choices[f'{percent}%'] = {'percent': percent, 'unit_price': str(amount)}
+            if jev_enabled(runtime.owner, 'combat_listing_price'):
+                try:
+                    selected = choose_scene(runtime.owner, runtime.agent, 'combat_listing_price', state, choices,
+                        deadline=min(runtime.deadline, time.monotonic() + 45),
+                        question_id='combat_listing_price:' + item.pk,
+                        instructions='根据角色性格、职业、等级和装备情况，在商店回收价的10%、20%、30%、40%、50%中选择一个挂牌价格。挂牌会进入居民集市供其他居民购买。',
+                        include_role=False, max_probability=True)
+                except TimeoutError:
+                    selected = None
+                if selected is None:
+                    progress(runtime.record, '探索装备挂牌定价', f'{item.snapshot.get("name", "装备")} 暂缓挂牌：决策模型当前不可用', 'warning')
+                    continue
+                arguments = {'request_id': stable + ':list', 'equipment_id': item.pk,
+                             'unit_price': choices[selected]['unit_price']}
+                result = runtime.execute('list_combat_equipment', arguments)
+            elif ai_service is not None:
+                before = len(runtime.effects)
+                runtime.text(ai_service, phase='探索装备挂牌定价', helper=True,
+                    objective='为这件已决定上架的冒险装备确定居民集市挂牌价格。以商店回收价为价格基准，只完成这一次挂牌，不调整其他资产。',
+                    selected={'tool': 'list_combat_equipment',
+                              'arguments': {'request_id': stable + ':list', 'equipment_id': item.pk},
+                              'detail': state['equipment'] | {'character': character}})
+                if runtime.helper_failure:
+                    result = runtime.helper_failure
+                elif len(runtime.effects) > before:
+                    result = runtime.effects[-1]['result']
+                else:
+                    progress(runtime.record, '探索装备挂牌定价', f'{item.snapshot.get("name", "装备")} 暂缓挂牌：文本模型未提交有效挂牌', 'warning')
+                    continue
+            else:
+                continue
+        if 'error' in result:
+            progress(runtime.record, '探索装备市场处理失败', result['error'], 'warning')
+            continue
+        completed.append({'action': intent['action'], 'equipment_id': item.pk,
+                          'name': result.get('name', item.snapshot.get('name', '装备')),
+                          'unit_price': result.get('unit_price'), 'total': result.get('total'),
+                          'listing_id': result.get('listing_id')})
+        progress(runtime.record, '探索装备市场处理',
+                 f"{result.get('name', item.snapshot.get('name', '装备'))}：" +
+                 ('按商店回收价出售' if intent['action'] == 'sell' else
+                  f"挂牌 {result.get('unit_price', '')}，等待居民购买"), 'info')
+    return completed
 
 
 def decide(runtime, ai_service) -> str:

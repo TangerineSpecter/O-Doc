@@ -17,11 +17,13 @@ FACT=LABEL+'combatfact'
 CHAIN=LABEL+'combatintegrity'
 CATALOG=LABEL+'combatcatalog'
 ENCOUNTER=LABEL+'combatencounter'
+LISTING=LABEL+'marketlisting'
+MARKET_TRADE=LABEL+'markettransaction'
 
 
 def validate_source(data,meta=None):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>5:
+    if meta and meta.get('combat_schema_version',0)>6:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
     profiles={pk:r for (model,pk),r in rows.items() if model==PROFILE}
@@ -99,11 +101,53 @@ def validate_source(data,meta=None):
                         if reward['kind']=='equipment':expected_gear[reward['equipment_id']]=reward['item']
                         else:stock['combat.'+reward['item']['id']]+=reward['quantity']
             elif kind=='trade':
-                trade=rows.get((LABEL+'markettransaction',payload['transaction_id']))
+                trade=rows.get((MARKET_TRADE,payload['transaction_id']))
                 if not trade or trade['actor_id']!=actor or trade['owner_id']!=profile['owner_id'] or trade['operation']!=payload['arguments'] or trade['result']!=payload['result']:raise SyncError('战斗交易缺少真实成交来源')
                 op=trade['operation']
                 if op['kind']=='buy_potion':stock['combat.'+op['potion_id']]+=op['quantity']
                 elif op['kind']=='sell_combat_material':stock['combat.'+op['material_id']]-=op['quantity']
+                elif op['kind']=='list_combat_equipment':
+                    listing=rows.get((LISTING,payload['result'].get('listing_id')))
+                    equipment_id=op.get('equipment_id')
+                    judged=any((fact.get('payload') or {}).get('equipment_id')==equipment_id
+                               and (fact.get('payload') or {}).get('action')=='list'
+                               and fact['sequence']<row['sequence'] for fact in ordered)
+                    if (not listing or not judged or equipment_id not in expected_gear
+                            or listing['seller_id']!=actor
+                            or (listing.get('item') or {}).get('source',{}).get('equipment_id')!=equipment_id):
+                        raise SyncError('冒险装备挂牌缺少出发决定或挂牌来源')
+            elif kind=='gear_prepare':
+                equipment_id=payload.get('equipment_id')
+                if (not isinstance(equipment_id,str) or equipment_id not in expected_gear
+                        or payload.get('action') not in ('replace','sell','list')
+                        or not isinstance(payload.get('decision_source'),str)):
+                    raise SyncError('探索装备决定缺少装备来源')
+            elif kind in ('gear_trade_out','gear_trade_in'):
+                equipment_id=payload.get('equipment_id')
+                trade=rows.get((MARKET_TRADE,payload.get('transaction_id')))
+                listing=rows.get((LISTING,payload.get('listing_id')))
+                if (not trade or trade['owner_id']!=profile['owner_id']
+                        or trade['operation'].get('kind')!='buy_listing'
+                        or trade['operation'].get('listing_id')!=payload.get('listing_id')
+                        or trade['result'].get('equipment_id')!=equipment_id
+                        or not listing or listing['owner_id']!=profile['owner_id']
+                        or (listing.get('item') or {}).get('source',{}).get('kind')!='combat_equipment'
+                        or (listing.get('item') or {}).get('source',{}).get('equipment_id')!=equipment_id):
+                    raise SyncError('居民集市装备转移缺少挂牌或成交依据')
+                if kind=='gear_trade_out':
+                    if (actor!=listing['seller_id'] or trade['result'].get('seller_id')!=actor
+                            or trade['actor_id']!=payload.get('buyer_id')
+                            or equipment_id not in expected_gear
+                            or expected_gear[equipment_id]!=payload.get('snapshot')):
+                        raise SyncError('冒险装备卖方转移事实无效')
+                    expected_gear.pop(equipment_id)
+                else:
+                    if (actor!=trade['actor_id'] or trade['result'].get('seller_id')!=payload.get('seller_id')
+                            or listing['seller_id']!=payload.get('seller_id')
+                            or equipment_id in expected_gear or not isinstance(payload.get('snapshot'),dict)
+                            or payload.get('snapshot')!=(listing.get('item') or {}).get('equipment_snapshot')):
+                        raise SyncError('冒险装备买方转移事实无效')
+                    expected_gear[equipment_id]=deepcopy(payload['snapshot'])
             for consumption in payload.get('consumption',[]):
                 action=rows.get((LABEL+'worldaction',consumption['action_id']))
                 if not action or action['actor_id']!=actor or action['status']!='success' or float(action['energy_cost'])!=consumption['amount'] or action['result'].get('exploration_id')!=row['exploration_id']:raise SyncError('战斗体力消费来源缺失')
@@ -225,4 +269,4 @@ def revoke(*, disable_auto=True):
 
 def metadata(data=None):
     actors=sorted(CombatProfile.objects.values_list('pk',flat=True)) if data is None else sorted(str(r['pk']) for r in data if r['model']==PROFILE)
-    return {'combat_schema_version':5,'combat_actors':actors}
+    return {'combat_schema_version':6,'combat_actors':actors}

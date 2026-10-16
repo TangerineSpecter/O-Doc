@@ -138,6 +138,11 @@ class CombatView(APIView):
                     if type(arguments['locked'])is not bool:raise ValueError('收藏值无效')
                     if not replay(agent.pk,key,'favorite',arguments):
                         item=get_object_or_404(EquipmentInstance,pk=arguments['equipment_id'],actor_id=agent.pk,owner_id=owner,sold=False)
+                        from ..market_models import MarketListing
+                        if MarketListing.objects.filter(owner_id=owner,status='active',
+                                item__source__kind='combat_equipment',
+                                item__source__equipment_id=item.pk).exists():
+                            raise ValueError('装备正在居民集市挂牌，请先撤回')
                         item.locked=arguments['locked'];item.save()
                         append(CombatProfile.objects.get(pk=agent.pk),key,'favorite',{'arguments':arguments})
                 elif operation=='close_market':

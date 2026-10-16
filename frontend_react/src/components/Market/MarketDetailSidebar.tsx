@@ -5,6 +5,7 @@ import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
 import {getSkuKnowledge, getSupplyKnowledge} from './marketMetadata';
 import {marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
+import {equipmentSlotLabel, statLabels} from '../Combat/presentation';
 
 export interface MarketSidebarProps {
     type: 'shop-slot' | 'listing' | 'empty';
@@ -204,6 +205,7 @@ export function MarketDetailSidebar({
         const iconSrc = item.iconAssetId ? `/api/resource/view/${item.iconAssetId}` : farmItemIcon(item.source?.sku || '');
         const isGold = item.source?.quality === 'gold';
         const isSouvenir = item.kind === 'souvenir';
+        const isCombatEquipment = item.kind === 'combat_equipment';
 
         return (
             <div className="flex h-full flex-col gap-4 overflow-y-auto scrollbar-hide text-xs">
@@ -229,7 +231,7 @@ export function MarketDetailSidebar({
                                 <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none ${
                                     isGold ? 'bg-amber-50 border-amber-200 text-amber-700' : isSouvenir ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-100 text-slate-600'
                                 }`}>
-                                    {hasItemStars(item.source?.sku) ? `★${item.source?.stars || 1} ${item.source?.sku?.startsWith('dish.') ? '美食' : '农作物'}` : isGold ? '金色品质' : isSouvenir ? '旅行纪念品' : '标准农产品'}
+                                    {hasItemStars(item.source?.sku) ? `★${item.source?.stars || 1} ${item.source?.sku?.startsWith('dish.') ? '美食' : '农作物'}` : isGold ? '金色品质' : isSouvenir ? '旅行纪念品' : isCombatEquipment ? '冒险装备' : '标准农产品'}
                                 </span>
                             </div>
                             <h3 className="mt-1.5 text-sm font-bold text-slate-900 truncate">{item.name}</h3>
@@ -247,7 +249,7 @@ export function MarketDetailSidebar({
                             <User className="h-3 w-3 text-slate-400" />
                             摊主：<strong className="text-slate-700">{listing.sellerName}</strong>
                         </span>
-                        <span>剩余 <strong className="text-slate-800 font-bold">{listing.remainingQuantity}</strong> 份</span>
+                        <span>剩余 <strong className="text-slate-800 font-bold">{listing.remainingQuantity}</strong> {isCombatEquipment ? '件' : '份'}</span>
                     </div>
                 </div>
 
@@ -264,17 +266,36 @@ export function MarketDetailSidebar({
                     <div className="mt-3 space-y-2 text-[11px]">
                         <div className="flex justify-between text-slate-500">
                             <span>初始挂牌数量</span>
-                            <span className="font-semibold text-slate-700">{listing.initialQuantity} 份</span>
+                            <span className="font-semibold text-slate-700">{listing.initialQuantity} {isCombatEquipment ? '件' : '份'}</span>
                         </div>
                         <div className="flex justify-between text-slate-500">
                             <span>商品原产地 / 来源</span>
                             <span className="font-semibold text-slate-700">{item.originActorName ? `${item.originActorName} 的背包` : '自产自销'}</span>
                         </div>
                         <div className="flex justify-between text-slate-500">
-                            <span>{hasItemStars(item.source?.sku) ? '首批回收单价' : '商品原始估值'}</span>
+                            <span>{isCombatEquipment ? '商店回收价' : hasItemStars(item.source?.sku) ? '首批回收单价' : '商品原始估值'}</span>
                             <span className="font-semibold text-slate-700">{marketMoney(item.value || '0')} 世界币</span>
                         </div>
+                        {isCombatEquipment && item.equipmentSnapshot && (
+                            <div className="flex justify-between text-slate-500">
+                                <span>部位 / 等级</span>
+                                <span className="font-semibold text-slate-700">{equipmentSlotLabel(item.equipmentSnapshot.slot || '', item.equipmentSnapshot.equipmentType)} · Lv.{item.equipmentSnapshot.level ?? '—'}</span>
+                            </div>
+                        )}
                     </div>
+
+                    {isCombatEquipment && item.equipmentSnapshot?.stats && (
+                        <div className="mt-3 border-t border-slate-100 pt-3">
+                            <p className="text-[11px] font-semibold text-slate-600">装备属性</p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                {Object.entries(item.equipmentSnapshot.stats).filter(([, value]) => Boolean(value)).map(([key, value]) => (
+                                    <span key={key} className="rounded bg-slate-50 px-2 py-1 text-[10px] text-slate-600">
+                                        {statLabels[key] || key} <strong className="text-slate-800">+{value}</strong>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {listing.history && listing.history.length > 0 && (
                         <div className="mt-4 border-t border-slate-100 pt-3">

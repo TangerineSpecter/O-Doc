@@ -70,10 +70,22 @@ def withdraw_listing(listing, agent, key):
         raise ValueError('只能下架自己的在售挂牌')
     if listing.item.get('quantity') != listing.remaining_quantity or not listing.remaining_quantity:
         raise ValueError('挂牌托管数量不一致')
-    # 同时验证价格批次，避免不完整托管载荷进入背包。
-    payload, _ = split_escrow(listing.item, listing.remaining_quantity)
-    item = deliver(listing.owner_id, agent, payload, key)
-    result = {'item_id': item.pk, 'name': payload['name'], 'quantity': listing.remaining_quantity}
+    source = (listing.item or {}).get('source') or {}
+    if source.get('kind') == 'combat_equipment':
+        if listing.remaining_quantity != 1:
+            raise ValueError('装备挂牌托管数量无效')
+        from .combat.models import EquipmentInstance
+        gear = EquipmentInstance.objects.select_for_update().filter(
+            pk=source.get('equipment_id'), owner_id=listing.owner_id,
+            actor_id=agent.pk, sold=False).first()
+        if not gear or gear.bound or gear.locked:
+            raise ValueError('挂牌装备已不可撤回')
+        result = {'equipment_id': gear.pk, 'name': gear.snapshot.get('name', ''), 'quantity': 1}
+    else:
+        # 同时验证价格批次，避免不完整托管载荷进入背包。
+        payload, _ = split_escrow(listing.item, listing.remaining_quantity)
+        item = deliver(listing.owner_id, agent, payload, key)
+        result = {'item_id': item.pk, 'name': payload['name'], 'quantity': listing.remaining_quantity}
     listing.remaining_quantity, listing.status = 0, 'withdrawn'
     listing.item = {**listing.item, 'quantity': 0, 'source': {**listing.item.get('source', {}), 'lots': []}}
     listing.version += 1
@@ -101,7 +113,38 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
     owner, kind = session.owner_id, operation['kind']
     result = {'kind': kind}
     deltas = []
-    if kind in ('buy_potion','sell_combat_material','sell_combat_equipment'):
+    if kind == 'list_combat_equipment':
+        from .combat.models import CombatProfile, EquipmentInstance
+        from .combat.profiles import idle
+        profile = CombatProfile.objects.select_for_update().filter(pk=agent.pk, owner_id=owner).first()
+        if not profile:
+            raise ValueError('冒险档案不存在')
+        idle(profile)
+        gear = EquipmentInstance.objects.select_for_update().filter(
+            pk=operation.get('equipment_id'), owner_id=owner, actor_id=agent.pk, sold=False).first()
+        if not gear or gear.bound or gear.locked or gear.pk in profile.loadout.values():
+            raise ValueError('只有出发准备阶段已决定上架的闲置装备才能挂牌')
+        from .combat.equipment_market import pending_preparation_actions
+        if gear.pk not in {row['equipment_id'] for row in pending_preparation_actions(owner, agent.pk)
+                          if row['action'] == 'list'}:
+            raise ValueError('该装备没有待执行的上架决定')
+        snapshot = gear.snapshot or {}
+        payload = {
+            'name': snapshot.get('name', '冒险装备'), 'kind': 'combat_equipment',
+            'value': str(gear.value), 'rarity': snapshot.get('rarity', ''),
+            'origin_actor_id': agent.pk, 'origin_actor_name': agent.name,
+            'source': {'kind': 'combat_equipment', 'equipment_id': gear.pk,
+                       'quality': snapshot.get('rarity', ''), 'sku': 'combat.equipment.' + gear.pk},
+            'equipment_snapshot': snapshot, 'quantity': 1,
+            'created_at': gear.created_at.isoformat(),
+        }
+        listing = MarketListing.objects.create(pk=key, owner_id=owner, seller_id=agent.pk,
+            seller_name=agent.name, item=payload, initial_quantity=1, remaining_quantity=1,
+            unit_price=price(operation.get('unit_price')), operation_keys=[key], created_at=at)
+        result.update(name=payload['name'], quantity=1, listing_id=listing.pk,
+                      unit_price=str(listing.unit_price), equipment_id=gear.pk,
+                      shop_sell_price=str(gear.value))
+    elif kind in ('buy_potion','sell_combat_material','sell_combat_equipment'):
         from .combat.market import transact
         def change_combat_money(target, amount, transaction_key, transaction_at):
             return change_money(target,amount,transaction_key,transaction_at,operation_kind=kind)
@@ -179,17 +222,35 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             count = quantity(operation.get('quantity'))
             seller = Agent.objects.select_for_update().filter(pk=listing.seller_id).first()
             if not seller or seller.archived: raise ValueError('卖家已删除，挂牌暂不可成交')
-            payload, remaining = split_escrow(listing.item, count)
-            amount = listing.unit_price*count
-            change_money(agent, -amount, key, at, operation_kind=kind)
-            from .market_finance import finance_kind_for_sku
-            change_money(seller, amount, key, at, operation_kind=kind,
-                         ledger_kind=finance_kind_for_sku(payload['source'].get('sku', '')))
-            result['item_id'] = deliver(owner, agent, payload, key).pk
-            listing.item, listing.remaining_quantity = remaining, remaining['quantity']
-            if not listing.remaining_quantity: listing.status = 'sold'
-            result.update(name=payload['name'], quantity=count, stars=payload['source'].get('stars'), total=str(amount), unit_price=str(listing.unit_price), seller_id=seller.pk, seller_balance=str(seller.money))
-            deltas.extend([{'actor_id':agent.pk,'amount':str(-amount)}, {'actor_id':seller.pk,'amount':str(amount)}])
+            source = (listing.item or {}).get('source') or {}
+            if source.get('kind') == 'combat_equipment':
+                if count != 1:
+                    raise ValueError('冒险装备挂牌只能单件购买')
+                from .combat.equipment_market import transfer_listed_equipment
+                transfer = transfer_listed_equipment(owner, seller, agent, listing, key)
+                amount = listing.unit_price
+                change_money(agent, -amount, key, at, operation_kind=kind)
+                change_money(seller, amount, key, at, operation_kind=kind)
+                listing.remaining_quantity = 0
+                listing.item = {**listing.item, 'quantity': 0}
+                listing.status = 'sold'
+                result.update(name=transfer['name'], quantity=1, total=str(amount),
+                              unit_price=str(listing.unit_price), seller_id=seller.pk,
+                              seller_balance=str(seller.money), equipment_id=transfer['equipment_id'],
+                              item_id=transfer['equipment_id'])
+                deltas.extend([{'actor_id':agent.pk,'amount':str(-amount)}, {'actor_id':seller.pk,'amount':str(amount)}])
+            else:
+                payload, remaining = split_escrow(listing.item, count)
+                amount = listing.unit_price*count
+                change_money(agent, -amount, key, at, operation_kind=kind)
+                from .market_finance import finance_kind_for_sku
+                change_money(seller, amount, key, at, operation_kind=kind,
+                             ledger_kind=finance_kind_for_sku(payload['source'].get('sku', '')))
+                result['item_id'] = deliver(owner, agent, payload, key).pk
+                listing.item, listing.remaining_quantity = remaining, remaining['quantity']
+                if not listing.remaining_quantity: listing.status = 'sold'
+                result.update(name=payload['name'], quantity=count, stars=payload['source'].get('stars'), total=str(amount), unit_price=str(listing.unit_price), seller_id=seller.pk, seller_balance=str(seller.money))
+                deltas.extend([{'actor_id':agent.pk,'amount':str(-amount)}, {'actor_id':seller.pk,'amount':str(amount)}])
         else:
             if listing.seller_id != agent.pk: raise ValueError('只能修改自己的挂牌')
             if kind == 'withdraw':

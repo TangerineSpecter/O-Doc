@@ -37,9 +37,15 @@ def market_context(owner,agent):
     profile=CombatProfile.objects.filter(pk=agent.pk,owner_id=owner).first()
     catalog=current(profile.catalog_id) if profile else bundled()[0]
     level=profile.progression['level'] if profile else 1
+    from .equipment_market import equipment_listing_ids
+    listed = equipment_listing_ids(owner)
+    equipment_rows = EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False,
+        bound=False,locked=False).exclude(pk__in=profile.loadout.values() if profile else [])
+    if listed:
+        equipment_rows = equipment_rows.exclude(pk__in=listed)
     return {'potions':[row for row in catalog.tables['potions'] if int(row['required_level'])<=level and row['enabled']=='1'],
         'materials':[row for row in catalog.tables['materials'] if stock_quantity(agent.pk,owner,'combat.'+row['id'])],
-        'equipment':list(EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False,bound=False,locked=False).exclude(pk__in=profile.loadout.values() if profile else []).values('id','snapshot','value'))}
+        'equipment':list(equipment_rows.order_by('-created_at','pk').values('id','snapshot','value'))}
 
 
 def profile_view(owner,agent):
@@ -48,6 +54,16 @@ def profile_view(owner,agent):
     progression=profile.progression if profile else attributes.initial()
     derived=stats(profile,catalog) if profile else attributes.attributes(catalog,progression,[])
     equipment_items=list(EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False).order_by('-created_at').values())
+    from ..market_models import MarketListing
+    active_listings = MarketListing.objects.filter(owner_id=owner, status='active').values('id', 'item')
+    listed_ids = {}
+    for listing in active_listings:
+        source = ((listing.get('item') or {}).get('source') or {})
+        if source.get('kind') == 'combat_equipment' and source.get('equipment_id'):
+            listed_ids[str(source['equipment_id'])] = listing['id']
+    for item in equipment_items:
+        item['market_listed'] = item['id'] in listed_ids
+        item['market_listing_id'] = listed_ids.get(item['id'])
     discovered_equipment=set(EquipmentInstance.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('template_id',flat=True))
     for item in equipment_items:
         snapshot=item.get('snapshot') or {}

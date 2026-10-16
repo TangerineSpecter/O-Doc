@@ -57,6 +57,38 @@ def reconcile_market() -> None:
             raise SyncError('市场托管数量不一致')
         if any(not MarketTransaction.objects.filter(pk=k,owner_id=listing.owner_id).exists() for k in listing.operation_keys):
             raise SyncError('市场挂牌缺失关联交易')
+        source = (listing.item or {}).get('source') or {}
+        if source.get('kind') == 'combat_equipment':
+            from .combat.models import EquipmentInstance, CombatProfile, CombatFact
+            equipment_id = source.get('equipment_id')
+            gear = EquipmentInstance.objects.filter(pk=equipment_id, owner_id=listing.owner_id).first()
+            if not gear or (listing.item or {}).get('equipment_snapshot') != gear.snapshot:
+                raise SyncError('冒险装备挂牌缺少装备实例来源')
+            if listing.status == 'active':
+                seller_profile = CombatProfile.objects.filter(pk=listing.seller_id, owner_id=listing.owner_id).first()
+                if (gear.actor_id != listing.seller_id or gear.sold or gear.bound or gear.locked
+                        or not seller_profile or gear.pk in seller_profile.loadout.values()):
+                    raise SyncError('在售冒险装备已穿戴、转移或不可交易')
+            elif listing.status == 'sold':
+                bought = MarketTransaction.objects.filter(owner_id=listing.owner_id,
+                    operation__kind='buy_listing', operation__listing_id=listing.pk).order_by('-created_at').first()
+                if (not bought or bought.result.get('equipment_id') != gear.pk
+                        or bought.result.get('seller_id') != listing.seller_id
+                        or not CombatFact.objects.filter(owner_id=listing.owner_id,
+                            actor_id=bought.actor_id, kind='gear_trade_in',
+                            payload__transaction_id=bought.pk, payload__equipment_id=gear.pk,
+                            payload__listing_id=listing.pk, payload__seller_id=listing.seller_id).exists()
+                        or not CombatFact.objects.filter(owner_id=listing.owner_id,
+                            actor_id=listing.seller_id, kind='gear_trade_out',
+                            payload__transaction_id=bought.pk, payload__equipment_id=gear.pk,
+                            payload__listing_id=listing.pk, payload__buyer_id=bought.actor_id).exists()):
+                    raise SyncError('冒险装备挂牌成交缺少归属转移')
+            elif listing.status == 'withdrawn':
+                # Validate the historical return; the seller may have traded it again since.
+                if not MarketTransaction.objects.filter(owner_id=listing.owner_id,
+                        actor_id=listing.seller_id, operation__kind='withdraw',
+                        operation__listing_id=listing.pk, result__equipment_id=gear.pk).exists():
+                    raise SyncError('撤回的冒险装备缺少返还交易')
     for batch in MarketBatch.objects.all():
         if any(not MarketTransaction.objects.filter(pk=k,owner_id=batch.owner_id).exists() for k in batch.purchase_keys):
             raise SyncError('商店库存缺失关联成交')

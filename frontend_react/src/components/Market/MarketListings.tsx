@@ -30,6 +30,7 @@ export function MarketListings({items}: {items: MarketListing[]}) {
                         const isSelected = selectedId === item.id;
                         const isGold = item.item.source?.quality === 'gold';
                         const isSouvenir = item.item.kind === 'souvenir';
+                        const isCombatEquipment = item.item.kind === 'combat_equipment';
                         const hasRepriced = (item.history && item.history.length > 0) || Boolean(item.repricedAt);
                         const lastChange = item.history && item.history.length > 0 ? item.history[item.history.length - 1] : null;
                         const isPriceDrop = lastChange ? Number(lastChange.to) < Number(lastChange.from) : false;
@@ -72,10 +73,11 @@ export function MarketListings({items}: {items: MarketListing[]}) {
                                                         ? 'bg-amber-50 border-amber-200 text-amber-700'
                                                         : isSouvenir
                                                           ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                                          : isCombatEquipment ? 'bg-orange-50 border-orange-200 text-orange-700'
                                                           : 'bg-emerald-50 border-emerald-200 text-emerald-700'
                                                 }`}
                                             >
-                                                {isGold ? '金色' : isSouvenir ? '纪念品' : '农产自营'}
+                                                {isGold ? '金色' : isSouvenir ? '纪念品' : isCombatEquipment ? '冒险装备' : '农产自营'}
                                             </span>
                                             <span className="flex items-center gap-0.5 text-[11px] text-slate-500 font-medium">
                                                 <User className="h-3 w-3 text-slate-400" />
@@ -83,6 +85,7 @@ export function MarketListings({items}: {items: MarketListing[]}) {
                                             </span>
                                         </div>
 
+                                        {isCombatEquipment && <p className="text-[10px] text-slate-500">商店回收价 {marketMoney(item.item.value)} 币</p>}
                                         {hasItemStars(item.item.source?.sku) && <p className="text-[10px] text-slate-500">首批回收参考 {marketMoney(item.item.value)} 币／个 · 挂牌可溢价</p>}
                                         <h4 className="mt-1 text-xs font-bold text-slate-800 truncate" title={item.item.name}>
                                             {item.item.name} {hasItemStars(item.item.source?.sku) ? `★${item.item.source?.stars || 1}` : ''}

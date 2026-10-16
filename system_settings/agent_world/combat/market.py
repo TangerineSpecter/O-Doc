@@ -33,6 +33,10 @@ def transact(owner,agent,key,operation,change_money,at):
     elif kind=='sell_combat_equipment':
         item=EquipmentInstance.objects.select_for_update().filter(pk=operation.get('equipment_id'),owner_id=owner,actor_id=agent.pk,sold=False).first()
         if not item or item.bound or item.locked or item.pk in profile.loadout.values():raise ValueError('装备不可出售：已穿戴、收藏或绑定')
+        from ..market_models import MarketListing
+        if MarketListing.objects.filter(owner_id=owner, status='active',
+                item__source__kind='combat_equipment', item__source__equipment_id=item.pk).exists():
+            raise ValueError('装备正在居民集市挂牌，请先撤回')
         if count!=1:raise ValueError('装备只能单件出售')
         amount=item.value;item.sold=True;item.save()
         result={'name':item.snapshot['name'],'quantity':1,'total':str(amount)}
@@ -42,5 +46,6 @@ def transact(owner,agent,key,operation,change_money,at):
 
 
 def record(agent,key,operation,result):
-    if operation['kind'] in ('buy_potion','sell_combat_material','sell_combat_equipment'):
+    if (operation['kind'] in ('buy_potion','sell_combat_material','sell_combat_equipment','list_combat_equipment')
+            or (operation['kind'] == 'buy_listing' and result.get('equipment_id'))):
         append(CombatProfile.objects.get(pk=agent.pk),key+':combat','trade',{'arguments':operation,'transaction_id':key,'result':result})

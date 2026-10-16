@@ -47,6 +47,7 @@ class MarketExecution:
         self.helper = False
         self.helper_completed = False
         self.helper_failure = None
+        self.ai_service = None
         from .memory.recall import memory_context
         self.memory = memory_context(agent, '市场 采购 买卖 ' + task.prompt)
 
@@ -102,6 +103,11 @@ class MarketExecution:
                 result = call_market_tool(name, arguments, self.agent, task=self.task, record=self.record, mode=self.mode)
                 if name == 'get_market_context':
                     result = model_context(self.owner, self.agent)
+                if name == 'enter_market':
+                    from .market_decision_loop import process_preparation_equipment
+                    preparation_results = process_preparation_equipment(self, self.ai_service)
+                    if preparation_results:
+                        result['preparation_equipment_results'] = preparation_results
             from system_settings.agent_activity import update_work_activity
             update_work_activity(self.record, self.agent, status='running', current_action={
                 'enter_market': '进入市场', 'leave_market': '离开市场'}.get(name, '正在市场交易'))
@@ -135,6 +141,7 @@ class MarketExecution:
 
     def text(self, ai_service, *, phase='模型市场决策', helper=False, objective='', selected: dict | None = None) -> str:
         self.check()
+        self.ai_service = ai_service
         if selected and not helper:
             raise ValueError('指定挂牌定价须使用单步子流程')
         context = model_context(self.owner, self.agent)
@@ -256,11 +263,12 @@ class MarketExecution:
         detail = '；'.join(f"{e['result'].get('name', e['tool'])} ×{e['result'].get('quantity', 1)}" for e in trades)
         changes = {'adjust_life_budget': '调整生活预算', 'update_farm_queue': '调整种植队列',
                    'create_market_listing': '上架商品（尚未成交）', 'reprice_market_listing': '调整挂牌价格',
-                   'withdraw_market_listing': '撤回挂牌'}
+                   'withdraw_market_listing': '撤回挂牌', 'list_combat_equipment': '上架冒险装备（尚未成交）'}
         other = [changes[e['tool']] for e in self.effects if e['tool'] in changes]
         return f'本次完成{len(trades)}笔交易' + ('：' + detail if detail else '，未成交') + ('；' + '；'.join(other) if other else '')
 
     def run(self, ai_service) -> str:
+        self.ai_service = ai_service
         from system_settings.decision.routing import jev_enabled
         if not jev_enabled(self.owner, 'market'):
             return self.text(ai_service)
