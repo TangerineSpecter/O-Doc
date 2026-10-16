@@ -59,15 +59,16 @@ class SocialTests(TestCase):
         return SocialOpportunity.objects.create(id=stable_id('op', str(SocialOpportunity.objects.count())), owner_id=self.owner,
             actor_id=self.agent.pk, business_date=local_time().date(), kind=kind, snapshot=self.config.settings)
 
-    def test_daily_opportunity_can_rest_without_publishing(self):
+    def test_daily_opportunity_can_skip_without_publishing_or_energy_cost(self):
         op = self.op('daily')
         before = Moment.objects.count()
         with self.mock_social({
-                'action': 'rest', 'reason': '现在没有什么想分享的'}), \
+                'action': 'skip', 'reason': '现在没有什么想分享的'}), \
                 patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
             run(op, self.agent)
         op.refresh_from_db()
         self.assertEqual(op.status, 'completed', op.result)
+        self.assertEqual(op.result['action'], 'skip')
         self.assertEqual(Moment.objects.count(), before)
         self.assertEqual(WorldAction.objects.get(pk=op.pk).energy_cost, 0)
 

@@ -118,7 +118,9 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
     for plan in plans:
         item = expected[plan['id']]
         activity = plan.get('activity')
-        if activity != 'rest' and activity not in available:
+        # Existing rest plans remain readable, but new planning cannot choose rest.
+        existing_rest = item.activity == 'rest' and activity == 'rest'
+        if activity not in available and not existing_rest:
             raise ValueError('活动未开放或配置缺失')
         if activity == 'farm':
             day = local_time(item.scheduled_at).date()

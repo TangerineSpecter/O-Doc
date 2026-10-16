@@ -74,7 +74,7 @@ def prepare(op, agent):
         published = Moment.objects.filter(owner_id=op.owner_id, actor_id=f'agent-id:{agent.pk}',
                                           created_at__gte=storage_time(day_start)).count()
         can_publish = published < cfg['daily_moments']
-    allowed = ['rest']
+    allowed = [] if incoming else ['skip']
     if incoming:
         allowed.extend(('reply', 'ignore', 'defer'))
     if rows:
@@ -119,19 +119,19 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
         agent = Agent.objects.select_for_update().get(pk=agent.pk)
         from system_settings.agent_availability import require_active_agent
         require_active_agent(agent)
-        if stamina(agent) < ENERGY_COST: raise ValueError('体力不足')
+        action = value['action']
+        if action != 'skip' and stamina(agent) < ENERGY_COST: raise ValueError('体力不足')
         from .life_config import effective_settings
         left, right = window(effective_settings(life), local_time().date())
         if not left <= local_time() < right: raise ValueError('已离开活动时间')
         if local_time().date() != op.business_date: raise ValueError('社交机会已跨日')
-        action = value['action']
         own_key = f'agent-id:{agent.pk}'
         artifact = {}
         # 回复目标来自已锁定的收件箱；模型的可选 moment_id 不参与关联。
         if action != 'read':
             value.pop('moment_id', None)
             value.pop('likes', None)
-        if incoming:
+        if incoming and action != 'skip':
             incoming = SocialInbox.objects.select_for_update().get(pk=incoming.pk)
             current = thread_context(incoming)
             if incoming.status not in ('pending', 'deferred') or not current or current != discussion:
@@ -187,13 +187,13 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
                 value.pop('moment_id', None)
         op.status = 'completed'; op.result = {**value, 'action': action}; op.save()
         WorldAction.objects.update_or_create(pk=op.pk, defaults={'agent': agent, 'actor_id': agent.pk, 'status': 'success',
-            'energy_cost': 0 if action == 'rest' else ENERGY_COST, 'consumed_at': timezone.now(), 'effects_done': True, 'snapshot': {'social': True, 'owner_id': op.owner_id}, 'result': op.result})
+            'energy_cost': 0 if action in ('rest', 'skip') else ENERGY_COST, 'consumed_at': timezone.now(), 'effects_done': True, 'snapshot': {'social': True, 'owner_id': op.owner_id}, 'result': op.result})
         target_mid = value.get('moment_id') if action == 'publish' or (action == 'read' and value.get('content')) else ''
         if action == 'read' and not target_mid and ids:
             target_mid = ids[0]
         if not artifact and target_mid:
             artifact = {'artifact_kind': 'moment', 'artifact_id': target_mid}
-        action_label = {'reply': '回复了评论', 'publish': '分享了朋友圈'}.get(action)
+        action_label = {'reply': '回复了评论', 'publish': '分享了朋友圈', 'skip': '跳过本次社交'}.get(action)
         if not action_label:
             if action == 'read':
                 action_label = '动态评论' if value.get('content') else '动态点赞' if ids else '读了朋友圈'

@@ -256,7 +256,7 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
         context['current'] = {'id':item.pk,'activity':item.activity,'intent':item.intent,'budget':str(effective_budget(item)),'spent':str(item.spent)}
         context['reserved_for_others'] = str(reserved)
         context['spendable'] = str(max(Decimal(0), min(remaining_reservation(item), agent.money-reserved)))
-    context['rules'] = '余额是共用生活资金。实际结果才算经历。阅读评论、发帖和休息不预留新预算、不附带采购。仅为有消费能力的活动预留实际费用；投资不能借款且T+1。缺货或超出估计可说明原因调整后续计划，实际余额不足不能扣款。'
+    context['rules'] = '余额是共用生活资金。实际结果才算经历。阅读评论、发帖和美食制作不预留新预算、不附带采购。生活规划必须选择可用活动，不能主动选择休息或跳过；仅体力不足且顺延重试仍无法启动活动时，系统才以休息结束本次机会。仅为有消费能力的活动预留实际费用；投资不能借款且T+1。缺货或超出估计可说明原因调整后续计划，实际余额不足不能扣款。'
     context['rules'] += '农场每天最多安排一次错开开工；后续按半小时检查种植队列，不占日程，不调用模型，不即时补给。'
     import json
     from django.core.serializers.json import DjangoJSONEncoder

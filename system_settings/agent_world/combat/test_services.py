@@ -122,6 +122,31 @@ class ExplorationTests(TestCase):
             with self.assertRaisesMessage(ValueError,'装备不属于居民或不满足穿戴条件'):
                 preview_equipment(CombatProfile.objects.get(pk=self.agent.pk),{'weapon':new_gear.pk})
 
+    def test_ineligible_optional_equipment_does_not_block_exploration(self):
+        import random
+        from .equipment import generate
+        from .models import EquipmentInstance
+        from .preparation import prepare
+        from .store import current
+
+        profile=ensure('admin',self.agent,self.now)
+        profile.progression={**profile.progression,'level':2}
+        profile.save(update_fields=['progression'])
+        catalog=current(profile.catalog_id)
+        snapshot=generate(catalog,'equip.training_sword',3,'white',random.Random(31))
+        new_gear=EquipmentInstance.objects.create(pk='too-high-training-sword',owner_id='admin',
+            actor_id=self.agent.pk,catalog_id=catalog.version,template_id='equip.training_sword',snapshot=snapshot)
+        run=explorations.request('admin',self.agent,'skip-ineligible-gear',{},now=self.now)
+        plan={**self.plan,'equipment':{'weapon':new_gear.pk}}
+
+        run=prepare(run.pk,planner=lambda *args:plan)
+
+        self.assertEqual(run.status,'active')
+        self.assertEqual(run.snapshot['prepared_plan']['equipment'],{})
+        self.assertIn('保留当前装备继续探索',run.snapshot['prepared_plan']['reason'])
+        profile.refresh_from_db()
+        self.assertEqual(profile.loadout,{'weapon':'starter:'+self.agent.pk})
+
     def test_unaffordable_optional_potions_are_removed_from_exploration_plan(self):
         from .preparation import fit_potion_plan
         run=explorations.request('admin',self.agent,'unbudgeted-potion-plan',{},now=self.now)

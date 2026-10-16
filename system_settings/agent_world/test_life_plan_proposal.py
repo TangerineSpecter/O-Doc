@@ -23,7 +23,7 @@ class StagedPlanningTests(SimpleTestCase):
                            'current_activity': 'unplanned', 'spent': '0'}],
                 'upcoming': [{'id': 'later', 'activity': 'investment', 'budget': '1000'}]}
 
-    def choices(self, first='post_interaction', second='rest'):
+    def choices(self, first='post_interaction', second='post_interaction'):
         return {'plans': [{'id': 'one', 'activity': first, 'reason': '想做这件事'},
                           {'id': 'two', 'activity': second, 'reason': '自己的安排'}]}
 

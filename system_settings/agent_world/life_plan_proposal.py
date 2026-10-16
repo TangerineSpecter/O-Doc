@@ -143,16 +143,21 @@ def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = N
         if choice is None:
             choice = ask(agent,
                 '今天有slots中的这些行动机会。根据自己的角色性格、兴趣、目标和近期经历，'
-                '决定各次机会想做什么，也可以rest。不需要平均分配活动或为了职业强选某项。'
+                '必须为每次机会从activities中选择一种可用活动；不能选择休息或跳过。'
+                '只有系统检测到体力不足，且顺延重试后仍无法启动活动时，才会自动以休息结束。'
+                '不需要平均分配活动或为了职业强选某项。'
                 '现在只选择意向，不计算预算，不生成种植、路线、交易或创作细节；'
                 '资金和可行性会在选定活动后单独处理。farm每天最多安排一次开工。'
-                '返回 {"plans":[{"id":"时间点ID","activity":"activities中的kind或rest",'
+                '返回 {"plans":[{"id":"时间点ID","activity":"activities中的kind",'
                 '"reason":"想做这件事的原因"}],"goal_updates":[]}。'
                 '目标完成须引用真实evidence_record_id；允许放弃失效目标并说明原因。',
                 selection_input)
     slots = {row['id']: row for row in context['slots']}
     selected = indexed_rows(choice.get('plans'), set(slots), '活动选择')
-    allowed = {row['kind'] for row in context.get('activities', [])} | {'rest'}
+    allowed = {row['kind'] for row in context.get('activities', [])}
+    if locked_plans is not None:
+        # Keep legacy rest plans unchanged during execution-time detail checks.
+        allowed.update(row['activity'] for row in locked_plans.values() if row.get('activity') == 'rest')
     plans = []
     farm_days = set()
     for identity, row in selected.items():

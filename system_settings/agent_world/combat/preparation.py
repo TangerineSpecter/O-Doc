@@ -81,11 +81,22 @@ def validate(run: Exploration,plan: dict) -> dict:
             row=catalog.row('potions',sid)
             if type(count)is not int or not 0<=count<=99 or row['enabled']!='1' or int(row['required_level'])>CombatProfile.objects.get(pk=run.actor_id).progression['level']:raise ValueError('药剂等级或数量无效')
     if sum(plan.get('potions',{}).values())>int(catalog.rules['potion_carry_cap']):raise ValueError('每次最多携带 20 瓶药剂')
-    if not isinstance(plan.get('equipment',{}),dict):raise ValueError('换装必须为对象')
-    if plan.get('equipment'):
+    equipment_changes=plan.get('equipment',{})
+    if not isinstance(equipment_changes,dict):
+        plan=skip_equipment_changes(plan)
+    elif equipment_changes:
         from .profiles import preview_equipment
-        preview_equipment(CombatProfile.objects.get(pk=run.actor_id),plan['equipment'])
+        try:
+            preview_equipment(CombatProfile.objects.get(pk=run.actor_id),equipment_changes)
+        except (ValueError,KeyError,TypeError):
+            plan=skip_equipment_changes(plan)
     return plan
+
+
+def skip_equipment_changes(plan: dict) -> dict:
+    reason=str(plan.get('reason') or '').strip()
+    note='换装计划未通过校验，保留当前装备继续探索。'
+    return {**plan,'equipment':{},'reason':(reason+'；' if reason else '')+note}
 
 
 def fit_potion_plan(run: Exploration, agent, plan: dict) -> dict:

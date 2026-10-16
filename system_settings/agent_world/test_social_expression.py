@@ -5,7 +5,33 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from django.test import SimpleTestCase
 from .social_context import social_life_context
-from .social_prompt import AUTO_COMMENT_MAX_LENGTH, AUTO_REPLY_MAX_LENGTH
+from .social_prompt import (
+    AUTO_COMMENT_MAX_LENGTH, AUTO_REPLY_MAX_LENGTH, SOCIAL_SELECTION_RULES, decision_instruction,
+)
+
+
+class SocialPromptStageTests(SimpleTestCase):
+    def test_alternative_actions_are_prompted_before_action_is_locked(self):
+        self.assertIn('ignore', SOCIAL_SELECTION_RULES)
+        self.assertIn('defer', SOCIAL_SELECTION_RULES)
+        self.assertIn('skip', SOCIAL_SELECTION_RULES)
+        for action, has_inbox in (('reply', True), ('publish', False)):
+            with self.subTest(action=action):
+                prompt = decision_instruction([action], has_inbox=has_inbox,
+                                              image_choices=['none'], categories=())
+                for alternative in ('ignore', 'defer', 'skip'):
+                    self.assertNotIn(alternative, prompt)
+
+    def test_selection_rules_reach_structured_decision_stage(self):
+        from .social_model import decide_social
+        agent = SimpleNamespace(pk='actor', name='角色', model_id='model', prompt='有自己的判断')
+        context = {'allowed': ['skip', 'publish'], 'image_choices': ['none'], 'moments': []}
+        with patch('system_settings.agent_availability.require_active_agent', side_effect=lambda value: value), \
+                patch('system_settings.agent_world.social_model.choose_scene', return_value='skip') as choose:
+            result = decide_social(agent, context, owner='owner')
+        self.assertEqual(result['action'], 'skip')
+        state = choose.call_args.args[3]
+        self.assertEqual(state['selection_rules'], SOCIAL_SELECTION_RULES)
 
 
 class SocialLifeContextTests(SimpleTestCase):
@@ -166,7 +192,7 @@ class AutoCommentLengthTests(SimpleTestCase):
 
     def test_reply_is_rewritten_for_length_or_paragraphs_without_changing_context(self):
         from .social_runner import decide
-        context = {'allowed': ['reply', 'ignore', 'rest', 'publish'], 'image_choices':['none'],
+        context = {'allowed': ['reply', 'ignore', 'defer', 'skip', 'publish'], 'image_choices':['none'],
             'inbox': {'discussion': {'source':'种子明天给你。','content':'原帖背景','entries':[]}}}
         before = deepcopy(context)
         for content in ('长' * (AUTO_REPLY_MAX_LENGTH + 1), '谢谢。\n明天见。'):
@@ -179,8 +205,8 @@ class AutoCommentLengthTests(SimpleTestCase):
 
     def test_reply_rewrite_cannot_change_selected_action(self):
         from .social_runner import decide
-        context = {'allowed':['reply','ignore','rest','publish'],'image_choices':['none'], 'inbox':{'discussion':{'content':'消息'}}}
-        for action in ('ignore','rest','publish'):
+        context = {'allowed':['reply','ignore','defer','skip','publish'],'image_choices':['none'], 'inbox':{'discussion':{'content':'消息'}}}
+        for action in ('ignore','defer','skip','publish'):
             with self.subTest(action=action), patch('system_settings.agent_world.social_model.choose_scene',return_value='reply'), patch('system_settings.decision.routing.complete', side_effect=[json.dumps({'action':'reply','reason':'接话','content':'长'*121}), json.dumps({'action':action,'reason':'结束','content':'短动态'})]):
                 with self.assertRaises(ValueError): decide(self.agent,context,owner='owner')
 

@@ -354,6 +354,11 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                 current_action = '决定暂时不交流'
                 title = f'{actor_name}决定暂时不交流' if actor_name else '决定暂时不交流'
                 is_motive = True
+            elif raw_action == 'skip':
+                sub_action = 'skip'
+                current_action = '跳过本次社交'
+                title = f'{actor_name}跳过了本次社交机会' if actor_name else '跳过了本次社交机会'
+                is_motive = True
             else:
                 current_action = row.current_action or '动态互动'
         elif row.activity_type == 'interaction':

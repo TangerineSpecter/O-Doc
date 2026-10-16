@@ -330,17 +330,19 @@ class LifeTests(TestCase):
         self.assertEqual(item.intent, '想研究投资')
         self.assertEqual(item.budget, Decimal('1000'))
 
-    def test_staged_rest_plan_does_not_ask_about_money(self):
+    def test_new_life_plan_rejects_voluntary_rest(self):
         from .life_planner import plan_items
         item = self.item()
         with patch('system_settings.agent_world.life_planner.ask', return_value={
                 'plans': [{'id': item.pk, 'activity': 'rest', 'reason': '今天想休息',
                            'budget': '9000'}]}) as ask:
-            plan_items(self.config, self.agents[0], [item])
+            with self.assertRaisesMessage(ValueError, '活动未开放或配置缺失'):
+                plan_items(self.config, self.agents[0], [item])
+        ask.assert_called_once()
         item.refresh_from_db()
-        self.assertEqual(ask.call_count, 1)
+        self.assertEqual(item.activity, 'unplanned')
         self.assertEqual(item.budget, Decimal('0'))
-        self.assertEqual(item.intent, '今天想休息')
+        self.assertFalse(item.revisions.exists())
 
     def test_planning_failure_keeps_model_reason_on_schedule(self):
         from .life_runner import tick_life

@@ -35,6 +35,8 @@ class DailyMarketScheduleTests(TestCase):
         ensure_profiles(self.config.pk, self.config.settings['agent_ids'])
         self.task = AgentTask.objects.create(name='市场', agent=self.agents[0], task_kind='market', enabled=True,
                                             market_config={'owner_id': self.config.pk})
+        AgentTask.objects.create(name='帖子互动', agent=self.agents[0], task_kind='post_interaction', enabled=True,
+                                 world_state={'owner_id': self.config.pk})
         WorldActionRuntime.objects.create(pk='world', enabled=True)
 
     def daily_items(self):
@@ -76,7 +78,7 @@ class DailyMarketScheduleTests(TestCase):
 
     def test_planning_does_not_run_market_or_rewrite_market_items(self):
         def propose(agent, instruction, context):
-            return {'plans': [{'id': slot['id'], 'activity': 'rest', 'budget': '0', 'reason': '休息'}
+            return {'plans': [{'id': slot['id'], 'activity': 'post_interaction', 'budget': '0', 'reason': '看看居民动态'}
                               for slot in context['slots']]}
         with patch('django.utils.timezone.now', return_value=NOW), \
              patch('system_settings.agent_world.life_planner.ask', side_effect=propose) as ask, \

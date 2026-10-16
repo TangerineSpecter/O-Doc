@@ -17,9 +17,8 @@ def select_activities(agent, context, ask):
             farm_days.add(row['time'][:10])
     for slot in context.get('slots', []):
         day = slot['time'][:10]
-        choices = {'rest': '休息或本次不安排活动'}
-        choices.update({kind: row.get('preference') or kind for kind, row in activities.items()
-                        if kind != 'farm' or day not in farm_days})
+        choices = {kind: row.get('preference') or kind for kind, row in activities.items()
+                   if kind != 'farm' or day not in farm_days}
         selection = choose_scene(owner, agent, 'life_activity',
             {**{k: v for k, v in context.items() if k not in ('role', 'slots', '_request_deadline')},
              'slot': slot, 'selected': plans}, choices, deadline=deadline)

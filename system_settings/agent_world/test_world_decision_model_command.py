@@ -8,7 +8,7 @@ from django.db import connection
 from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 
-from system_settings.models import Agent, AIProvider, AIModel
+from system_settings.models import Agent, AgentTask, AIProvider, AIModel
 from system_settings.agent_world.life_models import LifeProfile, LifeConfig
 from system_settings.agent_world.farm_models import AgentFarm, FarmCatalog
 from system_settings.agent_world.market_models import MarketBatch, MarketConfig
@@ -67,6 +67,8 @@ class ReadonlyComparisonContextTests(TestCase):
         self.agent = Agent.objects.create(name='只读居民', prompt='热爱交流')
         LifeProfile.objects.create(pk=self.agent.pk, owner_id='test-owner', preferences='聊天', direction='结识朋友')
         LifeConfig.objects.create(pk='test-owner')
+        AgentTask.objects.create(name='帖子互动', agent=self.agent, task_kind='post_interaction', enabled=True,
+                                 world_state={'owner_id': 'test-owner'})
 
     def test_projection_never_initializes_missing_market_or_catalog_with_or_without_farm(self):
         for has_farm in (False, True):
@@ -83,7 +85,7 @@ class ReadonlyComparisonContextTests(TestCase):
         provider = AIProvider.objects.create(name='fake', type='custom', base_url='https://example.invalid', api_key='test-only')
         model = AIModel.objects.create(name='fake-chat', provider=provider, type='chat')
         with patch('system_settings.agent_world.life_planner.ask', return_value={'plans':[
-                {'id':TEST_SLOT_ID,'activity':'rest','reason':'休息一下'}]}) as ask:
+                {'id':TEST_SLOT_ID,'activity':'post_interaction','reason':'看看居民动态'}]}) as ask:
             with CaptureQueriesContext(connection) as queries:
                 call_command('test_world_decision_models', agent_id=self.agent.pk, models=model.pk, stdout=StringIO())
         self.assertEqual(ask.call_count,1)

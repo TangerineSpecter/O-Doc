@@ -9,7 +9,7 @@ def validate_life_output(value, instruction, context):
     ids = {row['id'] for row in slots}
     if 'activities' in context:
         rows = indexed_rows(value.get('plans'), ids, '活动选择')
-        allowed = {row['kind'] for row in context['activities']} | {'rest'}
+        allowed = {row['kind'] for row in context['activities']}
         farm_days = set(context.get('existing_farm_days', []))
         for identity, row in rows.items():
             if row.get('activity') not in allowed or not isinstance(row.get('reason'), str) or not row['reason'].strip():

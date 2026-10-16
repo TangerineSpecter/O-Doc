@@ -5,7 +5,9 @@ from system_settings.agent_role import role_text
 from system_settings.agent_prompts import build_agent_system_prompt
 from system_settings.decision.routing import choose_scene, complete_json, owner_for
 from .social_context import social_decision_context
-from .social_prompt import decision_instruction, validate_auto_reply, AUTO_COMMENT_MAX_LENGTH
+from .social_prompt import (
+    SOCIAL_SELECTION_RULES, decision_instruction, validate_auto_reply, AUTO_COMMENT_MAX_LENGTH,
+)
 from .social_relations import RULES
 from .social_content import text
 
@@ -63,21 +65,26 @@ def decide_social(agent, context, *, owner=None):
         else:
             options[action] = {'action': action}
     if not options:
-        return {'action': 'rest', 'reason': '系统选择说明：没有可用社交行为', 'image_choice': 'none'}
+        return {'action': 'skip', 'reason': '本次没有可执行的社交行为', 'image_choice': 'none'}
     descriptions = {key: json.dumps(value, ensure_ascii=False) for key, value in options.items()}
     # The decision stage does not need image inventories or publishing schemas.
     selection_context = {k: v for k, v in projected.items() if k not in ('image_choices', 'existing_images')}
-    selected_key = choose_scene(owner, agent, 'social_action', selection_context, descriptions, deadline=deadline)
+    selection_state = {**selection_context, 'selection_rules': SOCIAL_SELECTION_RULES}
+    selected_key = choose_scene(owner, agent, 'social_action', selection_state, descriptions, deadline=deadline)
     source = '唯一合法候选' if len(options) == 1 else '结构化决策模型' if selected_key else '普通模型'
     if selected_key is None:
         def validate_selection(value):
             if value.get('choice') not in options:
                 raise ValueError('社交候选无效')
             return value['choice']
-        prompt = role_text(agent, 'social') + '\n只选择一个合法候选，不写正文、配图或感受。返回 {"choice":"候选键"}。\n' + '\n资料：' + json.dumps({'context': selection_context, 'choices': descriptions}, ensure_ascii=False)
+        prompt = (role_text(agent, 'social') + '\n只选择一个合法候选，不写正文、配图或感受。'
+                  + SOCIAL_SELECTION_RULES + '返回 {"choice":"候选键"}。\n资料：'
+                  + json.dumps({'context': selection_context, 'choices': descriptions}, ensure_ascii=False))
         selected_key = complete_json(agent, prompt, validate_selection, decision=True, owner=owner, deadline=deadline, scene='社交选择', check=check)
     selected = options[selected_key]
-    if selected['action'] in ('rest', 'ignore', 'defer'):
+    if selected['action'] == 'skip':
+        return {**selected, 'reason': '本次跳过社交机会', 'image_choice': 'none'}
+    if selected['action'] in ('ignore', 'defer'):
         return {**selected, 'reason': f'系统选择说明：{source}选择{selected_key}，不是人物感受。', 'image_choice': 'none'}
     scoped = {**context, 'allowed': [selected['action']]}
     if selected['action'] != 'publish':
