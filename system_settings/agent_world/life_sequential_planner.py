@@ -6,7 +6,7 @@ from .life_schedule import OPEN
 from .life_time import local_time
 from .life_budget_choices import BudgetChoices
 from .life_budget_policy import remaining_reservation
-from .life_context import build_planning_selection_context, build_planning_farm_context
+from .life_context import build_planning_selection_context
 from .life_eligibility import filter_activities, local_time_from_slot
 from .cooking_schedule_plan import planning_facts, decide_plan
 from .life_choices import choose
@@ -40,7 +40,7 @@ def prepare_targets(config, agent, items: list, preserve: bool) -> list:
 
 def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
                preserve_activities: bool = False) -> list[dict]:
-    from .life_plan_proposal import propose, selection_context
+    from .life_plan_proposal import selection_context
     from .travel_models import TravelDestination
     ordered = prepare_targets(config, agent, items, preserve_activities)
     agent.refresh_from_db()
@@ -102,11 +102,10 @@ def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
             plan['cooking_plan'] = decide_plan(
                 agent, config.pk, {**cooking, 'task_preference': cooking_activity['preference']}, key=item.pk)
         elif activity == 'farm':
-            fixed = {item.pk: {'activity': activity, 'reason': reason, 'budget': str(item.spent)}}
-            farm = propose(agent, context, ask, ask_detail,
-                           load_farm_context=lambda _rows: build_planning_farm_context(config.pk, agent),
-                           locked_plans=fixed)
-            plan.update(farm['plans'][0])
+            from .farm_queue_decision import decide_plan as decide_farm_queue
+            plan['farm_plan'] = decide_farm_queue(agent, config.pk, slot, reason,
+                                                 context.get('preferences', ''))
+            plan['_farm_queue_candidate'] = True
         proposal = {'plans': [plan], '_automatic_rest': activity == 'rest',
                     '_expected_versions': {item.pk: item.updated_at.isoformat()}}
         apply(config.pk, agent, [item], proposal, skip_unchanged=preserve_activities)

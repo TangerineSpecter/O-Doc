@@ -12,6 +12,7 @@ from utils.ai_observer import check_ai_control, emit_ai_event
 from system_settings.models import AIModel, SystemSetting
 
 SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'life_budget': '生活预算选择',
+          'farm_queue': '农场种植队列规划',
           'cooking_recipe': '美食菜谱选择', 'cooking_quantity': '美食份数选择',
           'cooking_continue': '美食继续制作', 'cooking_ingredient_strategy': '美食用料策略',
           'social_action': '社交行为选择',

@@ -494,7 +494,8 @@ class FarmQueueTests(TestCase):
             'entries': [{'sku': 'seed.radish', 'quantity': 2}], 'procurement_limit': '0',
         }}]}
         with patch('django.utils.timezone.now', return_value=target), \
-                patch('system_settings.agent_world.life_planner.ask_detail', return_value=response) as detail:
+                patch('system_settings.agent_world.farm_queue_decision.decide_plan',
+                   return_value=response['plans'][0]['farm_plan']) as detail:
             execute_item(self.item, None)
         self.item.refresh_from_db()
         new = current(self.farm(), target)

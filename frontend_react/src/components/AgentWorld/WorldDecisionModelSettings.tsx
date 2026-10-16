@@ -13,6 +13,7 @@ const decisionSceneLabels = {
     market: '市场选择',
     life_activity: '生活活动选择',
     life_budget: '生活预算选择',
+    farm_queue: '农场种植队列规划',
     cooking_recipe: '美食菜谱选择',
     cooking_quantity: '美食份数选择',
     cooking_continue: '美食继续制作',
@@ -175,7 +176,7 @@ export function WorldDecisionModelSettings() {
                 </label>
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <Checkbox checked={jevEnabled} onChange={setJevEnabled} disabled={loading || saving} label="启用结构化决策连接处理有限候选选择"/>
-                    <p className="text-xs leading-5 text-slate-500">连接信息、选择和 API Key 都随 WebDAV 同步。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。未配置或调用失败时使用普通文本模型。</p>
+                    <p className="text-xs leading-5 text-slate-500">农场种植规划一次选择整套作物、数量、施肥和采购上限，后续队列由程序推进。连接信息、选择和 API Key 都随 WebDAV 同步。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。未配置或调用失败时使用普通文本模型。</p>
                     {decisionConfig.error && <p role="alert" className="text-xs text-red-600">{decisionConfig.error}<button type="button" onClick={() => void decisionConfig.refresh()} className="ml-2 underline">重试</button></p>}
                     {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">所选连接：{decisionConnections.find(connection => connection.id === decisionConnectionId)?.configured ? '连接信息完整' : '请检查 API Key 和连接同步状态'}</p>}
                     {jevEnabled && <div className="space-y-2"><p className="text-xs font-semibold text-slate-600">排除场景（勾选后使用普通模型）</p><div className="grid gap-2 sm:grid-cols-2">

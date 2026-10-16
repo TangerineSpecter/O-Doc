@@ -153,7 +153,8 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         if activity == 'farm':
             from .farm_queue_plan import install
             specification = next(p for p in plans if p['id'] == item.pk).get('farm_plan')
-            install(item, available[activity], specification, reason)
+            install(item, available[activity], specification, reason,
+                    recheck_inventory=detail.get('_farm_queue_candidate', False))
         elif item.context.get('farm_plan_id'):
             from .farm_queue_schedule import cancel
             cancel(item, reason)

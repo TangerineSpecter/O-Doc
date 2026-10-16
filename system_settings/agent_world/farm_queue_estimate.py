@@ -3,18 +3,29 @@ import math
 from .farm_clock import advance_state
 
 
-def estimate(state: dict, entries: list[dict], rules: dict, seed: str, start: float, cutoff: float) -> dict:
+def plot_availability(state: dict, seed: str, start: float) -> list[float]:
+    """Read a copy, including crops already growing before the planned start."""
     import copy
     state = copy.deepcopy(state)
     advance_state(state, seed, start)
-    available = [start + max(0, p['crop']['rules']['growth_seconds']-p['crop']['grown']) if p.get('crop') else start for p in state['plots']]
+    return [start + max(0, p['crop']['rules']['growth_seconds']-p['crop']['grown']) if p.get('crop') else start for p in state['plots']]
+
+
+def planting_time(available: float, start: float) -> float:
+    return start + math.ceil(max(0, available - start) / 1800) * 1800
+
+
+def estimate(state: dict, entries: list[dict], rules: dict, seed: str, start: float, cutoff: float) -> dict:
+    available = plot_availability(state, seed, start)
     result = []
     for entry in entries:
         planted = harvested = 0
         period = rules['crops'][entry['sku'][5:]]['growth_seconds']
         for _ in range(entry['quantity']):
+            if not available:
+                break
             index = min(range(len(available)), key=available.__getitem__)
-            at = start + math.ceil(max(0, available[index]-start)/1800)*1800
+            at = planting_time(available[index], start)
             if at >= cutoff:
                 break
             planted += 1

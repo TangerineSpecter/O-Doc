@@ -86,7 +86,7 @@ def attach_source(item, plan: dict) -> None:
 
 @guarded
 @transaction.atomic
-def install(item, task, specification: dict | None, reason: str) -> str:
+def install(item, task, specification: dict | None, reason: str, *, recheck_inventory: bool = False) -> str:
     from .farm_service import ensure_farms
     ensure_farms(task)
     farm = AgentFarm.objects.select_for_update().get(pk=item.actor_id, owner_id=item.owner_id)
@@ -105,12 +105,15 @@ def install(item, task, specification: dict | None, reason: str) -> str:
         return pid
     if not isinstance(specification, dict):
         raise ValueError('农场日程须同时提供farm_plan种植意图（允许空队列）')
+    if recheck_inventory:
+        from .farm_queue_decision import recheck
+        specification = recheck(item, specification)
     from .life_budget import money
     limit = money(specification.get('procurement_limit', '0'))
     if limit < 0:
         raise ValueError('采购上限不能为负数')
     now = timezone.now()
-    end = window(effective_settings(config_for(item.owner_id)), local_time(item.scheduled_at).date())[1]
+    end = window(effective_settings(config_for(item.owner_id), local_time(item.scheduled_at)), local_time(item.scheduled_at).date())[1]
     entries = entries_for(specification.get('entries'), catalog_for(item.owner_id).rules, pid)
     plan = {'id': pid, 'version': 2, 'revision': 1, 'day': day, 'item_id': item.pk, 'task_id': task.pk,
             'starts_at': local_time(item.scheduled_at).timestamp(), 'cutoff': end.timestamp(),
