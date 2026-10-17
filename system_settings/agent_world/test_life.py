@@ -112,6 +112,77 @@ class LifeTests(TestCase):
         checkpoint_all()
         self.assertEqual(LifeIntegrity.objects.get(pk='admin').updated_at, before)
 
+    def test_snapshot_preserves_submillisecond_life_dates(self):
+        from utils.sync_manager import SyncManager
+        from system_settings.tests import MemoryStorageClient
+        from .life_snapshot import validate_source
+        from .life_time import storage_time
+
+        for use_tz in (False, True):
+            with self.subTest(use_tz=use_tz), self.settings(USE_TZ=use_tz):
+                stamp = storage_time(NOW.replace(microsecond=123))
+                item = self.item(identity=f'precise-{use_tz}', original_at=stamp, scheduled_at=stamp)
+                LifeItem.objects.filter(pk=item.pk).update(created_at=stamp, updated_at=stamp)
+                manager = SyncManager(MemoryStorageClient(), f'/empty-{use_tz}')
+                snapshot, summary, _ = manager.sync_v2(manual_upload=True)
+                self.assertTrue(summary['initial_upload'])
+                validate_source(snapshot['data'])
+                manager.apply_snapshot_data(snapshot['data'], remote_meta=snapshot['meta'], full_overwrite=True)
+                validate_source(manager.build_snapshot_data())
+
+    def test_legacy_zero_millisecond_checkpoint_restores_without_accepting_missing_rows(self):
+        import copy
+        import hashlib
+        import json
+        from django.core.serializers.json import DjangoJSONEncoder
+        from utils.sync_manager import SyncManager, SyncError
+        from . import life_models
+        from .life_snapshot import MODELS, validate_source
+
+        stamp = NOW.replace(microsecond=123)
+        item = self.item(original_at=stamp, scheduled_at=stamp)
+        manager = SyncManager()
+        data = manager.build_snapshot_data()
+        from django.core import serializers
+        legacy_rows = {}
+        for name in MODELS:
+            for row in json.loads(serializers.serialize('json', getattr(life_models, name).objects.all())):
+                legacy_rows[(row['model'], row['pk'])] = row
+        data = [legacy_rows.get((row['model'], row['pk']), row) for row in data]
+        # 按旧版数据库指纹算法生成真实旧摘要，日期字符串保留导出的 .000。
+        legacy_hashes = {}
+        for name in MODELS:
+            model = getattr(life_models, name)
+            query = model.objects.filter(pk='admin') if name == 'LifeConfig' else (
+                model.objects.filter(item__owner_id='admin') if name == 'LifeRevision'
+                else model.objects.filter(owner_id='admin'))
+            legacy_hashes[name] = hashlib.sha256(json.dumps(
+                list(query.order_by('pk').values()), cls=DjangoJSONEncoder,
+                sort_keys=True, separators=(',', ':'),
+            ).encode()).hexdigest()
+        checkpoint = next(row for row in data if row['model'] == 'system_settings.lifeintegrity')
+        self.assertNotEqual(checkpoint['fields']['hashes'], legacy_hashes)
+        checkpoint['fields']['hashes'] = legacy_hashes
+        validate_source(data)
+        broken = [row for row in copy.deepcopy(data)
+                  if not (row['model'] == 'system_settings.lifeitem' and row['pk'] == item.pk)]
+        with self.assertRaisesMessage(SyncError, '生活来源快照'):
+            validate_source(broken)
+        manager.apply_snapshot_data(data, full_overwrite=True)
+        validate_source(manager.build_snapshot_data())
+
+    def test_life_time_normalization_does_not_change_json_business_facts(self):
+        import copy
+        from utils.sync_manager import SyncManager, SyncError
+        from .life_snapshot import validate_source
+
+        self.item(context={'note': '2026-10-17T08:00:00.000'})
+        data = SyncManager().build_snapshot_data()
+        broken = copy.deepcopy(data)
+        next(row for row in broken if row['model'] == 'system_settings.lifeitem')['fields']['context']['note'] = '2026-10-17T08:00:00'
+        with self.assertRaisesMessage(SyncError, '生活来源快照'):
+            validate_source(broken)
+
     def test_life_merge_preserves_independent_goals_and_rejects_missing_source(self):
         import copy
         from utils.sync_manager import SyncManager, SyncError, canonical_hash

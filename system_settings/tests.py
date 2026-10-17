@@ -56,7 +56,7 @@ from utils.remote_storage import (
     validate_sync_config,
 )
 from utils.sftp_client import SftpClient
-from utils.sync_manager import SyncError, SyncManager
+from utils.sync_manager import OverwriteConfirmationRequired, SyncError, SyncManager
 from utils.webdav import WebDavClient
 from user.models import UserProfile
 
@@ -187,6 +187,64 @@ class SyncManagerTests(TestCase):
         self._media_settings.enable()
         self.addCleanup(self._media_settings.disable)
 
+    def test_manual_upload_empty_destination_then_confirmed_replacement(self):
+        client = MemoryStorageClient()
+        client.files['/renamed-backup/sync-v2/current.json'] = b'old backup untouched'
+        manager = SyncManager(client, '/new-empty-backup')
+        memo = Memo.objects.create(memo_id='manual-upload', content='first', user_id='owner')
+        with patch.object(manager, 'merge_v2_data', side_effect=AssertionError('manual upload must not merge')):
+            snapshot, summary, _ = manager.sync_v2(manual_upload=True, base_snapshot_id='old-path-base')
+            self.assertTrue(summary['initial_upload'])
+            first_pointer = client.files[manager.v2_current_file]
+            memo.content = 'replacement'
+            memo.save()
+            with self.assertRaises(OverwriteConfirmationRequired):
+                manager.sync_v2(manual_upload=True)
+            self.assertEqual(client.files[manager.v2_current_file], first_pointer)
+            replaced, summary, _ = manager.sync_v2(manual_upload=True, force_overwrite=True)
+        self.assertFalse(summary['initial_upload'])
+        self.assertNotEqual(replaced['meta']['snapshot_id'], snapshot['meta']['snapshot_id'])
+        exported = next(row for row in replaced['data'] if row['model'] == 'memos.memo')
+        self.assertEqual(exported['fields']['content'], 'replacement')
+        self.assertEqual(client.files['/renamed-backup/sync-v2/current.json'], b'old backup untouched')
+
+    def test_manual_upload_requires_confirmation_for_v1_or_v2_backup(self):
+        for name in ('data_index.json', 'sync-v2/current.json'):
+            with self.subTest(name=name):
+                client = MemoryStorageClient()
+                client.files[f'/backup/{name}'] = b'backup need not be parsed to request confirmation'
+                manager = SyncManager(client, '/backup')
+                before = dict(client.files)
+                with patch.object(manager, 'create_local_safety_backup') as backup:
+                    with self.assertRaises(OverwriteConfirmationRequired):
+                        manager.sync_v2(manual_upload=True)
+                backup.assert_not_called()
+                self.assertEqual(client.files, before)
+
+    def test_manual_upload_rechecks_empty_destination_under_lock(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/backup')
+        create_backup = manager.create_local_safety_backup
+
+        def concurrent_upload(*args, **kwargs):
+            backup = create_backup(*args, **kwargs)
+            client.files[manager.v2_current_file] = b'another completed upload'
+            return backup
+
+        with patch.object(manager, 'create_local_safety_backup', side_effect=concurrent_upload):
+            with self.assertRaises(OverwriteConfirmationRequired):
+                manager.sync_v2(manual_upload=True)
+        self.assertEqual(client.files[manager.v2_current_file], b'another completed upload')
+        self.assertNotIn(f'{manager.v2_dir}/.sync-lock', client.directories)
+
+    def test_manual_upload_does_not_treat_unreadable_directory_as_empty(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/backup')
+        with patch.object(client, 'list_directory', return_value=None):
+            with self.assertRaisesMessage(SyncError, '无法读取远端目录'):
+                manager.sync_v2(manual_upload=True)
+        self.assertFalse(client.files)
+
     @patch('system_settings.sync_scheduler.os.kill', side_effect=ProcessLookupError)
     @patch('system_settings.sync_scheduler.socket.gethostname', return_value='local-host')
     def test_dead_local_scheduler_does_not_keep_sync_running(self, _hostname, _kill):
@@ -304,6 +362,23 @@ class SyncManagerTests(TestCase):
 
         with manager._remote_sync_lock('manual:recovered', recover_owned_lock=True):
             self.assertIn(lock_dir, client.directories)
+
+    def test_v2_recovery_requires_the_abandoned_runner_to_match(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/backup')
+        lock_dir = f'{manager.v2_dir}/.sync-lock'
+        client.ensure_directory(lock_dir)
+        manager._write_remote_json({
+            'runner_id': 'active-runner', 'device_id': get_device_id(),
+            'started_at': timezone.now().isoformat(),
+        }, f'{lock_dir}/lock.json')
+        with self.assertRaises(SyncError):
+            with manager._remote_sync_lock('new-runner', recover_owned_lock='different-abandoned-runner'):
+                self.fail('must not replace a different runner')
+        self.assertIn(lock_dir, client.directories)
+        with manager._remote_sync_lock('new-runner', recover_owned_lock='active-runner'):
+            self.assertIn(lock_dir, client.directories)
+        self.assertNotIn(lock_dir, client.directories)
 
     def test_v2_history_retains_only_ten_complete_snapshots(self):
         client = MemoryStorageClient()
@@ -1999,6 +2074,45 @@ class SystemConfigViewSetTests(TestCase):
         self.factory = APIRequestFactory()
         self.user = User.objects.create_user('system-config-test', 'system-config@example.com', 'password')
 
+    def test_status_read_finishes_expired_cancel_state_after_restart(self):
+        SystemSetting.objects.create(key='system_webdav_sync_runtime', value={
+            'status': 'running', 'runner_id': 'scheduler:old-container:1',
+            'cancel_requested': True, 'last_error': '用户终止同步：正在释放同步锁',
+            'last_started_at': (timezone.now() - timedelta(hours=4)).isoformat(),
+        })
+        request = self.factory.get('/api/settings/config/get_webdav_status/')
+        force_authenticate(request, user=self.user)
+        response = SystemConfigViewSet.as_view({'get': 'get_webdav_status'})(request)
+        self.assertEqual(response.data['data']['status'], 'idle')
+        runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+        self.assertFalse(runtime['cancel_requested'])
+        self.assertEqual(runtime['last_error'], '')
+
+    def test_cancelled_pull_returns_terminal_event_and_releases_execution(self):
+        from system_settings.sync_execution import execution_is_alive
+
+        for failure in (SyncError('同步已取消'), TimeoutError('网络请求超时')):
+            with self.subTest(failure=type(failure).__name__):
+                manager = Mock()
+                manager.get_v2_current.return_value = {'meta': {'snapshot_id': 'remote'}}
+
+                def cancel(**kwargs):
+                    cancel_running_sync()
+                    raise failure
+
+                manager.sync_v2.side_effect = cancel
+                request = self.factory.post('/api/settings/config/sync_from_webdav/')
+                force_authenticate(request, user=self.user)
+                view = SystemConfigViewSet.as_view({'post': 'sync_from_webdav'})
+                with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=manager):
+                    response = view(request)
+                    events = [json.loads(chunk) for chunk in response.streaming_content]
+                runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+                self.assertEqual(events[-1]['step'], 'cancelled')
+                self.assertEqual(runtime['status'], 'idle')
+                self.assertFalse(runtime['cancel_requested'])
+                self.assertFalse(execution_is_alive(runtime['runner_id']))
+
     def test_get_sync_manager_accepts_camel_case_remote_path(self):
         SystemSetting.objects.create(
             key='system_webdav_config',
@@ -2249,7 +2363,24 @@ class SystemConfigViewSetTests(TestCase):
             events = [json.loads(chunk) for chunk in response.streaming_content]
 
         self.assertTrue(manager.sync_v2.call_args.kwargs['force_overwrite'])
+        self.assertTrue(manager.sync_v2.call_args.kwargs['manual_upload'])
         self.assertEqual(events[-1]['step'], 'done')
+
+    def test_manual_upload_confirmation_is_not_a_failed_sync(self):
+        request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        force_authenticate(request, user=self.user)
+        manager = Mock()
+        manager.sync_v2.side_effect = OverwriteConfirmationRequired('当前远端目录已有备份')
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=manager):
+            response = view(request)
+            events = [json.loads(chunk) for chunk in response.streaming_content]
+        self.assertTrue(manager.sync_v2.call_args.kwargs['manual_upload'])
+        self.assertFalse(manager.sync_v2.call_args.kwargs['force_overwrite'])
+        self.assertEqual(events[-1]['step'], 'confirm_overwrite')
+        runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+        self.assertEqual(runtime['status'], 'idle')
+        self.assertEqual(runtime['last_error'], '')
 
     def test_sync_to_webdav_returns_v2_version_error(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
@@ -2384,12 +2515,17 @@ class WebDavSchedulerTests(TestCase):
 
     def test_scheduler_starts_for_runserver_child_process(self):
         with patch.object(sys, 'argv', ['manage.py', 'runserver']):
-            with patch.dict(os.environ, {'RUN_MAIN': 'true'}, clear=False):
+            with patch.dict(os.environ, {
+                'RUN_MAIN': 'true', 'ODOC_ENABLE_WEBDAV_SCHEDULER': 'true',
+                'ODOC_FORCE_WEBDAV_SCHEDULER': 'false',
+            }, clear=False):
                 self.assertTrue(should_start_webdav_scheduler())
 
     def test_scheduler_starts_for_gunicorn_process(self):
         with patch.object(sys, 'argv', ['/usr/local/bin/gunicorn']):
-            with patch.dict(os.environ, {}, clear=False):
+            with patch.dict(os.environ, {
+                'ODOC_ENABLE_WEBDAV_SCHEDULER': 'true', 'ODOC_FORCE_WEBDAV_SCHEDULER': 'false',
+            }, clear=False):
                 self.assertTrue(should_start_webdav_scheduler())
 
     def test_auto_sync_skips_when_remote_path_missing(self):
@@ -2447,4 +2583,5 @@ class WebDavSchedulerTests(TestCase):
         self.assertEqual(runtime.get('status'), 'running')
         self.assertEqual(runtime.get('runner_id'), 'scheduler:host:1')
         self.assertTrue(runtime.get('cancel_requested'))
-        self.assertIn('同步已取消', runtime.get('last_error'))
+        self.assertEqual(runtime.get('last_error'), '')
+        self.assertIn('同步已取消', runtime.get('last_summary'))

@@ -1,5 +1,6 @@
 """Validate the complete learning domain before deserializing any rows."""
 from django.core import serializers
+from utils.sync_datetime import SyncJSONEncoder
 import json
 from utils.sync_manager import SyncError
 from system_settings.sync_state import canonical_hash
@@ -17,7 +18,7 @@ def metadata(data=None):
         for model in apps.get_app_config('learning').get_models():
             if model._meta.model_name in ('runtime', 'devicejob', 'goaljob'):
                 continue
-            data += json.loads(serializers.serialize('json', model.objects.all()))
+            data += json.loads(serializers.serialize('json', model.objects.all(), cls=SyncJSONEncoder))
     return {'learning_schema_version': 4, 'learning_manifest': manifest(data),
             'learning_fact_hashes': {f"{r['model']}:{r['pk']}": canonical_hash(r['fields']) for r in data if r.get('model', '').startswith('learning.')}}
 

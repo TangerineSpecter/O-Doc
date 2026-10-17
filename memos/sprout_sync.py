@@ -1,5 +1,6 @@
 """Versioned immutable sources/results; runtime permission never travels."""
 from django.core import serializers
+from utils.sync_datetime import SyncJSONEncoder
 import json
 from system_settings.sync_state import canonical_hash
 
@@ -7,7 +8,7 @@ from system_settings.sync_state import canonical_hash
 def metadata(data=None):
     if data is None:
         from .models import Sprout, MemoCapture
-        data = json.loads(serializers.serialize('json', Sprout.objects.all())) + json.loads(serializers.serialize('json', MemoCapture.objects.all()))
+        data = json.loads(serializers.serialize('json', Sprout.objects.all(), cls=SyncJSONEncoder)) + json.loads(serializers.serialize('json', MemoCapture.objects.all(), cls=SyncJSONEncoder))
     rows = [r for r in data if r['model'] in ('memos.sprout', 'memos.memocapture')]
     return {'memo_sprout_schema_version': 1,
             'memo_sprout_hashes': {f"{r['model']}:{r['pk']}": canonical_hash(r['fields']) for r in rows}}

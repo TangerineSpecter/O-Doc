@@ -2,15 +2,16 @@
 import hashlib
 import json
 from django.core.serializers.json import DjangoJSONEncoder
+from utils.sync_datetime import SyncJSONEncoder
 from .social_models import (SocialConfig, Moment, MomentComment, MomentLike, SocialInbox,
                             SocialRelation, SocialEvent, SocialOpportunity, SocialIntegrity)
 
 
-def fingerprints(owner):
+def fingerprints(owner, *, legacy=False):
     queries = [SocialConfig.objects.filter(pk=owner)]
     queries += [m.objects.filter(owner_id=owner) for m in (Moment, SocialInbox, SocialRelation, SocialEvent, SocialOpportunity)]
     queries += [m.objects.filter(moment__owner_id=owner) for m in (MomentComment, MomentLike)]
-    return {q.model.__name__: hashlib.sha256(json.dumps(list(q.order_by('pk').values()), cls=DjangoJSONEncoder,
+    return {q.model.__name__: hashlib.sha256(json.dumps(list(q.order_by('pk').values()), cls=DjangoJSONEncoder if legacy else SyncJSONEncoder,
             sort_keys=True, separators=(',', ':')).encode()).hexdigest() for q in queries}
 
 

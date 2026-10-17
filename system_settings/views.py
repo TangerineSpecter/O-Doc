@@ -27,12 +27,14 @@ from system_settings.sync_scheduler import (
     get_runtime_state,
     is_sync_running,
     mark_sync_started,
+    remote_lock_recovery_runner,
     reset_auto_sync_failure_state,
     runner_owns_sync,
     should_abort_sync,
     should_pull_remote_before_push,
     update_runtime_state,
 )
+from system_settings.sync_execution import release_execution
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result, valid_result
 from utils.remote_storage import (
@@ -44,7 +46,7 @@ from utils.remote_storage import (
     public_sync_config,
     validate_sync_config,
 )
-from utils.sync_manager import SyncError, SyncManager, format_sync_result
+from utils.sync_manager import OverwriteConfirmationRequired, SyncError, SyncManager, format_sync_result
 from .feishu_im import (
     FeishuIMError,
     handle_feishu_message_event,
@@ -512,7 +514,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def cancel_webdav_sync(self, request):
         """请求同步在安全检查点退出，并等待其释放远端同步锁。"""
-        cancelled, runtime_state = cancel_running_sync('用户终止同步：正在释放同步锁')
+        cancelled, runtime_state = cancel_running_sync('已请求终止同步，等待任务安全退出')
         if not cancelled:
             return valid_result(data=self._status_payload(runtime_state), msg='当前没有正在运行的同步任务')
         return success_result(
@@ -572,6 +574,8 @@ class SystemConfigViewSet(viewsets.ViewSet):
             if runner_owns_sync(runner_id):
                 update_runtime_state(status='error', trigger='history-restore', runner_id=runner_id, last_error=str(exc))
             return valid_result(msg=str(exc))
+        finally:
+            release_execution(runner_id)
 
     @action(detail=False, methods=['post'])
     def export_local_backup(self, request):
@@ -660,6 +664,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             logging.getLogger(__name__).exception('导入本地备份失败')
             return error_result(ErrorCode.WEBDEV_DOWNLOAD_FAIL)
         finally:
+            release_execution(runner_id)
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
@@ -732,16 +737,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             runner_id = generate_runner_id('manual')
             acquired = False
             try:
-                previous_runtime_state = get_runtime_state()
-                recover_owned_remote_lock = (
-                    not is_sync_running(previous_runtime_state)
-                    and (
-                        bool(previous_runtime_state.get('cancel_requested'))
-                        # 旧版终止逻辑会在首次重试时清掉 cancel_requested，只留下
-                        # 这条远端锁冲突错误；仍会在 SyncManager 中核对同一 device_id。
-                        or '另一台设备正在同步' in str(previous_runtime_state.get('last_error') or '')
-                    )
-                )
+                recover_owned_remote_lock = remote_lock_recovery_runner()
                 acquired, runtime_state = mark_sync_started(
                     trigger='manual',
                     runner_id=runner_id,
@@ -751,7 +747,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
                     return
 
-                yield self._sync_event('init', '正在比对修订清单与媒体哈希…')
+                yield self._sync_event('init', '正在检查当前远端目录是否已有备份…')
                 snapshot, summary, safety_backup = manager.sync_v2(
                     source='manual', runner_id=runner_id,
                     base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
@@ -760,6 +756,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     should_abort=lambda: should_abort_sync(runner_id),
                     recover_owned_remote_lock=recover_owned_remote_lock,
                     force_overwrite=force_overwrite,
+                    manual_upload=True,
                 )
                 snapshot_meta = snapshot['meta']
                 yield self._sync_event('summary', format_sync_result(summary, safety_backup))
@@ -773,6 +770,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_base_snapshot_id=snapshot_meta.get('base_snapshot_id', ''),
                     last_push_at=timezone.now().isoformat(),
                     last_error='',
+                    cancel_requested=False, abandoned_runner_id='',
                     auto_sync_consecutive_failures=0,
                     auto_sync_next_retry_at='',
                     auto_sync_paused=False,
@@ -786,14 +784,25 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     runner_id=runner_id, progress=100,
                 )
                 yield self._sync_event("done", "✅ 所有同步已完成！")
-            except SyncError as e:
+            except OverwriteConfirmationRequired as e:
                 if acquired and runner_owns_sync(runner_id):
-                    update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e), cancel_requested=False)
-                yield self._sync_event("error", str(e))
+                    update_runtime_state(
+                        status='idle', trigger='manual', runner_id=runner_id,
+                        last_error='', cancel_requested=False, sync_progress=0,
+                    )
+                yield self._sync_event('confirm_overwrite', str(e))
             except Exception as e:
                 if acquired and runner_owns_sync(runner_id):
+                    if should_abort_sync(runner_id):
+                        update_runtime_state(status='idle', last_error='', cancel_requested=False,
+                                             abandoned_runner_id=runner_id, sync_progress=0)
+                        yield self._sync_event('cancelled', '同步已终止。')
+                        return
                     update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e), cancel_requested=False)
-                yield self._sync_event("error", f"同步失败：{str(e)}")
+                yield self._sync_event("error", str(e) if isinstance(e, SyncError) else f"同步失败：{str(e)}")
+            finally:
+                if acquired:
+                    release_execution(runner_id)
 
         return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')
 
@@ -810,14 +819,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             runner_id = generate_runner_id('manual')
             acquired = False
             try:
-                previous_runtime_state = get_runtime_state()
-                recover_owned_remote_lock = (
-                    not is_sync_running(previous_runtime_state)
-                    and (
-                        bool(previous_runtime_state.get('cancel_requested'))
-                        or '另一台设备正在同步' in str(previous_runtime_state.get('last_error') or '')
-                    )
-                )
+                recover_owned_remote_lock = remote_lock_recovery_runner()
                 acquired, runtime_state = mark_sync_started(
                     trigger='manual-pull',
                     runner_id=runner_id,
@@ -846,6 +848,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     runner_id=runner_id,
                     last_success_at=timezone.now().isoformat(),
                     last_error='',
+                    cancel_requested=False, abandoned_runner_id='',
                     auto_sync_consecutive_failures=0,
                     auto_sync_next_retry_at='',
                     auto_sync_paused=False,
@@ -863,13 +866,17 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     runner_id=runner_id, progress=100,
                 )
                 yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
-            except SyncError as e:
-                if acquired and runner_owns_sync(runner_id):
-                    update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e), cancel_requested=False)
-                yield self._sync_event("error", str(e))
             except Exception as e:
                 if acquired and runner_owns_sync(runner_id):
+                    if should_abort_sync(runner_id):
+                        update_runtime_state(status='idle', last_error='', cancel_requested=False,
+                                             abandoned_runner_id=runner_id, sync_progress=0)
+                        yield self._sync_event('cancelled', '同步已终止。')
+                        return
                     update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e), cancel_requested=False)
-                yield self._sync_event("error", ErrorCode.WEBDEV_DOWNLOAD_FAIL.message)
+                yield self._sync_event("error", str(e) if isinstance(e, SyncError) else ErrorCode.WEBDEV_DOWNLOAD_FAIL.message)
+            finally:
+                if acquired:
+                    release_execution(runner_id)
 
         return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')

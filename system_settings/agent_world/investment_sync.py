@@ -3,14 +3,24 @@ import hashlib
 import json
 from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
+from utils.sync_datetime import SyncJSONEncoder
 from .investment_models import InvestmentAccount, InvestmentTrade, InvestmentIntegrity, InvestmentDecision, InvestmentNewsClaim
 from .investment_service import apply_position, energy_action_id
 
 
-def fingerprints(owner):
+def fingerprints(owner, *, legacy=False):
     return {model.__name__: hashlib.sha256(json.dumps(list(model.objects.filter(owner_id=owner).order_by('pk').values()),
-            cls=DjangoJSONEncoder, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            cls=DjangoJSONEncoder if legacy else SyncJSONEncoder, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
             for model in (InvestmentAccount, InvestmentTrade, InvestmentNewsClaim)}
+
+
+def normalize_legacy_dates():
+    """只转换与旧算法严格相符的派生摘要，不接受缺失或篡改的资产。"""
+    for row in InvestmentIntegrity.objects.all():
+        hashes = fingerprints(row.pk)
+        if row.hashes != hashes and row.hashes == fingerprints(row.pk, legacy=True):
+            row.hashes = hashes
+            row.save(update_fields=['hashes', 'updated_at'])
 
 
 def checkpoint(owner):

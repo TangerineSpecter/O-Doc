@@ -1,13 +1,13 @@
 """完整生活快照校验；预算是计划事实，恢复不产生任何新扣款。"""
-import hashlib
-import json
-from django.core.serializers.json import DjangoJSONEncoder
 from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision, LifeIntegrity
+from .life_snapshot import hash_rows
 
 
 def fingerprints(owner: str) -> dict[str, str]:
     queries=[LifeConfig.objects.filter(pk=owner),LifeProfile.objects.filter(owner_id=owner),LifeGoal.objects.filter(owner_id=owner),LifeCycle.objects.filter(owner_id=owner),LifeItem.objects.filter(owner_id=owner),LifeRevision.objects.filter(item__owner_id=owner)]
-    return {q.model.__name__:hashlib.sha256(json.dumps(list(q.order_by('pk').values()),cls=DjangoJSONEncoder,sort_keys=True,separators=(',',':')).encode()).hexdigest() for q in queries}
+    return {q.model.__name__: hash_rows(list(q.values()), tuple(
+        field.attname for field in q.model._meta.fields if field.get_internal_type() == 'DateTimeField'
+    )) for q in queries}
 
 
 def checkpoint_all() -> None:

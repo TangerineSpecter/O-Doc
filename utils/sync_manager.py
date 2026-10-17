@@ -21,6 +21,8 @@ from django.db.models import PROTECT
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from utils.sync_datetime import SyncJSONEncoder
+
 from system_settings.sync_state import (
     LOCAL_ONLY_MODEL_LABELS, LOCAL_ONLY_SYSTEM_SETTING_KEYS, PERMANENT_DELETE_HASH_PREFIX, canonical_hash, get_device_id,
     is_tracking_suspended, suspend_tracking, sync_entity_identity,
@@ -38,10 +40,16 @@ class SyncError(Exception):
     """同步过程中的显式失败。"""
 
 
+class OverwriteConfirmationRequired(SyncError):
+    """当前目录存在备份，手动上传需要先确认替换。"""
+
+
 def format_sync_result(summary, safety_backup=''):
     if summary.get('unchanged'):
         return '数据与媒体均未变化，已跳过全量合并与上传。'
     backup_name = os.path.basename(safety_backup) if safety_backup else '未创建'
+    if summary.get('initial_upload'):
+        return f"首次上传完成，本机快照已发布；本机安全快照：{backup_name}"
     if summary.get('force_overwrite'):
         return (
             f"已强制覆盖远端当前快照：新增 {summary.get('created', 0)}、更新 {summary.get('updated', 0)}、"
@@ -317,7 +325,7 @@ class SyncManager:
                 continue
             serialized = {
                 str(row['pk']): (row.get('fields') or {})
-                for row in json.loads(serializers.serialize('json', list(local_objects.values())))
+                for row in json.loads(serializers.serialize('json', list(local_objects.values()), cls=SyncJSONEncoder))
             }
             for item in items:
                 local_fields = serialized.get(str(item.get('pk')))
@@ -747,6 +755,8 @@ class SyncManager:
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
         data_list = travel_sync.expand(data_list, remote_meta)
+        from system_settings.agent_world.life_snapshot import normalize_source as normalize_life_source
+        data_list = normalize_life_source(data_list)
         from system_settings.agent_world.memory.sync import validate_source as validate_memories
         validate_memories(data_list, remote_meta)
         from article.image_search_service import delete_image_vectors
@@ -1266,6 +1276,10 @@ class SyncManager:
         checkpoint_cooking()
         from system_settings.agent_world.social_sync import checkpoint_all as checkpoint_social
         checkpoint_social()
+        from system_settings.agent_world.market_sync import normalize_legacy_dates as normalize_market_dates
+        from system_settings.agent_world.investment_sync import normalize_legacy_dates as normalize_investment_dates
+        normalize_market_dates()
+        normalize_investment_dates()
         all_data = []
         sparse_cities = compact_travel and travel_sync.enabled()
         for model in self._iter_target_models():
@@ -1273,7 +1287,7 @@ class SyncManager:
             if sparse_cities and model._meta.label_lower == travel_sync.LABEL:
                 queryset = travel_sync.export_queryset(queryset)
             if queryset.exists():
-                all_data.extend(json.loads(serializers.serialize('json', queryset)))
+                all_data.extend(json.loads(serializers.serialize('json', queryset, cls=SyncJSONEncoder)))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
         validate_combat(
             all_data,
@@ -1945,7 +1959,11 @@ class SyncManager:
             lock_meta = self._read_remote_json(f'{lock_dir}/lock.json') or {}
             # 仅处理“本机明确终止、随后重启后遗留”的锁：调用方必须显式授权恢复，
             # 且远端 lock.json 的设备标识必须与本机一致，绝不清理其他设备的锁。
-            if recover_owned_lock and lock_meta.get('device_id') == get_device_id():
+            matching_runner = (
+                recover_owned_lock is True
+                or (isinstance(recover_owned_lock, str) and lock_meta.get('runner_id') == recover_owned_lock)
+            )
+            if recover_owned_lock and matching_runner and lock_meta.get('device_id') == get_device_id():
                 self._delete_remote_tree(lock_dir)
                 acquired = create(lock_dir)
             started_at = parse_datetime(str(lock_meta.get('started_at') or ''))
@@ -1954,7 +1972,7 @@ class SyncManager:
             now = timezone.now()
             if started_at and timezone.is_aware(started_at) and timezone.is_naive(now):
                 now = timezone.make_aware(now, timezone.get_current_timezone())
-            if started_at and (now - started_at).total_seconds() > self.REMOTE_LOCK_TTL_SECONDS:
+            if not acquired and started_at and (now - started_at).total_seconds() > self.REMOTE_LOCK_TTL_SECONDS:
                 self._delete_remote_tree(lock_dir)
                 acquired = create(lock_dir)
         if not acquired:
@@ -2358,15 +2376,16 @@ class SyncManager:
     def sync_v2(
         self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
         should_abort=None, recover_owned_remote_lock=False, force_overwrite=False,
+        manual_upload=False,
     ):
-        """默认三方合并；显式手动强制上传时将本机快照直接发布为远端当前版本。"""
+        """自动同步默认三方合并；手动上传探测备份并在需要时请求覆盖确认。"""
         def report(message, progress=None):
             if callable(on_progress):
                 on_progress(message, progress)
 
         self._ensure_not_aborted(should_abort)
-        report('正在比对修订清单与媒体哈希。', 8)
-        if force_overwrite:
+        report('正在检查远端是否已有备份。' if manual_upload else '正在比对修订清单与媒体哈希。', 8)
+        if force_overwrite or manual_upload:
             if source != 'manual':
                 raise SyncError('强制覆盖仅允许用于手动上传')
             return self._force_overwrite_v2(
@@ -2374,6 +2393,7 @@ class SyncManager:
                 report=report,
                 should_abort=should_abort,
                 recover_owned_remote_lock=recover_owned_remote_lock,
+                require_confirmation=manual_upload and not force_overwrite,
             )
         if base_snapshot_id:
             head = self._read_aligned_head(base_snapshot_id)
@@ -2403,9 +2423,28 @@ class SyncManager:
             )
         return snapshot, summary, safety_backup
 
-    def _force_overwrite_v2(self, *, runner_id, report, should_abort, recover_owned_remote_lock):
+    def _require_empty_remote(self) -> None:
+        # 只探测实际目录中的备份入口；本机上次同步状态不代表此目录有数据。
+        # exists() 在部分协议中会把连接错误也返回 False，不能作为空目录的证据。
+        def entries(path):
+            names = self.client.list_directory(path)
+            if names is None:
+                raise SyncError('无法读取远端目录，不能确定是否已有备份，请检查连接后重试。')
+            return {str(name).rstrip('/').rsplit('/', 1)[-1] for name in names}
+
+        self.client.ensure_directory(self.base_path)
+        root = entries(self.base_path)
+        if 'data_index.json' in root or ('sync-v2' in root and 'current.json' in entries(self.v2_dir)):
+            raise OverwriteConfirmationRequired('当前远端目录已有备份，是否用本机快照覆盖？')
+
+    def _force_overwrite_v2(
+        self, *, runner_id, report, should_abort, recover_owned_remote_lock,
+        require_confirmation=False,
+    ):
         from article.version_service import enforce_article_version_retention
 
+        if require_confirmation:
+            self._require_empty_remote()
         report('正在创建本机完整安全快照。', 10)
         safety_backup = self.create_local_safety_backup(
             'before-force-upload',
@@ -2413,12 +2452,15 @@ class SyncManager:
         )
         enforce_article_version_retention()
         enforce_novel_revision_retention()
-        report('本机安全快照已完成，正在准备强制覆盖远端。', 18)
+        report('本机安全快照已完成，正在准备上传。', 18)
         self._ensure_not_aborted(should_abort)
         self.reconcile_missing_book_media(drop_missing_assets=False)
 
         with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
             self._ensure_not_aborted(should_abort)
+            if require_confirmation:
+                # 安全快照生成期间可能有其他上传；持锁后重新确认，避免未经同意覆盖。
+                self._require_empty_remote()
             report('已获取远端同步锁，正在生成本机完整快照。', 28)
             remote = self._get_remote_overwrite_state()
             local_data = self.build_snapshot_data(
@@ -2437,9 +2479,14 @@ class SyncManager:
                 if key not in local_keys and not revision.get('deleted')
             )
             summary['force_overwrite'] = True
+            summary['initial_upload'] = remote is None
             summary['unchanged'] = False
             self._ensure_not_aborted(should_abort)
-            report('已确认强制覆盖：正在将本机快照直接发布为远端当前版本。', 75)
+            report(
+                '远端没有备份，正在首次上传本机快照。' if remote is None
+                else '已确认覆盖，正在将本机快照发布为远端当前版本。',
+                75,
+            )
             snapshot = self.publish_v2_snapshot(
                 source='manual-force-overwrite',
                 runner_id=runner_id,

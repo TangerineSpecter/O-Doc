@@ -2,6 +2,7 @@
 import hashlib
 import json
 from copy import deepcopy
+from utils.sync_datetime import SyncJSONEncoder
 from system_settings.sync_state import canonical_hash
 
 STATE = 'system_settings.agentmemorystate'
@@ -20,7 +21,7 @@ def metadata(data):
         from django.core import serializers
         from .models import AgentMemoryState
         from system_settings.models import AgentLongTermMemory
-        data = json.loads(serializers.serialize('json', [*AgentMemoryState.objects.all(), *AgentLongTermMemory.objects.all()]))
+        data = json.loads(serializers.serialize('json', [*AgentMemoryState.objects.all(), *AgentLongTermMemory.objects.all()], cls=SyncJSONEncoder))
     states = {str(r['pk']): r for r in data if r.get('model') == STATE}
     corpora = {pk: [] for pk in states}
     for row in data:

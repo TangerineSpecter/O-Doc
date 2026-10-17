@@ -51,7 +51,7 @@ export const SyncConfirmationModals = ({
             onClose={onCloseCancel}
             onConfirm={onCancel}
             title="终止当前同步任务？"
-            description={<>将停止本次同步并释放远端存储锁占用。若正在等待网络请求，会在当前网络请求结束后停止，最长约 30 秒。</>}
+            description={<>将在安全检查点停止本次同步并释放远端锁。正在执行的网络请求或数据提交需要先完成。</>}
             confirmText="终止同步"
             type="danger"
             isLoading={isCancelling}
@@ -84,7 +84,7 @@ export const SyncConfirmationModals = ({
             title="确认用本机快照覆盖云端？"
             description={
                 <div className="space-y-2 text-xs leading-relaxed text-slate-600">
-                    <p>手动上传会把本机完整快照直接发布为云端当前版本，不执行三方合并。</p>
+                    <p>已检测到当前远端目录存在备份。确认后将用本机完整快照替换云端当前版本。</p>
                     <p className="text-rose-600 font-medium">
                         云端独有记录会从当前版本中移除。
                     </p>

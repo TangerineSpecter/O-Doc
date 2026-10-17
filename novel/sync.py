@@ -2,6 +2,7 @@
 import hashlib
 import json
 from django.core import serializers
+from utils.sync_datetime import SyncJSONEncoder
 from system_settings.sync_state import canonical_hash
 
 
@@ -16,7 +17,7 @@ def metadata(data=None):
         data = []
         for model in apps.get_app_config('novel').get_models():
             if model._meta.model_name != 'job':
-                data += json.loads(serializers.serialize('json', model.objects.all()))
+                data += json.loads(serializers.serialize('json', model.objects.all(), cls=SyncJSONEncoder))
     return {'novel_schema_version': 1, 'novel_manifest': manifest(data),
             'novel_record_hashes': {f"{r['model']}:{r['pk']}": canonical_hash(r['fields']) for r in data if r.get('model', '').startswith('novel.')}}
 

@@ -2,6 +2,7 @@
 import hashlib
 import json
 from django.core.serializers.json import DjangoJSONEncoder
+from utils.sync_datetime import SyncJSONEncoder
 from django.db.models.signals import post_save, post_delete
 from .market_models import MarketConfig, MarketBatch, MarketListing, MarketSession, MarketTransaction, MarketIntegrity
 from .farm_models import AgentFarm
@@ -10,7 +11,7 @@ from .travel_models import AgentInventoryItem
 ASSET_MODELS = (MarketBatch, MarketListing, MarketSession, MarketTransaction, AgentFarm, AgentInventoryItem)
 
 
-def fingerprints(owner: str) -> dict[str, str]:
+def fingerprints(owner: str, *, legacy=False) -> dict[str, str]:
     result = {}
     for model in ASSET_MODELS:
         rows = list(model.objects.filter(owner_id=owner).order_by('pk').values())
@@ -19,9 +20,18 @@ def fingerprints(owner: str) -> dict[str, str]:
             for row in rows:
                 if not row['supplies']:
                     row.pop('supplies')
-        result[model.__name__] = hashlib.sha256(json.dumps(rows, cls=DjangoJSONEncoder,
+        result[model.__name__] = hashlib.sha256(json.dumps(rows, cls=DjangoJSONEncoder if legacy else SyncJSONEncoder,
             sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return result
+
+
+def normalize_legacy_dates():
+    """只转换与旧算法严格相符的派生摘要，不接受缺失或篡改的资产。"""
+    for row in MarketIntegrity.objects.all():
+        hashes = fingerprints(row.pk)
+        if row.hashes != hashes and row.hashes == fingerprints(row.pk, legacy=True):
+            row.hashes = hashes
+            row.save(update_fields=['hashes', 'updated_at'])
 
 
 def update_checkpoint(sender, instance, **kwargs):

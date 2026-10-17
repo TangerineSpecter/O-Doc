@@ -184,7 +184,7 @@ export const useSyncOperations = ({
       await cancelWebDavSync();
       setLogs((prev) => [
         ...prev,
-        "⚠️ 已请求终止同步，正在等待当前网络请求结束并释放远端锁。",
+        "⚠️ 已请求终止同步，等待当前网络请求或数据提交结束后退出。",
       ]);
       success("已请求终止，正在结束同步");
       await onRefreshStatus();
@@ -205,7 +205,7 @@ export const useSyncOperations = ({
       warning("当前已有同步任务正在运行，请等待完成后再操作");
       return;
     }
-    if (!(await saveConfigBeforeSync())) return;
+    if (!forceOverwrite && !(await saveConfigBeforeSync())) return;
     setIsSyncing(true);
     statusSummaryKeyRef.current = "";
     setLogs([`🚀 开始${direction === "upload" ? "上传" : "下载"}同步任务...`]);
@@ -244,6 +244,17 @@ export const useSyncOperations = ({
             `${data.step === "error" ? "❌ " : data.step === "summary" || data.step === "done" ? "✨ " : "> "}${data.msg}`,
           ]);
         if (data.progress !== undefined) setProgress(data.progress);
+        if (data.step === "cancelled") {
+          terminal = true;
+          setProgress(0);
+          return;
+        }
+        if (data.step === "confirm_overwrite") {
+          terminal = true;
+          setProgress(0);
+          setIsForceUploadConfirmOpen(true);
+          return;
+        }
         if (data.step === "error") throw new Error(data.msg || "同步失败");
         if (data.step === "done") {
           terminal = true;
@@ -324,17 +335,6 @@ export const useSyncOperations = ({
       restoreHistory,
       cancelSync,
       startSyncStream,
-      requestForceUpload: () => {
-        if (!config.enabled) {
-          warning("请先开启同步开关并保存配置");
-          return;
-        }
-        if (isServerSyncing) {
-          warning("当前已有同步任务正在运行，请等待完成后再操作");
-          return;
-        }
-        setIsForceUploadConfirmOpen(true);
-      },
       dismissForceUpload: () => setIsForceUploadConfirmOpen(false),
       confirmForceUpload: async () => {
         setIsForceUploadConfirmOpen(false);

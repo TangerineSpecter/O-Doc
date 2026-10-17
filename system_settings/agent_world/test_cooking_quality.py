@@ -232,6 +232,13 @@ class CookingQualityTests(TestCase):
                              '旧版制作', self.task, 'a', 'w', now=instant)
         manager = SyncManager()
         data = manager.build_snapshot_data()
+        import json
+        from django.core import serializers
+        # Build an authentic old wire fixture; current export no longer emits .000.
+        models = (*ASSETS, WorldAction)
+        legacy_rows = {(row['model'], row['pk']): row for model in models
+                       for row in json.loads(serializers.serialize('json', model.objects.all()))}
+        data = [legacy_rows.get((row['model'], row['pk']), row) for row in data]
         # Recreate the old checkpoint before .000Z and Z were compared semantically.
         raw = fingerprints('admin')
         for model in ASSETS:

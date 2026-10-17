@@ -15,6 +15,7 @@ from django.utils import timezone
 from utils.remote_storage import create_sync_manager
 from utils.sync_manager import SyncError, SyncManager
 from .models import SystemSetting
+from .sync_execution import acquire_execution, execution_is_alive, release_execution
 
 logger = logging.getLogger(__name__)
 
@@ -263,19 +264,54 @@ def is_sync_running(runtime_state=None):
     if runtime_state.get('status') != 'running':
         return False
 
+    runner_id = str(runtime_state.get('runner_id') or '')
+    if ':lease:' in runner_id:
+        if execution_is_alive(runner_id):
+            return True
+        _finish_abandoned_sync(runtime_state, '同步执行者已退出，已清理遗留运行状态')
+        return False
+
     if _local_scheduler_process_is_alive(runtime_state) is False:
-        update_runtime_state(
-            status='error',
-            last_error='同步执行进程已异常退出',
-            cancel_requested=False,
-        )
+        _finish_abandoned_sync(runtime_state, '同步执行进程已异常退出')
         return False
 
     last_started_at = _parse_runtime_datetime(runtime_state.get('last_started_at'))
     if last_started_at is None:
         return True
 
-    return timezone.now() - last_started_at < timedelta(minutes=RUNNING_STALE_MINUTES)
+    if timezone.now() - last_started_at < timedelta(minutes=RUNNING_STALE_MINUTES):
+        return True
+    _finish_abandoned_sync(runtime_state, '旧版同步任务已失效，已清理遗留运行状态')
+    return False
+
+
+def _finish_abandoned_sync(runtime_state, message):
+    # 状态探测可能与新任务启动并发，只收尾仍属于原执行者的旧状态。
+    with transaction.atomic():
+        setting = SystemSetting.objects.select_for_update().filter(key=SYNC_RUNTIME_KEY).first()
+        if not setting:
+            return
+        state = dict(setting.value or {})
+        if state.get('status') != 'running' or state.get('runner_id') != runtime_state.get('runner_id'):
+            return
+        cancelled = bool(state.get('cancel_requested'))
+        state.update({
+            'status': 'idle' if cancelled else 'error',
+            'last_error': '' if cancelled else message,
+            'abandoned_runner_id': state.get('runner_id') or '',
+            'runner_id': '', 'cancel_requested': False, 'sync_progress': 0,
+            'last_summary': (list(state.get('last_summary') or []) + [message])[-50:],
+            'updated_at': timezone.now().isoformat(),
+        })
+        setting.value = state
+        setting.save(update_fields=['value'])
+
+
+def remote_lock_recovery_runner():
+    state = get_runtime_state()
+    if is_sync_running(state):
+        return ''
+    return get_runtime_state().get('abandoned_runner_id') or ''
 
 
 def mark_sync_started(*, trigger, runner_id, initial_message):
@@ -283,17 +319,19 @@ def mark_sync_started(*, trigger, runner_id, initial_message):
     if is_sync_running(runtime_state):
         return False, runtime_state
 
+    if not acquire_execution(runner_id):
+        return False, get_runtime_state()
+
     started_at = timezone.now().isoformat()
-    state = update_runtime_state(
-        status='running',
-        trigger=trigger,
-        runner_id=runner_id,
-        last_started_at=started_at,
-        last_error='',
-        last_summary=[initial_message],
-        sync_progress=0,
-        cancel_requested=False,
-    )
+    try:
+        state = update_runtime_state(
+            status='running', trigger=trigger, runner_id=runner_id,
+            last_started_at=started_at, last_error='',
+            last_summary=[initial_message], sync_progress=0, cancel_requested=False,
+        )
+    except BaseException:
+        release_execution(runner_id)
+        raise
     return True, state
 
 
@@ -318,21 +356,16 @@ def cancel_running_sync(reason='同步已取消'):
     if runtime_state.get('status') != 'running':
         return False, runtime_state
 
-    # 若已经是正在终止状态（二次点击终止），或本地进程已不存在，直接强制重置为结束状态
-    if runtime_state.get('cancel_requested') or _local_scheduler_process_is_alive(runtime_state) is False:
-        state = update_runtime_state(
-            status='error',
-            last_error=reason,
-            cancel_requested=False,
-            last_summary=(list(runtime_state.get('last_summary') or []) + [reason])[-50:],
-        )
-        return True, state
+    if not is_sync_running(runtime_state):
+        return True, get_runtime_state()
+    if runtime_state.get('cancel_requested'):
+        return True, runtime_state
 
     state = update_runtime_state(
         # 保持运行占用到实际同步线程退出并释放远端锁；否则用户可以立即启动
         # 第二个任务，造成“另一台设备正在同步”的假冲突，甚至并发写远端快照。
         status='running',
-        last_error=reason,
+        last_error='',
         cancel_requested=True,
         last_summary=(list(runtime_state.get('last_summary') or []) + [reason])[-50:],
     )
@@ -362,7 +395,7 @@ class WebDavAutoSyncScheduler:
         self._stop_event = threading.Event()
         self._run_lock = threading.Lock()
         self._boot_at = None
-        self.runner_id = f"{socket.gethostname()}:{os.getpid()}"
+        self.runner_id = f"scheduler:{socket.gethostname()}:{os.getpid()}:lease:{uuid.uuid4().hex[:8]}"
 
     @property
     def poll_seconds(self):
@@ -530,6 +563,7 @@ class WebDavAutoSyncScheduler:
         return messages
 
     def _run_sync(self, config, runtime_state):
+        recover_owned_remote_lock = remote_lock_recovery_runner()
         acquired, _ = mark_sync_started(
             trigger='scheduler',
             runner_id=self.runner_id,
@@ -551,6 +585,7 @@ class WebDavAutoSyncScheduler:
                 on_progress=lambda message, progress=None: append_sync_message(
                     message, runner_id=self.runner_id, progress=progress),
                 should_abort=lambda: should_abort_sync(self.runner_id),
+                recover_owned_remote_lock=recover_owned_remote_lock,
             )
             snapshot_meta = snapshot['meta']
             if summary.get('unchanged'):
@@ -570,6 +605,7 @@ class WebDavAutoSyncScheduler:
                 runner_id=self.runner_id,
                 last_success_at=timezone.now().isoformat(),
                 last_error='',
+                cancel_requested=False, abandoned_runner_id='',
                 auto_sync_consecutive_failures=0,
                 auto_sync_next_retry_at='',
                 auto_sync_paused=False,
@@ -591,6 +627,14 @@ class WebDavAutoSyncScheduler:
         except Exception as exc:
             if not runner_owns_sync(self.runner_id):
                 return
+
+            if should_abort_sync(self.runner_id):
+                update_runtime_state(
+                    status='idle', last_error='', cancel_requested=False,
+                    abandoned_runner_id=self.runner_id, sync_progress=0,
+                )
+                append_sync_message('同步已终止。', runner_id=self.runner_id)
+                return
             failure_state = _record_auto_sync_failure(
                 exc,
                 self._parse_interval_minutes(config.get('interval', 30)),
@@ -605,6 +649,8 @@ class WebDavAutoSyncScheduler:
                     failure_state.get('auto_sync_paused', False),
                     failure_state.get('auto_sync_next_retry_at') or 'none',
                 )
+        finally:
+            release_execution(self.runner_id)
 
 
 _scheduler = WebDavAutoSyncScheduler()
@@ -616,4 +662,4 @@ def start_webdav_scheduler():
 
 
 def generate_runner_id(prefix='manual'):
-    return f"{prefix}:{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+    return f"{prefix}:{socket.gethostname()}:{os.getpid()}:lease:{uuid.uuid4().hex[:8]}"

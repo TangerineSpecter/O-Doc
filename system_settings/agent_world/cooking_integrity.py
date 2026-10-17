@@ -1,7 +1,7 @@
 """Cooking asset fingerprints with lossless compatibility for ISO zero milliseconds."""
 import json
-import re
 from django.core.serializers.json import DjangoJSONEncoder
+from utils.sync_datetime import normalize_datetime_fraction
 from system_settings.sync_state import canonical_hash
 from .cooking_models import CookingCatalog, CookingSkill, CookingOperation, CookingIntegrity
 from .travel_models import AgentInventoryItem
@@ -17,11 +17,9 @@ def hash_rows(rows: list[dict], dates: tuple[str, ...] = (), *, normalize: bool 
         for row in serialized:
             for field in dates:
                 value = row.get(field)
-                # Django truncates nonzero microseconds below 1ms to .000;
-                # after deserialization it omits that fraction. Cover naive and
-                # timezone-aware values without touching strings inside JSON facts.
+                # Normalize legacy wire dates without touching strings inside JSON facts.
                 if isinstance(value, str):
-                    row[field] = re.sub(r'\.000(?=Z?$|[+-]\d{2}:\d{2}$)', '', value)
+                    row[field] = normalize_datetime_fraction(value)
     return canonical_hash(serialized)
 
 
