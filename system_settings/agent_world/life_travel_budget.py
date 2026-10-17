@@ -9,7 +9,8 @@ from .life_scope import check_item_authorization
 
 
 def review_travel_budget(journey, amount):
-    item = LifeItem.objects.filter(pk=journey.pk).first()
+    from .travel_shopping import life_item_for_journey
+    item = life_item_for_journey(journey)
     if not item:
         return  # 旧手动旅行兼容。
     check_item_authorization(item)

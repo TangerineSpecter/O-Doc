@@ -85,6 +85,10 @@ def execute_item(item: LifeItem, scheduler) -> None:
         revise(item,'居民已删除',status='cancelled');return
     if item.actor_id in config.paused_agents:
         revise(item,'居民暂停',status='paused');return
+    from .life_occupancy import occupied, defer_busy
+    if item.activity != 'market_prepare' and occupied(item):
+        defer_busy(item, config)
+        return
     if item.activity == 'market_prepare':
         execute_daily_market(config, agent, item, scheduler)
         return
@@ -110,7 +114,10 @@ def execute_item(item: LifeItem, scheduler) -> None:
     else:
         required_energy = costs.get(item.activity, 2)
     energy_insufficient = stamina(agent) < required_energy
-    if not queue_farm and (busy or energy_insufficient):
+    if busy:
+        defer_busy(item, config)
+        return
+    if not queue_farm and energy_insufficient:
         if item.attempts>=3:
             if energy_insufficient:
                 revise(item,'体力不足，顺延重试后仍无法执行',status='rest',
@@ -257,30 +264,36 @@ def _plan_cycle(config, scheduler, now):
                 account_for(config.pk, resident)
     candidates = LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred']).exclude(activity='market_prepare').exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at')
     today = local_time(now).date().isoformat()
-    actor = None
-    for entry in candidates:
-        if entry.actor_id in config.paused_agents:
-            continue
-        retry = entry.context.get('planning_retry_at')
-        if retry and local_time(timezone.datetime.fromisoformat(retry)) > now:
-            continue
-        if entry.activity == 'unplanned' or (local_time(entry.scheduled_at).date().isoformat() == today and entry.context.get('planned_on') != today):
-            actor = entry.actor_id
-            break
-    if not actor:
+    pending = [entry for entry in candidates if entry.actor_id not in config.paused_agents
+               and (entry.activity == 'unplanned' or (local_time(entry.scheduled_at).date().isoformat() == today
+                    and entry.context.get('planned_on') != today))]
+    # A newly added slot must not pull a failed day's other slots past their backoff.
+    blocked_days = {(entry.actor_id, local_time(entry.scheduled_at).date()) for entry in pending
+                    if entry.context.get('planning_retry_at') and local_time(
+                        timezone.datetime.fromisoformat(entry.context['planning_retry_at'])) > now}
+    first = next((entry for entry in pending
+                  if (entry.actor_id, local_time(entry.scheduled_at).date()) not in blocked_days), None)
+    if first is None:
         return
+    actor = first.actor_id
+    day = local_time(first.scheduled_at).date()
     agent = Agent.objects.select_related('model').filter(pk=actor).first()
     if not agent:
         return
-    entries = [i for i in candidates if i.actor_id == actor and (i.activity == 'unplanned' or local_time(i.scheduled_at).date().isoformat() == today)]
-    # 大周期分批规划，但不把剩余计划全部装进单次上下文。
+    entries = [entry for entry in pending if entry.actor_id == actor and local_time(entry.scheduled_at).date() == day]
+    # Batch by the same resident/day boundary used by the planner, without truncating a day.
     try:
-        plan_items(config, agent, entries[:50])
+        plan_items(config, agent, entries)
     except Exception as exc:
         detail = str(exc)[:500]
-        for entry in entries[:50]:
+        start = local_time(first.scheduled_at).replace(hour=0, minute=0, second=0, microsecond=0)
+        affected = LifeItem.objects.filter(owner_id=config.pk, actor_id=actor, status__in=['pending', 'deferred'],
+            scheduled_at__gte=storage_time(start), scheduled_at__lt=storage_time(start + timedelta(days=1))).exclude(activity='market_prepare')
+        for entry in affected:
             entry.refresh_from_db()
-            if entry.context.get('planned_on') == today and entry.activity not in ('unplanned', ''):
+            if entry.status not in ('pending', 'deferred'):
+                continue
+            if entry.context.get('planned_on') == local_time(entry.scheduled_at).date().isoformat() and entry.activity not in ('unplanned', ''):
                 continue
             entry.attempts += 1
             terminal = entry.attempts >= 3

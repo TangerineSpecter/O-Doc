@@ -18,7 +18,6 @@ def prepare_targets(config, agent, items: list, preserve: bool) -> list:
     from .farm_gate import farm_gate
     from .life_schedule import requeue, revise
     result = []
-    today = local_time().date().isoformat()
     with farm_gate(), transaction.atomic():
         for source in sorted(items, key=lambda item: (item.scheduled_at, item.pk)):
             item = LifeItem.objects.select_for_update().get(pk=source.pk)
@@ -27,11 +26,12 @@ def prepare_targets(config, agent, items: list, preserve: bool) -> list:
             if item.status not in OPEN or item.status == 'running':
                 continue
             if not preserve and item.activity not in ('unplanned', ''):
-                if item.context.get('planned_on') == today:
+                day = local_time(item.scheduled_at).date().isoformat()
+                if item.context.get('planned_on') == day:
                     continue
                 if item.context.get('farm_plan_id') or item.record_id or item.context.get('execution_started'):
                     revise(item, '保留已固化领域计划，更新当日复核标记',
-                           context={**item.context, 'planned_on': today})
+                           context={**item.context, 'planned_on': day})
                     continue
                 requeue(item, '重新规划前释放原预算与材料预留')
             result.append(item)
@@ -59,6 +59,13 @@ def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
             # A retry of a partially completed pass must not redraw earlier slots.
             continue
         context = build_planning_selection_context(config.pk, agent, [item])
+        if preserve_activities and item.activity == 'travel' and item.context.get('travel_plan'):
+            from .life_daily_travel import recheck
+            from .farm_queue_decision import available_cash
+            recheck(item.context['travel_plan'], min(item.budget - item.spent,
+                available_cash(config.pk, agent.pk, exclude_ids=[item.pk])))
+            selected.append({'id': item.pk, 'activity': 'travel', 'budget': str(item.budget)})
+            continue
         slot = context['slots'][0]
         agent.refresh_from_db()
         budget.reserved = sum((remaining_reservation(row) for row in others.all()), Decimal(0))

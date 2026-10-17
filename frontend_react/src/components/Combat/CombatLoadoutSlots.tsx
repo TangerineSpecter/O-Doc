@@ -1,6 +1,8 @@
 import type {ComponentType} from 'react';
 import type {CombatEquipment, CombatProfile} from '../../types/api/combat';
 import {qualityLabels, slotLabels} from './presentation';
+import {resolveLoadoutSlots} from './loadoutPresentation';
+import {EquipmentPortrait} from './atlas/EquipmentPortrait';
 import {Crown, Footprints, Gem, Hand, Shield, Sword} from 'lucide-react';
 
 const slotIcons: Record<string, ComponentType<{className?: string}>> = {
@@ -37,7 +39,8 @@ export default function CombatLoadoutSlots({
     disabled?: boolean;
     onInspect: (item: CombatEquipment, remove?: boolean, slot?: string) => void;
 }) {
-    const equippedCount = Object.values(profile.loadout).filter(Boolean).length;
+    const equippedSlots = resolveLoadoutSlots(profile);
+    const equippedCount = equippedSlots.size;
 
     return (
         <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-2.5">
@@ -56,8 +59,8 @@ export default function CombatLoadoutSlots({
             {/* 九槽位网格：双戒指独立占位 */}
             <div className="grid grid-cols-2 gap-2">
                 {topologySlots.map(({slot}) => {
-                    const equipmentId = profile.loadout[slot];
-                    const item = profile.equipment.find(e => e.id === equipmentId);
+                    const equipped = equippedSlots.get(slot);
+                    const item = equipped?.item;
                     const Icon = slotIcons[slot] || Shield;
                     const label = slotLabels[slot] || slot;
 
@@ -82,34 +85,37 @@ export default function CombatLoadoutSlots({
                                 key={slot}
                                 type="button"
                                 disabled={disabled}
-                                onClick={() => onInspect(item, true, slot)}
+                                onClick={() => onInspect(item, true, equipped?.sourceSlot)}
                                 title={`已装备：${gear.name} (Lv.${gear.level})，点击卸下或查看`}
-                                className={`group flex flex-col justify-between rounded-xl border p-2 text-left transition-all active:scale-[0.98] ${borderStyle}`}
+                                className={`group flex min-w-0 items-center gap-2 rounded-xl border p-2 text-left transition-all active:scale-[0.98] ${borderStyle}`}
                             >
-                                <div className="flex items-center justify-between gap-1">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${iconBg}`}>
-                                            <Icon className="h-3 w-3" />
-                                        </span>
-                                        <span className="text-[10px] font-semibold text-slate-500 truncate">{label}</span>
+                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border p-0.5 ${iconBg} ${isGold ? 'border-amber-200' : isBlue ? 'border-sky-200' : 'border-slate-200'}`}>
+                                    <EquipmentPortrait
+                                        equipmentId={gear.templateId || item.templateId || item.id}
+                                        name={gear.name}
+                                        slot={gear.slot}
+                                        equipmentType={gear.equipmentType || item.displayType}
+                                        bossOnly={(gear.templateId || item.templateId || item.id).includes('boss')}
+                                        decorative
+                                        className="h-full w-full"
+                                        fallbackClassName="h-5 w-5"
+                                    />
+                                </span>
+                                <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                                    <div className="flex min-w-0 items-center justify-between gap-1">
+                                        <span className="truncate text-[10px] font-semibold text-slate-500">{label}</span>
+                                        <span className="shrink-0 text-[10px] font-medium text-slate-400">Lv.{gear.level}</span>
                                     </div>
-                                    <span className="text-[10px] text-slate-400 shrink-0 font-medium">Lv.{gear.level}</span>
-                                </div>
-                                <div className="mt-1.5 flex items-baseline justify-between gap-1">
-                                    <span className="text-xs font-bold text-slate-800 truncate group-hover:text-orange-600">
-                                        {gear.name}
-                                    </span>
-                                    <span
-                                        className={`text-[9px] shrink-0 font-bold px-1 py-0.2 rounded ${
-                                            isGold
-                                                ? 'bg-amber-100/70 text-amber-700'
-                                                : isBlue
-                                                  ? 'bg-sky-100/70 text-sky-700'
-                                                  : 'bg-slate-100 text-slate-600'
-                                        }`}
-                                    >
-                                        {qualityLabels[gear.quality] || gear.quality}
-                                    </span>
+                                    <div className="flex min-w-0 items-center justify-between gap-1">
+                                        <span className="truncate text-xs font-bold text-slate-800 group-hover:text-orange-600">
+                                            {gear.name}
+                                        </span>
+                                        <span className={`shrink-0 rounded px-1 py-0.2 text-[9px] font-bold ${
+                                            isGold ? 'bg-amber-100/70 text-amber-700' : isBlue ? 'bg-sky-100/70 text-sky-700' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            {qualityLabels[gear.quality] || gear.quality}
+                                        </span>
+                                    </div>
                                 </div>
                             </button>
                         );

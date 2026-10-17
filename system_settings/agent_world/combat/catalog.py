@@ -15,7 +15,7 @@ class Catalog:
         self.tables = tables
         self.index = {name: {row['id']: row for row in rows} for name, rows in tables.items()}
         self.monster_dungeons={row['monster_id']:self.index['dungeons'][row['dungeon_id']] for row in tables['dungeon_monsters']}
-        self.monster_dungeons.update({row['boss_id']:row for row in tables['dungeons']})
+        self.monster_dungeons.update({row['boss_id']:row for row in tables['dungeons'] if row.get('boss_id')})
         self.rules = {row['id']: float(row['value']) for row in tables['rules']}
         self.effects = defaultdict(list)
         self.ranks = defaultdict(list)

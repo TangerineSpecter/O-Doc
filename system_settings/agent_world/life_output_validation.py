@@ -11,14 +11,37 @@ def validate_life_output(value, instruction, context):
         rows = indexed_rows(value.get('plans'), ids, '活动选择')
         allowed = {row['kind'] for row in context['activities']}
         farm_days = set(context.get('existing_farm_days', []))
+        selected_farms = {}
+        if context.get('daily_planning'):
+            for slot in slots:
+                if rows[slot['id']].get('activity') == 'farm':
+                    day = slot['time'][:10]
+                    if day in selected_farms or day in farm_days:
+                        raise ValueError('每日农场活动重复')
+                    selected_farms[day] = slot['id']
+        travel_total = Decimal(0)
         for identity, row in rows.items():
-            if row.get('activity') not in allowed or not isinstance(row.get('reason'), str) or not row['reason'].strip():
+            slot = next(slot for slot in slots if slot['id'] == identity)
+            slot_allowed = slot.get('allowed_activities', list(allowed))
+            if context.get('daily_planning') and selected_farms.get(slot['time'][:10], identity) != identity:
+                slot_allowed = [kind for kind in slot_allowed if kind != 'farm']
+            if context.get('daily_planning') and not slot_allowed:
+                slot_allowed = ['rest']
+            if row.get('activity') not in slot_allowed or not isinstance(row.get('reason'), str) or not 0 < len(row['reason'].strip()) <= 2000:
                 raise ValueError('活动或选择原因无效')
+            if context.get('daily_planning') and row['activity'] == 'travel':
+                destination = next((c for c in context.get('travel', {}).get('candidates', [])
+                                    if c['id'] == row.get('destination_id')), None)
+                if destination is None:
+                    raise ValueError('旅行目的地必须属于本次报价')
+                travel_total += money(destination['required_budget'])
             if row['activity'] == 'farm':
                 day = next(slot['time'][:10] for slot in slots if slot['id'] == identity)
                 if day in farm_days:
                     raise ValueError('每日农场活动重复')
                 farm_days.add(day)
+        if context.get('daily_planning') and travel_total > money(context['travel_budget_ceiling']):
+            raise ValueError('当天旅行预算总额超过可用额度，请调整日程')
     elif 'planting' in context and slots:
         from .farm_plan_inventory import inventory_plan
         rows = normalize_slot_time_aliases(value.get('plans'), slots, {row['id']: row for row in slots})

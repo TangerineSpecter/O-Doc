@@ -1,7 +1,11 @@
 id,monster_id,action_kind,skill_id,weight,condition
 monster.slime.attack,monster.slime,attack,,100,always
+monster.fuzzy_ear_rabbit.attack,monster.fuzzy_ear_rabbit,attack,,100,always
+monster.leafshell_beetle.attack,monster.leafshell_beetle,attack,,100,always
+monster.dawnfire_glowbug.attack,monster.dawnfire_glowbug,attack,,100,always
 monster.cave_bat.attack,monster.cave_bat,attack,,80,always
 monster.cave_bat.evasion,monster.cave_bat,skill,skill.monster.evasion,20.0,always
+monster.cave_crystal_lizard.attack,monster.cave_crystal_lizard,attack,,100,always
 monster.moss_beast.attack,monster.moss_beast,attack,,65,always
 monster.moss_beast.guard,monster.moss_beast,skill,skill.monster.guard,35.0,not_active
 monster.moss_king.attack,monster.moss_king,attack,,50,always

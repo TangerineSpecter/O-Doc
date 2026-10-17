@@ -8,6 +8,7 @@ import {getMonsterHabitat} from './monsterHabitats';
 import {getMonsterVisual} from './atlasIcons';
 import {getMonsterPixelArt} from '../art/monsterPixelArt';
 import {statLabels} from '../presentation';
+import {equipmentDropCandidates} from './equipmentDropCandidates';
 
 export interface MonsterAtlasViewProps {
     catalog: CombatCatalog;
@@ -23,6 +24,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
     const materials = tables.materials || [];
     const equipmentPools = tables.equipmentPools || [];
     const equipmentTemplates = tables.equipmentTemplates || [];
+    const bossDrops = tables.bossDrops || [];
     const monsterActions = tables.monsterActions || [];
     const skills = tables.skills || [];
     const dungeonMonsters = tables.dungeonMonsters || [];
@@ -76,16 +78,9 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
             .filter((n): n is string => Boolean(n));
 
         // 掉落装备
-        const dropEquips = drops
-            .filter(d => d.monsterId === selected.id && d.itemKind === 'equipment_pool')
-            .map(d =>
-                equipmentPools
-                    .filter(p => p.poolId === d.itemId)
-                    .map(p => equipmentTemplates.find(e => e.id === p.equipmentId)?.name)
-                    .filter(Boolean)
-                    .join('、')
-            )
-            .filter(Boolean);
+        const dropEquips = equipmentDropCandidates(selected.id, {
+            monsters, drops, equipmentPools, equipmentTemplates, dungeonMonsters, dungeons, bossDrops,
+        });
 
         // 怪物技能
         const actions = monsterActions
@@ -111,12 +106,12 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
             isEncountered,
             attributes,
             dropMats,
-            dropEquips: dropEquips.length ? dropEquips.join('、') : selected.rank === 'boss' ? 'Boss 专属吊坠' : '按区域装备池',
+            dropEquips: dropEquips.length ? dropEquips.join('、') : '没有等级匹配的装备',
             actions: actions.length ? actions : ['普通攻击'],
             dungeonNames,
             habitat: getMonsterHabitat(dungeonIds),
         };
-    }, [selected, discoveries, catalog.monsterPreviews, drops, materials, equipmentPools, equipmentTemplates, monsterActions, skills, dungeonMonsters, dungeons]);
+    }, [selected, discoveries, catalog.monsterPreviews, monsters, drops, materials, equipmentPools, equipmentTemplates, bossDrops, monsterActions, skills, dungeonMonsters, dungeons]);
 
     const visual = selected ? getMonsterVisual(selected.id, selected.name, selected.rank) : null;
 
@@ -342,8 +337,9 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                                 <div className="flex items-start gap-2">
                                     <Shield className="h-3.5 w-3.5 text-sky-500 shrink-0 mt-0.5" />
                                     <div>
-                                        <span className="font-semibold text-slate-700">掉落装备：</span>
+                                        <span className="font-semibold text-slate-700">等级匹配的可能掉落装备：</span>
                                         <span className="text-slate-600">{selectedDetails.dropEquips}</span>
+                                        <p className="mt-1 text-slate-400">图鉴按怪物出没等级列候选；普通怪和精英还受掉落概率影响，Boss 按首领装备规则结算。</p>
                                     </div>
                                 </div>
 

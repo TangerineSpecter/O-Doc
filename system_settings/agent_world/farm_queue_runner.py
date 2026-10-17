@@ -19,7 +19,7 @@ def run_queue_opportunity(task, scheduler=None, *, key, locked=None):
                 return run_queue_opportunity(task, scheduler, key=key, locked=token)
         raise WorldLeaseBusy()
     existing = WorldAction.objects.filter(pk=key).first()
-    if existing:
+    if existing and existing.status != 'claimed':
         return existing.record
     check_current_authorization()
     from .life_models import LifeItem
@@ -42,13 +42,24 @@ def run_queue_opportunity(task, scheduler=None, *, key, locked=None):
             plan['activated_at'] = now.timestamp(); plan['status'] = 'active'
             event(plan, 'activated', '个人农场日程到点，启动当天种植队列', now)
             save(farm, now)
+        action, _ = WorldAction.objects.get_or_create(pk=key, defaults={
+            'task': task, 'agent': agent, 'actor_id': agent.pk, 'status': 'claimed',
+            'snapshot': {'farm': True, 'planting_plan_id': plan['id'], 'activated_at': plan['activated_at']}})
+    from .travel_candidates import travelling_ids
+    if agent.pk in travelling_ids():
+        raise WorldLeaseBusy()
+    with execution_lease(AgentExecutionLease, {'agent_id': agent.pk}) as token:
+        if not token:
+            raise WorldLeaseBusy()
+        tend_farm(agent.pk, locked, token, task, now, force=True)
+    # Mark success only after tending: a failed collect/plant transaction must
+    # remain retryable even though the day's queue activation is durable.
+    with transaction.atomic():
         record = AgentRunRecord.objects.create(task=task, task_name=task.name, agent=agent, agent_name=agent.name,
             trigger='系统行动', status='success', summary='当天种植队列已启动；后续由程序按实际条件执行' if plan['activated_at'] else '当天队列已截止或取消，未启动新播种', agent_runs=[])
-        WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk, record=record, status='success',
-            snapshot={'farm': True, 'planting_plan_id': plan['id'], 'activated_at': plan['activated_at']}, result={'reason': record.summary}, effects_done=True)
-    from .travel_candidates import travelling_ids
-    if agent.pk not in travelling_ids():
-        with execution_lease(AgentExecutionLease, {'agent_id': agent.pk}) as token:
-            if token:
-                tend_farm(agent.pk, locked, token, task, now, force=True)
+        action.record = record
+        action.status = 'success'
+        action.result = {'reason': record.summary}
+        action.effects_done = True
+        action.save(update_fields=['record', 'status', 'result', 'effects_done', 'updated_at'])
     return record

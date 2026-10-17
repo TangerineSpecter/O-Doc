@@ -96,7 +96,7 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
             {/* 顶部搜索条 */}
             <div className="flex shrink-0 items-center justify-between gap-3">
                 <span className="text-xs text-slate-500">
-                    共收录 {dungeons.length} 处探险地牢，包含驻守魔物分布与首领挑战规则
+                    共收录 {dungeons.length} 处探险地牢，展示驻守魔物分布与对应首领规则
                 </span>
                 <label className="relative flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-2xs transition-all focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-500/20 w-56">
                     <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -223,6 +223,11 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
                                             <span>首领材料：{bossDrops.join('、')}</span>
                                         </div>
                                     )}
+                                </div>
+                            )}
+                            {!boss && (
+                                <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-3 py-2 text-xs font-medium text-emerald-800">
+                                    新手区域 · 仅出现普通魔物，没有精英或首领
                                 </div>
                             )}
 

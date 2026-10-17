@@ -15,7 +15,7 @@ class RuleTests(SimpleTestCase):
         from .catalog_validation import validate
         with self.assertRaises(ValueError):validate(Path(__file__).resolve().parents[3]/'docs/data/combat')
         c=self.catalog
-        self.assertEqual((len(c.tables['dungeons']),len(c.tables['monsters']),len(c.tables['professions'])),(6,24,29))
+        self.assertEqual((len(c.tables['dungeons']),len(c.tables['monsters']),len(c.tables['professions'])),(7,28,29))
         self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),74)
         for row in c.tables['skills']:
             for rank in c.ranks[row['id']]:
@@ -108,6 +108,8 @@ class RuleTests(SimpleTestCase):
     def test_equipment_drop_levels_respect_region_monster_and_template(self):
         c=self.catalog
         for dungeon in c.tables['dungeons']:
+            if not dungeon['boss_id']:
+                continue
             monster_id=dungeon['boss_id'];level=int(dungeon['boss_level_min'])
             for seed in range(100):
                 progress={'loot':2,'gear':1}

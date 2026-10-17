@@ -47,11 +47,21 @@ def run_travel_opportunity(task, scheduler=None, *, key=None, manual=False, lock
     with transaction.atomic():
         pending = TravelJourney(pk=key, actor_id=agent.pk, owner_id=task.travel_config['owner_id'])
         budget = Decimal(available_funds(pending)['available'])
+        planned = None
+        if pinned:
+            from .life_models import LifeItem
+            planned = LifeItem.objects.get(pk=pinned['item_id']).context.get('travel_plan')
+        if planned:
+            from .life_daily_travel import recheck
+            offered = [recheck(planned, budget)]
+        else:
+            offered = candidates(agent, task.travel_config.get('recent_cities', 3), budget=budget)
         journey, created = TravelJourney.objects.get_or_create(pk=key, defaults={'task': task, 'agent': agent,
             'actor_id': agent.pk, 'owner_id': task.travel_config['owner_id'], 'phase': 'preview',
             'snapshot': {'config': copy.deepcopy(task.travel_config), 'agent_name': agent.name,
                 'role_prompt': f'当前 Agent：{agent.name}\n{agent.prompt}', 'extra': task.prompt,
-                'candidates': candidates(agent, task.travel_config.get('recent_cities', 3), budget=budget)}})
+                'candidates': offered,
+                **({'scheduled_destination_id': planned['destination']['id'], 'scheduled_travel_plan': planned} if planned else {})}})
         TravelRuntime.objects.update_or_create(pk=journey.pk, defaults={'authorized': True})
         start_activity(journey, manual)
     process_journey(journey)
@@ -61,7 +71,8 @@ def run_travel_opportunity(task, scheduler=None, *, key=None, manual=False, lock
 def process_journey(journey):
     from .life_models import LifeItem
     from .life_scope import check_item_authorization,CURRENT,life_scope
-    item=LifeItem.objects.filter(pk=journey.pk).first()
+    from .travel_shopping import life_item_for_journey
+    item=life_item_for_journey(journey)
     if item and journey.agent and not CURRENT.get():
         from .life_context import build_execution_context
         with life_scope(item,build_execution_context(item.owner_id,journey.agent,item)):

@@ -88,6 +88,8 @@ def main():
         styles=c.tables['styles'][:1] if args.quick else c.tables['styles']
         for style in styles:specs.append((job['id'],level,dungeon['id'],style['id'],False,args.seeds))
     for dungeon in c.tables['dungeons']:
+        if not dungeon.get('boss_id'):
+            continue
         level=(int(dungeon['boss_level_min'])+int(dungeon['boss_level_max']))//2
         job='job.novice' if level<10 else 'job.warrior' if level<30 else 'job.knight' if level<70 else 'job.paladin'
         # Select the actual first descendant IDs from the validated tree.

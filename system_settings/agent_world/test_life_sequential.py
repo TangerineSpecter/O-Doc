@@ -1,4 +1,4 @@
-"""Sequential reservations and bounded cooking decisions; no real provider calls."""
+"""Daily activity intentions, sequential resource reservations and bounded cooking."""
 import copy
 from decimal import Decimal
 from datetime import timedelta
@@ -63,6 +63,11 @@ class SequentialPlanningTests(TestCase):
         self.agent.save()
         self.config = LifeConfig.objects.create(pk='admin', settings={**DEFAULTS, 'agent_ids': [self.agent.pk]}, migrated=True)
         ensure_profiles('admin', [self.agent.pk])
+        def text_schedule(agent, instruction, context, **kwargs):
+            return {'plans': [{'id': slot['id'], 'activity': 'investment' if 'investment' in slot['allowed_activities']
+                               else slot['allowed_activities'][0] if slot['allowed_activities'] else 'rest',
+                               'reason': '根据当前资源安排活动'} for slot in context['slots']]}
+        self.enterContext(patch('system_settings.agent_world.life_planner.ask', side_effect=text_schedule))
 
     def item(self, key, activity='unplanned', context=None):
         point = timezone.now() + timedelta(hours=1)
@@ -101,7 +106,7 @@ class SequentialPlanningTests(TestCase):
             return 'goal' if calls.count('life_budget') == 1 else 'balanced'
         with patch('system_settings.agent_world.life_choices.choose_scene', side_effect=select):
             plan_items(self.config, self.agent, [two, one])
-        self.assertEqual(calls, ['life_activity', 'life_budget', 'life_activity', 'life_budget'])
+        self.assertEqual(calls, ['life_budget', 'life_budget'])
         one.refresh_from_db(); two.refresh_from_db()
         self.assertEqual(one.budget, Decimal('2500'))
         self.assertEqual(two.budget, Decimal('1500'))
@@ -224,7 +229,7 @@ class SequentialPlanningTests(TestCase):
         self.task.prompt = '今天只做一份土豆'
         self.task.save()
         self.supply(quantity=2)
-        with patch('system_settings.agent_world.life_sequential_planner.decide_plan', wraps=decide_plan) as decide:
+        with patch('system_settings.agent_world.cooking_schedule_plan.decide_plan', wraps=decide_plan) as decide:
             plan_items(self.config, self.agent, [self.item('preference')])
         self.assertEqual(decide.call_args.args[2]['task_preference'], self.task.prompt)
 

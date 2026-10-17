@@ -4,7 +4,7 @@ from django.db.models import Q
 from .travel_models import TravelDestination, TravelJourney
 
 
-def candidates(agent, recent_count=3, *, budget: Decimal | None = None):
+def candidates(agent, recent_count=3, *, budget: Decimal | None = None, limit: int = 5):
     history = TravelJourney.objects.filter(actor_id=agent.pk, arrived_at__isnull=False).filter(Q(snapshot__destination_scope__isnull=True) | ~Q(snapshot__destination_scope__in=['region', 'unconfirmed']))
     recent = list(history
                   .order_by('-arrived_at').values_list('destination_id', flat=True)[:recent_count])
@@ -27,7 +27,7 @@ def candidates(agent, recent_count=3, *, budget: Decimal | None = None):
     def price_band(row):
         return 0 if row['price'] < 5000 else 1 if row['price'] < 10000 else 2
     for country in countries:
-        if len(selected) >= 5:
+        if len(selected) >= limit:
             break
         if any(row['country_code'] == country for row in selected):
             continue
@@ -40,7 +40,7 @@ def candidates(agent, recent_count=3, *, budget: Decimal | None = None):
                               or [band for band in bands if band])
         selected.append(random.choice(group))
     fallback = [row for row in rows if row['id'] not in recent and row['id'] not in {r['id'] for r in selected}]
-    while len(selected) < min(5, len(rows)) and fallback:
+    while len(selected) < min(limit, len(rows)) and fallback:
         first = [row for row in fallback if row['id'] not in visited] or [row for row in fallback if row['id'] not in recent] or fallback
         row = random.choice(first)
         selected.append(row)

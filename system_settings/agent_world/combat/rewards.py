@@ -75,6 +75,17 @@ def _material_bonus_quantity(progress: dict, material_id: str, base_quantity: in
     return extra
 
 
+def _equipment_level_band(dungeon: dict, template: dict, monster_level: int) -> tuple[int, int] | None:
+    """Return the generated item-level range when this encounter can drop a template."""
+    template_min = int(template['level_min'])
+    template_max = int(template['level_max'])
+    if not template_min <= monster_level <= template_max:
+        return None
+    lower = max(int(dungeon['equipment_level_min']), template_min)
+    upper = min(monster_level, int(dungeon['equipment_level_max']), template_max)
+    return (lower, upper) if lower <= upper else None
+
+
 def drops(
     catalog: Catalog,
     monster_id: str,
@@ -91,9 +102,13 @@ def drops(
     material = next(r for r in options if r['item_kind']=='material')
     pool_id = next(r['item_id'] for r in options if r['item_kind']=='equipment_pool')
     dungeon=catalog.monster_dungeons[monster_id]
-    lower=int(dungeon['equipment_level_min'])
-    upper=min(level,int(dungeon['equipment_level_max']))
-    pool=[row for row in catalog.tables['equipment_pools'] if row['pool_id']==pool_id and catalog.row('equipment_templates',row['equipment_id'])['enabled']=='1' and int(catalog.row('equipment_templates',row['equipment_id'])['level_min'])<=upper and int(catalog.row('equipment_templates',row['equipment_id'])['level_max'])>=lower]
+    pool=[]
+    for row in catalog.tables['equipment_pools']:
+        if row['pool_id'] != pool_id:
+            continue
+        definition = catalog.row('equipment_templates', row['equipment_id'])
+        if definition['enabled'] == '1' and _equipment_level_band(dungeon, definition, level):
+            pool.append(row)
     boss = template['rank']=='boss'
     equipment_chance = min(1.0, max(0.0, float(catalog.rules['normal_equipment_chance']) + float(equipment_bonus / HUNDRED)))
     rewards = []
@@ -105,13 +120,15 @@ def drops(
         progress['gear'] -= 1
     if gear:
         trophy = next((r for r in catalog.tables['boss_drops'] if r['monster_id']==monster_id),None)
-        if boss and trophy and catalog.row('equipment_templates',trophy['equipment_id'])['enabled']=='1' and int(catalog.row('equipment_templates',trophy['equipment_id'])['level_min'])<=upper and rng.random()<float(trophy['exclusive_probability']):
+        trophy_definition = catalog.row('equipment_templates', trophy['equipment_id']) if trophy else None
+        trophy_band = _equipment_level_band(dungeon, trophy_definition, level) if trophy_definition and trophy_definition['enabled'] == '1' else None
+        if boss and trophy and trophy_band and rng.random()<float(trophy['exclusive_probability']):
             identity = trophy['equipment_id']
         else:
             identity = rng.choices(pool,weights=[float(r['weight']) for r in pool])[0]['equipment_id']
         quality = rng.choices(catalog.tables['qualities'],weights=[float(r[template['rank']+'_weight']) for r in catalog.tables['qualities']])[0]['id']
         definition=catalog.row('equipment_templates',identity)
-        gear_level=rng.randint(max(lower,int(definition['level_min'])),min(upper,int(definition['level_max'])))
+        gear_level=rng.randint(*_equipment_level_band(dungeon, definition, level))
         rewards.append({'kind':'equipment','item':equipment.generate(catalog,identity,gear_level,quality,rng)})
     for index in range(opportunities):
         progress['loot'] -= 1

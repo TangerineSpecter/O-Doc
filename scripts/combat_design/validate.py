@@ -83,7 +83,7 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
     for table, field, target, optional in [
         ('professions', 'parent_id', 'professions', True), ('skills', 'profession_id', 'professions', True),
         ('skill_levels', 'skill_id', 'skills', False), ('skill_effects', 'skill_level_id', 'skill_levels', False),
-        ('dungeons', 'boss_id', 'monsters', False), ('monsters', 'profile', 'monster_profiles', False),
+        ('dungeons', 'boss_id', 'monsters', True), ('monsters', 'profile', 'monster_profiles', False),
         ('monsters', 'rank', 'monster_ranks', False), ('dungeon_monsters', 'dungeon_id', 'dungeons', False),
         ('dungeon_monsters', 'monster_id', 'monsters', False), ('monster_actions', 'monster_id', 'monsters', False),
         ('monster_actions', 'skill_id', 'skills', True), ('drops', 'monster_id', 'monsters', False),
@@ -176,10 +176,18 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
         require(any(a['action_kind'] == 'attack' for a in actions[monster['id']]), 'No fallback attack')
         require(math.isclose(sum(number(a, 'weight') for a in actions[monster['id']]), 100), 'Monster weights sum')
     for dungeon in tables['dungeons']:
-        boss = indexes['monsters'][dungeon['boss_id']]
-        require(boss['rank'] == 'boss', 'Dungeon boss rank')
-        require((boss['level_min'], boss['level_max']) == (dungeon['boss_level_min'], dungeon['boss_level_max']), 'Boss level mismatch')
-        require(0 < number(dungeon, 'boss_probability_step') <= number(dungeon, 'boss_probability_cap') <= 1, 'Boss probability')
+        if dungeon['boss_id']:
+            boss = indexes['monsters'][dungeon['boss_id']]
+            require(boss['rank'] == 'boss', 'Dungeon boss rank')
+            require((boss['level_min'], boss['level_max']) == (dungeon['boss_level_min'], dungeon['boss_level_max']), 'Boss level mismatch')
+            require(0 < number(dungeon, 'boss_probability_step') <= number(dungeon, 'boss_probability_cap') <= 1, 'Boss probability')
+        else:
+            require(all(number(dungeon, field) == 0 for field in
+                        ('boss_level_min','boss_level_max','boss_start_kills','boss_probability_step','boss_probability_cap')),
+                    'Bossless dungeon must disable Boss fields')
+            encounters = [row for row in tables['dungeon_monsters'] if row['dungeon_id'] == dungeon['id'] and row['enabled'] == '1']
+            require(encounters and all(indexes['monsters'][row['monster_id']]['rank'] == 'normal' for row in encounters),
+                    'Bossless dungeon must contain only ordinary monsters')
     for row in tables['dungeon_monsters']:
         monster = indexes['monsters'][row['monster_id']]
         require(monster['rank'] != 'boss', 'Boss in ordinary pool')

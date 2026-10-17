@@ -243,9 +243,32 @@ def build() -> dict[str, list[dict]]:
                 put('skill_effects',dict(id=f'{rid}.e{number}',skill_level_id=rid,
                      **effect('passive_equipment_'+kind,stat,values[rank-1],target='self',group=equipment_type),chance=1))
 
+    # The starter meadow intentionally has no Boss. Keep all four encounters
+    # explicitly ordinary so they never inherit the rank ordering below.
+    tutorial_dungeon = 'dungeon.sprout_meadow'
+    put('dungeons',dict(id=tutorial_dungeon,name='新芽草甸',recommended_level_min=1,recommended_level_max=15,
+         boss_id='',boss_level_min=0,boss_level_max=0,boss_start_kills=0,boss_probability_step=0,boss_probability_cap=0,enabled=1))
+    starter_mobs = [
+        ('slime','软泥怪',1,5,'plain','material.moss_cave.1','黏液',45),
+        ('fuzzy_ear_rabbit','绒耳兔',1,7,'sprout_agile','material.sprout_meadow.rabbit','绒耳兔毛',25),
+        ('leafshell_beetle','叶壳甲虫',5,10,'sprout_guard','material.sprout_meadow.beetle','叶壳碎片',20),
+        ('dawnfire_glowbug','晨光萤',10,15,'sprout_magic','material.sprout_meadow.glowbug','晨光粉尘',10),
+    ]
+    for key,name,low,high,profile,material_id,material_name,weight in starter_mobs:
+        mid='monster.'+key
+        put('monsters',dict(id=mid,name=name,rank='normal',profile=profile,level_min=low,level_max=high,enabled=1))
+        put('dungeon_monsters',dict(id=tutorial_dungeon+'.'+key,dungeon_id=tutorial_dungeon,monster_id=mid,
+             level_min=low,level_max=high,encounter_weight=weight,drop_table_id='drop.'+key,enabled=1))
+        put('monster_actions',dict(id=mid+'.attack',monster_id=mid,action_kind='attack',skill_id='',weight=100,condition='always'))
+        material_level=low
+        put('materials',dict(id=material_id,name=material_name,level=material_level,
+             sale_price=f'{Decimal(1)+Decimal(".04")*material_level:.2f}',enabled=1))
+        put('drops',dict(id=mid+'.material',monster_id=mid,item_kind='material',item_id=material_id,weight=1,quantity_min=1,quantity_max=2))
+        put('drops',dict(id=mid+'.equipment',monster_id=mid,item_kind='equipment_pool',item_id='pool.sprout_meadow',weight=1,quantity_min=1,quantity_max=1))
+
     regions = [
-        ('moss_cave','苔石洞窟',1,12,[('slime','软泥怪',1,5,'plain'),('cave_bat','洞穴蝙蝠',3,8,'agile'),('moss_beast','苔石兽',8,12,'armored')],('moss_king','苔冠巨兽',10,12,'armored'),['黏液','蝠翼','苔石碎片'],'苔冠吊坠'),
-        ('abandoned_mine','废弃矿坑',10,25,[('mine_rat','矿洞鼠',10,16,'agile'),('ore_golem','矿石傀儡',14,22,'armored'),('iron_guard','铁甲矿卫',20,25,'armored')],('mine_giant','深矿巨像',22,25,'armored'),['矿鼠皮','铁矿','傀儡核心'],'深矿吊坠'),
+        ('moss_cave','苔石洞窟',10,20,[('cave_bat','洞穴蝙蝠',10,20,'cave_bat'),('cave_crystal_lizard','洞穴晶蜥',10,20,'plain'),('moss_beast','苔石兽',8,12,'armored')],('moss_king','苔冠巨兽',10,12,'armored'),['蝠翼','晶蜥鳞','苔石碎片'],'苔冠吊坠'),
+        ('abandoned_mine','废弃矿坑',15,25,[('mine_rat','矿洞鼠',10,16,'agile'),('ore_golem','矿石傀儡',14,22,'armored'),('iron_guard','铁甲矿卫',20,25,'armored')],('mine_giant','深矿巨像',22,25,'armored'),['矿鼠皮','铁矿','傀儡核心'],'深矿吊坠'),
         ('mist_forest','迷雾林地',20,35,[('toxic_mushroom','毒蘑菇',20,27,'magic'),('mist_wolf','迷雾狼',24,32,'agile'),('ancient_guard','古树守卫',30,35,'armored')],('mist_treant','迷雾树王',32,35,'magic'),['孢子','狼牙','古木树脂'],'迷雾吊坠'),
         ('sunken_ruins','沉没遗迹',30,50,[('ruin_skeleton','遗迹骷髅',30,40,'plain'),('water_spirit','幽水灵',36,46,'magic'),('ruin_knight','遗迹骑士',45,50,'armored')],('tide_priest','潮汐祭司',47,50,'magic'),['骨片','水灵精华','遗迹碎晶'],'潮汐吊坠'),
         ('ember_fortress','灰烬堡垒',45,70,[('ash_demon','灰烬魔',45,56,'magic'),('lava_beast','熔岩兽',52,65,'plain'),('furnace_guard','熔炉守卫',63,70,'armored')],('ash_lord','灰烬领主',65,70,'magic'),['灰烬粉','熔岩碎片','火焰核心'],'灰烬吊坠'),
@@ -273,7 +296,7 @@ def build() -> dict[str, list[dict]]:
             mid='monster.'+mk;rank=('normal','normal','elite','boss')[n]
             put('monsters',dict(id=mid,name=mn,rank=rank,profile=profile,level_min=mlo,level_max=mhi,enabled=1))
             if n<3:put('dungeon_monsters',dict(id=did+'.'+mk,dungeon_id=did,monster_id=mid,level_min=mlo,level_max=mhi,encounter_weight=(60,35,5)[n],drop_table_id='drop.'+mk,enabled=1))
-            specific={'slime':[], 'cave_bat':['evasion'], 'moss_beast':['guard'], 'mine_rat':['strike'],
+            specific={'slime':[], 'cave_bat':['evasion'], 'cave_crystal_lizard':[], 'moss_beast':['guard'], 'mine_rat':['strike'],
                       'ore_golem':['guard'],'iron_guard':['armor_break'], 'toxic_mushroom':['poison'],
                       'mist_wolf':['strike'],'ancient_guard':['heal'],'ruin_skeleton':['strike'],
                       'water_spirit':['magic_strike'],'ruin_knight':['guard'],'ash_demon':['burn'],
@@ -284,9 +307,12 @@ def build() -> dict[str, list[dict]]:
             put('monster_actions',dict(id=mid+'.attack',monster_id=mid,action_kind='attack',skill_id='',weight=(80,65,50)[('normal','elite','boss').index(rank)] if skills else 100,condition='always'))
             for j,move in enumerate(skills):put('monster_actions',dict(id=mid+'.'+move,monster_id=mid,action_kind='skill',skill_id='skill.monster.'+move,
                  weight=(20,35,50)[('normal','elite','boss').index(rank)]/len(skills),condition='hp_below_50' if move=='heal' else 'not_active' if move in ('guard','shield') else 'always'))
-            material_id=f'material.{key}.{n+1}'
-            material_name=materials[n] if n<3 else name+'印记'
-            material_level=mlo if n<3 else mhi
+            material_id={'cave_bat':'material.moss_cave.2','moss_beast':'material.moss_cave.3',
+                         'moss_king':'material.moss_cave.4','cave_crystal_lizard':'material.moss_cave.crystal_lizard'}.get(
+                             mk, f'material.{key}.{n+1}')
+            material_name={'cave_bat':'蝠翼','moss_beast':'苔石碎片','moss_king':'苔石洞窟印记',
+                           'cave_crystal_lizard':'晶蜥鳞'}.get(mk, materials[n] if n<3 else name+'印记')
+            material_level=3 if mk=='cave_bat' else mlo if n<3 else mhi
             put('materials',dict(id=material_id,name=material_name,level=material_level,sale_price=f'{Decimal(1)+Decimal(".04")*material_level:.2f}',enabled=1))
             put('drops',dict(id=mid+'.material',monster_id=mid,item_kind='material',item_id=material_id,weight=1,quantity_min=1,quantity_max=2))
             put('drops',dict(id=mid+'.equipment',monster_id=mid,item_kind='equipment_pool',item_id='pool.'+key,weight=1,quantity_min=1,quantity_max=1))
@@ -437,7 +463,7 @@ def build() -> dict[str, list[dict]]:
         for affix in result['affixes']:
             if equip['slot'] in affix_slots_by_stat[affix['stat']]:
                 put('equipment_affixes',dict(id=equip['id']+'.'+affix['id'],equipment_id=equip['id'],affix_id=affix['id'],weight=1))
-    for key,*_ in regions:
+    for key in ['sprout_meadow', *(region[0] for region in regions)]:
         for equip in templates:
             if int(equip['boss_only']) == 0:
                 put('equipment_pools',dict(id=f'pool.{key}.{equip["id"].removeprefix("equip.")}',pool_id='pool.'+key,equipment_id=equip['id'],weight=1))
@@ -451,11 +477,15 @@ def build() -> dict[str, list[dict]]:
     for level in range(1,100):
         value=int((Decimal(200)+20*level*level+Decimal('1.6')*level**3).to_integral_value(rounding=ROUND_CEILING)) if level<99 else 0
         put('level_experience',dict(id=f'level.{level}',level=level,experience_to_next=value))
-    for key,hp,attack,pd,md,evasion in [('plain',1,1,1,1,.04),('agile',.8,1.1,1,1,.15),('armored',1.4,1,1.8,1,.04),('magic',1,1,.7,1.3,.04)]:
+    for key,hp,attack,pd,md,evasion,damage_type in [
+        ('plain',1,1,1,1,.04,'physical'),('agile',.8,1.1,1,1,.15,'physical'),
+        ('cave_bat',.8,.9,1,1,.06,'physical'),('armored',1.4,1,1.8,1,.04,'physical'),
+        ('magic',1,1,.7,1.3,.04,'magic'),('sprout_agile',.85,.75,1,1,.06,'physical'),
+        ('sprout_guard',1,.65,1.15,1,.02,'physical'),('sprout_magic',.8,.7,.9,1.1,.04,'magic')]:
         put('monster_profiles',dict(id=key,hp_constant=40,hp_linear=18,hp_quadratic=.5,mp_constant=20,mp_linear=8,
              attack_constant=6,attack_linear=4,attack_quadratic=.1,defense_constant=4,defense_linear=1.8,
              hp_multiplier=hp,attack_multiplier=attack,physical_defense_multiplier=pd,magic_defense_multiplier=md,
-             accuracy=.95,evasion=evasion,critical=.05,critical_damage=1.5,damage_type='magic' if key=='magic' else 'physical'))
+             accuracy=.95,evasion=evasion,critical=.05,critical_damage=1.5,damage_type=damage_type))
     for kind,hp,attack,defense,exp in [('normal',1,1,1,1),('elite',2,1.15,1.2,2),('boss',6,1.25,1.3,3)]:
         put('monster_ranks',dict(id=kind,hp_multiplier=hp,attack_multiplier=attack,defense_multiplier=defense,experience_multiplier=exp))
     for key,count,sale,normal,elite,boss in [('white',1,1,.80,.60,.30),('blue',2,1.6,.18,.35,.55),('gold',3,2.4,.02,.05,.15)]:
@@ -489,7 +519,7 @@ def main() -> None:
         with path.open('w',newline='',encoding='utf-8') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(values[0]));writer.writeheader();writer.writerows(values)
         files[path.name]={'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'rows':len(values)}
-    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.16',status='design_only',engine_schema=5,files=files),ensure_ascii=False,indent=2)+'\n')
+    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.18',status='design_only',engine_schema=5,files=files),ensure_ascii=False,indent=2)+'\n')
     print(json.dumps({key:len(value) for key,value in rows.items()},ensure_ascii=False))
 
 

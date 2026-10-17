@@ -5,8 +5,28 @@ import EquipmentCard from './EquipmentCard';
 import {previewCombatEquipment} from '../../api/combat';
 import type {CombatEquipment, CombatProfile} from '../../types/api/combat';
 import {equipmentTypeLabels, slotLabels, statLabels} from './presentation';
+import {isRingEquipment, resolveLoadoutSlots} from './loadoutPresentation';
 
 type LoadoutSlot = 'weapon' | 'offhand' | 'head' | 'body' | 'hands' | 'feet' | 'accessory' | 'ring_1' | 'ring_2';
+
+const percentageStats = new Set(['accuracy', 'evasion', 'critical', 'criticalDamage', 'critical_damage']);
+
+function formatPreviewValue(key: string, value: number | string | undefined): string {
+    if (value == null) return '-';
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+    if (percentageStats.has(key)) return `${(number * 100).toFixed(1)}%`;
+    return Number.isInteger(number) ? String(number) : String(Number(number.toFixed(2)));
+}
+
+function formatPreviewDelta(key: string, delta: number): {value: number; label: string} {
+    const isPercentage = percentageStats.has(key);
+    const value = Number((delta * (isPercentage ? 100 : 1)).toFixed(isPercentage ? 1 : 2));
+    return {
+        value,
+        label: `${value > 0 ? '+' : ''}${value}${isPercentage ? '%' : ''}`,
+    };
+}
 
 export default function EquipmentPreview({
     profile,
@@ -25,11 +45,14 @@ export default function EquipmentPreview({
     onConfirm: (slot: string) => void;
     onClose: () => void;
 }) {
-    const isRing = item.snapshot.equipmentType === 'ring';
+    const isRing = isRingEquipment(item);
+    const presentedLoadout = resolveLoadoutSlots(profile);
+    const ring1Id = presentedLoadout.get('ring_1')?.item.id;
+    const ring2Id = presentedLoadout.get('ring_2')?.item.id;
     const suggestedSlot = (): LoadoutSlot => {
         if (initialSlot) return initialSlot as LoadoutSlot;
         if (!isRing) return item.snapshot.slot as LoadoutSlot;
-        return profile.loadout.ring_1 ? 'ring_2' : 'ring_1';
+        return ring1Id ? 'ring_2' : 'ring_1';
     };
     const [targetSlot, setTargetSlot] = useState<LoadoutSlot>(suggestedSlot);
     const [preview, setPreview] = useState<Record<string, number | string> | null>(null);
@@ -40,7 +63,7 @@ export default function EquipmentPreview({
 
     useEffect(() => {
         setTargetSlot(suggestedSlot());
-    }, [initialSlot, item.id, isRing, profile.actorId, profile.loadout.ring_1, profile.loadout.ring_2]);
+    }, [initialSlot, item.id, isRing, profile.actorId, ring1Id, ring2Id]);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -59,8 +82,7 @@ export default function EquipmentPreview({
     }, [profile.actorId, item.id, targetSlot, remove]);
 
     const occupiedRing = (slot: 'ring_1' | 'ring_2') => {
-        const identity = profile.loadout[slot];
-        return identity ? profile.equipment.find(gear => gear.id === identity)?.snapshot.name : undefined;
+        return presentedLoadout.get(slot)?.item.snapshot.name;
     };
 
     return (
@@ -107,23 +129,26 @@ export default function EquipmentPreview({
 
             {preview && (() => {
                 const statChanges = Object.entries(preview)
-                    .filter(([key, value]) => statLabels[key] && value !== profile.attributes[key])
+                    .filter(([key]) => Boolean(statLabels[key]))
                     .map(([key, value]) => {
                         const prevNum = Number(profile.attributes[key] ?? 0);
                         const nextNum = Number(value ?? 0);
                         const isNumeric = !Number.isNaN(prevNum) && !Number.isNaN(nextNum);
-                        const diff = isNumeric ? Math.round((nextNum - prevNum) * 100) / 100 : 0;
+                        const delta = isNumeric ? nextNum - prevNum : 0;
+                        const formattedDelta = formatPreviewDelta(key, delta);
+                        const prev = formatPreviewValue(key, profile.attributes[key]);
+                        const next = formatPreviewValue(key, value);
                         return {
                             key,
                             label: statLabels[key],
-                            prev: profile.attributes[key],
-                            next: value,
-                            isNumeric,
-                            diff,
-                            isUp: diff > 0,
-                            isDown: diff < 0,
+                            prev,
+                            next,
+                            diff: formattedDelta.label,
+                            isUp: formattedDelta.value > 0,
+                            isDown: formattedDelta.value < 0,
                         };
-                    });
+                    })
+                    .filter(change => change.prev !== change.next);
 
                 if (statChanges.length === 0) {
                     return (
@@ -134,11 +159,11 @@ export default function EquipmentPreview({
                 }
 
                 return (
-                    <div className="mt-3 grid grid-cols-2 gap-2.5">
+                    <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {statChanges.map(change => (
                             <div
                                 key={change.key}
-                                className={`relative overflow-hidden rounded-xl border p-2.5 flex flex-col justify-between transition-all ${
+                                className={`relative min-w-0 overflow-hidden rounded-xl border p-2.5 flex flex-col justify-between transition-all ${
                                     change.isUp
                                         ? 'bg-gradient-to-b from-emerald-50/60 via-emerald-50/20 to-white border-emerald-200/90 shadow-[0_1px_2px_rgba(16,185,129,0.06)]'
                                         : change.isDown
@@ -146,34 +171,34 @@ export default function EquipmentPreview({
                                         : 'bg-slate-50/80 border-slate-200/80'
                                 }`}
                             >
-                                <div className="flex items-center justify-between gap-1">
-                                    <span className="text-xs font-semibold text-slate-700 truncate">{change.label}</span>
+                                <div className="flex min-w-0 items-center justify-between gap-1">
+                                    <span className="min-w-0 truncate text-xs font-semibold text-slate-700">{change.label}</span>
                                     {change.isUp && (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-bold font-mono bg-emerald-100/90 text-emerald-700 border border-emerald-200">
+                                        <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-100/90 px-1.5 py-0.5 text-[11px] font-bold font-mono tabular-nums text-emerald-700">
                                             <ArrowUp className="w-2.5 h-2.5 stroke-[3]" />
-                                            +{change.diff}
+                                            {change.diff}
                                         </span>
                                     )}
                                     {change.isDown && (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-bold font-mono bg-rose-100/90 text-rose-700 border border-rose-200">
+                                        <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md border border-rose-200 bg-rose-100/90 px-1.5 py-0.5 text-[11px] font-bold font-mono tabular-nums text-rose-700">
                                             <ArrowDown className="w-2.5 h-2.5 stroke-[3]" />
                                             {change.diff}
                                         </span>
                                     )}
                                 </div>
-                                <div className="mt-2.5 flex items-baseline gap-1.5">
-                                    <span className="text-xs font-medium text-slate-400 font-mono">{String(change.prev)}</span>
+                                <div className="mt-2.5 flex min-w-0 items-baseline gap-1.5 overflow-hidden">
+                                    <span className="min-w-0 truncate whitespace-nowrap text-xs font-medium text-slate-400 font-mono tabular-nums">{change.prev}</span>
                                     <ArrowRight
-                                        className={`w-3 h-3 flex-shrink-0 self-center ${
+                                        className={`h-3 w-3 flex-shrink-0 self-center ${
                                             change.isUp ? 'text-emerald-400' : change.isDown ? 'text-rose-400' : 'text-slate-300'
                                         }`}
                                     />
                                     <span
-                                        className={`text-base font-black font-mono tracking-tight leading-none ${
+                                        className={`min-w-0 truncate whitespace-nowrap text-base font-black font-mono tabular-nums tracking-tight leading-none ${
                                             change.isUp ? 'text-emerald-600' : change.isDown ? 'text-rose-600' : 'text-slate-700'
                                         }`}
                                     >
-                                        {String(change.next)}
+                                        {change.next}
                                     </span>
                                 </div>
                             </div>

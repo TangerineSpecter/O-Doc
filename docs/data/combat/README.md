@@ -1,8 +1,10 @@
 # 战斗内容配置设计包
 
-版本：design-0.16；engine_schema=5；状态：design_only；更新日期：2026-10-16。
+版本：design-0.18；engine_schema=5；状态：design_only；更新日期：2026-10-17。
 
 这是配合 [系统规划](../../agents/Agent迷宫探索与战斗系统规划.md) 的可校验配置草案，**尚未接入生产启动、数据库、Agent 日程或 WebDAV**。生产启动器必须拒绝安装 design_only 包。发布版本须增加固定发布时间、兼容版本和迁移说明，不使用本机启动时间决定版本优先级。
+
+本版将苔石洞窟推荐等级改为 10～20、废弃矿坑改为 15～25；洞穴蝙蝠改为 10～20 级并使用低攻击、低闪避的独立属性档，苔石兽和苔冠巨兽保持原值。新增 1～15 级新手地点“新芽草甸”，仅含普通怪；软泥怪迁入新手地点并加入绒耳兔、叶壳甲虫、晨光萤，苔石洞窟新增洞穴晶蜥。
 
 本版采用九槽穿戴，增加两个戒指位；戒指等级为 1～30，吊坠改为 10～30，Boss 专属饰品统一称为吊坠。训练木剑在目录中标记为通用类型。新增 50～70 级双手剑；剑士路线 30 级获得精通，达到装备等级后即可穿戴，狂战士路线在 50 级获得精通后也可穿戴。所有精通装备只按已学精通与装备等级判定，不再叠加职业白名单；没有精通条件的普通武器仍按职业权限限制。普通武器先开放到 30 级；类型防具按对应精通等级起步，每 20 级分段并封顶 99。每个等级段模板使用不同物品基础名称，装备类型单独展示；盾牌物品名为符文法盾、橡木圆盾、壁垒塔盾，分别保留魔法盾、小盾、大盾类型标签。词条池按装备位置开放：武器不出防御词条、防具不出攻击词条、暴击率与暴击伤害只出现在戒指和吊坠、命中只出现在手套、闪避只出现在靴子。白/蓝/金装备仍按品质生成 1/2/3 条不重复词条。法师冥想战斗中每 15 秒恢复最大法力的 2% / 3% / 5%；牧师新增圣愈被动，每 15 秒恢复最大生命和最大法力各 1% / 2% / 3%。三转门槛为 50 级，大盾为 50～70 级。设计包不代表生产战斗目录，也不代表完整战斗平衡验收。
 
@@ -30,23 +32,23 @@ manifest.json 包含全部 CSV 的 SHA-256、行数、版本及结构版本。�
 | skills.csv | 84 | 玩家 74 项、魔物 10 项技能身份及归属 | id、name、profession_id、learn_level、kind、enabled |
 | skill_levels.csv | 232 | 自动学习、升级、耗蓝及冷却 | id、skill_id、rank、required_level、cost_base、cost_per_level、cost_rank_factor、cooldown_rounds、description、enabled |
 | skill_effects.csv | 350 | 每级技能的可执行数字效果 | id、skill_level_id、code、stat、value、duration、target、damage_type、group、hits、chance |
-| dungeons.csv | 6 | 地牢范围及唯一 Boss 概率参数 | id、name、recommended_level_min、recommended_level_max、boss_id、boss_level_min、boss_level_max、boss_start_kills、boss_probability_step、boss_probability_cap、enabled |
-| monsters.csv | 24 | 怪物等级、品阶与成长档案 | id、name、rank、profile、level_min、level_max、enabled |
-| dungeon_monsters.csv | 18 | 非 Boss 遭遇权重与区域关联 | id、dungeon_id、monster_id、level_min、level_max、encounter_weight、drop_table_id、enabled |
-| monster_actions.csv | 53 | 普攻/技能权重和条件码 | id、monster_id、action_kind、skill_id、weight、condition |
-| materials.csv | 24 | 固定材料等级和商店回收价格 | id、name、level、sale_price、enabled |
-| drops.csv | 48 | 各怪物的材料和普通装备池来源 | id、monster_id、item_kind、item_id、weight、quantity_min、quantity_max |
+| dungeons.csv | 7 | 地牢范围及可选 Boss 概率参数；无 Boss 区域的 Boss 字段全为 0 | id、name、recommended_level_min、recommended_level_max、boss_id、boss_level_min、boss_level_max、boss_start_kills、boss_probability_step、boss_probability_cap、enabled |
+| monsters.csv | 28 | 怪物等级、品阶与成长档案 | id、name、rank、profile、level_min、level_max、enabled |
+| dungeon_monsters.csv | 22 | 非 Boss 遭遇权重与区域关联 | id、dungeon_id、monster_id、level_min、level_max、encounter_weight、drop_table_id、enabled |
+| monster_actions.csv | 57 | 普攻/技能权重和条件码 | id、monster_id、action_kind、skill_id、weight、condition |
+| materials.csv | 28 | 固定材料等级和商店回收价格 | id、name、level、sale_price、enabled |
+| drops.csv | 56 | 各怪物的材料和普通装备池来源 | id、monster_id、item_kind、item_id、weight、quantity_min、quantity_max |
 | equipment_templates.csv | 97 | 九槽装备、等级成长、类型、精通限制与 Boss 专属标记 | id、name、slot、root_job、level_min、level_max、physical_attack_base、physical_attack_growth、magic_attack_base、magic_attack_growth、hp_base、hp_growth、mp_base、mp_growth、physical_defense_base、physical_defense_growth、magic_defense_base、magic_defense_growth、healing_base、healing_growth、evasion、boss_only、enabled、equipment_type、required_mastery、grip |
 | boss_drops.csv | 6 | Boss 专属吊坠及概率 | id、monster_id、equipment_id、exclusive_probability |
 | affixes.csv | 17 | 随机词条范围及单位 | id、stat、min_base、min_growth、max_base、max_growth、unit、enabled |
 | affix_slots.csv | 83 | 词条适用槽位 | id、affix_id、slot |
 | equipment_professions.csv | 1034 | 装备职业权限（精通装备按技能继承展开） | id、equipment_id、profession_id |
 | equipment_affixes.csv | 1147 | 各装备可抽词条与权重 | id、equipment_id、affix_id、weight |
-| equipment_pools.csv | 546 | 区域普通装备池 | id、pool_id、equipment_id、weight |
+| equipment_pools.csv | 637 | 区域普通装备池 | id、pool_id、equipment_id、weight |
 | potions.csv | 8 | 常驻补给的购买条件、价格和恢复量 | id、name、kind、restore_value、required_level、purchase_price、shared_cooldown_rounds、enabled |
 | styles.csv | 5 | 五种风格的动作参数 | id、name、attack_weight、skill_weight、heal_threshold、mana_threshold、defend_factor、enabled |
 | level_experience.csv | 99 | 1～99 级升级需求，99 级下一等级需求为 0 | id、level、experience_to_next |
-| monster_profiles.csv | 4 | 怪物属性多项式、属性倍率及普攻类型 | id、hp_constant、hp_linear、hp_quadratic、mp_constant、mp_linear、attack_constant、attack_linear、attack_quadratic、defense_constant、defense_linear、hp_multiplier、attack_multiplier、physical_defense_multiplier、magic_defense_multiplier、accuracy、evasion、critical、critical_damage、damage_type |
+| monster_profiles.csv | 8 | 怪物属性多项式、属性倍率及普攻类型 | id、hp_constant、hp_linear、hp_quadratic、mp_constant、mp_linear、attack_constant、attack_linear、attack_quadratic、defense_constant、defense_linear、hp_multiplier、attack_multiplier、physical_defense_multiplier、magic_defense_multiplier、accuracy、evasion、critical、critical_damage、damage_type |
 | monster_ranks.csv | 3 | 普通/精英/Boss 属性和经验倍数 | id、hp_multiplier、attack_multiplier、defense_multiplier、experience_multiplier |
 | qualities.csv | 3 | 白/蓝/金词条数、回收倍率与各怪物品阶权重 | id、affix_count、sale_multiplier、normal_weight、elite_weight、boss_weight |
 | rules.csv | 63 | 已注册全局数值参数 | id、value |

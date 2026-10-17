@@ -255,8 +255,8 @@ def spawn(run,catalog,now):
     rng=seeded(run,f'encounter:{run.state["encounter"]+1}')
     dungeon=catalog.row('dungeons',run.snapshot['plan']['dungeon_id'])
     count=run.state['nonboss_kills']
-    probability=min(float(dungeon['boss_probability_cap']),float(dungeon['boss_probability_step'])*max(0,count-int(dungeon['boss_start_kills'])+1))
-    boss=not run.state['boss_seen'] and rng.random()<probability and catalog.row('monsters',dungeon['boss_id'])['enabled']=='1'
+    probability=min(float(dungeon['boss_probability_cap']),float(dungeon['boss_probability_step'])*max(0,count-int(dungeon['boss_start_kills'])+1)) if dungeon.get('boss_id') else 0
+    boss=bool(dungeon.get('boss_id')) and not run.state['boss_seen'] and rng.random()<probability and catalog.row('monsters',dungeon['boss_id'])['enabled']=='1'
     if boss:
         sid=dungeon['boss_id'];level=rng.randint(int(dungeon['boss_level_min']),int(dungeon['boss_level_max']))
         run.state['boss_seen']=True

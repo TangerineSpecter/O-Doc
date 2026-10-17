@@ -19,7 +19,10 @@ def _charge(agent, key, amount, kind, snapshot):
     if amount < 0 or balance < amount:
         raise ValueError('当前余额不足，未扣款')
     from .life_budget import charge_budget
-    charge_budget(agent,amount,item_id=snapshot.get('journey_id'),business_key=key)
+    journey = TravelJourney.objects.filter(pk=snapshot.get('journey_id')).first()
+    from .travel_shopping import life_item_for_journey
+    item = life_item_for_journey(journey) if journey else None
+    charge_budget(agent,amount,item_id=item.pk if item else snapshot.get('journey_id'),business_key=key)
     WorldLedger.objects.create(pk=key, agent_id=agent.pk, agent_name=agent.name,
                               kind=kind, amount=-amount, snapshot=snapshot)
     agent.money = balance-amount
@@ -35,6 +38,10 @@ def depart(journey):
     if row.status != 'active':
         raise ValueError('旅行已暂停或结束')
     agent = Agent.objects.select_for_update().get(pk=row.actor_id)
+    if row.snapshot.get('scheduled_travel_plan'):
+        from .life_daily_travel import recheck
+        from .travel_shopping import available_funds
+        recheck(row.snapshot['scheduled_travel_plan'], Decimal(available_funds(row)['available']))
     energy = Decimal(str(row.snapshot['config']['energy_cost']))
     if stamina(agent) < energy:
         raise ValueError('出发体力不足')

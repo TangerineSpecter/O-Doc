@@ -55,11 +55,13 @@ flowchart TD
 - 出发仍需通过居民状态、活动占用、体力和时间窗口校验。每位居民按上海自然日累计实际推进的探索时长，默认上限 120 分钟，可在「世界管理 → 冒险设置」中调整为 30～120 分钟；换迷宫或重新出发不重置，跨日部分归入对应日期，未出发的准备失败不计入。超额提示会显示当前每日累计限额。单次允许时长为 30/60/120 分钟。
 - 冒险职业与世界职业独立，档案绑定稳定居民 ID。当前内容支持 Lv.99、分支转职、自动技能成长和九个穿戴位；具体等级、技能、精通与数值从绑定内容版本读取。
 - 装备采用独立实例，材料与药剂复用共用背包。携带、消费、返还、出售与掉落按领域事务结算，旧实例和历史事实保留原快照。
+- 装备掉落会从怪物关联的区域装备池抽取；某件装备只有在本次遭遇怪物等级落入该装备模板等级范围、且区域等级限制允许生成实例时才进入候选。生成的装备实例等级也会落在模板和区域允许范围内。图鉴按怪物配置的出没等级范围列出候选装备，普通怪和精英仍需通过掉落概率，Boss 按首领装备规则结算。
+- 九槽面板优先按标准槽位键展示；若历史或异常档案把戒指实例关联到非标准键，界面按装备类型映射到空戒指位，手动卸下时清除原键。非标准键不能用于穿戴新装备。
 - 已穿戴装备按其绑定目录保留；出发只核对装备归属、未出售状态和槽位，不因当前目录中的启用、职业或等级规则变化而阻止探索。准备计划原样保留同槽装备不作为新穿戴；新换上的装备按当前目录校验职业、等级与启用状态。可选换装无效时放弃换装、保留当前穿戴继续出发。
 
 ## 内容版本与同步
 
-当前仓库生产包静态核对为 `combat-1.0.16` / `engine_schema=5`；更新时以[生产包说明](../../system_settings/agent_world/combat/data/README.md)和 `manifest.json` 为准。`docs/data/combat` 是设计包，状态为 `design_only`。战斗 WebDAV 元数据版本为 6，装备市场意图和跨居民装备转移复用现有事实、装备实例与市场挂牌实体，没有新增数据库列。
+当前仓库生产包静态核对为 `combat-1.0.18` / `engine_schema=5`；更新时以[生产包说明](../../system_settings/agent_world/combat/data/README.md)和 `manifest.json` 为准。`docs/data/combat` 是设计包，状态为 `design_only`。战斗 WebDAV 元数据版本为 6，装备市场意图和跨居民装备转移复用现有事实、装备实例与市场挂牌实体，没有新增数据库列。
 
 目录按版本、哈希和引用校验后安装，同版本不能覆盖不同内容。历史探索与装备绑定原目录，发布新包不回写已结算结果。业务目录、档案、装备、回合和奖励事实纳入同步；租约、本机执行许可与自动开关由本机管理。其他设备恢复业务数据不等于获得原设备的执行许可。
 
@@ -71,7 +73,7 @@ flowchart TD
 | --- | --- |
 | 探索请求、推进、结算与恢复 | `combat/explorations.py`、`worker.py`、`recovery.py`、`permissions.py` |
 | 模型准备与转职 | `combat/preparation.py`、`schedule.py`；[统一生活执行说明](./Agent世界统一生活执行说明.md) |
-| 纯战斗、技能、成长与掉落 | `combat/engine.py`、`effects.py`、`attributes.py`、`profiles.py`、`rewards.py`及[生产包说明](../../system_settings/agent_world/combat/data/README.md) |
+| 纯战斗、技能、成长与掉落 | `combat/engine.py`、`effects.py`、`attributes.py`、`profiles.py`、`rewards.py`及[生产包说明](../../system_settings/agent_world/combat/data/README.md)；图鉴候选展示见 `frontend_react/src/components/Combat/atlas/equipmentDropCandidates.ts` |
 | 请求和界面状态 | `system_settings/urls.py`、`combat/views.py`、`frontend_react/src/api/combat.ts`及 `components/Combat/` |
 | 观察画面和动画 | [探索观察接入说明](./Agent探索观察战斗画面接入说明.md)、[魔物与动画规范](./Agent魔物形象与战斗动画设计规范.md) |
 | 设计依据与历史版本 | [系统规划](./Agent迷宫探索与战斗系统规划.md)、[实施与验收记录](./Agent战斗探索一期实施与验收记录.md) |

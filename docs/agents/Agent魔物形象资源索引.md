@@ -7,6 +7,10 @@
 | 魔物 ID | 名称 | 预览入口 | 形象与基础动作 | 图鉴 | 技能特效 | 正式战斗动画 |
 | --- | --- | --- | --- | --- | --- | --- |
 | `monster.slime` | 软泥怪 | `frontend_react/slime-preview.html` | 已确认；五个基础动作 | 已接入 | 仅有预览落地波纹、水滴样例；通用技能特效待设计 | 待接入 |
+| `monster.fuzzy_ear_rabbit` | 绒耳兔 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.fuzzy_ear_rabbit` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
+| `monster.leafshell_beetle` | 叶壳甲虫 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.leafshell_beetle` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
+| `monster.dawnfire_glowbug` | 晨光萤 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.dawnfire_glowbug` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
+| `monster.cave_crystal_lizard` | 洞穴晶蜥 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_crystal_lizard` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
 | `monster.cave_bat` | 洞穴蝙蝠 | `frontend_react/cave-bat-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“闪身”动作与残影示意；正式效果待接入 | 待接入 |
 | `monster.moss_beast` | 苔石兽 | `frontend_react/moss-beast-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“护体”动作与多边形护盾示意；正式效果待接入 | 待接入 |
 | `monster.moss_king` | 苔冠巨兽 | `frontend_react/moss-king-preview.html` | 已确认石鹿首领；五个基础动作 | 已接入 | 已有“重击”飞石与“护体”晶石护罩示意；正式效果待接入 | 待接入 |
@@ -47,7 +51,7 @@
 
 ## 洞穴蝙蝠
 
-- 稳定目录标识：`monster.cave_bat`，普通魔物，Lv.3–8；出没地 `dungeon.moss_cave`。
+- 稳定目录标识：`monster.cave_bat`，普通魔物，Lv.10–20；出没地 `dungeon.moss_cave`。
 - 角色绘制：`frontend_react/src/components/Combat/animation/CaveBatActor.ts`；灰紫渐变身体、圆头、大耳朵、带弧形边缘的蝠翼、两颗小尖牙。左上高光、描边与表情沿用软泥怪风格。
 - 动作采样：`frontend_react/src/components/Combat/animation/caveBatMotion.ts`；`idle / move / attack / hit / defeat`，分别为悬停振翅、轻盈掠飞、抬升后俯冲、失衡后回稳、收翅落地。
 - 静态形象：`frontend_react/src/assets/combat/cave-bat.svg`；使用相同轮廓和配色，图鉴列表与预览加载兜底共用。

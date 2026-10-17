@@ -40,6 +40,16 @@ export interface VisualConfig {
 
 /** 地牢视觉外观配置 */
 export function getDungeonVisual(id: string): VisualConfig {
+    if (id.includes('sprout_meadow')) {
+        return {
+            icon: Sparkles,
+            color: 'text-lime-600',
+            bgGradient: 'from-lime-50 to-emerald-50/40',
+            border: 'border-lime-200/80',
+            badgeBg: 'bg-lime-100/90',
+            badgeText: 'text-lime-700',
+        };
+    }
     if (id.includes('moss_cave')) {
         return {
             icon: Trees,
@@ -134,6 +144,14 @@ export function getMonsterVisual(id: string, name: string = '', rank: string = '
         icon = Skull;
     } else if (name.includes('灵') || name.includes('祭司')) {
         icon = Waves;
+    } else if (name.includes('兔')) {
+        icon = PawPrint;
+    } else if (name.includes('甲虫')) {
+        icon = Shield;
+    } else if (name.includes('萤')) {
+        icon = Sparkles;
+    } else if (name.includes('蜥')) {
+        icon = Gem;
     } else if (name.includes('灰烬') || name.includes('熔岩') || name.includes('火')) {
         icon = Flame;
     } else if (name.includes('裂隙') || name.includes('星蚀')) {

@@ -1,6 +1,7 @@
 """旅行购物的实时资金范围和正常价值范围内的商品候选。"""
 import random
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
+from django.db.models import Q
 from system_settings.models import Agent
 from .life_models import LifeItem
 from .life_schedule import OPEN
@@ -8,9 +9,14 @@ from .life_budget_policy import remaining_reservation
 from .inventory_attributes import souvenir_attributes
 
 
+def life_item_for_journey(journey):
+    return LifeItem.objects.filter(actor_id=journey.actor_id, owner_id=journey.owner_id).filter(
+        Q(pk=journey.pk) | Q(context__execution_key=journey.pk)).first()
+
+
 def available_funds(journey, *, route_cost: Decimal = Decimal(0)) -> dict:
     agent = Agent.objects.get(pk=journey.actor_id)
-    item = LifeItem.objects.filter(pk=journey.pk, actor_id=journey.actor_id, owner_id=journey.owner_id).first()
+    item = life_item_for_journey(journey)
     available = agent.money
     result = {'balance': str(agent.money)}
     if item:

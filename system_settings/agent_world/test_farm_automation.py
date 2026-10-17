@@ -79,6 +79,47 @@ class FarmQueueTests(TestCase):
         validate_plan(self.farm());reconcile_farms();reconcile_farms()
         self.assertEqual(FarmOperation.objects.count(),6)
 
+    def test_entering_farm_collects_livestock_once_before_queue_progress(self):
+        from .farm_catalog import DEFAULT_RULES
+        farm = self.farm()
+        rule = copy.deepcopy(DEFAULT_RULES['animals']['chicken'])
+        farm.state['animals'] = [{'id': 'hen', 'kind': 'chicken', 'building': 'coop',
+            'half_hearts': 0, 'fed_until': NOW.timestamp(), 'cycle': {
+                'number': 1, 'grown': 86400, 'checked_at': NOW.timestamp(), 'rules': rule,
+                'result': {'quality': 'normal', 'quantity': 1, 'completed_at': NOW.timestamp(), 'half_hearts': 0}}}]
+        farm.save(update_fields=['state'])
+        self.plan(entries=[]); self.activate()
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'product.chicken.normal'), 1)
+        self.assertEqual(self.farm().state['animals'][0]['cycle']['number'], 2)
+        self.activate()
+        self.assertEqual(FarmOperation.objects.filter(operation__kind='collect').count(), 1)
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'product.chicken.normal'), 1)
+
+    def test_failed_tending_does_not_persist_success_before_retry(self):
+        from system_settings.models import WorldAction
+        self.stock(); self.plan()
+        with patch('system_settings.agent_world.farm_queue_runner.tend_farm', side_effect=ValueError('领取事务失败')):
+            with self.assertRaisesMessage(ValueError, '领取事务失败'):
+                self.activate()
+        self.assertEqual(WorldAction.objects.get(pk=self.item.pk).status, 'claimed')
+        self.activate()
+        self.assertEqual(WorldAction.objects.get(pk=self.item.pk).status, 'success')
+
+    def test_daily_summary_projects_queue_end_state_without_consuming_stock(self):
+        from .life_daily_facts import farm_summary
+        self.stock(); self.plan()
+        before = copy.deepcopy(self.farm().state)
+        slots = [{'id': 'morning', 'time': NOW.replace(hour=10).isoformat()},
+                 {'id': 'afternoon', 'time': NOW.replace(hour=16).isoformat()}]
+        with patch('django.utils.timezone.now', return_value=NOW):
+            summary = farm_summary('owner', self.agent, slots)
+        self.assertEqual(summary['empty_plots'], 4)
+        self.assertEqual(summary['by_slot'][0]['estimated_empty_plots'], 0)
+        self.assertEqual(summary['by_slot'][1]['estimated_empty_plots'], 4)
+        self.assertEqual(summary['queue_estimated_harvests'][0]['estimated_planted_plots'], 10)
+        self.assertEqual(self.farm().state, before)
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'seed.potato'), 10)
+
     def test_no_seed_intent_exists_and_shortage_skips(self):
         self.stock('seed.radish', 2)
         self.plan([{'sku':'seed.potato','quantity':10},{'sku':'seed.radish','quantity':2}]);self.activate()

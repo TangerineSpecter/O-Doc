@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.16",
+  "version": "combat-1.0.18",
   "tables": {
     "affixSlots": [
       {
@@ -642,7 +642,61 @@
         "id": "monster.slime.equipment",
         "monsterId": "monster.slime",
         "itemKind": "equipment_pool",
-        "itemId": "pool.moss_cave",
+        "itemId": "pool.sprout_meadow",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "1"
+      },
+      {
+        "id": "monster.fuzzy_ear_rabbit.material",
+        "monsterId": "monster.fuzzy_ear_rabbit",
+        "itemKind": "material",
+        "itemId": "material.sprout_meadow.rabbit",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "2"
+      },
+      {
+        "id": "monster.fuzzy_ear_rabbit.equipment",
+        "monsterId": "monster.fuzzy_ear_rabbit",
+        "itemKind": "equipment_pool",
+        "itemId": "pool.sprout_meadow",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "1"
+      },
+      {
+        "id": "monster.leafshell_beetle.material",
+        "monsterId": "monster.leafshell_beetle",
+        "itemKind": "material",
+        "itemId": "material.sprout_meadow.beetle",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "2"
+      },
+      {
+        "id": "monster.leafshell_beetle.equipment",
+        "monsterId": "monster.leafshell_beetle",
+        "itemKind": "equipment_pool",
+        "itemId": "pool.sprout_meadow",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "1"
+      },
+      {
+        "id": "monster.dawnfire_glowbug.material",
+        "monsterId": "monster.dawnfire_glowbug",
+        "itemKind": "material",
+        "itemId": "material.sprout_meadow.glowbug",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "2"
+      },
+      {
+        "id": "monster.dawnfire_glowbug.equipment",
+        "monsterId": "monster.dawnfire_glowbug",
+        "itemKind": "equipment_pool",
+        "itemId": "pool.sprout_meadow",
         "weight": "1",
         "quantityMin": "1",
         "quantityMax": "1"
@@ -659,6 +713,24 @@
       {
         "id": "monster.cave_bat.equipment",
         "monsterId": "monster.cave_bat",
+        "itemKind": "equipment_pool",
+        "itemId": "pool.moss_cave",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "1"
+      },
+      {
+        "id": "monster.cave_crystal_lizard.material",
+        "monsterId": "monster.cave_crystal_lizard",
+        "itemKind": "material",
+        "itemId": "material.moss_cave.crystal_lizard",
+        "weight": "1",
+        "quantityMin": "1",
+        "quantityMax": "2"
+      },
+      {
+        "id": "monster.cave_crystal_lizard.equipment",
+        "monsterId": "monster.cave_crystal_lizard",
         "itemKind": "equipment_pool",
         "itemId": "pool.moss_cave",
         "weight": "1",
@@ -1064,23 +1136,63 @@
     ],
     "dungeonMonsters": [
       {
-        "id": "dungeon.moss_cave.slime",
-        "dungeonId": "dungeon.moss_cave",
+        "id": "dungeon.sprout_meadow.slime",
+        "dungeonId": "dungeon.sprout_meadow",
         "monsterId": "monster.slime",
         "levelMin": "1",
         "levelMax": "5",
-        "encounterWeight": "60",
+        "encounterWeight": "45",
         "dropTableId": "drop.slime",
+        "enabled": "1"
+      },
+      {
+        "id": "dungeon.sprout_meadow.fuzzy_ear_rabbit",
+        "dungeonId": "dungeon.sprout_meadow",
+        "monsterId": "monster.fuzzy_ear_rabbit",
+        "levelMin": "1",
+        "levelMax": "7",
+        "encounterWeight": "25",
+        "dropTableId": "drop.fuzzy_ear_rabbit",
+        "enabled": "1"
+      },
+      {
+        "id": "dungeon.sprout_meadow.leafshell_beetle",
+        "dungeonId": "dungeon.sprout_meadow",
+        "monsterId": "monster.leafshell_beetle",
+        "levelMin": "5",
+        "levelMax": "10",
+        "encounterWeight": "20",
+        "dropTableId": "drop.leafshell_beetle",
+        "enabled": "1"
+      },
+      {
+        "id": "dungeon.sprout_meadow.dawnfire_glowbug",
+        "dungeonId": "dungeon.sprout_meadow",
+        "monsterId": "monster.dawnfire_glowbug",
+        "levelMin": "10",
+        "levelMax": "15",
+        "encounterWeight": "10",
+        "dropTableId": "drop.dawnfire_glowbug",
         "enabled": "1"
       },
       {
         "id": "dungeon.moss_cave.cave_bat",
         "dungeonId": "dungeon.moss_cave",
         "monsterId": "monster.cave_bat",
-        "levelMin": "3",
-        "levelMax": "8",
-        "encounterWeight": "35",
+        "levelMin": "10",
+        "levelMax": "20",
+        "encounterWeight": "60",
         "dropTableId": "drop.cave_bat",
+        "enabled": "1"
+      },
+      {
+        "id": "dungeon.moss_cave.cave_crystal_lizard",
+        "dungeonId": "dungeon.moss_cave",
+        "monsterId": "monster.cave_crystal_lizard",
+        "levelMin": "10",
+        "levelMax": "20",
+        "encounterWeight": "35",
+        "dropTableId": "drop.cave_crystal_lizard",
         "enabled": "1"
       },
       {
@@ -1246,10 +1358,25 @@
     ],
     "dungeons": [
       {
+        "id": "dungeon.sprout_meadow",
+        "name": "新芽草甸",
+        "recommendedLevelMin": "1",
+        "recommendedLevelMax": "15",
+        "bossId": "",
+        "bossLevelMin": "0",
+        "bossLevelMax": "0",
+        "bossStartKills": "0",
+        "bossProbabilityStep": "0",
+        "bossProbabilityCap": "0",
+        "enabled": "1",
+        "equipmentLevelMin": "1",
+        "equipmentLevelMax": "15"
+      },
+      {
         "id": "dungeon.moss_cave",
         "name": "苔石洞窟",
-        "recommendedLevelMin": "1",
-        "recommendedLevelMax": "12",
+        "recommendedLevelMin": "10",
+        "recommendedLevelMax": "20",
         "bossId": "monster.moss_king",
         "bossLevelMin": "10",
         "bossLevelMax": "12",
@@ -1263,7 +1390,7 @@
       {
         "id": "dungeon.abandoned_mine",
         "name": "废弃矿坑",
-        "recommendedLevelMin": "10",
+        "recommendedLevelMin": "15",
         "recommendedLevelMax": "25",
         "bossId": "monster.mine_giant",
         "bossLevelMin": "22",
@@ -8222,6 +8349,558 @@
     ],
     "equipmentPools": [
       {
+        "id": "pool.sprout_meadow.training_sword",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.training_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.sword",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.axe",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.axe",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.bow",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.bow",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.dagger",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.dagger",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.mage_staff",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.mage_staff",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.staff",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.staff",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.holy_staff",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.holy_staff",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.body",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.hands",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.feet",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.charm",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.charm",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.ring",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.ring",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.offhand.magic_shield",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.offhand.magic_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.offhand.small_shield",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.offhand.small_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.offhand.large_shield",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.offhand.large_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.two_handed_sword",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.two_handed_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.head",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.head",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.head.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.head.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.head.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.head.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.head.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.head.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.head.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.head.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.body",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.body.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.body.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.body.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.body.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.hands",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.hands.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.hands.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.hands.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.hands.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.feet",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.feet.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.feet.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.feet.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.cloth.feet.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.cloth.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.body",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.body.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.body.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.body.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.body.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.hands",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.hands.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.hands.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.hands.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.hands.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.feet",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.feet.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.feet.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.feet.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.heavy.feet.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.heavy.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.body",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.body.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.body.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.body.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.body.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.hands",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.hands.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.hands.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.hands.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.hands.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.feet",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.feet.30",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.feet.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.feet.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.leather.feet.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.leather.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.body",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.body.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.body.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.body.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.hands",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.hands.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.hands.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.hands.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.feet",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.feet.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.feet.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.light.feet.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.light.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.body",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.body.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.body.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.body.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.hands",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.hands.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.hands.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.hands.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.feet",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.feet.50",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.feet.70",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sprout_meadow.armor.plate.feet.90",
+        "poolId": "pool.sprout_meadow",
+        "equipmentId": "equip.armor.plate.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.training_sword",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.training_sword",
+        "weight": "1"
+      },
+      {
         "id": "pool.moss_cave.sword",
         "poolId": "pool.moss_cave",
         "equipmentId": "equip.sword",
@@ -8264,12 +8943,6 @@
         "weight": "1"
       },
       {
-        "id": "pool.moss_cave.head",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.head",
-        "weight": "1"
-      },
-      {
         "id": "pool.moss_cave.body",
         "poolId": "pool.moss_cave",
         "equipmentId": "equip.body",
@@ -8294,111 +8967,483 @@
         "weight": "1"
       },
       {
-        "id": "pool.moss_cave.cloth_body",
+        "id": "pool.moss_cave.ring",
         "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.body",
+        "equipmentId": "equip.ring",
         "weight": "1"
       },
       {
-        "id": "pool.moss_cave.cloth_hands",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.cloth_feet",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.heavy_body",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.heavy_hands",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.heavy_feet",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.leather_body",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.leather_hands",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.leather_feet",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.light_body",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.light_hands",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.light_feet",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.plate_body",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.plate_hands",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.plate_feet",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.magic_shield",
+        "id": "pool.moss_cave.offhand.magic_shield",
         "poolId": "pool.moss_cave",
         "equipmentId": "equip.offhand.magic_shield",
         "weight": "1"
       },
       {
-        "id": "pool.moss_cave.small_shield",
+        "id": "pool.moss_cave.offhand.small_shield",
         "poolId": "pool.moss_cave",
         "equipmentId": "equip.offhand.small_shield",
         "weight": "1"
       },
       {
-        "id": "pool.moss_cave.large_shield",
+        "id": "pool.moss_cave.offhand.large_shield",
         "poolId": "pool.moss_cave",
         "equipmentId": "equip.offhand.large_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.two_handed_sword",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.two_handed_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.head",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.head",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.head.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.head.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.head.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.head.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.head.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.head.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.head.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.head.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.body",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.body.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.body.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.body.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.body.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.hands",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.hands.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.hands.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.hands.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.hands.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.feet",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.feet.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.feet.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.feet.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.cloth.feet.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.cloth.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.body",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.body.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.body.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.body.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.body.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.hands",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.hands.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.hands.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.hands.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.hands.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.feet",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.feet.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.feet.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.feet.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.heavy.feet.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.heavy.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.body",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.body.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.body.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.body.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.body.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.hands",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.hands.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.hands.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.hands.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.hands.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.feet",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.feet.30",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.feet.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.feet.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.leather.feet.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.leather.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.body",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.body.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.body.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.body.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.hands",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.hands.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.hands.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.hands.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.feet",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.feet.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.feet.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.light.feet.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.light.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.body",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.body.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.body.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.body.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.hands",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.hands.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.hands.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.hands.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.feet",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.feet.50",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.feet.70",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.moss_cave.armor.plate.feet.90",
+        "poolId": "pool.moss_cave",
+        "equipmentId": "equip.armor.plate.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.training_sword",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.training_sword",
         "weight": "1"
       },
       {
@@ -8444,12 +9489,6 @@
         "weight": "1"
       },
       {
-        "id": "pool.abandoned_mine.head",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.head",
-        "weight": "1"
-      },
-      {
         "id": "pool.abandoned_mine.body",
         "poolId": "pool.abandoned_mine",
         "equipmentId": "equip.body",
@@ -8474,111 +9513,483 @@
         "weight": "1"
       },
       {
-        "id": "pool.abandoned_mine.cloth_body",
+        "id": "pool.abandoned_mine.ring",
         "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.body",
+        "equipmentId": "equip.ring",
         "weight": "1"
       },
       {
-        "id": "pool.abandoned_mine.cloth_hands",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.cloth_feet",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.heavy_body",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.heavy_hands",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.heavy_feet",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.leather_body",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.leather_hands",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.leather_feet",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.light_body",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.light_hands",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.light_feet",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.plate_body",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.plate_hands",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.plate_feet",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.magic_shield",
+        "id": "pool.abandoned_mine.offhand.magic_shield",
         "poolId": "pool.abandoned_mine",
         "equipmentId": "equip.offhand.magic_shield",
         "weight": "1"
       },
       {
-        "id": "pool.abandoned_mine.small_shield",
+        "id": "pool.abandoned_mine.offhand.small_shield",
         "poolId": "pool.abandoned_mine",
         "equipmentId": "equip.offhand.small_shield",
         "weight": "1"
       },
       {
-        "id": "pool.abandoned_mine.large_shield",
+        "id": "pool.abandoned_mine.offhand.large_shield",
         "poolId": "pool.abandoned_mine",
         "equipmentId": "equip.offhand.large_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.two_handed_sword",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.two_handed_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.head",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.head",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.head.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.head.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.head.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.head.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.head.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.head.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.head.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.head.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.body",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.body.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.body.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.body.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.body.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.hands",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.hands.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.hands.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.hands.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.hands.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.feet",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.feet.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.feet.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.feet.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.cloth.feet.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.cloth.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.body",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.body.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.body.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.body.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.body.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.hands",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.hands.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.hands.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.hands.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.hands.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.feet",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.feet.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.feet.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.feet.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.heavy.feet.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.heavy.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.body",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.body.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.body.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.body.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.body.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.hands",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.hands.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.hands.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.hands.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.hands.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.feet",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.feet.30",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.feet.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.feet.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.leather.feet.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.leather.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.body",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.body.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.body.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.body.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.hands",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.hands.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.hands.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.hands.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.feet",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.feet.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.feet.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.light.feet.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.light.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.body",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.body.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.body.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.body.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.hands",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.hands.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.hands.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.hands.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.feet",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.feet.50",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.feet.70",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.abandoned_mine.armor.plate.feet.90",
+        "poolId": "pool.abandoned_mine",
+        "equipmentId": "equip.armor.plate.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.training_sword",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.training_sword",
         "weight": "1"
       },
       {
@@ -8624,12 +10035,6 @@
         "weight": "1"
       },
       {
-        "id": "pool.mist_forest.head",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.head",
-        "weight": "1"
-      },
-      {
         "id": "pool.mist_forest.body",
         "poolId": "pool.mist_forest",
         "equipmentId": "equip.body",
@@ -8654,111 +10059,483 @@
         "weight": "1"
       },
       {
-        "id": "pool.mist_forest.cloth_body",
+        "id": "pool.mist_forest.ring",
         "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.body",
+        "equipmentId": "equip.ring",
         "weight": "1"
       },
       {
-        "id": "pool.mist_forest.cloth_hands",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.cloth_feet",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.heavy_body",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.heavy_hands",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.heavy_feet",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.leather_body",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.leather_hands",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.leather_feet",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.light_body",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.light_hands",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.light_feet",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.plate_body",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.plate_hands",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.plate_feet",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.magic_shield",
+        "id": "pool.mist_forest.offhand.magic_shield",
         "poolId": "pool.mist_forest",
         "equipmentId": "equip.offhand.magic_shield",
         "weight": "1"
       },
       {
-        "id": "pool.mist_forest.small_shield",
+        "id": "pool.mist_forest.offhand.small_shield",
         "poolId": "pool.mist_forest",
         "equipmentId": "equip.offhand.small_shield",
         "weight": "1"
       },
       {
-        "id": "pool.mist_forest.large_shield",
+        "id": "pool.mist_forest.offhand.large_shield",
         "poolId": "pool.mist_forest",
         "equipmentId": "equip.offhand.large_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.two_handed_sword",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.two_handed_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.head",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.head",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.head.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.head.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.head.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.head.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.head.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.head.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.head.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.head.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.body",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.body.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.body.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.body.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.body.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.hands",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.hands.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.hands.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.hands.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.hands.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.feet",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.feet.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.feet.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.feet.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.cloth.feet.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.cloth.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.body",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.body.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.body.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.body.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.body.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.hands",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.hands.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.hands.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.hands.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.hands.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.feet",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.feet.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.feet.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.feet.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.heavy.feet.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.heavy.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.body",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.body.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.body.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.body.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.body.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.hands",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.hands.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.hands.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.hands.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.hands.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.feet",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.feet.30",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.feet.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.feet.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.leather.feet.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.leather.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.body",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.body.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.body.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.body.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.hands",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.hands.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.hands.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.hands.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.feet",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.feet.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.feet.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.light.feet.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.light.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.body",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.body.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.body.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.body.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.hands",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.hands.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.hands.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.hands.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.feet",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.feet.50",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.feet.70",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.mist_forest.armor.plate.feet.90",
+        "poolId": "pool.mist_forest",
+        "equipmentId": "equip.armor.plate.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.training_sword",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.training_sword",
         "weight": "1"
       },
       {
@@ -8804,12 +10581,6 @@
         "weight": "1"
       },
       {
-        "id": "pool.sunken_ruins.head",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.head",
-        "weight": "1"
-      },
-      {
         "id": "pool.sunken_ruins.body",
         "poolId": "pool.sunken_ruins",
         "equipmentId": "equip.body",
@@ -8834,111 +10605,483 @@
         "weight": "1"
       },
       {
-        "id": "pool.sunken_ruins.cloth_body",
+        "id": "pool.sunken_ruins.ring",
         "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.body",
+        "equipmentId": "equip.ring",
         "weight": "1"
       },
       {
-        "id": "pool.sunken_ruins.cloth_hands",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.cloth_feet",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.heavy_body",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.heavy_hands",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.heavy_feet",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.leather_body",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.leather_hands",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.leather_feet",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.light_body",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.light_hands",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.light_feet",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.plate_body",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.plate_hands",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.plate_feet",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.magic_shield",
+        "id": "pool.sunken_ruins.offhand.magic_shield",
         "poolId": "pool.sunken_ruins",
         "equipmentId": "equip.offhand.magic_shield",
         "weight": "1"
       },
       {
-        "id": "pool.sunken_ruins.small_shield",
+        "id": "pool.sunken_ruins.offhand.small_shield",
         "poolId": "pool.sunken_ruins",
         "equipmentId": "equip.offhand.small_shield",
         "weight": "1"
       },
       {
-        "id": "pool.sunken_ruins.large_shield",
+        "id": "pool.sunken_ruins.offhand.large_shield",
         "poolId": "pool.sunken_ruins",
         "equipmentId": "equip.offhand.large_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.two_handed_sword",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.two_handed_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.head",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.head",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.head.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.head.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.head.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.head.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.head.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.head.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.head.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.head.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.body",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.body.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.body.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.body.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.body.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.hands",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.hands.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.hands.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.hands.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.hands.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.feet",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.feet.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.feet.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.feet.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.cloth.feet.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.cloth.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.body",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.body.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.body.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.body.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.body.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.hands",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.hands.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.hands.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.hands.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.hands.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.feet",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.feet.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.feet.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.feet.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.heavy.feet.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.heavy.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.body",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.body.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.body.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.body.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.body.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.hands",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.hands.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.hands.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.hands.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.hands.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.feet",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.feet.30",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.feet.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.feet.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.leather.feet.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.leather.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.body",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.body.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.body.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.body.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.hands",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.hands.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.hands.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.hands.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.feet",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.feet.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.feet.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.light.feet.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.light.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.body",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.body.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.body.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.body.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.hands",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.hands.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.hands.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.hands.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.feet",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.feet.50",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.feet.70",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.sunken_ruins.armor.plate.feet.90",
+        "poolId": "pool.sunken_ruins",
+        "equipmentId": "equip.armor.plate.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.training_sword",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.training_sword",
         "weight": "1"
       },
       {
@@ -8984,12 +11127,6 @@
         "weight": "1"
       },
       {
-        "id": "pool.ember_fortress.head",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.head",
-        "weight": "1"
-      },
-      {
         "id": "pool.ember_fortress.body",
         "poolId": "pool.ember_fortress",
         "equipmentId": "equip.body",
@@ -9014,111 +11151,483 @@
         "weight": "1"
       },
       {
-        "id": "pool.ember_fortress.cloth_body",
+        "id": "pool.ember_fortress.ring",
         "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.body",
+        "equipmentId": "equip.ring",
         "weight": "1"
       },
       {
-        "id": "pool.ember_fortress.cloth_hands",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.cloth_feet",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.heavy_body",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.heavy_hands",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.heavy_feet",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.leather_body",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.leather_hands",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.leather_feet",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.light_body",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.light_hands",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.light_feet",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.plate_body",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.plate_hands",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.plate_feet",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.magic_shield",
+        "id": "pool.ember_fortress.offhand.magic_shield",
         "poolId": "pool.ember_fortress",
         "equipmentId": "equip.offhand.magic_shield",
         "weight": "1"
       },
       {
-        "id": "pool.ember_fortress.small_shield",
+        "id": "pool.ember_fortress.offhand.small_shield",
         "poolId": "pool.ember_fortress",
         "equipmentId": "equip.offhand.small_shield",
         "weight": "1"
       },
       {
-        "id": "pool.ember_fortress.large_shield",
+        "id": "pool.ember_fortress.offhand.large_shield",
         "poolId": "pool.ember_fortress",
         "equipmentId": "equip.offhand.large_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.two_handed_sword",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.two_handed_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.head",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.head",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.head.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.head.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.head.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.head.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.head.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.head.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.head.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.head.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.body",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.body.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.body.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.body.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.body.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.hands",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.hands.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.hands.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.hands.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.hands.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.feet",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.feet.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.feet.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.feet.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.cloth.feet.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.cloth.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.body",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.body.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.body.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.body.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.body.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.hands",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.hands.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.hands.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.hands.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.hands.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.feet",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.feet.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.feet.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.feet.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.heavy.feet.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.heavy.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.body",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.body.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.body.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.body.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.body.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.body.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.hands",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.hands.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.hands.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.hands.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.hands.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.hands.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.feet",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.feet.30",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.feet.30",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.feet.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.feet.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.leather.feet.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.leather.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.body",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.body.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.body.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.body.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.hands",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.hands.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.hands.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.hands.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.feet",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.feet.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.feet.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.light.feet.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.light.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.body",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.body",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.body.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.body.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.body.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.body.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.body.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.hands",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.hands",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.hands.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.hands.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.hands.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.hands.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.hands.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.feet",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.feet",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.feet.50",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.feet.50",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.feet.70",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.feet.70",
+        "weight": "1"
+      },
+      {
+        "id": "pool.ember_fortress.armor.plate.feet.90",
+        "poolId": "pool.ember_fortress",
+        "equipmentId": "equip.armor.plate.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.training_sword",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.training_sword",
         "weight": "1"
       },
       {
@@ -9164,12 +11673,6 @@
         "weight": "1"
       },
       {
-        "id": "pool.star_rift.head",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.head",
-        "weight": "1"
-      },
-      {
         "id": "pool.star_rift.body",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.body",
@@ -9194,1959 +11697,39 @@
         "weight": "1"
       },
       {
-        "id": "pool.star_rift.cloth_body",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.cloth.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.cloth_hands",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.cloth.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.cloth_feet",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.cloth.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.heavy_body",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.heavy.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.heavy_hands",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.heavy.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.heavy_feet",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.heavy.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.leather_body",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.leather.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.leather_hands",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.leather.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.leather_feet",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.leather.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.light_body",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.light.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.light_hands",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.light.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.light_feet",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.light.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.plate_body",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.plate.body",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.plate_hands",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.plate.hands",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.plate_feet",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.armor.plate.feet",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.magic_shield",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.offhand.magic_shield",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.small_shield",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.offhand.small_shield",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.large_shield",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.offhand.large_shield",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.training_sword",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.training_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.training_sword",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.training_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.training_sword",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.training_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.training_sword",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.training_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.training_sword",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.training_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.star_rift.training_sword",
-        "poolId": "pool.star_rift",
-        "equipmentId": "equip.training_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.ring",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.ring",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.two_handed_sword",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.two_handed_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.head.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.head.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.head.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.head.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.head.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.head.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.head.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.head.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.body.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.body.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.body.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.body.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.hands.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.hands.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.hands.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.hands.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.feet.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.feet.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.feet.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.cloth.feet.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.cloth.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.body.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.body.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.body.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.body.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.hands.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.hands.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.hands.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.hands.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.feet.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.feet.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.feet.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.heavy.feet.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.heavy.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.body.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.body.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.body.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.body.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.hands.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.hands.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.hands.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.hands.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.feet.30",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.feet.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.feet.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.leather.feet.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.leather.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.body.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.body.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.body.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.hands.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.hands.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.hands.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.feet.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.feet.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.light.feet.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.light.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.body.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.body.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.body.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.hands.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.hands.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.hands.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.feet.50",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.feet.70",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.moss_cave.armor.plate.feet.90",
-        "poolId": "pool.moss_cave",
-        "equipmentId": "equip.armor.plate.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.ring",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.ring",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.two_handed_sword",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.two_handed_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.head.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.head.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.head.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.head.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.head.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.head.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.head.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.head.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.body.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.body.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.body.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.body.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.hands.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.hands.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.hands.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.hands.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.feet.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.feet.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.feet.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.cloth.feet.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.cloth.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.body.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.body.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.body.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.body.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.hands.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.hands.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.hands.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.hands.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.feet.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.feet.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.feet.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.heavy.feet.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.heavy.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.body.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.body.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.body.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.body.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.hands.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.hands.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.hands.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.hands.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.feet.30",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.feet.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.feet.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.leather.feet.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.leather.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.body.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.body.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.body.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.hands.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.hands.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.hands.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.feet.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.feet.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.light.feet.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.light.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.body.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.body.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.body.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.hands.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.hands.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.hands.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.feet.50",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.feet.70",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.abandoned_mine.armor.plate.feet.90",
-        "poolId": "pool.abandoned_mine",
-        "equipmentId": "equip.armor.plate.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.ring",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.ring",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.two_handed_sword",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.two_handed_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.head.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.head.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.head.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.head.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.head.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.head.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.head.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.head.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.body.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.body.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.body.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.body.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.hands.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.hands.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.hands.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.hands.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.feet.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.feet.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.feet.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.cloth.feet.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.cloth.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.body.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.body.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.body.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.body.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.hands.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.hands.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.hands.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.hands.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.feet.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.feet.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.feet.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.heavy.feet.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.heavy.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.body.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.body.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.body.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.body.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.hands.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.hands.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.hands.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.hands.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.feet.30",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.feet.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.feet.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.leather.feet.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.leather.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.body.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.body.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.body.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.hands.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.hands.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.hands.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.feet.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.feet.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.light.feet.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.light.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.body.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.body.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.body.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.hands.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.hands.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.hands.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.feet.50",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.feet.70",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.mist_forest.armor.plate.feet.90",
-        "poolId": "pool.mist_forest",
-        "equipmentId": "equip.armor.plate.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.ring",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.ring",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.two_handed_sword",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.two_handed_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.head.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.head.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.head.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.head.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.head.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.head.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.head.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.head.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.body.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.body.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.body.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.body.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.hands.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.hands.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.hands.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.hands.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.feet.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.feet.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.feet.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.cloth.feet.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.cloth.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.body.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.body.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.body.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.body.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.hands.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.hands.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.hands.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.hands.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.feet.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.feet.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.feet.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.heavy.feet.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.heavy.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.body.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.body.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.body.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.body.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.hands.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.hands.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.hands.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.hands.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.feet.30",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.feet.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.feet.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.leather.feet.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.leather.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.body.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.body.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.body.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.hands.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.hands.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.hands.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.feet.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.feet.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.light.feet.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.light.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.body.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.body.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.body.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.hands.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.hands.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.hands.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.feet.50",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.feet.70",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.sunken_ruins.armor.plate.feet.90",
-        "poolId": "pool.sunken_ruins",
-        "equipmentId": "equip.armor.plate.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.ring",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.ring",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.two_handed_sword",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.two_handed_sword",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.head.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.head.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.head.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.head.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.head.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.head.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.head.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.head.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.body.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.body.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.body.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.body.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.hands.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.hands.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.hands.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.hands.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.feet.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.feet.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.feet.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.cloth.feet.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.cloth.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.body.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.body.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.body.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.body.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.hands.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.hands.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.hands.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.hands.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.feet.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.feet.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.feet.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.heavy.feet.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.heavy.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.body.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.body.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.body.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.body.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.body.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.hands.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.hands.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.hands.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.hands.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.hands.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.feet.30",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.feet.30",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.feet.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.feet.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.leather.feet.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.leather.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.body.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.body.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.body.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.hands.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.hands.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.hands.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.feet.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.feet.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.light.feet.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.light.feet.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.body.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.body.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.body.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.body.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.body.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.body.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.hands.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.hands.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.hands.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.hands.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.hands.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.hands.90",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.feet.50",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.feet.50",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.feet.70",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.feet.70",
-        "weight": "1"
-      },
-      {
-        "id": "pool.ember_fortress.armor.plate.feet.90",
-        "poolId": "pool.ember_fortress",
-        "equipmentId": "equip.armor.plate.feet.90",
-        "weight": "1"
-      },
-      {
         "id": "pool.star_rift.ring",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.ring",
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.offhand.magic_shield",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.offhand.magic_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.offhand.small_shield",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.offhand.small_shield",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.offhand.large_shield",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.offhand.large_shield",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.two_handed_sword",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.two_handed_sword",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.head",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.head",
         "weight": "1"
       },
       {
@@ -11174,6 +11757,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.cloth.body",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.cloth.body",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.cloth.body.30",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.cloth.body.30",
@@ -11195,6 +11784,12 @@
         "id": "pool.star_rift.armor.cloth.body.90",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.cloth.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.armor.cloth.hands",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.cloth.hands",
         "weight": "1"
       },
       {
@@ -11222,6 +11817,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.cloth.feet",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.cloth.feet",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.cloth.feet.30",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.cloth.feet.30",
@@ -11243,6 +11844,12 @@
         "id": "pool.star_rift.armor.cloth.feet.90",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.cloth.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.armor.heavy.body",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.heavy.body",
         "weight": "1"
       },
       {
@@ -11270,6 +11877,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.heavy.hands",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.heavy.hands",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.heavy.hands.30",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.heavy.hands.30",
@@ -11291,6 +11904,12 @@
         "id": "pool.star_rift.armor.heavy.hands.90",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.heavy.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.armor.heavy.feet",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.heavy.feet",
         "weight": "1"
       },
       {
@@ -11318,6 +11937,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.leather.body",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.leather.body",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.leather.body.30",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.leather.body.30",
@@ -11339,6 +11964,12 @@
         "id": "pool.star_rift.armor.leather.body.90",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.leather.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.armor.leather.hands",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.leather.hands",
         "weight": "1"
       },
       {
@@ -11366,6 +11997,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.leather.feet",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.leather.feet",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.leather.feet.30",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.leather.feet.30",
@@ -11390,6 +12027,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.light.body",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.light.body",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.light.body.50",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.light.body.50",
@@ -11405,6 +12048,12 @@
         "id": "pool.star_rift.armor.light.body.90",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.light.body.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.armor.light.hands",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.light.hands",
         "weight": "1"
       },
       {
@@ -11426,6 +12075,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.light.feet",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.light.feet",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.light.feet.50",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.light.feet.50",
@@ -11441,6 +12096,12 @@
         "id": "pool.star_rift.armor.light.feet.90",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.light.feet.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.armor.plate.body",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.plate.body",
         "weight": "1"
       },
       {
@@ -11462,6 +12123,12 @@
         "weight": "1"
       },
       {
+        "id": "pool.star_rift.armor.plate.hands",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.plate.hands",
+        "weight": "1"
+      },
+      {
         "id": "pool.star_rift.armor.plate.hands.50",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.plate.hands.50",
@@ -11477,6 +12144,12 @@
         "id": "pool.star_rift.armor.plate.hands.90",
         "poolId": "pool.star_rift",
         "equipmentId": "equip.armor.plate.hands.90",
+        "weight": "1"
+      },
+      {
+        "id": "pool.star_rift.armor.plate.feet",
+        "poolId": "pool.star_rift",
+        "equipmentId": "equip.armor.plate.feet",
         "weight": "1"
       },
       {
@@ -19894,10 +20567,38 @@
         "enabled": "1"
       },
       {
+        "id": "material.sprout_meadow.rabbit",
+        "name": "绒耳兔毛",
+        "level": "1",
+        "salePrice": "1.04",
+        "enabled": "1"
+      },
+      {
+        "id": "material.sprout_meadow.beetle",
+        "name": "叶壳碎片",
+        "level": "5",
+        "salePrice": "1.20",
+        "enabled": "1"
+      },
+      {
+        "id": "material.sprout_meadow.glowbug",
+        "name": "晨光粉尘",
+        "level": "10",
+        "salePrice": "1.40",
+        "enabled": "1"
+      },
+      {
         "id": "material.moss_cave.2",
         "name": "蝠翼",
         "level": "3",
         "salePrice": "1.12",
+        "enabled": "1"
+      },
+      {
+        "id": "material.moss_cave.crystal_lizard",
+        "name": "晶蜥鳞",
+        "level": "10",
+        "salePrice": "1.40",
         "enabled": "1"
       },
       {
@@ -20065,6 +20766,30 @@
         "condition": "always"
       },
       {
+        "id": "monster.fuzzy_ear_rabbit.attack",
+        "monsterId": "monster.fuzzy_ear_rabbit",
+        "actionKind": "attack",
+        "skillId": "",
+        "weight": "100",
+        "condition": "always"
+      },
+      {
+        "id": "monster.leafshell_beetle.attack",
+        "monsterId": "monster.leafshell_beetle",
+        "actionKind": "attack",
+        "skillId": "",
+        "weight": "100",
+        "condition": "always"
+      },
+      {
+        "id": "monster.dawnfire_glowbug.attack",
+        "monsterId": "monster.dawnfire_glowbug",
+        "actionKind": "attack",
+        "skillId": "",
+        "weight": "100",
+        "condition": "always"
+      },
+      {
         "id": "monster.cave_bat.attack",
         "monsterId": "monster.cave_bat",
         "actionKind": "attack",
@@ -20078,6 +20803,14 @@
         "actionKind": "skill",
         "skillId": "skill.monster.evasion",
         "weight": "20.0",
+        "condition": "always"
+      },
+      {
+        "id": "monster.cave_crystal_lizard.attack",
+        "monsterId": "monster.cave_crystal_lizard",
+        "actionKind": "attack",
+        "skillId": "",
+        "weight": "100",
         "condition": "always"
       },
       {
@@ -20527,6 +21260,28 @@
         "damageType": "physical"
       },
       {
+        "id": "cave_bat",
+        "hpConstant": "40",
+        "hpLinear": "18",
+        "hpQuadratic": "0.5",
+        "mpConstant": "20",
+        "mpLinear": "8",
+        "attackConstant": "6",
+        "attackLinear": "4",
+        "attackQuadratic": "0.1",
+        "defenseConstant": "4",
+        "defenseLinear": "1.8",
+        "hpMultiplier": "0.8",
+        "attackMultiplier": "0.9",
+        "physicalDefenseMultiplier": "1",
+        "magicDefenseMultiplier": "1",
+        "accuracy": "0.95",
+        "evasion": "0.06",
+        "critical": "0.05",
+        "criticalDamage": "1.5",
+        "damageType": "physical"
+      },
+      {
         "id": "armored",
         "hpConstant": "40",
         "hpLinear": "18",
@@ -20569,6 +21324,72 @@
         "critical": "0.05",
         "criticalDamage": "1.5",
         "damageType": "magic"
+      },
+      {
+        "id": "sprout_agile",
+        "hpConstant": "40",
+        "hpLinear": "18",
+        "hpQuadratic": "0.5",
+        "mpConstant": "20",
+        "mpLinear": "8",
+        "attackConstant": "6",
+        "attackLinear": "4",
+        "attackQuadratic": "0.1",
+        "defenseConstant": "4",
+        "defenseLinear": "1.8",
+        "hpMultiplier": "0.85",
+        "attackMultiplier": "0.75",
+        "physicalDefenseMultiplier": "1",
+        "magicDefenseMultiplier": "1",
+        "accuracy": "0.95",
+        "evasion": "0.06",
+        "critical": "0.05",
+        "criticalDamage": "1.5",
+        "damageType": "physical"
+      },
+      {
+        "id": "sprout_guard",
+        "hpConstant": "40",
+        "hpLinear": "18",
+        "hpQuadratic": "0.5",
+        "mpConstant": "20",
+        "mpLinear": "8",
+        "attackConstant": "6",
+        "attackLinear": "4",
+        "attackQuadratic": "0.1",
+        "defenseConstant": "4",
+        "defenseLinear": "1.8",
+        "hpMultiplier": "1",
+        "attackMultiplier": "0.65",
+        "physicalDefenseMultiplier": "1.15",
+        "magicDefenseMultiplier": "1",
+        "accuracy": "0.95",
+        "evasion": "0.02",
+        "critical": "0.05",
+        "criticalDamage": "1.5",
+        "damageType": "physical"
+      },
+      {
+        "id": "sprout_magic",
+        "hpConstant": "40",
+        "hpLinear": "18",
+        "hpQuadratic": "0.5",
+        "mpConstant": "20",
+        "mpLinear": "8",
+        "attackConstant": "6",
+        "attackLinear": "4",
+        "attackQuadratic": "0.1",
+        "defenseConstant": "4",
+        "defenseLinear": "1.8",
+        "hpMultiplier": "0.8",
+        "attackMultiplier": "0.7",
+        "physicalDefenseMultiplier": "0.9",
+        "magicDefenseMultiplier": "1.1",
+        "accuracy": "0.95",
+        "evasion": "0.04",
+        "critical": "0.05",
+        "criticalDamage": "1.5",
+        "damageType": "magic"
       }
     ],
     "monsterRanks": [
@@ -20606,12 +21427,52 @@
         "attackMultiplier": "1"
       },
       {
+        "id": "monster.fuzzy_ear_rabbit",
+        "name": "绒耳兔",
+        "rank": "normal",
+        "profile": "sprout_agile",
+        "levelMin": "1",
+        "levelMax": "7",
+        "enabled": "1",
+        "attackMultiplier": "1"
+      },
+      {
+        "id": "monster.leafshell_beetle",
+        "name": "叶壳甲虫",
+        "rank": "normal",
+        "profile": "sprout_guard",
+        "levelMin": "5",
+        "levelMax": "10",
+        "enabled": "1",
+        "attackMultiplier": "1"
+      },
+      {
+        "id": "monster.dawnfire_glowbug",
+        "name": "晨光萤",
+        "rank": "normal",
+        "profile": "sprout_magic",
+        "levelMin": "10",
+        "levelMax": "15",
+        "enabled": "1",
+        "attackMultiplier": "1"
+      },
+      {
         "id": "monster.cave_bat",
         "name": "洞穴蝙蝠",
         "rank": "normal",
-        "profile": "agile",
-        "levelMin": "3",
-        "levelMax": "8",
+        "profile": "cave_bat",
+        "levelMin": "10",
+        "levelMax": "20",
+        "enabled": "1",
+        "attackMultiplier": "1"
+      },
+      {
+        "id": "monster.cave_crystal_lizard",
+        "name": "洞穴晶蜥",
+        "rank": "normal",
+        "profile": "plain",
+        "levelMin": "10",
+        "levelMax": "20",
         "enabled": "1",
         "attackMultiplier": "1"
       },

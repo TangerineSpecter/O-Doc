@@ -48,9 +48,10 @@ def context(run: Exploration) -> dict:
                    for row in full.get('skills', [])],
     }
     level = adventure['progression'].get('level', 1)
-    dungeons = [{key: row[key] for key in ('id', 'name', 'recommended_level_min', 'recommended_level_max',
+    dungeons = [{**{key: row[key] for key in ('id', 'name', 'recommended_level_min', 'recommended_level_max',
                 'boss_id', 'boss_level_min', 'boss_level_max', 'boss_start_kills', 'boss_probability_step',
-                'boss_probability_cap', 'equipment_level_min', 'equipment_level_max') if key in row}
+                'boss_probability_cap', 'equipment_level_min', 'equipment_level_max') if key in row},
+                'has_boss': bool(row.get('boss_id'))}
                 for row in catalog.tables['dungeons'] if row.get('enabled') == '1']
     styles = [{key: row[key] for key in ('id', 'name', 'attack_weight', 'skill_weight', 'heal_threshold',
               'mana_threshold', 'defend_factor') if key in row}

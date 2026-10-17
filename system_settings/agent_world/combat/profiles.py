@@ -27,6 +27,10 @@ def apply_loadout_changes(profile, catalog, changes, owner):
     candidate = dict(profile.loadout)
     for slot, identity in changes.items():
         if slot not in EQUIPMENT_SLOTS:
+            if identity is None and slot in candidate:
+                # Let an explicit unequip remove a stale unsupported slot key on this profile.
+                candidate.pop(slot)
+                continue
             raise ValueError('未知装备部位')
         if identity is None:
             candidate.pop(slot, None)

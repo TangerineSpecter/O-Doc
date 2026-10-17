@@ -1,5 +1,5 @@
 {
-  "version": "design-0.16",
+  "version": "design-0.18",
   "status": "design_only",
   "engine_schema": 5,
   "files": {
@@ -20,28 +20,28 @@
       "rows": 350
     },
     "dungeons.csv": {
-      "sha256": "5491234715598235e095b8acdc6eadd9e7c84e88c584ea74e6f6a08f64d958cc",
-      "rows": 6
+      "sha256": "05fa7dcb2cdb5fd9a6e595f53c8e86bd2cd5d5eb3ec7dfd9c9270c96fe704c6b",
+      "rows": 7
     },
     "monsters.csv": {
-      "sha256": "bcbd68d0157161b541544cbd17c9e94d7962d56d8049578c423b15881bbd97b2",
-      "rows": 24
+      "sha256": "66743a6f21cc595ef1d82f36fc4a92acc674675d558f187b330e335c00fe63d7",
+      "rows": 28
     },
     "dungeon_monsters.csv": {
-      "sha256": "2f999ae7ce1faa4a5c0356f1448c4a96cbdbc2b663253db58b7f6196e521555f",
-      "rows": 18
+      "sha256": "908bfe0aafff135d8390c62ddad53e015be7281bdd664017553abdafa4311454",
+      "rows": 22
     },
     "monster_actions.csv": {
-      "sha256": "7c54d9037bb5af7fddb584e4f531ea59a563c53790635c97bc58f8f4705c161b",
-      "rows": 53
+      "sha256": "cc7c2242f10ebbb0a0309df1d2ef9cce54b905fd6737192f8ef42f218e38969a",
+      "rows": 57
     },
     "materials.csv": {
-      "sha256": "75145cc5c20ea6309319dbd53403c0958c7b909589275278e28d6e2d5f13f3eb",
-      "rows": 24
+      "sha256": "fcdeec55f2c77b60269bcd091d13f3a73f21fb6eb3050dd76b64fdcd8e3300d5",
+      "rows": 28
     },
     "drops.csv": {
-      "sha256": "03f8b2c280bf33e594a4971ad4efa4a0c2d56c560269667e7f4cc3980e0cb1ae",
-      "rows": 48
+      "sha256": "8f719b1d3fa832406af061dac954f26cbf8b7369d515682b9fc66f56d28bff25",
+      "rows": 56
     },
     "equipment_templates.csv": {
       "sha256": "d3c7922063f783377ec1daf9fbeb3d1d0b2ebb8298dbfb8fd7f5839d8e706ff8",
@@ -68,8 +68,8 @@
       "rows": 1147
     },
     "equipment_pools.csv": {
-      "sha256": "5bb2684ff448e826ff63eb0d20cd2f2cb56768819434fbc60d43452d857b2763",
-      "rows": 546
+      "sha256": "78464f1bb2c25c97707419f1d9212efaac32cdce59ab71924f0cd7c344bbd5de",
+      "rows": 637
     },
     "potions.csv": {
       "sha256": "dd4431e66a01c01e6f37360d582cdd50e73fac7093d707ef85bc7836ea72e978",
@@ -84,8 +84,8 @@
       "rows": 99
     },
     "monster_profiles.csv": {
-      "sha256": "babeb0b30b6dc42765c5962af7afe6a8fd63b88addbdd763caa9c64f01e84cf5",
-      "rows": 4
+      "sha256": "9d119f3c3a4caf913f3dde95ef6b62985eb873c2e1d7a55183244d4c475e911a",
+      "rows": 8
     },
     "monster_ranks.csv": {
       "sha256": "e0994f4de676e9fcc36d652f3fd1b53a70186c2a612ff4db105e4ba93751fad5",

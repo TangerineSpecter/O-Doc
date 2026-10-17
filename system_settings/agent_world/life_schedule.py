@@ -273,6 +273,8 @@ def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
     if clear_plan:
         context.pop('planned_on', None)
         context.pop('cooking_plan', None)
+        context.pop('daily_choice', None)
+        context.pop('travel_plan', None)
     elif item.activity == 'cooking' and context.get('cooking_plan'):
         from collections import Counter
         from copy import deepcopy
@@ -303,7 +305,7 @@ def requeue(item: LifeItem, reason: str) -> None:
         raise ValueError('每日市场机会不是普通生活次数，不能当作机会重新规划')
     if item.activity == 'travel':
         from .travel_models import TravelJourney
-        if TravelJourney.objects.filter(pk=item.pk).exists():
+        if TravelJourney.objects.filter(pk__in=[item.pk, execution_key(item)]).exists():
             raise ValueError('旅行请在旅行面板继续或取消')
     if item.status not in (*OPEN, 'failed'):
         raise ValueError('安排已经结束')
@@ -348,7 +350,7 @@ def retry_failed(item: LifeItem, reason: str) -> None:
             raise ValueError(blocked)
     if item.activity == 'travel':
         from .travel_models import TravelJourney
-        if TravelJourney.objects.filter(pk=item.pk).exists():
+        if TravelJourney.objects.filter(pk__in=[item.pk, execution_key(item)]).exists():
             raise ValueError('旅行请在旅行面板继续或取消')
     if item.activity in ('unplanned', ''):
         requeue(item, reason)

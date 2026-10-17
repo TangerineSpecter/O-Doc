@@ -1,8 +1,16 @@
 id,monster_id,item_kind,item_id,weight,quantity_min,quantity_max
 monster.slime.material,monster.slime,material,material.moss_cave.1,1,1,2
-monster.slime.equipment,monster.slime,equipment_pool,pool.moss_cave,1,1,1
+monster.slime.equipment,monster.slime,equipment_pool,pool.sprout_meadow,1,1,1
+monster.fuzzy_ear_rabbit.material,monster.fuzzy_ear_rabbit,material,material.sprout_meadow.rabbit,1,1,2
+monster.fuzzy_ear_rabbit.equipment,monster.fuzzy_ear_rabbit,equipment_pool,pool.sprout_meadow,1,1,1
+monster.leafshell_beetle.material,monster.leafshell_beetle,material,material.sprout_meadow.beetle,1,1,2
+monster.leafshell_beetle.equipment,monster.leafshell_beetle,equipment_pool,pool.sprout_meadow,1,1,1
+monster.dawnfire_glowbug.material,monster.dawnfire_glowbug,material,material.sprout_meadow.glowbug,1,1,2
+monster.dawnfire_glowbug.equipment,monster.dawnfire_glowbug,equipment_pool,pool.sprout_meadow,1,1,1
 monster.cave_bat.material,monster.cave_bat,material,material.moss_cave.2,1,1,2
 monster.cave_bat.equipment,monster.cave_bat,equipment_pool,pool.moss_cave,1,1,1
+monster.cave_crystal_lizard.material,monster.cave_crystal_lizard,material,material.moss_cave.crystal_lizard,1,1,2
+monster.cave_crystal_lizard.equipment,monster.cave_crystal_lizard,equipment_pool,pool.moss_cave,1,1,1
 monster.moss_beast.material,monster.moss_beast,material,material.moss_cave.3,1,1,2
 monster.moss_beast.equipment,monster.moss_beast,equipment_pool,pool.moss_cave,1,1,1
 monster.moss_king.material,monster.moss_king,material,material.moss_cave.4,1,1,2

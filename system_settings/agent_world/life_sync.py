@@ -32,6 +32,17 @@ def reconcile_life() -> None:
         if not config:raise SyncError('生活快照缺少所属配置')
         # 已删除居民允许历史保留；活跃配置必须可解释。
         for item in LifeItem.objects.filter(owner_id=owner):
+            try:
+                if 'travel_plan' in item.context:
+                    from .life_daily_travel import validate_snapshot
+                    if item.activity != 'travel':
+                        raise ValueError('旅行目的地属于其他活动')
+                    validate_snapshot(item.context['travel_plan'])
+                if 'daily_choice' in item.context:
+                    from .life_daily_planner import validate_checkpoint
+                    validate_checkpoint(item.context['daily_choice'], item.pk)
+            except (ValueError, TypeError, KeyError) as exc:
+                raise SyncError('整日日程意向或旅行目的地依据无效') from exc
             if 'cooking_plan' in item.context:
                 from .cooking_schedule_plan import validate_plan
                 try:

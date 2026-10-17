@@ -1,6 +1,10 @@
 id,name,rank,profile,level_min,level_max,enabled
 monster.slime,软泥怪,normal,plain,1,5,1
-monster.cave_bat,洞穴蝙蝠,normal,agile,3,8,1
+monster.fuzzy_ear_rabbit,绒耳兔,normal,sprout_agile,1,7,1
+monster.leafshell_beetle,叶壳甲虫,normal,sprout_guard,5,10,1
+monster.dawnfire_glowbug,晨光萤,normal,sprout_magic,10,15,1
+monster.cave_bat,洞穴蝙蝠,normal,cave_bat,10,20,1
+monster.cave_crystal_lizard,洞穴晶蜥,normal,plain,10,20,1
 monster.moss_beast,苔石兽,elite,armored,8,12,1
 monster.moss_king,苔冠巨兽,boss,armored,10,12,1
 monster.mine_rat,矿洞鼠,normal,agile,10,16,1

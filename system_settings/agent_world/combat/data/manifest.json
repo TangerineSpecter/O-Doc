@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.16",
+  "version": "combat-1.0.18",
   "status": "released",
   "engine_schema": 5,
   "files": {
@@ -16,24 +16,24 @@
       "rows": 6
     },
     "drops.csv": {
-      "sha256": "03f8b2c280bf33e594a4971ad4efa4a0c2d56c560269667e7f4cc3980e0cb1ae",
-      "rows": 48
+      "sha256": "8f719b1d3fa832406af061dac954f26cbf8b7369d515682b9fc66f56d28bff25",
+      "rows": 56
     },
     "dungeon_monsters.csv": {
-      "sha256": "2f999ae7ce1faa4a5c0356f1448c4a96cbdbc2b663253db58b7f6196e521555f",
-      "rows": 18
+      "sha256": "908bfe0aafff135d8390c62ddad53e015be7281bdd664017553abdafa4311454",
+      "rows": 22
     },
     "dungeons.csv": {
-      "sha256": "ec042d9b13562b602c7b288529878e29897ce6a6c423331600d91e8e574b0f8f",
-      "rows": 6
+      "sha256": "2811b3333921d92e8ae30aac87e0b66f90e352dbfad9805705fdaebaf72e028f",
+      "rows": 7
     },
     "equipment_affixes.csv": {
       "sha256": "7fd946754cc70df1d89a898a35a8d56d798f12f2a48348c70b0307fd2957522c",
       "rows": 1147
     },
     "equipment_pools.csv": {
-      "sha256": "a96bbf0e17893898565e7e06a39762a249fede479e7f6e31141d6606ec50ef52",
-      "rows": 546
+      "sha256": "78464f1bb2c25c97707419f1d9212efaac32cdce59ab71924f0cd7c344bbd5de",
+      "rows": 637
     },
     "equipment_professions.csv": {
       "sha256": "1b8557caeb7b0bc3b51f7f3bbbaab807d2fd4d3e03dd0c54c99fecc23909bdc3",
@@ -48,24 +48,24 @@
       "rows": 99
     },
     "materials.csv": {
-      "sha256": "75145cc5c20ea6309319dbd53403c0958c7b909589275278e28d6e2d5f13f3eb",
-      "rows": 24
+      "sha256": "fcdeec55f2c77b60269bcd091d13f3a73f21fb6eb3050dd76b64fdcd8e3300d5",
+      "rows": 28
     },
     "monster_actions.csv": {
-      "sha256": "7c54d9037bb5af7fddb584e4f531ea59a563c53790635c97bc58f8f4705c161b",
-      "rows": 53
+      "sha256": "cc7c2242f10ebbb0a0309df1d2ef9cce54b905fd6737192f8ef42f218e38969a",
+      "rows": 57
     },
     "monster_profiles.csv": {
-      "sha256": "babeb0b30b6dc42765c5962af7afe6a8fd63b88addbdd763caa9c64f01e84cf5",
-      "rows": 4
+      "sha256": "9d119f3c3a4caf913f3dde95ef6b62985eb873c2e1d7a55183244d4c475e911a",
+      "rows": 8
     },
     "monster_ranks.csv": {
       "sha256": "81ceb4e8e5fa7640bbec6433f28a37712f8433e6e6da1082afb4e749fd10ec03",
       "rows": 3
     },
     "monsters.csv": {
-      "sha256": "aec13316738cd6b1a962eb25c303c3a1baa8eb96123956f20107c78c14d1c911",
-      "rows": 24
+      "sha256": "083de374f5d6ec4080195f7402caa921be055f2c759a5d0058687bcb2f7e09ec",
+      "rows": 28
     },
     "potions.csv": {
       "sha256": "dd4431e66a01c01e6f37360d582cdd50e73fac7093d707ef85bc7836ea72e978",

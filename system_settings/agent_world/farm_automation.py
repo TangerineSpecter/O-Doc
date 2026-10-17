@@ -19,8 +19,9 @@ def apply_progress(state: dict, operation: dict, opportunity_id: str, result: di
     if not context:
         return
     result['execution_mode'] = 'queue'
-    if operation['kind'] == 'harvest':
-        result['source_plans'] = context.get('origins', [])
+    if operation['kind'] in ('harvest', 'collect'):
+        if operation['kind'] == 'harvest':
+            result['source_plans'] = context.get('origins', [])
         return
     pid, eid = context['plan_id'], context['entry_id']
     plan = state['planting_plans'][pid]
@@ -68,6 +69,18 @@ def tend_farm(farm_id: str, world_token: str, agent_token: str, task: AgentTask,
     plan = current(farm, now)
     if plan and plan.get('activated_at') and plan['wait_states'].get('plan') in ('paused', 'travel', 'busy', 'mcp-disabled'):
         event(plan, 'recovered', '执行条件恢复，继续检查实际状态', now)
+    # Entering the farm collects existing production through the same ledger and
+    # cycle transition as manual collect. Half-hour queue polls do not add work.
+    animals = [a for a in farm.state['animals'] if a['cycle'].get('result')] if force else []
+    while animals and stamina(agent, now) >= 2:
+        batch = animals[:4]
+        cycles = sorted(f"{a['id']}:{a['cycle']['number']}" for a in batch)
+        key = hashlib.sha256(('farm-collect:' + ':'.join(cycles)).encode()).hexdigest()
+        save(farm, now)
+        commit(farm, key, {'kind': 'collect', 'targets': [a['id'] for a in batch]},
+               task, agent_token, world_token, now, {})
+        farm.refresh_from_db(); agent.refresh_from_db(); plan = current(farm, now)
+        animals = [a for a in farm.state['animals'] if a['cycle'].get('result')]
     ready = [p for p in farm.state['plots'] if p.get('crop') and p['crop']['grown'] >= p['crop']['rules']['growth_seconds']]
     while ready and stamina(agent, now) >= 2:
         batch = ready[:4]

@@ -14,6 +14,12 @@ def needs_replanning(owner: str, agent, item) -> bool:
     if sum((remaining_reservation(row) for row in rows), Decimal(0)) > agent.money:
         return True
     if item.activity == 'travel':
+        if item.context.get('travel_plan'):
+            from .life_daily_travel import recheck
+            from .farm_queue_decision import available_cash
+            recheck(item.context['travel_plan'], min(remaining_reservation(item),
+                available_cash(owner, agent.pk, exclude_ids=[item.pk])))
+            return False
         from .travel_models import TravelDestination
         minimum = TravelDestination.objects.filter(enabled=True).aggregate(value=Min('price'))['value']
         if minimum is None:

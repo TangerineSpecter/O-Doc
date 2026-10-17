@@ -18,6 +18,10 @@ import riftWalker from '../../../assets/combat/monster-rift-walker-v1.png';
 import starGolem from '../../../assets/combat/monster-star-golem-v1.png';
 import riftLord from '../../../assets/combat/monster-rift-lord-v1.png';
 import starOverlord from '../../../assets/combat/monster-star-overlord-v1.png';
+import fuzzyEarRabbit from '../../../assets/combat/monster-fuzzy-ear-rabbit-v1.png';
+import leafshellBeetle from '../../../assets/combat/monster-leafshell-beetle-v1.png';
+import dawnfireGlowbug from '../../../assets/combat/monster-dawnfire-glowbug-v1.png';
+import caveCrystalLizard from '../../../assets/combat/monster-cave-crystal-lizard-v1.png';
 
 interface MonsterPixelArt {
     src: string;
@@ -46,6 +50,10 @@ export const monsterPixelArt: Readonly<Record<string, MonsterPixelArt>> = {
     'monster.star_golem': {src: starGolem, status: 'approved'},
     'monster.rift_lord': {src: riftLord, status: 'approved'},
     'monster.star_overlord': {src: starOverlord, status: 'approved'},
+    'monster.fuzzy_ear_rabbit': {src: fuzzyEarRabbit, status: 'approved'},
+    'monster.leafshell_beetle': {src: leafshellBeetle, status: 'approved'},
+    'monster.dawnfire_glowbug': {src: dawnfireGlowbug, status: 'approved'},
+    'monster.cave_crystal_lizard': {src: caveCrystalLizard, status: 'approved'},
 };
 
 export function getMonsterPixelArt(monsterId: string, includeDrafts = false): string | undefined {

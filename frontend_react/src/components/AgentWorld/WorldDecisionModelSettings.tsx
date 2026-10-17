@@ -11,7 +11,6 @@ import type {AIModel} from '../../types/api/setting';
 
 const decisionSceneLabels = {
     market: '市场选择',
-    life_activity: '生活活动选择',
     life_budget: '生活预算选择',
     farm_queue: '农场种植队列规划',
     cooking_recipe: '美食菜谱选择',
@@ -126,7 +125,7 @@ export function WorldDecisionModelSettings() {
                 <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-bold text-slate-800">统一决策设置</h3>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                        有限候选选择使用结构化决策连接；不可用时回退普通文本模型。正文生成仍使用任务、居民和系统模型。
+                        日程安排始终使用普通文本模型，一次规划当天全部行动时段。其他有限候选选择可使用结构化决策连接；正文生成仍使用任务、居民和系统模型。
                     </p>
                 </div>
             </div>
@@ -138,7 +137,7 @@ export function WorldDecisionModelSettings() {
 
             <div className="mt-5 max-w-2xl space-y-2">
                 <label className="block space-y-2 text-sm font-semibold text-slate-700">
-                    <span>普通文本决策模型（兜底）</span>
+                    <span>普通文本模型（日程规划及决策兜底）</span>
                     {loading ? (
                         <span className="flex min-h-10 items-center gap-2 text-xs font-normal text-slate-400">
                             <Loader2 className="h-4 w-4 animate-spin" />正在加载模型…

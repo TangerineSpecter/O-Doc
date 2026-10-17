@@ -19,10 +19,22 @@ export interface LifeCookingPlan {
     }>;
     materials: Array<{sku: string; quantity: number}>;
 }
+export interface LifeTravelPlan {
+    destination: {id: string; countryCode: string; country: string; region: string; city: string;
+        price: string; visited?: boolean; requiredBudget?: string};
+    budget: string;
+    budgetSource: 'structured' | 'price_tier';
+    quotedAt: string;
+}
+export interface LifeDailyChoice {
+    time: string;
+    plan: {id: string; activity: string; reason: string; offeredActivities?: string[]; travelPlan?: LifeTravelPlan};
+}
 export interface LifeItem {
     id: string; actorId: string; originalAt: string; scheduledAt: string; activity: string; taskId: string;
     status: string; intent: string; budget: string; spent: string; recordId: string;
-    result: {reason?: string}; context?: Record<string, unknown> & {cookingPlan?: LifeCookingPlan};
+    result: {reason?: string}; context?: Record<string, unknown> & {
+        cookingPlan?: LifeCookingPlan; travelPlan?: LifeTravelPlan; dailyChoice?: LifeDailyChoice};
     retryAvailable?: boolean; retryBlockedReason?: string;
     revisions?: Array<{id: string; before: Record<string, unknown>; after: Record<string, unknown>; reason: string; createdAt: string}>;
 }

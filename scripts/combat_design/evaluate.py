@@ -109,7 +109,7 @@ def budget_sample(tables: dict, dungeon: dict, duration: int, kill_seconds: int,
     boss_encountered = False
     for elapsed in range(kill_seconds, duration * 60, kill_seconds):
         budget.advance(elapsed - budget.seconds)
-        is_boss = not boss_encountered and rng.random() < boss_chance(ordinary_kills)
+        is_boss = bool(dungeon['boss_id']) and not boss_encountered and rng.random() < boss_chance(ordinary_kills)
         if is_boss:
             boss_encountered = True
             monster = monsters[dungeon['boss_id']]
@@ -313,11 +313,11 @@ def main() -> None:
 
 ## Boss 概率
 
-每次生成新遭遇时检查一次；击败 12、20、30、40 只普通/精英怪后，对应下一次遭遇概率为 1%、9%、19%、25%。这不是整场累计概率。假设持续击败全部遭遇，第一次达门槛后的连续抽样中，到 20 次普通击杀后的那次抽样累计约 37.2%，到 30 次约 86.9%，到 40 次约 99.1%；一次探索最多遭遇一次 Boss，持续增加击杀不重复发 Boss 奖励。精确值由相应独立不命中概率连乘计算，实际还受战斗时间和失败影响。
+有 Boss 的区域每次生成新遭遇时检查一次；击败 12、20、30、40 只普通/精英怪后，对应下一次遭遇概率为 1%、9%、19%、25%。新手区域没有 Boss，概率恒为 0。这不是整场累计概率。假设持续击败全部遭遇，第一次达门槛后的连续抽样中，到 20 次普通击杀后的那次抽样累计约 37.2%，到 30 次约 86.9%，到 40 次约 99.1%；一次探索最多遭遇一次 Boss，持续增加击杀不重复发 Boss 奖励。精确值由相应独立不命中概率连乘计算，实际还受战斗时间和失败影响。
 
 ## 掉落与价值抽样
 
-6 个地牢 × 3 种时长 × 3 种击杀间隔 × 500 个固定种子，共 27,000 次抽样。所有场景从零掉落额度开始，角色等级为该地牢推荐上限；假设每 45/90/180 秒按时击败怪物，Boss 也使用同样间隔。此模型故意不实现战斗伤害，因此是**产出预算压力测试**，较快间隔不是实际职业效率结论。
+7 个地牢 × 3 种时长 × 3 种击杀间隔 × 500 个固定种子，共 31,500 次抽样。所有场景从零掉落额度开始，角色等级为该地牢推荐上限；假设每 45/90/180 秒按时击败怪物，Boss 也使用同样间隔。新芽草甸不会抽取 Boss。此模型故意不实现战斗伤害，因此是**产出预算压力测试**，较快间隔不是实际职业效率结论。
 
 | 地牢 | 60 分钟、90 秒击杀的平均装备数 | 平均材料数 | 平均回收参考价值 |
 | --- | ---: | ---: | ---: |

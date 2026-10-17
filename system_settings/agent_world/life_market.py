@@ -88,19 +88,20 @@ def execute_daily_market(config: LifeConfig, agent: Agent, item: LifeItem, sched
     runtime = WorldActionRuntime.objects.filter(pk='world').first()
     if not runtime or not runtime.enabled or (runtime.token and runtime.until and runtime.until > timezone.now()):
         return
-    busy = agent.pk in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=agent.pk, until__gt=timezone.now()).exists()
+    from .life_occupancy import occupied
+    busy = occupied(item)
     if busy or stamina(agent) < 5:
         settings = {**DEFAULTS, **effective_settings(config, now)}
         point = now + timedelta(minutes=settings['min_gap_minutes'])
         _, right = window(settings, local_time(item.original_at).date())
-        if item.attempts >= 3 or point >= right:
+        if (not busy and item.attempts >= 3) or point >= right:
             energy_insufficient = stamina(agent) < 5
             status = 'rest' if energy_insufficient else 'failed'
-            reason = '体力不足以进入市场' if energy_insufficient else '居民持续忙碌，已达到顺延上限'
+            reason = '体力不足以进入市场' if energy_insufficient else '前一活动持续至当天市场窗口结束'
             revise(item, '当天无法逛市场，本次机会结束', status=status, result={'reason': reason})
         else:
             revise(item, '居民忙碌或体力不足，当天顺延市场机会', status='deferred',
-                   scheduled_at=point, attempts=item.attempts + 1)
+                   scheduled_at=point, attempts=item.attempts + (0 if busy else 1))
         return
     prior_status = item.status
     with transaction.atomic():

@@ -1,6 +1,10 @@
 id,name,level,sale_price,enabled
 material.moss_cave.1,黏液,1,1.04,1
+material.sprout_meadow.rabbit,绒耳兔毛,1,1.04,1
+material.sprout_meadow.beetle,叶壳碎片,5,1.20,1
+material.sprout_meadow.glowbug,晨光粉尘,10,1.40,1
 material.moss_cave.2,蝠翼,3,1.12,1
+material.moss_cave.crystal_lizard,晶蜥鳞,10,1.40,1
 material.moss_cave.3,苔石碎片,8,1.32,1
 material.moss_cave.4,苔石洞窟印记,12,1.48,1
 material.abandoned_mine.1,矿鼠皮,10,1.40,1

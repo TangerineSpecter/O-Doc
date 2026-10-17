@@ -18,7 +18,7 @@ export default function CombatAtlasPreviewApp() {
     return <main className="flex h-dvh flex-col bg-slate-50 p-3 text-slate-800 sm:p-6">
         <header className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-semibold tracking-widest text-slate-400">ADVENTURE ATLAS / ART PREVIEW</p><h1 className="mt-1 text-xl font-bold">冒险图鉴</h1></div>
             <nav className="flex flex-wrap gap-1 rounded-full border border-slate-200 bg-white p-1" aria-label="图鉴预览分类">
-                {[['professions','职业 · 29'],['monsters','怪物 · 24'],['equipment','装备'],['materials','材料 · 24'],['overview','形象总览'],['skills','技能总览']].map(([id,name])=><button type="button" key={id} aria-pressed={tab===id} onClick={()=>setTab(id)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${tab===id?'bg-orange-50 text-orange-700':'text-slate-500'}`}>{name}</button>)}
+                {[['professions','职业 · 29'],['monsters','怪物 · 28'],['equipment','装备'],['materials','材料 · 28'],['overview','形象总览'],['skills','技能总览']].map(([id,name])=><button type="button" key={id} aria-pressed={tab===id} onClick={()=>setTab(id)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${tab===id?'bg-orange-50 text-orange-700':'text-slate-500'}`}>{name}</button>)}
             </nav>
         </header>
         <div className="min-h-0 flex-1 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">

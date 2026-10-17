@@ -80,6 +80,10 @@ class LifeTests(TestCase):
         ensure_profiles('admin',self.ids)
         WorldActionRuntime.objects.create(pk='world',enabled=True)
         self.task=AgentTask.objects.create(name='投资',agent=self.agents[0],agent_ids=[self.ids[0]],task_kind='investment',investment_config={'owner_id':'admin'},enabled=True)
+        def text_schedule(agent, instruction, context, **kwargs):
+            return {'plans': [{'id': slot['id'], 'activity': 'investment', 'reason': '按当前资金安排投资'}
+                              for slot in context.get('slots', [])], 'goal_updates': []}
+        self.enterContext(patch('system_settings.agent_world.life_planner.ask', side_effect=text_schedule))
 
     def item(self,identity='one',**values):
         defaults={'owner_id':'admin','actor_id':self.ids[0],'original_at':NOW,'scheduled_at':NOW}
@@ -322,21 +326,22 @@ class LifeTests(TestCase):
                 plan_items(self.config, self.agents[0], [item])
         item.refresh_from_db()
         self.assertEqual(item.activity, 'unplanned')
-        self.assertFalse(item.revisions.exists())
+        self.assertIn('daily_choice', item.context)
         with patch('system_settings.agent_world.life_choices.choose_scene', return_value='conservative'):
             plan_items(self.config, self.agents[0], [item])
         item.refresh_from_db()
         self.assertEqual(item.activity, 'investment')
         self.assertEqual(item.budget, Decimal('1000'))
-        self.assertIn('10%', item.revisions.get().reason.replace('％', '%'))
+        self.assertTrue(any('10%' in row.reason.replace('％', '%') for row in item.revisions.all()))
 
     def test_new_life_plan_rejects_voluntary_rest(self):
         from .life_planner import plan_items
         item = self.item()
         AgentTask.objects.create(name='阅读', agent=self.agents[0], task_kind='post_interaction', enabled=True,
                                  world_state={'owner_id': 'admin'})
-        with patch('system_settings.agent_world.life_choices.choose_scene', return_value='rest'):
-            with self.assertRaisesMessage(ValueError, '合法候选'):
+        with patch('system_settings.agent_world.life_planner.ask', return_value={
+                'plans': [{'id': item.pk, 'activity': 'rest', 'reason': '想休息'}]}):
+            with self.assertRaisesMessage(ValueError, '活动或选择原因无效'):
                 plan_items(self.config, self.agents[0], [item])
         item.refresh_from_db()
         self.assertEqual(item.activity, 'unplanned')
@@ -347,7 +352,7 @@ class LifeTests(TestCase):
         from .life_runner import tick_life
         item=self.item(scheduled_at=NOW,activity='unplanned')
         with patch('django.utils.timezone.now', return_value=NOW), \
-                patch('system_settings.agent_world.life_sequential_planner.choose', side_effect=ValueError('模拟候选校验失败')):
+                patch('system_settings.agent_world.life_planner.ask', side_effect=ValueError('模拟候选校验失败')):
             tick_life(None)
         item.refresh_from_db()
         self.assertEqual(item.status,'deferred')
@@ -378,7 +383,7 @@ class LifeTests(TestCase):
         from .life_travel_budget import review_travel_budget
         item=self.item(activity='travel',budget=1000,status='running')
         self.item('later',activity='investment',budget=9000)
-        trip=SimpleNamespace(pk=item.pk,agent=self.agents[0])
+        trip=SimpleNamespace(pk=item.pk,agent=self.agents[0],actor_id=item.actor_id,owner_id=item.owner_id)
         decision={'allocations':[{'id':item.pk,'budget':'2000'},{'id':'later','budget':'8000'}],'reason':'真实旅费增加，减少后续可选购物'}
         with patch('system_settings.agent_world.travel_ai.ask',return_value=decision):
             review_travel_budget(trip,Decimal('1500'))
