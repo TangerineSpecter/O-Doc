@@ -19,6 +19,8 @@ interface SyncConfirmationModalsProps {
     onCloseForceUpload: () => void;
     onCancel: () => Promise<void>;
     onDownload: () => Promise<void>;
+    onCompareDownload: () => Promise<void>;
+    onCompareUpload: () => Promise<void>;
     onRestore: () => Promise<void>;
     onImport: () => Promise<void>;
     onForceUpload: () => Promise<void>;
@@ -41,6 +43,8 @@ export const SyncConfirmationModals = ({
     onCloseForceUpload,
     onCancel,
     onDownload,
+    onCompareDownload,
+    onCompareUpload,
     onRestore,
     onImport,
     onForceUpload,
@@ -64,12 +68,13 @@ export const SyncConfirmationModals = ({
             title="确认从云端同步下载？"
             description={
                 <div className="space-y-2 text-xs leading-relaxed text-slate-600">
-                    <p>该操作将以云端快照为准全量覆盖并对齐本机数据：</p>
+                    <p>确认后以云端快照为准覆盖本机。农场播种窗口、生活摘要、目录完整性或居民记忆来源不一致不会再拦住这次下载，写入后会自动整理到能继续使用。</p>
                     <ul className="list-disc pl-4 text-rose-600 font-medium space-y-0.5">
                         <li>快照中不存在的文集、图书与图片等会被删除</li>
                         <li>本地未上传至云端的修改将会丢失且无法直接找回</li>
                     </ul>
-                    <p className="text-slate-500">建议在下载前先点击「导出本地备份」保存当前数据。确定继续？</p>
+                    <p className="text-slate-500">建议在下载前先点击「导出本地备份」保存当前数据。若不想整库覆盖，可以逐条对比后再选。</p>
+                    <button type="button" onClick={() => void onCompareDownload()} className="text-xs font-medium text-orange-700 hover:text-orange-800">不覆盖，逐条对比</button>
                 </div>
             }
             confirmText="确认覆盖下载"
@@ -88,7 +93,8 @@ export const SyncConfirmationModals = ({
                     <p className="text-rose-600 font-medium">
                         云端独有记录会从当前版本中移除。
                     </p>
-                    <p className="text-slate-500">上传前会生成本机安全快照，远端历史快照仍按现有保留策略保留。确定继续？</p>
+                    <p className="text-slate-500">上传前会生成本机安全快照。播种窗口、生活摘要或居民记忆来源不一致不再阻止覆盖；能自动对齐的会先整理再上传。远端历史快照仍按现有保留策略保留。</p>
+                    <button type="button" onClick={() => void onCompareUpload()} className="text-xs font-medium text-orange-700 hover:text-orange-800">不覆盖，逐条对比</button>
                 </div>
             }
             confirmText="强制覆盖云端"

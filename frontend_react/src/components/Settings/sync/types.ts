@@ -7,6 +7,24 @@ import type {
 
 export type SyncDirection = "upload" | "download";
 
+export interface SyncConflict {
+  key: string;
+  model: string;
+  label: string;
+  remoteLabel: string;
+  localAt: string;
+  remoteAt: string;
+  suggested: "local" | "remote";
+}
+
+export interface SyncRequest {
+  forceOverwrite?: boolean;
+  compare?: boolean;
+  resolutions?: { key: string; side: "local" | "remote" }[];
+  resolutionDefault?: "local" | "remote";
+  choicesConfirmed?: boolean;
+}
+
 export interface SyncSettingsProps {
   config: WebDavConfig;
   status: WebDavSyncStatus;
@@ -23,6 +41,9 @@ export interface SyncOperationState {
   isRestoringHistory: string;
   isCancelling: boolean;
   isForceUploadConfirmOpen: boolean;
+  conflicts: SyncConflict[];
+  conflictTotal: number;
+  conflictDirection: SyncDirection;
   logs: string[];
   progress: number;
   history: SyncHistoryEntry[];

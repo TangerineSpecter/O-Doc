@@ -44,6 +44,7 @@ import {
 } from '@/api/setting.ts';
 import {useSyncOperations} from './sync/useSyncOperations';
 import {SyncConfirmationModals} from './sync/SyncConfirmationModals';
+import {SyncConflictModal} from './sync/SyncConflictModal';
 import {
     defaultPortForProtocol,
     formatBytes,
@@ -76,6 +77,8 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         isRestoringHistory,
         isCancelling,
         isForceUploadConfirmOpen,
+        conflicts,
+        conflictTotal,
         isServerSyncing,
         isCancelRequested,
         isTransferBusy,
@@ -1039,11 +1042,26 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                 onCancel={handleCancelSync}
                 onDownload={async () => {
                     setIsDownloadConfirmOpen(false);
-                    await startSyncStream('download');
+                    await startSyncStream('download', {forceOverwrite: true});
+                }}
+                onCompareDownload={async () => {
+                    setIsDownloadConfirmOpen(false);
+                    await startSyncStream('download', {compare: true});
+                }}
+                onCompareUpload={async () => {
+                    actions.dismissForceUpload();
+                    await startSyncStream('upload', {compare: true});
                 }}
                 onRestore={executeRestoreHistory}
                 onImport={executeImportBackup}
                 onForceUpload={actions.confirmForceUpload}
+            />
+            <SyncConflictModal
+                conflicts={conflicts}
+                total={conflictTotal}
+                busy={isSyncing}
+                onClose={actions.dismissConflicts}
+                onConfirm={actions.confirmConflicts}
             />
         </div>
     );

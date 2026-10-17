@@ -44,20 +44,49 @@ class OverwriteConfirmationRequired(SyncError):
     """当前目录存在备份，手动上传需要先确认替换。"""
 
 
+class SyncChoicesRequired(SyncError):
+    """两端都改过同一条记录。调用方把列表交回用户，不把这次同步记成失败。"""
+
+    def __init__(self, conflicts, total):
+        super().__init__(f'有 {total} 条记录两端都改过。请逐条选择保留本机或云端，未选择的用较新一侧。')
+        self.conflicts = conflicts
+        self.total = total
+
+
+_SCHEMA_GUARD_MARKERS = ('版本过新', '版本高于', '请升级', '请先升级')
+
+
+def schema_guard(exc: BaseException) -> bool:
+    """更高的快照或目录版本仍然拒绝；单机最新代码读不了未来格式。"""
+    text = str(exc)
+    return any(marker in text for marker in _SCHEMA_GUARD_MARKERS)
+
+
 def format_sync_result(summary, safety_backup=''):
     if summary.get('unchanged'):
         return '数据与媒体均未变化，已跳过全量合并与上传。'
     backup_name = os.path.basename(safety_backup) if safety_backup else '未创建'
+    repairs = summary.get('repairs') or []
+    warnings = summary.get('integrity_warnings') or []
+    extra = ''
+    if repairs:
+        extra += f'；已自动整理 {len(repairs)} 处，使农场、生活或记忆可以继续使用'
+    if warnings:
+        extra += f'；另有 {len(warnings)} 条完整性提示，未中断同步'
     if summary.get('initial_upload'):
-        return f"首次上传完成，本机快照已发布；本机安全快照：{backup_name}"
+        return f"首次上传完成，本机快照已发布；本机安全快照：{backup_name}{extra}"
+    if summary.get('force_overwrite') and summary.get('direction') == 'download':
+        return (
+            f"已用云端快照覆盖本机：写入 {summary.get('updated', 0)} 条；本机安全快照：{backup_name}{extra}"
+        )
     if summary.get('force_overwrite'):
         return (
             f"已强制覆盖远端当前快照：新增 {summary.get('created', 0)}、更新 {summary.get('updated', 0)}、"
-            f"移除远端独有记录 {summary.get('deleted', 0)}；本机安全快照：{backup_name}"
+            f"移除远端独有记录 {summary.get('deleted', 0)}；本机安全快照：{backup_name}{extra}"
         )
     return (
         f"v2 合并完成：新增 {summary.get('created', 0)}、更新 {summary.get('updated', 0)}、"
-        f"删除 {summary.get('deleted', 0)}、冲突自动处理 {summary.get('conflicts', 0)}；本机安全快照：{backup_name}"
+        f"删除 {summary.get('deleted', 0)}、冲突自动处理 {summary.get('conflicts', 0)}；本机安全快照：{backup_name}{extra}"
     )
 
 
@@ -749,43 +778,117 @@ class SyncManager:
             if os.path.isfile(path):
                 Book.objects.filter(book_id=book.book_id).update(remote_available=True, remote_hash=book.asset.file_hash)
 
+    def _guard_integrity(self, label, fn, *, relax):
+        """严格模式原样抛出。覆盖或对比模式只拦截未来版本，其余完整性问题记成提示。"""
+        if not relax:
+            return fn()
+        try:
+            return fn()
+        except SyncError as exc:
+            if schema_guard(exc):
+                raise
+            warnings = getattr(self, '_integrity_warnings', None)
+            if warnings is None:
+                warnings = []
+                self._integrity_warnings = warnings
+            warnings.append(f'{label}：{exc}')
+            return None
+
+    @staticmethod
+    def _choice_map(resolutions, resolution_default):
+        chosen = {}
+        if isinstance(resolutions, dict):
+            pairs = resolutions.items()
+        elif isinstance(resolutions, list):
+            pairs = ((item.get('key'), item.get('side')) for item in resolutions if isinstance(item, dict))
+        else:
+            pairs = ()
+        for key, side in pairs:
+            if key and side in ('local', 'remote'):
+                chosen[str(key)] = side
+        default = resolution_default if resolution_default in ('local', 'remote') else ''
+        return chosen, default
+
+    def _pick_revision(self, local_changed, remote_changed, local_rev, remote_rev, choice):
+        both_differ = bool(local_changed and remote_changed and local_rev != remote_rev)
+        if both_differ and choice in ('local', 'remote'):
+            return (local_rev if choice == 'local' else remote_rev), True
+        if self._is_permanent_delete(local_rev) != self._is_permanent_delete(remote_rev):
+            return self._revision_winner(local_rev, remote_rev), both_differ
+        if both_differ:
+            return self._revision_winner(local_rev, remote_rev), True
+        if remote_changed:
+            return remote_rev, False
+        return local_rev, False
+
+    @staticmethod
+    def _item_label(item):
+        if not item:
+            return '（这一侧没有记录）'
+        fields = item.get('fields') or {}
+        for name in ('title', 'name', 'content', 'summary', 'username'):
+            value = fields.get(name)
+            if isinstance(value, str) and value.strip():
+                return value.strip().replace('\n', ' ')[:80]
+        return str(item.get('pk'))
+
+    @staticmethod
+    def _automatic_memory(item):
+        if not item or item.get('model') != 'system_settings.agentlongtermmemory':
+            return False
+        from system_settings.agent_world.memory.sync import is_automatic
+        return is_automatic(item)
+
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
-    def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
-        """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
-        data_list = travel_sync.expand(data_list, remote_meta)
+    def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None, integrity='strict'):
+        """把快照写回数据库。full_overwrite 用于整库覆盖。integrity=repair 时领域校验改为提示，写完后由调用方整理。"""
+        relax = integrity == 'repair'
+        self._integrity_warnings = []
+
+        def guard(label, fn):
+            return self._guard_integrity(label, fn, relax=relax)
+
+        expanded = guard('旅行目录', lambda: travel_sync.expand(data_list, remote_meta))
+        if expanded is not None:
+            data_list = expanded
         from system_settings.agent_world.life_snapshot import normalize_source as normalize_life_source
-        data_list = normalize_life_source(data_list)
+        normalized = guard('生活摘要', lambda: normalize_life_source(data_list))
+        if normalized is not None:
+            data_list = normalized
         from system_settings.agent_world.memory.sync import validate_source as validate_memories
-        validate_memories(data_list, remote_meta)
+        guard('居民记忆', lambda: validate_memories(data_list, remote_meta))
         from article.image_search_service import delete_image_vectors
         from article.models import ImageVisualIndex
 
         from learning.sync import validate as validate_learning
-        validate_learning(data_list, remote_meta)
+        guard('学习', lambda: validate_learning(data_list, remote_meta))
         from novel.sync import validate as validate_novel
-        validate_novel(data_list, remote_meta)
+        guard('小说', lambda: validate_novel(data_list, remote_meta))
         from memos.sprout_sync import validate as validate_sprouts
-        validate_sprouts(data_list, remote_meta)
+        guard('闪念发芽', lambda: validate_sprouts(data_list, remote_meta))
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
-        validate_crops(data_list, remote_meta)
+        guard('农场', lambda: validate_crops(data_list, remote_meta))
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_dishes
-        cooking_source_hashes = validate_dishes(data_list, remote_meta)
+        cooking_source_hashes = guard('烹饪', lambda: validate_dishes(data_list, remote_meta)) or {}
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
-        validate_combat(data_list, remote_meta)
-        expected_social = (remote_meta or {}).get('social_owners')
-        if expected_social is not None:
-            restored_social = {str(item.get('pk')) for item in data_list
-                               if item.get('model') == 'system_settings.socialintegrity'}
-            if set(expected_social) != restored_social:
-                raise SyncError('社交快照缺少完整性记录，拒绝恢复')
+        guard('战斗', lambda: validate_combat(data_list, remote_meta))
 
-        expected_cooking = (remote_meta or {}).get('cooking_owners')
-        if expected_cooking is not None:
-            actual = {str(item.get('pk')) for item in data_list if item.get('model') == 'system_settings.cookingintegrity'}
-            if set(expected_cooking) != actual:
-                raise SyncError('烹饪快照缺少完整性记录，拒绝恢复')
+        def check_owner_set(label, meta_key, model_label, message):
+            expected = (remote_meta or {}).get(meta_key)
+            if expected is None:
+                return
+            actual = {str(item.get('pk')) for item in data_list if item.get('model') == model_label}
+            if set(expected) != actual:
+                raise SyncError(message)
+
+        guard('社交', lambda: check_owner_set(
+            '社交', 'social_owners', 'system_settings.socialintegrity', '社交快照缺少完整性记录，拒绝恢复',
+        ))
+        guard('烹饪', lambda: check_owner_set(
+            '烹饪', 'cooking_owners', 'system_settings.cookingintegrity', '烹饪快照缺少完整性记录，拒绝恢复',
+        ))
         data_list = self._drop_local_only_settings(data_list)
         self._strip_device_local_user_fields(data_list)
         self._restore_device_local_user_fields(data_list)
@@ -912,7 +1015,7 @@ class SyncManager:
                         stale.delete()
 
             from system_settings.agent_world.cooking_sync import reconcile_cooking
-            reconcile_cooking(source_hashes=cooking_source_hashes)
+            guard('烹饪恢复', lambda: reconcile_cooking(source_hashes=cooking_source_hashes))
             from memos.sprout_sync import reset_execution as reset_sprouts
             reset_sprouts()
             from learning.sync import reset_execution
@@ -920,13 +1023,13 @@ class SyncManager:
             from novel.sync import reset_execution as reset_novel_execution
             reset_novel_execution()
             from system_settings.agent_world.market_sync import reconcile_market
-            reconcile_market()
+            guard('市场', reconcile_market)
             from system_settings.agent_world.combat.sync import revoke as revoke_combat
             revoke_combat()
             from system_settings.agent_world.investment_sync import reconcile_investments
-            reconcile_investments()
+            guard('投资', reconcile_investments)
             from system_settings.agent_world.farm_sync import reconcile_farms
-            reconcile_farms()
+            guard('农场恢复', reconcile_farms)
             from system_settings.agent_world.farm_quality_sync import normalize_legacy_inventory
             normalize_legacy_inventory()
             from system_settings.agent_world.cooking_quality_sync import normalize_legacy_inventory as normalize_dishes
@@ -937,11 +1040,11 @@ class SyncManager:
             end_restored_sessions()
             refresh_restored_checkpoints()
             from system_settings.agent_world.settlement import reconcile_awards
-            reconcile_awards()
+            guard('结算', reconcile_awards)
             from system_settings.agent_world.life_sync import reconcile_life
-            reconcile_life()
+            guard('生活恢复', reconcile_life)
             from system_settings.agent_world.social_sync import reconcile_social
-            reconcile_social()
+            guard('社交恢复', reconcile_social)
             # Validate the original source first. Adding legacy policy defaults earlier
             # would change LifeConfig's fingerprint and reject valid old snapshots.
             from system_settings.decision.restore import normalize_policy
@@ -1269,7 +1372,7 @@ class SyncManager:
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
-    def build_snapshot_data(self, *, compact_travel=False, allow_exploration_review_mismatch=False):
+    def build_snapshot_data(self, *, compact_travel=False, allow_exploration_review_mismatch=False, relax_integrity=False):
         from system_settings.agent_world.life_sync import checkpoint_all
         checkpoint_all()
         from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
@@ -1289,9 +1392,13 @@ class SyncManager:
             if queryset.exists():
                 all_data.extend(json.loads(serializers.serialize('json', queryset, cls=SyncJSONEncoder)))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
-        validate_combat(
-            all_data,
-            allow_exploration_review_mismatch=allow_exploration_review_mismatch,
+        self._guard_integrity(
+            '战斗',
+            lambda: validate_combat(
+                all_data,
+                allow_exploration_review_mismatch=allow_exploration_review_mismatch,
+            ),
+            relax=relax_integrity,
         )
         return self._strip_device_local_user_fields(all_data)
 
@@ -1460,14 +1567,16 @@ class SyncManager:
     def _snapshot_path(self, snapshot_id, filename):
         return f'{self.v2_snapshots_dir}/{snapshot_id}/{filename}'
 
-    def get_v2_current(self):
+    def get_v2_current(self, *, relax_integrity=None):
+        if relax_integrity is None:
+            relax_integrity = bool(getattr(self, 'relax_integrity', False))
         pointer = self._read_remote_json(self.v2_current_file)
         if not pointer or pointer.get('format') != self.SNAPSHOT_FORMAT:
             return None
         snapshot_id = pointer.get('snapshot_id')
         if not snapshot_id:
             return None
-        return self.get_v2_snapshot(snapshot_id)
+        return self.get_v2_snapshot(snapshot_id, relax_integrity=relax_integrity)
 
     def _get_remote_overwrite_state(self):
         """Read only the remote metadata needed to replace current, without merging its data."""
@@ -1537,20 +1646,21 @@ class SyncManager:
             'legacy': True,
         }
 
-    def get_v2_snapshot(self, snapshot_id):
+    def get_v2_snapshot(self, snapshot_id, *, relax_integrity=False):
         meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
         if meta.get('format') != self.SNAPSHOT_FORMAT:
             raise SyncError('远端快照格式不受支持，请升级客户端')
         self.validate_remote_snapshot_version(meta)
         data = self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True)
         from learning.sync import validate as validate_learning
-        validate_learning(data, meta)
         from novel.sync import validate as validate_novel
-        validate_novel(data, meta)
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
-        validate_crops(data, meta)
+        self._integrity_warnings = getattr(self, '_integrity_warnings', [])
+        self._guard_integrity('学习', lambda: validate_learning(data, meta), relax=relax_integrity)
+        self._guard_integrity('小说', lambda: validate_novel(data, meta), relax=relax_integrity)
+        self._guard_integrity('农场', lambda: validate_crops(data, meta), relax=relax_integrity)
         revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True)
-        travel_sync.validate_revisions(meta, revisions)
+        self._guard_integrity('旅行目录', lambda: travel_sync.validate_revisions(meta, revisions), relax=relax_integrity)
         return {
             'meta': meta,
             'data': self._strip_device_local_user_fields(data),
@@ -1667,23 +1777,35 @@ class SyncManager:
             return local_revision
         return remote_revision if remote_revision.get('origin_device', '') > local_revision.get('origin_device', '') else local_revision
 
-    def merge_v2_data(self, base, local_data, local_revisions, remote):
-        """返回不丢失双方独有记录的合并结果及新修订清单。"""
-        travel_sync.validate(remote.get('meta'))
-        travel_sync.validate((base or {}).get('meta'))
+    def merge_v2_data(
+        self, base, local_data, local_revisions, remote, *,
+        relax_integrity=False, resolutions=None, resolution_default='', conflicts_only=False,
+    ):
+        """返回不丢失双方独有记录的合并结果及新修订清单。
+
+        relax_integrity 时，农场窗口、生活摘要、居民记忆来源等不再中断合并。
+        resolutions 里用户点名的记录优先于自动胜出规则。
+        """
+        self._integrity_warnings = []
+
+        def guard(label, fn):
+            return self._guard_integrity(label, fn, relax=relax_integrity)
+
+        guard('旅行目录', lambda: travel_sync.validate(remote.get('meta')))
+        guard('旅行目录', lambda: travel_sync.validate((base or {}).get('meta')))
         from system_settings.agent_world.life_snapshot import validate_source, refresh_merged_integrity
-        validate_source(local_data)
-        validate_source(remote.get('data') or [])
+        guard('生活', lambda: validate_source(local_data))
+        guard('生活', lambda: validate_source(remote.get('data') or []))
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crop_source
-        validate_crop_source(local_data)
-        validate_crop_source(remote.get('data') or [], remote.get('meta'))
+        guard('农场', lambda: validate_crop_source(local_data))
+        guard('农场', lambda: validate_crop_source(remote.get('data') or [], remote.get('meta')))
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_cooking_source, metadata as cooking_metadata
-        validate_cooking_source(local_data, cooking_metadata(local_data))
-        validate_cooking_source(remote.get('data') or [], remote.get('meta'))
+        guard('烹饪', lambda: validate_cooking_source(local_data, cooking_metadata(local_data)))
+        guard('烹饪', lambda: validate_cooking_source(remote.get('data') or [], remote.get('meta')))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat, validate_catalog_conflicts
-        validate_combat(local_data)
-        validate_combat(remote.get('data') or [],remote.get('meta'))
-        validate_catalog_conflicts(local_data,remote.get('data') or [])
+        guard('战斗', lambda: validate_combat(local_data))
+        guard('战斗', lambda: validate_combat(remote.get('data') or [], remote.get('meta')))
+        guard('战斗目录', lambda: validate_catalog_conflicts(local_data, remote.get('data') or []))
         # 老全量快照中的原始默认城市只代表共享种子，不代表用户编辑或删除。
         if travel_sync.enabled() or (remote.get('meta') or {}).get(travel_sync.META_KEY):
             local_data, local_revisions = travel_sync.compact(local_data, local_revisions)
@@ -1693,15 +1815,19 @@ class SyncManager:
                 base_data, base_revisions = travel_sync.compact(base.get('data') or [], base.get('revisions') or {})
                 base = {**base, 'data': base_data, 'revisions': base_revisions}
         from system_settings.agent_world.memory.sync import validate_source as validate_memories, metadata as memory_metadata, merge_aggregates
-        validate_memories(local_data, memory_metadata(local_data))
-        validate_memories(remote.get('data') or [], remote.get('meta'))
+        guard('居民记忆', lambda: validate_memories(local_data, memory_metadata(local_data)))
+        guard('居民记忆', lambda: validate_memories(remote.get('data') or [], remote.get('meta')))
         base_data = self._item_map((base or {}).get('data') or [])
         base_revisions = (base or {}).get('revisions') or {}
         local_map = self._item_map(local_data)
         remote_map = self._item_map(remote.get('data') or [])
         remote_revisions = remote.get('revisions') or {}
+        chosen, choice_default = self._choice_map(resolutions, resolution_default)
         result, result_revisions = [], {}
-        summary = {'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0}
+        summary = {
+            'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0,
+            'choice_items': [], 'choice_total': 0, 'integrity_warnings': [],
+        }
 
         keys = set(base_revisions) | set(local_revisions) | set(remote_revisions) | set(local_map) | set(remote_map)
         for key in sorted(keys):
@@ -1710,17 +1836,26 @@ class SyncManager:
             remote_rev = remote_revisions.get(key, {'deleted': True, 'hash': ''})
             local_changed = self._revision_changed(base_rev, local_rev)
             remote_changed = self._revision_changed(base_rev, remote_rev)
-            if self._is_permanent_delete(local_rev) != self._is_permanent_delete(remote_rev):
-                winner = self._revision_winner(local_rev, remote_rev)
-                if local_changed and remote_changed and local_rev != remote_rev:
-                    summary['conflicts'] += 1
-            elif local_changed and remote_changed and local_rev != remote_rev:
-                winner = self._revision_winner(local_rev, remote_rev)
+            choice = chosen.get(key) or choice_default
+            winner, is_conflict = self._pick_revision(local_changed, remote_changed, local_rev, remote_rev, choice)
+            if is_conflict:
                 summary['conflicts'] += 1
-            elif remote_changed:
-                winner = remote_rev
-            else:
-                winner = local_rev
+                local_item = local_map.get(key)
+                remote_item = remote_map.get(key)
+                if not (self._automatic_memory(local_item) or self._automatic_memory(remote_item)):
+                    summary['choice_total'] += 1
+                    if len(summary['choice_items']) < 200:
+                        suggested = 'local' if self._revision_winner(local_rev, remote_rev) == local_rev else 'remote'
+                        model = (local_item or remote_item or {}).get('model') or key.split(':', 1)[0]
+                        summary['choice_items'].append({
+                            'key': key,
+                            'model': model,
+                            'label': self._item_label(local_item),
+                            'remote_label': self._item_label(remote_item),
+                            'local_at': local_rev.get('revision_at') or '',
+                            'remote_at': remote_rev.get('revision_at') or '',
+                            'suggested': suggested,
+                        })
             result_revisions[key] = winner
             if winner.get('deleted'):
                 summary['deleted'] += 1
@@ -1750,15 +1885,26 @@ class SyncManager:
                     summary['created'] += 1
                 elif local_changed or remote_changed:
                     summary['updated'] += 1
-        merge_aggregates(result, result_revisions, local_data, remote.get('data') or [], local_revisions, remote_revisions)
-        validate_memories(result, memory_metadata(result))
-        refresh_merged_integrity(result, result_revisions)
+        if conflicts_only:
+            summary['integrity_warnings'] = list(self._integrity_warnings)
+            return [], {}, summary
+        if relax_integrity:
+            try:
+                merge_aggregates(result, result_revisions, local_data, remote.get('data') or [], local_revisions, remote_revisions)
+            except SyncError as exc:
+                if schema_guard(exc):
+                    raise
+                self._integrity_warnings.append(f'居民记忆合并：{exc}')
+        else:
+            merge_aggregates(result, result_revisions, local_data, remote.get('data') or [], local_revisions, remote_revisions)
+        guard('居民记忆', lambda: validate_memories(result, memory_metadata(result)))
+        guard('生活摘要', lambda: refresh_merged_integrity(result, result_revisions))
         from system_settings.agent_archive_sync import validate_names
-        validate_names(result)
-        # Keep cooking asset checkpoints intact: reject partial domain merges rather
-        # than manufacturing a new checkpoint for an inconsistent XP/material chain.
-        validate_cooking_source(result, cooking_metadata(result))
-        validate_combat(result)
+        guard('居民名称', lambda: validate_names(result))
+        # 严格合并仍拒绝半份烹饪链。放宽时保留两边已经合并的记录，稍后再整理摘要。
+        guard('烹饪', lambda: validate_cooking_source(result, cooking_metadata(result)))
+        guard('战斗', lambda: validate_combat(result))
+        summary['integrity_warnings'] = list(self._integrity_warnings)
         return result, result_revisions, summary
 
     def _media_hash_cache_path(self):
@@ -2081,12 +2227,13 @@ class SyncManager:
         travel_sync.prune_states()
 
     @farm_sync_guard
-    def create_local_safety_backup(self, reason, *, allow_exploration_review_mismatch=False):
+    def create_local_safety_backup(self, reason, *, allow_exploration_review_mismatch=False, relax_integrity=False):
         root = os.path.join(str(settings.MEDIA_ROOT), '.sync-v2-safety')
         os.makedirs(root, exist_ok=True)
         path = os.path.join(root, f'{datetime.utcnow().strftime("%Y%m%d%H%M%S")}-{reason}-{uuid.uuid4().hex[:8]}.zip')
         data = self.build_snapshot_data(
             allow_exploration_review_mismatch=allow_exploration_review_mismatch,
+            relax_integrity=relax_integrity,
         )
         with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
             archive.writestr('data_index.json', json.dumps(data, ensure_ascii=False))
@@ -2303,24 +2450,36 @@ class SyncManager:
             )
         return snapshot, summary, ''
 
-    def _merge_while_locked(self, report, *, base_snapshot_id, source, runner_id, should_abort):
+    def _merge_while_locked(
+        self, report, *, base_snapshot_id, source, runner_id, should_abort,
+        relax_integrity=False, resolutions=None, resolution_default='',
+    ):
         from article.version_service import enforce_article_version_retention
 
         report('已获取远端同步锁，正在读取当前快照。', 28)
         self._ensure_not_aborted(should_abort)
-        remote = self.get_v2_current() or self._get_legacy_snapshot()
+        remote = self.get_v2_current(relax_integrity=relax_integrity) or self._get_legacy_snapshot()
         report('远端快照读取完成，正在合并本机与云端数据。', 40)
         self._ensure_not_aborted(should_abort)
-        local_data = self.build_snapshot_data(compact_travel=True)
+        local_data = self.build_snapshot_data(
+            compact_travel=True,
+            relax_integrity=relax_integrity,
+            allow_exploration_review_mismatch=relax_integrity,
+        )
         local_revisions = self._build_revision_manifest(local_data)
         base = None
         if base_snapshot_id:
             try:
-                base = self.get_v2_snapshot(base_snapshot_id)
+                base = self.get_v2_snapshot(base_snapshot_id, relax_integrity=relax_integrity)
             except SyncError:
                 base = None
         if remote:
-            merged_data, merged_revisions, summary = self.merge_v2_data(base, local_data, local_revisions, remote)
+            merged_data, merged_revisions, summary = self.merge_v2_data(
+                base, local_data, local_revisions, remote,
+                relax_integrity=relax_integrity,
+                resolutions=resolutions,
+                resolution_default=resolution_default,
+            )
             report('正在校验并恢复非图书媒体资源。', 58)
             # 此后会先覆盖媒体，再提交数据库并发布新指针；这些步骤必须作为一个
             # 不可中断的提交段完成，避免取消后留下媒体与数据库不一致的本地状态。
@@ -2342,7 +2501,7 @@ class SyncManager:
                         **novel_metadata(merged_data),
                         **(travel_sync.metadata(merged_revisions) if travel_sync.enabled() or
                            (remote.get('meta') or {}).get(travel_sync.META_KEY) else {}),
-                    }, full_overwrite=True)
+                    }, full_overwrite=True, integrity='repair' if relax_integrity else 'strict')
                 self._apply_v2_revisions(merged_revisions)
                 # A three-way merge can combine independently retained histories.
                 # Pruning after revision import records tombstones for every device.
@@ -2351,7 +2510,13 @@ class SyncManager:
             # 远端新图书的正文被刻意跳过下载；写入数据库后立即将其转为
             # 仅云端状态，确保本次同步完成后书架就能触发按需恢复。
             self.reconcile_missing_book_media()
-            merged_data = self.build_snapshot_data(compact_travel=True)
+            if relax_integrity:
+                from system_settings.agent_world.sync_heal import heal_after_sync
+                summary['repairs'] = heal_after_sync()
+                summary['integrity_warnings'] = list(dict.fromkeys(
+                    list(summary.get('integrity_warnings') or []) + list(getattr(self, '_integrity_warnings', []))
+                ))
+            merged_data = self.build_snapshot_data(compact_travel=True, relax_integrity=relax_integrity)
             merged_revisions = self._build_revision_manifest(merged_data)
             previous_media = remote.get('media') if not remote.get('legacy') else None
         else:
@@ -2373,12 +2538,38 @@ class SyncManager:
         return snapshot, summary
 
     @farm_sync_guard
+    def _raise_if_choices_needed(self, base_snapshot_id):
+        remote = self.get_v2_current(relax_integrity=True) or self._get_legacy_snapshot()
+        if not remote:
+            return
+        local_data = self.build_snapshot_data(
+            compact_travel=True, relax_integrity=True, allow_exploration_review_mismatch=True,
+        )
+        local_revisions = self._build_revision_manifest(local_data)
+        base = None
+        if base_snapshot_id:
+            try:
+                base = self.get_v2_snapshot(base_snapshot_id, relax_integrity=True)
+            except SyncError:
+                base = None
+        _, _, preview = self.merge_v2_data(
+            base, local_data, local_revisions, remote,
+            relax_integrity=True, conflicts_only=True,
+        )
+        if preview.get('choice_total'):
+            raise SyncChoicesRequired(preview.get('choice_items') or [], preview['choice_total'])
+
     def sync_v2(
         self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
         should_abort=None, recover_owned_remote_lock=False, force_overwrite=False,
-        manual_upload=False,
+        manual_upload=False, review_conflicts=False, resolutions=None,
+        resolution_default='', choices_confirmed=False,
     ):
-        """自动同步默认三方合并；手动上传探测备份并在需要时请求覆盖确认。"""
+        """自动同步默认三方合并；手动上传探测备份并在需要时请求覆盖确认。
+
+        合并不再因农场窗口、生活摘要或居民记忆来源中断。
+        review_conflicts 时先把两端都改过的记录交回用户选择。
+        """
         def report(message, progress=None):
             if callable(on_progress):
                 on_progress(message, progress)
@@ -2406,10 +2597,14 @@ class SyncManager:
                     report=report, should_abort=should_abort, recover_owned_remote_lock=recover_owned_remote_lock,
                 )
 
+        if review_conflicts and not choices_confirmed:
+            report('正在逐条对比本机与云端。', 12)
+            self._raise_if_choices_needed(base_snapshot_id)
+
         from article.version_service import enforce_article_version_retention
 
         report('正在创建本机完整安全快照。', 5)
-        safety_backup = self.create_local_safety_backup('before-sync')
+        safety_backup = self.create_local_safety_backup('before-sync', relax_integrity=True, allow_exploration_review_mismatch=True)
         enforce_article_version_retention()
         enforce_novel_revision_retention()
         report('本机安全快照已完成，正在连接远端并获取同步锁。', 18)
@@ -2420,6 +2615,7 @@ class SyncManager:
         with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
             snapshot, summary = self._merge_while_locked(
                 report, base_snapshot_id=base_snapshot_id, source=source, runner_id=runner_id, should_abort=should_abort,
+                relax_integrity=True, resolutions=resolutions, resolution_default=resolution_default,
             )
         return snapshot, summary, safety_backup
 
@@ -2449,6 +2645,7 @@ class SyncManager:
         safety_backup = self.create_local_safety_backup(
             'before-force-upload',
             allow_exploration_review_mismatch=True,
+            relax_integrity=True,
         )
         enforce_article_version_retention()
         enforce_novel_revision_retention()
@@ -2463,13 +2660,24 @@ class SyncManager:
                 self._require_empty_remote()
             report('已获取远端同步锁，正在生成本机完整快照。', 28)
             remote = self._get_remote_overwrite_state()
+            from system_settings.agent_world.sync_heal import heal_after_sync
+            try:
+                repairs = heal_after_sync()
+            except Exception as exc:
+                repairs = [f'自动整理未完成：{exc}']
+            self._integrity_warnings = []
             local_data = self.build_snapshot_data(
                 compact_travel=True,
                 allow_exploration_review_mismatch=True,
+                relax_integrity=True,
             )
             from system_settings.agent_world.combat.sync import normalize_exploration_reviews
-            local_data = normalize_exploration_reviews(local_data)
-            self._validate_force_overwrite_source(local_data)
+            try:
+                local_data = normalize_exploration_reviews(local_data)
+            except SyncError as exc:
+                if schema_guard(exc):
+                    raise
+                self._integrity_warnings.append(f'探索回顾：{exc}')
             local_revisions = self._build_revision_manifest(local_data)
             remote_revisions = (remote or {}).get('revisions') or {}
             summary = self._revision_change_summary(remote_revisions, local_revisions)
@@ -2481,6 +2689,8 @@ class SyncManager:
             summary['force_overwrite'] = True
             summary['initial_upload'] = remote is None
             summary['unchanged'] = False
+            summary['repairs'] = repairs
+            summary['integrity_warnings'] = list(getattr(self, '_integrity_warnings', []))
             self._ensure_not_aborted(should_abort)
             report(
                 '远端没有备份，正在首次上传本机快照。' if remote is None
@@ -2497,6 +2707,63 @@ class SyncManager:
                 report=report,
             )
         return snapshot, summary, safety_backup
+
+    @farm_sync_guard
+    def force_download_v2(
+        self, *, runner_id='', on_progress=None, should_abort=None, recover_owned_remote_lock=False,
+    ):
+        """用远端当前快照覆盖本机。领域完整性不拦截恢复，写入后尽力整理。"""
+
+        def report(message, progress=None):
+            if callable(on_progress):
+                on_progress(message, progress)
+
+        self._ensure_not_aborted(should_abort)
+        report('正在读取云端快照。', 8)
+        remote = self.get_v2_current(relax_integrity=True) or self._get_legacy_snapshot()
+        if not remote or not isinstance(remote.get('data'), list):
+            raise SyncError('远端没有可下载的快照。请先在有数据的设备上传。')
+        self.validate_remote_snapshot_version(remote.get('meta') or {})
+        report('正在创建本机完整安全快照。', 12)
+        safety_backup = self.create_local_safety_backup(
+            'before-force-download',
+            allow_exploration_review_mismatch=True,
+            relax_integrity=True,
+        )
+        self._ensure_not_aborted(should_abort)
+        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+            report('正在把云端快照写入本机。', 40)
+            self._ensure_not_aborted(should_abort)
+            self._restore_v2_media(
+                remote.get('media'),
+                skip_paths=self._book_body_paths_from_snapshot(remote.get('data')),
+            )
+            with transaction.atomic():
+                with suspend_tracking():
+                    count = self.apply_snapshot_data(
+                        remote.get('data') or [],
+                        remote_meta=remote.get('meta'),
+                        full_overwrite=True,
+                        should_abort=should_abort,
+                        integrity='repair',
+                    )
+                    if remote.get('revisions'):
+                        self._apply_v2_revisions(remote['revisions'])
+            from system_settings.agent_world.sync_heal import heal_after_sync
+            repairs = heal_after_sync()
+        summary = {
+            'force_overwrite': True,
+            'direction': 'download',
+            'created': 0,
+            'updated': count,
+            'deleted': 0,
+            'conflicts': 0,
+            'unchanged': False,
+            'repairs': repairs,
+            'integrity_warnings': list(getattr(self, '_integrity_warnings', [])),
+        }
+        report('云端快照已覆盖本机。', 100)
+        return {'meta': remote.get('meta') or {}, 'data': remote.get('data') or []}, summary, safety_backup
 
     @farm_sync_guard
     def restore_v2_snapshot(self, snapshot_id, *, runner_id=''):

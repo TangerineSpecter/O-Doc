@@ -12,8 +12,10 @@ import {
 import { getAuthToken } from "@/utils/authStorage";
 import { useToast } from "../../common/ToastProvider";
 import type {
+  SyncConflict,
   SyncDirection,
   SyncOperationState,
+  SyncRequest,
   SyncSettingsProps,
 } from "./types";
 import type { SyncHistoryEntry, WebDavSyncStatus } from "@/api/setting.ts";
@@ -35,6 +37,9 @@ export const useSyncOperations = ({
   const [isRestoringHistory, setIsRestoringHistory] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
   const [isForceUploadConfirmOpen, setIsForceUploadConfirmOpen] = useState(false);
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
+  const [conflictTotal, setConflictTotal] = useState(0);
+  const [conflictDirection, setConflictDirection] = useState<SyncDirection>("download");
   const statusSummaryKeyRef = useRef("");
   const isServerSyncing = status.status === "running";
   const isCancelRequested = Boolean(status.cancelRequested);
@@ -196,7 +201,8 @@ export const useSyncOperations = ({
       setIsCancelling(false);
     }
   };
-  const startSyncStream = async (direction: SyncDirection, forceOverwrite = false) => {
+  const startSyncStream = async (direction: SyncDirection, request: SyncRequest = {}) => {
+    const forceOverwrite = Boolean(request.forceOverwrite);
     if (!config.enabled) {
       warning("请先开启同步开关并保存配置");
       return;
@@ -205,11 +211,19 @@ export const useSyncOperations = ({
       warning("当前已有同步任务正在运行，请等待完成后再操作");
       return;
     }
-    if (!forceOverwrite && !(await saveConfigBeforeSync())) return;
+    if (!forceOverwrite && !request.choicesConfirmed && !(await saveConfigBeforeSync())) return;
     setIsSyncing(true);
     statusSummaryKeyRef.current = "";
+    setConflicts([]);
     setLogs([`🚀 开始${direction === "upload" ? "上传" : "下载"}同步任务...`]);
     setProgress(0);
+    const payload = {
+      ...(request.forceOverwrite ? { forceOverwrite: true } : {}),
+      ...(request.compare ? { compare: true } : {}),
+      ...(request.choicesConfirmed ? { choicesConfirmed: true } : {}),
+      ...(request.resolutionDefault ? { resolutionDefault: request.resolutionDefault } : {}),
+      ...(request.resolutions ? { resolutions: request.resolutions } : {}),
+    };
     try {
       const response = await diagnosticFetch(
         `/api/settings/config/sync_${direction === "upload" ? "to" : "from"}_webdav/`,
@@ -221,7 +235,7 @@ export const useSyncOperations = ({
               ? { Authorization: `Token ${getAuthToken()}` }
               : {}),
           },
-          body: forceOverwrite ? JSON.stringify({ forceOverwrite: true }) : undefined,
+          body: Object.keys(payload).length ? JSON.stringify(payload) : undefined,
         },
       );
       if (!response.ok)
@@ -253,6 +267,14 @@ export const useSyncOperations = ({
           terminal = true;
           setProgress(0);
           setIsForceUploadConfirmOpen(true);
+          return;
+        }
+        if (data.step === "choose_items") {
+          terminal = true;
+          setProgress(0);
+          setConflictDirection(direction);
+          setConflicts(Array.isArray(data.conflicts) ? data.conflicts : []);
+          setConflictTotal(Number(data.conflictTotal || data.conflicts?.length || 0));
           return;
         }
         if (data.step === "error") throw new Error(data.msg || "同步失败");
@@ -318,6 +340,9 @@ export const useSyncOperations = ({
     isRestoringHistory,
     isCancelling,
     isForceUploadConfirmOpen,
+    conflicts,
+    conflictTotal,
+    conflictDirection,
     logs,
     progress,
     history,
@@ -338,7 +363,26 @@ export const useSyncOperations = ({
       dismissForceUpload: () => setIsForceUploadConfirmOpen(false),
       confirmForceUpload: async () => {
         setIsForceUploadConfirmOpen(false);
-        await startSyncStream("upload", true);
+        await startSyncStream("upload", { forceOverwrite: true });
+      },
+      dismissConflicts: () => {
+        setConflicts([]);
+        setConflictTotal(0);
+      },
+      confirmConflicts: async (
+        picks: Record<string, "local" | "remote">,
+        resolutionDefault?: "local" | "remote",
+      ) => {
+        const direction = conflictDirection;
+        const resolutions = Object.entries(picks).map(([key, side]) => ({ key, side }));
+        setConflicts([]);
+        setConflictTotal(0);
+        await startSyncStream(direction, {
+          compare: true,
+          choicesConfirmed: true,
+          resolutions,
+          resolutionDefault,
+        });
       },
       clearLogs: () => setLogs([]),
     },

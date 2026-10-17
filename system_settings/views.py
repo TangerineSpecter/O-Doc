@@ -46,7 +46,9 @@ from utils.remote_storage import (
     public_sync_config,
     validate_sync_config,
 )
-from utils.sync_manager import OverwriteConfirmationRequired, SyncError, SyncManager, format_sync_result
+from utils.sync_manager import (
+    OverwriteConfirmationRequired, SyncChoicesRequired, SyncError, SyncManager, format_sync_result,
+)
 from .feishu_im import (
     FeishuIMError,
     handle_feishu_message_event,
@@ -128,6 +130,18 @@ class SystemConfigViewSet(viewsets.ViewSet):
     """
 
     @staticmethod
+    @staticmethod
+    def _choice_payload(exc):
+        return [{
+            'key': item.get('key'),
+            'model': item.get('model'),
+            'label': item.get('label'),
+            'remoteLabel': item.get('remote_label'),
+            'localAt': item.get('local_at'),
+            'remoteAt': item.get('remote_at'),
+            'suggested': item.get('suggested'),
+        } for item in exc.conflicts]
+
     def _sync_event(step, msg, record=True, **extra):
         if record and msg:
             append_sync_message(msg)
@@ -732,6 +746,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
         if not manager:
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
         force_overwrite = bool(request.data.get('force_overwrite', False))
+        compare = bool(request.data.get('compare', False))
+        resolutions = request.data.get('resolutions')
+        resolution_default = request.data.get('resolution_default') or ''
+        choices_confirmed = bool(request.data.get('choices_confirmed', False))
 
         def stream_generator():
             runner_id = generate_runner_id('manual')
@@ -747,17 +765,31 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
                     return
 
-                yield self._sync_event('init', '正在检查当前远端目录是否已有备份…')
-                snapshot, summary, safety_backup = manager.sync_v2(
-                    source='manual', runner_id=runner_id,
-                    base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
-                    on_progress=lambda message, progress=None: append_sync_message(
-                        message, runner_id=runner_id, progress=progress),
-                    should_abort=lambda: should_abort_sync(runner_id),
-                    recover_owned_remote_lock=recover_owned_remote_lock,
-                    force_overwrite=force_overwrite,
-                    manual_upload=True,
-                )
+                yield self._sync_event('init', '正在逐条对比本机与云端…' if compare else '正在检查当前远端目录是否已有备份…')
+                if compare:
+                    snapshot, summary, safety_backup = manager.sync_v2(
+                        source='manual', runner_id=runner_id,
+                        base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
+                        on_progress=lambda message, progress=None: append_sync_message(
+                            message, runner_id=runner_id, progress=progress),
+                        should_abort=lambda: should_abort_sync(runner_id),
+                        recover_owned_remote_lock=recover_owned_remote_lock,
+                        review_conflicts=True,
+                        resolutions=resolutions,
+                        resolution_default=resolution_default,
+                        choices_confirmed=choices_confirmed,
+                    )
+                else:
+                    snapshot, summary, safety_backup = manager.sync_v2(
+                        source='manual', runner_id=runner_id,
+                        base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
+                        on_progress=lambda message, progress=None: append_sync_message(
+                            message, runner_id=runner_id, progress=progress),
+                        should_abort=lambda: should_abort_sync(runner_id),
+                        recover_owned_remote_lock=recover_owned_remote_lock,
+                        force_overwrite=force_overwrite,
+                        manual_upload=True,
+                    )
                 snapshot_meta = snapshot['meta']
                 yield self._sync_event('summary', format_sync_result(summary, safety_backup))
                 update_runtime_state(
@@ -791,6 +823,13 @@ class SystemConfigViewSet(viewsets.ViewSet):
                         last_error='', cancel_requested=False, sync_progress=0,
                     )
                 yield self._sync_event('confirm_overwrite', str(e))
+            except SyncChoicesRequired as e:
+                if acquired and runner_owns_sync(runner_id):
+                    update_runtime_state(
+                        status='idle', trigger='manual', runner_id=runner_id,
+                        last_error='', cancel_requested=False, sync_progress=0,
+                    )
+                yield self._sync_event('choose_items', str(e), conflicts=self._choice_payload(e), conflictTotal=e.total)
             except Exception as e:
                 if acquired and runner_owns_sync(runner_id):
                     if should_abort_sync(runner_id):
@@ -809,11 +848,17 @@ class SystemConfigViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def sync_from_webdav(self, request):
         """
-        [下载/拉取] 使用本机、共同 Base、远端快照三方合并；不会把远端整库直接覆盖本机。
+        确认覆盖时用云端快照整库替换本机。未选择覆盖时逐条对比，两端都改过的记录交回用户选择。
         """
         manager = self._get_sync_manager()
         if not manager:
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
+
+        force_overwrite = bool(request.data.get('force_overwrite', False))
+        compare = bool(request.data.get('compare', False))
+        resolutions = request.data.get('resolutions')
+        resolution_default = request.data.get('resolution_default') or ''
+        choices_confirmed = bool(request.data.get('choices_confirmed', False))
 
         def stream_generator():
             runner_id = generate_runner_id('manual')
@@ -829,18 +874,35 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
                     return
 
-                remote = manager.get_v2_current()
-                if not remote:
-                    raise SyncError('远端尚未升级为安全同步 v2；请先在拥有最新数据的设备执行一次上传同步。')
-                yield self._sync_event('init', '正在比对修订清单与媒体哈希…')
-                snapshot, summary, safety_backup = manager.sync_v2(
-                    source='manual-pull', runner_id=runner_id,
-                    base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
-                    on_progress=lambda message, progress=None: append_sync_message(
-                        message, runner_id=runner_id, progress=progress),
-                    should_abort=lambda: should_abort_sync(runner_id),
-                    recover_owned_remote_lock=recover_owned_remote_lock,
-                )
+                # 下载读取远端时不因农场、生活或记忆完整性中断；更高的快照版本仍拒绝。
+                manager.relax_integrity = True
+                if force_overwrite:
+                    yield self._sync_event('init', '正在用云端快照覆盖本机…')
+                    snapshot, summary, safety_backup = manager.force_download_v2(
+                        runner_id=runner_id,
+                        on_progress=lambda message, progress=None: append_sync_message(
+                            message, runner_id=runner_id, progress=progress),
+                        should_abort=lambda: should_abort_sync(runner_id),
+                        recover_owned_remote_lock=recover_owned_remote_lock,
+                    )
+                    remote = snapshot
+                else:
+                    remote = manager.get_v2_current()
+                    if not remote:
+                        raise SyncError('远端尚未升级为安全同步 v2；请先在拥有最新数据的设备执行一次上传同步。')
+                    yield self._sync_event('init', '正在逐条对比本机与云端…' if compare else '正在比对修订清单与媒体哈希…')
+                    snapshot, summary, safety_backup = manager.sync_v2(
+                        source='manual-pull', runner_id=runner_id,
+                        base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
+                        on_progress=lambda message, progress=None: append_sync_message(
+                            message, runner_id=runner_id, progress=progress),
+                        should_abort=lambda: should_abort_sync(runner_id),
+                        recover_owned_remote_lock=recover_owned_remote_lock,
+                        review_conflicts=compare,
+                        resolutions=resolutions,
+                        resolution_default=resolution_default,
+                        choices_confirmed=choices_confirmed,
+                    )
                 yield self._sync_event('summary', format_sync_result(summary, safety_backup))
                 update_runtime_state(
                     status='success',
@@ -861,11 +923,21 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_merge_summary=summary,
                     sync_progress=100,
                 )
-                append_sync_message(
-                    '数据与媒体均未变化，远端快照保持不变。' if summary.get('unchanged') else '云端同步快照已发布，本地与远端已完成对齐。',
-                    runner_id=runner_id, progress=100,
-                )
+                if summary.get('direction') == 'download':
+                    finished = '云端快照已覆盖本机。'
+                elif summary.get('unchanged'):
+                    finished = '数据与媒体均未变化，远端快照保持不变。'
+                else:
+                    finished = '云端同步快照已发布，本地与远端已完成对齐。'
+                append_sync_message(finished, runner_id=runner_id, progress=100)
                 yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
+            except SyncChoicesRequired as e:
+                if acquired and runner_owns_sync(runner_id):
+                    update_runtime_state(
+                        status='idle', trigger='manual-pull', runner_id=runner_id,
+                        last_error='', cancel_requested=False, sync_progress=0,
+                    )
+                yield self._sync_event('choose_items', str(e), conflicts=self._choice_payload(e), conflictTotal=e.total)
             except Exception as e:
                 if acquired and runner_owns_sync(runner_id):
                     if should_abort_sync(runner_id):
