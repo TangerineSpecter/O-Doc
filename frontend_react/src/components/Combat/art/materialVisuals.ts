@@ -23,6 +23,10 @@ export const materialArtProfiles = {
     'material.star_rift.2':{shape:'starcrystal',color:'#9b8ec5',shadow:'#524c7d',light:'#bfe5ec'},
     'material.star_rift.3':{shape:'broken_core',color:'#ad93bb',shadow:'#615175',light:'#e7c9e3'},
     'material.star_rift.4':{shape:'seal',glyph:'star',color:'#9c95bb',shadow:'#565079',light:'#ece0b9'},
+    'material.sprout_meadow.rabbit':{shape:'fur_tuft',color:'#c9b99b',shadow:'#726556',light:'#f5e6c8'},
+    'material.sprout_meadow.beetle':{shape:'shell_fragment',color:'#739b78',shadow:'#3f5f59',light:'#c7df9d'},
+    'material.sprout_meadow.glowbug':{shape:'sun_dust',color:'#e7bd59',shadow:'#a87539',light:'#fff0a2'},
+    'material.moss_cave.crystal_lizard':{shape:'scale',color:'#70aeb1',shadow:'#416877',light:'#d0eeee'},
 } as const;
 export type MaterialArtId=keyof typeof materialArtProfiles;
 export type MaterialArtProfile=typeof materialArtProfiles[MaterialArtId];

@@ -4,6 +4,7 @@ import {identitySheet,outfitArts,independentWeapons} from '../playerAppearance/l
 import {ProfessionAuraRenderer} from '../playerAppearance/ProfessionAuraRenderer';
 import {getProfessionAura} from '../../art/professionAuras';
 import {battleBackgroundArt} from '../../art/battleBackgroundArt';
+import type {BattleBackgroundArt} from '../../art/battleBackgroundArt';
 import type {BattleBackgroundId} from '../../art/battleBackgroundArt';
 import {loadPixelBattleBackground} from '../loadPixelBattleBackground';
 import {AtlasSkillRenderer} from '../skillPreview/AtlasSkillRenderer';
@@ -56,16 +57,18 @@ export class ObservationBattleScene {
     private previousCharacterUrl?:string;
     private previousOverlayKey='';
     constructor(private readonly host:HTMLElement,private visual:ObservationVisual,
-        private readonly onPhase:(phase:string)=>void,private readonly onError:(message:string)=>void) {}
+        private readonly onPhase:(phase:string)=>void,private readonly onError:(message:string)=>void,
+        private readonly backgroundCandidate?:BattleBackgroundArt) {}
 
     async init() {
         await this.app.init({width:Math.max(1,this.host.clientWidth),height:Math.max(1,this.host.clientHeight),background:0xe8efed,
             autoStart:false,antialias:false,autoDensity:true,resolution:Math.min(devicePixelRatio||1,2),preference:'webgl'});
         this.initialized=true;if(this.disposed){this.app.destroy(true,{children:true});return;}
         const urls=[...new Set([identitySheet,...outfitArts.map(item=>item.body.url),...independentWeapons.map(item=>item.art.url)])];
+        const registeredBackgrounds=[...Object.values(battleBackgroundArt),...(this.backgroundCandidate?[this.backgroundCandidate]:[])];
         const [sheets,backgrounds]=await Promise.all([
             Promise.all(urls.map(async src=>{const texture=await Assets.load<Texture>(src);texture.source.scaleMode='nearest';return [src,texture] as const;})),
-            Promise.all(Object.values(battleBackgroundArt).map(async art=>[art.id,await loadPixelBattleBackground(art)] as const)),
+            Promise.all(registeredBackgrounds.map(async art=>[art.id,await loadPixelBattleBackground(art)] as const)),
         ]);
         if(this.disposed)return;
         this.hero=new LayeredPlayerActor(new Map(sheets));this.hero.scale.set(.36);
@@ -219,7 +222,8 @@ export class ObservationBattleScene {
         const viewWidth=width/scale,viewHeight=height/scale;
         this.sourceX=-viewWidth*.245;this.targetX=viewWidth*.235;
         this.world.scale.set(scale);this.world.position.set(width/2,height*.79);
-        const art=battleBackgroundArt[this.visual.dungeonId as BattleBackgroundId];
+        const art=this.backgroundCandidate?.id===this.visual.dungeonId
+            ?this.backgroundCandidate:battleBackgroundArt[this.visual.dungeonId as BattleBackgroundId];
         this.backdrop.visible=Boolean(art);
         if(art){this.backdrop.texture=this.backgrounds.get(art.id)!;this.backdrop.position.set(-viewWidth/2,-viewHeight*.79);
             this.backdrop.width=viewWidth;this.backdrop.height=viewHeight*.79/art.feetRatio;}

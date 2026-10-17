@@ -1,0 +1,25 @@
+{
+  "tool": "built-in imagegen",
+  "version": "pixel-v1",
+  "logicalDisplayGrid": {
+    "width": 160,
+    "height": 94
+  },
+  "scope": "Preview-only candidate pending user review",
+  "maps": [
+    {
+      "key": "sprout_meadow",
+      "name": "新芽草甸",
+      "scene": "An open early-spring meadow under a pale mint-blue sky. Two broad, softly stepped green hill silhouettes recede into the distance. Sparse chunky grass and a few simple wildflower clusters frame only the extreme left and right edges. A continuous broad sage-green earth path spans the image, with a quiet open battle lane.",
+      "prompt": "Use case: stylized-concept\nAsset type: game-ready battle background candidate for an existing chibi pixel-art RPG\nInput images: Image 1 and Image 2 are style references only; do not reproduce their cave or forest setting.\nPrimary request: Create one battle background for the beginner region 新芽草甸 (Sprout Meadow), matching the chunky low-density pixel-art environments in the references.\nScene/backdrop: A peaceful, open early-spring meadow under a pale mint-blue sky. Two broad, softly stepped green hill silhouettes recede into the distance. Sparse chunky grass and a few simple wildflower clusters frame only the extreme left and right edges.\nSubject: The meadow landscape itself; no characters or props.\nStyle/medium: Coarse, friendly pixel-art RPG environment; large square pixels, broad stair-step contours, flat clean color clusters, roughly 16–20 muted colors with 2–3 shades per surface. Match the quiet, low-detail pixel scale of the references.\nComposition/framing: Wide 16:9 side-view battlefield. Draw as though on a 160×94 logical canvas. A continuous broad, flat warm sage-green earth path spans the full width; ground line at 79% image height, floor continues to the bottom. Keep full-body spaces around x=24% and x=71% visually quiet and free of obstacles, with the center open for combat effects. Distant hills and any meadow details stay in the upper/background layers.\nLighting/mood: Gentle clear morning light, cheerful and calm, suitable for a level 1–15 beginner zone.\nColor palette: Fresh but restrained sage and leaf greens, pale sky blue, soft warm cream flowers, muted earth.\nConstraints: Opaque background only; no UI, text, labels, logos, border, watermark, characters, weapons, arena circle, spotlight, foreground plants covering the combat lane, tiny texture noise, dithering, granular detail, photorealism, painterly finish, high contrast, or objects at the actors' feet.",
+      "references": [
+        "frontend_react/src/assets/combat/battle-moss-cave-pixel-v2.png",
+        "frontend_react/src/assets/combat/battle-mist-forest-pixel-v2.png"
+      ],
+      "source": "/Users/zhouliangjun/.codex/generated_images/01a14a30-a1e6-79b2-bf8a-c160af53660f/exec-e991a0e4-6fff-4bbf-b647-3dfb0951d6d5.png",
+      "asset": "frontend_react/src/assets/combat/battle-sprout-meadow-pixel-v1.png",
+      "id": "dungeon.sprout_meadow",
+      "status": "review"
+    }
+  ]
+}

@@ -12,6 +12,8 @@
 
 六张确认后的背景由 `Combat/art/battleBackgroundArt.ts` 按地牢 ID 注册，状态均为 approved。场景复用 160×94 最近邻纹理，脚底位置与图鉴形象/武器源素材独立。原图鉴 SVG 出没地背景未替换。
 
+2026-10-17 增加新芽草甸的背景候选 `dungeon.sprout_meadow`。该资源只由 `CombatObservationPreviewApp` 显式传入，便于用同一战斗角色、状态 HUD 和站位查看效果；未登记进正式背景表，正式探索行为不变。确认后再补正式地图注册。
+
 ## 展示与结算的边界
 
 - 后端继续按原先 15 秒逻辑回合结算，观察 Hook 继续每 2 秒读取快照。

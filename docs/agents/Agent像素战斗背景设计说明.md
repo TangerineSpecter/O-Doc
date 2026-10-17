@@ -33,3 +33,13 @@
 五张同场截图保存在 `docs/agents/assets/combat/`：`battle-mine-v2-in-scene.png`、`battle-forest-v2-in-scene.png`、`battle-ruins-v2-in-scene.png`、`battle-fortress-v2-in-scene.png`、`battle-rift-v2-in-scene.png`。
 
 无新增持久数据、战斗规则或同步字段。按用户要求未运行测试、类型检查或构建，只打开同场预览呈现效果。
+
+## 新芽草甸候选背景（2026-10-17）
+
+用户发现新芽草甸战斗画面缺少区域背景，要求参考其他区域补一版查看。新增 `battle-sprout-meadow-pixel-v1.png`，沿用低密度大色块像素风、160×94 最近邻采样与 79% 脚底线；画面以开阔草地、远处草坡、浅蓝天空和两侧少量野花表现新手区域。
+
+该版本状态为 `review`，仅通过 `CombatObservationPreviewApp` 的 `backgroundCandidate` 参数预览，默认遭遇软泥怪。它未加入正式 `battleBackgroundArt` 注册表，正式探索暂时仍使用原简洁底色；用户确认后再注册并将地区名与素材用于正式战斗场景。
+
+- 素材：`frontend_react/src/assets/combat/battle-sprout-meadow-pixel-v1.png`
+- 预览入口：`frontend_react/combat-observation-preview.html`
+- 候选元数据与提示词：`docs/agents/assets/combat/battle-sprout-meadow-pixel-v1-generation.json`
