@@ -17,7 +17,7 @@
         container-type: size;
     }
 
-    /* Fit the 768×512 map to both bounds without stretching either axis. */
+    /* 324×216 逻辑画面与 3:2 外框同比例，同时受宽高约束，任一方向都不拉伸。 */
     .farm-canvas-frame {
         position: absolute;
         top: 50%;

@@ -9,7 +9,7 @@
 - 绘制源为 `scripts/generate_farm_sprites.py`，执行 `.venv/bin/python scripts/generate_farm_sprites.py` 重建素材。新增画法应在脚本内维护，不能只改生成PNG而使下次重建丢失设计。
 - 物品及作物生长帧统一32×32透明画布，使用整数坐标、硬边像素及现有柔和田园配色。禁止抗锯齿、模糊、渐变和写实阴影；缩放使用最近邻，前端保留像素显示。
 - 保留原有素材的视觉尺度与脚本配色。新物品应通过轮廓、图案和适量配色区分，不能只依赖颜色或文字。
-- 图集与清单位于 `frontend_react/public/farm/sprites.png`、`sprites.json`；独立物品图标位于 `frontend_react/public/farm/items/`。三处应由同一脚本生成，不能维护互不一致的手工副本。
+- 图集与清单位于 `frontend_react/public/farm/sprites.png`、`sprites.json`；独立物品图标位于 `frontend_react/public/farm/items/`。图集目前只用于配置页的外观预览与物品图标；农场场景的像素精灵由 `frontend_react/src/components/Farm/scene/` 的代码绘制，不读取图集，新增场景精灵应在该目录的精灵模块里维护。三处应由同一脚本生成，不能维护互不一致的手工副本。
 - 市场、物品图鉴和背包复用稳定SKU对应的内置图片；用户设置的图鉴图片沿用现有覆盖机制，不替换农场生长帧。内置图标必须在没有用户图片时完整可用。
 
 ## 2. 种子袋规范（已实现）
