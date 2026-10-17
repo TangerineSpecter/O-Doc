@@ -3,12 +3,12 @@
 
 def seed_sku(value: object, crops: dict) -> str:
     if not isinstance(value, str):
-        raise ValueError('种植项目必须引用现有种子SKU')
+        raise ValueError(f'种植项目必须引用现有种子SKU（当前值：{value!r}）')
     kind = value
     if value.startswith(('seed.', 'crop.')):
         kind = value.split('.', 1)[1]
     if kind not in crops:
-        raise ValueError('种植项目必须引用现有种子SKU')
+        raise ValueError(f'种植项目必须引用现有种子SKU（当前值：{value!r}）')
     return 'seed.' + kind
 
 

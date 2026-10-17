@@ -402,6 +402,39 @@ class FarmQueueTests(TestCase):
         from utils.sync_manager import SyncError
         with self.assertRaises(SyncError):validate_queue_source(data)
 
+    def test_source_validation_uses_runtime_normalized_catalog(self):
+        """旧快照/旧库中的目录可能缺少后加入的内置作物；运行时会补齐，上传校验也必须一致。"""
+        import json
+        from django.core import serializers
+        from system_settings.models import WorldAction
+        from .farm_models import FarmCatalog
+        from .farm_queue_sync import validate_queue_source
+        self.stock();self.plan();self.activate()
+        validate_plan(self.farm())
+        data=json.loads(serializers.serialize('json',[self.farm(),*FarmCatalog.objects.all(),self.item,*WorldAction.objects.all(),*FarmOperation.objects.all()]))
+        catalog=next(r for r in data if r['model']=='system_settings.farmcatalog')
+        del catalog['fields']['rules']['crops']['potato']
+        del catalog['fields']['rules']['fertilizers']
+        validate_queue_source(data)
+
+    def test_source_validation_error_names_plan_and_sku(self):
+        import json
+        from django.core import serializers
+        from system_settings.models import WorldAction
+        from .farm_models import FarmCatalog
+        from .farm_queue_sync import validate_queue_source
+        from utils.sync_manager import SyncError
+        self.stock();self.plan();self.activate()
+        data=json.loads(serializers.serialize('json',[self.farm(),*FarmCatalog.objects.all(),self.item,*WorldAction.objects.all(),*FarmOperation.objects.all()]))
+        farm=next(r for r in data if r['model']=='system_settings.agentfarm')
+        plan=next(iter(farm['fields']['state']['planting_plans'].values()))
+        item=next(r for r in data if r['model']=='system_settings.lifeitem')
+        for version in [*plan['versions'],*item['fields']['context']['farm_plan_sources'].values(),item['fields']['context']['farm_plan_source']]:
+            version['entries'][0]['sku']='seed.ghost'
+        with self.assertRaises(SyncError) as caught:validate_queue_source(data)
+        self.assertIn('seed.ghost',str(caught.exception))
+        self.assertIn(plan['day'],str(caught.exception))
+
     def test_cancel_pending_requires_reason_and_never_rebuilds(self):
         from .life_schedule import revise
         self.stock();self.plan();self.activate()

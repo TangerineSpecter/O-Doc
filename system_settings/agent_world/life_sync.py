@@ -1,6 +1,9 @@
 """完整生活快照校验；预算是计划事实，恢复不产生任何新扣款。"""
+import logging
 from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision, LifeIntegrity
 from .life_snapshot import hash_rows
+
+logger = logging.getLogger(__name__)
 
 
 def fingerprints(owner: str) -> dict[str, str]:
@@ -10,13 +13,32 @@ def fingerprints(owner: str) -> dict[str, str]:
     )) for q in queries}
 
 
+def life_owners() -> set[str]:
+    """所有拥有任意生活记录的账号；不能只看 LifeConfig，否则孤立记录无法生成摘要。"""
+    owners = set(LifeConfig.objects.values_list('pk', flat=True))
+    for model in (LifeProfile, LifeGoal, LifeCycle, LifeItem):
+        owners.update(model.objects.values_list('owner_id', flat=True))
+    return owners
+
+
 def checkpoint_all() -> None:
-    for owner in LifeConfig.objects.values_list('pk',flat=True):
+    from .life_config import DEFAULTS
+    owners = life_owners()
+    for owner in owners:
+        # 运行时 config_for 同样按需创建默认配置；导出前补齐，避免孤立记录让上传被来源校验拒绝。
+        if not LifeConfig.objects.filter(pk=owner).exists():
+            logger.warning('生活记录缺少所属配置，已补建默认配置 owner=%s', owner)
+            LifeConfig.objects.create(pk=owner, settings=dict(DEFAULTS))
         hashes = fingerprints(owner)
         checkpoint, created = LifeIntegrity.objects.get_or_create(pk=owner, defaults={'hashes': hashes})
         if not created and checkpoint.hashes != hashes:
             checkpoint.hashes = hashes
             checkpoint.save(update_fields=['hashes', 'updated_at'])
+    # 账号已无任何生活记录时，遗留摘要会被来源校验当作缺失数据。
+    stale = list(LifeIntegrity.objects.exclude(pk__in=owners).values_list('pk', flat=True))
+    if stale:
+        logger.warning('清理无对应生活记录的完整性摘要 owners=%s', stale)
+        LifeIntegrity.objects.filter(pk__in=stale).delete()
 
 
 def reconcile_life() -> None:

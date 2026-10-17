@@ -1,7 +1,7 @@
 """恢复时验证种植意图来源、市场修改版本及真实操作计数。"""
 from .farm_models import FarmOperation
 from .farm_queue_plan import entries_for, identity, original_source
-from .farm_catalog import catalog_for
+from .farm_catalog import catalog_for, normalized_rules
 from .life_models import LifeItem
 from .market_models import MarketSession, MarketTransaction
 
@@ -17,6 +17,7 @@ def validate_queue(farm, facts: dict | None = None) -> None:
         return value
 
     cached = {}
+    where = ''
 
     def rows(model):
         label = model._meta.label_lower
@@ -34,8 +35,10 @@ def validate_queue(farm, facts: dict | None = None) -> None:
         if not farm.state.get('planting_plans'):
             return
         from .farm_models import FarmCatalog
-        rules = catalog_for(farm.owner_id).rules if facts is None else get(FarmCatalog, farm.owner_id).rules
+        # 运行时 catalog_for 会补齐旧目录缺少的内置作物；来源快照必须按同一规则归一，否则旧目录会误拒合法队列。
+        rules = catalog_for(farm.owner_id).rules if facts is None else normalized_rules(get(FarmCatalog, farm.owner_id).rules)
         for pid, plan in farm.state.get('planting_plans', {}).items():
+            where = f"居民{farm.pk}的{plan.get('day', '未知日期')}计划"
             item = get(LifeItem, plan['item_id'], owner_id=farm.owner_id, actor_id=farm.pk)
             source = original_source(item.context, pid)
             if plan['version'] != 2 or pid != identity('farm-day', farm.owner_id, farm.pk, plan['day']) or plan['id'] != pid:
@@ -111,7 +114,7 @@ def validate_queue(farm, facts: dict | None = None) -> None:
                 if origin['day'] != plan['day'] or origin['entry_id'] not in plan['progress']:
                     raise ValueError('在田作物来源不完整')
     except (KeyError, TypeError, ValueError, StopIteration, IndexError, LifeItem.DoesNotExist, MarketSession.DoesNotExist, MarketTransaction.DoesNotExist) as exc:
-        raise SyncError(f'农场种植队列不完整：{exc}') from exc
+        raise SyncError(f'农场种植队列不完整：{exc}' + (f'（{where}）' if where else '')) from exc
 
 
 def validate_queue_source(data: list) -> None:

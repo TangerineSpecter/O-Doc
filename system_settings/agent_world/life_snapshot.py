@@ -58,10 +58,17 @@ def validate_source(data: list[dict]) -> dict[str, dict[str, str]]:
     normalized = snapshot_hashes(data)
     if expected != normalized:
         raw = snapshot_hashes(data, normalize=False)
-        if set(expected) != set(normalized) or any(
-            expected[owner] != normalized[owner] and expected[owner] != raw[owner] for owner in normalized
-        ):
-            raise SyncError('生活来源快照完整性校验失败：记录与摘要不一致')
+        if set(expected) != set(normalized):
+            missing = sorted(set(normalized) - set(expected))
+            extra = sorted(set(expected) - set(normalized))
+            raise SyncError('生活来源快照完整性校验失败：记录与摘要不一致'
+                            f'（缺少摘要的账号：{missing or "无"}；无对应记录的摘要：{extra or "无"}）')
+        bad = {owner: [name for name in MODELS if expected[owner].get(name) != normalized[owner][name]
+                       and expected[owner].get(name) != raw[owner][name]]
+               for owner in normalized if expected[owner] != normalized[owner] and expected[owner] != raw[owner]}
+        if bad:
+            detail = '；'.join(f'账号{owner}：{"、".join(names)}' for owner, names in bad.items())
+            raise SyncError(f'生活来源快照完整性校验失败：记录与摘要不一致（{detail}）')
     return normalized
 
 

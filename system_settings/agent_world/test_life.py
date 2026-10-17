@@ -171,6 +171,30 @@ class LifeTests(TestCase):
         manager.apply_snapshot_data(data, full_overwrite=True)
         validate_source(manager.build_snapshot_data())
 
+    def test_export_checkpoint_covers_orphan_owner_and_drops_stale_digest(self):
+        from utils.sync_manager import SyncManager
+        from .life_models import LifeIntegrity
+        from .life_snapshot import validate_source
+        self.item()
+        LifeProfile.objects.create(pk='orphan-actor', owner_id='orphan-owner')
+        LifeIntegrity.objects.create(pk='ghost-owner', hashes={})
+        data = SyncManager().build_snapshot_data()
+        validate_source(data)
+        self.assertTrue(LifeConfig.objects.filter(pk='orphan-owner').exists())
+        self.assertFalse(LifeIntegrity.objects.filter(pk='ghost-owner').exists())
+        self.assertTrue(LifeIntegrity.objects.filter(pk='orphan-owner').exists())
+
+    def test_digest_mismatch_names_owner_and_section(self):
+        import copy
+        from utils.sync_manager import SyncManager, SyncError
+        from .life_snapshot import validate_source
+        self.item()
+        data = SyncManager().build_snapshot_data()
+        broken = copy.deepcopy(data)
+        next(row for row in broken if row['model'] == 'system_settings.lifeitem')['fields']['intent'] = '被改写'
+        with self.assertRaisesMessage(SyncError, '账号admin：LifeItem'):
+            validate_source(broken)
+
     def test_life_time_normalization_does_not_change_json_business_facts(self):
         import copy
         from utils.sync_manager import SyncManager, SyncError
