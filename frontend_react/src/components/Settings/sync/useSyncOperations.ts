@@ -18,8 +18,6 @@ import type {
 } from "./types";
 import type { SyncHistoryEntry, WebDavSyncStatus } from "@/api/setting.ts";
 
-const FORCE_UPLOAD_VALIDATION_ERROR = "探索回顾记录与固定结算摘要不一致";
-
 export const useSyncOperations = ({
   config,
   status,
@@ -207,7 +205,7 @@ export const useSyncOperations = ({
       warning("当前已有同步任务正在运行，请等待完成后再操作");
       return;
     }
-    if (!forceOverwrite && !(await saveConfigBeforeSync())) return;
+    if (!(await saveConfigBeforeSync())) return;
     setIsSyncing(true);
     statusSummaryKeyRef.current = "";
     setLogs([`🚀 开始${direction === "upload" ? "上传" : "下载"}同步任务...`]);
@@ -293,22 +291,8 @@ export const useSyncOperations = ({
     } catch (err: any) {
       const message = err.message || String(err);
       setProgress(0);
-      if (
-        direction === "upload" &&
-        !forceOverwrite &&
-        message.includes(FORCE_UPLOAD_VALIDATION_ERROR)
-      ) {
-        try {
-          await onRefreshStatus();
-        } catch {
-          // The sync request already ended with an error; keep the explicit overwrite choice available.
-        }
-        setIsForceUploadConfirmOpen(true);
-        setLogs((prev) => [...prev, "⚠️ 普通上传已因本机数据校验停止，请确认是否强制覆盖云端。"]);
-      } else {
-        setLogs((prev) => [...prev, `❌ 错误: ${message}`]);
-        error("同步过程中发生错误");
-      }
+      setLogs((prev) => [...prev, `❌ 错误: ${message}`]);
+      error("同步过程中发生错误");
     } finally {
       setIsSyncing(false);
       await onRefreshStatus();
@@ -340,6 +324,17 @@ export const useSyncOperations = ({
       restoreHistory,
       cancelSync,
       startSyncStream,
+      requestForceUpload: () => {
+        if (!config.enabled) {
+          warning("请先开启同步开关并保存配置");
+          return;
+        }
+        if (isServerSyncing) {
+          warning("当前已有同步任务正在运行，请等待完成后再操作");
+          return;
+        }
+        setIsForceUploadConfirmOpen(true);
+      },
       dismissForceUpload: () => setIsForceUploadConfirmOpen(false),
       confirmForceUpload: async () => {
         setIsForceUploadConfirmOpen(false);

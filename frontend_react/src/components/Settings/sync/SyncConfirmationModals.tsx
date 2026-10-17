@@ -81,14 +81,14 @@ export const SyncConfirmationModals = ({
             isOpen={isForceUploadConfirmOpen}
             onClose={onCloseForceUpload}
             onConfirm={onForceUpload}
-            title="本机数据存在不一致，强制覆盖云端？"
+            title="确认用本机快照覆盖云端？"
             description={
                 <div className="space-y-2 text-xs leading-relaxed text-slate-600">
-                    <p>普通上传因“探索回顾记录与固定结算摘要不一致”已停止。</p>
+                    <p>手动上传会把本机完整快照直接发布为云端当前版本，不执行三方合并。</p>
                     <p className="text-rose-600 font-medium">
-                        确认后将本机完整快照直接发布为云端当前版本，不再进行三方合并；云端独有记录会从当前版本中移除。
+                        云端独有记录会从当前版本中移除。
                     </p>
-                    <p className="text-slate-500">上传快照中的探索回顾将按已有结算摘要重建。覆盖前会保存本机原始安全快照；远端历史快照按现有保留策略保留。确定继续？</p>
+                    <p className="text-slate-500">上传前会生成本机安全快照，远端历史快照仍按现有保留策略保留。确定继续？</p>
                 </div>
             }
             confirmText="强制覆盖云端"

@@ -997,13 +997,13 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                         {/* 2. 开始上传同步 (主操作，小橘橙色，放在前面/靠左位置以保持习惯) */}
                         <button
                             type="button"
-                            onClick={() => startSyncStream('upload')}
+                            onClick={actions.requestForceUpload}
                             disabled={isTransferBusy}
                             title={isServerSyncing ? '同步任务正在运行，暂时不能开始新的上传' : undefined}
                             className="px-4 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white text-xs font-medium rounded-lg flex items-center gap-2 transition-all shadow-sm shadow-orange-500/20 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                            开始上传同步
+                            覆盖上传到云端
                         </button>
 
                         {/* 3. 从云端下载按钮 (次级操作，白底边框，放在上传后面/靠右位置) */}
