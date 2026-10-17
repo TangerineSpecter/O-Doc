@@ -1,6 +1,7 @@
 import {getBuilding} from './buildings';
 import {CFG, PROPS, SCENE_H, SCENE_W, pondField, type SceneLayout} from './layout';
 import {cx, hash, mk, type Canvas, type Ctx} from './pixel';
+import {SPLASH_TICKS} from './rainPattern';
 import type {SceneSimulation} from './simulation';
 import type {SceneState, SceneTint} from './types';
 
@@ -82,7 +83,20 @@ export class WeatherOverlay {
         if (this.hasGlow) { g.save(); g.globalCompositeOperation = 'screen'; g.drawImage(this.glowLayer, 0, 0); g.restore(); }
     }
 
-    /** 池塘月光与萤火虫等按 tick 变化的夜间效果（雨幕见 rain.ts，单独高帧率绘制）。 */
+    /** 雨点落地的小水花：每个 3 个 tick，先是中心一点，再变成两侧各一点；整批一次填充。雨丝本身见 rainOverlay.ts。 */
+    drawSplashes(g: Ctx, sim: SceneSimulation) {
+        g.save();
+        g.beginPath();
+        for (const s of sim.splashes) {
+            if (s.t === SPLASH_TICKS) { g.rect(s.x, s.y, 1, 1); continue; }
+            g.rect(s.x - 1, s.y - 1, 1, 1); g.rect(s.x + 1, s.y - 1, 1, 1);
+            if (s.t === SPLASH_TICKS - 1) g.rect(s.x, s.y, 1, 1);
+        }
+        g.globalAlpha = .85; g.fillStyle = '#e8f6ff'; g.fill();
+        g.restore();
+    }
+
+    /** 池塘月光与萤火虫等按 tick 变化的夜间效果。 */
     drawDynamic(g: Ctx, state: SceneState, sim: SceneSimulation, layout: SceneLayout) {
         if (!state.night) return;
         g.save();

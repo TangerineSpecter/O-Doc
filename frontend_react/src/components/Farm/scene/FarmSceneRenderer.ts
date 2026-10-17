@@ -2,9 +2,9 @@ import {drawScene, type HitBox} from './drawScene';
 import {WeatherOverlay} from './effects';
 import {SCENE_H, SCENE_W, layoutFor, type SceneLayout} from './layout';
 import {buildGround} from './ground';
-import {drainTicks, frameInterval, nextDue} from './pacing';
-import {cx, mk, rng, type Canvas, type Ctx} from './pixel';
-import {RainField} from './rain';
+import {FRAME_MS, drainTicks, nextDue, tickAlpha} from './pacing';
+import {cx, type Canvas, type Ctx} from './pixel';
+import {RainSheets} from './rainSheet';
 import {SceneSimulation} from './simulation';
 import type {SceneSelection, SceneState} from './types';
 
@@ -14,16 +14,16 @@ const FRAME_LEAD_MS = 6; // 定时器比目标时刻提前唤醒，再由 rAF �
  * 像素农场画布控制器：持有 324×216 的逻辑画布，负责动画循环、整数倍缩放、鼠标点选与资源清理。
  * 只依赖 SceneState，不接触接口数据；调用方通过 setState 推送最新画面状态，用 dispose 释放全部监听。
  *
- * 绘制分两层：场景层（地面、对象、光照）按 tick（每秒 10 次）画进离屏画布；雨幕按真实时间推进，
- * 下雨时以更高帧率叠加到场景层上。循环由定时器驱动，只在到点时才用一次 rAF 出帧，空闲时不唤醒。
+ * 动画按 tick（每秒 10 次）推进动物、居民等逻辑，画面以 FRAME_MS 为节拍出帧：tick 之间在上一位置与当前位置间插值，
+ * 动物和居民走得更连贯；某一帧若没有任何对象移动过一个像素，就不重画。下雨时雨丝是两张预渲染的图案
+ * （RainSheets），每帧只需两次 drawImage，没有逐滴的状态；雨天每帧都出图，所以出帧率直接决定 CPU 开销。
+ * 循环由定时器驱动，只在到点时才用一次 rAF 对齐屏幕刷新。
  */
 export class FarmSceneRenderer {
     private readonly g: Ctx;
     private readonly sim = new SceneSimulation();
     private readonly weather = new WeatherOverlay();
-    private readonly rain = new RainField(rng(99));
-    private readonly scene: Canvas = mk(SCENE_W, SCENE_H, true);
-    private readonly sceneG: Ctx = cx(this.scene, true);
+    private readonly rain = new RainSheets();
     private readonly resizeObserver: ResizeObserver;
     private readonly intersection: IntersectionObserver | null;
     private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -39,6 +39,7 @@ export class FarmSceneRenderer {
     private acc = 0;
     private lastT = 0;
     private due = 0;
+    private lastMotion = 0;
     private disposed = false;
 
     constructor(private readonly canvas: HTMLCanvasElement, private readonly box: HTMLElement, private readonly onSelect: (selection: SceneSelection) => void) {
@@ -100,7 +101,7 @@ export class FarmSceneRenderer {
             this.running = true;
             this.acc = 0;
             this.lastT = performance.now();
-            this.due = this.lastT + frameInterval(!!this.state?.rain);
+            this.due = this.lastT + FRAME_MS;
             this.schedule();
         } else if (!shouldRun) this.stop();
         if (this.state) this.render();
@@ -126,26 +127,19 @@ export class FarmSceneRenderer {
         const drained = drainTicks(this.acc, dt);
         this.acc = drained.acc;
         for (let i = 0; i < drained.ticks; i++) this.sim.tick(state);
-        if (state.rain) this.rain.step(dt, Math.random, this.rainLanded);
-        if (drained.ticks) this.render(); else if (state.rain) this.present();
-        this.due = nextDue(this.due, now, frameInterval(state.rain));
+        this.sim.alpha = tickAlpha(this.acc);
+        const motion = this.sim.motionKey();
+        if (drained.ticks || state.rain || motion !== this.lastMotion) this.render();
+        this.due = nextDue(this.due, now, FRAME_MS);
         this.schedule();
     };
 
-    private rainLanded = (x: number, y: number) => this.sim.rainLanded(x, y);
-
-    /** 重画场景层并呈现。 */
+    /** 重画场景并记下本次画面里各对象的位置摘要。 */
     private render() {
         if (!this.state || !this.ground) return;
-        this.hits = drawScene(this.sceneG, {ground: this.ground, state: this.state, sim: this.sim, weather: this.weather, layout: this.layout, hover: this.hover});
-        this.present();
-    }
-
-    /** 把场景层贴到可见画布，下雨时再叠加雨幕。 */
-    private present() {
-        if (!this.state) return;
-        this.g.drawImage(this.scene, 0, 0);
-        if (this.state.rain) this.rain.draw(this.g);
+        this.hits = drawScene(this.g, {ground: this.ground, state: this.state, sim: this.sim, weather: this.weather, layout: this.layout, hover: this.hover});
+        if (this.state.rain) this.rain.draw(this.g, performance.now());
+        this.lastMotion = this.sim.motionKey();
     }
 
     /**

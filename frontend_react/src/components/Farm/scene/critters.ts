@@ -9,21 +9,32 @@ type CritterKind = 'cow' | 'sheep' | 'chick' | 'hen';
 type CritterState = 'idle' | 'graze' | 'walk';
 
 const HALF_WIDTH: Record<AnimalType, number> = {cow: 13, sheep: 12, lamb: 8, hen: 7, henB: 7, henY: 7, chick: 5};
-const SPEED: Record<CritterKind, number> = {cow: 0.32, sheep: 0.34, chick: 0.55, hen: 0.5};
+// 每 tick 的行走距离（像素）。设计稿的 0.32–0.55 在 10 tick/秒下只有 3–5 像素/秒，显得迟钝，现提高到约 2.5 倍。
+export const SPEED: Record<CritterKind, number> = {cow: 0.8, sheep: 0.85, chick: 1.4, hen: 1.3};
+// 迈腿间隔（tick）：走得越快迈腿越勤，但仍保持每秒 2–3 次切换，不会鬼畜。
+const STEP_TICKS: Record<CritterKind, number> = {cow: 5, sheep: 4, chick: 3, hen: 3};
 
 /** 围栏里的一只动物：待机、啄食/吃草、闲逛三种状态按 tick 推进。id 为空表示纯装饰的幼崽。 */
 export class Critter {
     x = 0; y = 0; tx = 0; ty = 0;
+    /** 上一 tick 的位置，绘制时在它与 (x, y) 之间插值。 */
+    px = 0; py = 0;
     dir: 1 | -1;
     state: CritterState = 'idle';
     t: number; leg = 0; blink = 0; head = 0; ph = 0;
     readonly hwm: number;
+    readonly type: AnimalType;
+    readonly id: string | null;
+    private readonly obs: Obstacle[];
+    private readonly r: () => number;
+    private readonly others: Critter[];
     private readonly zone: Zone;
     private readonly kind: CritterKind;
     private readonly speed: number;
     private readonly grazeDur: number;
 
-    constructor(readonly type: AnimalType, zone: Zone, private readonly obs: Obstacle[], private readonly r: () => number, private readonly others: Critter[], readonly id: string | null = null) {
+    constructor(type: AnimalType, zone: Zone, obs: Obstacle[], r: () => number, others: Critter[], id: string | null = null) {
+        this.type = type; this.obs = obs; this.r = r; this.others = others; this.id = id;
         const margin = HALF_WIDTH[type] + 2;
         this.hwm = margin - 2;
         this.zone = [zone[0] + margin, zone[1], zone[2] - margin, zone[3]];
@@ -36,7 +47,7 @@ export class Critter {
             this.y = this.zone[1] + r() * (this.zone[3] - this.zone[1]);
             if (!this.blocked(this.x, this.y) && this.free(this.x, this.y)) break;
         }
-        this.tx = this.x; this.ty = this.y;
+        this.tx = this.x; this.ty = this.y; this.px = this.x; this.py = this.y;
         this.grazeDur = this.kind === 'hen' || this.kind === 'chick' ? 14 : 40;
     }
     private blocked(x: number, y: number) {
@@ -63,6 +74,7 @@ export class Critter {
     }
     tick() {
         const r = this.r;
+        this.px = this.x; this.py = this.y;
         this.t--; this.ph++;
         if (this.blink > 0) this.blink--; else if (r() < 0.012) this.blink = 2;
         if (this.state === 'idle') {
@@ -83,7 +95,7 @@ export class Critter {
                 const nx = this.x + dx / d * this.speed, ny = this.y + dy / d * this.speed;
                 if (this.blocked(nx, ny)) { this.state = 'idle'; this.t = 10; } else { this.x = nx; this.y = ny; }
                 if (Math.abs(dx) > 1) this.dir = dx > 0 ? 1 : -1;
-                if (this.ph % (this.kind === 'cow' ? 6 : 4) === 0) this.leg ^= 1;
+                if (this.ph % STEP_TICKS[this.kind] === 0) this.leg ^= 1;
             }
         }
     }

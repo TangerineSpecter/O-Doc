@@ -125,16 +125,17 @@ function props(g: Ctx, f: SceneFrame): Item[] {
 function creatures(g: Ctx, f: SceneFrame): Item[] {
     const {sim, state} = f, items: Item[] = [];
     for (const c of sim.critters) {
-        const s = c.sprite(), box = spriteBox(s, c.x, c.y, 2);
+        const s = c.sprite(), x = sim.at(c.px, c.x), y = sim.at(c.py, c.y), box = spriteBox(s, x, y, 2);
         const selectable = c.id !== null && !c.id.startsWith(YOUNG_PREFIX);
         items.push({
-            y: c.y,
-            draw: () => place(g, s, c.x, c.y),
+            y,
+            draw: () => place(g, s, x, y),
             hit: selectable ? {box, focus: {x: box.x + 1, y: box.y + 1, w: box.w - 3, h: box.h - 3}, selection: {kind: 'animal', id: c.id as string}} : undefined,
         });
     }
     const r = sim.resident;
-    items.push({y: r.y, draw: () => place(g, drawResident(r.dir, {leg: r.leg}, state.look), r.x, r.y)});
+    const rx = sim.at(r.px, r.x), ry = sim.at(r.py, r.y);
+    items.push({y: ry, draw: () => place(g, drawResident(r.dir, {leg: r.leg}, state.look), rx, ry)});
     return items;
 }
 
@@ -175,5 +176,6 @@ export function drawScene(g: Ctx, f: SceneFrame): HitBox[] {
     if (hovered) drawFocus(g, hovered.focus);
     f.weather.drawShade(g);
     f.weather.drawDynamic(g, f.state, f.sim, f.layout);
+    if (f.state.rain) f.weather.drawSplashes(g, f.sim);
     return hits;
 }
