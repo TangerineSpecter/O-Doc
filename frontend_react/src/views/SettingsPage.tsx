@@ -165,34 +165,31 @@ export default function SettingsPage() {
             }
 
             if (activeTab === 'sync') {
-                if (!webDavConfig.enabled) {
-                    toast.info('同步未开启，暂无需要保存的同步配置');
-                    return;
-                }
-
-                const protocol = webDavConfig.protocol || 'webdav';
-                const host = webDavConfig.host || webDavConfig.url;
-                if (!webDavConfig.remotePath?.trim()) {
-                    toast.warning('请填写远程路径，不要留空');
-                    return;
-                }
-                if (protocol === 'webdav') {
-                    if (!webDavConfig.url || !webDavConfig.username || !webDavConfig.password) {
-                        toast.warning('请填写完整的 WebDAV 地址、用户名和密码');
+                if (webDavConfig.enabled) {
+                    const protocol = webDavConfig.protocol || 'webdav';
+                    const host = webDavConfig.host || webDavConfig.url;
+                    if (!webDavConfig.remotePath?.trim()) {
+                        toast.warning('请填写远程路径，不要留空');
                         return;
                     }
-                } else if (protocol === 'ftp') {
-                    if (!host || !webDavConfig.username || !webDavConfig.password) {
-                        toast.warning('请填写完整的 FTP 主机、用户名和密码');
+                    if (protocol === 'webdav') {
+                        if (!webDavConfig.url || !webDavConfig.username || !webDavConfig.password) {
+                            toast.warning('请填写完整的 WebDAV 地址、用户名和密码');
+                            return;
+                        }
+                    } else if (protocol === 'ftp') {
+                        if (!host || !webDavConfig.username || !webDavConfig.password) {
+                            toast.warning('请填写完整的 FTP 主机、用户名和密码');
+                            return;
+                        }
+                    } else if (!host || !webDavConfig.username || (!webDavConfig.password && !webDavConfig.privateKey)) {
+                        toast.warning('请填写完整的 SFTP 主机、用户名，以及密码或私钥');
                         return;
                     }
-                } else if (!host || !webDavConfig.username || (!webDavConfig.password && !webDavConfig.privateKey)) {
-                    toast.warning('请填写完整的 SFTP 主机、用户名，以及密码或私钥');
-                    return;
                 }
 
                 await saveWebDavConfig(webDavConfig);
-                toast.success('同步配置已保存');
+                toast.success(webDavConfig.enabled ? '同步配置已保存' : '同步服务已关闭并保存');
                 await fetchWebDavConfig();
                 return;
             }

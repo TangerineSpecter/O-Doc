@@ -75,6 +75,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         isRefreshingHistory,
         isRestoringHistory,
         isCancelling,
+        isForceUploadConfirmOpen,
         isServerSyncing,
         isCancelRequested,
         isTransferBusy,
@@ -1028,10 +1029,13 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                 isCancelling={isCancelling}
                 isImporting={isImporting}
                 isRestoring={Boolean(isRestoringHistory)}
+                isForceUploadConfirmOpen={isForceUploadConfirmOpen}
+                isForceUploading={isSyncing}
                 onCloseCancel={() => setIsCancelConfirmOpen(false)}
                 onCloseDownload={() => setIsDownloadConfirmOpen(false)}
                 onCloseRestore={() => setRestoreConfirmSnapshot(null)}
                 onCloseImport={() => setImportConfirmFile(null)}
+                onCloseForceUpload={actions.dismissForceUpload}
                 onCancel={handleCancelSync}
                 onDownload={async () => {
                     setIsDownloadConfirmOpen(false);
@@ -1039,6 +1043,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                 }}
                 onRestore={executeRestoreHistory}
                 onImport={executeImportBackup}
+                onForceUpload={actions.confirmForceUpload}
             />
         </div>
     );

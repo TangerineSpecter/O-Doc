@@ -22,6 +22,7 @@ export interface SyncOperationState {
   isRefreshingHistory: boolean;
   isRestoringHistory: string;
   isCancelling: boolean;
+  isForceUploadConfirmOpen: boolean;
   logs: string[];
   progress: number;
   history: SyncHistoryEntry[];

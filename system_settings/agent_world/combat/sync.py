@@ -21,7 +21,7 @@ LISTING=LABEL+'marketlisting'
 MARKET_TRADE=LABEL+'markettransaction'
 
 
-def validate_source(data,meta=None):
+def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
     if meta and meta.get('combat_schema_version',0)>6:
         raise SyncError('战斗快照版本过新，请升级所有设备')
@@ -226,9 +226,48 @@ def validate_source(data,meta=None):
             if payload['status']!=run['status'] or payload['record_id']!=run['record_id'] or payload['report']!=run['result'].get('report') or payload['returned']!=run['result'].get('returned_potions'):
                 raise SyncError('探索终态与结算事实不一致')
             expected_status='success' if run['status'] in ('completed','recalled','fallen','exhausted') else 'failed'
-            if record.get('agent_id',record.get('agent')) not in (None,run['actor_id']) or record['status']!=expected_status or record['output']!=payload['report'] or record['steps']!=[{'kind':'exploration','exploration_id':pk,'result':run['result']}]:
+            recap_mismatch = (
+                record.get('agent_id',record.get('agent')) not in (None,run['actor_id'])
+                or record['status'] != expected_status
+                or record['output'] != payload['report']
+                or record['steps'] != [{'kind':'exploration','exploration_id':pk,'result':run['result']}]
+            )
+            if recap_mismatch and not allow_exploration_review_mismatch:
                 raise SyncError('探索回顾记录与固定结算摘要不一致')
     return True
+
+
+def normalize_exploration_reviews(data: list[dict]) -> list[dict]:
+    """Rebuild exported recaps from validated settlement facts, without changing local records."""
+    validate_source(data, allow_exploration_review_mismatch=True)
+    from .explorations import TERMINAL
+
+    actors = {str(row['pk']) for row in data if row['model'] == LABEL + 'agent'}
+    reviews = {}
+    for row in data:
+        run = row['fields']
+        if row['model'] != RUN or run['status'] not in TERMINAL:
+            continue
+        report = run['result']['report']
+        reviews[str(run['record_id'])] = {
+            'agent': run['actor_id'] if run['actor_id'] in actors else None,
+            'status': 'success' if run['status'] in ('completed', 'recalled', 'fallen', 'exhausted') else 'failed',
+            'summary': report[:255],
+            'output': report,
+            'steps': [{'kind': 'exploration', 'exploration_id': str(row['pk']), 'result': deepcopy(run['result'])}],
+        }
+
+    result = []
+    for row in data:
+        recap = reviews.get(str(row['pk'])) if row['model'] == LABEL + 'agentrunrecord' else None
+        if recap is not None:
+            fields = {**row['fields'], **recap}
+            if 'agent_id' in fields:
+                fields['agent_id'] = recap['agent']
+            row = {**row, 'fields': fields}
+        result.append(row)
+    validate_source(result)
+    return result
 
 
 def validate_catalog_conflicts(local,remote):

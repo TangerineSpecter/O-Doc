@@ -42,6 +42,11 @@ def format_sync_result(summary, safety_backup=''):
     if summary.get('unchanged'):
         return '数据与媒体均未变化，已跳过全量合并与上传。'
     backup_name = os.path.basename(safety_backup) if safety_backup else '未创建'
+    if summary.get('force_overwrite'):
+        return (
+            f"已强制覆盖远端当前快照：新增 {summary.get('created', 0)}、更新 {summary.get('updated', 0)}、"
+            f"移除远端独有记录 {summary.get('deleted', 0)}；本机安全快照：{backup_name}"
+        )
     return (
         f"v2 合并完成：新增 {summary.get('created', 0)}、更新 {summary.get('updated', 0)}、"
         f"删除 {summary.get('deleted', 0)}、冲突自动处理 {summary.get('conflicts', 0)}；本机安全快照：{backup_name}"
@@ -169,7 +174,7 @@ class SyncManager:
         travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>5:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>6:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
@@ -1230,7 +1235,7 @@ class SyncManager:
 
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
-        if remote_meta and remote_meta.get('combat_schema_version',0)>5:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>6:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
@@ -1254,7 +1259,7 @@ class SyncManager:
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
-    def build_snapshot_data(self, *, compact_travel=False):
+    def build_snapshot_data(self, *, compact_travel=False, allow_exploration_review_mismatch=False):
         from system_settings.agent_world.life_sync import checkpoint_all
         checkpoint_all()
         from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
@@ -1270,8 +1275,34 @@ class SyncManager:
             if queryset.exists():
                 all_data.extend(json.loads(serializers.serialize('json', queryset)))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
-        validate_combat(all_data)
+        validate_combat(
+            all_data,
+            allow_exploration_review_mismatch=allow_exploration_review_mismatch,
+        )
         return self._strip_device_local_user_fields(all_data)
+
+    @staticmethod
+    def _validate_force_overwrite_source(data):
+        """Validate the normalized local snapshot before publishing it for strict readers."""
+        from system_settings.agent_world.life_snapshot import validate_source as validate_life
+        from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
+        from system_settings.agent_world.cooking_quality_sync import (
+            validate_source as validate_cooking,
+            metadata as cooking_metadata,
+        )
+        from system_settings.agent_world.combat.sync import validate_source as validate_combat
+        from system_settings.agent_world.memory.sync import (
+            validate_source as validate_memories,
+            metadata as memory_metadata,
+        )
+        from system_settings.agent_archive_sync import validate_names
+
+        validate_life(data)
+        validate_crops(data)
+        validate_cooking(data, cooking_metadata(data))
+        validate_combat(data)
+        validate_memories(data, memory_metadata(data))
+        validate_names(data)
 
     @staticmethod
     def _safe_extract_zip(archive, dest_dir):
@@ -1423,6 +1454,43 @@ class SyncManager:
         if not snapshot_id:
             return None
         return self.get_v2_snapshot(snapshot_id)
+
+    def _get_remote_overwrite_state(self):
+        """Read only the remote metadata needed to replace current, without merging its data."""
+        pointer = self._read_remote_json(self.v2_current_file)
+        if not isinstance(pointer, dict) or pointer.get('format') != self.SNAPSHOT_FORMAT:
+            legacy = self._get_legacy_snapshot()
+            released_book_paths = set(self._released_book_rel_paths())
+            if released_book_paths:
+                raise SyncError('远端仍是旧版快照，强制覆盖前请先完成一次普通同步以迁移云端图书正文')
+            return legacy
+
+        snapshot_id = pointer.get('snapshot_id')
+        if not snapshot_id:
+            raise SyncError('远端当前快照指针缺少快照 ID，无法安全覆盖')
+        meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
+        if not isinstance(meta, dict):
+            raise SyncError('远端快照元数据格式不正确，无法安全覆盖')
+        if meta.get('format') != self.SNAPSHOT_FORMAT:
+            raise SyncError('远端快照格式不受支持，请升级客户端')
+        self.validate_remote_snapshot_version(meta)
+
+        revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json')) or {}
+        if not isinstance(revisions, dict) or any(not isinstance(value, dict) for value in revisions.values()):
+            revisions = {}
+        media = self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'))
+        released_book_paths = set(self._released_book_rel_paths())
+        if not isinstance(media, dict) or any(not isinstance(value, dict) for value in media.values()):
+            if released_book_paths:
+                raise SyncError('远端媒体清单无法读取，不能安全保留云端图书正文')
+            media = {}
+        if any(not (media.get(path) or {}).get('hash') for path in released_book_paths):
+            raise SyncError('远端媒体清单缺少云端图书正文，无法安全强制覆盖')
+        return {
+            'meta': {**meta, 'snapshot_id': snapshot_id},
+            'revisions': revisions,
+            'media': media,
+        }
 
     def _get_legacy_snapshot(self):
         """将 v1 根目录快照作为首次 v2 合并的只读远端输入，不把缺失记录视为删除。"""
@@ -1995,11 +2063,13 @@ class SyncManager:
         travel_sync.prune_states()
 
     @farm_sync_guard
-    def create_local_safety_backup(self, reason):
+    def create_local_safety_backup(self, reason, *, allow_exploration_review_mismatch=False):
         root = os.path.join(str(settings.MEDIA_ROOT), '.sync-v2-safety')
         os.makedirs(root, exist_ok=True)
         path = os.path.join(root, f'{datetime.utcnow().strftime("%Y%m%d%H%M%S")}-{reason}-{uuid.uuid4().hex[:8]}.zip')
-        data = self.build_snapshot_data()
+        data = self.build_snapshot_data(
+            allow_exploration_review_mismatch=allow_exploration_review_mismatch,
+        )
         with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
             archive.writestr('data_index.json', json.dumps(data, ensure_ascii=False))
             for rel_path in self._list_local_files(str(settings.MEDIA_ROOT)):
@@ -2287,15 +2357,24 @@ class SyncManager:
     @farm_sync_guard
     def sync_v2(
         self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
-        should_abort=None, recover_owned_remote_lock=False,
+        should_abort=None, recover_owned_remote_lock=False, force_overwrite=False,
     ):
-        """本机已对齐当前远端快照且没有变更时直接结束；否则再合并或发布。"""
+        """默认三方合并；显式手动强制上传时将本机快照直接发布为远端当前版本。"""
         def report(message, progress=None):
             if callable(on_progress):
                 on_progress(message, progress)
 
         self._ensure_not_aborted(should_abort)
         report('正在比对修订清单与媒体哈希。', 8)
+        if force_overwrite:
+            if source != 'manual':
+                raise SyncError('强制覆盖仅允许用于手动上传')
+            return self._force_overwrite_v2(
+                runner_id=runner_id,
+                report=report,
+                should_abort=should_abort,
+                recover_owned_remote_lock=recover_owned_remote_lock,
+            )
         if base_snapshot_id:
             head = self._read_aligned_head(base_snapshot_id)
             if head is not None:
@@ -2321,6 +2400,54 @@ class SyncManager:
         with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
             snapshot, summary = self._merge_while_locked(
                 report, base_snapshot_id=base_snapshot_id, source=source, runner_id=runner_id, should_abort=should_abort,
+            )
+        return snapshot, summary, safety_backup
+
+    def _force_overwrite_v2(self, *, runner_id, report, should_abort, recover_owned_remote_lock):
+        from article.version_service import enforce_article_version_retention
+
+        report('正在创建本机完整安全快照。', 10)
+        safety_backup = self.create_local_safety_backup(
+            'before-force-upload',
+            allow_exploration_review_mismatch=True,
+        )
+        enforce_article_version_retention()
+        enforce_novel_revision_retention()
+        report('本机安全快照已完成，正在准备强制覆盖远端。', 18)
+        self._ensure_not_aborted(should_abort)
+        self.reconcile_missing_book_media(drop_missing_assets=False)
+
+        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+            self._ensure_not_aborted(should_abort)
+            report('已获取远端同步锁，正在生成本机完整快照。', 28)
+            remote = self._get_remote_overwrite_state()
+            local_data = self.build_snapshot_data(
+                compact_travel=True,
+                allow_exploration_review_mismatch=True,
+            )
+            from system_settings.agent_world.combat.sync import normalize_exploration_reviews
+            local_data = normalize_exploration_reviews(local_data)
+            self._validate_force_overwrite_source(local_data)
+            local_revisions = self._build_revision_manifest(local_data)
+            remote_revisions = (remote or {}).get('revisions') or {}
+            summary = self._revision_change_summary(remote_revisions, local_revisions)
+            local_keys = set(local_revisions)
+            summary['deleted'] += sum(
+                1 for key, revision in remote_revisions.items()
+                if key not in local_keys and not revision.get('deleted')
+            )
+            summary['force_overwrite'] = True
+            summary['unchanged'] = False
+            self._ensure_not_aborted(should_abort)
+            report('已确认强制覆盖：正在将本机快照直接发布为远端当前版本。', 75)
+            snapshot = self.publish_v2_snapshot(
+                source='manual-force-overwrite',
+                runner_id=runner_id,
+                base_snapshot_id=((remote or {}).get('meta') or {}).get('snapshot_id', ''),
+                previous_media=(remote or {}).get('media'),
+                data_list=local_data,
+                revisions=local_revisions,
+                report=report,
             )
         return snapshot, summary, safety_backup
 

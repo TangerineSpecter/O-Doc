@@ -2232,6 +2232,25 @@ class SystemConfigViewSetTests(TestCase):
         runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
         self.assertEqual(runtime['last_synced_snapshot_id'], 'snapshot-merged')
 
+    def test_force_upload_reads_camel_case_json_through_configured_parser(self):
+        request = self.factory.post(
+            '/api/settings/config/sync_to_webdav/', {'forceOverwrite': True}, format='json',
+        )
+        force_authenticate(request, user=self.user)
+        manager = Mock()
+        manager.sync_v2.return_value = (
+            {'meta': {'snapshot_id': 'forced-snapshot'}},
+            {'force_overwrite': True},
+            '/tmp/before-force-upload.zip',
+        )
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=manager):
+            response = view(request)
+            events = [json.loads(chunk) for chunk in response.streaming_content]
+
+        self.assertTrue(manager.sync_v2.call_args.kwargs['force_overwrite'])
+        self.assertEqual(events[-1]['step'], 'done')
+
     def test_sync_to_webdav_returns_v2_version_error(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
         force_authenticate(request, user=self.user)

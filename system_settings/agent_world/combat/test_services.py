@@ -269,6 +269,70 @@ class ExplorationTests(TestCase):
             if row['model']=='system_settings.agentrunrecord':row['fields']['output']='其他探索的回顾'
         with self.assertRaisesMessage(SyncError,'回顾记录'):validate_source(bad)
 
+    def test_force_uploaded_recap_supports_strict_merge_and_restore(self):
+        import tempfile
+        import zipfile
+        from system_settings.models import AgentRunRecord
+        from system_settings.tests import MemoryStorageClient
+        from system_settings.sync_state import canonical_hash
+        from utils.sync_manager import SyncManager, SyncError
+        from ..life_config import config_for
+
+        config_for('admin')
+        run = self.run_trip()
+        explorations.finish(run.pk, now=self.now + timedelta(seconds=16))
+        run.refresh_from_db()
+        AgentRunRecord.objects.filter(pk=run.record_id).update(
+            output='旧版探索回顾', steps=[], status='running',
+        )
+        with self.assertRaisesMessage(SyncError, '探索回顾记录与固定结算摘要不一致'):
+            validate_source(self.data())
+
+        with tempfile.TemporaryDirectory(prefix='odoc-force-sync-') as media_root, self.settings(MEDIA_ROOT=media_root):
+            manager = SyncManager(MemoryStorageClient(), '/backup')
+            snapshot, summary, backup = manager.sync_v2(force_overwrite=True)
+            self.assertTrue(summary['force_overwrite'])
+            validate_source(snapshot['data'], snapshot['meta'])
+            recap = AgentRunRecord.objects.get(pk=run.record_id)
+            self.assertEqual(recap.output, '旧版探索回顾')
+            with zipfile.ZipFile(backup) as archive:
+                original = json.loads(archive.read('data_index.json'))
+            original_recap = next(
+                row for row in original
+                if row['model'] == 'system_settings.agentrunrecord' and row['pk'] == run.record_id
+            )
+            self.assertEqual(original_recap['fields']['output'], '旧版探索回顾')
+
+            future_meta = {**snapshot['meta'], 'combat_schema_version': 7}
+            for check in (manager.validate_remote_snapshot_version, manager.validate_import_snapshot_version):
+                with self.assertRaisesMessage(SyncError, '战斗快照版本过新'):
+                    check(future_meta)
+
+            remote = manager.get_v2_current()
+            merged, revisions, _ = manager.merge_v2_data(None, [], {}, remote)
+            validate_source(merged)
+            for row in merged:
+                key = manager._revision_key(row['model'], manager._item_identity(row))
+                self.assertEqual(revisions[key]['hash'], canonical_hash(row['fields']))
+            manager.apply_snapshot_data(remote['data'], remote_meta=remote['meta'], full_overwrite=True)
+            restored = AgentRunRecord.objects.get(pk=run.record_id)
+            self.assertEqual(restored.output, run.result['report'])
+            self.assertEqual(restored.status, 'success')
+            validate_source(manager.build_snapshot_data())
+
+    def test_force_recap_normalization_still_rejects_corrupt_settlement_facts(self):
+        from .sync import normalize_exploration_reviews
+        from utils.sync_manager import SyncError
+
+        run = self.run_trip()
+        explorations.finish(run.pk, now=self.now + timedelta(seconds=16))
+        data = self.data()
+        for row in data:
+            if row['model'] == 'system_settings.combatfact' and row['fields']['kind'] == 'terminal':
+                row['fields']['payload']['report'] = '被改写的结算事实'
+        with self.assertRaisesMessage(SyncError, '战斗事实链缺失或发生分叉'):
+            normalize_exploration_reviews(data)
+
     def test_named_drop_snapshot_matches_reward_fact_and_sync(self):
         import copy
         import random

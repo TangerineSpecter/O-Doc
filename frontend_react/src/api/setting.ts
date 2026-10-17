@@ -341,7 +341,7 @@ export const getWebDavConfig = () => request.get<WebDavConfig>('/settings/config
 export const getWebDavStatus = () => request.get<WebDavSyncStatus>('/settings/config/get_webdav_status/');
 export const cancelWebDavSync = () => request.post<any, WebDavSyncStatus>('/settings/config/cancel_webdav_sync/');
 
-// 2. 测试连接并保存配置
+// 2. 开启时测试连接并保存配置；关闭时保存关闭状态
 export const saveWebDavConfig = (data: WebDavConfig) => request.post('/settings/config/save_webdav_config/', data, {timeout: 30000});
 
 // 3. 触发上传 (备份到 WebDAV)

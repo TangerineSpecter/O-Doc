@@ -665,7 +665,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def save_webdav_config(self, request):
-        """保存同步与备份配置，并测试远端连接。"""
+        """保存同步与备份配置；开启时测试远端连接，关闭时只保存关闭状态。"""
         try:
             data = normalize_sync_config(request.data)
             previous = SystemSetting.objects.filter(key='system_webdav_config').first()
@@ -675,14 +675,17 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 data['host_key'] = ''
             elif not data.get('host_key'):
                 data['host_key'] = previous_value.get('host_key') or ''
-            validate_sync_config(data)
+            if data['enabled']:
+                validate_sync_config(data)
         except ValueError as exc:
             return valid_result(msg=str(exc))
 
         try:
-            client = create_storage_client(data)
-            if not client.check_connection():
-                raise Exception("验证失败，无法连接到备份服务器")
+            client = None
+            if data['enabled']:
+                client = create_storage_client(data)
+                if not client.check_connection():
+                    raise Exception("验证失败，无法连接到备份服务器")
 
             if dest_changed:
                 update_runtime_state(
@@ -699,18 +702,23 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     remote_hash='',
                 )
 
-            captured_host_key = getattr(client, 'last_host_key', '') or ''
-            if isinstance(captured_host_key, str) and captured_host_key:
-                data['host_key'] = captured_host_key
+            if client:
+                captured_host_key = getattr(client, 'last_host_key', '') or ''
+                if isinstance(captured_host_key, str) and captured_host_key:
+                    data['host_key'] = captured_host_key
 
             SystemSetting.objects.update_or_create(
                 key='system_webdav_config',
                 defaults={'value': data}
             )
             reset_auto_sync_failure_state()
-            return success_result(msg="连接测试通过并保存成功")
+            return success_result(
+                msg="连接测试通过并保存成功" if data['enabled'] else "同步服务已关闭，配置已保存"
+            )
         except Exception as e:
-            logger.exception('Remote synchronization connection test failed: storage_type=%s', config.get('type'))
+            logger.exception(
+                'Remote synchronization configuration save failed: protocol=%s', data.get('protocol')
+            )
             return error_result(ErrorCode.WEBDEV_LOGIN_FAIL)
 
     @action(detail=False, methods=['post'])
@@ -718,6 +726,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
         manager = self._get_sync_manager()
         if not manager:
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
+        force_overwrite = bool(request.data.get('force_overwrite', False))
 
         def stream_generator():
             runner_id = generate_runner_id('manual')
@@ -750,6 +759,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                         message, runner_id=runner_id, progress=progress),
                     should_abort=lambda: should_abort_sync(runner_id),
                     recover_owned_remote_lock=recover_owned_remote_lock,
+                    force_overwrite=force_overwrite,
                 )
                 snapshot_meta = snapshot['meta']
                 yield self._sync_event('summary', format_sync_result(summary, safety_backup))
