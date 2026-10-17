@@ -5,15 +5,15 @@ export type Ctx = CanvasRenderingContext2D;
 /** 预渲染精灵：ax/ay 为锚点（通常是脚底或底边中点）。 */
 export interface Sprite {c: Canvas; ax: number; ay: number}
 
-/** 新建关闭平滑的离屏画布。 */
-export function mk(w: number, h: number): Canvas {
+/** 新建关闭平滑的离屏画布；opaque 表示内容始终铺满不透明像素，浏览器可跳过透明混合。 */
+export function mk(w: number, h: number, opaque = false): Canvas {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
-    cx(c).imageSmoothingEnabled = false;
+    cx(c, opaque).imageSmoothingEnabled = false;
     return c;
 }
-export function cx(c: Canvas): Ctx {
-    const g = c.getContext('2d');
+export function cx(c: Canvas, opaque = false): Ctx {
+    const g = opaque ? c.getContext('2d', {alpha: false}) : c.getContext('2d');
     if (!g) throw new Error('当前浏览器不支持 Canvas 2D');
     return g;
 }

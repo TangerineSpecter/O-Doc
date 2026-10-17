@@ -8,8 +8,6 @@ import type {ResidentDirection} from './residentSprite';
 import type {SceneAnimal, SceneState} from './types';
 
 interface Resident {i: number; x: number; y: number; wait: number; dir: ResidentDirection; leg: number; ph: number}
-interface Drop {x: number; y: number; vy: number; land: number}
-interface Splash {x: number; y: number; t: number}
 interface Ripple {x: number; y: number; t: number}
 interface Firefly {x: number; y: number; ph: number; sp: number}
 interface Group {level: number; r: () => number; list: Critter[]}
@@ -36,14 +34,12 @@ export const routeFor = (layout: SceneLayout): RoutePoint[] =>
     layout === 'southField' ? [...ROUTE.slice(0, ROUTE_SOUTH_AFTER + 1), ...ROUTE_SOUTH, ...ROUTE.slice(ROUTE_SOUTH_AFTER + 1)] : ROUTE;
 
 /**
- * 场景里所有会动的东西：动物、居民、雨滴、涟漪和萤火虫。
+ * 场景里按 tick 推进的东西：动物、居民、池塘涟漪和萤火虫（雨滴由 RainField 按真实时间推进）。
  * sync 只增删有变化的动物，轮询刷新数据时已有动物的位置保持不变，不会跳动。
  */
 export class SceneSimulation {
     critters: Critter[] = [];
     resident: Resident;
-    drops: Drop[] = [];
-    splashes: Splash[] = [];
     ripples: Ripple[] = [];
     flies: Firefly[] = [];
     tickN = 0;
@@ -54,7 +50,6 @@ export class SceneSimulation {
     constructor() {
         this.resident = this.newResident();
         const r = rng(99);
-        for (let i = 0; i < 130; i++) this.drops.push({x: r() * SCENE_W, y: r() * SCENE_H, vy: 3 + r() * 3, land: 30 + r() * (SCENE_H - 32)});
         for (let i = 0; i < 18; i++) this.flies.push({x: r() * SCENE_W, y: 20 + r() * (SCENE_H - 40), ph: r() * 6.28, sp: .02 + r() * .03});
     }
 
@@ -118,21 +113,16 @@ export class SceneSimulation {
         if (r.ph % 4 === 0) r.leg ^= 1;
     }
 
+    /** 雨滴落到 (x, y)：池塘布局下水面有一定概率荡起涟漪。 */
+    rainLanded(x: number, y: number) {
+        if (this.layout === 'pond' && inPond(Math.round(x), Math.round(y)) && Math.random() < .15) this.ripples.push({x, y, t: 0});
+    }
+
     /** 推进一个 tick（0.1 秒）。 */
     tick(state: SceneState) {
         this.tickN++;
         this.critters.forEach(c => c.tick());
         this.tickResident();
-        if (state.rain) {
-            for (const d of this.drops) {
-                d.y += d.vy; d.x -= .5;
-                if (d.y < d.land) continue;
-                this.splashes.push({x: Math.round(d.x), y: Math.round(d.land), t: 3});
-                if (inPond(Math.round(d.x), Math.round(d.land)) && this.layout === 'pond' && Math.random() < .15) this.ripples.push({x: d.x, y: d.land, t: 0});
-                d.y = -4; d.x = Math.random() * (SCENE_W + 20); d.land = 30 + Math.random() * (SCENE_H - 32);
-            }
-            this.splashes = this.splashes.filter(s => --s.t > 0);
-        }
         this.ripples = this.ripples.filter(r => ++r.t < 9);
         if (state.night) for (const f of this.flies) {
             f.ph += f.sp; f.x += Math.sin(f.ph * 1.7) * .35; f.y += Math.cos(f.ph) * .25;

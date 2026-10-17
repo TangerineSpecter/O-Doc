@@ -5,12 +5,12 @@ import type {FarmState} from '../../types/api/farm';
 export function FarmSceneHud({farm}: {farm: FarmState}) {
     const {icon: Icon, label} = period(farm.hour, farm.weather);
     return <>
-        <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-white/60 bg-white/85 py-1 pl-1 pr-3 shadow-sm backdrop-blur-sm">
+        <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-white/60 bg-white/90 py-1 pl-1 pr-3 shadow-sm">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-600"><Icon size={14}/></span>
             <span className="text-xs font-semibold text-slate-700">{farm.actorName}的农场</span>
             <span className="text-[11px] text-slate-500">{label} · {String(farm.hour).padStart(2, '0')}:00</span>
         </div>
-        <span className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1 text-[11px] text-white/90 backdrop-blur-sm">
+        <span className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px] text-white/90">
             <MousePointerClick size={12}/>点击地块、动物与建筑查看详情
         </span>
     </>;

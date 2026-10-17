@@ -2,32 +2,43 @@ import {drawScene, type HitBox} from './drawScene';
 import {WeatherOverlay} from './effects';
 import {SCENE_H, SCENE_W, layoutFor, type SceneLayout} from './layout';
 import {buildGround} from './ground';
-import {cx, type Canvas, type Ctx} from './pixel';
+import {drainTicks, frameInterval, nextDue} from './pacing';
+import {cx, mk, rng, type Canvas, type Ctx} from './pixel';
+import {RainField} from './rain';
 import {SceneSimulation} from './simulation';
 import type {SceneSelection, SceneState} from './types';
 
-const TICK_MS = 100; // 动画每秒 10 个 tick，与设计稿一致
-const MAX_CATCH_UP_MS = 500; // 标签页切回前台后最多补 5 个 tick，避免瞬移
+const FRAME_LEAD_MS = 6; // 定时器比目标时刻提前唤醒，再由 rAF 对齐到最近的屏幕刷新，避免错过一帧
 
 /**
  * 像素农场画布控制器：持有 324×216 的逻辑画布，负责动画循环、整数倍缩放、鼠标点选与资源清理。
  * 只依赖 SceneState，不接触接口数据；调用方通过 setState 推送最新画面状态，用 dispose 释放全部监听。
+ *
+ * 绘制分两层：场景层（地面、对象、光照）按 tick（每秒 10 次）画进离屏画布；雨幕按真实时间推进，
+ * 下雨时以更高帧率叠加到场景层上。循环由定时器驱动，只在到点时才用一次 rAF 出帧，空闲时不唤醒。
  */
 export class FarmSceneRenderer {
     private readonly g: Ctx;
     private readonly sim = new SceneSimulation();
     private readonly weather = new WeatherOverlay();
+    private readonly rain = new RainField(rng(99));
+    private readonly scene: Canvas = mk(SCENE_W, SCENE_H, true);
+    private readonly sceneG: Ctx = cx(this.scene, true);
     private readonly resizeObserver: ResizeObserver;
+    private readonly intersection: IntersectionObserver | null;
     private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     private ground: Canvas | null = null;
     private layout: SceneLayout = 'pond';
     private state: SceneState | null = null;
     private hits: HitBox[] = [];
     private hover: SceneSelection | null = null;
+    private timerId = 0;
     private rafId = 0;
     private running = false;
+    private onScreen = true;
     private acc = 0;
     private lastT = 0;
+    private due = 0;
     private disposed = false;
 
     constructor(private readonly canvas: HTMLCanvasElement, private readonly box: HTMLElement, private readonly onSelect: (selection: SceneSelection) => void) {
@@ -35,12 +46,17 @@ export class FarmSceneRenderer {
         canvas.height = SCENE_H;
         canvas.style.imageRendering = 'pixelated';
         canvas.style.display = 'block';
-        this.g = cx(canvas);
+        this.g = cx(canvas, true);
         this.g.imageSmoothingEnabled = false;
         this.fit();
         this.resizeObserver = new ResizeObserver(this.fit);
         this.resizeObserver.observe(box);
         window.addEventListener('resize', this.fit);
+        this.intersection = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(entries => {
+            const last = entries[entries.length - 1];
+            if (last && last.isIntersecting !== this.onScreen) { this.onScreen = last.isIntersecting; this.syncRunning(); }
+        });
+        this.intersection?.observe(canvas);
         document.addEventListener('visibilitychange', this.syncRunning);
         this.reducedMotion.addEventListener('change', this.syncRunning);
         canvas.addEventListener('pointermove', this.handleMove);
@@ -68,6 +84,7 @@ export class FarmSceneRenderer {
         this.disposed = true;
         this.stop();
         this.resizeObserver.disconnect();
+        this.intersection?.disconnect();
         window.removeEventListener('resize', this.fit);
         document.removeEventListener('visibilitychange', this.syncRunning);
         this.reducedMotion.removeEventListener('change', this.syncRunning);
@@ -76,35 +93,59 @@ export class FarmSceneRenderer {
         this.canvas.removeEventListener('click', this.handleClick);
     }
 
-    /** 页面隐藏或系统要求减少动态效果时停止动画，只保留静态画面。 */
+    /** 页面隐藏、画布滚出视口或系统要求减少动态效果时停止动画，只保留静态画面。 */
     private syncRunning = () => {
-        const shouldRun = !this.disposed && !!this.state && !document.hidden && !this.reducedMotion.matches;
+        const shouldRun = !this.disposed && !!this.state && this.onScreen && !document.hidden && !this.reducedMotion.matches;
         if (shouldRun && !this.running) {
             this.running = true;
+            this.acc = 0;
             this.lastT = performance.now();
-            this.rafId = requestAnimationFrame(this.loop);
+            this.due = this.lastT + frameInterval(!!this.state?.rain);
+            this.schedule();
         } else if (!shouldRun) this.stop();
         if (this.state) this.render();
     };
 
     private stop() {
         this.running = false;
+        clearTimeout(this.timerId);
         cancelAnimationFrame(this.rafId);
     }
 
-    private loop = (t: number) => {
-        if (!this.running || !this.state) return;
-        this.rafId = requestAnimationFrame(this.loop);
-        this.acc = Math.min(this.acc + t - this.lastT, MAX_CATCH_UP_MS);
-        this.lastT = t;
-        let ticks = 0;
-        while (this.acc >= TICK_MS) { this.acc -= TICK_MS; this.sim.tick(this.state); ticks++; }
-        if (ticks) this.render();
+    /** 到点前不做任何事：定时器提前一点唤醒，再请求一次 rAF 对齐屏幕刷新。 */
+    private schedule() {
+        const wait = Math.max(0, this.due - performance.now() - FRAME_LEAD_MS);
+        this.timerId = window.setTimeout(() => { this.rafId = requestAnimationFrame(this.frame); }, wait);
+    }
+
+    private frame = () => {
+        const state = this.state;
+        if (!this.running || !state) return;
+        const now = performance.now(), dt = now - this.lastT;
+        this.lastT = now;
+        const drained = drainTicks(this.acc, dt);
+        this.acc = drained.acc;
+        for (let i = 0; i < drained.ticks; i++) this.sim.tick(state);
+        if (state.rain) this.rain.step(dt, Math.random, this.rainLanded);
+        if (drained.ticks) this.render(); else if (state.rain) this.present();
+        this.due = nextDue(this.due, now, frameInterval(state.rain));
+        this.schedule();
     };
 
+    private rainLanded = (x: number, y: number) => this.sim.rainLanded(x, y);
+
+    /** 重画场景层并呈现。 */
     private render() {
         if (!this.state || !this.ground) return;
-        this.hits = drawScene(this.g, {ground: this.ground, state: this.state, sim: this.sim, weather: this.weather, layout: this.layout, hover: this.hover});
+        this.hits = drawScene(this.sceneG, {ground: this.ground, state: this.state, sim: this.sim, weather: this.weather, layout: this.layout, hover: this.hover});
+        this.present();
+    }
+
+    /** 把场景层贴到可见画布，下雨时再叠加雨幕。 */
+    private present() {
+        if (!this.state) return;
+        this.g.drawImage(this.scene, 0, 0);
+        if (this.state.rain) this.rain.draw(this.g);
     }
 
     /**

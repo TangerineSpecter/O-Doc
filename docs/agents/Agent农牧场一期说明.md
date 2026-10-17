@@ -101,9 +101,9 @@ flowchart TD
 
 前后端沿用项目的驼峰转换和`code/msg/data`协议。详情、外观和历史由用户归属检查保护，页面不开放经营写接口。农场每15秒更新，隐藏停止轮询，切居民取消旧请求；场景失败仍保留状态列表和重试。
 
-场景为原生 Canvas 2D 像素画（不再使用 PixiJS），位于 `components/Farm/scene/`，随农场模态卡片按需加载。画布固定 324×216 逻辑像素，按容器和设备像素比取整数倍缩放（浪费超过 12% 时拉伸填满），`image-rendering: pixelated`；所有精灵启动时预渲染到离屏画布，动画以 10 帧/秒推进，隐藏页签和卸载时停止，系统开启“减少动态效果”时只绘制静态画面。
+场景为原生 Canvas 2D 像素画（不再使用 PixiJS），位于 `components/Farm/scene/`，随农场模态卡片按需加载。画布固定 324×216 逻辑像素，按容器和设备像素比取整数倍缩放（浪费超过 12% 时拉伸填满），`image-rendering: pixelated`；所有精灵启动时预渲染到离屏画布，场景层（地面、对象、光照）按 10 tick/秒画进离屏画布，下雨时雨幕按真实时间以 20 帧/秒叠加；循环由定时器驱动，到点才用一次 rAF 对齐刷新，空闲时不唤醒。页签隐藏、画布滚出视口和卸载时停止，系统开启“减少动态效果”时只绘制静态画面。可见画布使用不透明上下文（`alpha:false`），HUD 浮层不使用 `backdrop-filter`，避免动画画面每次更新都触发背景模糊重绘。
 
-模块分工（依赖单向，自上而下）：`FarmCanvas.tsx`（薄组件）→ `useFarmSceneRenderer.ts`（挂载、销毁、重试）→ `scene/FarmSceneRenderer.ts`（画布、缩放、指针命中、rAF 与监听清理）→ `drawScene.ts`、`simulation.ts`、`effects.ts`、`ground.ts` → 各精灵模块（`cropSprites`、`coopSprites`、`barnSprites`、`buildings`、`animalSprites`、`residentSprite`、`treeSprites`、`propSprites`、`fenceSprites`、`pondSprites`）→ `pixel.ts`、`palette.ts`、`shapes.ts`；`layout.ts` 集中全部坐标，`sceneModel.ts` 负责接口数据到画面状态的转换，有单元测试（`npm run test:farm-scene`）。
+模块分工（依赖单向，自上而下）：`FarmCanvas.tsx`（薄组件）→ `useFarmSceneRenderer.ts`（挂载、销毁、重试）→ `scene/FarmSceneRenderer.ts`（画布、缩放、指针命中、定时循环与监听清理）→ `drawScene.ts`、`simulation.ts`、`effects.ts`、`ground.ts`、`rain.ts`（雨幕，按时间推进）、`pacing.ts`（tick 与帧间隔的纯函数）→ 各精灵模块（`cropSprites`、`coopSprites`、`barnSprites`、`buildings`、`animalSprites`、`residentSprite`、`treeSprites`、`propSprites`、`fenceSprites`、`pondSprites`）→ `pixel.ts`、`palette.ts`、`shapes.ts`；`layout.ts` 集中全部坐标，`sceneModel.ts` 负责接口数据到画面状态的转换，有单元测试（`npm run test:farm-scene`）。
 
 数据与画面的对应：槽位 0–7 为菜园 4×2；槽位 8–15 在池塘一侧启用“南田”布局（池塘让位给第二块菜园和围栏），未购买的槽位画成虚线地界且不可点选。作物阶段沿用 35%／100% 阈值，浇水或下雨显示湿润土壤。设计稿只有小麦、番茄、胡萝卜、南瓜四种作物形象，其余 12 种按外观归并，对应表为 `scene/sceneModel.ts` 的 `CROP_SPRITE`。鸡舍和牛棚 0 级为空地，1–3 级对应设计稿三级；鸡、牛、羊按动物 ID 保持各自的个体，幼崽和小羊只是点缀（鸡或羊达到两只且建筑达到相应等级才出现，不可点选）。居民形象按外观 `style`／`palette` 换帽子和背带裤配色，沿固定路线巡视菜园和围场，不再逐步走向具体经营操作。天气、夜晚、清晨和傍晚分别叠加雨、星光灯光和色调；可交互对象悬停显示四角描边，可收获作物有闪烁提示。`FarmSceneHud.tsx` 仍以 HTML 浮层显示主人、天气与时段。素材为项目原创程序绘制，可执行 ` .venv/bin/python scripts/generate_farm_sprites.py` 重建642帧图集和物品图标。开发路径`/farm/`，生产使用Vite基础路径`/static/farm/`。
 

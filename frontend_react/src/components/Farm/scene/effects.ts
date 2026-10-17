@@ -41,7 +41,7 @@ function lightSources(state: SceneState, layout: SceneLayout): Light[] {
 
 /**
  * 天气与光照：夜色、雨幕色调、清晨/傍晚色调这类静态着色烘焙到两层离屏画布（状态变化时才重建），
- * 逐帧只绘制雨滴、水花、池塘月光和萤火虫。
+ * 逐 tick 只绘制池塘月光和萤火虫。
  */
 export class WeatherOverlay {
     private shade: Canvas = mk(SCENE_W, SCENE_H);
@@ -82,30 +82,24 @@ export class WeatherOverlay {
         if (this.hasGlow) { g.save(); g.globalCompositeOperation = 'screen'; g.drawImage(this.glowLayer, 0, 0); g.restore(); }
     }
 
-    /** 雨、池塘月光与萤火虫等逐帧变化的效果。 */
+    /** 池塘月光与萤火虫等按 tick 变化的夜间效果（雨幕见 rain.ts，单独高帧率绘制）。 */
     drawDynamic(g: Ctx, state: SceneState, sim: SceneSimulation, layout: SceneLayout) {
-        if (state.night) {
-            if (layout === 'pond') for (let i = 0; i < 10; i++) {
+        if (!state.night) return;
+        g.save();
+        g.globalCompositeOperation = 'screen';
+        if (layout === 'pond') {
+            g.fillStyle = '#d8e6ff';
+            for (let i = 0; i < 10; i++) {
                 const x = 26 + Math.floor(hash(i, 3, 71) * 88), y = 136 + Math.floor(hash(i, 4, 71) * 54);
-                if (pondField(x, y) < .7 && ((sim.tickN + i * 5) % 20) < 4) { g.save(); g.globalCompositeOperation = 'screen'; g.fillStyle = '#d8e6ff'; g.fillRect(x, y, 2, 1); g.restore(); }
-            }
-            if (!state.rain) for (const f of sim.flies) {
-                if (Math.sin(f.ph * 3.1) <= -.2) continue;
-                const x = Math.round(f.x), y = Math.round(f.y);
-                g.save(); g.globalCompositeOperation = 'screen'; g.fillStyle = '#e8ff7a'; g.globalAlpha = .22; g.fillRect(x - 1, y, 3, 1); g.fillRect(x, y - 1, 1, 3); g.globalAlpha = 1; g.fillStyle = '#fbffc4'; g.fillRect(x, y, 1, 1); g.restore();
+                if (pondField(x, y) < .7 && ((sim.tickN + i * 5) % 20) < 4) g.fillRect(x, y, 2, 1);
             }
         }
-        if (!state.rain) return;
-        for (const d of sim.drops) {
-            const x = Math.round(d.x), y = Math.round(d.y), far = d.vy < 4.5;
-            g.globalAlpha = far ? .55 : .9; g.fillStyle = far ? '#a9cbe8' : '#e8f6ff';
-            g.fillRect(x, y, 1, 2); g.fillRect(x - 1, y + 2, 1, 1);
-            if (!far) g.fillRect(x, y - 1, 1, 1);
+        if (!state.rain) for (const f of sim.flies) {
+            if (Math.sin(f.ph * 3.1) <= -.2) continue;
+            const x = Math.round(f.x), y = Math.round(f.y);
+            g.fillStyle = '#e8ff7a'; g.globalAlpha = .22; g.fillRect(x - 1, y, 3, 1); g.fillRect(x, y - 1, 1, 3);
+            g.globalAlpha = 1; g.fillStyle = '#fbffc4'; g.fillRect(x, y, 1, 1);
         }
-        g.globalAlpha = .85; g.fillStyle = '#e8f6ff';
-        for (const s of sim.splashes) {
-            if (s.t === 3) { g.fillRect(s.x, s.y, 1, 1); } else { g.fillRect(s.x - 1, s.y - 1, 1, 1); g.fillRect(s.x + 1, s.y - 1, 1, 1); if (s.t === 2) g.fillRect(s.x, s.y, 1, 1); }
-        }
-        g.globalAlpha = 1;
+        g.restore();
     }
 }
