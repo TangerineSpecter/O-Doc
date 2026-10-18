@@ -50,6 +50,54 @@ class RoutingTests(TestCase):
         self.assertEqual(result['choice'], 'ok')
         self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0,0,2)])
         self.assertTrue(all(call.kwargs['allow_retries'] is False for call in completion.call_args_list))
+        self.assertTrue(all(call.kwargs['deadline_seconds'] <= 60 and call.kwargs['max_deadline_seconds'] <= 60
+                            for call in completion.call_args_list))
+
+    @patch('system_settings.decision.routing.complete')
+    def test_each_provider_gets_its_own_repair_and_a_fresh_prompt(self, completion):
+        completion.side_effect = ['{"choice":"bad"}', '{"choice":"bad"}', '{"choice":"bad"}', '{"choice":"ok"}']
+
+        def validate(value):
+            if value['choice'] != 'ok':
+                raise ValueError('bad')
+            return value
+
+        result = complete_json(self.agent, '选择', validate, task=self.task, seconds=180)
+        self.assertEqual(result['choice'], 'ok')
+        prompts = [call.args[1] for call in completion.call_args_list]
+        self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0, 0, 2, 2)])
+        self.assertNotIn('上次输出未通过校验', prompts[0])
+        self.assertIn('上次输出未通过校验', prompts[1])
+        self.assertNotIn('上次输出未通过校验', prompts[2])
+        self.assertIn('上次输出未通过校验', prompts[3])
+        self.assertTrue(all(call.kwargs['deadline_seconds'] <= 60 for call in completion.call_args_list))
+
+    @patch('system_settings.decision.routing.complete')
+    def test_empty_output_does_not_skip_the_next_provider(self, completion):
+        completion.side_effect = ['', '', '{"choice":"ok"}']
+
+        def validate(value):
+            return value
+
+        result = complete_json(self.agent, '选择', validate, task=self.task, seconds=180)
+        self.assertEqual(result['choice'], 'ok')
+        self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0, 0, 2)])
+        self.assertNotIn('上次输出未通过校验', completion.call_args_list[2].args[1])
+        self.assertIn('模型返回内容为空', completion.call_args_list[1].args[1])
+
+    @patch('system_settings.decision.routing.complete')
+    def test_one_provider_timeout_still_calls_the_next_within_stage_budget(self, completion):
+        def respond(config, prompt, **kwargs):
+            self.assertLessEqual(kwargs['deadline_seconds'], 60)
+            self.assertLessEqual(kwargs['max_deadline_seconds'], 60)
+            if config['model_id'] == self.models[0].pk:
+                raise TimeoutError('模型调用达到 60 秒硬时限')
+            return '{"choice":"ok"}'
+
+        completion.side_effect = respond
+        result = complete_json(self.agent, '选择', lambda value: value, task=self.task, seconds=180)
+        self.assertEqual(result['choice'], 'ok')
+        self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0, 2)])
 
     @patch('system_settings.decision.jev.choose', side_effect=DecisionUnavailable('fixture'))
     def test_jev_failure_exclusion_and_solo_candidate(self, choose):

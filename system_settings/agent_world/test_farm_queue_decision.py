@@ -36,6 +36,27 @@ def facts():
 
 
 class CandidateTests(SimpleTestCase):
+    def test_text_fallback_keeps_choice_identity_and_drops_estimate_bulk(self):
+        import json as json_lib
+        from .farm_queue_decision import text_fallback
+        value = facts()
+        candidates = build_candidates(value)
+        templates, choices = {}, {}
+        for key, row in candidates.items():
+            plan_id = identity(row['farm_plan']['entries'])
+            templates.setdefault(plan_id, {'entries': row['farm_plan']['entries'], **row['summary']})
+            choices[key] = {'plan_id': plan_id, 'procurement_limit': row['farm_plan']['procurement_limit'],
+                            'procurement_tier': row['summary'].get('procurement_tier', 'none')}
+        state = {'plans': templates, 'stocked_crops': value.crops, 'slot': {'id': 'slot'}, 'intent': '种植'}
+        full = json_lib.dumps({'state': state, 'choices': choices}, ensure_ascii=False, default=str)
+        brief, prompt_choices, labels = text_fallback(state, choices)
+        compact = json_lib.dumps({'state': brief, 'choices': prompt_choices}, ensure_ascii=False, default=str)
+        self.assertLess(len(compact), 16000)
+        self.assertLess(len(compact), len(full) / 2)
+        self.assertNotIn('without_fertilizer', compact)
+        self.assertEqual(set(labels.values()), set(choices))
+        self.assertEqual(labels[next(iter(prompt_choices))], next(iter(choices)))
+
     def test_bounded_deterministic_diverse_and_no_resource_mutation(self):
         value = facts()
         before = copy.deepcopy(value)

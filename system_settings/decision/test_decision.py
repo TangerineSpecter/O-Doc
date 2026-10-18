@@ -93,7 +93,7 @@ class DecisionTests(TestCase):
         self.assertEqual(row.model_name, 'jev-1.13.0')
         self.assertEqual(row.provider_name, 'TypeSafe JEV')
         self.assertTrue(row.usage_complete)
-        self.assertLessEqual(post.call_args.kwargs['timeout'], 60)
+        self.assertLessEqual(post.call_args.kwargs['timeout'], 30)
         data['answers']['next_action']['choice'] = 'unknown'
         with usage_scope(owner_id='admin', purpose='task'):
             with self.assertRaises(DecisionUnavailable):

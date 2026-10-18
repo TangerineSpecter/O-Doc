@@ -19,6 +19,9 @@ SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'life
           'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇',
           'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}
 logger = logging.getLogger(__name__)
+# One provider may use at most this slice of the shared stage deadline.
+# A hang must not consume the remainder and skip later, independent providers.
+MODEL_ATTEMPT_SECONDS = 60
 MODEL_ERRORS = (AIAuthenticationError, OpenAIError, APIError, RequestException, TimeoutError, AIBoundedRequestError, AIOutputTruncated, AIStreamIncomplete)
 
 
@@ -109,21 +112,26 @@ def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None
 def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision=False, owner=None,
                   deadline=None, seconds=180, scene='模型请求', check=None, max_tokens=None, passthrough=()):
     deadline = deadline if deadline is not None else time.monotonic() + seconds
-    repair_used = False
     def invoke(config):
-        nonlocal repair_used
+        # Repair budget and prompt stay on this provider. A previous provider's
+        # invalid or empty output must not shorten or rewrite the next request.
+        repair_used = False
         text = prompt
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('当前阶段总时限已耗尽')
+            attempt = min(remaining, MODEL_ATTEMPT_SECONDS)
             raw = complete(config, text, json_output=True, extra_body=thinking_options(config),
-                           max_tokens=max_tokens, deadline_seconds=remaining, max_deadline_seconds=seconds,
+                           max_tokens=max_tokens, deadline_seconds=attempt, max_deadline_seconds=attempt,
                            allow_retries=False)
             if check:
                 check()
             try:
-                value = json.loads(AIService.strip_thinking(raw).strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
+                cleaned = AIService.strip_thinking(raw).strip() if isinstance(raw, str) else ''
+                if not cleaned:
+                    raise ValueError('模型返回内容为空')
+                value = json.loads(cleaned.removeprefix('```json').removeprefix('```').removesuffix('```').strip())
                 if not isinstance(value, dict):
                     raise ValueError('输出必须是对象')
                 return validate(value)

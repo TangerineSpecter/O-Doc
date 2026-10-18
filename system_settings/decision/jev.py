@@ -12,7 +12,10 @@ from .config import api_key, connection, selected_connection_id
 from .diagnostics import record_failure, request_identifier
 
 JEV_MODELS_URL = 'https://api.typesafe.ai/v1/models'
-REQUEST_TIMEOUT_SECONDS = 60
+# Healthy local decisions in production finished within about 21s. A dead
+# connection used to block for 60s and exhaust the shared stage budget before
+# any text fallback could run.
+REQUEST_TIMEOUT_SECONDS = 30
 
 
 class DecisionUnavailable(Exception):

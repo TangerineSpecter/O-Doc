@@ -538,6 +538,30 @@ class LifeTests(TestCase):
         self.assertIn(other.status,('pending','deferred'))
         self.assertGreaterEqual(local_time(other.scheduled_at), local_time()-timedelta(seconds=90))
 
+    def test_replan_failed_without_actor_retries_every_resident_once(self):
+        first = self.item('all-a', actor_id=self.ids[0], status='failed', scheduled_at=NOW + timedelta(hours=1))
+        second = self.item('all-b', actor_id=self.ids[1], status='failed', scheduled_at=NOW + timedelta(hours=2))
+        executed = self.item('all-done', actor_id=self.ids[1], status='failed', record_id='rec-kept',
+                             activity='investment', scheduled_at=NOW + timedelta(hours=3))
+        market = self.item('all-market', actor_id=self.ids[0], activity='market_prepare', status='failed',
+                           scheduled_at=NOW + timedelta(hours=4))
+        user = User.objects.create_user('admin', is_superuser=True)
+        client = APIClient(); client.force_authenticate(user)
+        bulk = client.post('/api/settings/agent-world/life/schedule/', {
+            'action': 'replan_failed', 'reason': '批量重试尚未执行的失败生活安排',
+            'start': '2026-09-29', 'end': '2026-10-06'}, format='json')
+        self.assertEqual(bulk.status_code, 200, bulk.data)
+        self.assertEqual(bulk.data['data']['count'], 2)
+        first.refresh_from_db(); second.refresh_from_db(); executed.refresh_from_db(); market.refresh_from_db()
+        self.assertIn(first.status, ('pending', 'deferred'))
+        self.assertIn(second.status, ('pending', 'deferred'))
+        self.assertEqual(first.activity, 'unplanned')
+        self.assertEqual(second.activity, 'unplanned')
+        self.assertEqual(executed.status, 'failed')
+        self.assertEqual(executed.record_id, 'rec-kept')
+        self.assertEqual(market.status, 'failed')
+        self.assertEqual(market.activity, 'market_prepare')
+
     def test_requeue_advances_overdue_slots_in_original_order(self):
         early=self.item('early',status='failed',scheduled_at=NOW.replace(hour=4))
         mid=self.item('mid',status='failed',scheduled_at=NOW.replace(hour=5))

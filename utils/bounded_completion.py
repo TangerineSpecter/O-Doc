@@ -42,7 +42,8 @@ class AIBoundedRequestError(RuntimeError):
 
 async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.Queue) -> str:
     started = time.monotonic()
-    parts, count, finish, last_progress = [], 0, '', 0.0
+    parts, reasoning_parts, count, finish, last_progress = [], [], 0, '', 0.0
+    saw_content = False
     async with AsyncOpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=seconds, max_retries=0) as client:
         stream = await client.chat.completions.create(**parameters)
         try:
@@ -51,8 +52,13 @@ async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.
                 if usage:
                     inbox.put(('usage', normalize(usage)))
                 for choice in chunk.choices:
-                    content = getattr(choice.delta, 'content', None)
+                    delta = choice.delta
+                    content = getattr(delta, 'content', None)
+                    reasoning = getattr(delta, 'reasoning_content', None)
+                    if reasoning is None:
+                        reasoning = getattr(delta, 'reasoning', None)
                     if isinstance(content, str) and content:
+                        saw_content = True
                         parts.append(content)
                         inbox.put(('output', content))
                         count += len(content)
@@ -60,16 +66,24 @@ async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.
                         if len(parts) == 1 or elapsed - last_progress >= 2:
                             inbox.put(('event', ('model_first_output' if len(parts) == 1 else 'model_progress', '收到首个输出，继续接收' if len(parts) == 1 else '正在接收模型输出', {'chars': count, 'duration_ms': elapsed * 1000})))
                             last_progress = elapsed
+                    elif not saw_content and isinstance(reasoning, str) and reasoning:
+                        # Some gateways put the JSON only in the reasoning channel and
+                        # leave content empty. Keep it for parsing; do not treat it as
+                        # published output or as a failure of the next provider.
+                        reasoning_parts.append(reasoning)
                     if isinstance(choice.finish_reason, str):
                         finish = choice.finish_reason
         finally:
             await stream.close()
+    text = ''.join(parts)
+    if not text.strip():
+        text = ''.join(reasoning_parts)
     if finish == 'length':
         raise AIOutputTruncated('模型接口返回输出长度限制，结果不完整，本次未采用')
     if finish != 'stop':
         raise AIStreamIncomplete('模型输出未正常结束，未发布本次结果')
-    inbox.put(('event', ('model_response', '模型已完整返回，准备检查输出', {'chars': count, 'finish_reason': finish, 'duration_ms': (time.monotonic() - started) * 1000})))
-    return ''.join(parts)
+    inbox.put(('event', ('model_response', '模型已完整返回，准备检查输出', {'chars': len(text), 'finish_reason': finish, 'duration_ms': (time.monotonic() - started) * 1000})))
+    return text
 
 
 def _network(config: dict, parameters: dict, seconds: float, inbox: queue.Queue, cancelled: threading.Event):

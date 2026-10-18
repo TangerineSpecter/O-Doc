@@ -239,18 +239,25 @@ class LifeScheduleView(APIView):
             reason=request.data.get('reason','')
             if not isinstance(reason,str) or not reason.strip():raise ValueError('调整须说明原因')
             if action=='replan_failed':
-                actor=request.data.get('actor_id');actor_for(owner,actor)
+                actor=request.data.get('actor_id') or ''
+                if not isinstance(actor,str):raise ValueError('居民无效')
+                if actor:actor_for(owner,actor)
                 start=datetime.fromisoformat(str(request.data.get('start',local_time().date().isoformat())))
                 end=datetime.fromisoformat(str(request.data.get('end',(start+timedelta(days=7)).isoformat())))
                 if start.tzinfo is None:start=start.replace(tzinfo=SHANGHAI)
                 if end.tzinfo is None:end=end.replace(tzinfo=SHANGHAI)
                 if not timedelta(0)<end-start<=timedelta(days=366):raise ValueError('查询范围须为1至366天')
-                rows=list(LifeItem.objects.select_for_update().filter(
-                    owner_id=owner,actor_id=actor,status='failed',record_id='',
-                    scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end)).exclude(activity='market_prepare'))
-                for row in rows:requeue(row,reason)
-                if rows:
-                    recover(config,resume_actor=actor,delay_reason='人工补做，过期时间点已顺延到可执行空档')
+                query=LifeItem.objects.select_for_update().filter(
+                    owner_id=owner,status='failed',record_id='',
+                    scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end)).exclude(activity='market_prepare')
+                if actor:query=query.filter(actor_id=actor)
+                rows=list(query)
+                residents=[]
+                for row in rows:
+                    requeue(row,reason)
+                    if row.actor_id not in residents:residents.append(row.actor_id)
+                for resident in residents:
+                    recover(config,resume_actor=resident,delay_reason='人工补做，过期时间点已顺延到可执行空档')
                 return success_result({'count':len(rows)})
             item=LifeItem.objects.select_for_update().filter(pk=identity,owner_id=owner).first()
             if not item:return valid_result('安排不存在',status=404)

@@ -240,6 +240,25 @@ class BoundedCompletionTests(SimpleTestCase):
             self.assertNotIn(name, requests[1])
         self.assertTrue(clients[1].is_closed())
 
+    def test_reasoning_channel_is_used_only_when_content_is_empty(self):
+        class ReasoningStream(FakeStream):
+            async def __aiter__(self):
+                yield SimpleNamespace(choices=[SimpleNamespace(
+                    delta=SimpleNamespace(content=None, reasoning_content='{"choice":"ok"}'), finish_reason=None)], usage=None)
+                yield SimpleNamespace(choices=[SimpleNamespace(
+                    delta=SimpleNamespace(content='', reasoning_content=None), finish_reason='stop')], usage=None)
+
+        self.assertEqual(self.call(lambda _: ReasoningStream()), '{"choice":"ok"}')
+
+        class MixedStream(FakeStream):
+            async def __aiter__(self):
+                yield SimpleNamespace(choices=[SimpleNamespace(
+                    delta=SimpleNamespace(content=None, reasoning_content='内部推理'), finish_reason=None)], usage=None)
+                yield SimpleNamespace(choices=[SimpleNamespace(
+                    delta=SimpleNamespace(content='{"choice":"visible"}', reasoning_content='忽略'), finish_reason='stop')], usage=None)
+
+        self.assertEqual(self.call(lambda _: MixedStream()), '{"choice":"visible"}')
+
     def test_truncated_or_incomplete_stream_is_never_returned_even_if_json_parses(self):
         for finish, error in (('length', AIOutputTruncated), (None, AIStreamIncomplete)):
             stream = FakeStream('{}', finish=finish)

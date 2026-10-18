@@ -349,9 +349,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                             </div>
                         )}
 
-                        {actorId ? (
-                            <LifeFailedReplanBar actorId={actorId} start={scheduleStart} end={scheduleEnd} onDone={schedule.refresh} />
-                        ) : null}
+                        <LifeFailedReplanBar actorId={actorId} start={scheduleStart} end={scheduleEnd} onDone={schedule.refresh} />
 
                         {/* 视图展示 */}
                         <div className="flex flex-1 min-h-0 flex-col overflow-hidden">

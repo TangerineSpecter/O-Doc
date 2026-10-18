@@ -68,6 +68,55 @@ def planning_facts(owner: str, agent, slot: dict) -> FarmQueueFacts:
     )
 
 
+def text_fallback(state: dict, choices: dict) -> tuple[dict, dict, dict[str, str]]:
+    """Compact view for ordinary models. Decision connections still receive the full state."""
+    plans = state.get('plans') or {}
+    plan_labels = {plan_id: str(index) for index, plan_id in enumerate(plans)}
+    compact_plans = {}
+    for plan_id, plan in plans.items():
+        crops = []
+        for entry in plan.get('entries') or []:
+            mode = entry.get('fertilizer_mode') or 'none'
+            crop = f"{entry.get('sku')}x{entry.get('quantity')}"
+            if mode != 'none':
+                crop += f"/{mode}:{entry.get('fertilizer') or ''}"
+            crops.append(crop)
+        compact_plans[plan_labels[plan_id]] = {
+            'crops': ','.join(crops),
+            'sowable': plan.get('sowable'),
+            'revenue': plan.get('eventual_expected_revenue'),
+            'wait': plan.get('required_fertilizer_wait'),
+        }
+    options, labels = [], {}
+    for index, (key, row) in enumerate(choices.items()):
+        label = str(index)
+        labels[label] = key
+        options.append({
+            'id': label,
+            'plan': plan_labels.get(row.get('plan_id'), ''),
+            'tier': row.get('procurement_tier', 'none'),
+            'limit': row.get('procurement_limit'),
+        })
+    brief = {
+        'slot': state.get('slot'),
+        'intent': state.get('intent'),
+        'preferences': state.get('preferences'),
+        'start': state.get('start'),
+        'cutoff': state.get('cutoff'),
+        'stamina': state.get('stamina'),
+        'spendable': state.get('spendable'),
+        'price_source': state.get('price_source'),
+        'assumptions': state.get('assumptions'),
+        'stocked_crops': [
+            {key: crop[key] for key in ('seed_sku', 'name', 'seed_quantity', 'growth_seconds') if key in crop}
+            for crop in state.get('stocked_crops', [])
+        ],
+        'plans': compact_plans,
+        'options': options,
+    }
+    return brief, {label: label for label in labels}, labels
+
+
 def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '') -> dict:
     from .execution import stamina
     from .farm_queue_estimate import plot_availability
@@ -101,7 +150,9 @@ def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '
              'assumptions': '收益为估算，不是到账；缺肥可能等待，采购未执行且不保证供货。'
                             '肥料成本按当前库存批次估算；作物可跨日成熟。'
                             '容量未扣后续体力不足或忙碌的影响，实际完成量可能减少。'}
-    selected = choose(agent, owner, 'farm_queue', state, choices)
+    brief, prompt_choices, labels = text_fallback(state, choices)
+    selected = choose(agent, owner, 'farm_queue', state, choices,
+                      prompt_state=brief, prompt_choices=prompt_choices, choice_labels=labels)
     return copy.deepcopy(candidates[selected]['farm_plan'])
 
 
