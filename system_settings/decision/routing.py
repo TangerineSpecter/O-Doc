@@ -177,7 +177,7 @@ def choose_connections(owner, state, choices, *, deadline, instructions=None, qu
                 owner, state, choices, deadline=time.monotonic() + REQUEST_TIMEOUT_SECONDS,
                 instructions=prompt, question_id=question_id, connection_id=connection_id,
                 max_probability=max_probability)
-        except DecisionUnavailable as exc:
+        except (DecisionUnavailable, TimeoutError) as exc:
             last = exc
             if connection_id == sticky_id:
                 saw_sticky_failure = True
@@ -213,5 +213,10 @@ def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=N
                 owner, decision_state, choices, deadline=deadline, instructions=instructions,
                 question_id=question_id or scene, max_probability=max_probability, scene=scene)
     except DecisionUnavailable:
+        return None
+    except TimeoutError as exc:
+        # Market calls choose_connections directly and still stops on its own clock.
+        # Schedule and travel callers treat None as the text-model path.
+        report(scene, 'decision:deadline', exc)
         return None
     return (result, confidence) if return_confidence else result

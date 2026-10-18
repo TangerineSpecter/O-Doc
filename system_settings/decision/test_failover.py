@@ -127,8 +127,8 @@ class FailoverBehaviorTests(TestCase):
 
     def test_passed_deadline_does_not_start_and_short_deadline_still_tries_the_backup(self):
         with patch('system_settings.decision.jev.requests.post', side_effect=self._post):
-            with self.assertRaisesRegex(TimeoutError, '当前阶段总时限已耗尽'):
-                choose_scene('owner', self.agent, 'social_action', {}, self.criteria, deadline=time.monotonic() - 1)
+            self.assertIsNone(choose_scene(
+                'owner', self.agent, 'social_action', {}, self.criteria, deadline=time.monotonic() - 1))
         self.assertEqual(self.calls, [])
         self.calls.clear()
         self.assertEqual(self._scene(deadline=time.monotonic() + 1), 'rest')

@@ -112,6 +112,28 @@ class RoutingTests(TestCase):
         self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list],
                          [self.models[i].pk for i in (0, 2, 3)])
 
+    @patch('system_settings.decision.jev.choose', side_effect=AssertionError('截止时间已过时不应发起决策请求'))
+    def test_expired_caller_deadline_falls_back_instead_of_aborting(self, choose):
+        result = choose_scene('owner', self.agent, 'social_action', {}, {'reply': '回复', 'rest': '休息'},
+                              deadline=time.monotonic() - 1)
+        self.assertIsNone(result)
+        choose.assert_not_called()
+
+    @patch('system_settings.decision.routing.complete', return_value='{"choice":"rest"}')
+    def test_expired_stage_clock_still_reaches_the_text_model(self, completion):
+        from system_settings.agent_world.life_choices import choose as life_choose
+        result = life_choose(self.agent, 'owner', 'life_activity', {}, {'rest': '休息', 'farm': '农场'},
+                             deadline=time.monotonic() - 1)
+        self.assertEqual(result, 'rest')
+        completion.assert_called()
+
+    @patch('system_settings.decision.jev.choose', side_effect=TimeoutError('决策请求达到执行时限'))
+    def test_decision_timeout_returns_none_for_text_fallback(self, choose):
+        result = choose_scene('owner', self.agent, 'social_action', {}, {'reply': '回复', 'rest': '休息'},
+                              deadline=time.monotonic() + 30)
+        self.assertIsNone(result)
+        choose.assert_called_once()
+
     @patch('system_settings.decision.jev.choose', side_effect=DecisionUnavailable('fixture'))
     def test_jev_failure_exclusion_and_solo_candidate(self, choose):
         result = choose_scene('owner', self.agent, 'social_action', {}, {'reply':'回复','rest':'休息'}, deadline=time.monotonic()+10)

@@ -102,6 +102,19 @@ from .mcp_skill_views import (
 from .ai_views import AIModelViewSet, AIProviderViewSet, GeoLocationViewSet
 
 
+def _json_safe(value):
+    """NDJSON progress must survive datetimes and other non-JSON values."""
+    isoformat = getattr(value, 'isoformat', None)
+    if callable(isoformat):
+        try:
+            rendered = isoformat()
+        except (TypeError, ValueError):
+            rendered = None
+        if isinstance(rendered, str):
+            return rendered
+    return str(value)
+
+
 class SystemConfigViewSet(viewsets.ViewSet):
     def get_permissions(self):
         if self.action == 'start_update':
@@ -143,10 +156,21 @@ class SystemConfigViewSet(viewsets.ViewSet):
 
     @staticmethod
     def _sync_event(step, msg, record=True, **extra):
+        if not isinstance(step, str):
+            step = 'error'
+        if not isinstance(msg, str):
+            msg = '' if msg is None else str(msg)
         if record and msg:
             append_sync_message(msg)
         payload = {"step": step, "msg": msg, **extra}
-        return json.dumps(payload) + "\n"
+        try:
+            return json.dumps(payload, ensure_ascii=False, default=_json_safe) + "\n"
+        except (TypeError, ValueError):
+            # A bad extra must not escape the generator; that becomes HTTP 500 HTML.
+            return json.dumps({
+                "step": "error",
+                "msg": "同步进度里有无法写入的内容，请查看运行日志。",
+            }, ensure_ascii=False) + "\n"
 
     @staticmethod
     def _status_payload(runtime_state):

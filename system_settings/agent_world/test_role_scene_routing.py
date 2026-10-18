@@ -61,6 +61,31 @@ class SocialStageTests(TestCase):
         self.assertEqual(result['goal_updates'][0]['evidence_record_id'],'e')
         ask.assert_called_once()
 
+    @patch('system_settings.agent_world.life_activity_decision.time.monotonic')
+    @patch('system_settings.agent_world.life_activity_decision.choose_scene')
+    def test_each_slot_keeps_a_fresh_decision_minute(self, choose, monotonic):
+        clock = {'now': 1000.0}
+        monotonic.side_effect = lambda: clock['now']
+
+        def select(*args, **kwargs):
+            self.assertGreater(kwargs['deadline'], clock['now'])
+            self.assertLessEqual(kwargs['deadline'] - clock['now'], 60)
+            clock['now'] += 200
+            return 'cooking'
+
+        choose.side_effect = select
+        context = {
+            'slots': [
+                {'id': 'a', 'time': '2026-10-14T10:00:00+08:00'},
+                {'id': 'b', 'time': '2026-10-14T18:00:00+08:00'},
+            ],
+            'activities': [{'kind': 'cooking'}, {'kind': 'farm'}],
+            '_request_deadline': 1000.0,
+        }
+        result = select_activities(self.agent, context, Mock())
+        self.assertEqual([row['activity'] for row in result['plans']], ['cooking', 'cooking'])
+        self.assertEqual(choose.call_count, 2)
+
     @patch('system_settings.decision.routing.complete_json', return_value={})
     def test_journal_photo_scene_field_does_not_load_image_persona(self, completion):
         from .travel_ai import ask

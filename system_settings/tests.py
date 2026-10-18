@@ -2414,6 +2414,20 @@ class SystemConfigViewSetTests(TestCase):
         self.assertEqual(runtime['last_error'], '')
         self.assertEqual(runtime['last_uploaded_snapshot_id'], 'forced-snapshot')
 
+    def test_sync_event_serializes_datetimes_and_does_not_raise_on_cycles(self):
+        from datetime import datetime, timezone as datetime_timezone
+        stamp = datetime(2026, 10, 18, 1, 2, 3, tzinfo=datetime_timezone.utc)
+        line = SystemConfigViewSet._sync_event('choose_items', '有冲突', conflicts=[{'localAt': stamp}])
+        event = json.loads(line)
+        self.assertEqual(event['step'], 'choose_items')
+        self.assertIn('2026-10-18', event['conflicts'][0]['localAt'])
+
+        cycle = []
+        cycle.append(cycle)
+        fallback = json.loads(SystemConfigViewSet._sync_event('summary', '完成', extra=cycle))
+        self.assertEqual(fallback['step'], 'error')
+        self.assertNotIn('SystemConfigViewSet', fallback['msg'])
+
     def test_force_upload_failure_stays_ndjson_instead_of_http_500(self):
         request = self.factory.post(
             '/api/settings/config/sync_to_webdav/',
