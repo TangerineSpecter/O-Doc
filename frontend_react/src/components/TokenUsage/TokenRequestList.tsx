@@ -35,6 +35,12 @@ export default function TokenRequestList({filters}: {filters: TokenFilters}) {
                 const statusName = requestStatus[row.status] || row.status;
                 const isSuccess = row.status === 'success';
                 const isFailed = row.status === 'failed';
+                const isDecisionModel = row.modelType === 'decision_model';
+                const modelTypeLabel = isDecisionModel ? '决策' : '大模型';
+                const modelTypeClass = isDecisionModel
+                    ? 'bg-violet-50 text-violet-700'
+                    : 'bg-orange-50 text-orange-700';
+                const tokenClass = isDecisionModel ? 'text-violet-600' : 'text-orange-600';
 
                 return (
                     <article
@@ -46,8 +52,10 @@ export default function TokenRequestList({filters}: {filters: TokenFilters}) {
                                 <span className="font-bold text-slate-800">
                                     {row.agentName || '系统规划'}
                                 </span>
-                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 font-mono">
-                                    {row.modelName}
+                                <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${modelTypeClass}`}>
+                                    <span className="font-semibold">{modelTypeLabel}</span>
+                                    <span aria-hidden="true" className="text-slate-300">·</span>
+                                    <span className="font-mono">{row.modelName || '未知模型'}</span>
                                 </span>
                                 <span
                                     className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
@@ -61,7 +69,7 @@ export default function TokenRequestList({filters}: {filters: TokenFilters}) {
                                     {statusName}
                                 </span>
                             </div>
-                            <span className="font-bold tabular-nums text-orange-600">
+                            <span className={`font-bold tabular-nums ${tokenClass}`}>
                                 {tokenNumber(row.totalTokens)} token
                             </span>
                         </div>

@@ -28,7 +28,7 @@ export interface TokenFilters {
 }
 export interface TokenRequest {
     id: string; agentKey: string; agentName: string; taskKey: string; taskName: string; recordKey: string;
-    purpose: string; phase: string; modelName: string; providerName: string; attempt: number;
+    purpose: string; phase: string; modelName: string; modelType: 'large_model' | 'decision_model'; providerName: string; attempt: number;
     status: string; usageComplete: boolean; startedAt: string; endedAt: string | null;
     inputTokens: number | null; outputTokens: number | null; totalTokens: number | null;
     cachedTokens: number | null; reasoningTokens: number | null;

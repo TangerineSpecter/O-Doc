@@ -5,6 +5,7 @@ import {useAgentRunRecord} from '../../hooks/useAgentRunRecord';
 import type {TokenFilters} from '../../types/api/tokenUsage';
 import {purposeNames, tokenNumber, usageTime} from '../../utils/tokenUsage';
 import RunTokenUsage from './RunTokenUsage';
+import TokenModelTotals from './TokenModelTotals';
 import TokenRequestList from './TokenRequestList';
 
 function ExecutionUsage({id}: {id: string}) {
@@ -59,13 +60,20 @@ export default function TokenUsageDetails({filters}: {filters: TokenFilters}) {
                                     这些请求计入 Agent 总用量，但没有归属到具体任务执行；完整明细见下方。
                                 </p>
                             </div>
-                            <p className="shrink-0 text-xs font-bold tabular-nums text-orange-600">
-                                {tokenNumber(result.unassigned.totalTokens)} token
-                            </p>
+                            <div className="shrink-0 text-right">
+                                <TokenModelTotals
+                                    largeModelTokens={result.unassigned.largeModelTokens}
+                                    decisionModelTokens={result.unassigned.decisionModelTokens}
+                                    className="justify-end text-[11px] font-semibold"
+                                />
+                                <p className="mt-0.5 text-[10px] tabular-nums text-slate-400">
+                                    合计 {tokenNumber(result.unassigned.totalTokens)} token
+                                </p>
+                            </div>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                             {result.unassigned.purposes.map(purpose => (
-                                <span
+                                <div
                                     key={purpose.key}
                                     className="rounded-lg border border-orange-100 bg-white/80 px-2 py-1 text-[10px] text-slate-600"
                                 >
@@ -73,7 +81,12 @@ export default function TokenUsageDetails({filters}: {filters: TokenFilters}) {
                                     <span className="ml-1 font-semibold tabular-nums text-slate-700">
                                         · {tokenNumber(purpose.totalTokens)} token
                                     </span>
-                                </span>
+                                    <TokenModelTotals
+                                        largeModelTokens={purpose.largeModelTokens}
+                                        decisionModelTokens={purpose.decisionModelTokens}
+                                        className="mt-0.5 text-[10px]"
+                                    />
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -114,11 +127,15 @@ export default function TokenUsageDetails({filters}: {filters: TokenFilters}) {
                                             <span className="mt-0.5 block text-[11px] text-slate-400">{usageTime(row.lastAt)}</span>
                                         </div>
                                     </div>
-                                    <div className="text-right shrink-0">
-                                        <p className="text-xs font-bold tabular-nums text-orange-600">
-                                            {tokenNumber(row.totalTokens)} token
+                                    <div className="shrink-0 text-right">
+                                        <TokenModelTotals
+                                            largeModelTokens={row.largeModelTokens}
+                                            decisionModelTokens={row.decisionModelTokens}
+                                            className="justify-end text-[11px] font-semibold"
+                                        />
+                                        <p className="mt-0.5 text-[10px] tabular-nums text-slate-400">
+                                            合计 {tokenNumber(row.totalTokens)} token · {row.requestCount} 次请求
                                         </p>
-                                        <p className="text-[10px] text-slate-400">{row.requestCount} 次请求</p>
                                     </div>
                                 </button>
                                 {selected === row.key && <ExecutionUsage id={row.key} />}
