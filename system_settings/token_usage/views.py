@@ -1,19 +1,19 @@
 from datetime import datetime
-from django.db.models import Q
+from django.db.models import Case, CharField, Q, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from utils.response_utils import success_result, valid_result
 from . import details as request_details
-from .queries import breakdown, filtered_usage, summary, visible_usage
+from .queries import breakdown, decision_model_filter, filtered_usage, summary, visible_usage
 from .report import export_report
 from system_settings.agent_world.life_time import local_time, storage_time
 
 REQUEST_FIELDS = ('id', 'agent_key', 'agent_name', 'task_key', 'task_name', 'record_key',
                   'purpose', 'phase', 'model_name', 'provider_name', 'attempt', 'status',
                   'input_tokens', 'output_tokens', 'total_tokens', 'cached_tokens', 'reasoning_tokens',
-                  'usage_complete', 'started_at', 'ended_at')
+                  'usage_complete', 'started_at', 'ended_at', 'model_type')
 
 
 class TokenUsageView(APIView):
@@ -61,7 +61,13 @@ class TokenUsageView(APIView):
                     raise ValueError('游标无效')
                 moment = storage_time(moment)
                 rows = rows.filter(Q(started_at__lt=moment) | Q(started_at=moment, id__lt=key))
-            items = list(rows.order_by('-started_at', '-id').values(*REQUEST_FIELDS)[:51])
+            items = list(rows.annotate(
+                model_type=Case(
+                    When(condition=decision_model_filter(), then=Value('decision_model')),
+                    default=Value('large_model'),
+                    output_field=CharField(),
+                )
+            ).order_by('-started_at', '-id').values(*REQUEST_FIELDS)[:51])
             for item in items:
                 item['started_at'] = local_time(item['started_at']).isoformat()
                 item['ended_at'] = local_time(item['ended_at']).isoformat() if item['ended_at'] else None

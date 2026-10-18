@@ -122,7 +122,7 @@ function WorldDialogFrame({
             <button
                 type="button"
                 aria-label="关闭"
-                className={`absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] transition-opacity ${
+                className={`absolute inset-0 bg-slate-950/40 transition-opacity ${
                     isClosing ? 'world-dialog-overlay-exit' : 'world-dialog-overlay-enter'
                 }`}
                 onClick={() => closeDialog()}

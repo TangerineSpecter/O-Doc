@@ -11,6 +11,13 @@ SHANGHAI = ZoneInfo('Asia/Shanghai')
 PURPOSES = {'task', 'planning', 'im', 'memory', 'social', 'profile', 'learning', 'preview', 'sprout'}
 
 
+def decision_model_filter() -> Q:
+    # Structured decision connections share a stable namespace; keep legacy JEV
+    # snapshots classified correctly after the connection registry was added.
+    return (Q(model_key__startswith='decision:') | Q(provider_key__startswith='decision:') |
+            Q(provider_name__iexact='TypeSafe JEV') | Q(model_name__istartswith='jev-'))
+
+
 def visible_usage(request: Request | None = None) -> QuerySet:
     rows = AgentTokenUsage.objects.all()
     if request is not None:
@@ -46,10 +53,7 @@ def filtered_usage(request: Request) -> QuerySet:
 
 
 def metrics() -> dict:
-    # Structured decision connections share a stable namespace; keep legacy JEV
-    # snapshots classified correctly after the connection registry was added.
-    decision_model = (Q(model_key__startswith='decision:') | Q(provider_key__startswith='decision:') |
-                     Q(provider_name__iexact='TypeSafe JEV') | Q(model_name__istartswith='jev-'))
+    decision_model = decision_model_filter()
     return {
         'input_tokens': Coalesce(Sum('input_tokens'), 0, output_field=BigIntegerField()),
         'output_tokens': Coalesce(Sum('output_tokens'), 0, output_field=BigIntegerField()),

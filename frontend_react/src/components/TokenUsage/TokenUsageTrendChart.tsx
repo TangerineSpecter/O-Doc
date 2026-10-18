@@ -1,15 +1,33 @@
 import {useMemo, useState} from 'react';
 import {BarChart3} from 'lucide-react';
-import {Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
+import {Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import type {TokenSummary} from '../../types/api/tokenUsage';
 import {tokenNumber} from '../../utils/tokenUsage';
 
 type ChartType = 'bar' | 'line';
 type ChartPoint = {day: string; hour: string; totalTokens: number; largeModelTokens: number; decisionModelTokens: number};
 
-function formatAverageTokens(value: number) {
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-    return Math.round(value).toLocaleString('zh-CN');
+function formatCompactTokenCount(value: number) {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+    return tokenNumber(Math.round(value));
+}
+
+function TotalTokenLabelList({showLargeModel, showDecisionModel}: {showLargeModel: boolean; showDecisionModel: boolean}) {
+    return (
+        <LabelList
+            position="top"
+            offset={5}
+            fill="#64748b"
+            fontSize={10}
+            fontWeight={500}
+            valueAccessor={entry => {
+                const point = entry.payload as ChartPoint | undefined;
+                if (!point) return undefined;
+                const visibleTotal = (showLargeModel ? point.largeModelTokens : 0) + (showDecisionModel ? point.decisionModelTokens : 0);
+                return visibleTotal ? formatCompactTokenCount(visibleTotal) : undefined;
+            }}
+        />
+    );
 }
 
 function ModelToggle({
@@ -62,9 +80,9 @@ function ChartTooltip({
             <p className="text-[11px] font-semibold text-slate-600">
                 {showHourly ? `${axisLabel}:00` : axisLabel}
             </p>
-            <p className="mt-1 text-xs font-bold text-slate-700">全部用量 {tokenNumber(point.totalTokens)} token</p>
-            {showLargeModel && <p className="mt-1 text-[11px] text-orange-600">大模型 {tokenNumber(point.largeModelTokens)}</p>}
-            {showDecisionModel && <p className="text-[11px] text-violet-600">决策 {tokenNumber(point.decisionModelTokens)}</p>}
+            <p className="mt-1 text-xs font-bold text-slate-700">全部用量 {formatCompactTokenCount(point.totalTokens)} token</p>
+            {showLargeModel && <p className="mt-1 text-[11px] text-orange-600">大模型 {formatCompactTokenCount(point.largeModelTokens)} token</p>}
+            {showDecisionModel && <p className="text-[11px] text-violet-600">决策 {formatCompactTokenCount(point.decisionModelTokens)} token</p>}
         </div>
     );
 }
@@ -121,7 +139,7 @@ export default function TokenUsageTrendChart({summary, showHourly}: {summary: To
             strokeWidth={1.5}
             ifOverflow="extendDomain"
             label={{
-                value: `平均 ${formatAverageTokens(averageTokens)} token`,
+                value: `平均 ${formatCompactTokenCount(averageTokens)} token`,
                 position: 'insideTopRight',
                 fill: '#64748b',
                 fontSize: 11,
@@ -140,7 +158,7 @@ export default function TokenUsageTrendChart({summary, showHourly}: {summary: To
             axisLine={false}
             tickFormatter={(value: number) =>
                 value >= 1000000
-                    ? `${(value / 1000000).toFixed(1)}M`
+                    ? formatCompactTokenCount(value)
                     : value >= 1000
                       ? `${Math.round(value / 1000)}k`
                       : String(value)
@@ -209,26 +227,31 @@ export default function TokenUsageTrendChart({summary, showHourly}: {summary: To
                         >
                             <div
                                 role="img"
-                                aria-label={`当前筛选范围占比：大模型 ${largeModelPercent.toFixed(1)}%，决策 ${decisionModelPercent.toFixed(1)}%`}
+                                aria-label={`当前筛选范围占比：大模型 ${largeModelPercent.toFixed(1)}%，${formatCompactTokenCount(summary.largeModelTokens)} token；决策 ${decisionModelPercent.toFixed(1)}%，${formatCompactTokenCount(summary.decisionModelTokens)} token`}
                                 className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100"
                             >
                                 <span aria-hidden="true" className="h-full bg-orange-500 transition-[width]" style={{width: `${largeModelPercent}%`}} />
                                 <span aria-hidden="true" className="h-full bg-violet-500 transition-[width]" style={{width: `${decisionModelPercent}%`}} />
                             </div>
-                            <p className="mt-1 whitespace-nowrap text-xs text-slate-500">
-                                大模型 {largeModelPercent.toFixed(1)}% · 决策 {decisionModelPercent.toFixed(1)}%
+                            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] leading-4 tabular-nums text-slate-500">
+                                <span className="whitespace-nowrap text-orange-600">
+                                    大模型 {largeModelPercent.toFixed(1)}% · {formatCompactTokenCount(summary.largeModelTokens)} token
+                                </span>
+                                <span className="whitespace-nowrap text-violet-600">
+                                    决策 {decisionModelPercent.toFixed(1)}% · {formatCompactTokenCount(summary.decisionModelTokens)} token
+                                </span>
                             </p>
                         </div>
                         {showHourly ? (
                             <div className="whitespace-nowrap">
                                 当日累计：
-                                <strong className="font-semibold text-orange-600">{tokenNumber(summary.totalTokens)}</strong>{' '}
+                                <strong className="font-semibold text-orange-600">{formatCompactTokenCount(summary.totalTokens)}</strong>{' '}
                                 token
                             </div>
                         ) : peakDay ? (
                             <div className="whitespace-nowrap">
                                 单日峰值：
-                                <strong className="font-semibold text-orange-600">{tokenNumber(peakDay.totalTokens)}</strong>{' '}
+                                <strong className="font-semibold text-orange-600">{formatCompactTokenCount(peakDay.totalTokens)}</strong>{' '}
                                 ({peakDay.day.slice(5)})
                             </div>
                         ) : null}
@@ -271,7 +294,11 @@ export default function TokenUsageTrendChart({summary, showHourly}: {summary: To
                                         fill="#f97316"
                                         radius={showDecisionModel ? undefined : [6, 6, 0, 0]}
                                         maxBarSize={44}
-                                    />
+                                    >
+                                        {!showDecisionModel && (
+                                            <TotalTokenLabelList showLargeModel={showLargeModel} showDecisionModel={showDecisionModel} />
+                                        )}
+                                    </Bar>
                                 )}
                                 {showDecisionModel && (
                                     <Bar
@@ -280,7 +307,9 @@ export default function TokenUsageTrendChart({summary, showHourly}: {summary: To
                                         fill="#8b5cf6"
                                         radius={[6, 6, 0, 0]}
                                         maxBarSize={44}
-                                    />
+                                    >
+                                        <TotalTokenLabelList showLargeModel={showLargeModel} showDecisionModel={showDecisionModel} />
+                                    </Bar>
                                 )}
                                 {averageLine}
                             </BarChart>
