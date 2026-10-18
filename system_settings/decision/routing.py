@@ -19,8 +19,8 @@ SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'life
           'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇',
           'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}
 logger = logging.getLogger(__name__)
-# One provider may use at most this slice of the shared stage deadline.
-# A hang must not consume the remainder and skip later, independent providers.
+# Each provider owns this window, including its one format repair.
+# Earlier hangs do not reduce it and must not skip the next provider.
 MODEL_ATTEMPT_SECONDS = 60
 MODEL_ERRORS = (AIAuthenticationError, OpenAIError, APIError, RequestException, TimeoutError, AIBoundedRequestError, AIOutputTruncated, AIStreamIncomplete)
 
@@ -77,15 +77,18 @@ def report(scene, model_id, exc):
 
 def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None, deadline=None,
                scene='模型请求', check=None):
-    """invoke must perform no replayable writes; tool callers retain their effect ledger."""
+    """invoke must perform no replayable writes; tool callers retain their effect ledger.
+
+    ``deadline`` is not a shared pool. A provider that hangs does not stop the
+    next provider with 「当前阶段总时限已耗尽」.
+    """
+    _ = deadline
     models = candidates(agent, task=task, decision=decision, owner=owner)
     last = None
     for identity in models:
         check_ai_control()
         if check:
             check()  # Cancellation, leases, authorization are not model failures.
-        if deadline is not None and time.monotonic() >= deadline:
-            raise TimeoutError('当前阶段总时限已耗尽')
         try:
             config = AIService.get_client_config_for_model(identity)
         except (AIModel.DoesNotExist, ValueError) as exc:
@@ -111,16 +114,18 @@ def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None
 
 def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision=False, owner=None,
                   deadline=None, seconds=180, scene='模型请求', check=None, max_tokens=None, passthrough=()):
-    deadline = deadline if deadline is not None else time.monotonic() + seconds
+    # Callers still pass a stage clock. It does not size or cancel later providers.
+    _ = (deadline, seconds)
     def invoke(config):
         # Repair budget and prompt stay on this provider. A previous provider's
         # invalid or empty output must not shorten or rewrite the next request.
         repair_used = False
         text = prompt
+        model_deadline = time.monotonic() + MODEL_ATTEMPT_SECONDS
         while True:
-            remaining = deadline - time.monotonic()
+            remaining = model_deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError('当前阶段总时限已耗尽')
+                raise TimeoutError('当前模型时限已耗尽')
             attempt = min(remaining, MODEL_ATTEMPT_SECONDS)
             raw = complete(config, text, json_output=True, extra_body=thinking_options(config),
                            max_tokens=max_tokens, deadline_seconds=attempt, max_deadline_seconds=attempt,

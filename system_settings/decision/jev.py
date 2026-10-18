@@ -12,10 +12,10 @@ from .config import api_key, connection, selected_connection_id
 from .diagnostics import record_failure, request_identifier
 
 JEV_MODELS_URL = 'https://api.typesafe.ai/v1/models'
-# Healthy local decisions in production finished within about 21s. A dead
-# connection used to block for 60s and exhaust the shared stage budget before
-# any text fallback could run.
-REQUEST_TIMEOUT_SECONDS = 30
+# Local models such as startlux-decision can cold-start slowly. This minute
+# belongs to the decision connection alone; it is not taken from the text
+# fallback chain, and each later model has its own minute.
+REQUEST_TIMEOUT_SECONDS = 60
 
 
 class DecisionUnavailable(Exception):
@@ -46,8 +46,9 @@ def _send(owner: str, profile: dict, state: dict, criteria: dict[str, object], *
         raise DecisionUnavailable('本机尚未配置 JEV 密钥')
     if not 1 <= len(criteria) <= 255:
         raise DecisionUnavailable('候选数量无效')
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
+    # An already-passed caller deadline does not start a new request. A short
+    # remainder must not shrink this call below its own minute.
+    if deadline - time.monotonic() <= 0:
         raise TimeoutError('决策请求达到执行时限')
     adapter = get_adapter(profile['protocol'])
     question = {
@@ -63,7 +64,7 @@ def _send(owner: str, profile: dict, state: dict, criteria: dict[str, object], *
     if set_stage:
         set_stage('request')
     response = requests.post(endpoint, headers=headers, json=payload,
-                             timeout=min(REQUEST_TIMEOUT_SECONDS, remaining))
+                             timeout=REQUEST_TIMEOUT_SECONDS)
     status = response.status_code
     if status != 200:
         raise _HttpDecisionError(status)

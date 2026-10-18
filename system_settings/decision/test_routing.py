@@ -86,18 +86,31 @@ class RoutingTests(TestCase):
         self.assertIn('模型返回内容为空', completion.call_args_list[1].args[1])
 
     @patch('system_settings.decision.routing.complete')
-    def test_one_provider_timeout_still_calls_the_next_within_stage_budget(self, completion):
+    def test_each_model_keeps_its_own_minute_after_earlier_hangs(self, completion):
+        clock = {'now': 1000.0}
+
+        def monotonic():
+            return clock['now']
+
         def respond(config, prompt, **kwargs):
+            self.assertGreaterEqual(kwargs['deadline_seconds'], 59)
             self.assertLessEqual(kwargs['deadline_seconds'], 60)
+            self.assertGreaterEqual(kwargs['max_deadline_seconds'], 59)
             self.assertLessEqual(kwargs['max_deadline_seconds'], 60)
-            if config['model_id'] == self.models[0].pk:
+            if config['model_id'] != self.models[3].pk:
+                clock['now'] += 60
                 raise TimeoutError('模型调用达到 60 秒硬时限')
             return '{"choice":"ok"}'
 
         completion.side_effect = respond
-        result = complete_json(self.agent, '选择', lambda value: value, task=self.task, seconds=180)
+        with patch('system_settings.decision.routing.time.monotonic', side_effect=monotonic):
+            # A 60s stage clock used to be gone after the first hang, so later
+            # models were skipped with 「当前阶段总时限已耗尽」.
+            result = complete_json(self.agent, '选择', lambda value: value, task=self.task,
+                                   deadline=clock['now'] + 60)
         self.assertEqual(result['choice'], 'ok')
-        self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0, 2)])
+        self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list],
+                         [self.models[i].pk for i in (0, 2, 3)])
 
     @patch('system_settings.decision.jev.choose', side_effect=DecisionUnavailable('fixture'))
     def test_jev_failure_exclusion_and_solo_candidate(self, choose):
