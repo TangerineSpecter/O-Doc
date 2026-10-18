@@ -14,7 +14,7 @@ interface DecisionConnectionCardProps {
 }
 
 const protocolName = (protocol: DecisionConnection['protocol']) =>
-    protocol === 'systemone' ? '机V1 / System One' : 'OpenAI Chat + JSON 决策';
+    protocol === 'systemone' ? 'JEV / TypeSafe System One' : 'OpenAI Chat + JSON 决策';
 
 export function DecisionConnectionCard({connection, result, busy, failoverLabel, stickyLabel, onTest, onEdit, onClearKey, onDelete}: DecisionConnectionCardProps) {
     return (

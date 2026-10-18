@@ -88,12 +88,12 @@ class DecisionTests(TestCase):
         mixed = LifeConfig.objects.get(pk='mixed').settings
         self.assertEqual(mixed['decision_connection_id'], 'dc_0123456789abcdef')
         self.assertEqual(mixed['decision_connection_ids'], ['dc_0123456789abcdef'])
-        profiles['kept'][0]['name'] = '机V1'
+        profiles['kept'][0]['name'] = '已改名'
         row = SystemSetting.objects.get(pk='system_decision_connections')
         row.value = profiles
         row.save(update_fields=['value'])
         migrate_legacy_jev(apps, Editor())
-        self.assertEqual(SystemSetting.objects.get(pk='system_decision_connections').value['kept'][0]['name'], '机V1')
+        self.assertEqual(SystemSetting.objects.get(pk='system_decision_connections').value['kept'][0]['name'], '已改名')
 
     def test_snapshot_export_and_restore_include_secret(self):
         from utils.sync_manager import SyncManager

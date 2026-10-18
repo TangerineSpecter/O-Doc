@@ -18,7 +18,7 @@
 
 ## 连接与协议
 
-连接在“AI 模型接入 → 决策模型连接”管理，保存稳定连接 ID、名称、协议、服务地址和模型 ID。没有预置连接。机V1（JEV / System One）和本地决策模型都从「新增决策模型连接」添加，并选择对应协议：
+连接在“AI 模型接入 → 决策模型连接”管理，保存稳定连接 ID、名称、协议、服务地址和模型 ID。没有预置连接。JEV（协议 `systemone`，TypeSafe System One；历史连接 ID 为 `jev`）和本地决策模型都从「新增决策模型连接」添加，并选择对应协议：
 
 | 协议 | 请求和响应 |
 | --- | --- |
@@ -42,7 +42,7 @@
 
 ## 接口与代码入口
 
-接口前缀为 `/api/settings/decision-models/`：`connections/` 新建连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测。历史 `PATCH` 与 `test/` 仍只写或检测 ID 为 `jev` 的密钥，供已有客户端使用；新的机V1 连接走同一套连接接口。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
+接口前缀为 `/api/settings/decision-models/`：`connections/` 新建连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测。历史 `PATCH` 与 `test/` 仍只写或检测 ID 为 `jev` 的密钥，供已有客户端使用；新的 JEV 连接走同一套连接接口。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
 
 - 后端：`system_settings/decision/config.py`、`views.py`、`routing.py`、`failover.py`、`jev.py`、`adapters/`、`restore.py`、`diagnostics.py`。`choose_connections` 供世界场景和市场循环共用。
 - 前端：`hooks/useDecisionConfig.ts`、`components/Settings/DecisionSettings.tsx`、`DecisionConnectionModal.tsx`；世界策略、决策顺序和沿用时间在 `components/AgentWorld/WorldDecisionModelSettings.tsx` 与 `DecisionFailoverEditor.tsx`。连接卡片显示顺序位置和暂时沿用状态。
