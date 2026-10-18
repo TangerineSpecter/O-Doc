@@ -69,35 +69,35 @@ def planning_facts(owner: str, agent, slot: dict) -> FarmQueueFacts:
 
 
 def text_fallback(state: dict, choices: dict) -> tuple[dict, dict, dict[str, str]]:
-    """Compact view for ordinary models. Decision connections still receive the full state."""
+    """Compact view for ordinary models. Decision connections still receive the full state.
+
+    Plan values are ``crops|sowable|revenue|wait``. Choice values are ``plan|tier|limit``.
+    """
     plans = state.get('plans') or {}
     plan_labels = {plan_id: str(index) for index, plan_id in enumerate(plans)}
     compact_plans = {}
     for plan_id, plan in plans.items():
         crops = []
         for entry in plan.get('entries') or []:
+            sku = str(entry.get('sku') or '').removeprefix('seed.')
             mode = entry.get('fertilizer_mode') or 'none'
-            crop = f"{entry.get('sku')}x{entry.get('quantity')}"
+            crop = f"{sku}x{entry.get('quantity')}"
             if mode != 'none':
                 crop += f"/{mode}:{entry.get('fertilizer') or ''}"
             crops.append(crop)
-        compact_plans[plan_labels[plan_id]] = {
-            'crops': ','.join(crops),
-            'sowable': plan.get('sowable'),
-            'revenue': plan.get('eventual_expected_revenue'),
-            'wait': plan.get('required_fertilizer_wait'),
-        }
-    options, labels = [], {}
+        wait = 1 if plan.get('required_fertilizer_wait') else 0
+        compact_plans[plan_labels[plan_id]] = (
+            f"{','.join(crops)}|{plan.get('sowable')}|{plan.get('eventual_expected_revenue')}|{wait}"
+        )
+    prompt_choices, labels = {}, {}
     for index, (key, row) in enumerate(choices.items()):
         label = str(index)
         labels[label] = key
-        options.append({
-            'id': label,
-            'plan': plan_labels.get(row.get('plan_id'), ''),
-            'tier': row.get('procurement_tier', 'none'),
-            'limit': row.get('procurement_limit'),
-        })
+        prompt_choices[label] = (
+            f"{plan_labels.get(row.get('plan_id'), '')}|{row.get('procurement_tier', 'none')}|{row.get('procurement_limit')}"
+        )
     brief = {
+        'choice_format': '候选值=计划编号|采购档|采购上限；计划值=作物|可播数|估算收益|是否等肥',
         'slot': state.get('slot'),
         'intent': state.get('intent'),
         'preferences': state.get('preferences'),
@@ -112,9 +112,8 @@ def text_fallback(state: dict, choices: dict) -> tuple[dict, dict, dict[str, str
             for crop in state.get('stocked_crops', [])
         ],
         'plans': compact_plans,
-        'options': options,
     }
-    return brief, {label: label for label in labels}, labels
+    return brief, prompt_choices, labels
 
 
 def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '') -> dict:

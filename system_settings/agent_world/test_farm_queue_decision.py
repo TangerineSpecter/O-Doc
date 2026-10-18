@@ -38,6 +38,7 @@ def facts():
 class CandidateTests(SimpleTestCase):
     def test_text_fallback_keeps_choice_identity_and_drops_estimate_bulk(self):
         import json as json_lib
+        from .farm_queue_candidates import identity
         from .farm_queue_decision import text_fallback
         value = facts()
         candidates = build_candidates(value)
@@ -56,6 +57,36 @@ class CandidateTests(SimpleTestCase):
         self.assertNotIn('without_fertilizer', compact)
         self.assertEqual(set(labels.values()), set(choices))
         self.assertEqual(labels[next(iter(prompt_choices))], next(iter(choices)))
+
+    def test_short_choice_maps_back_without_sending_estimate_tables(self):
+        from types import SimpleNamespace
+        from .farm_queue_candidates import identity
+        from .farm_queue_decision import text_fallback
+        from .life_choices import choose
+        value = facts()
+        candidates = build_candidates(value)
+        templates, choices = {}, {}
+        for key, row in candidates.items():
+            plan_id = identity(row['farm_plan']['entries'])
+            templates.setdefault(plan_id, {'entries': row['farm_plan']['entries'], **row['summary']})
+            choices[key] = {'plan_id': plan_id, 'procurement_limit': row['farm_plan']['procurement_limit'],
+                            'procurement_tier': row['summary'].get('procurement_tier', 'none')}
+        state = {'plans': templates, 'stocked_crops': value.crops}
+        brief, prompt_choices, labels = text_fallback(state, choices)
+        agent = SimpleNamespace(pk='agent', name='园丁', role_profile={}, prompt='')
+        captured = {}
+
+        def fake_complete(model, prompt, validate, **kwargs):
+            captured['prompt'] = prompt
+            return validate({'choice': next(iter(prompt_choices))})
+
+        with patch('system_settings.agent_world.life_choices.choose_scene', return_value=None), \
+             patch('system_settings.agent_world.life_choices.complete_json', side_effect=fake_complete):
+            picked = choose(agent, 'owner', 'farm_queue', state, choices,
+                            prompt_state=brief, prompt_choices=prompt_choices, choice_labels=labels)
+        self.assertEqual(picked, next(iter(choices)))
+        self.assertNotIn('without_fertilizer', captured['prompt'])
+        self.assertNotIn('上次输出未通过校验', captured['prompt'])
 
     def test_bounded_deterministic_diverse_and_no_resource_mutation(self):
         value = facts()
@@ -274,7 +305,7 @@ class FarmDecisionTests(TestCase):
         from .inventory_stock import take_stock
         from .life_models import LifeItem
         from .life_planner import apply_plan
-        def select(agent, owner, scene, state, choices):
+        def select(agent, owner, scene, state, choices, **kwargs):
             result = max(choices, key=lambda k: Decimal(choices[k]['procurement_limit']))
             take_stock(self.agent.pk, 'owner', 'seed.radish', 1)
             self.agent.money = 15

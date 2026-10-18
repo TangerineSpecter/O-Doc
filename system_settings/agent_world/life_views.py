@@ -253,12 +253,15 @@ class LifeScheduleView(APIView):
                 if actor:query=query.filter(actor_id=actor)
                 rows=list(query)
                 residents=[]
+                count=0
                 for row in rows:
+                    if is_settled_exploration(row):continue
                     requeue(row,reason)
+                    count+=1
                     if row.actor_id not in residents:residents.append(row.actor_id)
                 for resident in residents:
                     recover(config,resume_actor=resident,delay_reason='人工补做，过期时间点已顺延到可执行空档')
-                return success_result({'count':len(rows)})
+                return success_result({'count':count})
             item=LifeItem.objects.select_for_update().filter(pk=identity,owner_id=owner).first()
             if not item:return valid_result('安排不存在',status=404)
             if action not in ('cancel','replan','retry'):raise ValueError('无效的日程操作')
