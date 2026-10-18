@@ -64,9 +64,11 @@ class LifeConfigView(APIView):
 
     def get(self,request):
         config=config_for(owner_of(request))
+        from system_settings.decision.failover import public_status
         return success_result({'settings':{**DEFAULTS,**config.settings},'active_agent_ids':effective_settings(config).get('agent_ids',[]),'paused_agents':config.paused_agents,'migrated':config.migrated,'profile_agent_ids':list(LifeProfile.objects.filter(owner_id=config.pk).values_list('pk',flat=True)),
                                'migration_summary':{'converted_items':LifeItem.objects.filter(owner_id=config.pk,context__legacy=True).count(),'running_items':LifeItem.objects.filter(owner_id=config.pk,status='running').count()},
-                               'active_cycle':list(LifeCycle.objects.filter(owner_id=config.pk,ends_at__gt=timezone.now()).values('id','starts_at','ends_at','snapshot')[:1])})
+                               'active_cycle':list(LifeCycle.objects.filter(owner_id=config.pk,ends_at__gt=timezone.now()).values('id','starts_at','ends_at','snapshot')[:1]),
+                               'decision_failover':public_status(config.pk)})
 
     @guarded
     @transaction.atomic
@@ -75,9 +77,12 @@ class LifeConfigView(APIView):
             config=config_for(owner_of(request))
             raw_settings=request.data.get('settings',request.data)
             settings=validate_settings(raw_settings)
-            for key in ('decision_model_id', 'decision_connection_id', 'jev_enabled', 'jev_excluded_scenes'):
+            for key in ('decision_model_id', 'decision_connection_id', 'decision_connection_ids',
+                        'decision_sticky_ttl_seconds', 'jev_enabled', 'jev_excluded_scenes'):
                 if key not in raw_settings:
                     settings[key] = config.settings.get(key, DEFAULTS[key])
+            from system_settings.decision.failover import align_settings
+            settings = align_settings(settings)
             from system_settings.models import Agent
             added=set(settings['agent_ids'])-set(config.settings.get('agent_ids', []))
             if Agent.objects.filter(pk__in=added, archived_at__isnull=False).exists():

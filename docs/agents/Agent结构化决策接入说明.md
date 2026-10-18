@@ -12,7 +12,9 @@
 
 模型错误、空内容或输出校验失败后尝试下一层；停止、授权失效和业务工具失败由原执行流程处理。回退不能重放已经提交的交易、奖励或其他写入。
 
-结构化决策连接单次 HTTP 为 60 秒，给本地模型冷启动；这段时间只属于该连接。回退链上每个普通模型另有自己的 60 秒，包含该模型自己的一次格式修复。前面的模型挂起、空内容或校验失败不会扣减后面模型的 60 秒，也不会因「当前阶段总时限已耗尽」跳过尚未调用的模型。下一层仍使用原始提示，不携带上一层输出。调用方截止时间在决策调用开始前已经过去时，决策连接不再发起请求，错误仍为「当前阶段总时限已耗尽」。取消、权限或租约失效、业务条件变化仍然停止整条链。
+结构化决策连接单次 HTTP 为 60 秒，给本地模型冷启动；这段时间只属于该连接。世界设置里的故障转移顺序可以排多个决策连接（最多 8 个，含主模型）。主连接挂起、超时或无效响应后，按顺序尝试下一个连接，每个连接重新获得自己的 60 秒。调用方截止时间只决定这条决策链是否开始；开始之后，前面的连接挂起不会因「当前阶段总时限已耗尽」跳过后面的连接。全部决策连接失败后，才进入普通文本回退。回退链上每个普通模型另有自己的 60 秒，包含该模型自己的一次格式修复，同样不会被前面的决策连接扣减。下一层仍使用原始提示，不携带上一层输出。调用方截止时间在决策调用开始前已经过去时，决策连接不再发起请求，错误仍为「当前阶段总时限已耗尽」。取消、权限或租约失效、业务条件变化仍然停止整条链。
+
+备用连接成功后，本机把该连接记为暂时沿用，默认 2 小时，世界设置也可选 1 小时或 4 小时。沿用期间后续决策（包括同一次市场里的下一问）先调用这个已成功的连接，不再先等待故障中的主模型。窗口到期后的下一次调用重新从主模型开始；主模型成功则清除沿用。沿用中的备用如果也失败，立刻取消沿用，下一次仍从主模型开始。成功不会把到期时间往后推。同一时刻已经发出的请求仍会各自试到自己的顺序；成功写入后，尚未开始的决策才改为沿用。
 
 ## 连接与协议
 
@@ -31,7 +33,8 @@
 
 ## 账号、持久化与同步
 
-- 连接元数据在 `SystemSetting.system_decision_connections`，API Key 按账号与连接 ID 保存在 `system_decision_credentials`；世界选择在 `LifeConfig.settings.decision_connection_id`。
+- 连接元数据在 `SystemSetting.system_decision_connections`，API Key 按账号与连接 ID 保存在 `system_decision_credentials`；世界选择在 `LifeConfig.settings.decision_connection_id`。故障转移顺序 `decision_connection_ids`（主模型在第一位）和暂时沿用时长 `decision_sticky_ttl_seconds` 同在 `LifeConfig.settings` 中，随既有世界配置同步。
+- 本机正在沿用哪个连接存在 `SystemSetting.system_decision_sticky`，不进入快照、不记修订。本地决策服务是否宕机因设备而异，不能让另一台设备跳过自己仍然可用的主模型。
 - 上述连接元数据、世界选择及密钥均按现有 WebDAV 业务范围同步。配置读取仅返回密钥是否已设置，不回传密钥；远端快照包含凭证字段。
 - 旧 `AgentTask.market_config.decision_enabled/decision_provider` 保留历史兼容，当前策略读取世界设置。
 - 新协议及连接沿用既有存储，是否新增同步字段须按[同步说明](../数据同步逻辑说明.md)逐项确认。
@@ -40,8 +43,8 @@
 
 接口前缀为 `/api/settings/decision-models/`：GET/PATCH 管理内置 JEV 配置，`connections/` 新建自定义连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测；内置连接保留 `test/` 检测入口。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
 
-- 后端：`system_settings/decision/config.py`、`views.py`、`routing.py`、`jev.py`、`adapters/`、`restore.py`、`diagnostics.py`。
-- 前端：`hooks/useDecisionConfig.ts`、`components/Settings/DecisionSettings.tsx`、`DecisionConnectionModal.tsx`；世界策略在 `components/AgentWorld/WorldDecisionModelSettings.tsx`。
+- 后端：`system_settings/decision/config.py`、`views.py`、`routing.py`、`failover.py`、`jev.py`、`adapters/`、`restore.py`、`diagnostics.py`。`choose_connections` 供世界场景和市场循环共用。
+- 前端：`hooks/useDecisionConfig.ts`、`components/Settings/DecisionSettings.tsx`、`DecisionConnectionModal.tsx`；世界策略、备用顺序和沿用时间在 `components/AgentWorld/WorldDecisionModelSettings.tsx` 与 `DecisionFailoverEditor.tsx`。连接卡片显示主/备用顺序和暂时沿用状态。
 - 决策用量按 `decision:<connection_id>` 记录真实版本、状态和已知 Token；未知用量保持为空。详见[Token 用量说明](./AgentToken用量统计说明.md)。
 
 阶段验收、市场上下文迭代和旧测试命令见[历史记录](../archive/agents/Agent结构化决策阶段记录.md)。真实费用、耗时、行为质量与多设备接续需要对应证据，不能由字符缩减或连接成功推导。
@@ -50,7 +53,7 @@
 
 ## 农场整套队列选择（2026-10-17）
 
-`farm_queue` 复用世界连接和排除场景；生活日程选定农场后，程序提供单作物、短周期优先、单位地块时间收益优先和均衡混合方案，含一轮/当天剩余容量及不施肥、可选/必需两类肥料、按增量净收益配置的策略。先按实际内容去重，再按作物、数量和施肥覆盖保留最多80套；每套附不采购、补一轮、按当天容量补给三档上限，合并重复后最多240个候选。连接成功只请求一次；关闭、排除、失败或非法响应时，普通模型也从同一候选集合选择ID。唯一候选不请求供应商。
+`farm_queue` 复用世界连接和排除场景；生活日程选定农场后，程序提供单作物、短周期优先、单位地块时间收益优先和均衡混合方案，含一轮/当天剩余容量及不施肥、可选/必需两类肥料、按增量净收益配置的策略。先按实际内容去重，再按作物、数量和施肥覆盖保留最多80套；每套附不采购、补一轮、按当天容量补给三档上限，合并重复后最多240个候选。决策连接链上请求到第一次成功即停止；主连接失败时按故障转移顺序尝试备用。关闭、排除，或全部连接失败、非法响应时，普通模型也从同一候选集合选择ID。唯一候选不请求供应商。
 
 决策连接收到的仍是完整候选状态。普通模型回退不重复粘贴估算明细和 24 位候选哈希：计划压成作物、可播数和收益摘要，候选改用短编号，校验时再映射回原候选。这样决策连接网络失败后，后续云端模型不会因为同一份超大 JSON 被立刻拒绝或返回空内容。
 

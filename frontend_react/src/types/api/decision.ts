@@ -11,9 +11,17 @@ export interface DecisionConnection {
     apiKeyConfigured: boolean;
 }
 
+export interface DecisionFailoverState {
+    order: string[];
+    stickyConnectionId: string | null;
+    stickyUntil: string | null;
+    ttlSeconds: number;
+}
+
 export interface DecisionConfig {
     providers: DecisionConnection[];
     connections: DecisionConnection[];
+    failover?: DecisionFailoverState;
 }
 
 export interface DecisionConnectionInput {

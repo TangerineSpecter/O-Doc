@@ -84,7 +84,8 @@ def public_config(owner: str) -> dict:
             'configured': secret_present if built_in else bool(item.get('base_url') and item.get('model_id')),
             'api_key_configured': secret_present,
         })
-    return {'providers': connections, 'connections': connections}
+    from .failover import public_status
+    return {'providers': connections, 'connections': connections, 'failover': public_status(owner)}
 
 
 @transaction.atomic
@@ -201,11 +202,8 @@ def delete_connection(owner: str, connection_id: str) -> dict:
         values.pop(owner, None)
     row.value = values
     row.save(update_fields=['value'])
-    from system_settings.agent_world.life_models import LifeConfig
-    life = LifeConfig.objects.filter(pk=owner).first()
-    if life and (life.settings or {}).get('decision_connection_id') == connection_id:
-        life.settings = {**(life.settings or {}), 'decision_connection_id': PROVIDER}
-        life.save(update_fields=['settings'])
+    from .failover import forget_connection
+    forget_connection(owner, connection_id)
     return public_config(owner)
 
 

@@ -3,6 +3,7 @@ import {KeyRound, Loader2, Plus} from 'lucide-react';
 import {createDecisionConnection, deleteDecisionConnection, saveDecisionKey, testDecisionConnection, updateDecisionConnection} from '../../api/decision';
 import {useDecisionConfig} from '../../hooks/useDecisionConfig';
 import type {DecisionConnection, DecisionConnectionInput} from '../../types/api/decision';
+import {formatStickyUntil} from '../AgentWorld/decisionFailover';
 import {useToast} from '../common/ToastProvider';
 import {DecisionConnectionCard} from './DecisionConnectionCard';
 import {DecisionConnectionModal} from './DecisionConnectionModal';
@@ -20,6 +21,17 @@ export function DecisionSettings() {
     const connections = config?.connections || config?.providers || [];
     const jev = connections.find(connection => connection.id === 'jev');
     const customConnections = useMemo(() => connections.filter(connection => !connection.builtIn), [connections]);
+    const failover = config?.failover;
+    const connectionLabels = (id: string) => {
+        const index = failover?.order.indexOf(id) ?? -1;
+        return {
+            failoverLabel: index === 0 ? '主决策' : index > 0 ? `备用 ${index}` : undefined,
+            stickyLabel: failover?.stickyConnectionId === id && failover.stickyUntil
+                ? `暂时沿用至 ${formatStickyUntil(failover.stickyUntil)}`
+                : undefined,
+        };
+    };
+    const stickyConnection = connections.find(connection => connection.id === failover?.stickyConnectionId);
 
     const updateJevKey = async (clear: boolean) => {
         if (busy || (!clear && !secret.trim())) return;
@@ -78,7 +90,7 @@ export function DecisionSettings() {
                 delete next[deleteTarget.id];
                 return next;
             });
-            toast.success('决策模型连接已删除；已选中的世界连接已切回 JEV');
+            toast.success('决策模型连接已删除，并已从故障转移顺序中移除');
         } catch (cause) {
             toast.error(cause instanceof Error ? cause.message : '删除决策模型连接失败');
         }
@@ -108,8 +120,9 @@ export function DecisionSettings() {
             </div>
 
             {loading ? <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin"/>正在读取决策连接…</p> : error ? <div role="alert" className="text-xs text-red-600">{error}<button type="button" onClick={() => void refresh()} className="ml-3 underline">重试</button></div> : <div className="space-y-3">
+                {stickyConnection && failover?.stickyUntil && <p role="status" className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-xs leading-5 text-lime-800">主决策模型暂时跳过。当前沿用「{stickyConnection.name}」，{formatStickyUntil(failover.stickyUntil)} 后重新从主模型开始。沿用状态只保存在本机。</p>}
                 {jev && <div className="space-y-2">
-                    <DecisionConnectionCard connection={jev} result={results.jev} busy={testing === 'jev'} onTest={() => void test(jev)}/>
+                    <DecisionConnectionCard connection={jev} result={results.jev} busy={testing === 'jev'} onTest={() => void test(jev)} {...connectionLabels('jev')}/>
                     <div className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/70 p-3 sm:flex-row sm:items-center">
                         <input type="password" autoComplete="new-password" aria-label="JEV API Key" value={secret} onChange={event => setSecret(event.target.value)} placeholder={jev.apiKeyConfigured ? '已保存；填写新密钥以替换' : '填写 TypeSafe API Key'} className="min-h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"/>
                         <div className="flex shrink-0 gap-2">
@@ -118,8 +131,8 @@ export function DecisionSettings() {
                         </div>
                     </div>
                 </div>}
-                {customConnections.map(connection => <DecisionConnectionCard key={connection.id} connection={connection} result={results[connection.id]} busy={testing === connection.id} onTest={() => void test(connection)} onEdit={() => openEdit(connection)} onClearKey={() => void clearConnectionKey(connection)} onDelete={() => setDeleteTarget(connection)}/>) }
-                <p className="text-xs leading-5 text-slate-500">连接信息、选择和 API Key 都随 WebDAV 同步；密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
+                {customConnections.map(connection => <DecisionConnectionCard key={connection.id} connection={connection} result={results[connection.id]} busy={testing === connection.id} onTest={() => void test(connection)} onEdit={() => openEdit(connection)} onClearKey={() => void clearConnectionKey(connection)} onDelete={() => setDeleteTarget(connection)} {...connectionLabels(connection.id)}/>) }
+                <p className="text-xs leading-5 text-slate-500">连接信息、故障转移顺序和 API Key 都随 WebDAV 同步；暂时沿用哪一个模型只记在本机，不进入快照。顺序和沿用时间在世界设置 → 决策模型里调整，默认沿用 2 小时，也可选 1 小时或 4 小时。密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
             </div>}
 
             <DecisionConnectionModal isOpen={modalOpen} initialData={editing} onClose={() => setModalOpen(false)} onSave={saveConnection}/>
@@ -127,7 +140,7 @@ export function DecisionSettings() {
                 <button type="button" aria-label="关闭删除确认" className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" onClick={() => setDeleteTarget(null)}/>
                 <section role="dialog" aria-modal="true" aria-labelledby="delete-decision-title" className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
                     <h3 id="delete-decision-title" className="font-bold text-slate-800">删除决策连接？</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">将删除“{deleteTarget.name}”及其 API Key。若世界当前选中了它，会切回 JEV。</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">将删除“{deleteTarget.name}”及其 API Key。若它在故障转移顺序里，会从顺序中移除；主模型被删时由下一个备用接任，没有备用时回到 JEV。</p>
                     <div className="mt-5 flex justify-end gap-2">
                         <button type="button" onClick={() => setDeleteTarget(null)} className="min-h-9 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">取消</button>
                         <button type="button" onClick={() => void removeConnection()} className="min-h-9 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">删除连接</button>

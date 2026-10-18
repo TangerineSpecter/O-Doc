@@ -7,7 +7,7 @@ import uuid
 from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
 from utils.token_usage import usage_scope
-from system_settings.decision.jev import choose
+from system_settings.decision.routing import choose_connections as choose
 from .market_decision_candidates import candidates, quantities
 from .market_model_context import model_context
 from .market_model_execution import MarketFinished
@@ -121,7 +121,7 @@ def decide(runtime, ai_service) -> str:
         criteria = json.loads(json.dumps(criteria, cls=DjangoJSONEncoder, ensure_ascii=False))
         with usage_scope(owner_id=runtime.owner, agent=runtime.agent, task=runtime.task, record=runtime.record, purpose='task', phase=runtime.phase):
             try:
-                selection, confidence = choose(runtime.owner, state, criteria, deadline=runtime.deadline)
+                selection, confidence = choose(runtime.owner, state, criteria, deadline=runtime.deadline, scene='market')
             except TimeoutError:
                 raise MarketFinished('市场任务达到执行时限') from None
         runtime.check()

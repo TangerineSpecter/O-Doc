@@ -5,6 +5,8 @@ interface DecisionConnectionCardProps {
     connection: DecisionConnection;
     result?: string;
     busy?: boolean;
+    failoverLabel?: string;
+    stickyLabel?: string;
     onTest: () => void;
     onEdit?: () => void;
     onClearKey?: () => void;
@@ -14,7 +16,7 @@ interface DecisionConnectionCardProps {
 const protocolName = (protocol: DecisionConnection['protocol']) =>
     protocol === 'systemone' ? 'JEV / TypeSafe System One' : 'OpenAI Chat + JSON 决策';
 
-export function DecisionConnectionCard({connection, result, busy, onTest, onEdit, onClearKey, onDelete}: DecisionConnectionCardProps) {
+export function DecisionConnectionCard({connection, result, busy, failoverLabel, stickyLabel, onTest, onEdit, onClearKey, onDelete}: DecisionConnectionCardProps) {
     return (
         <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-start gap-3">
@@ -23,6 +25,8 @@ export function DecisionConnectionCard({connection, result, busy, onTest, onEdit
                     <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-sm font-semibold text-slate-800">{connection.name}</h4>
                         {connection.builtIn && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">内置</span>}
+                        {failoverLabel && <span className="rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">{failoverLabel}</span>}
+                        {stickyLabel && <span className="rounded-md bg-lime-50 px-2 py-0.5 text-[10px] font-semibold text-lime-700">{stickyLabel}</span>}
                         <span className={`text-[11px] ${connection.apiKeyConfigured ? 'text-lime-700' : 'text-slate-400'}`}>
                             {connection.apiKeyConfigured ? 'API Key 已配置' : 'API Key 未配置'}
                         </span>

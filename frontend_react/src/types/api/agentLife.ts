@@ -1,10 +1,13 @@
+import type {DecisionFailoverState} from './decision';
+
 export interface LifeSettings {
     agentIds: string[]; mode: 'fixed' | 'random'; period: 'daily' | 'weekly' | 'monthly' | 'yearly'; count: number;
     intervalMinutes: number; activeStart: string; activeEnd: string; minGapMinutes: number; minRemainingMinutes: number;
-    decisionModelId: string; decisionConnectionId?: string;
+    decisionModelId: string; decisionConnectionId?: string; decisionConnectionIds?: string[];
+    decisionStickyTtlSeconds?: number;
     jevEnabled?: boolean; jevExcludedScenes?: string[];
 }
-export interface LifeConfig {settings: LifeSettings; pausedAgents: string[]; migrated: boolean; profileAgentIds?: string[]; activeAgentIds?: string[]; migrationSummary?: {convertedItems: number; runningItems: number}; activeCycle: Array<{id: string; startsAt: string; endsAt: string}>}
+export interface LifeConfig {settings: LifeSettings; pausedAgents: string[]; migrated: boolean; profileAgentIds?: string[]; activeAgentIds?: string[]; migrationSummary?: {convertedItems: number; runningItems: number}; activeCycle: Array<{id: string; startsAt: string; endsAt: string}>; decisionFailover?: DecisionFailoverState}
 export interface LifeProfile {id: string; preferences: string; direction: string}
 export interface LifeCondition {kind: 'subjective' | 'savings' | 'travel' | 'inventory'; amount?: string; destinationId?: string; sku?: string; quantity?: number; description?: string}
 export interface LifeGoal {id: string; actorId: string; title: string; condition: LifeCondition; progress: string; status: 'active' | 'paused' | 'completed' | 'abandoned'; reason: string}

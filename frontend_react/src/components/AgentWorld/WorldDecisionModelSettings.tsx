@@ -7,7 +7,10 @@ import {getLifeConfig, saveLifeConfig} from '../../api/agentLife';
 import {Select} from '../common/Select';
 import {useToast} from '../common/ToastProvider';
 import type {LifeConfig} from '../../types/api/agentLife';
+import type {DecisionFailoverState} from '../../types/api/decision';
 import type {AIModel} from '../../types/api/setting';
+import {DecisionFailoverEditor} from './DecisionFailoverEditor';
+import {DEFAULT_STICKY_TTL_SECONDS, stickyTtlValue} from './decisionFailover';
 
 const decisionSceneLabels = {
     market: '市场选择',
@@ -32,6 +35,9 @@ export function WorldDecisionModelSettings() {
     const decisionConfig = useDecisionConfig();
     const [jevEnabled, setJevEnabled] = useState(false);
     const [decisionConnectionId, setDecisionConnectionId] = useState('jev');
+    const [backupIds, setBackupIds] = useState<string[]>([]);
+    const [stickyTtl, setStickyTtl] = useState(String(DEFAULT_STICKY_TTL_SECONDS));
+    const [failover, setFailover] = useState<DecisionFailoverState | null>(null);
     const [excluded, setExcluded] = useState<string[]>([]);
     const [config, setConfig] = useState<LifeConfig | null>(null);
     const [models, setModels] = useState<ChatModel[]>([]);
@@ -56,8 +62,13 @@ export function WorldDecisionModelSettings() {
                 const configuredModelExists = chatModels.some(model => model.id === configuredModelId);
                 setModels(chatModels);
                 setConfig(lifeConfig);
+                const storedOrder = lifeConfig.settings.decisionConnectionIds || [];
+                const primary = storedOrder[0] || lifeConfig.settings.decisionConnectionId || 'jev';
                 setJevEnabled(lifeConfig.settings.jevEnabled ?? false);
-                setDecisionConnectionId(lifeConfig.settings.decisionConnectionId || 'jev');
+                setDecisionConnectionId(primary);
+                setBackupIds(storedOrder.slice(1).filter(id => id !== primary));
+                setStickyTtl(stickyTtlValue(lifeConfig.settings.decisionStickyTtlSeconds));
+                setFailover(lifeConfig.decisionFailover ?? null);
                 setExcluded(lifeConfig.settings.jevExcludedScenes || []);
                 setModelId(configuredModelExists ? configuredModelId : '');
                 setMissingSavedModel(Boolean(configuredModelId && !configuredModelExists));
@@ -79,10 +90,19 @@ export function WorldDecisionModelSettings() {
         setSaving(true);
         setError('');
         try {
+            const order = [decisionConnectionId, ...backupIds.filter(id => id && id !== decisionConnectionId)];
             const saved = await saveLifeConfig({...config.settings, decisionModelId: modelId,
-                decisionConnectionId, jevEnabled, jevExcludedScenes: excluded});
+                decisionConnectionId, decisionConnectionIds: order,
+                decisionStickyTtlSeconds: Number(stickyTtl), jevEnabled, jevExcludedScenes: excluded});
+            const savedOrder = saved.settings.decisionConnectionIds?.length
+                ? saved.settings.decisionConnectionIds
+                : [saved.settings.decisionConnectionId || 'jev'];
             setConfig(saved);
             setModelId(saved.settings.decisionModelId || '');
+            setDecisionConnectionId(savedOrder[0]);
+            setBackupIds(savedOrder.slice(1));
+            setStickyTtl(stickyTtlValue(saved.settings.decisionStickyTtlSeconds));
+            setFailover(saved.decisionFailover ?? null);
             setMissingSavedModel(false);
             toast.success('世界决策模型已保存');
         } catch (value) {
@@ -132,7 +152,7 @@ export function WorldDecisionModelSettings() {
 
             <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold text-slate-700">决策优先级</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">所选结构化决策连接 → 普通文本决策模型 → 居民模型 → 系统默认对话模型</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">主决策模型 → 备用决策模型（成功后暂时沿用） → 普通文本决策模型 → 居民模型 → 系统默认对话模型</p>
             </div>
 
             <div className="mt-5 max-w-2xl space-y-2">
@@ -157,7 +177,7 @@ export function WorldDecisionModelSettings() {
                     )}
                 </label>
                 <label className="block space-y-2 text-sm font-semibold text-slate-700">
-                    <span>结构化决策连接</span>
+                    <span>主决策模型</span>
                     {decisionConfig.loading ? (
                         <span className="flex min-h-10 items-center gap-2 text-xs font-normal text-slate-400"><Loader2 className="h-4 w-4 animate-spin"/>正在加载连接…</span>
                     ) : decisionConfig.error ? (
@@ -167,15 +187,30 @@ export function WorldDecisionModelSettings() {
                             menuPortal
                             value={decisionConnectionId}
                             options={connectionOptions}
-                            onChange={setDecisionConnectionId}
+                            onChange={value => {
+                                setDecisionConnectionId(value);
+                                setBackupIds(previous => previous.filter(id => id !== value));
+                            }}
                             placeholder="选择决策连接"
                             disabled={saving || !config}
                         />
                     )}
                 </label>
+                {!decisionConfig.loading && !decisionConfig.error && (
+                    <DecisionFailoverEditor
+                        connections={decisionConnections}
+                        primaryId={decisionConnectionId}
+                        backupIds={backupIds}
+                        ttlSeconds={stickyTtl}
+                        failover={failover}
+                        disabled={saving || !config}
+                        onBackupIdsChange={setBackupIds}
+                        onTtlChange={setStickyTtl}
+                    />
+                )}
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <Checkbox checked={jevEnabled} onChange={setJevEnabled} disabled={loading || saving} label="启用结构化决策连接处理有限候选选择"/>
-                    <p className="text-xs leading-5 text-slate-500">农场种植规划一次选择整套作物、数量、施肥和采购上限，后续队列由程序推进。连接信息、选择和 API Key 都随 WebDAV 同步。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。未配置或调用失败时使用普通文本模型。</p>
+                    <p className="text-xs leading-5 text-slate-500">农场种植规划一次选择整套作物、数量、施肥和采购上限，后续队列由程序推进。连接、顺序和沿用时间随 WebDAV 同步；本机正在沿用哪个备用模型不同步。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。全部决策连接失败后才使用普通文本模型。</p>
                     {decisionConfig.error && <p role="alert" className="text-xs text-red-600">{decisionConfig.error}<button type="button" onClick={() => void decisionConfig.refresh()} className="ml-2 underline">重试</button></p>}
                     {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">所选连接：{decisionConnections.find(connection => connection.id === decisionConnectionId)?.configured ? '连接信息完整' : '请检查 API Key 和连接同步状态'}</p>}
                     {jevEnabled && <div className="space-y-2"><p className="text-xs font-semibold text-slate-600">排除场景（勾选后使用普通模型）</p><div className="grid gap-2 sm:grid-cols-2">

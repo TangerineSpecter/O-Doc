@@ -152,6 +152,45 @@ def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision
                       scene=scene, check=check)
 
 
+def choose_connections(owner, state, choices, *, deadline, instructions=None, question_id='next_action',
+                       max_probability=False, scene='决策选择'):
+    """Try decision connections in failover order. Each call owns its own minute.
+
+    The caller deadline only decides whether the chain starts. A hang does not
+    skip the next connection or the separate text-model minute. Raises
+    DecisionUnavailable after every connection fails, or TimeoutError when the
+    deadline had already passed.
+    """
+    from .jev import REQUEST_TIMEOUT_SECONDS, choose, DecisionUnavailable
+    from .failover import attempt_plan, clear_sticky, remember_success
+    check_ai_control()
+    if time.monotonic() >= deadline:
+        raise TimeoutError('当前阶段总时限已耗尽')
+    ids, sticky_id = attempt_plan(owner)
+    prompt = instructions or '根据人物偏好和当前真实条件，从合法候选中选择一个。未执行计划不是经历。'
+    saw_sticky_failure = False
+    last = None
+    for connection_id in ids:
+        check_ai_control()
+        try:
+            result, confidence = choose(
+                owner, state, choices, deadline=time.monotonic() + REQUEST_TIMEOUT_SECONDS,
+                instructions=prompt, question_id=question_id, connection_id=connection_id,
+                max_probability=max_probability)
+        except DecisionUnavailable as exc:
+            last = exc
+            if connection_id == sticky_id:
+                saw_sticky_failure = True
+            report(scene, f'decision:{connection_id}', exc)
+            continue
+        check_ai_control()
+        remember_success(owner, connection_id)
+        return result, confidence
+    if saw_sticky_failure:
+        clear_sticky(owner)
+    raise last or DecisionUnavailable('没有可用的决策模型连接')
+
+
 def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=None,
                  instructions=None, include_role=True, max_probability=False, return_confidence=False):
     """None means use the normal model. Empty/sole choices never call a provider."""
@@ -162,24 +201,17 @@ def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=N
         return (result, 1.0) if return_confidence else result
     if not jev_enabled(owner, scene) or len(choices) > 255:
         return None
-    from .jev import choose, DecisionUnavailable
-    from .config import selected_connection_id
+    from .jev import DecisionUnavailable
     from system_settings.agent_role import role_text
     from utils.token_usage import usage_scope
-    check_ai_control()
-    if time.monotonic() >= deadline:
-        raise TimeoutError('当前阶段总时限已耗尽')
+    decision_state = ({'role': role_text(agent, 'social' if scene == 'social_action' else 'decision'),
+                       'context': state} if include_role else state)
+    purpose = 'social' if scene == 'social_action' else 'task' if scene.startswith('travel_') else 'planning'
     try:
-        connection_id = selected_connection_id(owner)
-        with usage_scope(owner_id=owner, agent=agent, purpose='social' if scene == 'social_action' else 'task' if scene.startswith('travel_') else 'planning', phase=SCENES[scene]):
-            decision_state = ({'role': role_text(agent, 'social' if scene == 'social_action' else 'decision'),
-                               'context': state} if include_role else state)
-            result, confidence = choose(owner, decision_state, choices, deadline=deadline,
-                               instructions=instructions or '根据人物偏好和当前真实条件，从合法候选中选择一个。未执行计划不是经历。',
-                               question_id=question_id or scene, connection_id=connection_id,
-                               max_probability=max_probability)
-        check_ai_control()
-        return (result, confidence) if return_confidence else result
-    except DecisionUnavailable as exc:
-        report(scene, f'decision:{connection_id}', exc)
+        with usage_scope(owner_id=owner, agent=agent, purpose=purpose, phase=SCENES[scene]):
+            result, confidence = choose_connections(
+                owner, decision_state, choices, deadline=deadline, instructions=instructions,
+                question_id=question_id or scene, max_probability=max_probability, scene=scene)
+    except DecisionUnavailable:
         return None
+    return (result, confidence) if return_confidence else result

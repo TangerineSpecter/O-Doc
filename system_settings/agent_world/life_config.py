@@ -8,7 +8,8 @@ KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'invest
 DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'interval_minutes': 60, 'active_start': '00:00', 'active_end': '24:00',
             'min_gap_minutes': 15, 'min_remaining_minutes': 240, 'decision_model_id': '',
-            'decision_connection_id': 'jev', 'jev_enabled': False, 'jev_excluded_scenes': []}
+            'decision_connection_id': 'jev', 'decision_connection_ids': [],
+            'decision_sticky_ttl_seconds': 7200, 'jev_enabled': False, 'jev_excluded_scenes': []}
 
 
 def task_owner(task: AgentTask) -> str | None:
@@ -49,9 +50,18 @@ def validate_settings(data: dict) -> dict:
         raise ValueError('世界决策模型无效')
     if model_id and not AIModel.objects.filter(pk=model_id, type='chat').exists():
         raise ValueError('世界决策模型不存在或不是对话模型')
+    from system_settings.decision.failover import ALLOWED_STICKY_TTLS, CONNECTION_ID, MAX_FAILOVER
     connection_id = value['decision_connection_id']
-    if not isinstance(connection_id, str) or len(connection_id) > 40:
+    if not isinstance(connection_id, str) or CONNECTION_ID.fullmatch(connection_id) is None:
         raise ValueError('结构化决策连接无效')
+    connection_ids = value['decision_connection_ids']
+    if (not isinstance(connection_ids, list) or len(connection_ids) > MAX_FAILOVER
+            or len(set(connection_ids)) != len(connection_ids)
+            or any(not isinstance(item, str) or CONNECTION_ID.fullmatch(item) is None for item in connection_ids)):
+        raise ValueError('决策故障转移顺序无效')
+    ttl = value['decision_sticky_ttl_seconds']
+    if type(ttl) is not int or ttl not in ALLOWED_STICKY_TTLS:
+        raise ValueError('决策模型暂时沿用时间无效，可选 1 小时、2 小时或 4 小时')
     from system_settings.decision.routing import SCENES
     if type(value['jev_enabled']) is not bool:
         raise ValueError('结构化决策开关无效')

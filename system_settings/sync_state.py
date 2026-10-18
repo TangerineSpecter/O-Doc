@@ -16,6 +16,9 @@ LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
     'system_webdav_sync_runtime',
     'system_embedding_recovery_runtime',
     'system_sync_v2_device',
+    # Which local decision service is currently healthy. Another device must
+    # not inherit a sticky backup for a service that is only down here.
+    'system_decision_sticky',
 })
 LOCAL_ONLY_MODEL_LABELS = frozenset({
     'memos.sproutjob',
