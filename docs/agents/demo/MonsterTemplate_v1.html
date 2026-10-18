@@ -1,0 +1,3622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>像素魔物演武场 · 灰烬领主 (Boss) &amp; 凝露史莱姆 · 2D像素软体与法术粉碎引擎</title>
+<style>
+  :root {
+    --page-bg: #eef4f0;
+    --card-border: #c8d8cc;
+    --panel-bg: #ffffff;
+    --text-main: #24352d;
+    --text-muted: #64786d;
+    --teal-primary: #2185ad;
+    --teal-light: #e3f6fc;
+    --green-badge-bg: #cbfce3;
+    --green-badge-border: #8de6b8;
+    --green-badge-text: #0f6848;
+  }
+
+  body.boss-theme {
+    --page-bg: #f8f5f0;
+    --card-border: #e6d8c3;
+    --panel-bg: #ffffff;
+    --text-main: #2d221c;
+    --text-muted: #7a685d;
+  }
+
+  body.dark-mode {
+    --page-bg: #0d1118;
+    --card-border: #253042;
+    --panel-bg: #151b26;
+    --text-main: #edf3f8;
+    --text-muted: #8796ad;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body {
+    background: var(--page-bg);
+    color: var(--text-main);
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    transition: background-color 0.25s ease;
+  }
+
+  .studio-shell {
+    width: 100%;
+    max-width: 960px;
+    background: var(--panel-bg);
+    border: 2px solid var(--card-border);
+    border-radius: 26px;
+    box-shadow: 0 22px 60px rgba(24, 48, 38, 0.11);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    transition: background-color 0.25s, border-color 0.25s;
+  }
+
+  body.dark-mode .studio-shell {
+    box-shadow: 0 26px 75px rgba(0, 0, 0, 0.72);
+  }
+
+  /* Top Monster Switcher Bar */
+  .monster-switcher-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f4f7f5;
+    border: 1.5px solid #d5e2d8;
+    border-radius: 16px;
+    padding: 6px 8px;
+  }
+
+  body.boss-theme .monster-switcher-bar {
+    background: #fbf8f3;
+    border-color: #eadbc6;
+  }
+
+  body.dark-mode .monster-switcher-bar {
+    background: #1b2230;
+    border-color: #2f3d54;
+  }
+
+  .char-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .char-tab-btn {
+    border: 2px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    font-weight: 800;
+    padding: 7px 15px;
+    border-radius: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.15s ease;
+  }
+
+  .char-tab-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--text-main);
+  }
+
+  .char-tab-btn.active-slime {
+    background: #e0f5fc;
+    border-color: #38a8d8;
+    color: #0d5270;
+    box-shadow: 0 2px 8px rgba(45, 160, 210, 0.16);
+  }
+
+  .char-tab-btn.active-boss {
+    background: linear-gradient(135deg, #fff3d6 0%, #ffe2cc 100%);
+    border-color: #e08b2c;
+    color: #7a2e0d;
+    box-shadow: 0 2px 10px rgba(224, 110, 30, 0.20);
+  }
+
+  body.dark-mode .char-tab-btn.active-slime {
+    background: #1c3647;
+    border-color: #4cc2f5;
+    color: #b5ebff;
+  }
+
+  body.dark-mode .char-tab-btn.active-boss {
+    background: linear-gradient(135deg, #3d2219 0%, #2b161d 100%);
+    border-color: #e07b2c;
+    color: #ffca8a;
+  }
+
+  .switcher-hint {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding-right: 6px;
+  }
+
+  /* Monster Card Viewport */
+  .monster-card-stage {
+    position: relative;
+    width: 100%;
+    height: 440px;
+    background: #dfece3;
+    border: 2px solid #c6d6ca;
+    border-radius: 22px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.25s ease;
+  }
+
+  body.boss-theme .monster-card-stage {
+    border-color: #ebd5b3;
+  }
+
+  body.dark-mode .monster-card-stage {
+    background: #0f1520;
+    border-color: #273347;
+  }
+
+  #slimeCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #slimeCanvas:active {
+    cursor: grabbing;
+  }
+
+  /* Top Overlay Badges */
+  .card-top-badges {
+    position: absolute;
+    top: 15px;
+    left: 18px;
+    right: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 10;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .left-pills {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pill-tag {
+    background: rgba(244, 248, 250, 0.92);
+    border: 2px solid #d6e2dc;
+    color: #3d4f5c;
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 5px 15px;
+    border-radius: 999px;
+    box-shadow: 0 3px 10px rgba(40, 60, 50, 0.06);
+    backdrop-filter: blur(4px);
+  }
+
+  .pill-tag.boss-rank-pill {
+    background: #fef1c9;
+    border-color: #f2cf7e;
+    color: #8c4d0e;
+    font-weight: 800;
+  }
+
+  body.dark-mode .pill-tag {
+    background: rgba(24, 32, 46, 0.9);
+    border-color: #35455e;
+    color: #d6e4f2;
+  }
+
+  body.dark-mode .pill-tag.boss-rank-pill {
+    background: rgba(74, 48, 18, 0.92);
+    border-color: #b88228;
+    color: #ffd678;
+  }
+
+  .pill-tag.level-pill {
+    background: rgba(255, 255, 255, 0.95);
+    color: #297fa3;
+    font-weight: 800;
+  }
+
+  body.boss-theme .pill-tag.level-pill {
+    color: #4f4640;
+  }
+
+  body.dark-mode .pill-tag.level-pill {
+    background: rgba(28, 42, 58, 0.95);
+    color: #6fd6ff;
+  }
+
+  .status-badge-right {
+    background: var(--green-badge-bg);
+    border: 2px solid var(--green-badge-border);
+    color: var(--green-badge-text);
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 5px 15px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    box-shadow: 0 3px 12px rgba(20, 120, 80, 0.08);
+    transition: all 0.2s ease;
+  }
+
+  .status-badge-right.action-mode {
+    background: #e0f4ff;
+    border-color: #79cbf5;
+    color: #0e5678;
+  }
+
+  .status-badge-right.heavy-mode {
+    background: #fff1c7;
+    border-color: #f5bc38;
+    color: #784804;
+  }
+
+  .status-badge-right.soul-mode {
+    background: #f3e4ff;
+    border-color: #c285ff;
+    color: #52148a;
+  }
+
+  .status-badge-right.hit-mode {
+    background: #ffe0e0;
+    border-color: #f58c8c;
+    color: #8a1919;
+  }
+
+  /* Interactive Hint Pill */
+  .interactive-tip {
+    position: absolute;
+    top: 56px;
+    left: 18px;
+    background: rgba(255, 255, 255, 0.84);
+    border: 1.5px solid #cde0d4;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #4b6356;
+    pointer-events: none;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+  }
+
+  body.boss-theme .interactive-tip {
+    border-color: #e6d4bd;
+    color: #694c38;
+  }
+
+  body.dark-mode .interactive-tip {
+    background: rgba(20, 27, 39, 0.84);
+    border-color: #324159;
+    color: #9bb0c9;
+  }
+
+  /* Bottom HUD inside Card */
+  .card-bottom-hud {
+    position: absolute;
+    bottom: 12px;
+    left: 18px;
+    right: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 10;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hp-mini-pill {
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(4px);
+    border: 1.5px solid #c8d8cd;
+    border-radius: 999px;
+    padding: 5px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #2f473b;
+  }
+
+  body.dark-mode .hp-mini-pill {
+    background: rgba(20, 27, 39, 0.90);
+    border-color: #34435c;
+    color: #dce6f2;
+  }
+
+  .hp-track {
+    width: 115px;
+    height: 8px;
+    background: #d8e4dc;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  body.dark-mode .hp-track {
+    background: #283447;
+  }
+
+  .hp-fill {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #27a8db, #54deb5);
+    transition: width 0.22s ease;
+  }
+
+  body.boss-theme .hp-fill {
+    background: linear-gradient(90deg, #d93829, #f59322);
+  }
+
+  .fps-pill {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1.5px solid #c8d8cd;
+    border-radius: 999px;
+    padding: 5px 13px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #52695d;
+  }
+
+  body.dark-mode .fps-pill {
+    background: rgba(20, 27, 39, 0.90);
+    border-color: #34435c;
+    color: #9ab0c7;
+  }
+
+  /* Monster Lore & Stats Strip */
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 7px;
+    background: #f7faf8;
+    border: 1.5px solid #d5e2d8;
+    border-radius: 14px;
+    padding: 8px 10px;
+    font-size: 11.5px;
+  }
+
+  body.boss-theme .stats-strip {
+    background: #fcf9f4;
+    border-color: #eadbc6;
+  }
+
+  body.dark-mode .stats-strip {
+    background: #1a212e;
+    border-color: #2d3b52;
+  }
+
+  @media (max-width: 760px) {
+    .stats-strip {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .stat-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(180, 195, 185, 0.35);
+    border-radius: 9px;
+    padding: 4px 6px;
+  }
+
+  body.dark-mode .stat-cell {
+    background: rgba(28, 37, 52, 0.75);
+    border-color: rgba(80, 100, 130, 0.3);
+  }
+
+  .stat-cell .k {
+    color: var(--text-muted);
+    font-size: 10.5px;
+  }
+
+  .stat-cell .v {
+    font-weight: 800;
+    color: var(--text-main);
+    font-size: 12px;
+  }
+
+  /* Layer Debug Legend */
+  .layer-legend {
+    position: absolute;
+    top: 56px;
+    right: 18px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1.5px solid #c0d1c5;
+    border-radius: 14px;
+    padding: 10px 13px;
+    font-size: 11.5px;
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none;
+    z-index: 15;
+    color: #283b31;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+  }
+
+  body.dark-mode .layer-legend {
+    background: rgba(20, 27, 38, 0.95);
+    border-color: #36465e;
+    color: #dce6f2;
+  }
+
+  .layer-legend.visible {
+    display: flex;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .legend-swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* Controls Section */
+  .controls-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .action-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+
+  /* Hide Slime's water heavy strike when Boss is active, and hide Boss skills when Slime is active */
+  body.boss-theme #btn-heavy {
+    display: none;
+  }
+  body:not(.boss-theme) #btn-yanzhuo,
+  body:not(.boss-theme) #btn-lingji {
+    display: none;
+  }
+  body:not(.boss-theme) .action-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  @media (max-width: 820px) {
+    .action-grid, body:not(.boss-theme) .action-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .monster-card-stage {
+      height: 360px;
+    }
+  }
+
+  .act-btn {
+    background: #f4f8f5;
+    border: 2px solid #cedcd1;
+    border-radius: 14px;
+    padding: 9px 6px;
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    box-shadow: 0 3px 0 #c2d1c6;
+    transition: all 0.1s ease;
+  }
+
+  body.dark-mode .act-btn {
+    background: #202938;
+    border-color: #344359;
+    box-shadow: 0 3px 0 #10151e;
+  }
+
+  .act-btn span.sub {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .act-btn:hover {
+    border-color: #6ec0e0;
+    background: #ecf7fc;
+  }
+
+  body.dark-mode .act-btn:hover {
+    background: #273245;
+    border-color: #4da3cc;
+  }
+
+  .act-btn:active, .act-btn.active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 #c2d1c6;
+  }
+
+  .act-btn.active {
+    background: #e0f5fc;
+    border-color: #2fa4d6;
+    color: #0e5370;
+  }
+
+  body.dark-mode .act-btn.active {
+    background: #1c3647;
+    border-color: #4cc2f5;
+    color: #b5ebff;
+  }
+
+  .act-btn.heavy-btn {
+    background: linear-gradient(180deg, #ecf9ff 0%, #d5f0fc 100%);
+    border-color: #4eb8e6;
+    color: #0d5575;
+  }
+
+  .act-btn.flame-btn {
+    background: linear-gradient(180deg, #fff4e6 0%, #ffdfbf 100%);
+    border-color: #eb8238;
+    color: #852b09;
+    box-shadow: 0 3px 0 #d9b296;
+  }
+
+  .act-btn.soul-btn {
+    background: linear-gradient(180deg, #f6ebff 0%, #e6ccfff5 100%);
+    border-color: #a659e8;
+    color: #4d1380;
+    box-shadow: 0 3px 0 #c4aad9;
+  }
+
+  body.dark-mode .act-btn.heavy-btn {
+    background: linear-gradient(180deg, #1b3446 0%, #142636 100%);
+    border-color: #39a1d6;
+    color: #9ee3ff;
+  }
+
+  body.dark-mode .act-btn.flame-btn {
+    background: linear-gradient(180deg, #422118 0%, #2e1510 100%);
+    border-color: #d96b27;
+    color: #ffbe85;
+  }
+
+  body.dark-mode .act-btn.soul-btn {
+    background: linear-gradient(180deg, #321b47 0%, #231136 100%);
+    border-color: #9b4ee0;
+    color: #dfb3ff;
+  }
+
+  /* Bottom Bar */
+  .inspector-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 9px;
+    padding-top: 8px;
+    border-top: 1.5px dashed var(--card-border);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .chip-toggle {
+    background: #f1f6f3;
+    border: 1.5px solid #cbd9ce;
+    color: var(--text-main);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  body.dark-mode .chip-toggle {
+    background: #202938;
+    border-color: #344359;
+  }
+
+  .chip-toggle.on {
+    background: #dbf2fc;
+    border-color: #2c9ece;
+    color: #0d5270;
+  }
+
+  body.dark-mode .chip-toggle.on {
+    background: rgba(56, 162, 214, 0.24);
+    border-color: #58bdeb;
+    color: #a8e8ff;
+  }
+</style>
+</head>
+<body class="boss-theme">
+
+<div class="studio-shell">
+  <!-- Monster Character Switcher Bar -->
+  <div class="monster-switcher-bar">
+    <div class="char-tabs">
+      <button class="char-tab-btn active-boss" id="tab-boss" onclick="selectMonster('boss')">
+        <span>👑 首领 Boss · 灰烬领主 (Lv.65–70)</span>
+      </button>
+      <button class="char-tab-btn" id="tab-slime" onclick="selectMonster('slime')">
+        <span>💧 普通魔物 · 凝露史莱姆 (Lv.1–5)</span>
+      </button>
+    </div>
+    <div class="switcher-hint" id="locationHint">📍 出没地：灰烬堡垒 (首领) · 行动技能：炎灼、灵击</div>
+  </div>
+
+  <!-- Monster Card Stage -->
+  <div class="monster-card-stage" id="cardStage">
+    <!-- Top Pill Badges -->
+    <div class="card-top-badges">
+      <div class="left-pills">
+        <div class="pill-tag boss-rank-pill" id="rankPill">👑 首领 Boss</div>
+        <div class="pill-tag level-pill" id="levelPill">Lv.65–70 · 灰烬领主</div>
+      </div>
+      <div class="status-badge-right heavy-mode" id="statusBadge">
+        <span id="statusIcon">🔥</span>
+        <span id="statusText">待机中 · 熔岩悬浮呼吸</span>
+      </div>
+    </div>
+
+    <div class="interactive-tip" id="interactiveTip">
+      👆 灰烬领主使用<strong>法杖发射暗焰法球</strong>与<strong>炼狱火柱/冥雷</strong>；点击「💀 倒地」体验<strong>750+像素块爆裂粉碎特效</strong>！
+    </div>
+
+    <!-- Layer Breakdown Legend -->
+    <div class="layer-legend" id="layerLegend">
+      <div style="font-weight:800;margin-bottom:2px;">💧 像素着色器与材质分层检视 (Shader Debug)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ff4d79"></span><span>1. 定向选择性描边 (Sel-Out) + 铠甲轮廓</span></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#4cc9f0"></span><span>2. 躯干/披风体积层 + Bayer 4×4 像素抖动</span></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ffbe0b"></span><span>3. 赤金王冠/肩甲高光 &amp; 宝石流光</span></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#8338ec"></span><span>4. 盘旋熔岩漩涡核 / 内部折射焦散核</span></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#06d6a0"></span><span>5. 像素法力球 / 湍流火舌 / 2D像素水花</span></div>
+    </div>
+
+    <canvas id="slimeCanvas"></canvas>
+
+    <!-- Bottom HUD inside Card -->
+    <div class="card-bottom-hud">
+      <div class="hp-mini-pill">
+        <span id="hpTitle">🔥 灰烬领主 HP</span>
+        <div class="hp-track"><div class="hp-fill" id="hpFill"></div></div>
+        <span id="hpLabel">19935 / 19935</span>
+      </div>
+      <div class="fps-pill">
+        320×180 像素粒子粉碎与法术引擎 · <strong id="fpsVal">60</strong> FPS
+      </div>
+    </div>
+  </div>
+
+  <!-- Bestiary Stats Strip -->
+  <div class="stats-strip" id="statsStrip">
+    <div class="stat-cell"><span class="k">最大生命</span><span class="v" id="st-hp">19,935</span></div>
+    <div class="stat-cell"><span class="k">最大魔力</span><span class="v" id="st-mp">540</span></div>
+    <div class="stat-cell"><span class="k">魔法攻击</span><span class="v" id="st-matk">516</span></div>
+    <div class="stat-cell"><span class="k">物理/魔法防御</span><span class="v" id="st-def">110 / 204</span></div>
+    <div class="stat-cell"><span class="k">命中 / 闪避</span><span class="v" id="st-hit">95.0% / 4.0%</span></div>
+    <div class="stat-cell"><span class="k">暴击 / 暴伤</span><span class="v" id="st-crit">5.0% / 150%</span></div>
+    <div class="stat-cell"><span class="k">专属技能</span><span class="v" id="st-skill">炎灼 · 灵击</span></div>
+  </div>
+
+  <!-- Interactive Action & Inspector Controls -->
+  <div class="controls-wrap">
+    <div class="action-grid">
+      <button class="act-btn active" id="btn-idle" onclick="triggerAction('idle')">
+        <span>🟢 待机 (Idle)</span>
+        <span class="sub">Q弹呼吸·气泡上浮</span>
+      </button>
+      <button class="act-btn" id="btn-attack" onclick="triggerAction('attack')">
+        <span>⚔️ 攻击 (Attack)</span>
+        <span class="sub">蓄力压扁·水滴弹射</span>
+      </button>
+      <button class="act-btn flame-btn" id="btn-yanzhuo" onclick="triggerAction('yanzhuo')">
+        <span>🔥 技能：炎灼 (Skill 1)</span>
+        <span class="sub">炼狱火浪·三连火柱</span>
+      </button>
+      <button class="act-btn soul-btn" id="btn-lingji" onclick="triggerAction('lingji')">
+        <span>👻 技能：灵击 (Skill 2)</span>
+        <span class="sub">冥魂鬼火·噬魂冥爆</span>
+      </button>
+      <button class="act-btn heavy-btn" id="btn-heavy" onclick="triggerAction('heavy')">
+        <span>💥 技能：重击 (Skill)</span>
+        <span class="sub">泰山压顶·四重水柱</span>
+      </button>
+      <button class="act-btn" id="btn-hit" onclick="triggerAction('hit')">
+        <span>🩸 受击 (Hit)</span>
+        <span class="sub">白闪顿帧·果冻震波</span>
+      </button>
+      <button class="act-btn" id="btn-down" onclick="triggerAction('down')">
+        <span>💀 倒地 (Knockdown)</span>
+        <span class="sub">融化水洼·眩晕冒泡</span>
+      </button>
+    </div>
+
+    <div class="inspector-bar">
+      <div class="toggle-row">
+        <button class="chip-toggle" id="btn-combo" onclick="startCombo()">🎬 连招演示 (Demo) 自动依次播放全套</button>
+        <button class="chip-toggle" id="btnPhysicsView" onclick="togglePhysicsDebug()">🕸️ 软体骨骼与流体场</button>
+        <button class="chip-toggle" id="btnLayerView" onclick="toggleLayerDebug()">💧 果冻像素分层染色视图</button>
+        <button class="chip-toggle on" id="btnDitherView" onclick="toggleDither()">🏁 Bayer 像素抖动</button>
+        <button class="chip-toggle" id="btnGridView" onclick="toggleGrid()">📏 显示像素网格线</button>
+        <button class="chip-toggle" id="btnThemeView" onclick="toggleDarkTheme()">🌙 切换暗色演武场背景</button>
+        <button class="chip-toggle on" id="btnSoundView" onclick="toggleSound()">🔊 像素音效</button>
+      </div>
+      <div class="toggle-row">
+        <span style="font-size:12px;color:var(--text-muted);">速度：</span>
+        <button class="chip-toggle" id="spd-025" onclick="setSpeed(0.25)">0.25x 慢放</button>
+        <button class="chip-toggle" id="spd-05" onclick="setSpeed(0.5)">0.5x</button>
+        <button class="chip-toggle on" id="spd-1" onclick="setSpeed(1.0)">1.0x 正常</button>
+        <button class="chip-toggle" id="spd-15" onclick="setSpeed(1.5)">1.5x</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// 1. RETRO PIXEL SYNTHESIZER (Web Audio API 16-Bit SFX Engine)
+// ============================================================================
+let soundEnabled = true;
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!soundEnabled) return null;
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+function playPixelSfx(type) {
+  const actx = ensureAudio();
+  if (!actx) return;
+  const now = actx.currentTime;
+
+  if (type === 'boop') {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(280, now);
+    osc.frequency.exponentialRampToValueAtTime(620, now + 0.09);
+    osc.frequency.exponentialRampToValueAtTime(390, now + 0.18);
+    gain.gain.setValueAtTime(0.14, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.19);
+  } else if (type === 'fireball') {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.18);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.19);
+  } else if (type === 'attack') {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(760, now + 0.11);
+    osc.frequency.exponentialRampToValueAtTime(180, now + 0.24);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.25);
+  } else if (type === 'charge') {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(520, now + 0.42);
+    gain.gain.setValueAtTime(0.13, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.44);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.44);
+  } else if (type === 'flame_roar') {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(115, now);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.50);
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.52);
+
+    const bufSize = actx.sampleRate * 0.52;
+    const noiseBuf = actx.createBuffer(1, bufSize, actx.sampleRate);
+    const output = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (actx.sampleRate * 0.22));
+    }
+    const whiteNoise = actx.createBufferSource();
+    whiteNoise.buffer = noiseBuf;
+    const filter = actx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(820, now);
+    filter.frequency.exponentialRampToValueAtTime(180, now + 0.48);
+    const nGain = actx.createGain();
+    nGain.gain.setValueAtTime(0.26, now);
+    nGain.gain.exponentialRampToValueAtTime(0.01, now + 0.50);
+    whiteNoise.connect(filter).connect(nGain).connect(actx.destination);
+    whiteNoise.start(now);
+  } else if (type === 'soul_blast') {
+    [260, 390, 620].forEach((freq, idx) => {
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = idx === 2 ? 'sawtooth' : 'square';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.6, now + 0.14);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.28, now + 0.46);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+      osc.connect(gain).connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 0.48);
+    });
+  } else if (type === 'tidal_slam') {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(38, now + 0.35);
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.36);
+
+    const bufSize = actx.sampleRate * 0.38;
+    const noiseBuf = actx.createBuffer(1, bufSize, actx.sampleRate);
+    const output = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (actx.sampleRate * 0.16));
+    }
+    const whiteNoise = actx.createBufferSource();
+    whiteNoise.buffer = noiseBuf;
+    const filter = actx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(920, now);
+    filter.frequency.exponentialRampToValueAtTime(280, now + 0.36);
+    const nGain = actx.createGain();
+    nGain.gain.setValueAtTime(0.22, now);
+    nGain.gain.exponentialRampToValueAtTime(0.01, now + 0.37);
+    whiteNoise.connect(filter).connect(nGain).connect(actx.destination);
+    whiteNoise.start(now);
+  } else if (type === 'hit') {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(420, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.16);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.17);
+  } else if (type === 'shatter') {
+    [320, 190, 95].forEach((f, i) => {
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(f, now + i * 0.03);
+      osc.frequency.exponentialRampToValueAtTime(28, now + 0.42);
+      gain.gain.setValueAtTime(0.14, now + i * 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.44);
+      osc.connect(gain).connect(actx.destination);
+      osc.start(now + i * 0.03);
+      osc.stop(now + 0.44);
+    });
+    const bufSize = actx.sampleRate * 0.42;
+    const noiseBuf = actx.createBuffer(1, bufSize, actx.sampleRate);
+    const output = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (actx.sampleRate * 0.16));
+    }
+    const whiteNoise = actx.createBufferSource();
+    whiteNoise.buffer = noiseBuf;
+    const nGain = actx.createGain();
+    nGain.gain.setValueAtTime(0.24, now);
+    nGain.gain.exponentialRampToValueAtTime(0.005, now + 0.41);
+    whiteNoise.connect(nGain).connect(actx.destination);
+    whiteNoise.start(now);
+  }
+}
+
+// ============================================================================
+// 2. HIGH-SPEED OFFSCREEN 320x180 UINT32 PIXEL ENGINE & BAYER DITHER MATRIX
+// ============================================================================
+const VW = 320;
+const VH = 180;
+const ARENA_CX = 160;
+const ARENA_CY = 138;
+
+const canvas = document.getElementById('slimeCanvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+const offCanvas = document.createElement('canvas');
+offCanvas.width = VW;
+offCanvas.height = VH;
+const offCtx = offCanvas.getContext('2d');
+const imgData = offCtx.createImageData(VW, VH);
+const buf32 = new Uint32Array(imgData.data.buffer);
+
+const scenerySlimeDay32 = new Uint32Array(VW * VH);
+const scenerySlimeNight32 = new Uint32Array(VW * VH);
+const sceneryBossDay32 = new Uint32Array(VW * VH);
+const sceneryBossNight32 = new Uint32Array(VW * VH);
+
+const insideMask = new Uint8Array(VW * VH);
+const uGrid = new Float32Array(VW * VH);
+const vGrid = new Float32Array(VW * VH);
+const edgeDistGrid = new Float32Array(VW * VH);
+
+const BAYER4 = [
+  [ 0/16 - 0.5,  8/16 - 0.5,  2/16 - 0.5, 10/16 - 0.5],
+  [12/16 - 0.5,  4/16 - 0.5, 14/16 - 0.5,  6/16 - 0.5],
+  [ 3/16 - 0.5, 11/16 - 0.5,  1/16 - 0.5,  9/16 - 0.5],
+  [15/16 - 0.5,  7/16 - 0.5, 13/16 - 0.5,  5/16 - 0.5]
+];
+
+function hex32(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  const r = (v >> 16) & 255;
+  const g = (v >> 8) & 255;
+  const b = v & 255;
+  return (255 << 24) | (b << 16) | (g << 8) | r;
+}
+
+function blend32(c1, c2, alpha) {
+  const a = Math.max(0, Math.min(1, alpha));
+  const r1 = c1 & 255, g1 = (c1 >> 8) & 255, b1 = (c1 >> 16) & 255;
+  const r2 = c2 & 255, g2 = (c2 >> 8) & 255, b2 = (c2 >> 16) & 255;
+  const r = (r1 + (r2 - r1) * a) | 0;
+  const g = (g1 + (g2 - g1) * a) | 0;
+  const b = (b1 + (b2 - b1) * a) | 0;
+  return (255 << 24) | (b << 16) | (g << 8) | r;
+}
+
+const PAL = {
+  white:       hex32('#ffffff'),
+  outTop:      hex32('#1a6b8a'),
+  outMid:      hex32('#124d66'),
+  outBot:      hex32('#0b3144'),
+  rimInner:    hex32('#b5f7ff'),
+  rimInnerBot: hex32('#329bc4'),
+  jelly0:      hex32('#e2fdff'),
+  jelly1:      hex32('#a8f4ff'),
+  jelly2:      hex32('#72e2fa'),
+  jelly3:      hex32('#48c5eb'),
+  jelly4:      hex32('#2ea3d0'),
+  jelly5:      hex32('#1e7ea8'),
+  charge0:     hex32('#ffffff'),
+  charge1:     hex32('#cdfbff'),
+  charge2:     hex32('#8cf2ff'),
+  charge3:     hex32('#4cd8fa'),
+  baseShadow:  hex32('#2385b0'),
+  baseDeep:    hex32('#196b91'),
+  caustic:     hex32('#8cf0ff'),
+  glossCore:   hex32('#ffffff'),
+  glossSoft:   hex32('#cefaff'),
+  rimRight:    hex32('#8eeeff'),
+  bubbleRing:  hex32('#c4f7ff'),
+  eyeDark:     hex32('#103545'),
+  eyeGlow:     hex32('#6ee2fc'),
+  blush:       hex32('#cf9bb0'),
+  mouthInner:  hex32('#d96880'),
+
+  // Boss Fire & Soul Pixel Shader Ramp (Non-fluid, sharp pixel magic & flame)
+  fireSmoke:   hex32('#2e1316'),
+  fireOut:     hex32('#4a0e12'),
+  fireDeep:    hex32('#9e191c'),
+  fireMid:     hex32('#eb5615'),
+  fireBright:  hex32('#ffbd24'),
+  fireCore:    hex32('#fff9d2'),
+
+  soulOut:     hex32('#1c0938'),
+  soulDeep:    hex32('#561ca8'),
+  soulMid:     hex32('#a542ff'),
+  soulBright:  hex32('#6ef2ff'),
+  soulCore:    hex32('#ffffff'),
+
+  // 2D Pixel Water Splash Shader Ramp (Flat 2D pixel water, ZERO 3D Metaballs!)
+  waterOut:    hex32('#0e3d59'),
+  waterDeep:   hex32('#1a6b96'),
+  waterMid:    hex32('#32aee0'),
+  waterBright: hex32('#82f0ff'),
+  waterFoam:   hex32('#ffffff'),
+
+  dbgOutline:  hex32('#ff4d79'),
+  dbgBody:     hex32('#4cc9f0'),
+  dbgGloss:    hex32('#ffbe0b'),
+  dbgCaustic:  hex32('#8338ec'),
+  dbgFluid:    hex32('#06d6a0')
+};
+
+let pxScale = 3;
+let viewOffsetX = 0;
+let viewOffsetY = 0;
+
+function resizeCanvas() {
+  const stage = document.getElementById('cardStage');
+  const rect = stage.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 2;
+  canvas.width = Math.floor(rect.width * dpr);
+  canvas.height = Math.floor(rect.height * dpr);
+  pxScale = Math.max(2, Math.floor(Math.min(canvas.width / VW, canvas.height / VH)));
+  viewOffsetX = Math.floor((canvas.width - VW * pxScale) * 0.5);
+  viewOffsetY = Math.floor((canvas.height - VH * pxScale) * 0.5);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function setBufPx(arr, x, y, col32) {
+  const ix = x | 0;
+  const iy = y | 0;
+  if (ix >= 0 && ix < VW && iy >= 0 && iy < VH) {
+    arr[iy * VW + ix] = col32;
+  }
+}
+
+function drawPixelLine(arr, x0, y0, x1, y1, r, col32) {
+  const dist = Math.max(1, Math.hypot(x1 - x0, y1 - y0));
+  const steps = Math.ceil(dist * 1.5);
+  const rad = Math.floor(r);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const cx = Math.round(x0 + (x1 - x0) * t);
+    const cy = Math.round(y0 + (y1 - y0) * t);
+    for (let dy = -rad; dy <= rad; dy++) {
+      for (let dx = -rad; dx <= rad; dx++) {
+        if (dx * dx + dy * dy <= r * r + 0.5) {
+          setBufPx(arr, cx + dx, cy + dy, col32);
+        }
+      }
+    }
+  }
+}
+
+function drawPixelLightning(x0, y0, x1, y1, coreCol, glowCol, jitterAmp = 6) {
+  const segs = 7;
+  let px = x0, py = y0;
+  const dx = x1 - x0, dy = y1 - y0;
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs;
+    let nx = x0 + dx * t;
+    let ny = y0 + dy * t;
+    if (i < segs) {
+      nx += (Math.random() - 0.5) * jitterAmp * 2;
+      ny += (Math.random() - 0.5) * jitterAmp * 2;
+    }
+    drawPixelLine(buf32, px, py, nx, ny, 1.3, glowCol);
+    drawPixelLine(buf32, px, py, nx, ny, 0.5, coreCol);
+    px = nx;
+    py = ny;
+  }
+}
+
+// ============================================================================
+// 3. PRE-BAKED HD PIXEL ARENA SCENERY
+// ============================================================================
+function buildPixelScenery(targetBuf, isNight, isBossArena) {
+  const skyTop   = hex32(isBossArena ? (isNight ? '#120b10' : '#f7f2e9') : (isNight ? '#0d131d' : '#dfece3'));
+  const skyBot   = hex32(isBossArena ? (isNight ? '#1f1218' : '#efe5d6') : (isNight ? '#151f2e' : '#e7f1e8'));
+  const archOut  = hex32(isBossArena ? (isNight ? '#2b1820' : '#e3d3be') : (isNight ? '#192536' : '#d2e0d6'));
+  const archIn   = hex32(isBossArena ? (isNight ? '#1c1016' : '#eadcc9') : (isNight ? '#121b28' : '#d8e6dc'));
+  const hillFar  = hex32(isBossArena ? (isNight ? '#211319' : '#e6d7c3') : (isNight ? '#172230' : '#d5e4d8'));
+  const hillNear = hex32(isBossArena ? (isNight ? '#29171e' : '#decbb4') : (isNight ? '#1c2938' : '#cfe0d2'));
+
+  for (let y = 0; y < VH; y++) {
+    const bayerRow = BAYER4[y & 3];
+    for (let x = 0; x < VW; x++) {
+      const dither = bayerRow[x & 3];
+      const grad = y / VH + dither * 0.06;
+      let col = grad < 0.52 ? skyTop : skyBot;
+
+      const adx = (x - ARENA_CX) / 96;
+      const ady = (y - 94) / 88;
+      const archDist = adx * adx + ady * ady;
+      if (y < 105 && archDist <= 1.0) {
+        col = archDist > 0.82 ? archOut : archIn;
+        if (archDist > 0.82 && ((x + (y >> 3) * 7) % 14 === 0)) {
+          col = skyTop;
+        }
+      }
+
+      const hillY1 = 96 + Math.sin(x * 0.025) * 6 + Math.cos(x * 0.06) * 3;
+      if (y >= hillY1) col = hillFar;
+      const hillY2 = 106 + Math.cos(x * 0.032 + 1.2) * 5;
+      if (y >= hillY2) col = hillNear;
+
+      targetBuf[y * VW + x] = col;
+    }
+  }
+
+  const platRx = 130;
+  const platRy = 28;
+  const platTopLight = hex32(isBossArena ? (isNight ? '#2e2227' : '#f5ede1') : (isNight ? '#263342' : '#f4f7ec'));
+  const platTopMid   = hex32(isBossArena ? (isNight ? '#241a1e' : '#ebdfd0') : (isNight ? '#202b38' : '#eaefe2'));
+  const platTopEdge  = hex32(isBossArena ? (isNight ? '#472a2e' : '#cbb8a1') : (isNight ? '#334457' : '#c6d4c0'));
+  const platRimLight = hex32(isBossArena ? (isNight ? '#1f1519' : '#d6c4ae') : (isNight ? '#19222d' : '#cfdcd0'));
+  const platRimDark  = hex32(isBossArena ? (isNight ? '#140d10' : '#bfa992') : (isNight ? '#121922' : '#b7c7b9'));
+  const runeCol      = hex32(isBossArena ? (isNight ? '#75231d' : '#decab2') : (isNight ? '#2b4961' : '#dce6d5'));
+
+  for (let y = 98; y < VH; y++) {
+    const bayerRow = BAYER4[y & 3];
+    for (let x = 18; x < VW - 18; x++) {
+      const dx = (x - ARENA_CX) / platRx;
+      const dyTop = (y - ARENA_CY) / platRy;
+      const dTop = dx * dx + dyTop * dyTop;
+
+      if (dTop <= 1.0) {
+        if (dTop > 0.93) {
+          targetBuf[y * VW + x] = platTopEdge;
+        } else {
+          const dither = bayerRow[x & 3];
+          let pCol = (dTop + dither * 0.12) < 0.58 ? platTopLight : platTopMid;
+          if (Math.abs(dTop - 0.48) < 0.025 || Math.abs(dTop - 0.78) < 0.018) {
+            pCol = runeCol;
+          }
+          targetBuf[y * VW + x] = pCol;
+        }
+      } else if (y > ARENA_CY) {
+        const dyRim = (y - (ARENA_CY + 8)) / platRy;
+        const dRim = dx * dx + dyRim * dyRim;
+        if (dRim <= 1.02) {
+          let rCol = Math.abs(dx) < 0.45 ? platRimLight : platRimDark;
+          if ((x % 28 === 0) && y > ARENA_CY + 2) {
+            rCol = platTopEdge;
+          }
+          targetBuf[y * VW + x] = rCol;
+        }
+      }
+    }
+  }
+
+  function paintBoulder(x0, y0, scale, flip) {
+    const w = Math.round(36 * scale);
+    const h = Math.round(18 * scale);
+    const rockLit  = hex32(isBossArena ? (isNight ? '#59484a' : '#cfc2b8') : (isNight ? '#586975' : '#d0ddd9'));
+    const rockMid  = hex32(isBossArena ? (isNight ? '#453638' : '#b8a99e') : (isNight ? '#46545e' : '#b8c7c3'));
+    const rockDark = hex32(isBossArena ? (isNight ? '#302426' : '#96877c') : (isNight ? '#333e47' : '#96a6a3'));
+    const rockOut  = hex32(isBossArena ? (isNight ? '#1c1315' : '#73655b') : (isNight ? '#1f272e' : '#738280'));
+    const capDark  = hex32(isBossArena ? '#5e221d' : (isNight ? '#3d6348' : '#7ea376'));
+    const capMid   = hex32(isBossArena ? '#8a3222' : (isNight ? '#528058' : '#98ba8c'));
+    const capLit   = hex32(isBossArena ? '#b84a28' : (isNight ? '#6ea16b' : '#bad19e'));
+
+    for (let dy = 0; dy < h; dy++) {
+      const rRatio = dy / h;
+      const lSlope = Math.round((1 - rRatio) * w * 0.24);
+      const rSlope = Math.round((1 - rRatio) * w * 0.26);
+      const ridge = Math.round(w * (0.58 - rRatio * 0.1));
+      for (let dx = lSlope; dx < w - rSlope; dx++) {
+        const rx = flip ? (x0 + w - 1 - dx) : (x0 + dx);
+        const ry = y0 + dy;
+        const isEdge = (dx === lSlope || dx === w - rSlope - 1 || dy === 0);
+        let col = isEdge ? rockOut : (dx < ridge ? rockLit : rockDark);
+        if (!isEdge && dx >= ridge - 2 && dx <= ridge) col = rockMid;
+        setBufPx(targetBuf, rx, ry, col);
+      }
+    }
+    const mx = flip ? (x0 + Math.round(w * 0.56)) : (x0 + Math.round(w * 0.30));
+    const my = y0 + Math.round(h * 0.22);
+    const mrx = Math.max(4, Math.round(10 * scale));
+    const mry = Math.max(2, Math.round(3.5 * scale));
+    for (let dy = -mry; dy <= mry; dy++) {
+      for (let dx = -mrx; dx <= mrx; dx++) {
+        const d = (dx / mrx) ** 2 + (dy / mry) ** 2;
+        if (d <= 1.0) {
+          let mCol = dy < 0 ? capLit : (d > 0.65 ? capDark : capMid);
+          setBufPx(targetBuf, mx + dx, my + dy, mCol);
+        }
+      }
+    }
+  }
+
+  paintBoulder(12, 108, 1.05, false);
+  paintBoulder(264, 98, 1.25, true);
+  paintBoulder(50, 155, 0.65, false);
+  paintBoulder(242, 156, 0.74, true);
+}
+
+buildPixelScenery(scenerySlimeDay32, false, false);
+buildPixelScenery(scenerySlimeNight32, true, false);
+buildPixelScenery(sceneryBossDay32, false, true);
+buildPixelScenery(sceneryBossNight32, true, true);
+
+const grassClusters = [
+  { x: 20,  y: 106, scale: 1.0 },
+  { x: 300, y: 96,  scale: 1.05 },
+  { x: 44,  y: 145, scale: 0.95 },
+  { x: 272, y: 146, scale: 0.95 },
+  { x: 85,  y: 112, scale: 0.75 },
+  { x: 235, y: 110, scale: 0.75 }
+];
+
+function drawDynamicGrass(time, windForce) {
+  const isBoss = currentMonster === 'boss';
+  const cDark = hex32(isBoss ? '#7a3324' : (darkTheme ? '#3f694b' : '#6c9164'));
+  const cLit  = hex32(isBoss ? '#b85a28' : (darkTheme ? '#5c9166' : '#8cb07e'));
+  grassClusters.forEach(g => {
+    const h = Math.round(11 * g.scale);
+    const dirSign = g.x < ARENA_CX ? -1 : 1;
+    const bend = Math.sin(time * 2.6 + g.x * 0.1) * 1.2 + dirSign * windForce * 7.5;
+    for (let i = 0; i < h; i++) {
+      const t = i / h;
+      const col = t > 0.5 ? cLit : cDark;
+      const sway = Math.round(bend * t * t);
+      setBufPx(buf32, g.x + sway, g.y - i, col);
+      if (i < h * 0.82) setBufPx(buf32, g.x - 2 - Math.round(i * 0.35) + sway, g.y - i, col);
+      if (i < h * 0.78) setBufPx(buf32, g.x + 2 + Math.round(i * 0.42) + sway, g.y - i + 1, col);
+    }
+  });
+}
+
+// ============================================================================
+// 4. ENGINE STATE: PIXEL SHATTER EXPLOSION, RANGED MANA ORBS, PIXEL FIRE & 2D PIXEL WATER SPLASH
+// ============================================================================
+let currentMonster = 'boss';
+let animState = 'idle';
+let stateTime = 0;
+let timeScale = 1.0;
+let showLayers = false;
+let showPhysics = false;
+let useDither = true;
+let showGrid = false;
+let darkTheme = false;
+let comboTimers = [];
+let hp = 19935;
+let maxHp = 19935;
+let screenShake = 0;
+let hitStopTimer = 0;
+let windShock = 0;
+
+const softRig = {
+  squash: 0,
+  squashVel: 0,
+  tipSway: 0,
+  tipVel: 0,
+  waveAmp: 0,
+  wavePhase: 0,
+  dragging: false,
+  dragX: 0,
+  dragY: 0,
+  pokeReaction: 0
+};
+
+const internalBubbles = [
+  { u: -0.46, v: 0.22, r: 3.2, speed: 0.14, phase: 0.0 },
+  { u:  0.36, v: 0.54, r: 4.1, speed: 0.11, phase: 1.8 },
+  { u:  0.52, v: 0.26, r: 2.4, speed: 0.17, phase: 3.6 },
+  { u: -0.22, v: 0.64, r: 2.1, speed: 0.19, phase: 5.1 },
+  { u:  0.12, v: 0.32, r: 1.8, speed: 0.15, phase: 2.7 }
+];
+
+// Slime 2D Pixel Water Splash & Projectile Containers (ZERO 3D Metaball Blobs!)
+const shockRings = [];
+const splashPlumes = [];      // 2D Pixel Angled Water Splash Plumes kicked up on Heavy Slam!
+const surfCrests = [];        // Left & Right Sweeping 2D Pixel Breaking Wave Crests on Heavy Slam!
+const groundPuddles = [];
+const waterProjectiles = [];
+const afterimages = [];
+
+// Boss & Universal 2D Pixel VFX Containers
+const magicOrbs = [];         // Ranged Arcane / Hellfire Mana Orbs fired from Ash Lord's Staff!
+const pixelSparks = [];       // Crisp 1x1 / 2x2 square pixel embers, water droplets & sparks!
+const fireColumns = [];       // Jagged Turbulent Pixel Hellfire Tornados for Skill 1: 炎灼!
+const soulMissiles = [];      // 6 Orbiting & Homing Wraith Soul Crystals + Lightning for Skill 2: 灵击!
+const starExplosions = [];    // Crisp 8-point Pixel Starburst / Cross Explosions on impact!
+const pixelShards = [];       // 750+ True Sprite Pixel Shards when a monster is defeated & shatters!
+let isShattered = false;
+
+const floatTexts = [];
+
+function clearAllVfx() {
+  shockRings.length = 0;
+  splashPlumes.length = 0;
+  surfCrests.length = 0;
+  groundPuddles.length = 0;
+  waterProjectiles.length = 0;
+  afterimages.length = 0;
+  magicOrbs.length = 0;
+  pixelSparks.length = 0;
+  fireColumns.length = 0;
+  soulMissiles.length = 0;
+  starExplosions.length = 0;
+  pixelShards.length = 0;
+  isShattered = false;
+}
+
+function spawnPixelSparks(count, x, y, opts) {
+  for (let i = 0; i < count; i++) {
+    const a = opts.angleBase + (Math.random() - 0.5) * opts.angleSpread;
+    const spd = opts.speedMin + Math.random() * (opts.speedMax - opts.speedMin);
+    pixelSparks.push({
+      x: x + (Math.random() - 0.5) * (opts.spreadX || 6),
+      y: y + (Math.random() - 0.5) * (opts.spreadY || 6),
+      vx: Math.cos(a) * spd,
+      vy: Math.sin(a) * spd,
+      gravity: opts.gravity ?? -45,
+      size: Math.random() < 0.45 ? 2 : 1,
+      colors: opts.colors,
+      bounces: opts.bounces || 0,
+      puddleOnLand: opts.puddleOnLand || false,
+      life: opts.lifeMin + Math.random() * (opts.lifeMax - opts.lifeMin),
+      maxLife: opts.lifeMax
+    });
+  }
+}
+
+function spawnStarExplosion(x, y, maxR, style = 'fire') {
+  starExplosions.push({
+    x, y, maxR,
+    style, // 'fire', 'soul', 'aqua'
+    life: 0.34,
+    maxLife: 0.34
+  });
+  let cols = [PAL.fireCore, PAL.fireBright, PAL.fireMid, PAL.fireDeep];
+  if (style === 'soul') cols = [PAL.soulCore, PAL.soulBright, PAL.soulMid, PAL.soulDeep];
+  else if (style === 'aqua') cols = [PAL.waterFoam, PAL.waterBright, PAL.waterMid, PAL.waterDeep];
+
+  spawnPixelSparks(26, x, y, {
+    angleBase: -Math.PI * 0.5,
+    angleSpread: Math.PI * 2,
+    speedMin: 35,
+    speedMax: 135,
+    gravity: 95,
+    colors: cols,
+    lifeMin: 0.25,
+    lifeMax: 0.65
+  });
+}
+
+function spawnGroundPuddle(x, y, rx) {
+  if (groundPuddles.length > 16) groundPuddles.shift();
+  groundPuddles.push({
+    x: Math.max(42, Math.min(VW - 42, x)),
+    y: Math.max(118, Math.min(156, y)),
+    rx: rx,
+    ry: Math.max(1.8, rx * 0.24),
+    life: 1.5 + Math.random() * 0.8,
+    maxLife: 2.3
+  });
+}
+
+function spawnPopup(text, vx, vy, color = "#12648a", scale = 1.0) {
+  floatTexts.push({ text, vx, vy, vyVel: -34, life: 1.18, color, scale });
+}
+
+// ============================================================================
+// TRUE PIXEL SHATTER EXPLOSION GENERATOR (像素被消灭·爆裂成750+像素碎片!)
+// ============================================================================
+function triggerPixelShatterExplosion(cx, cy) {
+  isShattered = true;
+  pixelShards.length = 0;
+  playPixelSfx('shatter');
+  screenShake = 16;
+  windShock = 1.2;
+
+  shockRings.push({
+    x: cx, y: ARENA_CY - 2,
+    rx: 14, ry: 3,
+    maxRx: 112, maxRy: 24,
+    life: 0.50, maxLife: 0.50,
+    inward: false,
+    color: currentMonster === 'boss' ? PAL.fireBright : PAL.waterBright
+  });
+
+  if (currentMonster === 'boss') {
+    const anchorX = cx;
+    const anchorY = ARENA_CY + 2;
+    for (let sy = 0; sy < BOSS_SPRITE_H; sy += 2) {
+      for (let sx = 0; sx < BOSS_SPRITE_W; sx += 2) {
+        const pIdx = bossGrid[sy * BOSS_SPRITE_W + sx];
+        if (pIdx === 0) continue;
+        const wx = anchorX + (sx - 66);
+        const wy = anchorY - (125 - sy);
+        const dx = wx - cx;
+        const dy = wy - (ARENA_CY - 56);
+        const ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.55;
+        const spd = 45 + Math.random() * 135 + (128 - sy) * 0.45;
+        pixelShards.push({
+          x: wx,
+          y: wy,
+          vx: Math.cos(ang) * spd + (Math.random() - 0.5) * 40,
+          vy: Math.sin(ang) * spd - 35 - Math.random() * 55,
+          floorY: ARENA_CY - 12 + Math.random() * 26,
+          col: bossPal32[pIdx],
+          size: Math.random() < 0.65 ? 2 : 3,
+          bounces: 2 + ((Math.random() * 2) | 0),
+          settled: false
+        });
+      }
+    }
+  } else {
+    const baseY = ARENA_CY - 4;
+    const rx = 54, h = 76;
+    for (let py = baseY - h; py <= baseY + 4; py += 2) {
+      for (let px = cx - rx; px <= cx + rx; px += 2) {
+        const idx = (py | 0) * VW + (px | 0);
+        if (!insideMask[idx]) continue;
+        const u = uGrid[idx], v = vGrid[idx];
+        let col = PAL.jelly3;
+        if (v > 0.65) col = PAL.jelly1;
+        else if (v < 0.2) col = PAL.jelly5;
+        else if (u < -0.25) col = PAL.glossSoft;
+        const dx = px - cx;
+        const dy = py - (baseY - 34);
+        const ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.55;
+        const spd = 50 + Math.random() * 130;
+        pixelShards.push({
+          x: px,
+          y: py,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd - 40 - Math.random() * 50,
+          floorY: ARENA_CY - 12 + Math.random() * 26,
+          col: col,
+          size: Math.random() < 0.7 ? 2 : 3,
+          bounces: 2 + ((Math.random() * 2) | 0),
+          settled: false
+        });
+      }
+    }
+  }
+}
+
+// ============================================================================
+// 5. MONSTER SWITCHER & SKILL TRIGGERS
+// ============================================================================
+function selectMonster(mon) {
+  clearCombo();
+  currentMonster = mon;
+  clearAllVfx();
+
+  document.getElementById('tab-boss').className = 'char-tab-btn' + (mon === 'boss' ? ' active-boss' : '');
+  document.getElementById('tab-slime').className = 'char-tab-btn' + (mon === 'slime' ? ' active-slime' : '');
+  document.body.classList.toggle('boss-theme', mon === 'boss');
+
+  if (mon === 'boss') {
+    maxHp = 19935;
+    hp = 19935;
+    document.getElementById('rankPill').textContent = '👑 首领 Boss';
+    document.getElementById('rankPill').className = 'pill-tag boss-rank-pill';
+    document.getElementById('levelPill').textContent = 'Lv.65–70 · 灰烬领主';
+    document.getElementById('locationHint').textContent = '📍 出没地：灰烬堡垒 (首领) · 行动技能：炎灼、灵击';
+    document.getElementById('hpTitle').textContent = '🔥 灰烬领主 HP';
+    document.getElementById('st-hp').textContent = '19,935';
+    document.getElementById('st-mp').textContent = '540';
+    document.getElementById('st-matk').textContent = '516';
+    document.getElementById('st-def').textContent = '110 / 204';
+    document.getElementById('st-hit').textContent = '95.0% / 4.0%';
+    document.getElementById('st-crit').textContent = '5.0% / 150%';
+    document.getElementById('st-skill').textContent = '炎灼 · 灵击';
+  } else {
+    maxHp = 300;
+    hp = 300;
+    document.getElementById('rankPill').textContent = '普通魔物 · 水系';
+    document.getElementById('rankPill').className = 'pill-tag';
+    document.getElementById('levelPill').textContent = 'Lv.1–5 · 凝露史莱姆';
+    document.getElementById('locationHint').textContent = '📍 出没地：微风苔原 · 行动技能：水滴突刺、怒涛重击';
+    document.getElementById('hpTitle').textContent = '💧 凝露史莱姆 HP';
+    document.getElementById('st-hp').textContent = '300';
+    document.getElementById('st-mp').textContent = '60';
+    document.getElementById('st-matk').textContent = '28';
+    document.getElementById('st-def').textContent = '18 / 24';
+    document.getElementById('st-hit').textContent = '90.0% / 6.0%';
+    document.getElementById('st-crit').textContent = '5.0% / 150%';
+    document.getElementById('st-skill').textContent = '突刺 · 重击';
+  }
+  updateHp(0);
+  triggerAction('idle', true);
+}
+
+function updateHp(delta) {
+  hp = Math.max(0, Math.min(maxHp, hp + delta));
+  document.getElementById('hpLabel').textContent = `${hp} / ${maxHp}`;
+  document.getElementById('hpFill').style.width = `${(hp / maxHp) * 100}%`;
+}
+
+function clearCombo() {
+  comboTimers.forEach(t => clearTimeout(t));
+  comboTimers = [];
+}
+
+function updateStatusBadge(mode, icon, text) {
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'status-badge-right ' + (mode || '');
+  document.getElementById('statusIcon').textContent = icon;
+  document.getElementById('statusText').textContent = text;
+}
+
+function triggerAction(newState, fromCombo = false) {
+  if (!fromCombo) clearCombo();
+
+  if ((newState === 'yanzhuo' || newState === 'lingji') && currentMonster !== 'boss') {
+    selectMonster('boss');
+  }
+
+  splashPlumes.length = 0;
+  surfCrests.length = 0;
+  waterProjectiles.length = 0;
+  magicOrbs.length = 0;
+  fireColumns.length = 0;
+  soulMissiles.length = 0;
+  if (newState !== 'down') {
+    isShattered = false;
+    pixelShards.length = 0;
+  }
+
+  animState = newState;
+  stateTime = 0;
+
+  document.querySelectorAll('.act-btn').forEach(b => b.classList.remove('active'));
+  const btnMap = {
+    idle: 'btn-idle',
+    attack: 'btn-attack',
+    yanzhuo: 'btn-yanzhuo',
+    lingji: 'btn-lingji',
+    heavy: 'btn-heavy',
+    hit: 'btn-hit',
+    down: 'btn-down'
+  };
+  if (btnMap[newState]) document.getElementById(btnMap[newState]).classList.add('active');
+
+  const isBoss = currentMonster === 'boss';
+
+  if (newState === 'idle') {
+    if (hp === 0) updateHp(maxHp);
+    updateStatusBadge(isBoss ? 'heavy-mode' : '', isBoss ? '🔥' : '💧', isBoss ? '待机中 · 熔岩悬浮呼吸' : '待机中 · 软体Q弹呼吸');
+  } else if (newState === 'attack') {
+    updateStatusBadge('action-mode', isBoss ? '☄️' : '⚔️', isBoss ? '普通攻击 · 炎杖连射暗焰法球' : '普通攻击 · 高压水弹突刺');
+    playPixelSfx(isBoss ? 'charge' : 'boop');
+  } else if (newState === 'yanzhuo') {
+    updateStatusBadge('heavy-mode', '🔥', '技能一：炎灼 · 炼狱火阵与天火烈焰柱');
+    playPixelSfx('charge');
+  } else if (newState === 'lingji') {
+    updateStatusBadge('soul-mode', '👻', '技能二：灵击 · 六道冥魂晶球与紫电冥爆');
+    playPixelSfx('charge');
+    // Spawn 6 Crisp Pixel Wraith Soul Crystals orbiting in an upper halo so they NEVER obscure Ash Lord's lower robe!
+    for (let i = 0; i < 6; i++) {
+      soulMissiles.push({
+        idx: i,
+        angle: (i / 6) * Math.PI * 2,
+        x: ARENA_CX - 18,
+        y: ARENA_CY - 82,
+        targetX: 215 + (i % 3) * 32,
+        targetY: ARENA_CY - 18 + ((i / 3) | 0) * 16,
+        launched: false,
+        launchDelay: i * 0.065,
+        flightP: 0,
+        trail: []
+      });
+    }
+  } else if (newState === 'heavy') {
+    if (isBoss) {
+      triggerAction('yanzhuo', fromCombo);
+      return;
+    }
+    updateStatusBadge('heavy-mode', '🌊', '技能：重击 · 泰山压顶与2D像素浪花飞溅');
+    playPixelSfx('charge');
+    shockRings.push({
+      x: ARENA_CX, y: ARENA_CY - 3,
+      rx: 68, ry: 15,
+      maxRx: 12, maxRy: 3,
+      life: 0.45, maxLife: 0.45,
+      inward: true, color: PAL.waterBright
+    });
+  } else if (newState === 'hit') {
+    updateStatusBadge('hit-mode', '🩸', isBoss ? '受击顿帧 · 魔甲火星四溅' : '受击顿帧 · 软体驻波震颤');
+    updateHp(isBoss ? -1850 : -65);
+    hitStopTimer = 0.055;
+    screenShake = 8;
+    softRig.squashVel = isBoss ? 0 : 5.5;
+    softRig.tipVel = -45;
+    softRig.waveAmp = isBoss ? 1.8 : 4.2;
+    playPixelSfx('hit');
+    spawnPopup(isBoss ? "-1,850" : "-65", ARENA_CX, 48, "#e04848", 1.18);
+    spawnPixelSparks(22, ARENA_CX, isBoss ? 88 : 96, {
+      angleBase: -Math.PI * 0.5,
+      angleSpread: Math.PI * 1.5,
+      speedMin: 40,
+      speedMax: 130,
+      gravity: 120,
+      colors: isBoss
+        ? [PAL.fireCore, PAL.fireBright, PAL.fireMid]
+        : [PAL.waterFoam, PAL.waterBright, PAL.waterMid],
+      lifeMin: 0.3,
+      lifeMax: 0.7
+    });
+  } else if (newState === 'down') {
+    updateStatusBadge('hit-mode', '💥', '已消灭 · 750+ 像素碎片爆裂粉碎！');
+    hp = 0;
+    updateHp(0);
+    hitStopTimer = 0.065;
+    screenShake = 10;
+    isShattered = false;
+    pixelShards.length = 0;
+    playPixelSfx('hit');
+    spawnPopup(isBoss ? "💥 致命粉碎! -6,800" : "💥 致命粉碎! -300", ARENA_CX, 42, "#d93838", 1.32);
+  }
+}
+
+function startCombo() {
+  clearCombo();
+  updateHp(maxHp);
+
+  if (currentMonster === 'boss') {
+    triggerAction('attack', true);
+    comboTimers.push(setTimeout(() => triggerAction('yanzhuo', true), 1350 / timeScale));
+    comboTimers.push(setTimeout(() => triggerAction('lingji', true), 3250 / timeScale));
+    comboTimers.push(setTimeout(() => triggerAction('hit', true), 5150 / timeScale));
+    comboTimers.push(setTimeout(() => triggerAction('down', true), 6050 / timeScale));
+    comboTimers.push(setTimeout(() => triggerAction('idle', true), 8500 / timeScale));
+  } else {
+    triggerAction('attack', true);
+    comboTimers.push(setTimeout(() => triggerAction('heavy', true), 1250 / timeScale));
+    comboTimers.push(setTimeout(() => triggerAction('hit', true), 3250 / timeScale));
+    comboTimers.push(setTimeout(() => triggerAction('down', true), 4200 / timeScale));
+    comboTimers.push(setTimeout(() => triggerAction('idle', true), 6600 / timeScale));
+  }
+}
+
+function togglePhysicsDebug() {
+  showPhysics = !showPhysics;
+  document.getElementById('btnPhysicsView').classList.toggle('on', showPhysics);
+}
+
+function toggleLayerDebug() {
+  showLayers = !showLayers;
+  document.getElementById('btnLayerView').classList.toggle('on', showLayers);
+  document.getElementById('layerLegend').classList.toggle('visible', showLayers);
+}
+
+function toggleDither() {
+  useDither = !useDither;
+  document.getElementById('btnDitherView').classList.toggle('on', useDither);
+}
+
+function toggleGrid() {
+  showGrid = !showGrid;
+  document.getElementById('btnGridView').classList.toggle('on', showGrid);
+}
+
+function toggleDarkTheme() {
+  darkTheme = !darkTheme;
+  document.body.classList.toggle('dark-mode', darkTheme);
+  document.getElementById('btnThemeView').classList.toggle('on', darkTheme);
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  document.getElementById('btnSoundView').classList.toggle('on', soundEnabled);
+  if (soundEnabled) playPixelSfx('boop');
+}
+
+function setSpeed(s) {
+  timeScale = s;
+  ['025', '05', '1', '15'].forEach(k => document.getElementById('spd-' + k).classList.remove('on'));
+  if (s === 0.25) document.getElementById('spd-025').classList.add('on');
+  else if (s === 0.5) document.getElementById('spd-05').classList.add('on');
+  else if (s === 1.0) document.getElementById('spd-1').classList.add('on');
+  else if (s === 1.5) document.getElementById('spd-15').classList.add('on');
+}
+
+// ============================================================================
+// 6. INTERACTIVE MOUSE / TOUCH POKE & STRETCH
+// ============================================================================
+function clientToVirtual(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 2;
+  const cx = (clientX - rect.left) * dpr;
+  const cy = (clientY - rect.top) * dpr;
+  return {
+    vx: (cx - viewOffsetX) / pxScale,
+    vy: (cy - viewOffsetY) / pxScale
+  };
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  const pt = clientToVirtual(e.clientX, e.clientY);
+  softRig.dragging = true;
+  softRig.dragX = pt.vx;
+  softRig.dragY = pt.vy;
+  canvas.setPointerCapture(e.pointerId);
+
+  const dx = pt.vx - ARENA_CX;
+  const dy = pt.vy - (ARENA_CY - 48);
+  if (Math.hypot(dx, dy) < 76) {
+    playPixelSfx('boop');
+    softRig.pokeReaction = 0.45;
+    softRig.waveAmp = currentMonster === 'boss' ? 1.5 : 3.4;
+    if (currentMonster !== 'boss') {
+      softRig.squashVel += (dy > 0 ? -3.2 : 3.8);
+    }
+    softRig.tipVel += dx * 1.4;
+    spawnPixelSparks(14, pt.vx, pt.vy, {
+      angleBase: -Math.PI * 0.5,
+      angleSpread: Math.PI * 1.6,
+      speedMin: 25,
+      speedMax: 85,
+      gravity: currentMonster === 'boss' ? -40 : 95,
+      colors: currentMonster === 'boss'
+        ? [PAL.fireCore, PAL.fireBright, PAL.fireMid]
+        : [PAL.waterFoam, PAL.waterBright, PAL.waterMid],
+      lifeMin: 0.25,
+      lifeMax: 0.55
+    });
+  }
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!softRig.dragging) return;
+  const pt = clientToVirtual(e.clientX, e.clientY);
+  const pullX = Math.max(-45, Math.min(45, pt.vx - ARENA_CX));
+  const pullY = Math.max(-55, Math.min(35, pt.vy - (ARENA_CY - 45)));
+  softRig.tipSway = pullX * 0.45;
+  if (currentMonster !== 'boss') {
+    softRig.squash = (pullY / 55) * 0.34;
+  }
+  softRig.pokeReaction = 0.25;
+});
+
+function releaseDrag() {
+  if (!softRig.dragging) return;
+  softRig.dragging = false;
+}
+canvas.addEventListener('pointerup', releaseDrag);
+canvas.addEventListener('pointercancel', releaseDrag);
+
+// ============================================================================
+// 7. POSE SOLVER & CHOREOGRAPHY
+// ============================================================================
+function updateSoftBodyPhysics(dt) {
+  if (!softRig.dragging) {
+    const kSquash = 155;
+    const cSquash = 10.5;
+    const accSquash = -kSquash * softRig.squash - cSquash * softRig.squashVel;
+    softRig.squashVel += accSquash * dt;
+    softRig.squash += softRig.squashVel * dt;
+
+    const kTip = 130;
+    const cTip = 8.5;
+    const accTip = -kTip * softRig.tipSway - cTip * softRig.tipVel;
+    softRig.tipVel += accTip * dt;
+    softRig.tipSway += softRig.tipVel * dt;
+  }
+
+  if (softRig.waveAmp > 0.01) {
+    softRig.waveAmp *= Math.exp(-4.2 * dt);
+    softRig.wavePhase += 24 * dt;
+  } else {
+    softRig.waveAmp = 0;
+  }
+
+  if (softRig.pokeReaction > 0) {
+    softRig.pokeReaction = Math.max(0, softRig.pokeReaction - dt);
+  }
+}
+
+function solvePose(state, t, prevT) {
+  const isBoss = currentMonster === 'boss';
+  const pose = {
+    cx: isBoss ? (ARENA_CX - 18) : ARENA_CX,
+    baseY: ARENA_CY - 4,
+    rx: 54.0,
+    h: 76.0,
+    tipSway: softRig.tipSway,
+    bodyTilt: 0.0,
+    puddleMelt: 0.0,
+    wobbleAmp: softRig.waveAmp,
+    wobblePhase: softRig.wavePhase,
+    glowBoost: 0.0,
+    soulMode: false,
+    hitWhite: false,
+    fractureProgress: 0.0,
+    eyeMode: softRig.pokeReaction > 0 ? 'happy' : 'normal',
+    mouthMode: softRig.pokeReaction > 0 ? 'cat' : 'smile',
+    slashWave: 0.0,
+    staffRaise: 0.0,
+    clawReach: 0.0,
+    capeFlare: 0.0,
+    castCircle: 0.0,
+    runicFloor: 0.0
+  };
+
+  if (state === 'idle') {
+    pose.cx = ARENA_CX;
+    const kt = Math.floor(t * 12) / 12;
+    const breath = Math.sin(kt * 3.0);
+    if (isBoss) {
+      pose.baseY += Math.sin(kt * 3.0) * 3.0;
+      pose.tipSway += Math.sin(kt * 3.0 - 0.9) * 2.0;
+    } else {
+      const totalSquash = softRig.squash - breath * 0.035;
+      pose.rx = Math.round(54.0 * (1 + totalSquash));
+      pose.h  = Math.round(76.0 * (1 - totalSquash * 1.05));
+      pose.tipSway += Math.sin(kt * 3.0 - 1.0) * 3.2;
+      if (softRig.pokeReaction <= 0 && (t % 3.6) > 3.42) {
+        pose.eyeMode = 'blink';
+      }
+    }
+  }
+
+  else if (state === 'attack') {
+    if (isBoss) {
+      // BOSS RANGED ATTACK: Staff Casts Dual Hellfire Mana Orbs
+      pose.cx = ARENA_CX - 22;
+      if (t < 0.24) {
+        const p = t / 0.24;
+        pose.baseY -= Math.sin(p * Math.PI * 0.5) * 8;
+        pose.staffRaise = p * 18;
+        pose.clawReach = p * 10;
+        pose.capeFlare = p * 0.7;
+        pose.castCircle = p;
+        pose.glowBoost = p * 0.8;
+      } else if (t < 0.88) {
+        const p = (t - 0.24) / 0.64;
+        pose.baseY -= 8 * (1 - p);
+        pose.staffRaise = 18 * Math.cos(p * Math.PI * 1.8) * Math.exp(-p * 2.0);
+        pose.clawReach = 12 * Math.sin(p * Math.PI);
+        pose.capeFlare = 0.7 * (1 - p * 0.6);
+        pose.castCircle = Math.max(0, 1 - p * 1.2);
+        pose.glowBoost = Math.max(0, 0.8 - p * 0.8);
+
+        const staffTipX = pose.cx + 48;
+        const staffTipY = pose.baseY - 94;
+
+        if (prevT < 0.26 && t >= 0.26) {
+          playPixelSfx('fireball');
+          screenShake = 4;
+          magicOrbs.push({
+            x: staffTipX,
+            y: staffTipY,
+            vx: 245,
+            vy: 42,
+            targetX: 256,
+            targetY: 108,
+            r: 9,
+            isSoul: false,
+            dmgText: "☄️ 暗焰法球 -516!"
+          });
+        }
+        if (prevT < 0.46 && t >= 0.46) {
+          playPixelSfx('fireball');
+          screenShake = 5;
+          magicOrbs.push({
+            x: staffTipX,
+            y: staffTipY - 6,
+            vx: 265,
+            vy: 58,
+            targetX: 272,
+            targetY: 122,
+            r: 11,
+            isSoul: false,
+            dmgText: "🔥 爆裂炎弹 -774!"
+          });
+        }
+      } else if (t < 1.18) {
+        const p = (t - 0.88) / 0.30;
+        pose.cx = (ARENA_CX - 22) + p * 22;
+      } else {
+        triggerAction('idle', true);
+      }
+    } else {
+      // SLIME ATTACK: Original coiled squash -> Water-Drop Lunge & 2D Pixel Hydro Slash
+      if (t < 0.25) {
+        const p = t / 0.25;
+        const ease = Math.sin(p * Math.PI * 0.5);
+        pose.cx -= ease * 18;
+        pose.rx = 54 * (1 + ease * 0.22);
+        pose.h  = 76 * (1 - ease * 0.25);
+        pose.tipSway -= ease * 10;
+        pose.eyeMode = 'fierce';
+        pose.mouthMode = 'open';
+      } else if (t < 0.56) {
+        const p = (t - 0.25) / 0.31;
+        const lunge = Math.sin(p * Math.PI * 0.65);
+        pose.cx += -18 + lunge * 58;
+        pose.baseY -= Math.sin(p * Math.PI) * 14;
+        pose.rx = 54 * 0.88;
+        pose.h  = 76 * 1.12;
+        pose.tipSway += 14 * Math.sin(p * Math.PI * 0.85);
+        pose.bodyTilt = 0.22;
+        pose.eyeMode = 'fierce';
+        pose.mouthMode = 'open';
+        pose.slashWave = p;
+
+        if (prevT < 0.34 && t >= 0.34) {
+          screenShake = 6;
+          playPixelSfx('attack');
+          spawnPopup("💧 高压水斩 -68!", 236, 54, "#1175a3", 1.18);
+          waterProjectiles.push({
+            x: pose.cx + 38,
+            y: pose.baseY - 42,
+            vx: 255,
+            vy: -10,
+            r: 9,
+            life: 0.36
+          });
+          spawnPixelSparks(22, pose.cx + 32, pose.baseY - 38, {
+            angleBase: -0.2,
+            angleSpread: 1.1,
+            speedMin: 60,
+            speedMax: 150,
+            gravity: 110,
+            colors: [PAL.waterFoam, PAL.waterBright, PAL.waterMid, PAL.waterDeep],
+            lifeMin: 0.28,
+            lifeMax: 0.62
+          });
+        }
+      } else if (t < 1.0) {
+        const p = (t - 0.56) / 0.44;
+        const damp = Math.exp(-p * 4.8);
+        const osc = Math.sin(p * Math.PI * 3.5) * damp;
+        pose.cx += 40 * Math.pow(1 - p, 2.2);
+        pose.rx = 54 * (1 + osc * 0.16);
+        pose.h  = 76 * (1 - osc * 0.16);
+        pose.tipSway += -osc * 8;
+      } else {
+        triggerAction('idle', true);
+      }
+    }
+  }
+
+  else if (state === 'yanzhuo') {
+    // BOSS SKILL 1: 炎灼
+    pose.cx = ARENA_CX;
+    if (t < 0.44) {
+      const p = t / 0.44;
+      pose.baseY -= Math.sin(p * Math.PI * 0.5) * 16;
+      pose.staffRaise = p * 24;
+      pose.capeFlare = p * 0.85;
+      pose.glowBoost = p;
+      pose.castCircle = p;
+      pose.runicFloor = p;
+
+      if (Math.random() < 0.85) {
+        spawnPixelSparks(2, ARENA_CX + (Math.random() - 0.5) * 140, ARENA_CY - 4, {
+          angleBase: -Math.PI * 0.5,
+          angleSpread: 0.5,
+          speedMin: 35,
+          speedMax: 85,
+          gravity: -90,
+          colors: [PAL.fireCore, PAL.fireBright, PAL.fireMid],
+          lifeMin: 0.25,
+          lifeMax: 0.5
+        });
+      }
+    } else if (t < 1.75) {
+      const p = (t - 0.44) / 1.31;
+      if (prevT < 0.44) {
+        hitStopTimer = 0.055;
+        screenShake = 15;
+        windShock = 1.15;
+        playPixelSfx('flame_roar');
+        spawnPopup("🔥 技能：炎灼 -1,480!", ARENA_CX, 28, "#d92b14", 1.42);
+
+        fireColumns.push(
+          { x: 54,  baseY: ARENA_CY + 2, maxH: 105, w: 17, delay: 0.00, life: 1.05, maxLife: 1.05, seed: 1.1 },
+          { x: 100, baseY: ARENA_CY + 5, maxH: 92,  w: 14, delay: 0.06, life: 0.98, maxLife: 0.98, seed: 2.7 },
+          { x: 220, baseY: ARENA_CY + 5, maxH: 92,  w: 14, delay: 0.06, life: 0.98, maxLife: 0.98, seed: 4.3 },
+          { x: 266, baseY: ARENA_CY + 2, maxH: 105, w: 17, delay: 0.00, life: 1.05, maxLife: 1.05, seed: 5.9 }
+        );
+
+        spawnPixelSparks(65, ARENA_CX, ARENA_CY - 12, {
+          angleBase: -Math.PI * 0.5,
+          angleSpread: 2.2,
+          speedMin: 55,
+          speedMax: 195,
+          spreadX: 160,
+          spreadY: 10,
+          gravity: -35,
+          colors: [PAL.fireCore, PAL.fireBright, PAL.fireMid, PAL.fireDeep],
+          lifeMin: 0.45,
+          lifeMax: 1.05
+        });
+      }
+
+      const damp = Math.exp(-p * 3.5);
+      pose.baseY -= 16 * damp;
+      pose.staffRaise = -12 * damp;
+      pose.capeFlare = Math.max(0, 0.85 - p * 0.8);
+      pose.glowBoost = Math.max(0, 1.0 - p * 0.9);
+      pose.runicFloor = Math.max(0, 1.0 - p * 0.75);
+    } else {
+      triggerAction('idle', true);
+    }
+  }
+
+  else if (state === 'lingji') {
+    // BOSS SKILL 2: 灵击
+    pose.cx = ARENA_CX - 18;
+    pose.soulMode = true;
+
+    if (t < 0.52) {
+      const p = t / 0.52;
+      pose.baseY -= Math.sin(p * Math.PI * 0.5) * 20;
+      pose.clawReach = p * 18;
+      pose.staffRaise = p * 16;
+      pose.capeFlare = p * 0.85;
+      pose.glowBoost = p;
+      pose.castCircle = p;
+      pose.runicFloor = p;
+    } else if (t < 1.80) {
+      const p = (t - 0.52) / 1.28;
+      if (prevT < 0.52) {
+        hitStopTimer = 0.055;
+        screenShake = 16;
+        windShock = 1.2;
+        playPixelSfx('soul_blast');
+        spawnPopup("👻 技能：灵击 -1,650!", ARENA_CX + 35, 30, "#9234eb", 1.45);
+      }
+
+      const damp = Math.exp(-p * 3.5);
+      pose.baseY -= 20 * damp;
+      pose.clawReach = 18 * damp;
+      pose.staffRaise = -10 * damp;
+      pose.capeFlare = damp * 0.85;
+      pose.glowBoost = damp;
+      pose.runicFloor = Math.max(0, 1.0 - p * 0.8);
+    } else {
+      triggerAction('idle', true);
+    }
+  }
+
+  else if (state === 'heavy') {
+    // ========================================================================
+    // SLIME SKILL: 💥 重击 (泰山压顶 · 掀起 2D 像素水花与碎浪!)
+    // ZERO 3D Metaball tubes! Rendered in the exact same crisp 2D pixel shader style!
+    // ========================================================================
+    if (t < 0.48) {
+      const p = t / 0.48;
+      const vib = Math.sin(t * 50) * 1.6 * p;
+      pose.rx = 54 * (1 + p * 0.25) + vib;
+      pose.h  = 76 * (1 - p * 0.28) - vib;
+      pose.glowBoost = p;
+      pose.eyeMode = 'fierce';
+      pose.mouthMode = 'open';
+
+      if (Math.random() < 0.82) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const startX = pose.cx + side * (48 + Math.random() * 52);
+        const startY = pose.baseY - Math.random() * 14;
+        pixelSparks.push({
+          x: startX,
+          y: startY,
+          vx: (pose.cx - startX) * 3.2,
+          vy: -38 - Math.random() * 35,
+          gravity: -50,
+          size: Math.random() < 0.5 ? 2 : 1,
+          colors: [PAL.waterFoam, PAL.waterBright, PAL.waterMid],
+          bounces: 0,
+          life: 0.24,
+          maxLife: 0.24
+        });
+      }
+    } else if (t < 0.86) {
+      const p = (t - 0.48) / 0.38;
+      if (prevT < 0.48) {
+        playPixelSfx('attack');
+        shockRings.push({
+          x: ARENA_CX, y: ARENA_CY - 2,
+          rx: 18, ry: 4,
+          maxRx: 78, maxRy: 17,
+          life: 0.35, maxLife: 0.35,
+          inward: false, color: PAL.waterBright
+        });
+      }
+      const jumpCurve = p < 0.55
+        ? Math.sin((p / 0.55) * Math.PI * 0.5)
+        : Math.cos(((p - 0.55) / 0.45) * Math.PI * 0.5);
+      pose.baseY -= jumpCurve * 68;
+      const stretch = p < 0.5 ? (1 + p * 0.65) : (1.36 - (p - 0.5) * 0.3);
+      pose.rx = 54 * (1 / Math.sqrt(stretch));
+      pose.h  = 76 * stretch;
+      pose.glowBoost = 1.0;
+      pose.eyeMode = 'fierce';
+      pose.mouthMode = 'open';
+
+      if (p > 0.52 && Math.random() < 0.7) {
+        afterimages.push({ cx: pose.cx, baseY: pose.baseY, rx: pose.rx, h: pose.h, life: 0.14, maxLife: 0.14 });
+      }
+    } else if (t < 1.85) {
+      const p = (t - 0.86) / 0.99;
+      if (prevT < 0.86) {
+        hitStopTimer = 0.055;
+        screenShake = 16;
+        windShock = 1.05;
+        playPixelSfx('tidal_slam');
+        spawnPopup("🌊 怒涛崩裂 -268!", ARENA_CX, 32, "#0b628f", 1.45);
+
+        // 1. Expanding 2D Pixel Water Shockwave Rings on Arena Floor
+        shockRings.push(
+          { x: ARENA_CX, y: ARENA_CY - 2, rx: 24, ry: 6, maxRx: 128, maxRy: 27, life: 0.62, maxLife: 0.62, inward: false, color: PAL.white },
+          { x: ARENA_CX, y: ARENA_CY - 2, rx: 14, ry: 3, maxRx: 102, maxRy: 22, life: 0.78, maxLife: 0.78, inward: false, color: PAL.waterBright }
+        );
+
+        // 2. Central Impact 2D Pixel Water Splash Plumes (Radial fan of sharp, jagged 2D pixel water sheets kicked up around the Slime!)
+        const plumeConfigs = [
+          { offsetX: -42, ang: -1.12, maxLen: 56, w: 12, seed: 0.7 },
+          { offsetX: -28, ang: -0.78, maxLen: 66, w: 14, seed: 1.9 },
+          { offsetX: -14, ang: -0.42, maxLen: 52, w: 11, seed: 3.1 },
+          { offsetX:  14, ang:  0.42, maxLen: 52, w: 11, seed: 4.3 },
+          { offsetX:  28, ang:  0.78, maxLen: 66, w: 14, seed: 5.5 },
+          { offsetX:  42, ang:  1.12, maxLen: 56, w: 12, seed: 6.7 }
+        ];
+        plumeConfigs.forEach(cfg => {
+          splashPlumes.push({
+            baseX: ARENA_CX + cfg.offsetX,
+            baseY: ARENA_CY + 1,
+            ang: cfg.ang,
+            maxLen: cfg.maxLen,
+            w: cfg.w,
+            seed: cfg.seed,
+            life: 0.58,
+            maxLife: 0.58
+          });
+        });
+
+        // 3. Left & Right Sweeping 2D Pixel Breaking Surf Crests (Flat 2D pixel wave crests with Bayer dithering & jagged foam teeth!)
+        surfCrests.push(
+          { dir: -1, startX: ARENA_CX - 34, y: ARENA_CY + 2, maxDist: 88, maxH: 48, w: 28, life: 0.76, maxLife: 0.76, seed: 1.4 },
+          { dir:  1, startX: ARENA_CX + 34, y: ARENA_CY + 2, maxDist: 88, maxH: 48, w: 28, life: 0.76, maxLife: 0.76, seed: 4.8 }
+        );
+
+        // 4. Crisp 8-point Pixel Aqua Starbursts at left & right splash zones + 80 Square Pixel Water Droplets
+        spawnStarExplosion(ARENA_CX - 52, ARENA_CY - 18, 22, 'aqua');
+        spawnStarExplosion(ARENA_CX + 52, ARENA_CY - 18, 22, 'aqua');
+
+        spawnPixelSparks(80, ARENA_CX, ARENA_CY - 10, {
+          angleBase: -Math.PI * 0.5,
+          angleSpread: 2.4,
+          speedMin: 65,
+          speedMax: 210,
+          spreadX: 64,
+          spreadY: 8,
+          gravity: 185,
+          bounces: 1,
+          puddleOnLand: true,
+          colors: [PAL.waterFoam, PAL.waterBright, PAL.waterMid, PAL.waterDeep],
+          lifeMin: 0.48,
+          lifeMax: 0.98
+        });
+      }
+      const damp = Math.exp(-p * 4.5);
+      const squash = Math.cos(p * Math.PI * 3.8) * damp;
+      pose.rx = 54 * (1 + squash * 0.44);
+      pose.h  = 76 * (1 - squash * 0.42);
+      pose.puddleMelt = Math.max(0, squash * 0.65);
+      pose.wobbleAmp = damp * 4.2;
+      pose.wobblePhase = p * 22;
+      pose.glowBoost = Math.max(0, 1 - p * 1.5);
+      pose.eyeMode = p < 0.35 ? 'fierce' : 'happy';
+    } else {
+      triggerAction('idle', true);
+    }
+  }
+
+  else if (state === 'hit') {
+    pose.cx = ARENA_CX;
+    if (t < 0.08) {
+      pose.hitWhite = true;
+      pose.cx -= 7;
+      if (!isBoss) {
+        pose.rx = 54 * 0.84;
+        pose.h  = 76 * 1.18;
+      }
+      pose.eyeMode = 'hurt';
+      pose.mouthMode = 'wavy';
+    } else if (t < 0.82) {
+      const p = (t - 0.08) / 0.74;
+      const damp = Math.exp(-p * 4.0);
+      pose.cx -= Math.sin(p * Math.PI) * 14;
+      if (!isBoss) {
+        pose.rx = 54 * (1 + Math.sin(p * 22) * 0.18 * damp);
+        pose.h  = 76 * (1 - Math.sin(p * 22) * 0.17 * damp);
+      }
+      pose.tipSway += -Math.cos(p * 19) * 10 * damp;
+      pose.wobbleAmp = (isBoss ? 1.8 : 4.2) * damp;
+      pose.wobblePhase = p * 26;
+      pose.eyeMode = 'hurt';
+      pose.mouthMode = 'wavy';
+    } else {
+      triggerAction('idle', true);
+    }
+  }
+
+  else if (state === 'down') {
+    pose.cx = ARENA_CX;
+    if (t < 0.26) {
+      const p = t / 0.26;
+      pose.hitWhite = (t < 0.07) || (Math.sin(t * 95) > 0.35);
+      pose.cx += Math.sin(t * 140) * 4.5 * p;
+      pose.fractureProgress = p;
+      pose.eyeMode = 'hurt';
+      pose.mouthMode = 'wavy';
+    } else {
+      if (!isShattered) {
+        triggerPixelShatterExplosion(pose.cx, pose.baseY);
+      }
+    }
+  }
+
+  return pose;
+}
+
+// ============================================================================
+// 8. FLOOR EFFECTS & RUNIC MAGIC CIRCLE RENDERER
+// ============================================================================
+function renderFloorEffects(pose, dt, time) {
+  // 1. Crisp 2D Pixel Water Puddles (Only when Slime is active)
+  for (let i = groundPuddles.length - 1; i >= 0; i--) {
+    const pd = groundPuddles[i];
+    pd.life -= dt;
+    if (pd.life <= 0) {
+      groundPuddles.splice(i, 1);
+      continue;
+    }
+    const scale = Math.min(1, pd.life / 0.5);
+    const rx = pd.rx * scale;
+    const ry = pd.ry * scale;
+    if (rx < 1.5) continue;
+
+    const x0 = Math.max(20, Math.floor(pd.x - rx - 1));
+    const x1 = Math.min(VW - 20, Math.ceil(pd.x + rx + 1));
+    const y0 = Math.max(102, Math.floor(pd.y - ry - 1));
+    const y1 = Math.min(VH - 8, Math.ceil(pd.y + ry + 1));
+
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const d = ((x - pd.x) / rx) ** 2 + ((y - pd.y) / ry) ** 2;
+        if (d <= 1.0) {
+          const idx = y * VW + x;
+          if (showLayers) buf32[idx] = PAL.dbgFluid;
+          else if (d > 0.72) buf32[idx] = PAL.waterMid;
+          else if (x < pd.x - rx * 0.25 && y < pd.y) buf32[idx] = PAL.waterFoam;
+          else buf32[idx] = PAL.waterBright;
+        }
+      }
+    }
+  }
+
+  // 2. Boss 3D Perspective Runic Magic Circle on Arena Floor (for 炎灼 & 灵击)
+  if (pose.runicFloor > 0.02) {
+    const rf = pose.runicFloor;
+    const rRx = 108 * Math.min(1, rf * 1.25);
+    const rRy = 23 * Math.min(1, rf * 1.25);
+    const cPrimary = pose.soulMode ? PAL.soulBright : PAL.fireBright;
+    const cSecondary = pose.soulMode ? PAL.soulMid : PAL.fireMid;
+    const cCore = pose.soulMode ? PAL.soulCore : PAL.fireCore;
+
+    for (let a = 0; a < Math.PI * 2; a += 0.03) {
+      const ox = ARENA_CX + Math.cos(a) * rRx;
+      const oy = ARENA_CY - 1 + Math.sin(a) * rRy;
+      setBufPx(buf32, ox, oy, cPrimary);
+      setBufPx(buf32, ox, oy + 1, cSecondary);
+
+      const ix = ARENA_CX + Math.cos(a) * (rRx * 0.68);
+      const iy = ARENA_CY - 1 + Math.sin(a) * (rRy * 0.68);
+      setBufPx(buf32, ix, iy, cSecondary);
+    }
+
+    const pts = 8;
+    const rot = time * 2.2;
+    const starNodes = [];
+    for (let i = 0; i < pts; i++) {
+      const a = rot + (i / pts) * Math.PI * 2;
+      starNodes.push({
+        x: ARENA_CX + Math.cos(a) * (rRx * 0.92),
+        y: ARENA_CY - 1 + Math.sin(a) * (rRy * 0.92)
+      });
+    }
+    for (let i = 0; i < pts; i++) {
+      const p1 = starNodes[i];
+      const p2 = starNodes[(i + 3) % pts];
+      drawPixelLine(buf32, p1.x, p1.y, p2.x, p2.y, 0.7, cSecondary);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          setBufPx(buf32, p1.x + dx, p1.y + dy, (dx === 0 && dy === 0) ? cCore : cPrimary);
+        }
+      }
+    }
+  }
+
+  // 3. 3D Perspective Shockwave Rings
+  for (let i = shockRings.length - 1; i >= 0; i--) {
+    const sr = shockRings[i];
+    sr.life -= dt;
+    if (sr.life <= 0) {
+      shockRings.splice(i, 1);
+      continue;
+    }
+    const p = 1 - sr.life / sr.maxLife;
+    const ease = sr.inward ? (1 - p * p) : (1 - Math.pow(1 - p, 2.4));
+    const curRx = sr.inward
+      ? sr.maxRx + (sr.rx - sr.maxRx) * ease
+      : sr.rx + (sr.maxRx - sr.rx) * ease;
+    const curRy = sr.inward
+      ? sr.maxRy + (sr.ry - sr.maxRy) * ease
+      : sr.ry + (sr.maxRy - sr.ry) * ease;
+
+    const ringThick = Math.max(0.05, 0.14 * (1 - p * 0.65));
+    const x0 = Math.max(16, Math.floor(sr.x - curRx - 4));
+    const x1 = Math.min(VW - 16, Math.ceil(sr.x + curRx + 4));
+    const y0 = Math.max(96, Math.floor(sr.y - curRy - 4));
+    const y1 = Math.min(VH - 4, Math.ceil(sr.y + curRy + 4));
+
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const d = Math.hypot((x - sr.x) / curRx, (y - sr.y) / curRy);
+        if (Math.abs(d - 1.0) <= ringThick) {
+          const idx = y * VW + x;
+          if (showLayers) buf32[idx] = PAL.dbgFluid;
+          else if (d > 1.0) buf32[idx] = PAL.white;
+          else buf32[idx] = blend32(buf32[idx], sr.color, 0.85 * (1 - p * 0.5));
+        }
+      }
+    }
+  }
+}
+
+// ============================================================================
+// 9A. TRUE 128x128 PIXEL-ART BOSS SPRITE: 👑 灰烬领主
+// Fixed lower-body robe integrity: ZERO robe color overwrite, ZERO seam tearing!
+// ============================================================================
+const BOSS_SPRITE_W = 128;
+const BOSS_SPRITE_H = 128;
+const BOSS_PAL_HEX = ['#542520', '#2b1c19', '#9f221f', '#675551', '#9d5a2d', '#e8dfda', '#976960', '#a79b96', '#644531', '#d86126', '#df9a59', '#d5aaa0', '#e2ccaa', '#d2705b', '#e68c33', '#c9301c', '#ab8860', '#f9c86e', '#643e40', '#bb803b', '#977f80', '#fefcf6', '#571216', '#28080b', '#470d12', '#671316', '#771518', '#86171b', '#36090c', '#251917', '#390c10', '#481617'];
+const BOSS_B64_GRID = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgEBAQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAh4BAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgIBAAAAAAAAAAAAAAAAAAAAAAAAAB4BAgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECAQIAAAAAAAAAAAAAAAAAAAAAAAACAh4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwMDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgECHgAAAAAAAAAAAAAAAAAAAAAAAAICAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALAwAAAAADAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgIBAgIAAAAAAAAAAAAAAAAAAAAAAAAAHgICAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgIBAQECAgAAAAAAAAAAAAAAAAAAAAEAAAACAgECAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICCQkBAh4AAAAAAAAAAAAAAAAAAAAABQAAAAAeAgECAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHCgMAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgEJAQIeAgAAAAAAAAAAAAAAAAAAAAAHAAAAAAIeAgECHgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwMLCgMFAAAKCgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICCQQCHgIAAAAAAAAAHgAAAAAAAAAAHhEBAAAAAAIeAgEBAgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwwOEAMHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgEFAgIeAgAAAAAAAAACAQAAAAAAAAABCwEAAAAAAAIeAgEBAQQAAAAAAAAAAAAAAAAAAAAAAAAAAAAJAAMDDgAKEAMFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4CCQcJAh4AAAAAAAAAAAEFAAAAAAAAAAkMCQAAAAAAAB4eAgEEAQIAAAAAAAAAAAAAAAAAAAAAAAAAAQEAAwMQDgAKCgMOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABHgIJBQEBHgAAAAAAAAAAAQcAAAAAAAAACQsFAAAAAAAAAgICAQEJAQAAAAAAAAAAAAAAAAAAAAAABwUFEQAAAxAQCwAKEAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIeAgkFAQICHgAAAAAAAAABBx4ABAkAAAAFCwUBAAACAAAAAh4CAgQJBAAAAAAAAAAAAAAAAAAAAAIFBQIAAAAHAxAKAAoQAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh4CBAUEBAIeAgAAAAEAAAIFAgABBwkCAgULBQEAAAkAAAAeAgIBBAkBAAAAAAAAAAAAAAAAAAAACQUBBwAOAAADEAoLChAFAAkCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACHgICCQcJAgICAAAABQAAAgUJAgIRAgICBQsFAQACBQAAAAACHgIBCQEEAAAAAAAAAAAAAAAAAAQFBQkADAoAABAKCgsKEAAACQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4eAgEJBQUECQICAh4BAh4CCQceAQsBAgkKCwcBAAIFAAAAAAICCQQJAR4AAAAAAAAAAAAAAAAHBQUBBAADCg4QEAoPCwoQDgAJBQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4eAgIBBQcHCQkJAQICAh4CCQkBCwECBQ8FBQEeAgUCAAACHgICCQUJHgAAAAAAAAAAAAAAAAkKBQEAABAKChAKCg8LDwoQAAABAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh4eAgICCQkFEQcHBAQBAQIeAQULAR4FCwUBAQIgBQICAgIBAQEBBQEeAAAAAAAAAAAAAAABBQUBAQAHEAoPCgoPCxIPCgoDAAEFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh4eHgICAgIJAQkECQcHAQICBQoFAgUFCgMBAgEFAgICAgEECQUJAgQAAAAAAAAAAAAAAAEJBQEBAA4QCgsPDw8NEgsLChAAAQUBAAsOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECQAAAAAAAAAAAgIeAgIeAgICAgICAQkFAh4FBQsLCwEQAwEBBQUeAgkJCQUFCQIeAAAAAAAAAAAAAAAAHh4FAgQAABAKCxIPEg0SDQsKCgkBBQEAAA4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAkFCQAAAAAAAAAAAB4CHh4eHh4eAgICAgkJHgICAQUPBwMDBQUFAgIJCQkBCQECHgIAAAAAAAAAAAAAAAAeAgkCAQAADgoPEhINDQ0NDwoKAAEFCQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAhEJAAAAAAAAAAEeAAAeAh4eHgIeAh4eAgkCAh4CHgEFBQEFAQICAQICAh4CAh4eAAAAAAAAAAAAAAAAAB4BBQECBAcOCg8SDQ0JDRIKCgAAAgEFAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACBQsBAAAAAAAAAQkAAAABAgAAAgICAgICAgECAgkBAgELBQECAgIeAgIeHh4eAgAAAAAAAAAAAAAAAAAEAgEFBQUFCQMKCw0NBwEREg8KAAAeAgkBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIFCwUBAAAAAAIBBQIAAAAAAAAABAICAgICAR4CHgEJAQUFAR4CHgICAh4CHh4AAAAAAAAAAAAAAAAAAAEBBQUBAQEBAwoSDREFBRENDwoFCQIBAR4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgEJCwUJAQACAQEFBQEAAAABAgICHgICAgICAgQBBQkeAgIBAgICAAAAAh4AAAAAAAAAAAAAAAAAAAABBQUCAgEFBRcDCg8LCQsFEQ0PBQEBAgkBHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgIBCwsJAR4eAgERBQAAAhcBHRgYAgICAgIBBAQJAQEEAQECAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIJAgIeAgULBQMDCgUFEQkBCwoDAQUFBQEeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACHh4CCQ8LCQECAgEFBQkBHh0BAQEdAgICAgICAQQEBwIBAh4AAAAAAAAAAAAAAAAAAAAAAAAAAAAABAEAAgIBAQULBQEDBQUFAwEKEAMBAQEFBR4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJHh4CAgICAQoPBQkBAgERCwkYAhgBGhwaHQICAgICHgQHBAkCAgEAAAAAAAAAAAAJAAAAAAAAAAAAAAAAAAARAgEBAQULBQULAwsBAQMDAQUPAQIFAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEFBQkJBAQCAQsLBQIBAQEFCwkYGB0BARwDGx0eAgICCQQHAQIdGRgZAgAAAAAACQkAAAAAAAAAAAAAAAAAAAAEAgkBAgUPCwEKDwEBAQkLCwUCAgEFAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAQIBBQsRBAQBBQsBAQQEAQEFCwUdHQEBARocAwMCAQIBAQkCAhgdARoCAAAAAAAJBQEAAAAAAAAAAAAAAAAAAAACAQEeAgUFARADAwULCwUFAQIeHgEJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECAgICBQsRBAQBCwUBBAQEAQEFCwEBAQEbGhoDAxgCAQQEBAICGB0bGQEAAAAABAEFAgAAAAAAAAAAAAAAAAAAAAIeCQEeAgUBAwMBBQUBAgEBAgIAAgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgEFAgURBAIJCwkBCQECAgULBQEbAQEcHAEcHBgCBAcEAgIYGhoCAQEeAAIBBQUBAAAAAAAAAAAAAAAAAAAAAAIBBQICBQEDAwUBAh4CAR4AAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgICAgICAhEJAQEFCwkBAgIBCxIFAgEcGgEcHBoDAwEeAgICAgEcHRgYBQECAh4BBQkABAAAAAAAAAAAAAAOAAAAAgEBHgIFBQMXBQIeAQECAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAR4eAgEEBAkCBQkBAgkLBwECAQULBQUBHRsDGwEDAxscAxsdAhgBAwEdARgCBwECAgIFAQQJAAAAAAAAAAAADA4AAAACCQECAgEFAQUBHgEJHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAELAQkHBwcEBAQBAQEJBQsFAgIFCwUFAQUgARsDGhoDAxsbHAMbHBwBHRoaAgIFCQIBAQUBAgEEAAAAAAAAAAAMCwAAAgIJAgIBAQUFBQIeAQEeAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBQsLBQUFEQsFAQIBEQsLCwUFCQsFAwsDAQUBAQEDAwEcAwMbARsBARcDHAEdAgcBAgQBBQUeCQEAAAAAAAAAAAALDAACCQECBAICBQUCHgIBAQIAAAsKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEFBQECAgICBQsFBRQFARgCAQUKBQEDEAMBBR0aGwEDAxobAwMDAxwDAwMBGQEBCwECAQEJBQIJAQAAAAAAAAAAAAAABAUBAgQAHgIFAQICAgIBHgAACwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACQUCGAICAhgYAQUFARgdHRgCAgkFBQMDAQUBGB0cAxscAxsaGwMDAwMbAQEaAhEFAQICAgEFAgkEAAAAAAAAAAAAAAQJBQIAAAACAQ8BHgACHgkBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFAQIAAgIdAQEYAgIYAQEdGB0YGAkFAQMBBQIBARgbAwMDAwMbGhcJFwEaHAEBCwMDAR4CBQUCAQAAAAAAAAAAAAAABAUBAAAACQEFBQECAAACAQUJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAYARoBAQEdGRsbAR0BAQEYAgULBQUBAgEFAgEYGgMDAwMcBQsBHBsbGgEFBQoBAQUFAgICBAAAAAAAAAAAAAAEAQQAAAQFCwsFAQEAAAACBQkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgAAABkBAQEBARscGwEdGxsBARgYBQoFAQICHgUBBR4eGBcDAwELCwkaAxsdAgUDAxoFBQUBAgIeHgAAAAAAAAAAAAABBAAAAQEJCw8FAQAAAAEBCQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEZAQEaHAMDAxoZAQMcGhsdAR0BCwECAh4eBQEFBQICHhgBEQsDBQEdGAICBQUDAQkBBQUFAQIBAQAAAAAAAAAAAB4BAAAAAgEFAQECAAACCQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABGQEBHAMDAxwaARsDAxscARgBHQEFAgIeHh4FCQIFBQEBAQULBQoDCQIeAgECBQkFAQIYAQUFAQEBAAAAAAAAAAAAAAEBAAAeAQMCAgAAAAEJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAhocHAMcHBsbHAMDAxwbAxsCHRoBAgICAgICAgcJAgIFCxELCwcQCwMDBQEFAQIBBQEYHRgCGAEFBQEAAAAAAAAAAAAAAgIAAAIBBQIeAAABAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBcXAAAAAAAAIBcbHBwbGxsDAwMDAwMDAwMDHQIXGwEZGAIeAgIBCwkCGAEBAQEFBQMQAwUFAQkYAgIFAR0dARgCGAEFAQAAAAAAAAAAAAACHgAAHgEBAgAABCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB0BARocAxwbFx0dFxsbGxsbHBwcAxwBAwMDHAMDAwECGBsbGwEBAgICAgcFARgBAQEXHQEFBRABBQIBAgIBAgECAQEBARgCHgEBAAAAAAAAAAAAAAICAAECAQIeAAAJAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEaGhcaHBwcAwMDAxwcHBwcGxscHBoBGBgdGAIBAxoeGAMDAgIdAxwcGwECAgECBQUCGAEFAQMaAQELAwUBHQEBGAIBAhgdGhoBHwAAAQEAAAAAAAAAAAAAAAAACQkJHgIAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB0aGwMDHBwcAwMDAwMDAwMcGxsbHAECGAICAgICAgMDAwEgBRoCGBkDAxwcHQICAgUFBRgdAQ8FAxwaAgULBQEBAwECAgEYAR0ZHBsBGAAAAgAAAAAAAAAAAAAAAAABBQkFAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARocHBsaGxwDAwMcHBwcGxoaHBsZGAkBGAICAgICBQMFBQMDHRgYHAMDHBwdAgIJBQUBHR0CBQoFHBsaAQsBARsFBQICBQIdAQEBGxwXAgAAAAAAAAAAAAAAAAAAAAIFBQEeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBocHBsBARscAwMcGxobGxoXGwMBHRgBBQsFBREeAh4BAgICAwMYGB0DHAMDAx0CAQUFARgZAQECBQUDHBsCEQEbGwUFGAIFAR0BGwEBARsBAQAAAAAAAAAAAAAAAAAAAgICAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARcbHBsaFwEbGwMcGxoaGxwaARscGxgYAgUBAQ8LBwECAQICAgIBARgYGQMcAwMDHQIFBQUCHwEBAQIBCgMcHBoFFxsbBQEYAgUBAQEbAxsBAQEgAAAAAAAAAAAAAAAAAAAeAR4CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbHBoaFxoaFxkAARoaGxwbFxocAwEYGBgBEBoBBQsFBQkBBAICGBgYGBgBAxwDAxwBAQUFAhgBGhkBAgEFAxwcGwEaGxsFAhgdBQUXGgEcAwMDGwEgAAAAAAAAAAAAAAAAAgIBHgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARsaAQABGhcgAAAAFxsbGxcaGwMaGBgYGAEcAQkLBQIBBQUBAgIYGBgYGBscAwMDAQIBAQIBHQEaARoCAgUDHBwDBQMbGwUCGB0BBR0bGhoDAwMDHBsBAAAAAAAAAAAAAgkCHgIeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXGwEAAAABAAAAAAAgGxoBGhwcGRgYGBgYAQEEBwUCBAEBBQUeAhgYGBgdAxsDAwMdAgICAQkBGhsaGwICBQMcHAMLAxwcBQIdARgBGAEcAQEDGxgdGhobIAEBAAAAAAICAgQJAgEBAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBoaAAAAAAAAAAAAABcaARocHBoYGBgYGBgBCQQLAQkEAh4BBQICGBgYGBkDHAMDAx0CAgIJAQEaGxsbGAIFAxwDCwsFHBwFAh0BHRgYHRwcHRwBAgICHgIJBQEBAQEBAgICAgQECQIeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdGhcAAAAAAAAAAAABARcaHBwbHxgYHRgYAQEJBwUCCQIeHgEFAhgYGBgYGgMDAwMDHQICAQUCGRscGxsYHQUDAxwFCwMbAwUCHQEBGBgYAQMZGxkeCQQBCQsFBQUFEQECAgIeAgICHh4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIXAgAAAAAAAAAAAAABGxwcGx8YHx8YGAEFEQsLBQICHh4CAQUYGBgdHR0DAwMDAxwYAh4FBQIZHBwbGxgYBQUFAwULAwMFBQIdAQICGBgYFwMDGAIBAQULBQkEAQUHAh4eAgIBAgEBAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABcBAAAAAAAAAAAAABocHBsfGB0fGBgBCQEeAQUFAh4CAgICARgYGB8dGQMDAwMDGwICAQUBHxccHBwcGBgFBQoFCgoFBQUFAh0bIAECGBgYHAMYAh4CAQUBCQQBBQUCHgICAQQCAh4eAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAaHBwZHR0fHR0YAgEFAQECHgEJGBgYGB0YGBgfHx8cAwMcFwMbAgIFCRggGgMcHBwYGAUDAwULCgUFAwUCHRwgARgYGBgdAxgCAh4JAR4CAh4BBQIeAh4CAQICAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABGhwcGR0dHx8dAgEFBQEEBAQJHgEYGBgdHxgYGB8fGQMDAx0ZAxoBBQkBAiADAxwDHBgYBQMcBQUPBQUDBQIBHBcFAhgYGBgdGBgCAgEBHh4eHgIFAQICAgQCHh4CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXGhoXGhscHBkfHx0dAgEFBQkCBAQEBAQJGBgYHx8dGBgfHx8aAwMcGCADHQEBAgEBFwMDHAMcGBgFAwMDBQsFAxsFAgEcFwEBGBgYGBgBHRgYGAEBAgEBAQIBHgICAh4CAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZFxwcHBwbHBwZHx8fHwEUBQECHgQEAR4CAQQCGB8fHx0YHRkfHwMDHBwYAwMCAh4BBQEaAwMcAwMYGAUDHBwDCwMbGwUCHQMbFwkYGBgYGAEZGB0dAQEBAgIBAAAAAh4CAgIJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXGxwcHBobGxwcGR8fGRkYAQEeAgIeBAEeAgIeBAQCHx8fGBgfGRkBHAEdAxoDAQICHgUFFwMDAwMDAxgYBQMcAwoLBRwbBQIdAxsXFxgYGBgYAQEdGB0FBQEdIAAAAAACAQkeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFxwDHBsZABkbAxoZGRkZHwIJAgIJHgIEHgIYGAICBAIdHx8YHxkZGRsZGB0DAwMdAh4BBQEXAwMDAwMDGBgFBQMFCgsFBRsFAh0DHBoXGBgdGBgBGgEdAgUBHQEXAAAAAAEFCQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaGhwcGgAAABsaGRkZGRkCBAICAQECCQECHR8dHQIBCQIfHx8ZGRkXGx0YHQMDAwICAQUFAgMDGwMDGx0YGAUFAxwDDwUbGwUCHQMDGhsdGBgYGAEaARkdARcZFxofAAAeAQEFIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXHBwgAAABGhkZGRkZHwIJHh4EAgIBAhgfHx8fGAIEAh8fGRcZGRsXGBgYGwMBAQIFBQICAx0YAwMYGB0dBQoDAwMKAxsbBQIdAwMbGxoYGBgYHQEXGh0YAQEBGgEAAAIeAQECAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABcDHBkAARoZGRkZGRkCAQICAQECGAECHx8fHx8fHgkCHxkBFxkXHB0YGBgXAwIFBQUBAgEBAgEDARgdHR0FCgMDAwUDHBsFAh0DAwMbHB0YHRgYGxoaGR0ZAQEBGhcAAgIJAgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABHBwbGxoaGRkZFxkZGQIJAhgCAhgfAgIfHxkZGR8YAh8ZARcZIBwXGBgdGAEBAgIBHh4BAwMdAwMYGB0fHQUKAwMDAwMcHAUCGAMDAxocGhgdHRgaGxoaAR0ZGxoXGhceAQEeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARwcHBwDGxkZGQEBGRkXAgIYHQECGB8eAQIZGRkZHwIeHxkXARkaHBkYGB0YHR0CAh4CAQEDAwMQARgdGRkdBQoDAwMDAxwcBQIYAwMDGxwcGR0fGB8bGxsbGR0aHBsaAR4JAh4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBscHBwDAxsZGSAXFxkZFxoCAh8fAh4ZIAIBHiAXFxkfAh8XFxcZFxwbGBgfHx0YGAICAgEBAQMDAwMdHRkZGR0FCgMDAwMDAxwFAhgBAwMcHAMaGB8dGBkcGxsbFx0BHBwBAgEeGRoBAAAAAAAAAAAAAAAAAAAAAAAAAAAAABsDAxwcAwMDGRkZIAEBGRcaGiAeGRkeAhkXGR4CGRcXGRkZFxcXFxkbAxcYGB8fHR0YGAIBAQEBAwMQFxgZAQEZHQULCgUDAwMDHAUCGAEDAwMcAxwdHx0YHRwcGxwbAR0XHB0eAR4XHBoBAAAAAAAAAAAAAAAAAAAAAAAAAAABHAMcHAMDAxsZGRcBAAEXFxobFwIZFwIeGRcXIB4CICAZGRcXFxcXGhwDHRgdHx8fHxgCAQEBAQEDAxAXHQEbGhkdBQsFBQUDAwMcBQIYHQMDAwMDAxodHx0YGQMcHAMbAR8XHQIJAhscHBwbFwAAAAAAAAAAAAAAAAAAAAAAARsDHBwDAwMDARkBAQAAIBcaGxsaGRkaIB4YFxcXHRggICAXFxcXGhsbAxsdHxkXGR8BASABAQEDAwMDAR0ZARsbARkFCwIBBQMDAwMFAhgYAwMDAwMDHBkdHx0fAwMbHBwbAR8CAQEYGxwcAxwcGgEBFwAAAAAAAAAAAAAAAAAbAxsbAwMDGhoZGRcXAAAXGhsbGxoXFxoXHwIXFxcBGRkXFxcXARocGwMDHx0fAwMZHwEBGgEBAxoDAwEdAQEaHBwaGQUJHR0FAwMDAwUCGBgBAwMDAQMDAR8fHx8XAwMbHAMbAR4FAhkaGhscAwMbGxwcGhkgAAAAAAAAAAAAFxwbGwMDHAEAFyAgIBcBARcaGxsaFxoaGhoXGRcXFxkXFxcXFxcbAxscAxkdHRkXFx8BAwMaAwMXGAMDAwMBARsDAxwaCSAdAgUDAwUDBQIdGBgBAxsYGwMcGR8fHx8aAwMcHBwBHgkeGgMbGhscAxwbGhsbHBwbAAAAAAAAAAAXGgEcAwMaICABIAAZFxkXGhobGhoaGhoaGhcXFxkXFxoXFxcBHAMDGwMbHR0fGRkfGQEKARgXAx0YAwMDCgMbHAMDAxwgARkgCgUDCgUFAgEdGBgDHAIXAwMZHR8fHxkDAwMcAx8CAQIZHAMcGxsbHBwcGgEBARwbFwAAAAAAAAEAABsDHAEZGQEAACAgABcaGxsaGhoaGhoXFxcXFxoaFxcXGhwDAxscAwEdHxkBFxkBAwoDHQEDHRgBARAPDwMDAwMKAxoBASALCgUFBQUgGQEYGAMDAQMQAxsZHx8fHQMDAwMDGAECAh0ZHAMDGxoaARoBAAAAGRocAQAAAAAAAAAAHAMaAgAgIAAAAAAAGRsbGhoaGhoaGSAXFxcaGhcXFxsDAwMcGwMDHx8ZGhAaGQEDCgoDAQoBHRgdBQoLCwoKDw8DGxwbAQEPBRcBBQIBARgYAxADEBADAxkfHx8fAxoaAxweBQIYHx8ZAwMDGxoAAAAAAAAAABcbAAAAAAAAAAEcAxcAACAAAAAAACAaGxsaGhoaGhkZFxoaGhcXARocAwMDAxscAxcdHyABAyAZHQEKDwsKCgoBGBgBAQMLDQsKAwEDAxwaAQUFAiAFIAEBGBgDAxAQAwMDFx8ZGR8fHR0ZGwIJAhgfHx0ZAwMDHBcAAAAAAAAAABoBAAAAAAAAFwMbAQAAAAAAAAAgGhobGxoaGhoXGQEaGhoXFyAaHBwDAwMbGwMcHx8fAQcDIBkfAQMPEhILAwEdHRgdAQMKBRsZAwoKAxsBAQoBAQUgGgEYGCABAxADHQMcHxkZGR8fHx8YAgkBIB8fHx8XAwMDGwAAAAAAAAAAFyAAAAAAAAEbHBcAAAAAAAAAAAEbGxwaAQEaGiAZFxoXFxcXARcbAwMDAxsDAxkdHxkBAA4DIB8dARAKEgsBHQEBHRgdARoBGQEKEg8DAxsXBQUFBRcbHRgdGBggEAMYAwMZGRkZGR8fHwIBARgZGR8fHx8cAwMcIAAAAAAAAAAXAQAAAAAAARwbGQAAAAAAAAAAGRsbHBoBARoXABkaGhcXFwAAFxsDAwMcHAMDHR0fICAADAoBGR0BGhsKEgUXAQEBHR0dAQEdAQMLDQoQAwEFDwoBFxwdHQEdGBgDEAEDAxkZGRkZGR8dAgkeHxkZGR8fHxkDAwMbAAAAAAAdGRcAAAAAAAABHBoAAAAAAAAAAAAgGhwcGxoaGgEAFxogIBcXARcbHAMDAxsDAxsdHxkZIAEAARcZGR0BGwMKEgsDAQEBAQEBARkBAQEKCgoKHAkPBSABARgBAwEdGAEQEAMDGxkZGRkZGR0eAR4gARkZGR8fHRkDAwMcGwEAAAAAAAAAAAAAAAEbIAAAAAAAAAAAAAAbHBwbGhoBAAAXAQAAFxcXGhsDAwMcHAMDGR8fGRcgICAgIAMBHQEaGwMKDQsKBQUDAQEZARoBAQEXAQoDAQ8FARodGAEKAx0dHQMQAwMcGRkZGRkZGAEBAhcXGRkZHx8fHwMDAwMDGwAAAAAAAAAAAAAAARsaAAAAAAAAAAAAABscHBsaGgQAABcAAAABFwAaHAMDAxwDAwMZHxkgFxcgGRkDCgMZHQEbGxoFDwUDCgsKAxsbAwMbAQEBAQMaDwUBAR0dBQsKAR8fAQMDGxwZFxcZGRkCCQIfFxcXGRkZHR8fGQMDAwMDAQAAAAAAAAAAAAAAFxcAAAAAAAAAAAAZHBwcGxcBAAAAAAAAABcbGhsDAwMDAwMDAx8fIBcXFxcZGgoKIB8dHQEaAQEXGgEBBQMBGwMKDwMcAQEdHQEUAQEBHR0FCgEZGR8fGwMbGRkXFxcZGQIJHhkXFxcBGRkZHx8fGgMDAwMbAQAAAAAAAAAAAAAgAQAAAAAAAAAAIBocAxwaAQAAAAAAAAAgGxsbHAMDAwMDAwMDGRkXFxcXFxcDCgMZGR8dHRkaAQEBAQEBHQEBAwoSCwoDGwEdAgUBAQEDAQEBGRkZGR8BAxsZGRcXFxcZHgUeGRcXFxcBGRkfHx8fAwMDAwMbAAAAAAAAAAAAAAAXAAAAAAAAAAABGxwcFwEAAAAAAAAAABcbHBscAwMDAwMDAwMZGQEAFxcXFwMPChogGQEBHRkbAwMBHQEBAQEcCgoLCwoDHAEBBRcdARADHR8ZICAZGR8DGxkXFwEEASAeBQIBFxcXFxcBGRkfHx8XAwMDAwMaAAAAAAAAAAAAABcZAAAAAAAAAAABHBoAAAAAAAAAAAABGhwcGxwDAwMDHAMDAxkXFwAgFxcXAw8LCgMBAwMdHQEcCgMbGxwcGxscAwoLCwoDGwEBAR0BCgMBGSAXFwEgHwMbGRcXAQAAAgEJGBkXFxcaGhcZGR8fHx8DAwMDAwMbAAAAAAAAAAAAACAAAAAAAAAAABccAQAAAAAAAAAAABocHBsaFxwDAwMDAwMDGRcgFxcgFxcXAw8SBwMKAR0dHRkbBQoPDwoDAxsBAw8NCwoDAQEBGgoKARkZFxcXFyAZAxoXFxcBAAACCQEdFxcAIBcXFxcBGR8ZHxwQAwMDAxwgAAAAAAAAAAAAAAAAAAAAAAAgGxwBAAAAAAAAAAAAGxwaGhoAGgMDAwMDAwMXICAXFwAEFxcXAwoFCgsFAQEdHQEXGwoLEgoPAwEDCw0LCgMBHQEKCwMBFwEgFxcgICAaARcXGQAAAAIFAhkXFwAAGRcaFxcZHx8fGQMBAwMDAxoAAAAAAAAAAAAAAAAAAAAAAB0bGwAAAAAAAAAAAAAbGwEBFwABAwMDAwMDEBogABcXAAQXFxcXGwMDCwsFGgEdHQEBAwoSDQ0KCgsNDwMDAxoBAQoDARkgAAEXFwAgFxkXFxcZAAAAAQkeFxcXAAAAFxoaFxkdHx8fFx0XAwMDHAEAAAAAAAAAAAAAAAAAAAAAABoaAAAAAAAAAAAAABsaAAAgIBsDAwMDAwMQGgAAAAEAARcXBwEXAQEDCgsKAQEdHRkDCg8NDQ0NDQoDARwKAwEBAQEZIBkAACAXFxcXIBcaGhcgAAIJAQIXFyAAAAAAFxoXFwAAAh8fHxkDAwMDIAAAAAAAAAAAAAAAAAAAAAAAIBoBAAAAAAAAAAAAGxcAAAAAGwMDAwMDAwMbAAAAAAABFyAAABcXGRkaAwMDGhkBHQEDBQoLCwcDHBoBGgoKAQEgARcXIAAAAxcXFxcXIBcaFyAAHgUCAhcXIAAAAAAXGhoXAAAAAh8fGQMDAwMZAAAAAAAAAAAAAAAAAAAAAAAAGhoBAAAAAAAAAAAaIAAAAAABAwMDAwMDAwMAAAAAABcXGQAABwAXGQEZAQEaAQEBHQEaHAMcGxsbARkBAwoDGgAAARcXAAAKAxcXFwEAFxcXIAABBR4BARcXAAAAABcaGhcAAAAAHx8ZAwMDAwEAAAAAAAAAAAAAAAAAAAAAAAAXGxcAAAAAAAAAACAXAAAAAAEDAwMQAwMDAxcAAAABFwcAAAAAAAAHAR0dAQEbARoBHQEBAQEBAQEBHR0BDwocAAAAGRcXAA4KGxcXGQAAGRcgAQUFAgAAAAAAAAAAFxoaGQAAAAAdGRkXAwMDGgAAAAAAAAAAAAAAAAAAAAAAAAAXGgAAAAAAAAAAACAAAAAAABwDAxAQAwMDAwAAAAABAAAAAAAAAAAAAR0ZARwbAwMBHR0BAQEBAQEBAQULChsAAAAZFwEACwobFxcXAAAZFyABCgUBAAAAAAAAAAAaGhcgAAAAAAACHxkDAwMcAAAAAAAAAAAAAAAAAAAAAAAAAAAXAAAAAAAAAAAAAAAAAAAAABsDAxADAwMDAQAAAAABAAAAAAoAAAAMIAEbAwMKCgMZAQEaAQEBBQMFDQsDAQAAABcaAAALDgAXFxcgAAAgIAULBQEAAAAAAAAAARoaAQAAAAAAAAAfGQMDAwMBAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAFwMDEAMaAwMDAAAAAAAAAAAKCgoAAAwXARwDCg8FARkZGgUDAQEOCw0SChsaAAAAFwAACwoAAAAXFxkAAAACBQUFBQIAAAAAAAAXGgEAAAAAAAAAACAZHAMDAwEAAAAAAAAAAAAAAAAAAAAAAAAAAgEAAAAAAAAAAAAAAAAAAAAaAwMQAwEbAwMaAAAAAAAAAAoSAAAABxkbAwMKDxoBGQEDDwMBAQUNCwocAQMAAAAAAAAAAAAAAAEXIAAAAAIFAwEFAgAAAAAAABcgAAAAAAAAAAAdGRkXAwMDAQAAAAAAAAAAAAAAAAAAAAAAAAAABAQAAAAAAAAAAAAAAAAAABoDHAMDAAEDAwMBAAAAAAAADg8AAAEgGgMDAw8LAQEZGRoDGgEbCwsDGgEBAQoLAAMHAAAAAAAAARcgAAAAAQEDAQEAAAAAAAAABAIAAAAAAAAAAAABIBkDAwMBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQMXAwMaAQMDAwMBAAAAAAAAAAAHFwEcDwMDDw0OAxsBGQEBAwoLAwEBGQEBAw8AAAEAAAAAAAABAQAAAB4JAwEBAAAAAAAAAAAAIAAAAAAAAAAAAAAfGQMDGgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAXAwMDAQEDAwMBAAAAAAAAAAEaAQMLCwMKEg0NDwEBGRoKCgEBAQEBAQEDCgAAGhcAAAAAAAEZAAAeBQUDAQEAAAAAAAAAAAAAAAAAAAAAAAAAAB8ZAwMBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABcDAxsBAAEDAxwAAAAAAAAAARoBGwoLCgMKCxINCgMBARoXAQMaAQEBAwoLAAEXFwAAAAAAIAEAAAIFBQsFAQQAAAAAAAAAAAAAAAAAAAAAAAAAHxkDGwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBwDAQAAABoDHAAAAAAAAAADGQEaHAMKBRwDCgsSDxwBAQEDCgEBAQMKCwAHGhcAAAAAAAAgAAAAAAEBBQEFAQAAAAAAAAAAAAAAAAAAAAAAAAAYGQMbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhsAAAAAAQMDAQEAAAAAAAUBARkBGxscAQEaBQ0LBQEBARsBAQEDDgAAABcBAwAAAAAAAAAAAAAAHgEaAQEBAAAAAAAAAAAAAAAAAAAAAAAAABgXAxoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABGyAAAAAaAwMDGQAAAAAADhsBAR0BAQEbAQEBCg0PGwEBAQEDBwAADAMXGgMAAAAAAAAAAAAAAAAeBQUBAgAAAAAAAAAAAAAAAAAAAAAAAAAAHwMDIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXIAAAABccAwMaAAAAAAAAAxoZHR8ZAQEbARkDCw8DAQEZHAAAAAAAAwMAAAAAAAAAAAAAAAAAAB4FBR4AAAAAAAAAAAAAAAAAAAAAAAAAAAAZAxwgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAQBAwMMAAAAAAAAAAEAARkZAQUDGwoSChwBAQEcAAAMAAAAAAAAAAAAAAAAAAAAAAAAAgcBAgAAAAAAAAAAAAAAAAAAAAAAAAAAABoDFwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAEbAwAAAAAAAAAAAAAAIAEBCgoKCwsDARkBGgAAAAoAAAAAAAAAAAAAAAAAAAAAAAACBR4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEDAAAAAAAAAA4AAAAgARwKDQsFAxoBARcHAAALCgAAAAAAAAAAAAAAAAAAAAAAAgEBHgAAAAAAAAAAAAAAAAAAAAAAAAAAABcaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBsAAAAAAAALCgAAABkbEAsLBRoBGQEBGwAACw8KAAAAAAAAAAAAAAAAAAAAAAACBQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAgGxkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaAQAAAAAAAAsLAAAXAQMPDQMaARcHAQcAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAIFHgAAAAAAAAAAAAAAAAAAAAAAAAAYAiABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABoZAAAAAAAAAAAAAAEDChIHFxcgBwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgkeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARcAAAAAAAAAAAABAwoLDQEBGQEAAAAAAw4AAAAAAAAAAAAAAAAAAAAAAAAAAAACAQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAQAAAAAAAAAABsQCw0NAQEZIAQAAAADCwAAAAAAAAAAAAAAAAAAAAAAAAAAHgEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHA4NDAwBAQEZIAAAAAoLCgAAAAAAAAAAAAAAAAAAAAAAAAACBQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADCwAMDwUBAQEZAQAAAAsKAAAAAAAAAAAAAAAAAAAAAAAAAAIBAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwKCwALDwobARoXAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMKAAAKCwsFAxoXBwAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKCw0LAxoXAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALCxIPAwEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoLAAAADAobFwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABRoHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEaIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+const bossPal32 = new Uint32Array(33);
+const bossIsFirePal = new Uint8Array(33);
+const bossIsGemPal = new Uint8Array(33);
+for (let i = 0; i < 32; i++) {
+  bossPal32[i + 1] = hex32(BOSS_PAL_HEX[i]);
+}
+// Strictly only true flame core colors, NEVER crimson robe (3, 16, 27, 28) or gold robe trims (11, 13, 20)!
+[10, 15, 18, 22].forEach(k => { bossIsFirePal[k] = 1; });
+[11, 13, 20].forEach(k => { bossIsGemPal[k] = 1; });
+
+const bossGrid = new Uint8Array(BOSS_SPRITE_W * BOSS_SPRITE_H);
+(function decodeBossSprite() {
+  const bin = atob(BOSS_B64_GRID);
+  for (let i = 0; i < bin.length; i++) {
+    bossGrid[i] = bin.charCodeAt(i);
+  }
+})();
+
+function renderAshLordToBuf(pose, time) {
+  if (isShattered) return;
+
+  const { cx, baseY, tipSway, bodyTilt, wobbleAmp, wobblePhase, glowBoost, soulMode, hitWhite, fractureProgress, staffRaise, clawReach, capeFlare } = pose;
+  const swayX = tipSway * 0.50 + bodyTilt * 12;
+
+  const shadowRx = 46;
+  const shadowRy = 9;
+  const shadowCy = ARENA_CY - 1;
+  const glowCol = soulMode ? PAL.soulMid : PAL.fireMid;
+  for (let dy = -shadowRy; dy <= shadowRy; dy++) {
+    const py = shadowCy + dy;
+    if (py < 0 || py >= VH) continue;
+    for (let dx = -shadowRx; dx <= shadowRx; dx++) {
+      const px = Math.round(cx) + dx;
+      if (px < 0 || px >= VW) continue;
+      const d = (dx / shadowRx) ** 2 + (dy / shadowRy) ** 2;
+      if (d <= 1.0) {
+        const idx = py * VW + px;
+        buf32[idx] = blend32(buf32[idx], glowCol, (0.45 + glowBoost * 0.38) * (1 - d * 0.65));
+      }
+    }
+  }
+
+  const anchorX = cx + swayX * 0.35;
+  const anchorY = baseY + 6;
+
+  const torchOffsetY = -staffRaise * 0.65 + Math.sin(time * 3.0 - 0.8) * 1.5;
+  const torchOffsetX = staffRaise * 0.16;
+  pose.staffCoreX = Math.round(anchorX + (114 - 66) + torchOffsetX);
+  pose.staffCoreY = Math.round(anchorY - (125 - 24) + torchOffsetY);
+  pose.clawHandX  = Math.round(anchorX + (28 - 66) - clawReach * 0.50);
+  pose.clawHandY  = Math.round(anchorY - (125 - 64) - clawReach * 0.30);
+
+  const yStart = Math.max(2, Math.floor(anchorY - BOSS_SPRITE_H - 18));
+  const yEnd   = Math.min(VH - 2, Math.ceil(anchorY + 12));
+  const xStart = Math.max(2, Math.floor(anchorX - BOSS_SPRITE_W * 0.65 - 18));
+  const xEnd   = Math.min(VW - 2, Math.ceil(anchorX + BOSS_SPRITE_W * 0.65 + 18));
+
+  for (let py = yStart; py <= yEnd; py++) {
+    const rowOff = py * VW;
+    const rawSy = 125 - (anchorY - py);
+    if (rawSy < -10 || rawSy >= 134) continue;
+
+    const vNorm = Math.max(0, Math.min(1, (125 - rawSy) / 125));
+    let rowShiftX = swayX * Math.pow(vNorm, 1.35);
+    if (wobbleAmp > 0.02) {
+      rowShiftX += Math.sin(vNorm * 10.0 + wobblePhase) * wobbleAmp;
+    }
+
+    for (let px = xStart; px <= xEnd; px++) {
+      let sx = 66 + (px - (anchorX + rowShiftX));
+      let sy = rawSy;
+
+      const staffAxisX = 109 - (sy - 25) * 0.19;
+      const isStaffZone = (sx > 90 && sx > staffAxisX - 12) || (sy < 44 && sx > 96);
+
+      if (isStaffZone) {
+        sy -= torchOffsetY;
+        sx -= torchOffsetX;
+        if (sy < 40 && sx > 100) {
+          sx += Math.sin(sy * 0.35 + time * 16.0) * 0.75;
+        }
+      } else {
+        if (sy > 92) {
+          const tailT = Math.min(1, (sy - 92) / 33.0);
+          const sWave = Math.sin(tailT * 4.5 - time * 8.0) * (2.6 * tailT * tailT);
+          sx -= sWave;
+        }
+        if (sx < 38 && sy >= 36 && sy <= 94) {
+          const w = Math.pow((38 - sx) / 38.0, 1.6);
+          sy -= (Math.sin(sx * 0.22 - time * 6.5) * 1.8 - capeFlare * 3.0) * w;
+          sx -= (-capeFlare * 3.2) * w;
+        }
+      }
+
+      const isx = Math.round(sx);
+      const isy = Math.round(sy);
+      if (isx < 0 || isx >= BOSS_SPRITE_W || isy < 0 || isy >= BOSS_SPRITE_H) continue;
+
+      const sIdx = isy * BOSS_SPRITE_W + isx;
+      const pIdx = bossGrid[sIdx];
+      if (pIdx === 0) continue;
+
+      if (hitWhite) {
+        buf32[rowOff + px] = PAL.white;
+        continue;
+      }
+
+      if (fractureProgress > 0.05) {
+        const crack1 = Math.abs((isx - 66) - (isy - 58) * 0.75 + Math.sin(isy * 0.4) * 3.0);
+        const crack2 = Math.abs((isx - 66) + (isy - 52) * 0.85 + Math.cos(isx * 0.4) * 3.0);
+        if (crack1 < 1.6 * fractureProgress || crack2 < 1.6 * fractureProgress) {
+          buf32[rowOff + px] = PAL.white;
+          continue;
+        }
+      }
+
+      if (showLayers) {
+        const isBorder = (
+          isx === 0 || isx === 127 || isy === 0 || isy === 127 ||
+          bossGrid[sIdx - 1] === 0 || bossGrid[sIdx + 1] === 0 ||
+          bossGrid[sIdx - 128] === 0 || bossGrid[sIdx + 128] === 0
+        );
+        if (isBorder) buf32[rowOff + px] = PAL.dbgOutline;
+        else if (bossIsFirePal[pIdx]) buf32[rowOff + px] = PAL.dbgCaustic;
+        else if (bossIsGemPal[pIdx]) buf32[rowOff + px] = PAL.dbgGloss;
+        else buf32[rowOff + px] = PAL.dbgBody;
+        continue;
+      }
+
+      let col = bossPal32[pIdx];
+      if (isy <= 42 && isx >= 96 && bossIsFirePal[pIdx]) {
+        const flameWave = Math.sin(isy * 0.32 + time * 16.0 + Math.sin(isx * 0.35 - time * 10.0));
+        if (soulMode) {
+          col = (pIdx === 22 || pIdx === 18 || flameWave > 0.4) ? PAL.soulCore : PAL.soulBright;
+        } else if (flameWave + glowBoost * 0.5 > 0.45) {
+          col = PAL.fireCore;
+        }
+      }
+
+      buf32[rowOff + px] = col;
+    }
+  }
+}
+
+// ============================================================================
+// 9B. ORIGINAL 7-LAYER TRANSLUCENT PIXEL SLIME RASTERIZER (100% Restored!)
+// ============================================================================
+function renderAfterimages() {
+  for (let i = afterimages.length - 1; i >= 0; i--) {
+    const ai = afterimages[i];
+    const alpha = (ai.life / ai.maxLife) * 0.38;
+    const yMin = Math.max(4, Math.floor(ai.baseY - ai.h));
+    const yMax = Math.min(VH - 4, Math.ceil(ai.baseY));
+    const xMin = Math.max(4, Math.floor(ai.cx - ai.rx));
+    const xMax = Math.min(VW - 4, Math.ceil(ai.cx + ai.rx));
+    for (let y = yMin; y <= yMax; y += 2) {
+      const v = (ai.baseY - y) / ai.h;
+      const halfW = Math.pow(Math.cos(v * Math.PI * 0.5), 0.8);
+      for (let x = xMin; x <= xMax; x += 2) {
+        const u = (x - ai.cx) / ai.rx;
+        if (Math.abs(u) <= halfW) {
+          const idx = y * VW + x;
+          buf32[idx] = blend32(buf32[idx], PAL.waterBright, alpha);
+        }
+      }
+    }
+  }
+}
+
+function renderSlimeToBuf(pose, time) {
+  if (isShattered) return;
+
+  const { cx, baseY, rx, h, tipSway, bodyTilt, puddleMelt, wobbleAmp, wobblePhase, glowBoost, hitWhite, fractureProgress, eyeMode, mouthMode } = pose;
+
+  const airHeight = Math.max(0, (ARENA_CY - 3) - baseY);
+  const shadowScale = Math.max(0.48, 1 - airHeight * 0.0085);
+  const shadowRx = Math.round(rx * 0.94 * shadowScale);
+  const shadowRy = Math.max(4, Math.round(8.5 * shadowScale));
+  const shadowCy = ARENA_CY - 1;
+
+  for (let dy = -shadowRy - 2; dy <= shadowRy + 2; dy++) {
+    const py = shadowCy + dy;
+    if (py < 0 || py >= VH) continue;
+    for (let dx = -shadowRx - 4; dx <= shadowRx + 4; dx++) {
+      const px = Math.round(cx) + dx;
+      if (px < 0 || px >= VW) continue;
+      const d = (dx / shadowRx) ** 2 + (dy / shadowRy) ** 2;
+      if (d <= 1.0) {
+        const idx = py * VW + px;
+        if (darkTheme || glowBoost > 0.2) {
+          buf32[idx] = blend32(buf32[idx], PAL.jelly3, 0.35 + glowBoost * 0.35);
+        } else {
+          buf32[idx] = blend32(buf32[idx], hex32('#9ab09e'), 0.45 * (1 - d * 0.5));
+        }
+      }
+    }
+  }
+
+  insideMask.fill(0);
+
+  const yMin = Math.max(2, Math.floor(baseY - h * 1.12));
+  const yMax = Math.min(VH - 3, Math.ceil(baseY + 12));
+  const xMin = Math.max(2, Math.floor(cx - rx * 1.42));
+  const xMax = Math.min(VW - 3, Math.ceil(cx + rx * 1.42));
+
+  for (let y = yMin; y <= yMax; y++) {
+    const rowOff = y * VW;
+    for (let x = xMin; x <= xMax; x++) {
+      const uApprox = (x - cx) / rx;
+      const botCurve = 6.8 * Math.max(0, 1.0 - uApprox * uApprox) * (1.0 - puddleMelt * 0.55);
+      const v = (baseY + botCurve - y) / h;
+      if (v < 0.0 || v > 1.03) continue;
+
+      let centerShift = tipSway * Math.pow(v, 1.85) + bodyTilt * v * 16.0;
+      if (wobbleAmp > 0.01) {
+        centerShift += Math.sin(v * 10.5 + wobblePhase) * wobbleAmp * Math.sin(v * Math.PI);
+      }
+
+      const u = (x - (cx + centerShift)) / rx;
+
+      let halfW = 0;
+      if (v < 0.14) {
+        const tb = (0.14 - v) / 0.14;
+        halfW = Math.sqrt(Math.max(0, 1.0 - 0.15 * tb * tb));
+      } else {
+        const tv = (v - 0.14) / 0.86;
+        if (tv > 1.0) continue;
+        const dome = Math.pow(Math.cos(tv * Math.PI * 0.5), 0.76);
+        const pinch = 0.21 * Math.sin(Math.max(0, (tv - 0.50) / 0.50) * Math.PI);
+        const dropW = Math.max(0, (dome - pinch) * (1.0 - Math.pow(tv, 4.6)));
+        if (puddleMelt > 0.01) {
+          const flatDome = Math.sqrt(Math.max(0, 1.0 - tv * tv));
+          halfW = flatDome * puddleMelt + dropW * (1.0 - puddleMelt);
+        } else {
+          halfW = dropW;
+        }
+      }
+
+      if (wobbleAmp > 0.02) {
+        halfW += Math.cos(v * 14.0 - wobblePhase * 1.2) * (wobbleAmp * 0.012);
+      }
+
+      if (halfW < 0.015) continue;
+
+      const dist = Math.abs(u) - halfW;
+      if (dist <= 0.0) {
+        const idx = rowOff + x;
+        insideMask[idx] = 1;
+        uGrid[idx] = u;
+        vGrid[idx] = v;
+        edgeDistGrid[idx] = dist / Math.max(0.12, halfW);
+      }
+    }
+  }
+
+  for (let y = yMin; y <= yMax; y++) {
+    const rowOff = y * VW;
+    const bayerRow = BAYER4[y & 3];
+    for (let x = xMin; x <= xMax; x++) {
+      const idx = rowOff + x;
+      if (!insideMask[idx]) continue;
+
+      if (hitWhite) {
+        buf32[idx] = PAL.white;
+        continue;
+      }
+
+      const u = uGrid[idx];
+      const v = vGrid[idx];
+      const normDist = edgeDistGrid[idx];
+
+      if (fractureProgress > 0.05) {
+        const c1 = Math.abs(u * 40 - (v - 0.45) * 35 + Math.sin(v * 18) * 3);
+        const c2 = Math.abs(u * 40 + (v - 0.42) * 35 + Math.cos(u * 18) * 3);
+        if (c1 < 1.8 * fractureProgress || c2 < 1.8 * fractureProgress) {
+          buf32[idx] = PAL.white;
+          continue;
+        }
+      }
+
+      const isOuter1px = (
+        !insideMask[idx - 1] || !insideMask[idx + 1] ||
+        !insideMask[idx - VW] || !insideMask[idx + VW]
+      );
+      const isOuter2px = !isOuter1px && (
+        !insideMask[idx - VW - 1] || !insideMask[idx - VW + 1] ||
+        !insideMask[idx + VW - 1] || !insideMask[idx + VW + 1]
+      );
+
+      if (isOuter1px || (isOuter2px && v < 0.85)) {
+        if (showLayers) {
+          buf32[idx] = PAL.dbgOutline;
+        } else {
+          if (v > 0.55 && u < 0.15) buf32[idx] = PAL.outTop;
+          else if (v > 0.12) buf32[idx] = PAL.outMid;
+          else buf32[idx] = PAL.outBot;
+        }
+        continue;
+      }
+
+      if (normDist > -0.075 && v > 0.12) {
+        buf32[idx] = showLayers ? PAL.dbgOutline : (u < 0 ? PAL.rimInner : PAL.rimInnerBot);
+        continue;
+      }
+
+      const dLight = Math.hypot((u + 0.22) * 0.82, (v - 0.62) * 1.05);
+      const dither = useDither ? (bayerRow[x & 3] * 0.095) : 0;
+      const shadeVal = dLight + dither;
+
+      let col = PAL.jelly3;
+      if (glowBoost > 0.35) {
+        if (shadeVal < 0.30) col = PAL.charge0;
+        else if (shadeVal < 0.55) col = PAL.charge1;
+        else if (shadeVal < 0.82) col = PAL.charge2;
+        else col = PAL.charge3;
+      } else {
+        if (shadeVal < 0.22) col = PAL.jelly0;
+        else if (shadeVal < 0.40) col = PAL.jelly1;
+        else if (shadeVal < 0.58) col = PAL.jelly2;
+        else if (shadeVal < 0.78) col = PAL.jelly3;
+        else if (v > 0.14) col = PAL.jelly4;
+        else col = PAL.jelly5;
+      }
+
+      if (showLayers) col = PAL.dbgBody;
+
+      const baseOvalDist = (u / 0.78) ** 2 + ((v - 0.11) / 0.105) ** 2;
+      if (baseOvalDist <= 1.0) {
+        if (showLayers) {
+          col = PAL.dbgCaustic;
+        } else {
+          const causticDist = ((u - 0.08) / 0.42) ** 2 + ((v - 0.09) / 0.045) ** 2;
+          if (causticDist <= 1.0) {
+            col = (causticDist + dither * 1.5 < 0.65) ? PAL.caustic : PAL.jelly2;
+          } else {
+            col = (baseOvalDist + dither < 0.6) ? PAL.baseShadow : PAL.baseDeep;
+          }
+        }
+      }
+
+      if (normDist >= -0.34 && normDist <= -0.14 && u < -0.16) {
+        if (v >= 0.33 && v <= 0.68) {
+          const isGlossCore = (normDist >= -0.28 && normDist <= -0.18 && v >= 0.37 && v <= 0.64);
+          col = showLayers ? PAL.dbgGloss : (isGlossCore ? PAL.glossCore : PAL.glossSoft);
+        } else if (v >= 0.18 && v <= 0.25 && normDist >= -0.28 && normDist <= -0.17) {
+          col = showLayers ? PAL.dbgGloss : PAL.glossCore;
+        }
+      }
+
+      if (normDist >= -0.20 && normDist <= -0.09 && u > 0.24 && v >= 0.18 && v <= 0.58) {
+        col = showLayers ? PAL.dbgGloss : PAL.rimRight;
+      }
+
+      if (!showLayers && normDist < -0.25 && v > 0.55) {
+        col = blend32(buf32[idx], col, 0.90);
+      }
+
+      buf32[idx] = col;
+    }
+  }
+
+  if (!hitWhite) {
+    internalBubbles.forEach(b => {
+      const animV = ((b.v + time * b.speed) % 0.64) + 0.14;
+      const sloshU = b.u + Math.sin(time * 2.4 + b.phase) * 0.045 + (tipSway / rx) * 0.25;
+      const bx = Math.round(cx + sloshU * rx + tipSway * Math.pow(animV, 1.85));
+      const by = Math.round(baseY + 3 - animV * h);
+      const rInt = Math.ceil(b.r);
+
+      for (let dy = -rInt; dy <= rInt; dy++) {
+        const py = by + dy;
+        if (py < 0 || py >= VH) continue;
+        for (let dx = -rInt; dx <= rInt; dx++) {
+          const px = bx + dx;
+          if (px < 0 || px >= VW) continue;
+          const idx = py * VW + px;
+          if (!insideMask[idx]) continue;
+          const d = Math.hypot(dx, dy);
+          if (d >= b.r - 1.1 && d <= b.r + 0.25) {
+            buf32[idx] = showLayers ? PAL.dbgFluid : PAL.bubbleRing;
+          } else if (dx === -Math.round(b.r * 0.35) && dy === -Math.round(b.r * 0.35)) {
+            buf32[idx] = PAL.white;
+          }
+        }
+      }
+    });
+  }
+
+  if (!hitWhite) {
+    const faceShiftX = Math.round(tipSway * 0.22 + bodyTilt * 6);
+    const eyeY = Math.round(baseY - 0.34 * h);
+    const eyeSpan = Math.round(0.24 * rx);
+    const leftEyeX = Math.round(cx - eyeSpan + faceShiftX);
+    const rightEyeX = Math.round(cx + eyeSpan + faceShiftX);
+
+    const blushY = eyeY + Math.max(3, Math.round(0.11 * h));
+    const blushOffset = Math.round(0.14 * rx);
+    [leftEyeX - blushOffset, rightEyeX + blushOffset].forEach(bxCenter => {
+      for (let dy = -3; dy <= 3; dy++) {
+        const py = blushY + dy;
+        if (py < 0 || py >= VH) continue;
+        for (let dx = -7; dx <= 7; dx++) {
+          const px = bxCenter + dx;
+          if (px < 0 || px >= VW) continue;
+          const d = (dx / 7.2) ** 2 + (dy / 3.2) ** 2;
+          if (d <= 1.0) {
+            const idx = py * VW + px;
+            if (insideMask[idx] && (d < 0.55 || ((px + py) & 1) === 0)) {
+              buf32[idx] = showLayers ? PAL.dbgFluid : PAL.blush;
+            }
+          }
+        }
+      }
+    });
+
+    const eyeCol = showLayers ? PAL.dbgOutline : PAL.eyeDark;
+    [leftEyeX, rightEyeX].forEach((ex, idx) => {
+      if (eyeMode === 'blink') {
+        for (let dx = -4; dx <= 4; dx++) {
+          const arcY = Math.abs(dx) > 2 ? 1 : 0;
+          setBufPx(buf32, ex + dx, eyeY + arcY, eyeCol);
+          setBufPx(buf32, ex + dx, eyeY + arcY + 1, eyeCol);
+        }
+      } else if (eyeMode === 'happy') {
+        for (let dx = -4; dx <= 4; dx++) {
+          const dy = Math.round((dx * dx) / 4.5) - 2;
+          setBufPx(buf32, ex + dx, eyeY + dy, eyeCol);
+          setBufPx(buf32, ex + dx, eyeY + dy + 1, eyeCol);
+        }
+      } else if (eyeMode === 'hurt') {
+        const dir = idx === 0 ? 1 : -1;
+        for (let k = -4; k <= 4; k++) {
+          const ox = ex + dir * (3 - Math.abs(k));
+          setBufPx(buf32, ox, eyeY + k, eyeCol);
+          setBufPx(buf32, ox + 1, eyeY + k, eyeCol);
+        }
+      } else {
+        const eyRad = puddleMelt > 0.4 ? 4.2 : 6.2;
+        const exRad = 4.4;
+        for (let dy = -6; dy <= 6; dy++) {
+          for (let dx = -4; dx <= 4; dx++) {
+            if (eyeMode === 'fierce' && dy < -2 + (idx === 0 ? dx : -dx) * 0.55) continue;
+            if ((dx / exRad) ** 2 + (dy / eyRad) ** 2 <= 1.0) {
+              const isIrisGlow = (dy >= 2 && dy <= 4 && Math.abs(dx) <= 2);
+              setBufPx(buf32, ex + dx, eyeY + dy, isIrisGlow ? PAL.eyeGlow : eyeCol);
+            }
+          }
+        }
+        const hlY = eyeMode === 'fierce' ? eyeY - 1 : eyeY - 3;
+        setBufPx(buf32, ex - 2, hlY,     PAL.white);
+        setBufPx(buf32, ex - 1, hlY,     PAL.white);
+        setBufPx(buf32, ex - 2, hlY + 1, PAL.white);
+        setBufPx(buf32, ex - 1, hlY + 1, PAL.white);
+        setBufPx(buf32, ex + 2, eyeY + 2, PAL.white);
+      }
+    });
+
+    const mouthCx = Math.round(cx + faceShiftX);
+    const mouthCy = eyeY + Math.max(3, Math.round(0.11 * h));
+    if (mouthMode === 'smile') {
+      for (let dx = -5; dx <= 5; dx++) {
+        const dy = Math.round(2.8 - (dx / 3.1) ** 2);
+        setBufPx(buf32, mouthCx + dx, mouthCy + dy, eyeCol);
+        if (Math.abs(dx) <= 3) setBufPx(buf32, mouthCx + dx, mouthCy + dy + 1, eyeCol);
+      }
+    } else if (mouthMode === 'cat') {
+      for (let dx = -6; dx <= 6; dx++) {
+        const lobe = Math.abs(dx) - 3;
+        const dy = Math.round(2.2 - (lobe / 2.2) ** 2);
+        setBufPx(buf32, mouthCx + dx, mouthCy + dy, eyeCol);
+      }
+    } else if (mouthMode === 'open') {
+      for (let dy = -3; dy <= 4; dy++) {
+        for (let dx = -4; dx <= 4; dx++) {
+          const d = (dx / 4.2) ** 2 + (dy / 3.6) ** 2;
+          if (d <= 1.0) {
+            setBufPx(buf32, mouthCx + dx, mouthCy + dy, (d < 0.65 && dy > -1) ? PAL.mouthInner : eyeCol);
+          }
+        }
+      }
+    } else if (mouthMode === 'wavy') {
+      for (let dx = -6; dx <= 6; dx++) {
+        const dy = Math.round(Math.sin(dx * 1.1 + time * 12) * 1.4);
+        setBufPx(buf32, mouthCx + dx, mouthCy + dy, eyeCol);
+        setBufPx(buf32, mouthCx + dx, mouthCy + dy + 1, eyeCol);
+      }
+    }
+  }
+}
+
+// ============================================================================
+// 10A. BOSS PIXEL SPELL & SHATTER ENGINE (Mana Orbs, Turbulent Pixel Fire, Soul Lightning & 750+ Shards)
+// ============================================================================
+function updateAndRenderBossMagicAndShards(pose, dt, time) {
+  // 1. Staff Magic Casting Circle around Staff Torch Head
+  if (currentMonster === 'boss' && !isShattered && pose.castCircle > 0.05 && pose.staffCoreX) {
+    const scx = pose.staffCoreX;
+    const scy = pose.staffCoreY - 4;
+    const rad = Math.round(14 * pose.castCircle);
+    const col1 = pose.soulMode ? PAL.soulBright : PAL.fireBright;
+    const col2 = pose.soulMode ? PAL.soulCore : PAL.fireCore;
+    for (let a = 0; a < Math.PI * 2; a += 0.12) {
+      const rx = scx + Math.cos(a + time * 8) * rad;
+      const ry = scy + Math.sin(a + time * 8) * (rad * 0.75);
+      setBufPx(buf32, rx, ry, col1);
+    }
+    for (let i = 0; i < 4; i++) {
+      const a = time * 6 + (i * Math.PI * 0.5);
+      drawPixelLine(buf32, scx + Math.cos(a) * rad, scy + Math.sin(a) * rad * 0.75, scx - Math.cos(a) * rad, scy - Math.sin(a) * rad * 0.75, 0.6, col2);
+    }
+  }
+
+  // 2. Ranged Hellfire / Arcane Mana Orbs (Fired from Staff in Attack!)
+  for (let i = magicOrbs.length - 1; i >= 0; i--) {
+    const mo = magicOrbs[i];
+    mo.x += mo.vx * dt;
+    mo.y += mo.vy * dt;
+
+    spawnPixelSparks(3, mo.x - 4, mo.y, {
+      angleBase: Math.PI,
+      angleSpread: 0.7,
+      speedMin: 20,
+      speedMax: 55,
+      gravity: -25,
+      colors: [PAL.fireCore, PAL.fireBright, PAL.fireMid, PAL.fireDeep],
+      lifeMin: 0.12,
+      lifeMax: 0.28
+    });
+
+    if (mo.x >= mo.targetX) {
+      playPixelSfx('hit');
+      screenShake = 9;
+      spawnPopup(mo.dmgText, mo.targetX, mo.targetY - 28, "#d92b14", 1.25);
+      spawnStarExplosion(mo.targetX, mo.targetY, 28, 'fire');
+      shockRings.push({
+        x: mo.targetX, y: Math.min(ARENA_CY + 8, mo.targetY + 14),
+        rx: 8, ry: 2,
+        maxRx: 46, maxRy: 11,
+        life: 0.35, maxLife: 0.35,
+        inward: false, color: PAL.fireBright
+      });
+      magicOrbs.splice(i, 1);
+      continue;
+    }
+
+    const rInt = Math.ceil(mo.r);
+    for (let dy = -rInt - 2; dy <= rInt + 2; dy++) {
+      for (let dx = -rInt - 4; dx <= rInt + 2; dx++) {
+        const d = Math.hypot(dx < 0 ? dx * 0.65 : dx, dy);
+        const coronaNoise = Math.sin(dx * 0.8 + time * 24) * Math.cos(dy * 0.8 - time * 20) * 1.6;
+        const effD = d + coronaNoise;
+        if (effD <= mo.r) {
+          let col = PAL.fireMid;
+          if (effD > mo.r - 1.3) col = PAL.fireOut;
+          else if (d < mo.r * 0.42) col = PAL.fireCore;
+          else if (d < mo.r * 0.72) col = PAL.fireBright;
+          else if (effD > mo.r - 2.4) col = PAL.fireDeep;
+          setBufPx(buf32, mo.x + dx, mo.y + dy, showLayers ? PAL.dbgFluid : col);
+        }
+      }
+    }
+  }
+
+  // 3. Skill 1 (炎灼): Jagged Turbulent Pixel Fire Tornados
+  for (let i = fireColumns.length - 1; i >= 0; i--) {
+    const fc = fireColumns[i];
+    fc.life -= dt;
+    if (fc.life <= 0) {
+      fireColumns.splice(i, 1);
+      continue;
+    }
+    const p = 1 - fc.life / fc.maxLife;
+    if (p < fc.delay) continue;
+    const lp = (p - fc.delay) / (1 - fc.delay);
+    const env = lp < 0.22 ? (lp / 0.22) : Math.pow(1 - (lp - 0.22) / 0.78, 0.85);
+    const curH = Math.round(fc.maxH * env);
+    if (curH < 4) continue;
+
+    const baseRx = Math.round(fc.w * 1.3 * env);
+    const baseRy = 4;
+    for (let dy = -baseRy; dy <= baseRy; dy++) {
+      for (let dx = -baseRx; dx <= baseRx; dx++) {
+        const d = (dx / baseRx) ** 2 + (dy / baseRy) ** 2;
+        if (d <= 1.0) {
+          setBufPx(buf32, fc.x + dx, fc.baseY + dy, d < 0.45 ? PAL.fireCore : (d < 0.8 ? PAL.fireBright : PAL.fireMid));
+        }
+      }
+    }
+
+    for (let dy = 0; dy < curH; dy++) {
+      const py = fc.baseY - dy;
+      if (py < 2 || py >= VH - 2) continue;
+      const bayerRow = BAYER4[py & 3];
+      const hRatio = dy / curH;
+
+      const centerSway = Math.sin(dy * 0.11 - time * 16 + fc.seed) * (3.8 * hRatio);
+      const halfW = fc.w * (1.0 - hRatio * 0.68) * env;
+      const xSpan = Math.ceil(halfW + 5);
+
+      for (let dx = -xSpan; dx <= xSpan; dx++) {
+        const px = Math.round(fc.x + centerSway + dx);
+        if (px < 2 || px >= VW - 2) continue;
+
+        const u = Math.abs(dx) / Math.max(1.5, halfW);
+        const turb1 = Math.sin(dy * 0.28 + time * 24 + fc.seed + dx * 0.35);
+        const turb2 = Math.cos(dy * 0.55 - time * 30 - dx * 0.45) * 0.55;
+        const dither = useDither ? bayerRow[px & 3] * 0.22 : 0;
+
+        const heat = (1.15 - u) + (turb1 + turb2) * (0.28 + hRatio * 0.35) - hRatio * 0.35 + dither;
+        if (heat < 0.18) continue;
+
+        let col = PAL.fireMid;
+        if (showLayers) {
+          col = PAL.dbgFluid;
+        } else if (heat > 0.92 && hRatio < 0.65) {
+          col = PAL.fireCore;
+        } else if (heat > 0.62) {
+          col = PAL.fireBright;
+        } else if (heat > 0.38) {
+          col = PAL.fireMid;
+        } else if (heat > 0.24) {
+          col = PAL.fireDeep;
+        } else {
+          col = hRatio > 0.6 ? PAL.fireSmoke : PAL.fireOut;
+        }
+        buf32[py * VW + px] = col;
+      }
+    }
+  }
+
+  // 4. Skill 2 (灵击): 6 Wraith Soul Crystals + Jagged Pixel Lightning Chains
+  for (let i = soulMissiles.length - 1; i >= 0; i--) {
+    const sm = soulMissiles[i];
+    if (stateTime < 0.52 + sm.launchDelay) {
+      sm.angle += dt * 7.2;
+      sm.x = (pose.cx + 4) + Math.cos(sm.angle) * 62;
+      sm.y = (pose.baseY - 82) + Math.sin(sm.angle) * 12;
+      if (Math.random() < 0.35 && pose.staffCoreX) {
+        drawPixelLightning(pose.staffCoreX, pose.staffCoreY, sm.x, sm.y, PAL.soulCore, PAL.soulMid, 4.0);
+      }
+    } else {
+      if (!sm.launched) {
+        sm.launched = true;
+        sm.startX = sm.x;
+        sm.startY = sm.y;
+        playPixelSfx('fireball');
+      }
+      sm.flightP += dt * 3.2;
+      const p = Math.min(1, sm.flightP);
+      const arcLift = Math.sin(p * Math.PI) * (32 * (sm.idx % 2 === 0 ? -1 : 1));
+      sm.x = sm.startX + (sm.targetX - sm.startX) * p;
+      sm.y = sm.startY + (sm.targetY - sm.startY) * p + arcLift;
+      sm.trail.push({ x: sm.x, y: sm.y });
+      if (sm.trail.length > 8) sm.trail.shift();
+
+      if (p >= 1.0) {
+        screenShake = 10;
+        spawnStarExplosion(sm.targetX, sm.targetY, 26, 'soul');
+        if (pose.staffCoreX) {
+          drawPixelLightning(pose.staffCoreX, pose.staffCoreY, sm.targetX, sm.targetY, PAL.soulCore, PAL.soulBright, 8.0);
+        }
+        shockRings.push({
+          x: sm.targetX, y: Math.min(ARENA_CY + 10, sm.targetY + 8),
+          rx: 6, ry: 2,
+          maxRx: 42, maxRy: 10,
+          life: 0.36, maxLife: 0.36,
+          inward: false, color: PAL.soulBright
+        });
+        soulMissiles.splice(i, 1);
+        continue;
+      }
+    }
+
+    for (let t = 0; t < sm.trail.length - 1; t++) {
+      const p1 = sm.trail[t], p2 = sm.trail[t + 1];
+      drawPixelLine(buf32, p1.x, p1.y, p2.x, p2.y, 1.2, t > sm.trail.length - 4 ? PAL.soulBright : PAL.soulMid);
+    }
+
+    const ox = Math.round(sm.x), oy = Math.round(sm.y);
+    for (let dy = -7; dy <= 5; dy++) {
+      for (let dx = -5; dx <= 5; dx++) {
+        const md = Math.abs(dx) + Math.abs(dy < 0 ? dy * 0.75 : dy * 1.1);
+        if (md <= 5.2) {
+          let col = PAL.soulMid;
+          if (md > 4.1) col = PAL.soulOut;
+          else if (md < 1.8) col = PAL.soulCore;
+          else if (md < 3.1) col = PAL.soulBright;
+          setBufPx(buf32, ox + dx, oy + dy, showLayers ? PAL.dbgFluid : col);
+        }
+      }
+    }
+  }
+
+  // 5. Crisp 8-Point Pixel Starburst / Cross Arcane Explosions
+  for (let i = starExplosions.length - 1; i >= 0; i--) {
+    const se = starExplosions[i];
+    se.life -= dt;
+    if (se.life <= 0) {
+      starExplosions.splice(i, 1);
+      continue;
+    }
+    const p = 1 - se.life / se.maxLife;
+    const rad = se.maxR * Math.sin(p * Math.PI * 0.75);
+
+    let cCore = PAL.fireCore, cMid = PAL.fireBright, cOut = PAL.fireMid;
+    if (se.style === 'soul') {
+      cCore = PAL.soulCore; cMid = PAL.soulBright; cOut = PAL.soulMid;
+    } else if (se.style === 'aqua') {
+      cCore = PAL.waterFoam; cMid = PAL.waterBright; cOut = PAL.waterMid;
+    }
+
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const len = (k % 2 === 0) ? rad : rad * 0.62;
+      drawPixelLine(buf32, se.x, se.y, se.x + Math.cos(a) * len, se.y + Math.sin(a) * len, 2.0 * (1 - p * 0.6), cOut);
+      drawPixelLine(buf32, se.x, se.y, se.x + Math.cos(a) * (len * 0.75), se.y + Math.sin(a) * (len * 0.75), 1.0, cCore);
+    }
+    const ringR = se.maxR * p;
+    for (let s = 0; s < 4; s++) {
+      const a1 = (s / 4) * Math.PI * 2;
+      const a2 = ((s + 1) / 4) * Math.PI * 2;
+      drawPixelLine(buf32, se.x + Math.cos(a1) * ringR, se.y + Math.sin(a1) * ringR, se.x + Math.cos(a2) * ringR, se.y + Math.sin(a2) * ringR, 0.8, cMid);
+    }
+  }
+
+  // 6. Crisp 1x1 & 2x2 Square Pixel Embers, Water Droplets & Sparks
+  for (let i = pixelSparks.length - 1; i >= 0; i--) {
+    const ps = pixelSparks[i];
+    ps.life -= dt;
+    if (ps.life <= 0) {
+      pixelSparks.splice(i, 1);
+      continue;
+    }
+    ps.vy += ps.gravity * dt;
+    ps.x += ps.vx * dt;
+    ps.y += ps.vy * dt;
+
+    const floorY = ARENA_CY + 2;
+    if (ps.bounces > 0 && ps.y >= floorY && ps.vy > 0) {
+      ps.y = floorY;
+      ps.bounces--;
+      ps.vy = -ps.vy * 0.42;
+      ps.vx *= 0.72;
+      if (ps.puddleOnLand && Math.random() < 0.35) {
+        spawnGroundPuddle(ps.x, ps.y, 4.5 + Math.random() * 3.5);
+      }
+    }
+
+    const lifeRatio = Math.max(0, 1 - ps.life / ps.maxLife);
+    const colIdx = Math.min(ps.colors.length - 1, Math.floor(lifeRatio * ps.colors.length));
+    const col = showLayers ? PAL.dbgFluid : ps.colors[colIdx];
+
+    for (let dy = 0; dy < ps.size; dy++) {
+      for (let dx = 0; dx < ps.size; dx++) {
+        setBufPx(buf32, ps.x + dx, ps.y + dy, col);
+      }
+    }
+  }
+
+  // 7. 750+ TRUE PIXEL SHARDS SHATTER EXPLOSION PHYSICS (像素被消灭·爆开成碎片!)
+  if (isShattered && pixelShards.length > 0) {
+    for (let i = 0; i < pixelShards.length; i++) {
+      const sh = pixelShards[i];
+      if (!sh.settled) {
+        sh.vy += 260 * dt;
+        sh.vx *= (1 - 0.6 * dt);
+        sh.x += sh.vx * dt;
+        sh.y += sh.vy * dt;
+
+        if (sh.y >= sh.floorY && sh.vy > 0) {
+          sh.y = sh.floorY;
+          if (sh.bounces > 0 && Math.abs(sh.vy) > 18) {
+            sh.bounces--;
+            sh.vy = -sh.vy * (0.36 + Math.random() * 0.15);
+            sh.vx *= 0.68;
+          } else {
+            sh.settled = true;
+            sh.vx = 0;
+            sh.vy = 0;
+          }
+        }
+      }
+
+      if (sh.settled && Math.random() < 0.0015) {
+        spawnPixelSparks(1, sh.x, sh.y, {
+          angleBase: -Math.PI * 0.5,
+          angleSpread: 0.4,
+          speedMin: 15,
+          speedMax: 35,
+          gravity: -25,
+          colors: currentMonster === 'boss' ? [PAL.fireBright, PAL.fireMid] : [PAL.waterFoam, PAL.waterBright],
+          lifeMin: 0.3,
+          lifeMax: 0.6
+        });
+      }
+
+      const ix = sh.x | 0;
+      const iy = sh.y | 0;
+      const sz = sh.size;
+      for (let dy = 0; dy < sz; dy++) {
+        for (let dx = 0; dx < sz; dx++) {
+          setBufPx(buf32, ix + dx, iy + dy, showLayers ? PAL.dbgBody : sh.col);
+        }
+      }
+    }
+  }
+}
+
+// ============================================================================
+// 10B. SLIME 2D PIXEL WATER SPLASH & SURF CREST ENGINE (ZERO 3D METABALL BLOBS!)
+// Renders Slime's Attack Slash & Heavy Slam Water Splash in crisp 2D pixel art
+// with cellular turbulence, Bayer 4x4 dithering, and jagged pixel foam crests!
+// ============================================================================
+function updateAndRenderSlimePixelWaterSplash(pose, dt, time) {
+  if (currentMonster !== 'slime') return;
+
+  // 1. Slime Attack: Crisp 2D Pixel Crescent Hydro Slash
+  if (pose.slashWave > 0 && pose.slashWave < 1) {
+    const p = pose.slashWave;
+    const scx = pose.cx + 32;
+    const scy = pose.baseY - 40;
+    const a0 = -1.10 + p * 0.35;
+    const a1 = a0 + 1.70 * Math.sin(p * Math.PI);
+    for (let a = a0; a <= a1; a += 0.03) {
+      const taper = Math.sin(((a - a0) / Math.max(0.01, a1 - a0)) * Math.PI);
+      const thick = Math.round(1.5 + taper * 4.5);
+      const rad = 32;
+      const cx = scx + Math.cos(a) * rad;
+      const cy = scy + Math.sin(a) * rad * 1.15;
+      for (let r = -thick; r <= thick; r++) {
+        const px = Math.round(cx + Math.cos(a) * r);
+        const py = Math.round(cy + Math.sin(a) * r);
+        let col = PAL.waterMid;
+        if (r >= thick - 1) col = PAL.waterFoam;
+        else if (r >= 0) col = PAL.waterBright;
+        else if (r <= -thick + 1) col = PAL.waterOut;
+        setBufPx(buf32, px, py, showLayers ? PAL.dbgFluid : col);
+      }
+    }
+  }
+
+  // 2. Slime Attack: Crisp 2D Pixel High-Pressure Water Bolt Projectile
+  for (let i = waterProjectiles.length - 1; i >= 0; i--) {
+    const wp = waterProjectiles[i];
+    wp.life -= dt;
+    wp.x += wp.vx * dt;
+    wp.y += wp.vy * dt;
+
+    spawnPixelSparks(2, wp.x - 4, wp.y, {
+      angleBase: Math.PI,
+      angleSpread: 0.6,
+      speedMin: 20,
+      speedMax: 55,
+      gravity: 65,
+      colors: [PAL.waterFoam, PAL.waterBright, PAL.waterMid],
+      lifeMin: 0.12,
+      lifeMax: 0.25
+    });
+
+    if (wp.life <= 0 || wp.x > VW - 36) {
+      const hitX = Math.min(VW - 36, wp.x);
+      spawnStarExplosion(hitX, wp.y, 24, 'aqua');
+      waterProjectiles.splice(i, 1);
+      continue;
+    }
+
+    const rInt = Math.ceil(wp.r);
+    for (let dy = -rInt; dy <= rInt; dy++) {
+      for (let dx = -rInt - 5; dx <= rInt; dx++) {
+        const d = Math.hypot(dx < 0 ? dx * 0.58 : dx, dy);
+        const turb = Math.sin(dx * 0.7 + time * 24) * 1.1;
+        const effD = d + turb;
+        if (effD <= wp.r) {
+          let col = PAL.waterMid;
+          if (effD > wp.r - 1.2) col = PAL.waterOut;
+          else if (d < wp.r * 0.45) col = PAL.waterFoam;
+          else if (d < wp.r * 0.75) col = PAL.waterBright;
+          else col = PAL.waterDeep;
+          setBufPx(buf32, wp.x + dx, wp.y + dy, showLayers ? PAL.dbgFluid : col);
+        }
+      }
+    }
+  }
+
+  // 3. Slime Heavy Slam: 2D Pixel Angled Water Splash Plumes (飞溅而起的2D像素水花束)
+  for (let i = splashPlumes.length - 1; i >= 0; i--) {
+    const sp = splashPlumes[i];
+    sp.life -= dt;
+    if (sp.life <= 0) {
+      splashPlumes.splice(i, 1);
+      continue;
+    }
+    const p = 1 - sp.life / sp.maxLife;
+    // Fast burst outward, then gravity arc + pixel dissolution!
+    const grow = p < 0.28 ? Math.sin((p / 0.28) * Math.PI * 0.5) : 1.0;
+    const fade = p < 0.35 ? 1.0 : Math.pow(1 - (p - 0.35) / 0.65, 0.9);
+    const curLen = Math.round(sp.maxLen * grow);
+    if (curLen < 4) continue;
+
+    const dirX = Math.sin(sp.ang);
+    const dirY = -Math.cos(sp.ang * 0.62);
+    const perpX = -dirY;
+    const perpY = dirX;
+
+    for (let s = 0; s <= curLen; s++) {
+      const sRatio = s / curLen; // 0 at base, 1 at splash tip
+      // Parabolic gravity droop on the outer splash tip
+      const gravDrop = sRatio * sRatio * 18 * p;
+      const sway = Math.sin(s * 0.22 - time * 18 + sp.seed) * (2.5 * sRatio);
+      const cx = sp.baseX + dirX * s + perpX * sway;
+      const cy = sp.baseY + dirY * s + gravDrop;
+
+      // Taper at base and sharp pointed spray tip
+      const widthEnv = Math.sin(sRatio * Math.PI * 0.85) * (1 - sRatio * 0.45) * fade;
+      const halfW = sp.w * widthEnv;
+      const wSpan = Math.ceil(halfW + 3);
+
+      for (let w = -wSpan; w <= wSpan; w++) {
+        const px = Math.round(cx + perpX * w);
+        const py = Math.round(cy + perpY * w);
+        if (px < 2 || px >= VW - 2 || py < 2 || py >= VH - 2) continue;
+
+        const bayerVal = useDither ? BAYER4[py & 3][px & 3] * 0.22 : 0;
+        const u = Math.abs(w) / Math.max(1.2, halfW);
+        const turb1 = Math.sin(s * 0.34 - time * 24 + sp.seed + w * 0.45);
+        const turb2 = Math.cos(s * 0.58 - time * 28 - w * 0.35) * 0.5;
+
+        // Dissolve the tail & outer edges into detached 2D pixel water droplets as p increases!
+        const density = (1.12 - u) + (turb1 + turb2) * (0.28 + sRatio * 0.32) - (p * 0.42 * (1 - sRatio * 0.5)) + bayerVal;
+        if (density < 0.22) continue;
+
+        let col = PAL.waterMid;
+        if (showLayers) {
+          col = PAL.dbgFluid;
+        } else if (density > 0.88 || (sRatio > 0.72 && density > 0.52)) {
+          col = PAL.waterFoam; // Crisp white pixel spray tips!
+        } else if (density > 0.58) {
+          col = PAL.waterBright;
+        } else if (density > 0.38) {
+          col = PAL.waterMid;
+        } else if (density > 0.27) {
+          col = PAL.waterDeep;
+        } else {
+          col = PAL.waterOut; // Crisp 1px dark pixel outline!
+        }
+        buf32[py * VW + px] = col;
+      }
+    }
+  }
+
+  // 4. Slime Heavy Slam: Left & Right Sweeping 2D Pixel Breaking Surf Crests (向两侧掀起的2D像素碎浪花)
+  for (let i = surfCrests.length - 1; i >= 0; i--) {
+    const sc = surfCrests[i];
+    sc.life -= dt;
+    if (sc.life <= 0) {
+      surfCrests.splice(i, 1);
+      continue;
+    }
+    const p = 1 - sc.life / sc.maxLife;
+    const easeOut = 1 - Math.pow(1 - p, 2.1);
+    const curX = sc.startX + sc.dir * sc.maxDist * easeOut;
+    const env = p < 0.25 ? (p / 0.25) : Math.pow(1 - (p - 0.25) / 0.75, 0.9);
+    const curH = Math.round(sc.maxH * env);
+    if (curH < 4) continue;
+
+    // Render 2D pixel breaking wave fan curving outward & upward with jagged pixel foam teeth
+    for (let dy = 0; dy < curH; dy++) {
+      const py = sc.y - dy;
+      if (py < 2 || py >= VH - 2) continue;
+      const bayerRow = BAYER4[py & 3];
+      const hRatio = dy / curH; // 0 at ground, 1 at wave crest tip
+
+      // Outward C-curve wave lean + curling lip at the top crest
+      const leanOffset = sc.dir * (Math.pow(hRatio, 1.45) * 22 - Math.sin(hRatio * Math.PI) * 6);
+      const waveRipples = Math.sin(dy * 0.26 - time * 20 + sc.seed) * (2.8 * hRatio);
+      const rowCx = curX + leanOffset + waveRipples;
+
+      const halfW = sc.w * (1.0 - hRatio * 0.65) * env;
+      const xSpan = Math.ceil(halfW + 4);
+
+      for (let dx = -xSpan; dx <= xSpan; dx++) {
+        const px = Math.round(rowCx + dx);
+        if (px < 2 || px >= VW - 2) continue;
+
+        // Leading edge of the wave (facing sc.dir) gets bright white pixel foam teeth!
+        const leadSide = (dx * sc.dir) / Math.max(1.5, halfW); // +1 at leading outer edge, -1 at inner wake
+        const u = Math.abs(dx) / Math.max(1.5, halfW);
+        const turb1 = Math.sin(dy * 0.32 - time * 24 + sc.seed + dx * 0.38);
+        const turb2 = Math.cos(dy * 0.58 + time * 28 - dx * 0.42) * 0.55;
+        const dither = useDither ? bayerRow[px & 3] * 0.22 : 0;
+
+        const val = (1.12 - u) + (turb1 + turb2) * (0.28 + hRatio * 0.34) - hRatio * 0.28 + dither;
+        if (val < 0.20) continue;
+
+        let col = PAL.waterMid;
+        if (showLayers) {
+          col = PAL.dbgFluid;
+        } else if (hRatio > 0.72 || (leadSide > 0.35 && val > 0.45) || val > 0.90) {
+          col = PAL.waterFoam; // Jagged white pixel foam crest!
+        } else if (val > 0.60 || leadSide > 0.05) {
+          col = PAL.waterBright;
+        } else if (val > 0.38) {
+          col = PAL.waterMid;
+        } else if (val > 0.26) {
+          col = PAL.waterDeep;
+        } else {
+          col = PAL.waterOut; // Crisp 1px dark pixel outline!
+        }
+        buf32[py * VW + px] = col;
+      }
+    }
+  }
+}
+
+// ============================================================================
+// 11. SOFT-BODY RIG DEBUG OVERLAY
+// ============================================================================
+function drawPhysicsDebugOverlay(pose) {
+  if (!showPhysics || isShattered) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 255, 170, 0.85)';
+  ctx.lineWidth = Math.max(1.5, pxScale * 0.45);
+
+  const nodes = [];
+  const steps = 16;
+  for (let i = 0; i < steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    const v = (1 - Math.sin(a)) * 0.5;
+    const uSign = Math.cos(a);
+    const tv = Math.max(0, (v - 0.14) / 0.86);
+    const dome = Math.pow(Math.cos(tv * Math.PI * 0.5), 0.76);
+    const halfW = v < 0.14 ? 0.95 : dome * (1 - Math.pow(tv, 4.6));
+    const shift = pose.tipSway * Math.pow(v, 1.85);
+    const vx = pose.cx + shift + uSign * halfW * pose.rx;
+    const vy = pose.baseY - v * pose.h;
+    nodes.push({
+      sx: viewOffsetX + vx * pxScale,
+      sy: viewOffsetY + vy * pxScale
+    });
+  }
+
+  const centerSx = viewOffsetX + (pose.cx + pose.tipSway * 0.25) * pxScale;
+  const centerSy = viewOffsetY + (pose.baseY - pose.h * 0.42) * pxScale;
+
+  ctx.beginPath();
+  nodes.forEach((n, idx) => {
+    ctx.moveTo(centerSx, centerSy);
+    ctx.lineTo(n.sx, n.sy);
+    const next = nodes[(idx + 1) % nodes.length];
+    ctx.moveTo(n.sx, n.sy);
+    ctx.lineTo(next.sx, next.sy);
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  nodes.forEach(n => {
+    ctx.fillRect(n.sx - 3, n.sy - 3, 6, 6);
+  });
+
+  ctx.restore();
+}
+
+// ============================================================================
+// 12. MAIN 60FPS GAME ENGINE LOOP
+// ============================================================================
+let lastTime = performance.now();
+let fpsCount = 0;
+let fpsClock = performance.now();
+
+function loop(now) {
+  const rawDt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  fpsCount++;
+  if (now - fpsClock >= 500) {
+    document.getElementById('fpsVal').textContent = Math.round((fpsCount * 1000) / (now - fpsClock));
+    fpsCount = 0;
+    fpsClock = now;
+  }
+
+  let dt = rawDt * timeScale;
+  if (hitStopTimer > 0) {
+    hitStopTimer -= rawDt;
+    dt *= 0.08;
+  }
+
+  const prevStateTime = stateTime;
+  stateTime += dt;
+
+  if (screenShake > 0) {
+    screenShake = Math.max(0, screenShake - rawDt * 34);
+  }
+  if (windShock > 0) {
+    windShock = Math.max(0, windShock - rawDt * 2.4);
+  }
+
+  for (let i = afterimages.length - 1; i >= 0; i--) {
+    afterimages[i].life -= dt;
+    if (afterimages[i].life <= 0) afterimages.splice(i, 1);
+  }
+
+  // 1. Fast Blit Pre-baked Scenery
+  if (currentMonster === 'boss') {
+    buf32.set(darkTheme ? sceneryBossNight32 : sceneryBossDay32);
+  } else {
+    buf32.set(darkTheme ? scenerySlimeNight32 : scenerySlimeDay32);
+  }
+
+  // 2. Step Soft-Body Physics & Solve Pose
+  updateSoftBodyPhysics(dt);
+  const pose = solvePose(animState, stateTime, prevStateTime);
+
+  // 3. Render Floor Effects, Runic Magic Circles & Wind-Reactive Grass
+  renderFloorEffects(pose, dt, (now / 1000) * timeScale);
+  drawDynamicGrass((now / 1000) * timeScale, windShock);
+
+  // 4. Render Active Monster (Ash Lord Boss or Original Water-Drop Slime)
+  renderAfterimages();
+  if (currentMonster === 'boss') {
+    renderAshLordToBuf(pose, (now / 1000) * timeScale);
+  } else {
+    renderSlimeToBuf(pose, (now / 1000) * timeScale);
+  }
+
+  // 5. Render Boss Spells / Shatter Shards OR Slime 2D Pixel Water Splash & Surf Crests
+  updateAndRenderBossMagicAndShards(pose, dt, (now / 1000) * timeScale);
+  updateAndRenderSlimePixelWaterSplash(pose, dt, (now / 1000) * timeScale);
+
+  // 6. Blit 320x180 Offscreen ImageData to Retina Display Canvas
+  offCtx.putImageData(imgData, 0, 0);
+
+  ctx.fillStyle = darkTheme ? '#0f1520' : (currentMonster === 'boss' ? '#f7f2e9' : '#dfece3');
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const shakeX = screenShake > 0 ? Math.round((Math.random() - 0.5) * screenShake * pxScale * 0.45) : 0;
+  const shakeY = screenShake > 0 ? Math.round((Math.random() - 0.5) * screenShake * pxScale * 0.45) : 0;
+  const drawX = viewOffsetX + shakeX;
+  const drawY = viewOffsetY + shakeY;
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(offCanvas, 0, 0, VW, VH, drawX, drawY, VW * pxScale, VH * pxScale);
+
+  if (showGrid && pxScale >= 3) {
+    ctx.save();
+    ctx.strokeStyle = darkTheme ? 'rgba(255,255,255,0.08)' : 'rgba(20,50,40,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x <= VW; x++) {
+      const gx = drawX + x * pxScale;
+      ctx.moveTo(gx, drawY);
+      ctx.lineTo(gx, drawY + VH * pxScale);
+    }
+    for (let y = 0; y <= VH; y++) {
+      const gy = drawY + y * pxScale;
+      ctx.moveTo(drawX, gy);
+      ctx.lineTo(drawX + VW * pxScale, gy);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawPhysicsDebugOverlay(pose);
+
+  // 7. Render High-DPI Floating Combat Numbers
+  for (let i = floatTexts.length - 1; i >= 0; i--) {
+    const ft = floatTexts[i];
+    ft.life -= dt;
+    if (ft.life <= 0) {
+      floatTexts.splice(i, 1);
+      continue;
+    }
+    ft.vy += ft.vyVel * dt;
+    ft.vyVel *= 0.92;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, ft.life * 2.4);
+    const fSize = Math.round(5.2 * pxScale * ft.scale);
+    ctx.font = `900 ${fSize}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.lineWidth = Math.max(3, pxScale * 1.1);
+    ctx.strokeStyle = "#ffffff";
+    const sx = drawX + ft.vx * pxScale;
+    const sy = drawY + ft.vy * pxScale;
+    ctx.strokeText(ft.text, sx, sy);
+    ctx.fillStyle = ft.color;
+    ctx.fillText(ft.text, sx, sy);
+    ctx.restore();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
