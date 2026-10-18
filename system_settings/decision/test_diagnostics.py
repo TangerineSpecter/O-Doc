@@ -10,11 +10,13 @@ from system_logs import store
 from system_logs.capture import capture as capture_event
 from system_settings.token_usage.models import AgentTokenUsage
 from utils.token_usage import usage_scope
+from .config import save_key
 from .jev import choose, DecisionUnavailable
 
 
 class DecisionDiagnosticsTests(TestCase):
     def setUp(self):
+        save_key('admin', 'private-api-secret')
         self.enterContext(patch('system_settings.decision.jev.api_key', return_value='private-api-secret'))
         self.post = self.enterContext(patch('system_settings.decision.jev.requests.post'))
         self.log = self.enterContext(patch('system_settings.decision.diagnostics.capture'))
@@ -59,7 +61,7 @@ class DecisionDiagnosticsTests(TestCase):
                 self.assertFalse(row.usage_complete)
 
     def test_json_parse_failure_retains_stage_and_http_200(self):
-        response = Mock(status_code=200)
+        response = Mock(status_code=200, text='private-provider-body')
         response.json.side_effect = ValueError('private-provider-body')
         self.post.return_value = response
         _, details = self.run_failure()
@@ -69,7 +71,7 @@ class DecisionDiagnosticsTests(TestCase):
         self.assertEqual(details['provider_http_status'], 200)
 
     def test_non_dict_answers_are_invalid_candidates_without_leaking_body(self):
-        response = Mock(status_code=200)
+        response = Mock(status_code=200, text='private-provider-body')
         response.json.return_value = {'model': 'jev-1.13.0', 'usage': {'input_tokens': 12, 'output_tokens': 2}, 'answers': ['private-provider-body']}
         self.post.return_value = response
         row, details = self.run_failure()
@@ -80,7 +82,7 @@ class DecisionDiagnosticsTests(TestCase):
         self.assertIsNone(row.total_tokens)
 
     def test_invalid_candidate_reports_validation_not_network(self):
-        response = Mock(status_code=200)
+        response = Mock(status_code=200, text='{}')
         response.json.return_value = {'model': 'jev-1.13.0', 'answers': {'next_action': {'type': 'choice', 'choice': 'unknown'}}}
         self.post.return_value = response
         _, details = self.run_failure()

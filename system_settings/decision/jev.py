@@ -69,7 +69,10 @@ def _send(owner: str, profile: dict, state: dict, criteria: dict[str, object], *
         raise _HttpDecisionError(status)
     if set_stage:
         set_stage('response_json')
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise _JsonDecisionError(status) from exc
     if capture and hasattr(capture, 'set_response'):
         capture.set_response({'raw': response.text, 'json': data})
     if not isinstance(data, dict):
@@ -107,6 +110,12 @@ def _send(owner: str, profile: dict, state: dict, criteria: dict[str, object], *
 class _HttpDecisionError(DecisionUnavailable):
     def __init__(self, status):
         super().__init__(f'决策服务返回错误（HTTP {status}）')
+        self.status = status
+
+
+class _JsonDecisionError(ValueError):
+    def __init__(self, status):
+        super().__init__('invalid json')
         self.status = status
 
 
@@ -152,7 +161,7 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
         capture.finish('success')
         return selected, confidence
     except BaseException as exc:
-        if isinstance(exc, _HttpDecisionError):
+        if isinstance(exc, (_HttpDecisionError, _JsonDecisionError)):
             status = exc.status
         detail = None
         if isinstance(exc, Exception):

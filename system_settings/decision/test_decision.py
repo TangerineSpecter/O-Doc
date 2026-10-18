@@ -223,7 +223,7 @@ class DecisionTests(TestCase):
     @patch('system_settings.decision.jev.requests.post')
     def test_choice_records_actual_version_usage_and_invalid_response(self, post):
         save_key('admin', 'safe-secret')
-        post.return_value = Mock(status_code=200)
+        post.return_value = Mock(status_code=200, text='{}')
         data = {'model': 'jev-1.13.0', 'usage': {'input_tokens': 120, 'output_tokens': 9},
                 'answers': {'next_action': {'type': 'choice', 'choice': 'buy', 'probabilities': {'buy': .8, 'wait': .2}, 'confidence': .7}}}
         post.return_value.json.return_value = data
