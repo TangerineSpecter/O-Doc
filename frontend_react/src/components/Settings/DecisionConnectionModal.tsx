@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {X} from 'lucide-react';
 import {Select} from '../common/Select';
 import type {DecisionConnection, DecisionConnectionInput, DecisionProtocol} from '../../types/api/decision';
+import {fieldsAfterProtocolChange} from './decisionConnectionDefaults';
 
 interface DecisionConnectionModalProps {
     isOpen: boolean;
@@ -38,6 +39,13 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
 
     if (!isOpen) return null;
 
+    const changeProtocol = (next: DecisionProtocol) => {
+        const nextFields = fieldsAfterProtocolChange(protocol, next, {baseUrl, modelId});
+        setProtocol(next);
+        setBaseUrl(nextFields.baseUrl);
+        setModelId(nextFields.modelId);
+    };
+
     const submit = async () => {
         if (saving) return;
         setSaving(true);
@@ -62,7 +70,7 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
                 <header className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4">
                     <div className="min-w-0 flex-1">
                         <h3 id="decision-connection-title" className="font-bold text-slate-900">{initialData ? '编辑决策模型连接' : '新增决策模型连接'}</h3>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">选择模型实际提供的协议。JEV 和其他服务都从这里新增，地址、模型 ID 和密钥由你填写。</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">选择模型实际提供的协议。选中 JEV / TypeSafe System One 时，服务地址和模型 ID 会填入 JEV 默认值，仍可修改。名称和 API Key 保持空白。</p>
                     </div>
                     <button type="button" aria-label="关闭" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4"/></button>
                 </header>
@@ -74,7 +82,7 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
                     </label>
                     <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
                         <span>协议适配器</span>
-                        <Select<DecisionProtocol> value={protocol} options={protocolOptions} onChange={setProtocol} menuPortal/>
+                        <Select<DecisionProtocol> value={protocol} options={protocolOptions} onChange={changeProtocol} menuPortal/>
                     </label>
                     <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
                         <span>服务地址</span>

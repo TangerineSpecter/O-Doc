@@ -1,6 +1,6 @@
 # Agent 结构化决策接入
 
-本文说明当前决策连接、跨场景策略、文本模型路由和同步边界；2026-10-16 静态对照 `system_settings/decision/` 与前端 API。市场内的多步选择和工具执行从[市场决策说明](./Agent市场决策执行说明.md)继续阅读。
+本文说明当前决策连接、跨场景策略、文本模型路由和同步边界；2026-10-18 对照 `system_settings/decision/` 与前端决策连接表单。市场内的多步选择和工具执行从[市场决策说明](./Agent市场决策执行说明.md)继续阅读。
 
 ## 场景和模型分工
 
@@ -18,7 +18,7 @@
 
 ## 连接与协议
 
-连接在“AI 模型接入 → 决策模型连接”管理，保存稳定连接 ID、名称、协议、服务地址和模型 ID。没有预置连接。JEV（协议 `systemone`，TypeSafe System One；历史连接 ID 为 `jev`）和本地决策模型都从「新增决策模型连接」添加，并选择对应协议：
+连接在“AI 模型接入 → 决策模型连接”管理，保存稳定连接 ID、名称、协议、服务地址和模型 ID。没有预置连接。JEV（协议 `systemone`，TypeSafe System One；历史连接 ID 为 `jev`）和本地决策模型都从「新增决策模型连接」添加，并选择对应协议。选中 JEV 时，服务地址和模型 ID 预填为 `https://api.typesafe.ai/v1` 与 `jev-latest`（与 `system_settings/decision/config.py` 的 `LEGACY_JEV_PROFILE` 相同），可以改。切换协议时，字段仍为空或仍等于上一协议的默认值，才会换成新协议的默认值；已经改过的地址和模型 ID 保留。连接名称和 API Key 不预填。OpenAI Chat + JSON 没有默认地址和模型 ID。
 
 | 协议 | 请求和响应 |
 | --- | --- |
@@ -45,7 +45,7 @@
 接口前缀为 `/api/settings/decision-models/`：`connections/` 新建连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测。历史 `PATCH` 与 `test/` 仍只写或检测 ID 为 `jev` 的密钥，供已有客户端使用；新的 JEV 连接走同一套连接接口。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
 
 - 后端：`system_settings/decision/config.py`、`views.py`、`routing.py`、`failover.py`、`jev.py`、`adapters/`、`restore.py`、`diagnostics.py`。`choose_connections` 供世界场景和市场循环共用。
-- 前端：`hooks/useDecisionConfig.ts`、`components/Settings/DecisionSettings.tsx`、`DecisionConnectionModal.tsx`；世界策略、决策顺序和沿用时间在 `components/AgentWorld/WorldDecisionModelSettings.tsx` 与 `DecisionFailoverEditor.tsx`。连接卡片显示顺序位置和暂时沿用状态。
+- 前端：`hooks/useDecisionConfig.ts`、`components/Settings/DecisionSettings.tsx`、`DecisionConnectionModal.tsx`、`decisionConnectionDefaults.ts`；世界策略、决策顺序和沿用时间在 `components/AgentWorld/WorldDecisionModelSettings.tsx` 与 `DecisionFailoverEditor.tsx`。连接卡片显示顺序位置和暂时沿用状态。
 - 决策用量按 `decision:<connection_id>` 记录真实版本、状态和已知 Token；未知用量保持为空。详见[Token 用量说明](./AgentToken用量统计说明.md)。
 
 阶段验收、市场上下文迭代和旧测试命令见[历史记录](../archive/agents/Agent结构化决策阶段记录.md)。真实费用、耗时、行为质量与多设备接续需要对应证据，不能由字符缩减或连接成功推导。
