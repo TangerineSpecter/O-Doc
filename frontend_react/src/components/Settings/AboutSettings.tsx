@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Github, Info, Leaf, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ExternalLink, Github, Info, Leaf, RefreshCw, UserRound } from 'lucide-react';
 import { getRuntimeInfo } from '@/api/setting';
+import {
+    getCurrentBuildInfo,
+    getLatestVersionInfo,
+    shortCommit,
+    type CurrentBuildInfo,
+    type LatestVersionInfo,
+} from '@/api/versionInfo';
 
 const GITHUB_URL = 'https://github.com/TangerineSpecter/O-Doc';
 const formatUptime = (totalSeconds: number) => {
@@ -22,6 +29,35 @@ export const AboutSettings = () => {
     const [baseUptimeSeconds, setBaseUptimeSeconds] = useState(0);
     const [uptimeSeconds, setUptimeSeconds] = useState(0);
     const [runtimeSource, setRuntimeSource] = useState<'server' | 'browser'>('browser');
+    const [currentBuild, setCurrentBuild] = useState<CurrentBuildInfo | null>(null);
+    const [latestVersion, setLatestVersion] = useState<LatestVersionInfo | null>(null);
+    const [isCheckingVersions, setIsCheckingVersions] = useState(true);
+    const [versionError, setVersionError] = useState('');
+
+    const refreshVersions = useCallback(async (force = false, signal?: AbortSignal) => {
+        setIsCheckingVersions(true);
+        setVersionError('');
+        const [currentResult, latestResult] = await Promise.allSettled([
+            getCurrentBuildInfo(signal),
+            getLatestVersionInfo(force, signal),
+        ]);
+        if (signal?.aborted) return;
+
+        const errors: string[] = [];
+        if (currentResult.status === 'fulfilled') setCurrentBuild(currentResult.value);
+        else errors.push('当前版本读取失败');
+        if (latestResult.status === 'fulfilled') setLatestVersion(latestResult.value);
+        else errors.push('无法连接 GitHub 获取最新版本');
+        setVersionError(errors.join('；'));
+        setIsCheckingVersions(false);
+    }, []);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        void refreshVersions(false, controller.signal);
+        return () => controller.abort();
+    }, [refreshVersions]);
+
     useEffect(() => {
         let cancelled = false;
         getRuntimeInfo()
@@ -65,6 +101,41 @@ export const AboutSettings = () => {
                 </div>
             </div>
 
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                    <div>
+                        <h4 className="font-bold text-slate-800">版本信息</h4>
+                        <p className="mt-1 text-xs text-slate-500">查看当前运行版本和 GitHub 最新稳定版本</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void refreshVersions(true)}
+                        disabled={isCheckingVersions}
+                        aria-label="刷新版本信息"
+                        title="刷新版本信息"
+                        className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-orange-200 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${isCheckingVersions ? 'animate-spin' : ''}`} />
+                        刷新
+                    </button>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <VersionMetric
+                        label="当前版本"
+                        value={currentBuild?.version && currentBuild.version !== 'unknown' ? `v${currentBuild.version}` : '—'}
+                        detail={currentBuild ? `构建 ${shortCommit(currentBuild.commit)}` : '本机应用构建'}
+                    />
+                    <VersionMetric
+                        label="最新版本"
+                        value={latestVersion?.tagName || '—'}
+                        detail={latestVersion
+                            ? `GitHub Tags · ${new Date(latestVersion.checkedAt).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}`
+                            : 'GitHub 最新稳定标签'}
+                    />
+                </div>
+                {versionError && <p className="mt-3 text-xs text-amber-700">{versionError}</p>}
+            </section>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><div className="rounded-lg bg-orange-50 p-2 text-orange-600"><UserRound className="h-5 w-5" /></div><div><p className="text-xs text-slate-500">作者</p><h4 className="font-bold text-slate-800">丢失的橘子</h4></div></div></div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><div className="rounded-lg bg-slate-100 p-2 text-slate-600"><Info className="h-5 w-5" /></div><div><p className="text-xs text-slate-500">{runtimeSource === 'server' ? '累计运行时间' : '运行时间加载中'}</p><h4 className="font-bold text-slate-800">{formatUptime(uptimeSeconds)}</h4></div></div></div>
@@ -73,3 +144,11 @@ export const AboutSettings = () => {
         </div>
     );
 };
+
+const VersionMetric = ({label, value, detail}: {label: string; value: string; detail: string}) => (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <p className="mt-1 truncate font-mono text-base font-bold text-slate-800">{value}</p>
+        <p className="mt-1 truncate font-mono text-[10px] text-slate-400">{detail}</p>
+    </div>
+);
