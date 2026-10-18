@@ -135,6 +135,89 @@ class DecisionTests(TestCase):
         get.return_value = Mock(status_code=200)
         get.return_value.json.return_value = {'models': [{'name': 'jev-latest'}]}
         self.assertEqual(self.client.post('/api/settings/decision-models/test/').status_code, 200)
+        self.assertEqual(get.call_args.args[0], 'https://api.typesafe.ai/v1/models')
+        self.assertEqual(get.call_args.kwargs['headers']['Authorization'], 'Bearer safe-secret')
+        self.assertEqual(get.call_args.kwargs['timeout'], 8)
+        self.assertEqual(AgentTokenUsage.objects.count(), 0)
+
+    @patch('system_settings.decision.jev.requests.post')
+    @patch('system_settings.decision.jev.requests.get')
+    def test_systemone_connection_test_probes_models_not_a_decision(self, get, post):
+        created = self.client.post('/api/settings/decision-models/connections/', {
+            'name': 'JEV', 'protocol': 'systemone',
+            'baseUrl': 'https://api.typesafe.ai/v1', 'modelId': 'jev-latest',
+            'apiKey': 'safe-secret',
+        }, format='json')
+        self.assertEqual(created.status_code, 200, created.content)
+        saved = created.json()['data']['connections'][0]
+        self.assertTrue(saved['id'].startswith('dc_'))
+        self.assertEqual(saved['modelId'], 'jev-latest')
+        self.assertEqual(saved['baseUrl'], 'https://api.typesafe.ai/v1')
+        get.return_value = Mock(status_code=200)
+        get.return_value.json.return_value = {'models': [{'name': 'jev-latest', 'description': 'Jev', 'release_date': '2026-09-15'}]}
+        response = self.client.post(f"/api/settings/decision-models/connections/{saved['id']}/test/")
+        self.assertEqual(response.status_code, 200, response.content)
+        post.assert_not_called()
+        self.assertEqual(get.call_args.args[0], 'https://api.typesafe.ai/v1/models')
+        self.assertEqual(get.call_args.kwargs['headers']['Authorization'], 'Bearer safe-secret')
+        self.assertNotIn('safe-secret', str(response.content))
+        self.assertEqual(AgentTokenUsage.objects.count(), 0)
+        get.return_value.json.return_value = {
+            'model': 'jev-latest',
+            'answers': {'connection_test': {'type': 'choice', 'choice': 'connected', 'confidence': 1,
+                        'probabilities': {'connected': 1, 'unavailable': 0}}},
+        }
+        rejected = self.client.post(f"/api/settings/decision-models/connections/{saved['id']}/test/")
+        self.assertEqual(rejected.status_code, 502)
+        self.assertIn('模型列表响应无效', rejected.json()['msg'])
+        self.assertNotIn('连接测试响应结构无效', rejected.json()['msg'])
+
+    @patch('system_settings.decision.jev.requests.get')
+    def test_systemone_full_endpoint_still_probes_models_list(self, get):
+        created = self.client.post('/api/settings/decision-models/connections/', {
+            'name': 'JEV full', 'protocol': 'systemone',
+            'baseUrl': 'https://api.typesafe.ai/v1/systemone', 'modelId': 'jev-latest',
+            'apiKey': 'safe-secret',
+        }, format='json')
+        connection_id = created.json()['data']['connections'][0]['id']
+        get.return_value = Mock(status_code=200)
+        get.return_value.json.return_value = {'data': [{'id': 'jev-latest'}]}
+        response = self.client.post(f'/api/settings/decision-models/connections/{connection_id}/test/')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(get.call_args.args[0], 'https://api.typesafe.ai/v1/models')
+
+    def test_systemone_url_normalization(self):
+        from .adapters.systemone import SystemOneAdapter
+        root = 'https://api.typesafe.ai/v1'
+        full = root + '/systemone'
+        self.assertEqual(SystemOneAdapter.endpoint(root), full)
+        self.assertEqual(SystemOneAdapter.endpoint(full + '/'), full)
+        self.assertEqual(SystemOneAdapter.models_endpoint(root), root + '/models')
+        self.assertEqual(SystemOneAdapter.models_endpoint(full), root + '/models')
+        self.assertEqual(SystemOneAdapter.models_endpoint(root + '/models/'), root + '/models')
+
+    @patch('system_settings.decision.jev.requests.post')
+    def test_openai_connection_test_accepts_typed_choice_and_hides_bad_json(self, post):
+        created = self.client.post('/api/settings/decision-models/connections/', {
+            'name': 'local', 'protocol': 'openai_chat_json',
+            'baseUrl': 'http://127.0.0.1:8080/v1', 'modelId': 'startlux-decision',
+            'apiKey': 'safe-secret',
+        }, format='json')
+        connection_id = created.json()['data']['connections'][0]['id']
+        body = {'model': 'startlux-decision', 'usage': {'prompt_tokens': 3, 'completion_tokens': 1, 'total_tokens': 4},
+                'choices': [{'message': {'content': '{"connection_test":{"type":"choice","choice":"connected","confidence":0.9,"probabilities":{"connected":0.8,"unavailable":0.2}}}'}}]}
+        post.return_value = Mock(status_code=200, text='ok')
+        post.return_value.json.return_value = body
+        response = self.client.post(f'/api/settings/decision-models/connections/{connection_id}/test/')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(post.call_args.args[0], 'http://127.0.0.1:8080/v1/chat/completions')
+        self.assertEqual(post.call_args.kwargs['json']['model'], 'startlux-decision')
+        self.assertEqual(post.call_args.kwargs['headers']['Authorization'], 'Bearer safe-secret')
+        post.return_value.json.side_effect = ValueError('safe-secret')
+        rejected = self.client.post(f'/api/settings/decision-models/connections/{connection_id}/test/')
+        self.assertEqual(rejected.status_code, 502)
+        self.assertEqual(rejected.json()['msg'], '连接测试响应结构无效')
+        self.assertNotIn('safe-secret', str(rejected.content))
         self.assertEqual(AgentTokenUsage.objects.count(), 0)
 
     @patch('system_settings.decision.jev.requests.post')
@@ -146,10 +229,27 @@ class DecisionTests(TestCase):
         post.return_value.json.return_value = data
         with usage_scope(owner_id='admin', purpose='task', phase='JEV 市场选择'):
             self.assertEqual(choose('admin', {}, {'buy': '买', 'wait': '等待'}, deadline=time.monotonic() + 300), ('buy', .7))
+        self.assertEqual(post.call_args.args[0], 'https://api.typesafe.ai/v1/systemone')
+        self.assertEqual(post.call_args.kwargs['headers']['Authorization'], 'Bearer safe-secret')
+        payload = post.call_args.kwargs['json']
+        self.assertEqual(payload['model'], 'jev-latest')
+        self.assertEqual(payload['questions']['next_action']['type'], 'choice')
+        self.assertEqual(set(payload['questions']['next_action']['criteria']), {'buy', 'wait'})
         row = AgentTokenUsage.objects.get()
         self.assertEqual((row.input_tokens, row.output_tokens, row.total_tokens), (120, 9, 129))
         self.assertEqual(row.model_name, 'jev-1.13.0')
         self.assertEqual(row.provider_name, 'TypeSafe JEV')
+        full = self.client.post('/api/settings/decision-models/connections/', {
+            'name': 'JEV endpoint', 'protocol': 'systemone',
+            'baseUrl': 'https://api.typesafe.ai/v1/systemone/', 'modelId': 'jev-latest',
+            'apiKey': 'safe-secret',
+        }, format='json')
+        self.assertEqual(full.status_code, 200, full.content)
+        full_id = full.json()['data']['connections'][-1]['id']
+        with usage_scope(owner_id='admin', purpose='task'):
+            self.assertEqual(choose('admin', {}, {'buy': '买', 'wait': '等待'}, deadline=time.monotonic() + 300,
+                                    connection_id=full_id), ('buy', .7))
+        self.assertEqual(post.call_args.args[0], 'https://api.typesafe.ai/v1/systemone')
         self.assertTrue(row.usage_complete)
         self.assertEqual(post.call_args.kwargs['timeout'], 60)
         with usage_scope(owner_id='admin', purpose='task'):

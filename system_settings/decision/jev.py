@@ -8,10 +8,9 @@ import requests
 from system_settings.token_usage.capture import Capture
 from system_settings.token_usage.normalize import count
 from .adapters import get_adapter
+from .adapters.systemone import SystemOneAdapter
 from .config import api_key, connection, selected_connection_id
 from .diagnostics import record_failure, request_identifier
-
-JEV_MODELS_URL = 'https://api.typesafe.ai/v1/models'
 # Local models such as startlux-decision can cold-start slowly. This minute
 # belongs to the decision connection alone; it is not taken from the text
 # fallback chain, and each later model has its own minute.
@@ -83,7 +82,12 @@ def _send(owner: str, profile: dict, state: dict, criteria: dict[str, object], *
     if set_stage:
         set_stage('answer_validation')
     answer = adapter.extract_answer(data, question_id)
-    if not isinstance(answer, dict) or answer.get('type') != 'choice' or answer.get('choice') not in criteria:
+    choice = answer.get('choice') if isinstance(answer, dict) else None
+    try:
+        listed = choice in criteria
+    except TypeError:
+        listed = False
+    if not isinstance(answer, dict) or answer.get('type') != 'choice' or not listed:
         raise DecisionUnavailable('决策模型返回了无效候选')
     probabilities, confidence = answer.get('probabilities'), answer.get('confidence')
 
@@ -162,25 +166,40 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
         raise
 
 
+def _models_probe(profile: dict, secret: str) -> dict:
+    """Historical JEV check: GET the model list. It is not a billed decision."""
+    connection_id = profile['id']
+    legacy = connection_id == 'jev'
+    if legacy and not secret:
+        raise DecisionUnavailable('本机尚未配置 JEV 密钥')
+    headers = {'Authorization': 'Bearer ' + secret} if secret else {}
+    try:
+        response = requests.get(SystemOneAdapter.models_endpoint(profile['base_url']), headers=headers, timeout=8)
+        if response.status_code != 200:
+            prefix = 'JEV ' if legacy else ''
+            raise DecisionUnavailable(f'{prefix}连接检测失败（HTTP {response.status_code}）')
+        data = response.json()
+        if not isinstance(data, dict) or not isinstance(data.get('models', data.get('data')), list):
+            raise DecisionUnavailable('JEV 模型列表响应无效' if legacy else '模型列表响应无效')
+    except DecisionUnavailable:
+        raise
+    except (requests.RequestException, ValueError):
+        if legacy:
+            raise DecisionUnavailable('JEV 连接检测失败，请检查网络与密钥') from None
+        raise DecisionUnavailable('连接测试网络请求失败，请检查地址和网络') from None
+    return {'ok': True, 'connection_id': connection_id, 'protocol': profile['protocol']}
+
+
 def connection_test(owner: str, connection_id: str = 'jev') -> dict:
     try:
         profile = connection(owner, connection_id)
     except ValueError as exc:
         raise DecisionUnavailable(str(exc)) from None
     secret = api_key(owner, connection_id)
-    if connection_id == 'jev':
-        if not secret:
-            raise DecisionUnavailable('本机尚未配置 JEV 密钥')
-        try:
-            response = requests.get(JEV_MODELS_URL, headers={'Authorization': 'Bearer ' + secret}, timeout=8)
-            if response.status_code != 200:
-                raise DecisionUnavailable(f'JEV 连接检测失败（HTTP {response.status_code}）')
-            data = response.json()
-            if not isinstance(data, dict) or not isinstance(data.get('models', data.get('data')), list):
-                raise DecisionUnavailable('JEV 模型列表响应无效')
-            return {'ok': True, 'connection_id': connection_id, 'protocol': profile['protocol']}
-        except (requests.RequestException, ValueError):
-            raise DecisionUnavailable('JEV 连接检测失败，请检查网络与密钥') from None
+    # systemone, including the migrated id jev, keeps the pre-adapter probe.
+    # A decision POST here turned parser exceptions into 「连接测试响应结构无效」.
+    if profile['protocol'] == 'systemone':
+        return _models_probe(profile, secret)
     try:
         _send(owner, profile, {'connection_test': 'Check whether the decision service is ready.'},
               {'connected': 'The service is reachable and can return a typed decision.',

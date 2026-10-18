@@ -12,6 +12,22 @@ class SystemOneAdapter:
         return value + '/systemone'
 
     @staticmethod
+    def models_endpoint(base_url: str) -> str:
+        """Model list lives next to /systemone, not under it.
+
+        A saved root such as https://api.typesafe.ai/v1 and a saved full call
+        URL such as https://api.typesafe.ai/v1/systemone both probe
+        https://api.typesafe.ai/v1/models.
+        """
+        value = base_url.rstrip('/')
+        suffix = '/systemone'
+        if value.endswith(suffix):
+            value = value[:-len(suffix)]
+        if value.endswith('/models'):
+            return value
+        return value + '/models'
+
+    @staticmethod
     def build_payload(model_id: str, state: dict, question_id: str, question: dict) -> dict:
         return {'model': model_id, 'state': state, 'questions': {question_id: question}}
 

@@ -68,16 +68,16 @@ class DecisionDiagnosticsTests(TestCase):
         self.assertIn('解析响应 JSON', details['provider_endpoint'])
         self.assertEqual(details['provider_http_status'], 200)
 
-    def test_local_adapter_failure_keeps_actual_version_and_known_usage(self):
+    def test_non_dict_answers_are_invalid_candidates_without_leaking_body(self):
         response = Mock(status_code=200)
         response.json.return_value = {'model': 'jev-1.13.0', 'usage': {'input_tokens': 12, 'output_tokens': 2}, 'answers': ['private-provider-body']}
         self.post.return_value = response
         row, details = self.run_failure()
-        self.assertEqual(details['error_type'], 'adapter_error')
+        self.assertEqual(details['error_type'], 'invalid_response')
         self.assertEqual(details['stage'], 'answer_validation')
-        self.assertEqual(details['exception_class'], 'AttributeError')
-        self.assertEqual(details['model_name'], 'jev-1.13.0')
-        self.assertEqual(row.total_tokens, 14)
+        self.assertEqual(details['exception_class'], 'DecisionUnavailable')
+        self.assertIn('无效候选', details['reason'])
+        self.assertIsNone(row.total_tokens)
 
     def test_invalid_candidate_reports_validation_not_network(self):
         response = Mock(status_code=200)

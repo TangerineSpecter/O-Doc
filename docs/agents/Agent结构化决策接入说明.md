@@ -31,6 +31,8 @@
 
 关闭或排除场景时，调用方按场景进入普通文本路径；迷宫探索准备使用原整套文本规划，挂牌价格由文本模型决定。探索结构化决策连接临时不可用时，探索仍可按代码回退方案出发；装备问题跳过且不标记，挂牌价格问题暂缓该件。市场会保留同一机会、会话和已提交事实。连接检测不提交市场交易，也不证明真实业务质量或节省比例。
 
+`systemone` 的连接检测沿用迁移前的模型列表探测：`GET {服务根}/models`，请求头 `Authorization: Bearer`。服务根是 `https://api.typesafe.ai/v1` 时地址为 `https://api.typesafe.ai/v1/models`；若保存的是完整 `/systemone` 地址，先去掉该后缀再探测 `/models`。成功条件与原先内置 JEV 相同：HTTP 200，且 `models` 或 `data` 为数组。这次探测不发送 `{state, questions}`，也不记 Token。历史 ID `jev` 与后来新建的 `systemone` 连接走同一探测；只有 `openai_chat_json` 才发一次结构化选择。真实决策仍 `POST {服务根}/systemone`，模型字段使用保存的模型 ID（JEV 默认 `jev-latest`），并读取 `answers` 里对应问题的 choice、probabilities 与 confidence。
+
 ## 账号、持久化与同步
 
 - 连接元数据在 `SystemSetting.system_decision_connections`，API Key 按账号与连接 ID 保存在 `system_decision_credentials`；世界选择在 `LifeConfig.settings.decision_connection_id`。故障转移顺序 `decision_connection_ids`（第一位即平时使用的连接，并写回 `decision_connection_id`；若两者不一致，保存时把 `decision_connection_id` 放到第一位，其余成员保持原有先后）和暂时沿用时长 `decision_sticky_ttl_seconds` 同在 `LifeConfig.settings` 中，随既有世界配置同步。顺序可以为空；空顺序不调用结构化决策。
@@ -42,7 +44,7 @@
 
 ## 接口与代码入口
 
-接口前缀为 `/api/settings/decision-models/`：`connections/` 新建连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测。历史 `PATCH` 与 `test/` 仍只写或检测 ID 为 `jev` 的密钥，供已有客户端使用；新的 JEV 连接走同一套连接接口。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
+接口前缀为 `/api/settings/decision-models/`：`connections/` 新建连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测。历史 `PATCH` 与 `test/` 仍只写或检测 ID 为 `jev` 的密钥，供已有客户端使用；新的 JEV 连接走同一套连接接口，检测方式由协议决定，不因 ID 不是 `jev` 改成决策 POST。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
 
 - 后端：`system_settings/decision/config.py`、`views.py`、`routing.py`、`failover.py`、`jev.py`、`adapters/`、`restore.py`、`diagnostics.py`。`choose_connections` 供世界场景和市场循环共用。
 - 前端：`hooks/useDecisionConfig.ts`、`components/Settings/DecisionSettings.tsx`、`DecisionConnectionModal.tsx`、`decisionConnectionDefaults.ts`；世界策略、决策顺序和沿用时间在 `components/AgentWorld/WorldDecisionModelSettings.tsx` 与 `DecisionFailoverEditor.tsx`。连接卡片显示顺序位置和暂时沿用状态。
