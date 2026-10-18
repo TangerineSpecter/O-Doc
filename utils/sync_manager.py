@@ -211,14 +211,14 @@ class SyncManager:
         travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>6:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>8:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
             raise SyncError('农作物快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 3:
+        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 4:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
             raise SyncError('社交快照版本高于本机，请升级后同步。')
@@ -275,6 +275,9 @@ class SyncManager:
 
     def _queryset_for_export(self, model):
         queryset = model.objects.all()
+        if model._meta.label_lower == 'system_settings.combatcatalog':
+            from system_settings.agent_world.combat.history import runtime_catalog_ids
+            queryset = queryset.filter(pk__in=runtime_catalog_ids())
         if model._meta.label_lower == 'system_settings.systemsetting':
             queryset = queryset.exclude(key__in=LOCAL_ONLY_SYSTEM_SETTING_KEYS)
         return queryset
@@ -844,6 +847,13 @@ class SyncManager:
     @learning_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None, integrity='strict'):
         """把快照写回数据库。full_overwrite 用于整库覆盖。integrity=repair 时领域校验改为提示，写完后由调用方整理。"""
+        from system_settings.agent_world.combat.history_snapshot import normalize_source, compact_source
+        if remote_meta is None or remote_meta.get('combat_schema_version', 0) < 8:
+            data_list = compact_source(normalize_source(data_list))
+        from system_settings.agent_world.combat.sync import validate_source as validate_combat
+        validate_combat(data_list, remote_meta, allow_exploration_review_mismatch=integrity == 'repair')
+        from system_settings.agent_world.food_sync import validate_import as validate_food_import
+        validate_food_import(data_list, remote_meta)
         relax = integrity == 'repair'
         self._integrity_warnings = []
 
@@ -967,6 +977,8 @@ class SyncManager:
                 item.get('model') == 'system_settings.agenttokenusage'
                 and str(item.get('pk')) in active_usage_keys
             )]
+            from system_settings.agent_world.combat.history import prepare_fact_restore
+            prepare_fact_restore(write_data)
             for obj in serializers.deserialize('json', json.dumps(write_data)):
                 obj.save()
             travel_sync.mark_initialized(remote_meta)
@@ -1348,14 +1360,14 @@ class SyncManager:
 
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
-        if remote_meta and remote_meta.get('combat_schema_version',0)>6:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>8:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
             raise SyncError('农作物快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 3:
+        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 4:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
             raise SyncError('社交快照版本高于本机，请升级后恢复。')
@@ -1373,6 +1385,8 @@ class SyncManager:
     @novel_sync_guard
     @learning_sync_guard
     def build_snapshot_data(self, *, compact_travel=False, allow_exploration_review_mismatch=False, relax_integrity=False):
+        from system_settings.agent_world.combat.store import install as install_combat
+        install_combat()
         from system_settings.agent_world.life_sync import checkpoint_all
         checkpoint_all()
         from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
@@ -1392,14 +1406,11 @@ class SyncManager:
             if queryset.exists():
                 all_data.extend(json.loads(serializers.serialize('json', queryset, cls=SyncJSONEncoder)))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
-        self._guard_integrity(
-            '战斗',
-            lambda: validate_combat(
-                all_data,
-                allow_exploration_review_mismatch=allow_exploration_review_mismatch,
-            ),
-            relax=relax_integrity,
-        )
+        from system_settings.agent_world.food_sync import validate_source as validate_food
+        validate_food(all_data)
+        from system_settings.agent_world.combat.sync import metadata as combat_metadata
+        validate_combat(all_data, combat_metadata(all_data),
+                        allow_exploration_review_mismatch=allow_exploration_review_mismatch or relax_integrity)
         return self._strip_device_local_user_fields(all_data)
 
     @staticmethod
@@ -1787,6 +1798,11 @@ class SyncManager:
         resolutions 里用户点名的记录优先于自动胜出规则。
         """
         self._integrity_warnings = []
+        from copy import deepcopy
+        from system_settings.agent_world.combat.history_snapshot import normalize_source, compact_source
+        remote = deepcopy(remote)
+        if (remote.get('meta') or {}).get('combat_schema_version', 0) < 8:
+            remote['data'] = compact_source(normalize_source(remote.get('data') or []))
 
         def guard(label, fn):
             return self._guard_integrity(label, fn, relax=relax_integrity)
@@ -1803,8 +1819,10 @@ class SyncManager:
         guard('烹饪', lambda: validate_cooking_source(local_data, cooking_metadata(local_data)))
         guard('烹饪', lambda: validate_cooking_source(remote.get('data') or [], remote.get('meta')))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat, validate_catalog_conflicts
-        guard('战斗', lambda: validate_combat(local_data))
-        guard('战斗', lambda: validate_combat(remote.get('data') or [], remote.get('meta')))
+        from system_settings.agent_world.food_sync import validate_import as validate_food_import
+        validate_food_import(remote.get('data') or [], remote.get('meta'))
+        validate_combat(local_data, allow_exploration_review_mismatch=relax_integrity)
+        validate_combat(remote.get('data') or [], remote.get('meta'), allow_exploration_review_mismatch=relax_integrity)
         guard('战斗目录', lambda: validate_catalog_conflicts(local_data, remote.get('data') or []))
         # 老全量快照中的原始默认城市只代表共享种子，不代表用户编辑或删除。
         if travel_sync.enabled() or (remote.get('meta') or {}).get(travel_sync.META_KEY):
@@ -1902,8 +1920,10 @@ class SyncManager:
         from system_settings.agent_archive_sync import validate_names
         guard('居民名称', lambda: validate_names(result))
         # 严格合并仍拒绝半份烹饪链。放宽时保留两边已经合并的记录，稍后再整理摘要。
+        from system_settings.agent_world.food_sync import validate_source as validate_food
+        validate_food(result)
         guard('烹饪', lambda: validate_cooking_source(result, cooking_metadata(result)))
-        guard('战斗', lambda: validate_combat(result))
+        validate_combat(result, allow_exploration_review_mismatch=relax_integrity)
         summary['integrity_warnings'] = list(self._integrity_warnings)
         return result, result_revisions, summary
 

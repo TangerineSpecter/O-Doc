@@ -3,9 +3,10 @@ import {Search, X, Shield, Sparkles, CheckCircle2, Tag, Info} from 'lucide-react
 import type {CombatCatalog, CombatProfile} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {EquipmentPortrait} from './EquipmentPortrait';
-import {RankBadge, BossCrownIcon} from './RankBadge';
+import {BossCrownIcon, AtlasStatusBadge} from './RankBadge';
 import {getEquipmentVisual} from './atlasIcons';
 import {equipmentSlotLabel, equipmentTypeLabels, statLabels} from '../presentation';
+import {EquipmentMetaSpecs} from '../ElementBadge';
 
 export interface EquipmentAtlasViewProps {
     catalog: CombatCatalog;
@@ -108,9 +109,15 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
             })
             .filter(Boolean) as {stat: string; label: string; base: number; growth: number}[];
 
-        // 职业限制
+        // 职业限制与精通技能
         const rootJobName =
             professions.find(p => p.id === selected.rootJob || p.id === `job.${selected.rootJob}`)?.name || '通用';
+        const requiredMasteryNames = Array.from(new Set(
+            String(selected.requiredMastery || '').split(';').filter(Boolean)
+                .map(id => skills.find(skill => skill.id === id)?.name)
+                .filter(Boolean)
+        ));
+        const requiredMasteryName = requiredMasteryNames.join('、');
         const requiredMasteryLabel = String(selected.requiredMastery || '').split(';').filter(Boolean)
             .map(id => {
                 const mastery = skills.find(skill => skill.id === id);
@@ -157,8 +164,10 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
             baseStats,
             rootJobName,
             requiredMasteryLabel,
+            requiredMasteryName,
             isUniversal,
             allowedProfessionLabel,
+            permittedProfessions,
             equipmentTypeLabel: equipmentTypeLabels[String(selected.equipmentType || '')] || (isUniversal ? equipmentTypeLabels.generic : ''),
             uniqueAffixes,
         };
@@ -262,7 +271,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
             {/* 双栏布局 */}
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
                 {/* 左侧装备网格 */}
-                <div className="scrollbar-hide h-full overflow-y-auto pr-1">
+                <div className="scrollbar-hide h-full overflow-y-auto p-1.5 pt-2">
                     {!visibleEquipment.length ? (
                         <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
                             <Shield className="h-8 w-8 text-slate-300" />
@@ -292,6 +301,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                         name={equip.name || equip.id}
                                         title={`${equip.name} · ${equipmentSlotLabel(equip.slot || '', String(equip.equipmentType || ''))}${equip.equipmentType ? ` · ${equipmentTypeLabels[equip.equipmentType] || equip.equipmentType}` : !equip.rootJob && !equip.requiredMastery ? ` · ${equipmentTypeLabels.generic}` : ''} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
                                         selected={isSelected}
+                                        completed={isAcquired}
                                         onClick={() => setSelectedId(equip.id)}
                                         icon={<EquipmentPortrait equipmentId={equip.id} name={equip.name} slot={equip.slot} equipmentType={equip.equipmentType} bossOnly={isBossOnly} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
                                         bgGradient={eqVisual.bgGradient}
@@ -301,13 +311,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                             </span>
                                         }
                                         topRightBadge={
-                                            isAcquired ? (
-                                                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xs" title="已获得">
-                                                    ✓
-                                                </span>
-                                            ) : isBossOnly ? (
-                                                <RankBadge isBossOnly={true} title="Boss专属" />
-                                            ) : undefined
+                                            <AtlasStatusBadge isBossOnly={isBossOnly} />
                                         }
                                     />
                                 );
@@ -325,24 +329,24 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                         <div className="space-y-4">
                             {/* 顶部橱窗 */}
                             <div className={`relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border p-4 text-center bg-gradient-to-b ${visual?.bgGradient} ${visual?.border}`}>
-                                <div className="mb-2 flex w-full items-center justify-between gap-1">
-                                    <div className="flex items-center gap-1">
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200/60 bg-white/90 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
+                                <div className="mb-2 flex w-full flex-wrap items-center justify-between gap-1.5">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200/60 bg-white/90 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs whitespace-nowrap">
                                             <Tag className="h-2.5 w-2.5 text-slate-400" />
                                             {equipmentSlotLabel(selected.slot || '', String(selected.equipmentType || ''))}
                                         </span>
                                         {selectedDetails.equipmentTypeLabel && (
-                                            <span className="rounded-full border border-orange-200/70 bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
+                                            <span className="shrink-0 rounded-full border border-orange-200/70 bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700 shadow-2xs whitespace-nowrap">
                                                 {selectedDetails.equipmentTypeLabel}
                                             </span>
                                         )}
-                                        {(selectedDetails.requiredMasteryLabel || selected.rootJob) && (
-                                            <span className="rounded-full bg-white/90 border border-slate-200/60 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
-                                                {selectedDetails.requiredMasteryLabel || selectedDetails.rootJobName}
+                                        {selected.grip === 'two_handed' && (
+                                            <span className="shrink-0 rounded-full border border-slate-200/60 bg-white/90 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs whitespace-nowrap">
+                                                双手
                                             </span>
                                         )}
                                         {selectedDetails.isBossOnly && (
-                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-2xs">
+                                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-2xs whitespace-nowrap">
                                                 <BossCrownIcon className="h-2.5 w-2.5 text-amber-600 shrink-0" />
                                                 Boss专属
                                             </span>
@@ -350,7 +354,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                     </div>
 
                                     {selectedDetails.isAcquired && (
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-2xs">
+                                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-2xs whitespace-nowrap">
                                             <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
                                             已获得
                                         </span>
@@ -361,13 +365,17 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                     <EquipmentPortrait equipmentId={selected.id} name={selected.name} slot={selected.slot} equipmentType={selected.equipmentType} bossOnly={selectedDetails.isBossOnly} className="h-full w-full" />
                                 </div>
 
-                                <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>
-                                <p className="mt-1 text-xs text-slate-500">
-                                    适用装备等级：Lv.{selected.levelMin}–{selected.levelMax}
-                                </p>
-                                <p className="mt-1 text-xs text-slate-500">
-                                    可穿职业：{selectedDetails.allowedProfessionLabel}
-                                </p>
+                                <h3 className="text-base font-bold text-slate-800 tracking-tight">{selected.name}</h3>
+
+                                <EquipmentMetaSpecs
+                                    levelMin={Number(selected.levelMin || 1)}
+                                    levelMax={Number(selected.levelMax || selected.levelMin || 1)}
+                                    slot={selected.slot}
+                                    element={selected.element}
+                                    allowedProfessionLabel={selectedDetails.allowedProfessionLabel}
+                                    professions={selectedDetails.permittedProfessions}
+                                    requiredMastery={selectedDetails.requiredMasteryName}
+                                />
                             </div>
 
                             {/* 基础属性与成长路线 */}

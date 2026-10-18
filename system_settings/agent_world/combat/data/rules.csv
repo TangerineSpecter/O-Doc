@@ -62,3 +62,9 @@ affix_sale_bonus_cap,0.1
 attribute_percent_bonus_min,-0.9
 attribute_percent_bonus_max,2
 vulnerability_cap,1
+element_power_min,0
+element_power_max,0.4
+element_resist_min,-0.25
+element_resist_max,0.45
+element_factor_min,0.6
+element_factor_max,1.5

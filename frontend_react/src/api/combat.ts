@@ -9,7 +9,7 @@ export const getCombatCatalog = (signal?: AbortSignal) => request.get<never, Com
 export const getCombatProfile = (id: string, signal?: AbortSignal) => request.get<never, CombatProfile>(actor(id), {signal});
 export const getCombatHistory = (id: string, page: number, signal?: AbortSignal) => request.get<never, CombatHistory>(`${actor(id)}history/`, {params: {page}, signal});
 export const getCombatConfig = (signal?: AbortSignal) => request.get<never, CombatConfig>(`${base}config/`, {signal});
-export const setCombatConfig = (data: Partial<CombatConfig>, key = combatKey()) => request.post<never, CombatConfig>(`${base}config/`, {key, ...data});
+export const setCombatConfig = (data: Partial<Pick<CombatConfig, 'dailyMinutes'>>, key = combatKey()) => request.post<never, CombatConfig>(`${base}config/`, {key, ...data});
 export const combatCommand = <T = CombatProfile>(id: string, data: Record<string, unknown>, key = combatKey(), signal?: AbortSignal) => request.post<never, T>(actor(id), {key, ...data}, {signal});
 export const getCombatSnapshot = (id: string, cursor: number, signal?: AbortSignal) => request.get<never, CombatSnapshot>(exploration(id), {params: {cursor}, signal});
 export const explorationCommand = (id: string, operation: 'recall' | 'resume', key = combatKey()) => request.post<never, CombatSnapshot>(exploration(id), {key, operation});

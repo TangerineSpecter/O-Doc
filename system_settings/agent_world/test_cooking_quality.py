@@ -192,7 +192,7 @@ class CookingQualityTests(TestCase):
         manager = SyncManager()
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
-        self.assertEqual(meta['cooking_schema_version'], 3)
+        self.assertEqual(meta['cooking_schema_version'], 4)
         for _ in range(2): manager.apply_snapshot_data(copy.deepcopy(data), meta)
         self.assertEqual(CookingOperation.objects.count(), 1)
         self.assertEqual(CookingOperation.objects.get(pk=original.pk).result, original.result)

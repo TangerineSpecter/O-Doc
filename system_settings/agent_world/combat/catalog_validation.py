@@ -21,7 +21,11 @@ AFFIX_ALLOWED_SLOTS = {
     'magic_defense': {'offhand','head','body','hands','feet','accessory'},
     'critical': {'accessory'}, 'critical_damage': {'accessory'},
     'accuracy': {'hands'}, 'evasion': {'feet'},
+    **{f'{element}_power': {'accessory'} for element in ('water', 'fire', 'earth', 'wind', 'light', 'dark')},
+    **{f'{element}_resist': {'offhand', 'head', 'body', 'hands', 'feet'} for element in ('water', 'fire', 'earth', 'wind', 'light', 'dark')},
 }
+ELEMENTS = {'water', 'fire', 'earth', 'wind', 'light', 'dark'}
+ELEMENT_STATS = {f'{element}_{kind}' for element in ELEMENTS for kind in ('power', 'resist')}
 MASTERY_EQUIPMENT_TYPES = {'cloth_armor','heavy_armor','leather_armor','light_armor','plate_armor',
                            'magic_shield','small_shield','large_shield','two_handed_staff','holy_staff','two_handed_sword'}
 EFFECTS = {
@@ -29,14 +33,14 @@ EFFECTS = {
     'attack_critical', 'attack_penetration', 'missing_hp_damage', 'shared_hit',
     'passive_percent', 'passive_flat', 'passive_cost', 'passive_conversion', 'passive_recovery',
     'passive_low_hp', 'passive_damage', 'passive_duration', 'passive_equipment_percent',
-    'passive_equipment_flat', 'reflect',
+    'passive_equipment_flat', 'passive_element', 'reflect',
 }
 EFFECT_STATS = {
     '', 'accuracy', 'attack', 'burn', 'contract', 'critical', 'critical_damage',
     'damage_taken', 'debuff', 'defense', 'dexterity', 'elite_boss', 'evasion',
     'healing', 'hp_max', 'magic_attack', 'magic_defense', 'mp', 'mp_max',
     'physical_attack', 'physical_defense', 'poison', 'reduction', 'spirit',
-    'spirit_to_magic', 'strength_to_magic', 'weapon_attack',
+    'spirit_to_magic', 'strength_to_magic', 'weapon_attack', *ELEMENT_STATS,
 }
 
 
@@ -75,8 +79,8 @@ def validate(directory: Path = DIRECTORY, *, expected_status: str = 'released') 
 
     # Promotion gates are catalog-versioned: historical catalogs keep their
     # original level-70 third promotion while combat-1.0.10 starts it at 50.
-    promotion_level = 50 if manifest['version'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18'} else 70
-    expected_skills = 74 if manifest['version'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18'} else 73 if manifest['version'] in {'combat-1.0.11','combat-1.0.12'} else 71
+    promotion_level = 50 if manifest['version'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19'} else 70
+    expected_skills = 74 if manifest['version'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19'} else 73 if manifest['version'] in {'combat-1.0.11','combat-1.0.12'} else 71
     return validate_tables(tables, expected_player_skills=expected_skills,
                            expected_promotion_level=promotion_level, catalog_version=manifest['version'])
 
@@ -84,7 +88,7 @@ def validate(directory: Path = DIRECTORY, *, expected_status: str = 'released') 
 def validate_tables(tables, *, expected_player_skills: int | None = None,
                     expected_promotion_level: int = 70, catalog_version: str = ''):
     indexes = {name: {r['id']: r for r in rows} for name, rows in tables.items()}
-    modern_equipment_rules = catalog_version in {'combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18'}
+    modern_equipment_rules = catalog_version in {'combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19'}
 
     def reference(table: str, field: str, target: str, optional: bool = False) -> None:
         for row in tables[table]:
@@ -135,6 +139,15 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
         require(row['stat'] in EFFECT_STATS, f'Unsupported scaling stat: {row["stat"]}')
         require(row['target'] in {'self', 'enemy'}, 'Invalid target')
         require(row['damage_type'] in {'', 'physical', 'magic'}, 'Invalid damage type')
+        element = row.get('element', '')
+        require(element in {'', 'none', *ELEMENTS}, 'Invalid element')
+        if element and row['code'] not in {'damage', 'dot', 'summon', 'shield_break'}:
+            require(False, 'Element on non-damage effect')
+        if row.get('group') == 'poison':
+            require(element in {'', 'none'}, 'Poison is not an element')
+        if row['code'] == 'passive_element':
+            require(row['target'] == 'self' and row['stat'] in ELEMENT_STATS and int(row['duration']) == 0
+                    and number(row, 'value') > 0, 'Invalid element mastery')
         require(0 <= number(row, 'chance') <= 1, 'Invalid effect chance')
         require(int(row['hits']) >= 1 and int(row['duration']) >= 0, 'Invalid hit/duration')
         number(row, 'value')
@@ -189,6 +202,7 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
             require(indexes['skills'][row['skill_id']]['kind'] == 'monster', 'Player skill on monster')
     for monster in tables['monsters']:
         require(number(monster,'attack_multiplier')>0,'Invalid monster attack multiplier')
+        require(monster.get('element', '') in {'', *ELEMENTS}, 'Invalid monster element')
         require(1 <= int(monster['level_min']) <= int(monster['level_max']) <= 99, 'Monster level range')
         require(any(a['action_kind'] == 'attack' for a in actions[monster['id']]), 'No fallback attack')
         require(math.isclose(sum(number(a, 'weight') for a in actions[monster['id']]), 100), 'Monster weights sum')
@@ -238,6 +252,10 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
             require(row['slot'] in AFFIX_ALLOWED_SLOTS[stat], 'Affix slot policy mismatch')
     for row in tables['equipment_templates']:
         require(row['slot'] in SLOTS, 'Equipment slot')
+        element = row.get('element', '')
+        require(element in {'', *ELEMENTS}, 'Invalid weapon element')
+        if element:
+            require(row['slot'] == 'weapon', 'Element type belongs on weapons')
         require(1 <= int(row['level_min']) <= int(row['level_max']) <= 99, 'Equipment level')
         require(len(allowed_affixes[row['id']]) >= 3, 'Cannot generate gold gear')
         equipment_type = row.get('equipment_type', '')
@@ -293,7 +311,7 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
         require(permission_map['equip.dagger'] <= jobs_by_root['job.ranger'] and 'job.novice' not in permission_map['equip.dagger'], 'Dagger profession restriction')
         if catalog_version == 'combat-1.0.11':
             require(permission_map['equip.two_handed_sword']=={'job.swordmaster','job.berserker'}, 'Historical two-handed sword permission map')
-        elif catalog_version in {'combat-1.0.12', 'combat-1.0.13', 'combat-1.0.14', 'combat-1.0.15', 'combat-1.0.16', 'combat-1.0.17', 'combat-1.0.18'}:
+        elif catalog_version in {'combat-1.0.12', 'combat-1.0.13', 'combat-1.0.14', 'combat-1.0.15', 'combat-1.0.16', 'combat-1.0.17', 'combat-1.0.18', 'combat-1.0.19'}:
             for equipment in tables['equipment_templates']:
                 mastery_ids=[identity for identity in equipment.get('required_mastery','').split(';') if identity]
                 if not mastery_ids:
@@ -330,7 +348,21 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
     for row in tables['styles']:
         require(number(row, 'attack_weight') > 0 and number(row, 'skill_weight') > 0, 'Style fallback')
         require(0 < number(row, 'heal_threshold') <= 1 and 0 < number(row, 'mana_threshold') <= 1, 'Style threshold')
+    if 'monster_resists' in tables:
+        seen_resists = set()
+        for row in tables['monster_resists']:
+            require(row['monster_id'] in indexes['monsters'], 'Resist monster missing')
+            require(row['element'] in ELEMENTS, 'Invalid monster resist element')
+            require(-.25 <= number(row, 'value') <= .45, 'Monster resist out of range')
+            pair = (row['monster_id'], row['element'])
+            require(pair not in seen_resists, 'Duplicate monster resist')
+            seen_resists.add(pair)
     rules = {r['id']: number(r, 'value') for r in tables['rules']}
+    if catalog_version == 'combat-1.0.19':
+        require(rules['element_power_min'] == 0 and rules['element_power_max'] == .4, 'Element power caps')
+        require(rules['element_resist_min'] == -.25 and rules['element_resist_max'] == .45, 'Element resist caps')
+        require(rules['element_factor_min'] == .6 and rules['element_factor_max'] == 1.5, 'Element factor caps')
+        require('monster_resists' in tables, 'Missing monster resists')
     require(rules['level_cap'] == 99 and rules['loot_carry_cap'] == 2 and rules['equipment_carry_cap'] == 1, 'Rule caps')
     for key in ('round_seconds', 'encounter_delay_seconds', 'loot_interval_seconds', 'equipment_interval_seconds', 'daily_minutes'):
         require(rules[key] > 0, f'Invalid interval: {key}')

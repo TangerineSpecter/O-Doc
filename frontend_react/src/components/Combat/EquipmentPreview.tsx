@@ -4,23 +4,21 @@ import WorldDialog from '../AgentWorld/WorldDialog';
 import EquipmentCard from './EquipmentCard';
 import {previewCombatEquipment} from '../../api/combat';
 import type {CombatEquipment, CombatProfile} from '../../types/api/combat';
-import {equipmentTypeLabels, slotLabels, statLabels} from './presentation';
+import {equipmentTypeLabels, isRatioStat, slotLabels, statLabels} from './presentation';
 import {isRingEquipment, resolveLoadoutSlots} from './loadoutPresentation';
 
 type LoadoutSlot = 'weapon' | 'offhand' | 'head' | 'body' | 'hands' | 'feet' | 'accessory' | 'ring_1' | 'ring_2';
-
-const percentageStats = new Set(['accuracy', 'evasion', 'critical', 'criticalDamage', 'critical_damage']);
 
 function formatPreviewValue(key: string, value: number | string | undefined): string {
     if (value == null) return '-';
     const number = Number(value);
     if (!Number.isFinite(number)) return String(value);
-    if (percentageStats.has(key)) return `${(number * 100).toFixed(1)}%`;
+    if (isRatioStat(key)) return `${(number * 100).toFixed(1)}%`;
     return Number.isInteger(number) ? String(number) : String(Number(number.toFixed(2)));
 }
 
 function formatPreviewDelta(key: string, delta: number): {value: number; label: string} {
-    const isPercentage = percentageStats.has(key);
+    const isPercentage = isRatioStat(key);
     const value = Number((delta * (isPercentage ? 100 : 1)).toFixed(isPercentage ? 1 : 2));
     return {
         value,

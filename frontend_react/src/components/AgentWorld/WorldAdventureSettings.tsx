@@ -2,6 +2,8 @@ import {useEffect, useState} from 'react';
 import {Clock3, Loader2, Save, Swords} from 'lucide-react';
 import {getCombatConfig, setCombatConfig} from '../../api/combat';
 import {useToast} from '../common/ToastProvider';
+import type {CombatHistoryStorage} from '../../types/api/combat';
+import {WorldAdventureHistory} from './WorldAdventureHistory';
 
 const MIN_DAILY_MINUTES = 30;
 const MAX_DAILY_MINUTES = 120;
@@ -14,6 +16,7 @@ export function WorldAdventureSettings() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [revision, setRevision] = useState(0);
+    const [historyStorage, setHistoryStorage] = useState<CombatHistoryStorage>();
 
     useEffect(() => {
         const controller = new AbortController();
@@ -24,6 +27,7 @@ export function WorldAdventureSettings() {
                 if (!active) return;
                 setDailyMinutes(config.dailyMinutes);
                 setSavedMinutes(config.dailyMinutes);
+                setHistoryStorage(config.historyStorage);
                 setError('');
             })
             .catch(value => {
@@ -147,6 +151,7 @@ export function WorldAdventureSettings() {
                     </button>
                 </div>
             </form>
+            <WorldAdventureHistory storage={historyStorage}/>
         </section>
     );
 }

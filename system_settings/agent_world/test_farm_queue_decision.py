@@ -8,7 +8,8 @@ from unittest.mock import patch, Mock
 from django.test import SimpleTestCase, TestCase, override_settings
 
 from .farm_catalog import DEFAULT_RULES
-from .farm_queue_candidates import FarmQueueFacts, build_candidates, preview
+from .farm_queue_candidates import (FarmQueueFacts, describe_basket, fertilizer_options,
+                                    ranked_baskets, restock_options, preview)
 from .farm_clock import SHANGHAI
 
 NOW = datetime(2026, 10, 10, 8, tzinfo=SHANGHAI)
@@ -36,82 +37,64 @@ def facts():
 
 
 class CandidateTests(SimpleTestCase):
-    def test_text_fallback_keeps_choice_identity_and_drops_estimate_bulk(self):
-        import json as json_lib
-        from .farm_queue_candidates import identity
-        from .farm_queue_decision import text_fallback
-        value = facts()
-        candidates = build_candidates(value)
-        templates, choices = {}, {}
-        for key, row in candidates.items():
-            plan_id = identity(row['farm_plan']['entries'])
-            templates.setdefault(plan_id, {'entries': row['farm_plan']['entries'], **row['summary']})
-            choices[key] = {'plan_id': plan_id, 'procurement_limit': row['farm_plan']['procurement_limit'],
-                            'procurement_tier': row['summary'].get('procurement_tier', 'none')}
-        state = {'plans': templates, 'stocked_crops': value.crops, 'slot': {'id': 'slot'}, 'intent': '种植'}
-        full = json_lib.dumps({'state': state, 'choices': choices}, ensure_ascii=False, default=str)
-        brief, prompt_choices, labels = text_fallback(state, choices)
-        compact = json_lib.dumps({'state': brief, 'choices': prompt_choices}, ensure_ascii=False, default=str)
-        self.assertLess(len(compact), 16000)
-        self.assertLess(len(compact), len(full) / 2)
-        self.assertNotIn('without_fertilizer', compact)
-        self.assertEqual(set(labels.values()), set(choices))
-        self.assertEqual(labels[next(iter(prompt_choices))], next(iter(choices)))
-
-    def test_short_choice_maps_back_without_sending_estimate_tables(self):
-        from types import SimpleNamespace
-        from .farm_queue_candidates import identity
-        from .farm_queue_decision import text_fallback
-        from .life_choices import choose
-        value = facts()
-        candidates = build_candidates(value)
-        templates, choices = {}, {}
-        for key, row in candidates.items():
-            plan_id = identity(row['farm_plan']['entries'])
-            templates.setdefault(plan_id, {'entries': row['farm_plan']['entries'], **row['summary']})
-            choices[key] = {'plan_id': plan_id, 'procurement_limit': row['farm_plan']['procurement_limit'],
-                            'procurement_tier': row['summary'].get('procurement_tier', 'none')}
-        state = {'plans': templates, 'stocked_crops': value.crops}
-        brief, prompt_choices, labels = text_fallback(state, choices)
-        agent = SimpleNamespace(pk='agent', name='园丁', role_profile={}, prompt='')
-        captured = {}
-
-        def fake_complete(model, prompt, validate, **kwargs):
-            captured['prompt'] = prompt
-            return validate({'choice': next(iter(prompt_choices))})
-
-        with patch('system_settings.agent_world.life_choices.choose_scene', return_value=None), \
-             patch('system_settings.agent_world.life_choices.complete_json', side_effect=fake_complete):
-            picked = choose(agent, 'owner', 'farm_queue', state, choices,
-                            prompt_state=brief, prompt_choices=prompt_choices, choice_labels=labels)
-        self.assertEqual(picked, next(iter(choices)))
-        self.assertNotIn('without_fertilizer', captured['prompt'])
-        self.assertNotIn('上次输出未通过校验', captured['prompt'])
-
-    def test_bounded_deterministic_diverse_and_no_resource_mutation(self):
+    def test_baskets_are_deterministic_ranked_and_within_stock(self):
         value = facts()
         before = copy.deepcopy(value)
-        options = build_candidates(value)
-        self.assertEqual(options, build_candidates(value))
+        rows = ranked_baskets(value)
+        self.assertEqual(rows, ranked_baskets(value))
         self.assertEqual(value, before)
-        self.assertLessEqual(len(options), 240)
-        specifications = [o['farm_plan'] for o in options.values()]
-        self.assertEqual(len(specifications), len({json.dumps(s, sort_keys=True) for s in specifications}))
-        crop_sets = [{e['sku'] for e in s['entries']} for s in specifications]
-        self.assertTrue(any(len(s) > 1 for s in crop_sets))
-        self.assertEqual(set.union(*crop_sets), {c['seed_sku'] for c in value.crops})
-        strategies = {(e['fertilizer_mode'], e['fertilizer']) for s in specifications for e in s['entries']}
-        self.assertTrue({('none', None), ('optional', 'quality'), ('optional', 'yield'),
-                         ('required', 'quality'), ('required', 'yield')} <= strategies)
-        totals = [sum(e['quantity'] for e in s['entries']) for s in specifications]
-        self.assertTrue(any(0 < n <= 4 for n in totals))
-        self.assertTrue(any(n > 4 for n in totals))
-        for specification in specifications:
-            stock = {c['seed_sku']: c['seed_quantity'] for c in value.crops}
-            for entry in specification['entries']:
+        self.assertLessEqual(len(rows), 10)
+        self.assertGreater(len(rows), 1)
+        revenues = [row['summary']['eventual_expected_revenue'] for row in rows]
+        self.assertEqual(revenues, sorted(revenues, reverse=True))
+        keys = [tuple(sorted((entry['sku'], entry['quantity']) for entry in row['entries'])) for row in rows]
+        self.assertEqual(len(keys), len(set(keys)))
+        for row in rows:
+            stock = {crop['seed_sku']: crop['seed_quantity'] for crop in value.crops}
+            for entry in row['entries']:
+                self.assertEqual(entry['fertilizer_mode'], 'none')
                 stock[entry['sku']] -= entry['quantity']
                 self.assertGreaterEqual(stock[entry['sku']], 0)
-            self.assertLessEqual(Decimal(specification['procurement_limit']), value.spendable)
+        text = json.dumps({str(index): describe_basket(value, row) for index, row in enumerate(rows, 1)},
+                          ensure_ascii=False)
+        self.assertLess(len(text), 2000)
+        self.assertNotIn('without_fertilizer', text)
+        self.assertNotIn('seed.', text)
+
+    def test_three_crops_keep_the_full_basket_first_and_drop_order_duplicates(self):
+        value = facts()
+        keep = {'seed.corn', 'seed.radish', 'seed.cucumber'}
+        for crop in value.crops:
+            crop['seed_quantity'] = {'seed.radish': 3, 'seed.corn': 1, 'seed.cucumber': 1}.get(crop['seed_sku'], 0)
+        rows = ranked_baskets(value)
+        self.assertLessEqual(len(rows), 10)
+        self.assertEqual({entry['sku'] for entry in rows[0]['entries']}, keep)
+        self.assertNotIn('今日可收', describe_basket(value, rows[0]))
+        self.assertGreater(rows[0]['summary']['eventual_expected_revenue'],
+                           rows[-1]['summary']['eventual_expected_revenue'])
+
+    def test_fertilizer_question_uses_stock_then_quote_then_skips(self):
+        value = facts()
+        for crop in value.crops:
+            crop['seed_quantity'] = 1 if crop['seed_sku'] == 'seed.radish' else 0
+        entries = ranked_baskets(value)[0]['entries']
+        stocked = fertilizer_options(value, entries)
+        self.assertEqual(set(stocked['choices']), {'no', 'yes'})
+        self.assertEqual(stocked['mode'], 'optional')
+        self.assertEqual(stocked['kind'], 'yield')
+        self.assertIn('手头', stocked['fact'])
+        for row in value.fertilizers.values():
+            row['quantity'] = 0
+        quoted = fertilizer_options(value, entries)
+        self.assertEqual(quoted['mode'], 'required')
+        self.assertIn('等买到', quoted['choices']['yes'])
+        for row in value.fertilizers.values():
+            row['quote'] = None
+        self.assertIsNone(fertilizer_options(value, entries))
+        value.spendable = Decimal(0)
+        for row in value.fertilizers.values():
+            row['quote'] = {'price': 10}
+        self.assertIsNone(fertilizer_options(value, entries))
 
     def test_no_seeds_keeps_only_empty_entries_and_replenishment_choices(self):
         value = facts()
@@ -119,12 +102,12 @@ class CandidateTests(SimpleTestCase):
             crop['seed_quantity'] = 0
         value.reference_seed_price = Decimal('7')
         value.spendable = Decimal('50')
-        options = list(build_candidates(value).values())
-        self.assertTrue(all(o['farm_plan']['entries'] == [] for o in options))
-        limits = {Decimal(o['farm_plan']['procurement_limit']) for o in options}
+        self.assertEqual(ranked_baskets(value), [])
+        options = restock_options(value, [])
+        limits = {Decimal(row['limit']) for row in options.values()}
         self.assertEqual(limits, {Decimal(0), Decimal(28), Decimal(50)})
         value.spendable = Decimal(0)
-        self.assertEqual(len(build_candidates(value)), 1)
+        self.assertIsNone(restock_options(value, []))
 
     def test_no_remaining_time_or_land_gives_one_zero_purchase_plan(self):
         for mode in ('time', 'land', 'occupied'):
@@ -138,19 +121,19 @@ class CandidateTests(SimpleTestCase):
                     plot['crop'] = {'grown': 0, 'checked_at': NOW.timestamp(),
                                     'rules': {'growth_seconds': 86400}}
             with self.subTest(mode=mode):
-                options = list(build_candidates(value).values())
-                self.assertEqual(len(options), 1)
-                self.assertEqual(options[0]['farm_plan'], {'entries': [], 'procurement_limit': '0.00'})
+                self.assertEqual(ranked_baskets(value), [])
+                self.assertIsNone(restock_options(value, []))
 
     def test_late_long_crop_can_be_planted_and_harvested_tomorrow(self):
         value = facts()
         value.start = value.cutoff - timedelta(minutes=10)
         value.crops = [c for c in value.crops if c['seed_sku'] == 'seed.sunflower']
-        options = list(build_candidates(value).values())
-        plain = next(o for o in options if o['farm_plan']['entries'][0]['fertilizer_mode'] == 'none')
-        self.assertEqual(plain['summary']['sowable'], 4)
-        self.assertEqual(plain['summary']['harvestable_today'], 0)
-        self.assertGreater(plain['summary']['eventual_expected_revenue'], 0)
+        rows = ranked_baskets(value)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['summary']['sowable'], 4)
+        self.assertEqual(rows[0]['summary']['harvestable_today'], 0)
+        self.assertGreater(rows[0]['summary']['eventual_expected_revenue'], 0)
+        self.assertIn('今日可收0', describe_basket(value, rows[0]))
 
     def test_required_and_optional_share_real_fertilizer_and_fifo_cost(self):
         value = facts()
@@ -183,7 +166,10 @@ class FarmDecisionTests(TestCase):
         self.task = AgentTask.objects.create(name='农场', task_kind='farm', agent=self.agent,
             agent_ids=[self.agent.pk], enabled=True, farm_config={'owner_id': 'owner'})
         self.config = LifeConfig.objects.create(pk='owner', migrated=True,
-            settings={**DEFAULTS, 'agent_ids': [self.agent.pk], 'jev_enabled': True})
+            settings={**DEFAULTS, 'agent_ids': [self.agent.pk], 'jev_enabled': True,
+                      'decision_connection_id': 'jev', 'decision_connection_ids': ['jev']})
+        from system_settings.decision.config import save_key
+        save_key('owner', 'secret')
         ensure_profiles('owner', [self.agent.pk])
         ensure_farms(self.task)
         self.item = LifeItem.objects.create(pk='slot', owner_id='owner', actor_id=self.agent.pk,
@@ -220,11 +206,10 @@ class FarmDecisionTests(TestCase):
         self.assertEqual(value.seed_prices['seed.corn'], Decimal('35'))
         self.assertEqual(value.seed_price_sources['seed.corn'], '目录基准价')
         self.assertEqual(value.reference_seed_price, Decimal('12'))
-        options = build_candidates(value).values()
-        plain = [o['farm_plan'] for o in options if o['farm_plan']['entries']
-                 and all(e['fertilizer_mode'] == 'none' for e in o['farm_plan']['entries'])]
+        baskets = ranked_baskets(value)
+        self.assertEqual({entry['sku'] for entry in baskets[0]['entries']}, {'seed.radish'})
         # Two held seeds cover half of one round; the missing two cost 7 each.
-        self.assertIn(Decimal('14'), {Decimal(s['procurement_limit']) for s in plain})
+        self.assertEqual(Decimal(restock_options(value, baskets[0]['entries'])['round']['limit']), Decimal('14'))
 
     def test_empty_queue_uses_visible_seed_quote_median_for_replenishment(self):
         from .travel_models import AgentInventoryItem
@@ -235,9 +220,8 @@ class FarmDecisionTests(TestCase):
         AgentInventoryItem.objects.all().delete()
         with patch('django.utils.timezone.now', return_value=NOW):
             value = planning_facts('owner', self.agent, self.slot)
-        options = list(build_candidates(value).values())
-        self.assertTrue(all(o['farm_plan']['entries'] == [] for o in options))
-        self.assertIn(Decimal('48'), {Decimal(o['farm_plan']['procurement_limit']) for o in options})
+        self.assertEqual(ranked_baskets(value), [])
+        self.assertEqual(Decimal(restock_options(value, [])['round']['limit']), Decimal('48'))
         self.assertIn('可见种子报价中位数', value.price_source)
 
     def test_no_visible_seed_quote_falls_back_to_catalog_median(self):
@@ -258,13 +242,59 @@ class FarmDecisionTests(TestCase):
              patch('system_settings.decision.routing.complete', side_effect=AssertionError('不得请求普通模型')):
             result = self.decide()
         self.assertTrue(result['entries'])
+        # One held crop skips the basket. The hourly shop always quotes fertilizer,
+        # so the model answers fertilizer, then restock.
+        self.assertEqual(model.call_count, 2)
+        asked = [(call.args[1]['context'], call.args[2]) for call in model.call_args_list]
+        for context, choices in asked:
+            self.assertTrue(set(context) <= {'intent', 'preferences', 'planting', 'fertilizer'})
+            self.assertNotIn('plans', context)
+            self.assertNotIn('stocked_crops', context)
+            self.assertNotIn('stamina', context)
+            self.assertLessEqual(len(choices), 10)
+            self.assertTrue(all(isinstance(label, str) for label in choices.values()))
+            self.assertLess(len(json.dumps({'state': context, 'choices': choices}, ensure_ascii=False)), 2000)
+        self.assertIn('现在种，不买肥', asked[0][1].values())
+        self.assertEqual(asked[1][0]['fertilizer'], asked[0][1]['no'])
+        self.assertIn('不补种', asked[1][1].values())
+
+    def test_on_hand_intent_does_not_ask_to_buy_seeds(self):
+        from .farm_queue_decision import decide_plan
+        with patch('django.utils.timezone.now', return_value=NOW), \
+             patch('system_settings.decision.jev.choose',
+                   side_effect=lambda owner, state, choices, **kw: ('no', .8)) as model, \
+             patch('system_settings.decision.routing.complete', side_effect=AssertionError('不得请求普通模型')):
+            result = decide_plan(self.agent, 'owner', self.slot, '安排种植，利用现有资源')
         model.assert_called_once()
-        context = model.call_args.args[1]['context']
-        self.assertNotIn('recent_experiences', context)
-        self.assertEqual(context['cutoff'][:10], (NOW + timedelta(days=1)).date().isoformat())
-        self.assertEqual(len(context['stocked_crops']), 1)
-        self.assertIn('plans', context)
-        self.assertTrue(all('entries' not in c for c in model.call_args.args[2].values()))
+        self.assertNotIn('不补种', model.call_args.args[2].values())
+        self.assertTrue(result['entries'])
+        self.assertEqual(result['procurement_limit'], '0.00')
+        self.assertTrue(all(entry['fertilizer_mode'] == 'none' for entry in result['entries']))
+
+    def test_later_question_receives_the_previous_choice(self):
+        from .inventory_stock import add_stock
+        add_stock(self.agent.pk, 'owner', self.agent.name, 'seed.corn', 1, '玉米', 'seed', 35)
+        add_stock(self.agent.pk, 'owner', self.agent.name, 'seed.cucumber', 1, '黄瓜', 'seed', 24)
+        add_stock(self.agent.pk, 'owner', self.agent.name, 'fertilizer.yield', 2, '增产肥', 'fertilizer', 35)
+        seen = []
+
+        def fake(owner, state, choices, **kwargs):
+            seen.append((state['context'], dict(choices)))
+            return next(iter(choices)), .8
+
+        with patch('django.utils.timezone.now', return_value=NOW), \
+             patch('system_settings.decision.jev.choose', side_effect=fake), \
+             patch('system_settings.decision.routing.complete', side_effect=AssertionError('不得请求普通模型')):
+            result = self.decide()
+        self.assertEqual(len(seen), 3)
+        basket = seen[0][1][next(iter(seen[0][1]))]
+        self.assertEqual(seen[1][0]['planting'], basket)
+        self.assertIn('手头', seen[1][0]['fertilizer'])
+        self.assertEqual(seen[2][0]['planting'], basket)
+        self.assertEqual(seen[2][0]['fertilizer'], seen[1][1][next(iter(seen[1][1]))])
+        self.assertLessEqual(max(len(choices) for _, choices in seen), 10)
+        self.assertTrue(result['entries'])
+        self.assertTrue(all(entry['fertilizer_mode'] == 'none' for entry in result['entries']))
 
     def test_disabled_excluded_and_unavailable_use_same_candidate_ids(self):
         from system_settings.decision.jev import DecisionUnavailable, choose as provider_choose
@@ -284,8 +314,9 @@ class FarmDecisionTests(TestCase):
                  patch('system_settings.decision.jev.requests.post', return_value=response), \
                  patch('system_settings.decision.routing.complete', side_effect=respond) as text:
                 self.assertTrue(self.decide()['entries'])
-                self.assertEqual(model.call_count, int(mode in ('failed', 'invalid')))
-                text.assert_called_once()
+                questions = 2
+                self.assertEqual(model.call_count, questions if mode in ('failed', 'invalid') else 0)
+                self.assertEqual(text.call_count, questions)
 
     def test_sole_empty_candidate_skips_all_models(self):
         from .travel_models import AgentInventoryItem
@@ -306,7 +337,13 @@ class FarmDecisionTests(TestCase):
         from .life_models import LifeItem
         from .life_planner import apply_plan
         def select(agent, owner, scene, state, choices, **kwargs):
-            result = max(choices, key=lambda k: Decimal(choices[k]['procurement_limit']))
+            import re
+            def amount(label):
+                match = re.search(r'采购上限([0-9]+(?:\.[0-9]+)?)', str(label))
+                return Decimal(match.group(1)) if match else Decimal(0)
+            if not any(amount(label) for label in choices.values()):
+                return 'no' if 'no' in choices else next(iter(choices))
+            result = max(choices, key=lambda key: amount(choices[key]))
             take_stock(self.agent.pk, 'owner', 'seed.radish', 1)
             self.agent.money = 15
             self.agent.save()
@@ -349,7 +386,8 @@ class FarmDecisionTests(TestCase):
             self.item.refresh_from_db()
             original = copy.deepcopy(self.item.context)
             plan_items(self.config, self.agent, [self.item], preserve_activities=True)
-        model.assert_called_once()
+        model.assert_called()
+        self.assertEqual(model.call_count, 2)
         self.item.refresh_from_db()
         self.assertEqual(original, self.item.context)
         validate_queue(AgentFarm.objects.get(pk=self.agent.pk))

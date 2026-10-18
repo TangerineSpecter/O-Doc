@@ -7,6 +7,7 @@ export interface RecipeRule {
     salePrice: string; experience: number; energyCost: number;
 }
 export interface CookingRecipe extends RecipeRule {
+    adventureEffects?: {stars: number; effects: Record<string, number>; summary: string}[];
     id: string; sku: string; name: string; description: string;
     ingredients: {sku: string; quantity: number; name: string; owned: number}[];
     state: 'unselected' | 'locked' | 'missing' | 'tired' | 'ready'; maxPortions: number;

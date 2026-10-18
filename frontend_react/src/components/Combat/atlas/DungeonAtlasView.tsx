@@ -121,7 +121,7 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
             {/* 双栏布局：左侧格子网格 + 右侧详情卡片 */}
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
                 {/* 左侧格子列表 */}
-                <div className="scrollbar-hide h-full overflow-y-auto pr-1">
+                <div className="scrollbar-hide h-full overflow-y-auto p-1.5 pt-2">
                     {!visibleDungeons.length ? (
                         <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
                             <Compass className="h-8 w-8 text-slate-300" />

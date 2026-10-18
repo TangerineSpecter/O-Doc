@@ -162,6 +162,8 @@ def step(catalog: Catalog, state: dict, style_id: str, tick: int, rng, *, waitin
         return result, events
     expire(enemy, tick)
     events.extend(recover_passives(catalog, player))
+    from ..food_effects import recover as recover_food
+    events.extend(recover_food(player, result.get('food')))
     events.extend(player_action(catalog, player, enemy, result['potions'], tick, catalog.row('styles', style_id), rng))
     if enemy['hp'] > 0:
         upkeep(enemy, tick, events, opponent=player, catalog=catalog, rng=rng)

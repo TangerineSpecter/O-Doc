@@ -99,7 +99,7 @@ export function MaterialAtlasView({catalog}: MaterialAtlasViewProps) {
             {/* 双栏布局 */}
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
                 {/* 左侧网格 */}
-                <div className="scrollbar-hide h-full overflow-y-auto pr-1">
+                <div className="scrollbar-hide h-full overflow-y-auto p-1.5 pt-2">
                     {!visibleMaterials.length ? (
                         <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
                             <Gem className="h-8 w-8 text-slate-300" />

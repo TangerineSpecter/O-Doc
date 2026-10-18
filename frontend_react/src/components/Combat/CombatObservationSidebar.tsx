@@ -4,6 +4,7 @@ import type {CombatEvent, CombatSnapshot} from '../../types/api/combat';
 import {observationLoot} from './observationRecords';
 import {ObservationEvents, ObservationKills} from './CombatObservationFeed';
 import {ObservationLootGrid, ObservationLootDetails} from './CombatObservationLoot';
+import CombatFoodSummary from './CombatFoodSummary';
 
 const tabs = [
     {id: 'events', name: '战斗动态', icon: ScrollText},
@@ -73,6 +74,11 @@ export default function CombatObservationSidebar({
                 })}
             </div>
 
+            {(snapshot.result.food !== undefined || snapshot.result.foodAdjustment) && (
+                <div className="shrink-0 px-3 pt-2">
+                    <CombatFoodSummary result={snapshot.result} active={['active', 'paused'].includes(snapshot.status)}/>
+                </div>
+            )}
             {/* 列表主视口 */}
             <div
                 ref={list}

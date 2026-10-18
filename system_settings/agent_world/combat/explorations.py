@@ -10,7 +10,7 @@ from system_settings.models import Agent, AgentExecutionLease, WorldAction, Agen
 from .models import Exploration, CombatEncounter, CombatRuntime, CombatConfig, CombatProfile, EquipmentInstance
 from .store import current
 from .permissions import local_runtime
-from .profiles import ensure, stats, wearing, recover, adopt_catalog, OPEN
+from .profiles import ensure, wearing, recover, adopt_catalog, OPEN
 from .facts import append
 from . import engine, attributes, rewards, equipment
 from ..farm_gate import guarded
@@ -215,19 +215,20 @@ def depart(run_id, plan, now=None):
         if type(count)is not int or not 0<=count<=99 or int(definition['required_level'])>profile.progression['level'] or definition['enabled']!='1':raise ValueError('携带药剂无效')
         if count:take_stock(profile.pk,profile.owner_id,'combat.'+sid,count)
     if sum(potions.values())>int(catalog.rules['potion_carry_cap']):raise ValueError('每次最多携带 20 瓶药剂')
-    derived=stats(profile,catalog)
+    from .food import consume as consume_food, combat_stats
+    food, food_adjustment = consume_food(run, plan.get('food'), duration)
+    plan = {**plan, 'food': ({key: food[key] for key in ('recipe_id', 'stars', 'quantity')} if food else None)}
+    run.snapshot = {**run.snapshot, 'food_version': 1, 'food': food, 'food_adjustment': food_adjustment}
+    derived=combat_stats(profile,catalog,run.snapshot)
     loadout_ids=set(profile.loadout.values())
     worn_items={item.pk:item for item in EquipmentInstance.objects.filter(
         pk__in=loadout_ids,actor_id=profile.pk,owner_id=run.owner_id,sold=False)}
     if len(profile.loadout)!=len(loadout_ids) or len(worn_items)!=len(loadout_ids):
         raise ValueError('出发装备归属或来源无效')
-    source_catalogs={}
+    from .equipment_snapshot import slot_matches
     for slot,identity in profile.loadout.items():
         item=worn_items[identity]
-        if item.catalog_id not in source_catalogs:
-            source_catalogs[item.catalog_id]=current(item.catalog_id)
-        if not equipment.loadout_slot_matches(
-                source_catalogs[item.catalog_id],item.template_id,item.snapshot,slot):
+        if not slot_matches(item.snapshot,item.rules,slot):
             raise ValueError('出发装备槽位记录无效')
     from ..life_schedule import reschedule_after_exploration
     reschedule_after_exploration(run.owner_id,run.actor_id,now,duration,life_item_id=run.life_item_id)
@@ -236,9 +237,10 @@ def depart(run_id, plan, now=None):
     run.snapshot={**run.snapshot,'plan':plan,'equipment':wearing(profile),'progression':profile.progression,
                   'profession_bonuses':profession_bonuses}
     run.result={'energy':0,'experience':0,'kills':0,'potions_used':{},'rewards':[],'growth':[]}
+    run.result.update(food=food, food_adjustment=food_adjustment)
     run.state={'player':engine.fighter(derived,agent.name,profile.progression['level'],hp=profile.hp,mp=profile.mp,
         skills=profile.progression['skills'],passives=attributes.passives(catalog,profile.progression['skills'],wearing(profile))),
-        'enemy':None,'potions':potions,'encounter':0,'nonboss_kills':0,'boss_seen':False,'waiting_until':0}
+        'enemy':None,'potions':potions,'encounter':0,'nonboss_kills':0,'boss_seen':False,'waiting_until':0,'food':food}
     charges=[consume(run,profile,10,'entry',now),consume(run,profile,2,0,now)]
     spawn(run,catalog,now)
     lease,_=AgentExecutionLease.objects.get_or_create(agent=agent)
@@ -247,7 +249,8 @@ def depart(run_id, plan, now=None):
     run.next_tick_at=now+timedelta(seconds=15)
     run.revision+=1
     run.save()
-    append(profile,run.pk+':depart','depart',{'plan':plan,'profession_bonuses':profession_bonuses,'consumption':charges},run)
+    append(profile,run.pk+':depart','depart',{'plan':plan,'profession_bonuses':profession_bonuses,'consumption':charges,
+           'food_version':1,'food':food,'food_adjustment':food_adjustment},run)
     return run
 
 
@@ -302,7 +305,14 @@ def settle(run, profile, status, reason, now):
     names=[f'{name}×{count}' for name, count in reward_counts.items()]
     if names:report+=' 收获：'+'、'.join(names)+'。'
     report+=f'消耗药剂 {sum(run.result.get("potions_used",{}).values())} 瓶，返回 Lv.{profile.progression["level"]}。'
+    food = run.result.get('food')
+    if food:
+        report += f" 美食：{food['stars']}星{food['name']}×{food['quantity']}份（{food['summary']}），效果已结束。"
+    if run.result.get('food_adjustment'):
+        report += ' ' + run.result['food_adjustment']
     run.result={**run.result,'report':report,'returned_potions':returned}
+    from .history_snapshot import frozen_run
+    run.snapshot = frozen_run(run.snapshot, catalog)
     run.save()
     CombatEncounter.objects.filter(exploration_id=run.pk,ended_at__isnull=True).update(ended_at=storage_time(now),result={'status':status,'defeated':False})
     AgentExecutionLease.objects.filter(agent_id=run.actor_id,token=lease_token(run.pk)).update(token='',until=None)
@@ -401,9 +411,10 @@ def tick(run_id, expected_revision=None, now=None):
             base_experience,
             profession_bonuses.get('maze_experience_bonus_percentage', 0),
         )
-        old=stats(profile,catalog)
+        from .food import combat_stats
+        old=combat_stats(profile,catalog,run.snapshot)
         profile.progression,growth=attributes.award(catalog,profile.progression,experience,stop_at_promotion=True)
-        derived=stats(profile,catalog)
+        derived=combat_stats(profile,catalog,run.snapshot)
         player=run.state['player']
         player['hp']=max(1,math.floor(player['hp']/old['hp_max']*derived['hp_max']))
         player['mp']=math.floor(player['mp']/max(1,old['mp_max'])*derived['mp_max'])

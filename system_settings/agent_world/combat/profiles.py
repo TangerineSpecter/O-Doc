@@ -6,6 +6,7 @@ from django.db import transaction
 from .models import CombatProfile, EquipmentInstance, Exploration
 from .store import current
 from . import attributes, equipment
+from . import equipment_snapshot
 from .facts import append, replay
 from ..farm_gate import guarded
 from ..life_time import local_time, storage_time
@@ -17,9 +18,7 @@ EQUIPMENT_SLOTS = {'weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'access
 def two_handed(item, catalog) -> bool:
     if not item:
         return False
-    grip = item.snapshot.get('grip')
-    if not grip:
-        grip = catalog.row('equipment_templates', item.template_id).get('grip', '')
+    grip = item.rules['grip']
     return grip == 'two_handed'
 
 
@@ -44,18 +43,10 @@ def apply_loadout_changes(profile, catalog, changes, owner):
             if MarketListing.objects.filter(owner_id=owner, status='active',
                     item__source__kind='combat_equipment', item__source__equipment_id=item.pk).exists():
                 raise ValueError('装备正在居民集市挂牌，请先撤回')
-        if already_worn_here:
-            slot_catalog = current(item.catalog_id)
-            slot_template_id = item.template_id
-        else:
-            slot_catalog = catalog
-            slot_template_id = equipment.eligibility_template_id(
-                catalog, item.template_id, item.snapshot, bound=item.bound)
-        if not equipment.loadout_slot_matches(slot_catalog, slot_template_id, item.snapshot, slot):
+        if not equipment_snapshot.slot_matches(item.snapshot, item.rules, slot):
             raise ValueError('装备不属于居民或不满足穿戴条件')
-        if not already_worn_here and not equipment.allowed(
-                catalog, slot_template_id, profile.progression['job'],
-                profile.progression['level'], item.snapshot['level']):
+        if not already_worn_here and not equipment_snapshot.permitted(
+                item.snapshot, item.rules, profile.progression['job'], profile.progression['level']):
             raise ValueError('装备不属于居民或不满足穿戴条件')
         for current_slot, current_identity in list(candidate.items()):
             if current_identity == identity and current_slot != slot:
@@ -102,6 +93,8 @@ def ensure(owner, agent, now=None):
     profile.hp, profile.mp = derived['hp_max'], derived['mp_max']
     profile.save()
     append(profile, 'initialize:'+agent.pk, 'initialize', {'equipment_id':gear.pk, 'progression':profile.progression,'catalog_id':catalog.version})
+    from .history import freeze_legacy
+    freeze_legacy()
     return profile
 
 
@@ -188,22 +181,12 @@ def promote(owner, agent, key, job, *, exploration_id='', reason=''):
     idle(profile,excluding=exploration_id)
     catalog = current(profile.catalog_id)
     profile.progression = attributes.promote(catalog,profile.progression,job)
-    # A newer profile catalog must not replace the eligibility rules bound to worn gear.
-    equipment_catalogs = {catalog.version: catalog}
     for slot, identity in list(profile.loadout.items()):
         item = EquipmentInstance.objects.get(pk=identity)
-        item_catalog = equipment_catalogs.get(item.catalog_id)
-        if item_catalog is None:
-            item_catalog = equipment_catalogs[item.catalog_id] = current(item.catalog_id)
-        if not equipment.allowed(
-                item_catalog,item.template_id,job,
-                profile.progression['level'],item.snapshot['level']):
+        if not equipment_snapshot.permitted(item.snapshot, item.rules, job, profile.progression['level']):
             del profile.loadout[slot]
     weapon = EquipmentInstance.objects.filter(pk=profile.loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
-    weapon_catalog = equipment_catalogs.get(weapon.catalog_id) if weapon else None
-    if weapon and weapon_catalog is None:
-        weapon_catalog = equipment_catalogs[weapon.catalog_id] = current(weapon.catalog_id)
-    if two_handed(weapon, weapon_catalog or catalog):
+    if two_handed(weapon, catalog):
         profile.loadout.pop('offhand', None)
     if 'weapon' not in profile.loadout:
         level = int(catalog.row('professions',job)['required_level'])

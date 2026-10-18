@@ -303,7 +303,7 @@ class ExplorationTests(TestCase):
             )
             self.assertEqual(original_recap['fields']['output'], '旧版探索回顾')
 
-            future_meta = {**snapshot['meta'], 'combat_schema_version': 7}
+            future_meta = {**snapshot['meta'], 'combat_schema_version': 9}
             for check in (manager.validate_remote_snapshot_version, manager.validate_import_snapshot_version):
                 with self.assertRaisesMessage(SyncError, '战斗快照版本过新'):
                     check(future_meta)

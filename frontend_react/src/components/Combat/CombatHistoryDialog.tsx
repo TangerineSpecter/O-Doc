@@ -2,6 +2,7 @@ import WorldDialog from '../AgentWorld/WorldDialog';
 import type {CombatHistory} from '../../types/api/combat';
 import {statusLabels} from './presentation';
 import {Clock} from 'lucide-react';
+import CombatFoodSummary from './CombatFoodSummary';
 
 export default function CombatHistoryDialog({
     history,
@@ -56,6 +57,7 @@ export default function CombatHistoryDialog({
                             <p className="mt-2 text-xs leading-relaxed text-slate-500 line-clamp-2">
                                 {run.result?.report || '探索任务已完成，点击查看详细战报与收获'}
                             </p>
+                            <div className="mt-2"><CombatFoodSummary result={run.result} active={['active', 'paused'].includes(run.status)}/></div>
                         </button>
                     ))}
 

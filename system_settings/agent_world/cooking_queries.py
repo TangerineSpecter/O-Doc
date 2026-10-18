@@ -13,6 +13,7 @@ from .cooking_limits import MAX_PORTIONS
 from .execution import stamina
 from .farm_catalog import DEFAULT_RULES, normalized_rules
 from .farm_models import FarmCatalog
+from .food_effects import previews as food_previews
 
 
 def validate_cooking_agents(owner: str, actor_ids: list[str]) -> None:
@@ -71,6 +72,7 @@ def recipes(owner: str, agent: Agent | None = None) -> list[dict]:
                                     for _ in range(min(MAX_PORTIONS, portions, int(energy // rule['energy_cost'])))]
                 previews.append({'ingredient_strategy': strategy, 'portions': preview_portions})
         result.append({**rule, 'id': key, 'sku': 'dish.' + key, 'description': DESCRIPTION,
+            'adventure_effects': food_previews(key),
             'ingredients': ingredients, 'state': state, 'max_portions': min(MAX_PORTIONS, portions, int(energy // rule['energy_cost'])) if state == 'ready' else 0,
             'quality_previews': previews, 'times_made': counts.get(key, 0), 'ingredient_value': str(raw_value), 'processing_gain': str(Decimal(rule['sale_price']) - raw_value),
             'icon_asset_id': asset_id if asset_id in valid else None,

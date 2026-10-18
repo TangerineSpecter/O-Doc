@@ -12,11 +12,25 @@ export function InventoryItemIcon({item, className, fallback}: {
     fallback: ReactNode;
 }) {
     const sku = item.source.sku || '';
-    const builtin = sku.startsWith('combat.material.')
-        ? <MaterialPortrait materialId={sku.slice('combat.'.length)} name={item.name} decorative className={className}/>
-        : sku.startsWith('combat.potion.')
-            ? <PotionPortrait potionId={sku.slice('combat.'.length)} name={item.name} decorative className={className}/>
-            : <ItemIconImage src={farmItemIcon(sku)} alt={item.name} className={className} fallback={fallback}/>;
+    const potionId = sku.startsWith('combat.potion.')
+        ? sku.slice('combat.'.length)
+        : sku.startsWith('potion.')
+        ? sku
+        : /(治疗|回蓝)药剂/.test(item.name)
+        ? (item.name.includes('治疗') ? `potion.heal.${item.name.match(/\d+/)?.[0] || '1'}` : `potion.mana.${item.name.match(/\d+/)?.[0] || '1'}`)
+        : null;
+
+    const materialId = sku.startsWith('combat.material.')
+        ? sku.slice('combat.'.length)
+        : sku.startsWith('material.')
+        ? sku
+        : null;
+
+    const builtin = potionId
+        ? <PotionPortrait potionId={potionId} name={item.name} decorative className={className}/>
+        : materialId
+        ? <MaterialPortrait materialId={materialId} name={item.name} decorative className={className}/>
+        : <ItemIconImage src={farmItemIcon(sku)} alt={item.name} className={className} fallback={fallback}/>;
 
     return item.iconUrl
         ? <ItemIconImage src={item.iconUrl} alt={item.name} className={className} fallback={builtin}/>

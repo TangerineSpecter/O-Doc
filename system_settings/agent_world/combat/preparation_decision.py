@@ -8,7 +8,6 @@ from decimal import Decimal
 from django.db import transaction
 
 from .models import CombatProfile, EquipmentInstance, Exploration, CombatRuntime
-from . import equipment as equipment_rules
 from .profiles import equip, preview_equipment
 from .store import current
 from ..farm_gate import farm_gate
@@ -70,7 +69,7 @@ def _record_choice(trace, key, record):
 
 
 def _gear_decision_key(run_id, equipment_id, action):
-    suffix = hashlib.sha256(equipment_id.encode()).hexdigest()[:40]
+    suffix = hashlib.sha256(equipment_id.encode()).hexdigest()[:16]
     return f'{run_id}:gear-choice:{suffix}:{action}'
 
 
@@ -127,17 +126,14 @@ def _wear_slots(catalog, item, profile):
     else:
         return []
     try:
-        template_id = equipment_rules.eligibility_template_id(
-            catalog, item.template_id, snapshot, bound=item.bound)
-        permitted = equipment_rules.allowed(catalog, template_id, profile.progression['job'],
-                                            profile.progression['level'], int(snapshot.get('level', 0)))
+        from .equipment_snapshot import permitted as can_wear, slot_matches
+        permitted = can_wear(snapshot, item.rules, profile.progression['job'], profile.progression['level'])
     except (ValueError, KeyError, TypeError):
         return []
     if not permitted:
         return []
     try:
-        return [target for target in possible if equipment_rules.loadout_slot_matches(
-            catalog, template_id, snapshot, target)]
+        return [target for target in possible if slot_matches(snapshot, item.rules, target)]
     except (ValueError, KeyError, TypeError):
         return []
 
@@ -321,6 +317,10 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
     duration = int(duration)
     _record_choice(trace, 'duration_seconds', {**record, 'choice': duration})
 
+    from .food import choose as choose_food, summary as food_summary
+    food, record = choose_food(run, agent, duration, structured=True, check=check)
+    _record_choice(trace, 'food', record)
+
     styles = [row for row in catalog.tables['styles'] if row.get('enabled') == '1']
     if constraints.get('style_id'):
         styles = [row for row in styles if row['id'] == constraints['style_id']]
@@ -334,7 +334,7 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
         run, agent, 'style_id',
         {'character': character,
          'selected_dungeon': {'id': dungeon_id, 'name': dungeon['name']},
-         'selected_duration_seconds': duration},
+         'selected_duration_seconds': duration, 'selected_food': food_summary(food)},
         style_choices, style_fallback,
         '根据角色性格、职业、等级以及已选地点和时长选择探索风格。',
         check=check)
@@ -353,13 +353,14 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
                              'purchase_price': row['purchase_price']} for row in potions],
                 'purchase_funds': str(spending_context(run.owner_id, agent.pk)['spendable'])}
     previous = {'character': character,
+                'selected_food': food_summary(food),
                 'selected_dungeon': {'id': dungeon_id, 'name': dungeon['name']},
                 'selected_duration_seconds': duration,
                 'selected_style': {'id': style_id, 'name': style['name']},
                 'supplies': supplies}
     quantity_choices = {str(value): f'{value}瓶' for value in range(cap + 1)}
     red_count, record = _choice(
-        run, agent, 'red_potion_count', previous, quantity_choices, '0',
+        run, agent, 'red_potion_count', previous, quantity_choices, str(min(3, cap)),
         f'根据角色和已选探索方案决定携带多少瓶红药。可选数量为0至{cap}瓶，只选一个选项。',
         check=check)
     red_count = int(red_count)
@@ -394,5 +395,6 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
     equipment_changes = {}
     _process_equipment(run, agent, profile, catalog, trace, check, equipment_changes)
     return ({'dungeon_id': dungeon_id, 'duration_seconds': duration, 'style_id': style_id,
+             'food': food,
              'equipment': equipment_changes, 'purchases': purchases, 'potions': planned_potions,
              'reason': '根据角色信息和逐步决策结果完成出发准备。'}, trace)

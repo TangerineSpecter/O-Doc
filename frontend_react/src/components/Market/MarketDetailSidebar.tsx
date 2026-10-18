@@ -5,7 +5,7 @@ import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
 import {getSkuKnowledge, getSupplyKnowledge} from './marketMetadata';
 import {marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
-import {equipmentSlotLabel, statLabels} from '../Combat/presentation';
+import {elementStatLabels, equipmentSlotLabel, formatRatio, statLabels} from '../Combat/presentation';
 
 export interface MarketSidebarProps {
     type: 'shop-slot' | 'listing' | 'empty';
@@ -290,7 +290,7 @@ export function MarketDetailSidebar({
                             <div className="mt-2 flex flex-wrap gap-1.5">
                                 {Object.entries(item.equipmentSnapshot.stats).filter(([, value]) => Boolean(value)).map(([key, value]) => (
                                     <span key={key} className="rounded bg-slate-50 px-2 py-1 text-[10px] text-slate-600">
-                                        {statLabels[key] || key} <strong className="text-slate-800">+{value}</strong>
+                                        {statLabels[key] || key} <strong className="text-slate-800">+{elementStatLabels[key] ? formatRatio(value) : value}</strong>
                                     </span>
                                 ))}
                             </div>

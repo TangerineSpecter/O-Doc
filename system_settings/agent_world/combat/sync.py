@@ -1,11 +1,8 @@
 """Reject partial/forked combat aggregates instead of manufacturing rewards."""
-import json
-import random
 from copy import deepcopy
 from collections import defaultdict, Counter
-from django.core import serializers
 from .store import digest
-from .models import CombatRuntime, Exploration, CombatProfile
+from .models import CombatRuntime, Exploration, CombatProfile, CombatCatalog, CombatFact
 from .facts import append
 from ..life_time import local_time
 
@@ -21,10 +18,18 @@ LISTING=LABEL+'marketlisting'
 MARKET_TRADE=LABEL+'markettransaction'
 
 
-def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
+def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>6:
+    if meta and meta.get('combat_schema_version',0)>8:
         raise SyncError('战斗快照版本过新，请升级所有设备')
+    from .history_snapshot import normalize_source, compact_source, aggregate_frame, verify_chain
+    if meta is None or meta.get('combat_schema_version', 0) < 8:
+        data = compact_source(normalize_source(data))
+    from ..food_sync import validate_source as validate_food
+    if meta is not None and meta.get('combat_schema_version', 0) < 7 and any(
+            row['model'] == RUN and 'food_version' in row['fields'].get('snapshot', {}) for row in data):
+        raise SyncError('美食冒险数据需要新版战斗同步协议')
+    validate_food(data, meta, require_manifest=bool(meta and meta.get('combat_schema_version', 0) >= 7))
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
     profiles={pk:r for (model,pk),r in rows.items() if model==PROFILE}
     if meta and meta.get('combat_actors') is not None and set(meta['combat_actors'])!=set(profiles):raise SyncError('战斗快照缺少居民业务数据')
@@ -36,13 +41,13 @@ def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
         if model==CATALOG:
             if digest(row['tables'])!=row['digest']:raise SyncError('战斗目录内容与不可变指纹不一致')
             from .catalog_validation import validate_tables
-            # Keep legacy immutable catalogs readable while requiring the expanded
-            # player skill set for the newly released equipment/mastery catalog.
-            expected_skills = 74 if row['id'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18'} else 73 if row['id'] in {'combat-1.0.11','combat-1.0.12'} else 71 if row['id'] in {'combat-1.0.4', 'combat-1.0.5', 'combat-1.0.6', 'combat-1.0.7', 'combat-1.0.8', 'combat-1.0.9', 'combat-1.0.10'} else None
-            expected_promotion_level = 50 if row['id'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18'} else 70
-            try:validate_tables(row['tables'], expected_player_skills=expected_skills,
-                                expected_promotion_level=expected_promotion_level,
-                                catalog_version=row['id'])
+            # Imported runtime packs declare their own progression gates. Release-time
+            # content counts are checked by bundled(), not a historical version allowlist.
+            try:
+                gates = {int(job['required_level']) for job in row['tables']['professions'] if int(job['stage']) == 3}
+                if len(gates) != 1 or not 30 < next(iter(gates)) <= 99:
+                    raise ValueError('转职层级无效')
+                validate_tables(row['tables'], expected_promotion_level=next(iter(gates)), catalog_version=row['id'])
             except (ValueError,KeyError,TypeError,IndexError) as exc:raise SyncError('战斗目录业务规则无效') from exc
         if model==LABEL+'combatconfig' and (type(row['daily_minutes']) is not int or not 30<=row['daily_minutes']<=120):
             raise SyncError('每日探索额度无效')
@@ -51,15 +56,40 @@ def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             run=rows.get((RUN,row['exploration_id']))
             if not run or row['actor_id']!=run['actor_id'] or row['owner_id']!=run['owner_id']:raise SyncError('遭遇记录缺少所属探索')
     if set(chains)!=set(profiles) or set(facts)!=set(profiles):raise SyncError('战斗档案缺少完整事实链')
+    if meta and meta.get('combat_schema_version', 0) >= 8:
+        expected = metadata(data)
+        if any(meta.get(key) != expected[key] for key in ('combat_checkpoints', 'combat_catalogs', 'combat_current_catalog')):
+            raise SyncError('战斗固化检查点或运行目录清单不一致')
+    from .equipment_snapshot import validate as validate_gear, slot_matches, permitted
+    from .frozen_validation import validate_progression, validate_consumption
     for actor,profile in profiles.items():
         chain=chains[actor]
         ordered=sorted(facts[actor],key=lambda r:r['sequence'])
-        previous='';stock=Counter();expected_gear={};progression=None
-        from .catalog import Catalog
-        from . import attributes, equipment as equipment_rules
-        catalog_row=rows.get((CATALOG,profile['catalog_id']))
-        if not catalog_row:raise SyncError('居民成长缺少战斗目录')
-        catalog=Catalog(catalog_row['tables'],catalog_row['id'])
+        try:
+            verify_chain(ordered, chain, actor, profile['owner_id'])
+        except ValueError as exc:
+            raise SyncError('战斗事实链缺失或发生分叉') from exc
+        try:
+            checkpoints = [row for row in ordered if row['kind'] == 'checkpoint']
+            checkpoint = checkpoints[-1]
+            baseline = checkpoint['payload']
+            if (baseline['version'] != 1 or baseline['source_sequence'] != checkpoint['sequence'] - 1 or
+                    baseline['source_digest'] != checkpoint['previous_hash']):
+                raise ValueError('固化检查点与事实链不一致')
+            progression = deepcopy(baseline['progression'])
+            validate_progression(progression)
+            expected_gear = {identity: deepcopy(value['snapshot']) for identity, value in baseline['equipment'].items()}
+            expected_rules = {identity: deepcopy(value['rules']) for identity, value in baseline['equipment'].items()}
+            for identity in expected_gear:
+                validate_gear(expected_gear[identity], expected_rules[identity])
+            if any(not key.startswith('combat.') or type(value) is not int or value < 0 for key, value in baseline['stock'].items()):
+                raise ValueError('固化库存无效')
+            stock = Counter(baseline['stock'])
+        except (ValueError, KeyError, TypeError, IndexError) as exc:
+            raise SyncError('战斗固化检查点缺失或无效') from exc
+        if (CATALOG, profile['catalog_id']) not in rows:
+            raise SyncError('居民当前运行目录缺失')
+        previous = ''
         for sequence,row in enumerate(ordered,1):
             content={k:row[k] for k in ('id','actor_id','owner_id','sequence','kind','exploration_id','elapsed_seconds','payload','previous_hash')}
             if row['sequence']!=sequence or row['previous_hash']!=previous or digest(content)!=row['digest'] or row['owner_id']!=profile['owner_id']:raise SyncError('战斗事实链缺失或发生分叉')
@@ -67,38 +97,40 @@ def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             if row['exploration_id']:
                 run=rows.get((RUN,row['exploration_id']))
                 if not run or run['actor_id']!=actor or run['owner_id']!=profile['owner_id']:raise SyncError('战斗事实缺少所属探索')
-            version=rows[(RUN,row['exploration_id'])]['catalog_id'] if row['exploration_id'] else payload.get('catalog_id',profile['catalog_id'])
-            source=rows.get((CATALOG,version))
-            if not source:raise SyncError('战斗成长缺少历史目录版本')
-            event_catalog=Catalog(source['tables'],version)
-            if kind=='initialize':
-                if progression is not None:raise SyncError('居民初始化重复')
-                if payload['progression']!=attributes.initial():raise SyncError('居民初始成长无效')
-                progression=deepcopy(payload['progression'])
-                starter_template='equip.training_sword' if 'equip.training_sword' in event_catalog.index['equipment_templates'] else 'equip.sword'
-                expected_gear[payload['equipment_id']]=equipment_rules.generate(event_catalog,starter_template,1,'white',random.Random(actor),starter=True)
-            elif kind=='catalog':
-                skills=event_catalog.learned(progression['job'],progression['level'],progression.get('skills'))
-                if skills!=payload['skills']:raise SyncError('目录更新的自动学习不一致')
-                progression={**progression,'skills':skills}
-            elif kind=='promote':
-                progression=attributes.promote(event_catalog,progression,payload['arguments'])
-                if progression!=payload['progression']:raise SyncError('转职成长不一致')
-                for identity in payload['loadout'].values():
-                    if identity.startswith('promotion:') and identity not in expected_gear:
-                        level=int(event_catalog.row('professions',payload['arguments'])['required_level'])
-                        template=equipment_rules.promotion_weapon(event_catalog,payload['arguments'],level)
-                        expected_gear[identity]=equipment_rules.generate(event_catalog,template,level,'white',random.Random(row['id']),starter=True)
+            validate_consumption(rows, row, actor)
+            if row['sequence'] <= checkpoint['sequence']:
+                continue
+            if kind in ('initialize', 'catalog', 'promote'):
+                try:
+                    progression = deepcopy(payload['progression_after'])
+                    validate_progression(progression)
+                    if kind == 'catalog' and progression['skills'] != payload['skills']:
+                        raise ValueError('当前技能与固化结果不一致')
+                    if kind == 'promote' and (progression != payload['progression'] or progression['job'] != payload['arguments']):
+                        raise ValueError('转职结果与固化成长不一致')
+                    for identity, value in payload.get('equipment_after', {}).items():
+                        validate_gear(value['snapshot'], value['rules'])
+                        if identity in expected_gear and (expected_gear[identity] != value['snapshot'] or expected_rules[identity] != value['rules']):
+                            raise ValueError('重复装备的固化属性不一致')
+                        expected_gear[identity], expected_rules[identity] = value['snapshot'], value['rules']
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise SyncError('战斗成长或装备固化结果缺失') from exc
             elif kind=='depart':
                 stock.subtract({'combat.'+sid:n for sid,n in payload['plan'].get('potions',{}).items()})
             elif kind=='terminal':stock.update({'combat.'+sid:n for sid,n in payload['returned'].items()})
             elif kind=='round':
                 for event in payload['events']:
                     if event['kind']!='kill':continue
-                    progression,_=attributes.award(event_catalog,progression,event['experience'],
-                        stop_at_promotion=bool(payload.get('promotion_gate',False)))
+                    progression = deepcopy(payload.get('progression_after'))
+                    validate_progression(progression)
                     for reward in event['rewards']:
-                        if reward['kind']=='equipment':expected_gear[reward['equipment_id']]=reward['item']
+                        if reward['kind']=='equipment':
+                            identity = reward['equipment_id']
+                            value = payload.get('equipment_after', {}).get(identity)
+                            if not value or value['snapshot'] != reward['item'] or identity in expected_gear:
+                                raise SyncError('掉落装备缺少唯一固化来源')
+                            validate_gear(value['snapshot'], value['rules'])
+                            expected_gear[identity], expected_rules[identity] = value['snapshot'], value['rules']
                         else:stock['combat.'+reward['item']['id']]+=reward['quantity']
             elif kind=='trade':
                 trade=rows.get((MARKET_TRADE,payload['transaction_id']))
@@ -141,6 +173,7 @@ def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                             or expected_gear[equipment_id]!=payload.get('snapshot')):
                         raise SyncError('冒险装备卖方转移事实无效')
                     expected_gear.pop(equipment_id)
+                    expected_rules.pop(equipment_id)
                 else:
                     if (actor!=trade['actor_id'] or trade['result'].get('seller_id')!=payload.get('seller_id')
                             or listing['seller_id']!=payload.get('seller_id')
@@ -148,14 +181,13 @@ def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                             or payload.get('snapshot')!=(listing.get('item') or {}).get('equipment_snapshot')):
                         raise SyncError('冒险装备买方转移事实无效')
                     expected_gear[equipment_id]=deepcopy(payload['snapshot'])
-            for consumption in payload.get('consumption',[]):
-                action=rows.get((LABEL+'worldaction',consumption['action_id']))
-                if not action or action['actor_id']!=actor or action['status']!='success' or float(action['energy_cost'])!=consumption['amount'] or action['result'].get('exploration_id')!=row['exploration_id']:raise SyncError('战斗体力消费来源缺失')
+                    expected_rules[equipment_id]=deepcopy(payload.get('equipment_rules'))
+                    validate_gear(expected_gear[equipment_id], expected_rules[equipment_id])
         if chain['head']!=len(ordered) or chain['digest']!=previous or progression!=profile['progression']:raise SyncError('战斗成长或事实链终点不一致')
         equipment=[r for (m,_),r in rows.items() if m==GEAR and r['actor_id']==actor]
         if {r['id'] for r in equipment}!=set(expected_gear):raise SyncError('装备缺少掉落或绑定来源')
         for item in equipment:
-            if item['owner_id']!=profile['owner_id'] or (CATALOG,item['catalog_id']) not in rows or (expected_gear[item['id']] is not None and expected_gear[item['id']]!=item['snapshot']):raise SyncError('装备来源或属性不一致')
+            if item['owner_id']!=profile['owner_id'] or expected_gear[item['id']]!=item['snapshot'] or expected_rules[item['id']]!=item.get('rules'):raise SyncError('装备来源或属性不一致')
         loadout=profile['loadout']
         valid_slots={'weapon','offhand','head','body','hands','feet','accessory','ring_1','ring_2'}
         if not isinstance(loadout,dict) or any(slot not in valid_slots for slot in loadout):
@@ -164,56 +196,29 @@ def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             worn_item=rows.get((GEAR,identity))
             if not worn_item or worn_item['sold']:
                 raise SyncError('穿戴装备部位或来源无效')
-            try:
-                template_id=worn_item['template_id']
-                if template_id in catalog.index['equipment_templates']:
-                    slot_catalog=catalog
-                else:
-                    slot_catalog=Catalog(rows[(CATALOG,worn_item['catalog_id'])]['tables'],worn_item['catalog_id'])
-                if not equipment_rules.loadout_slot_matches(slot_catalog,template_id,worn_item['snapshot'],slot):
-                    raise SyncError('穿戴装备部位或来源无效')
-                job,level=profile['progression']['job'],profile['progression']['level']
-                item_level=worn_item['snapshot']['level']
-                permitted=(template_id in catalog.index['equipment_templates'] and
-                           equipment_rules.allowed(catalog,template_id,job,level,item_level))
-                # Adopting a catalog retains existing loadouts. Validate their original
-                # permissions too; a release must not invalidate its own upgraded snapshots.
-                if not permitted and worn_item['catalog_id']!=catalog.version:
-                    origin=rows[(CATALOG,worn_item['catalog_id'])]
-                    origin_catalog=Catalog(origin['tables'],origin['id'])
-                    permitted=equipment_rules.allowed(origin_catalog,template_id,job,level,item_level)
-                if not permitted:
-                    raise SyncError('战斗装备不符合当前职业或等级限制')
-            except (ValueError,KeyError,TypeError) as exc:
-                raise SyncError('战斗装备不符合当前目录限制') from exc
-        weapon_id=loadout.get('weapon')
-        weapon_item=rows.get((GEAR,weapon_id)) if weapon_id else None
-        if weapon_item:
-            grip=weapon_item['snapshot'].get('grip')
-            if not grip:
-                gear_catalog_row=rows.get((CATALOG,weapon_item['catalog_id']))
-                if gear_catalog_row:
-                    gear_catalog=Catalog(gear_catalog_row['tables'],gear_catalog_row['id'])
-                    grip=gear_catalog.row('equipment_templates',weapon_item['template_id']).get('grip','')
-            if grip=='two_handed' and 'offhand' in loadout:
-                raise SyncError('双手武器不能同时装备副手')
+            if not slot_matches(worn_item['snapshot'], worn_item['rules'], slot):
+                raise SyncError('穿戴装备部位无效')
+            if not permitted(worn_item['snapshot'], worn_item['rules'], profile['progression']['job'], profile['progression']['level']):
+                raise SyncError('战斗装备不符合固化穿戴条件')
+        weapon_item = rows.get((GEAR, loadout.get('weapon')))
+        if weapon_item and weapon_item['rules']['grip'] == 'two_handed' and 'offhand' in loadout:
+            raise SyncError('双手武器不能同时装备副手')
         actual=Counter()
         for (m,_),item in rows.items():
             if m==LABEL+'agentinventoryitem' and item['actor_id']==actor and item['source'].get('sku','').startswith('combat.'):
                 if item['owner_id']!=profile['owner_id']:raise SyncError('战斗库存归属不一致')
                 actual[item['source']['sku']]+=item['quantity']
         if {k:v for k,v in stock.items() if v}!={k:v for k,v in actual.items() if v}:raise SyncError('战斗库存与消费、掉落事实不一致')
-        def select(row,keys):return {key:row[key] for key in keys.split()}
-        frame={'profile':select(profile,'id owner_id catalog_id progression loadout hp mp loot_progress'),
-            'equipment':[select(r,'id catalog_id template_id snapshot value bound locked sold') for r in sorted(equipment,key=lambda r:r['id'])],
-            'runs':[select(r,'id catalog_id status phase elapsed_seconds revision snapshot state result') for (m,_),r in sorted(rows.items()) if m==RUN and r['actor_id']==actor],
-            'encounters':[select(r,'id exploration_id number monster result') for (m,_),r in sorted(rows.items()) if m==ENCOUNTER and r['actor_id']==actor]}
+        frame = aggregate_frame(rows, actor, frozen=True)
         if digest(frame)!=chain['frame']:raise SyncError('战斗快照包含独立合并的装备、成长或探索状态')
         worn=profile['loadout'].values()
         if len(set(worn))!=len(worn) or any(identity not in expected_gear or rows[(GEAR,identity)]['sold'] for identity in worn):raise SyncError('穿戴装备关联无效')
     for (model,pk),run in rows.items():
         if model!=RUN:continue
-        if (CATALOG,run['catalog_id']) not in rows:raise SyncError('探索目录缺失')
+        if run['status'] in {'preparing','active','paused','settling'}:
+            if (CATALOG,run['catalog_id']) not in rows:raise SyncError('未结束探索的运行目录缺失')
+        elif run['snapshot'].get('history_frozen') != 1:
+            raise SyncError('历史探索尚未固化')
         encounters=[r for (m,_),r in rows.items() if m==ENCOUNTER and r['exploration_id']==pk]
         if sorted(r['number'] for r in encounters)!=list(range(1,run['state'].get('encounter',0)+1)):raise SyncError('探索遭遇记录缺失或重复')
         if run['record_id'] and (LABEL+'agentrunrecord',run['record_id']) not in rows:raise SyncError('探索回顾记录缺失')
@@ -235,6 +240,14 @@ def validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             if recap_mismatch and not allow_exploration_review_mismatch:
                 raise SyncError('探索回顾记录与固定结算摘要不一致')
     return True
+
+
+def validate_source(data, meta=None, *, allow_exploration_review_mismatch=False):
+    from utils.sync_manager import SyncError
+    try:
+        return _validate_source(data, meta, allow_exploration_review_mismatch=allow_exploration_review_mismatch)
+    except (ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
+        raise SyncError('战斗固化快照字段缺失或无效') from exc
 
 
 def normalize_exploration_reviews(data: list[dict]) -> list[dict]:
@@ -308,4 +321,19 @@ def revoke(*, disable_auto=True):
 
 def metadata(data=None):
     actors=sorted(CombatProfile.objects.values_list('pk',flat=True)) if data is None else sorted(str(r['pk']) for r in data if r['model']==PROFILE)
-    return {'combat_schema_version':6,'combat_actors':actors}
+    from ..food_sync import metadata as food_metadata
+    if data is None:
+        catalogs = list(CombatCatalog.objects.order_by('-created_at', '-pk').values_list('pk', flat=True))
+        checkpoints = {row.actor_id: row.pk for row in CombatFact.objects.filter(kind='checkpoint').order_by('sequence')}
+        from .history import runtime_catalog_ids
+        exported = sorted(runtime_catalog_ids())
+        current_catalog = catalogs[0] if catalogs else ''
+    else:
+        catalogs = sorted((row for row in data if row['model'] == CATALOG),
+                          key=lambda row: (str(row['fields'].get('created_at', '')), str(row['pk'])), reverse=True)
+        current_catalog = str(catalogs[0]['pk']) if catalogs else ''
+        exported = sorted(str(row['pk']) for row in catalogs)
+        checkpoints = {row['fields']['actor_id']: str(row['pk']) for row in sorted(data, key=lambda row: row['fields'].get('sequence', 0))
+                       if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
+    return {'combat_schema_version':8,'combat_actors':actors, **food_metadata(data),
+            'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

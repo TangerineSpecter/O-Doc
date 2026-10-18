@@ -1,14 +1,18 @@
-"""Load farm-only facts, choose a whole queue, and recheck before installation."""
+"""Load farm-only facts, choose a queue in small steps, and recheck before installation."""
 import copy
+import time
 from datetime import datetime
 from decimal import Decimal
 from statistics import median
 
 from django.utils import timezone
 
-from .farm_queue_candidates import FarmQueueFacts, build_candidates, identity
+from .farm_queue_candidates import (FarmQueueFacts, capped, describe_basket, fertilizer_options,
+                                    purchase_cost, ranked_baskets, restock_options)
 from .life_choices import choose
 from .life_time import local_time
+
+ON_HAND = '利用现有资源'
 
 
 def available_cash(owner: str, actor: str, *, exclude_ids=()) -> Decimal:
@@ -68,91 +72,63 @@ def planning_facts(owner: str, agent, slot: dict) -> FarmQueueFacts:
     )
 
 
-def text_fallback(state: dict, choices: dict) -> tuple[dict, dict, dict[str, str]]:
-    """Compact view for ordinary models. Decision connections still receive the full state.
+def _context(reason: str, preferences: str, **fields) -> dict:
+    state = {}
+    if reason:
+        state['intent'] = reason
+    if preferences:
+        state['preferences'] = preferences
+    state.update({key: value for key, value in fields.items() if value})
+    return state
 
-    Plan values are ``crops|sowable|revenue|wait``. Choice values are ``plan|tier|limit``.
-    """
-    plans = state.get('plans') or {}
-    plan_labels = {plan_id: str(index) for index, plan_id in enumerate(plans)}
-    compact_plans = {}
-    for plan_id, plan in plans.items():
-        crops = []
-        for entry in plan.get('entries') or []:
-            sku = str(entry.get('sku') or '').removeprefix('seed.')
-            mode = entry.get('fertilizer_mode') or 'none'
-            crop = f"{sku}x{entry.get('quantity')}"
-            if mode != 'none':
-                crop += f"/{mode}:{entry.get('fertilizer') or ''}"
-            crops.append(crop)
-        wait = 1 if plan.get('required_fertilizer_wait') else 0
-        compact_plans[plan_labels[plan_id]] = (
-            f"{','.join(crops)}|{plan.get('sowable')}|{plan.get('eventual_expected_revenue')}|{wait}"
-        )
-    prompt_choices, labels = {}, {}
-    for index, (key, row) in enumerate(choices.items()):
-        label = str(index)
-        labels[label] = key
-        prompt_choices[label] = (
-            f"{plan_labels.get(row.get('plan_id'), '')}|{row.get('procurement_tier', 'none')}|{row.get('procurement_limit')}"
-        )
-    brief = {
-        'choice_format': '候选值=计划编号|采购档|采购上限；计划值=作物|可播数|估算收益|是否等肥',
-        'slot': state.get('slot'),
-        'intent': state.get('intent'),
-        'preferences': state.get('preferences'),
-        'start': state.get('start'),
-        'cutoff': state.get('cutoff'),
-        'stamina': state.get('stamina'),
-        'spendable': state.get('spendable'),
-        'price_source': state.get('price_source'),
-        'assumptions': state.get('assumptions'),
-        'stocked_crops': [
-            {key: crop[key] for key in ('seed_sku', 'name', 'seed_quantity', 'growth_seconds') if key in crop}
-            for crop in state.get('stocked_crops', [])
-        ],
-        'plans': compact_plans,
-    }
-    return brief, prompt_choices, labels
+
+def _ask(agent, owner: str, state: dict, choices: dict, instructions: str, deadline: float) -> str:
+    return choose(agent, owner, 'farm_queue', state, choices, deadline=deadline, instructions=instructions)
+
+
+def _stamp(entries: list[dict], mode: str, kind: str | None) -> list[dict]:
+    return [{'sku': entry['sku'], 'quantity': entry['quantity'], 'fertilizer_mode': mode,
+             'fertilizer': kind if mode != 'none' else None} for entry in entries]
 
 
 def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '') -> dict:
-    from .execution import stamina
-    from .farm_queue_estimate import plot_availability
     if not owner:
         raise ValueError('农场规划缺少居民账号范围')
     facts = planning_facts(owner, agent, slot)
-    candidates = build_candidates(facts)
-    templates, choices = {}, {}
-    for key, row in candidates.items():
-        template_id = identity(row['farm_plan']['entries'])
-        templates.setdefault(template_id, {
-            'entries': row['farm_plan']['entries'],
-            **{k: v for k, v in row['summary'].items() if k != 'procurement_tier'},
-        })
-        choices[key] = {'plan_id': template_id,
-                        'procurement_limit': row['farm_plan']['procurement_limit'],
-                        'procurement_tier': row['summary'].get('procurement_tier', 'none')}
-    owned = [crop for crop in facts.crops if crop['seed_quantity'] > 0]
-    state = {'slot': {'id': slot['id'], 'time': local_time(datetime.fromisoformat(slot['time'])).isoformat()},
-             'intent': reason, 'preferences': preferences, 'plans': templates,
-             'start': facts.start.isoformat(), 'cutoff': facts.cutoff.isoformat(),
-             'stamina': str(stamina(agent)),
-             'plot_available_after_seconds': [max(0, point - facts.start.timestamp()) for point in
-                 plot_availability(facts.state, facts.seed, facts.start.timestamp())],
-             'spendable': str(facts.spendable), 'price_source': facts.price_source,
-             'stocked_crops': [{**{k: crop[k] for k in ('seed_sku', 'name', 'seed_quantity', 'growth_seconds')},
-                                'seed_reference_price': str(facts.seed_prices[crop['seed_sku']]),
-                                'price_source': facts.seed_price_sources.get(crop['seed_sku'], facts.price_source)}
-                               for crop in owned],
-             'fertilizers': {k: {'quantity': v['quantity']} for k, v in facts.fertilizers.items()},
-             'assumptions': '收益为估算，不是到账；缺肥可能等待，采购未执行且不保证供货。'
-                            '肥料成本按当前库存批次估算；作物可跨日成熟。'
-                            '容量未扣后续体力不足或忙碌的影响，实际完成量可能减少。'}
-    brief, prompt_choices, labels = text_fallback(state, choices)
-    selected = choose(agent, owner, 'farm_queue', state, choices,
-                      prompt_state=brief, prompt_choices=prompt_choices, choice_labels=labels)
-    return copy.deepcopy(candidates[selected]['farm_plan'])
+    deadline = time.monotonic() + 180
+    reason, preferences = reason or '', preferences or ''
+    baskets = ranked_baskets(facts)
+    planting, bare = '', []
+    if len(baskets) == 1:
+        bare = baskets[0]['entries']
+        planting = describe_basket(facts, baskets[0])
+    elif baskets:
+        choices = {str(index): describe_basket(facts, row) for index, row in enumerate(baskets, 1)}
+        picked = _ask(agent, owner, _context(reason, preferences), choices,
+                      '从这些种植组合里选一个。收益是估算，采购还没发生。', deadline)
+        bare = baskets[int(picked) - 1]['entries']
+        planting = choices[picked]
+    mode, kind, fertilizer_label = 'none', None, ''
+    question = fertilizer_options(facts, bare)
+    if question:
+        picked = _ask(agent, owner, _context(reason, preferences, planting=planting, fertilizer=question['fact']),
+                      question['choices'], '决定这一批施不施肥。', deadline)
+        fertilizer_label = question['choices'][picked]
+        if picked == 'yes':
+            mode, kind = question['mode'], question['kind']
+    entries = _stamp(bare, mode, kind)
+    limit = capped(facts, purchase_cost(facts, entries, mode, kind))
+    # The schedule already asked to use what is on hand. Do not ask to buy seeds again.
+    if ON_HAND not in f'{reason}{preferences}':
+        options = restock_options(facts, bare, mode, kind)
+        if options:
+            note = '肥料决定已经作出。' if fertilizer_label else ''
+            picked = _ask(agent, owner, _context(
+                reason, preferences, planting=planting or '手头没有可种的种子', fertilizer=fertilizer_label),
+                {key: row['label'] for key, row in options.items()},
+                note + '决定要不要再买种子。金额是采购上限，还没购买。', deadline)
+            limit = options[picked]['limit']
+    return {'entries': entries, 'procurement_limit': limit}
 
 
 def recheck(item, specification: dict) -> dict:

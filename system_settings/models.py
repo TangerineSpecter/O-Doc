@@ -161,7 +161,7 @@ class SystemSetting(models.Model):
 class SyncEntityState(models.Model):
     """仅本机保存的同步修订与删除墓碑；其内容由 v2 快照清单携带。"""
     model_label = models.CharField(max_length=120)
-    object_pk = models.CharField(max_length=120)
+    object_pk = models.CharField(max_length=255)
     content_hash = models.CharField(max_length=64, blank=True, default='')
     revision_at = models.DateTimeField(default=timezone.now)
     origin_device = models.CharField(max_length=80, blank=True, default='')

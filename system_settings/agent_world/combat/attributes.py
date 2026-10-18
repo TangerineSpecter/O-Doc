@@ -3,8 +3,42 @@ import math
 from copy import deepcopy
 from decimal import Decimal, ROUND_HALF_UP
 from .catalog import Catalog, numeric
+from .effects import ELEMENTS
+
 
 STATS = ('strength', 'dexterity', 'intelligence', 'vitality', 'spirit', 'luck')
+
+
+def _bounds(catalog: Catalog, key: str, default: float) -> float:
+    return float(catalog.rules.get(key, default))
+
+
+def element_scores(catalog: Catalog, effects: list[dict], additions: dict, food_effects: dict | None = None) -> tuple[dict, dict]:
+    """Mastery and gear add element power or resist. Level growth does not."""
+    power = dict.fromkeys(ELEMENTS, 0.0)
+    resist = dict.fromkeys(ELEMENTS, 0.0)
+    for fx in effects:
+        if fx['code'] != 'passive_element':
+            continue
+        stat = fx['stat']
+        if stat.endswith('_power') and stat[:-6] in power:
+            power[stat[:-6]] += float(fx['value'])
+        elif stat.endswith('_resist') and stat[:-7] in resist:
+            resist[stat[:-7]] += float(fx['value'])
+    for key, amount in additions.items():
+        if key.endswith('_power') and key[:-6] in power:
+            power[key[:-6]] += amount
+        elif key.endswith('_resist') and key[:-7] in resist:
+            resist[key[:-7]] += amount
+    for key, amount in (food_effects or {}).items():
+        if key.endswith('_power') and key[:-6] in power:
+            power[key[:-6]] += amount
+        elif key.endswith('_resist') and key[:-7] in resist:
+            resist[key[:-7]] += amount
+    low_power, high_power = _bounds(catalog, 'element_power_min', 0), _bounds(catalog, 'element_power_max', .4)
+    low_resist, high_resist = _bounds(catalog, 'element_resist_min', -.25), _bounds(catalog, 'element_resist_max', .45)
+    return ({key: round(max(low_power, min(high_power, value)), 4) for key, value in power.items()},
+            {key: round(max(low_resist, min(high_resist, value)), 4) for key, value in resist.items()})
 
 
 def initial() -> dict:
@@ -53,7 +87,7 @@ def promotion_level(catalog: Catalog, progress: dict) -> int | None:
     return min(levels) if levels else None
 
 
-def attributes(catalog: Catalog, progress: dict, equipment: list[dict]) -> dict:
+def attributes(catalog: Catalog, progress: dict, equipment: list[dict], *, food_effects: dict | None = None) -> dict:
     additions = {}
     for item in equipment:
         for key, value in item['stats'].items():
@@ -84,12 +118,18 @@ def attributes(catalog: Catalog, progress: dict, equipment: list[dict]) -> dict:
         'healing': 2 * spirit + .5 * intelligence + additions.get('healing', 0),
     }
     values = {key: max(0, math.floor(value * (1 + percentages.get(key, 0)))) for key, value in values.items()}
+    for key in ('physical_attack', 'magic_attack', 'physical_defense', 'magic_defense'):
+        values[key] = math.floor(Decimal(values[key]) * (1 + Decimal(str((food_effects or {}).get(key, 0)))))
     values.update({key: math.floor(value) for key, value in primaries.items()})
     values.update(accuracy=min(1.1, .95 + .1 * dexterity / (dexterity + 80) + additions.get('accuracy', 0) + flats.get('accuracy', 0)),
                   evasion=min(.35, .03 + .25 * dexterity / (dexterity + 120) + additions.get('evasion', 0) + flats.get('evasion', 0)),
                   critical=min(.6, .05 + .3 * luck / (luck + 150) + additions.get('critical', 0) + flats.get('critical', 0)),
                   critical_damage=min(3, 1.5 + additions.get('critical_damage', 0) + flats.get('critical_damage', 0)),
-                  damage_type='magic' if weapon_stats.get('magic_attack', 0) else 'physical')
+                  damage_type='magic' if weapon_stats.get('magic_attack', 0) else 'physical',
+                  element=str(weapon.get('element') or ''))
+    power, resist = element_scores(catalog, effects, additions, food_effects)
+    values.update({f'{key}_power': value for key, value in power.items()})
+    values.update({f'{key}_resist': value for key, value in resist.items()})
     return values
 
 
@@ -136,7 +176,14 @@ def monster(catalog: Catalog, template: dict, level: int) -> dict:
     hp = math.floor((numeric(profile, 'hp_constant') + numeric(profile, 'hp_linear') * level + numeric(profile, 'hp_quadratic') * level ** 2) * numeric(profile, 'hp_multiplier') * numeric(rank, 'hp_multiplier'))
     attack = math.floor((numeric(profile, 'attack_constant') + numeric(profile, 'attack_linear') * level + numeric(profile, 'attack_quadratic') * level ** 2) * numeric(profile, 'attack_multiplier') * numeric(rank, 'attack_multiplier') * float(template.get('attack_multiplier',1)))
     defense = numeric(profile, 'defense_constant') + numeric(profile, 'defense_linear') * level
-    return {'hp_max': hp, 'mp_max': math.floor(numeric(profile, 'mp_constant') + numeric(profile, 'mp_linear') * level),
+    resists = {}
+    for row in catalog.tables.get('monster_resists', []):
+        if row['monster_id'] == template['id']:
+            resists[row['element']] = float(row['value'])
+    _, resist = element_scores(catalog, [], {f'{key}_resist': value for key, value in resists.items()})
+    return {'element': template.get('element') or '',
+            **{f'{key}_resist': value for key, value in resist.items()},
+            'hp_max': hp, 'mp_max': math.floor(numeric(profile, 'mp_constant') + numeric(profile, 'mp_linear') * level),
             'physical_attack': attack if profile['damage_type'] == 'physical' else 0,
             'magic_attack': attack if profile['damage_type'] == 'magic' else 0,
             'physical_defense': math.floor(defense * numeric(profile, 'physical_defense_multiplier') * numeric(rank, 'defense_multiplier')),

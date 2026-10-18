@@ -45,12 +45,20 @@ class EquipmentInstance(LifeTimedModel):
     catalog_id = models.CharField(max_length=64)
     template_id = models.CharField(max_length=64)
     snapshot = models.JSONField(default=dict)
+    rules = models.JSONField(default=dict)
     value = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     bound = models.BooleanField(default=False)
     locked = models.BooleanField(default=False)
     sold = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and not self.rules:
+            from .equipment_snapshot import rules_for
+            from .store import current
+            self.rules = rules_for(current(self.catalog_id), self.template_id, self.snapshot, bound=self.bound)
+        super().save(*args, **kwargs)
 
 
 class Exploration(LifeTimedModel):

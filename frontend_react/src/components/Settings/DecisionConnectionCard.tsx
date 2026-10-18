@@ -1,47 +1,118 @@
-import {Activity, Edit2, KeyRound, Trash2, Wifi} from 'lucide-react';
+import {CheckCircle2, Edit2, Loader2, Wifi, X, XCircle} from 'lucide-react';
 import type {DecisionConnection} from '../../types/api/decision';
+
+export interface DecisionConnectionTestResult {
+    success: boolean;
+    message: string;
+}
 
 interface DecisionConnectionCardProps {
     connection: DecisionConnection;
-    result?: string;
+    result?: DecisionConnectionTestResult;
     busy?: boolean;
     failoverLabel?: string;
     stickyLabel?: string;
     onTest: () => void;
     onEdit?: () => void;
-    onClearKey?: () => void;
     onDelete?: () => void;
 }
 
-const protocolName = (protocol: DecisionConnection['protocol']) =>
-    protocol === 'systemone' ? 'JEV / TypeSafe System One' : 'OpenAI Chat + JSON 决策';
+export function DecisionConnectionCard({
+    connection,
+    result,
+    busy,
+    failoverLabel,
+    stickyLabel,
+    onTest,
+    onEdit,
+    onDelete,
+}: DecisionConnectionCardProps) {
+    const isSuccess = result?.success === true;
 
-export function DecisionConnectionCard({connection, result, busy, failoverLabel, stickyLabel, onTest, onEdit, onClearKey, onDelete}: DecisionConnectionCardProps) {
     return (
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><Activity className="h-4 w-4"/></div>
-                <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-sm font-semibold text-slate-800">{connection.name}</h4>
-                        {connection.builtIn && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">内置</span>}
-                        {failoverLabel && <span className="rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">{failoverLabel}</span>}
-                        {stickyLabel && <span className="rounded-md bg-lime-50 px-2 py-0.5 text-[10px] font-semibold text-lime-700">{stickyLabel}</span>}
-                        <span className={`text-[11px] ${connection.apiKeyConfigured ? 'text-lime-700' : 'text-slate-400'}`}>
-                            {connection.apiKeyConfigured ? 'API Key 已配置' : 'API Key 未配置'}
+        <div className="group flex items-start justify-between gap-2.5 rounded-xl border border-slate-100 bg-slate-50/30 p-3 transition-all hover:border-orange-200 hover:bg-white hover:shadow-sm">
+            <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                <div
+                    className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
+                        connection.apiKeyConfigured
+                            ? 'bg-emerald-500'
+                            : 'bg-slate-300 group-hover:bg-orange-400'
+                    }`}
+                    title={connection.apiKeyConfigured ? 'API Key 已配置' : '未配置 API Key'}
+                />
+                <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium text-slate-700" title={`${connection.name} (${connection.modelId})`}>
+                        {connection.name}
+                    </span>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className={`shrink-0 whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-medium leading-none ${
+                            connection.protocol === 'systemone'
+                                ? 'border-blue-100 bg-blue-50 text-blue-600'
+                                : 'border-indigo-100 bg-indigo-50 text-indigo-600'
+                        }`}>
+                            {connection.protocol === 'systemone' ? 'JEV' : 'JSON 决策'}
                         </span>
+                        {connection.builtIn && (
+                            <span className="shrink-0 whitespace-nowrap rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium leading-none text-slate-500">
+                                内置
+                            </span>
+                        )}
+                        {failoverLabel && (
+                            <span className="shrink-0 whitespace-nowrap rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-700">
+                                {failoverLabel}
+                            </span>
+                        )}
+                        {stickyLabel && (
+                            <span className="shrink-0 whitespace-nowrap rounded border border-lime-200 bg-lime-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-lime-700" title={stickyLabel}>
+                                沿用中
+                            </span>
+                        )}
+                        {result && (
+                            <span
+                                className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10px] font-medium ${
+                                    isSuccess ? 'text-emerald-600' : 'text-rose-600'
+                                }`}
+                                title={result.message}
+                            >
+                                {isSuccess ? <CheckCircle2 className="h-3 w-3 shrink-0"/> : <XCircle className="h-3 w-3 shrink-0"/>}
+                                <span>{isSuccess ? '正常' : '失败'}</span>
+                            </span>
+                        )}
                     </div>
-                    <p className="mt-1 break-all font-mono text-[11px] text-slate-500">{connection.modelId} · {connection.baseUrl}</p>
-                    <p className="mt-1 text-[11px] text-slate-400">{protocolName(connection.protocol)}</p>
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <button type="button" disabled={busy} onClick={onTest} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-orange-200 hover:text-orange-600 disabled:opacity-50"><Wifi className="h-3.5 w-3.5"/>{busy ? '检测中…' : '测试连接'}</button>
-                    {!connection.builtIn && onEdit && <button type="button" onClick={onEdit} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-orange-600"><Edit2 className="h-3.5 w-3.5"/>编辑</button>}
-                    {!connection.builtIn && onClearKey && connection.apiKeyConfigured && <button type="button" onClick={onClearKey} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600"><KeyRound className="h-3.5 w-3.5"/>清除密钥</button>}
-                    {!connection.builtIn && onDelete && <button type="button" onClick={onDelete} aria-label={`删除${connection.name}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-red-100 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>删除</button>}
                 </div>
             </div>
-            {result && <p role="status" className="mt-3 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-600">{result}</p>}
-        </article>
+            <div className="flex shrink-0 items-center gap-1">
+                {!connection.builtIn && onEdit && (
+                    <button
+                        type="button"
+                        onClick={onEdit}
+                        title="编辑连接"
+                        className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
+                    >
+                        <Edit2 className="h-3.5 w-3.5"/>
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={onTest}
+                    disabled={busy}
+                    title={busy ? '检测中…' : '测试连接'}
+                    className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Wifi className="h-3.5 w-3.5"/>}
+                </button>
+                {!connection.builtIn && onDelete && (
+                    <button
+                        type="button"
+                        onClick={onDelete}
+                        title="删除连接"
+                        aria-label={`删除${connection.name}`}
+                        className="rounded-md p-1.5 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                    >
+                        <X className="h-3.5 w-3.5"/>
+                    </button>
+                )}
+            </div>
+        </div>
     );
 }

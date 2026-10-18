@@ -101,4 +101,6 @@ def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, 
         item['equipment_type'] = template['equipment_type']
     if template.get('grip'):
         item['grip'] = template['grip']
+    if template['slot'] == 'weapon':
+        item['element'] = template.get('element') or ''
     return item

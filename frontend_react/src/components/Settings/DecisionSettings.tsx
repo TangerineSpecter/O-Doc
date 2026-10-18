@@ -1,21 +1,38 @@
-import {useState} from 'react';
-import {KeyRound, Loader2, Plus} from 'lucide-react';
+import {useEffect, useRef, useState} from 'react';
+import {BrainCircuit, Info, Loader2, Plus} from 'lucide-react';
 import {createDecisionConnection, deleteDecisionConnection, testDecisionConnection, updateDecisionConnection} from '../../api/decision';
 import {useDecisionConfig} from '../../hooks/useDecisionConfig';
 import type {DecisionConnection, DecisionConnectionInput} from '../../types/api/decision';
 import {formatStickyUntil} from '../AgentWorld/decisionFailover';
 import {useToast} from '../common/ToastProvider';
-import {DecisionConnectionCard} from './DecisionConnectionCard';
+import {DecisionConnectionCard, type DecisionConnectionTestResult} from './DecisionConnectionCard';
 import {DecisionConnectionModal} from './DecisionConnectionModal';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 export function DecisionSettings() {
     const {config, setConfig, loading, error, refresh} = useDecisionConfig();
     const [testing, setTesting] = useState<string | null>(null);
-    const [results, setResults] = useState<Record<string, string>>({});
+    const [results, setResults] = useState<Record<string, DecisionConnectionTestResult | undefined>>({});
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<DecisionConnection | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<DecisionConnection | null>(null);
+    const [showInfo, setShowInfo] = useState(false);
+    const infoRef = useRef<HTMLDivElement>(null);
     const toast = useToast();
+
+    useEscapeDismissal(Boolean(deleteTarget), () => setDeleteTarget(null));
+    useEscapeDismissal(showInfo, () => setShowInfo(false));
+
+    useEffect(() => {
+        if (!showInfo) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (infoRef.current && !infoRef.current.contains(e.target as Node)) {
+                setShowInfo(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showInfo]);
     const connections = config?.connections || config?.providers || [];
     const failover = config?.failover;
     const connectionLabels = (id: string) => {
@@ -31,12 +48,12 @@ export function DecisionSettings() {
 
     const test = async (connection: DecisionConnection) => {
         setTesting(connection.id);
-        setResults(previous => ({...previous, [connection.id]: ''}));
+        setResults(previous => ({...previous, [connection.id]: undefined}));
         try {
             await testDecisionConnection(connection.id);
-            setResults(previous => ({...previous, [connection.id]: '连接正常，协议响应结构有效。'}));
+            setResults(previous => ({...previous, [connection.id]: {success: true, message: '连接正常，协议响应结构有效。'}}));
         } catch (cause) {
-            setResults(previous => ({...previous, [connection.id]: cause instanceof Error ? cause.message : '连接测试失败'}));
+            setResults(previous => ({...previous, [connection.id]: {success: false, message: cause instanceof Error ? cause.message : '连接测试失败'}}));
         } finally {
             setTesting(null);
         }
@@ -49,16 +66,6 @@ export function DecisionSettings() {
         setConfig(result);
         setResults({});
         toast.success(editing ? '决策模型连接已更新' : '决策模型连接已新增');
-    };
-
-    const clearConnectionKey = async (connection: DecisionConnection) => {
-        try {
-            setConfig(await updateDecisionConnection(connection.id, {apiKey: null}));
-            setResults(previous => ({...previous, [connection.id]: ''}));
-            toast.success('已保存的 API Key 已清除');
-        } catch (cause) {
-            toast.error(cause instanceof Error ? cause.message : '清除 API Key 失败');
-        }
     };
 
     const removeConnection = async () => {
@@ -91,20 +98,72 @@ export function DecisionSettings() {
         <section aria-labelledby="decision-settings-title" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><KeyRound className="h-4 w-4"/></div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><BrainCircuit className="h-4 w-4"/></div>
                     <div>
-                        <h3 id="decision-settings-title" className="font-bold text-slate-800">决策模型连接</h3>
+                        <div className="flex items-center gap-1.5">
+                            <h3 id="decision-settings-title" className="font-bold text-slate-800">决策模型连接</h3>
+                            <div ref={infoRef} className="relative inline-flex items-center">
+                                <button
+                                    type="button"
+                                    aria-label="查看决策模型连接说明"
+                                    aria-expanded={showInfo}
+                                    onClick={() => setShowInfo(v => !v)}
+                                    className={`inline-flex items-center justify-center rounded-full p-1 transition-colors ${
+                                        showInfo ? 'bg-orange-50 text-orange-600' : 'text-slate-400 hover:bg-orange-50 hover:text-orange-600'
+                                    }`}
+                                >
+                                    <Info className="h-4 w-4"/>
+                                </button>
+                                {showInfo && (
+                                    <div
+                                        role="dialog"
+                                        aria-label="决策模型连接说明"
+                                        className="absolute left-0 top-full z-30 mt-2 w-80 sm:w-96 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 bg-white p-4 text-xs shadow-xl animate-in fade-in zoom-in-95 duration-150"
+                                    >
+                                        <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-800">
+                                            <Info className="h-4 w-4 text-orange-500"/>
+                                            <span>决策模型连接说明</span>
+                                        </div>
+                                        <div className="space-y-2 text-xs leading-5 text-slate-600">
+                                            <p>连接信息和 API Key 都随 WebDAV 同步；暂时沿用哪一个模型只记在本机，不进入快照。在世界设置 → 决策模型里选择哪些连接加入顺序，并拖动排列。平时用第一位；后面的模型成功后默认沿用 2 小时，也可选 1 小时或 4 小时。觉得第一位不稳定时，把稳定的模型拖到第一位。</p>
+                                            <p>密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         <p className="mt-0.5 text-xs text-slate-500">按模型服务选择协议，自行添加决策连接。</p>
                     </div>
                 </div>
-                <button type="button" onClick={openCreate} disabled={loading} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50"><Plus className="h-3.5 w-3.5"/>新增决策模型连接</button>
+                <button
+                    type="button"
+                    onClick={openCreate}
+                    disabled={loading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 rounded-lg text-xs font-medium transition-all shadow-sm whitespace-nowrap shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <Plus className="w-3.5 h-3.5 shrink-0"/> 新增模型
+                </button>
             </div>
 
             {loading ? <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin"/>正在读取决策连接…</p> : error ? <div role="alert" className="text-xs text-red-600">{error}<button type="button" onClick={() => void refresh()} className="ml-3 underline">重试</button></div> : <div className="space-y-3">
                 {stickyConnection && failover?.stickyUntil && <p role="status" className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-xs leading-5 text-lime-800">顺序里靠前的模型暂时跳过。当前沿用「{stickyConnection.name}」，{formatStickyUntil(failover.stickyUntil)} 后重新从第一位开始。沿用状态只保存在本机。</p>}
-                {connections.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-xs leading-5 text-slate-500">还没有决策连接。JEV、本地决策模型和其他服务都从「新增决策模型连接」添加。选择 JEV 会填入默认服务地址和模型 ID，名称和密钥仍由你填写。</p>}
-                {connections.map(connection => <DecisionConnectionCard key={connection.id} connection={connection} result={results[connection.id]} busy={testing === connection.id} onTest={() => void test(connection)} onEdit={() => openEdit(connection)} onClearKey={() => void clearConnectionKey(connection)} onDelete={() => setDeleteTarget(connection)} {...connectionLabels(connection.id)}/>)}
-                <p className="text-xs leading-5 text-slate-500">连接信息和 API Key 都随 WebDAV 同步；暂时沿用哪一个模型只记在本机，不进入快照。在世界设置 → 决策模型里选择哪些连接加入顺序，并拖动排列。平时用第一位；后面的模型成功后默认沿用 2 小时，也可选 1 小时或 4 小时。觉得第一位不稳定时，把稳定的模型拖到第一位。密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
+                {connections.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-xs leading-5 text-slate-500">还没有决策连接。JEV、本地决策模型和其他服务都从右上角「新增模型」添加。选择 JEV 会填入默认服务地址和模型 ID，名称和密钥仍由你填写。</p>}
+                {connections.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {connections.map(connection => (
+                            <DecisionConnectionCard
+                                key={connection.id}
+                                connection={connection}
+                                result={results[connection.id]}
+                                busy={testing === connection.id}
+                                onTest={() => void test(connection)}
+                                onEdit={() => openEdit(connection)}
+                                onDelete={() => setDeleteTarget(connection)}
+                                {...connectionLabels(connection.id)}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>}
 
             <DecisionConnectionModal isOpen={modalOpen} initialData={editing} onClose={() => setModalOpen(false)} onSave={saveConnection}/>

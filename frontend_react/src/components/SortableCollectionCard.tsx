@@ -1,9 +1,7 @@
 import React from 'react';
 import {
-    ArrowUp,
     Bot,
     ChevronDown,
-    CloudOff,
     Database,
     Edit,
     FileText,
@@ -11,6 +9,7 @@ import {
     Image as ImageIcon,
     Lock,
     MoreHorizontal,
+    Pin,
     Plus,
     Smile,
     Trash
@@ -89,10 +88,25 @@ export const SortableCollectionCard = ({
             className={`
                 group bg-white rounded-xl border transition-all duration-200 flex flex-col overflow-hidden relative
                 ${isDragging ? 'shadow-2xl ring-2 ring-orange-400 opacity-90 scale-[1.02] z-50' : isAgentCollection ? 'border-indigo-300 bg-indigo-50/20 hover:border-indigo-400 hover:shadow-lg' : 'border-slate-200 hover:border-orange-200 hover:shadow-lg'}
-                ${item.isTop ? 'bg-slate-50/30' : ''}
+                ${item.isTop ? 'bg-amber-50/10' : ''}
             `}
         >
-            {/* 拖拽手柄 */}
+            {/* 左上角置顶折角印章 */}
+            {item.isTop && (
+                <div
+                    className="absolute top-0 left-0 w-8 h-8 z-20 pointer-events-none select-none filter drop-shadow-[0_1px_2px_rgba(244,63,94,0.35)]"
+                    title="已置顶"
+                >
+                    <div
+                        className="w-full h-full bg-gradient-to-br from-rose-500 via-rose-500 to-orange-500 flex items-start justify-start pl-1.5 pt-1.5 text-white"
+                        style={{ clipPath: 'polygon(0 0, 100% 0, 0 100%)' }}
+                    >
+                        <Pin className="w-2.5 h-2.5 text-white fill-white -rotate-12 drop-shadow-xs" />
+                    </div>
+                </div>
+            )}
+
+            {/* 顶部中央拖拽手柄（仅非置顶卡片） */}
             {canManage && !item.isTop && (
                 <div
                     {...attributes}
@@ -143,70 +157,76 @@ export const SortableCollectionCard = ({
 
             {/* 卡片头部信息 */}
             <div className="p-3 pb-2 pt-6">
-                <div className="flex justify-between items-start mb-2 pr-6">
+                <div className="flex justify-between items-start mb-2 pr-6 gap-2">
                     {/* 左侧：图标和标题 */}
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <div
-                            className="p-1.5 bg-slate-50 rounded-md border border-slate-100 group-hover:bg-orange-50 group-hover:border-orange-100 transition-colors">
+                            className="p-1.5 bg-slate-50 rounded-md border border-slate-100 group-hover:bg-orange-50 group-hover:border-orange-100 transition-colors shrink-0">
                             {item.icon}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                             <h3
                                 onClick={() => onNavigate(navigateTarget, { collId: item.collId, title: item.title })}
-                                className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors cursor-pointer line-clamp-1"
+                                className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors cursor-pointer truncate"
+                                title={item.title}
                             >
                                 {item.title}
                             </h3>
-                            {isAgentCollection && <span
-                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-indigo-100 border border-indigo-200 text-[10px] font-bold text-indigo-700 leading-none"><Bot
-                                    className="w-2.5 h-2.5" strokeWidth={3} />Agent</span>}
-                            {item.isTop && <span
-                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-50 border border-red-100 text-[10px] font-bold text-red-600 leading-none"><ArrowUp
-                                    className="w-2.5 h-2.5" strokeWidth={3} />置顶</span>}
-                            {item.permission === 'private' && <span
-                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-500 leading-none"><Lock
-                                    className="w-2.5 h-2.5" /></span>}
+                            {isAgentCollection && (
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-indigo-100 border border-indigo-200 text-[10px] font-bold text-indigo-700 leading-none shrink-0 whitespace-nowrap">
+                                    <Bot className="w-2.5 h-2.5" strokeWidth={3} />Agent
+                                </span>
+                            )}
+                            {item.permission === 'private' && (
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-500 leading-none shrink-0">
+                                    <Lock className="w-2.5 h-2.5" />
+                                </span>
+                            )}
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                        {item.type !== 'image' && !isLearningCollection && !isNovelCollection && item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? (
-                            <div
-                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 border border-orange-100 text-[10px] font-medium text-orange-600"
-                                title={`${item.ragNotSyncedCount} 篇文章尚未标记为 RAG 已同步`}
-                            >
-                                <CloudOff className="w-2.5 h-2.5" />
-                                <span>{item.ragNotSyncedCount}</span>
-                            </div>
-                        ) : null}
-                        {(item.type === 'article' || item.type === 'agent') && (
-                            item.localRagPendingCount == null ? (
+                    {/* 右侧：状态与数量 */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        {item.type !== 'image' && !isLearningCollection && !isNovelCollection && (item.type === 'article' || item.type === 'agent') && (() => {
+                            const pendingCount = item.localRagPendingCount != null
+                                ? item.localRagPendingCount
+                                : (item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? item.ragNotSyncedCount : null);
+
+                            if (pendingCount == null) {
+                                return (
+                                    <div
+                                        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-[10px] font-medium text-slate-400 shrink-0"
+                                        title="本机向量状态尚未核验"
+                                    >
+                                        <Database className="w-2.5 h-2.5" />
+                                    </div>
+                                );
+                            }
+
+                            if (pendingCount > 0) {
+                                return (
+                                    <div
+                                        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-100 text-[10px] font-medium text-amber-700 shrink-0"
+                                        title={`本机还有 ${pendingCount} 篇文章待建向量`}
+                                    >
+                                        <Database className="w-2.5 h-2.5" />
+                                        <span>{pendingCount}</span>
+                                    </div>
+                                );
+                            }
+
+                            return (
                                 <div
-                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-[10px] font-medium text-slate-400"
-                                    title="本机向量状态尚未核验"
-                                >
-                                    <Database className="w-2.5 h-2.5" />
-                                </div>
-                            ) : item.localRagPendingCount > 0 ? (
-                                <div
-                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-100 text-[10px] font-medium text-amber-700"
-                                    title={`本机还有 ${item.localRagPendingCount} 篇文章待建向量`}
-                                >
-                                    <Database className="w-2.5 h-2.5" />
-                                    <span>{item.localRagPendingCount}</span>
-                                </div>
-                            ) : (
-                                <div
-                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-100 text-[10px] font-medium text-emerald-700"
+                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-100 text-[10px] font-medium text-emerald-700 shrink-0"
                                     title="本机文章向量已就绪"
                                 >
                                     <Database className="w-2.5 h-2.5" />
                                     <span>✓</span>
                                 </div>
-                            )
-                        )}
+                            );
+                        })()}
                         <span
-                            className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center"
+                            className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center shrink-0"
                             title={countTitle}
                         >
                             {item.count}

@@ -30,6 +30,32 @@ def clamp(value, low=0, high=1):
     return max(low, min(high, value))
 
 
+ELEMENTS = ('water', 'fire', 'earth', 'wind', 'light', 'dark')
+
+
+def attack_element(effect: dict, attacker: dict) -> str:
+    """Skill element wins. An empty cell inherits the weapon or monster element; none stays untyped."""
+    written = str(effect.get('element') or '')
+    if written == 'none':
+        return ''
+    if written:
+        return written
+    return str((attacker.get('stats') or {}).get('element') or '')
+
+
+def element_multiplier(attacker: dict, target: dict, element: str, rules: dict | None = None, *, skip: bool = False) -> float:
+    """Scale already-resolved channel damage. Untyped hits and poison ticks stay at 1."""
+    if skip or not element:
+        return 1
+    rules = rules or {}
+    power = float((attacker.get('stats') or {}).get(element + '_power', 0) or 0)
+    resist = float((target.get('stats') or {}).get(element + '_resist', 0) or 0)
+    low = float(rules.get('element_factor_min', .6))
+    high = float(rules.get('element_factor_max', 1.5))
+    # Ratios live on a 0.0001 grid. Rounding keeps the later Fraction from seeing binary dust.
+    return round(clamp(1 + power - resist, low, high), 4)
+
+
 def value(fighter: dict, stat: str) -> float:
     base = fighter['stats'].get(stat, 0)
     modifiers = [s for s in fighter['states'] if s['code'] == 'modifier' and
@@ -52,14 +78,14 @@ def hit(attacker: dict, target: dict, rng, bonus=0) -> bool:
     return rng.random() < probability
 
 
-def damage(raw, kind: str, attacker_level: int, target: dict, *, penetration=0, variation=1, critical=1, extra=1) -> int:
+def damage(raw, kind: str, attacker_level: int, target: dict, *, penetration=0, variation=1, critical=1, extra=1, element_factor=1) -> int:
     if raw <= 0:
         return 0
     # Fraction avoids an exact 100 becoming 99 through floating point truncation.
     defense = Fraction(str(max(0, value(target, kind + '_defense')))) * (1 - Fraction(str(clamp(penetration, 0, .6))))
     scale = Fraction(60 + 6 * attacker_level)
     factor = max(Fraction(1, 4), scale / (scale + defense))
-    result = Fraction(str(raw)) * factor * (1 - Fraction(str(reduction(target)))) * Fraction(str(variation)) * Fraction(str(critical)) * Fraction(str(extra))
+    result = Fraction(str(raw)) * factor * (1 - Fraction(str(reduction(target)))) * Fraction(str(variation)) * Fraction(str(critical)) * Fraction(str(extra)) * Fraction(str(element_factor))
     return max(1, math.floor(result))
 
 
@@ -111,7 +137,7 @@ def _summon_variant(catalog: Catalog, rng) -> dict:
 
 def _apply_summon_aftermath(attacker: dict, target: dict, variant: dict, effect: dict,
                             action_name: str, tick: int, passive_bonus: float,
-                            group_bonus: float) -> list[dict]:
+                            group_bonus: float, rules: dict) -> list[dict]:
     if target['hp'] <= 0:
         return []
     rank_scale = float(effect['value']) / .5
@@ -130,10 +156,15 @@ def _apply_summon_aftermath(attacker: dict, target: dict, variant: dict, effect:
                          if row['code'] == 'passive_damage' and row['stat'] == 'burn')
         raw = value(attacker, 'magic_attack') * burn_value
         raw *= 1 + clamp(passive_bonus + group_bonus + burn_bonus, 0, 2)
+        factor = element_multiplier(attacker, target, 'fire', rules)
+        raw *= factor
         duration = int(variant['burn_duration'])
-        status(target, {'code': 'dot', 'group': 'burn', 'stat': 'magic_attack', 'value': burn_value,
-                        'name': action_name, 'raw': raw, 'remaining': duration, 'next_tick': tick,
-                        'source_level': attacker['level'], 'damage_type': 'magic'})
+        burn = {'code': 'dot', 'group': 'burn', 'stat': 'magic_attack', 'value': burn_value,
+                'name': action_name, 'raw': raw, 'remaining': duration, 'next_tick': tick,
+                'source_level': attacker['level'], 'damage_type': 'magic'}
+        if abs(factor - 1) > 1e-9:
+            burn['element'] = 'fire'
+        status(target, burn)
         events.append({'actor': attacker['name'], 'target': target['name'], 'action': action_name,
                        'kind': 'dot', 'duration': duration, 'group': 'burn'})
     return events
@@ -154,7 +185,8 @@ def _shield_break(catalog: Catalog, bearer: dict, opponent: dict, shield: dict, 
     if not retribution:
         return []
     effect = {'code': 'damage', 'stat': retribution['stat'], 'value': float(retribution['value']),
-              'hits': 1, 'damage_type': retribution['damage_type'] or 'magic'}
+              'hits': 1, 'damage_type': retribution['damage_type'] or 'magic',
+              'element': retribution.get('element') or 'light'}
     return apply(catalog, bearer, opponent, [effect], '圣盾（Holy Aegis）·圣光十字波·圣光十字裁决圣柱', tick, rng,
                  allow_reflect=False)
 
@@ -192,7 +224,10 @@ def upkeep(fighter: dict, tick: int, events: list[dict], *, opponent=None, catal
             if code == 'dot':
                 amount = damage(state['raw'], state['damage_type'], state['source_level'], fighter)
                 taken, absorbed, broken = hurt(fighter, amount)
-                events.append({'actor': fighter['name'], 'action': state['name'], 'damage': taken, 'absorbed': absorbed, 'kind': 'dot'})
+                event = {'actor': fighter['name'], 'action': state['name'], 'damage': taken, 'absorbed': absorbed, 'kind': 'dot'}
+                if state.get('element'):
+                    event['element'] = state['element']
+                events.append(event)
                 if broken and opponent is not None and catalog is not None and rng is not None:
                     events.extend(_shield_break(catalog, fighter, opponent, broken, tick, rng))
             else:
@@ -244,16 +279,22 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
                 damage_kind = effect['damage_type'] or 'physical'
                 reflected_raw[damage_kind] = reflected_raw.get(damage_kind, 0) + raw
             extra = (1 + parameter('missing_hp_damage') * (1 - attacker['hp'] / attacker['stats']['hp_max'])) * (1 + clamp(passive_bonus + group_bonus, 0, 2)) * (1 + clamp(value(target, 'damage_taken'), 0, 1))
+            element = attack_element(effect, attacker)
+            factor = element_multiplier(attacker, target, element, catalog.rules) if landed else 1
             amount = damage(raw, effect['damage_type'], attacker['level'], target, penetration=penetration,
-                            variation=rng.uniform(.95, 1.05), critical=value(attacker, 'critical_damage') if critical else 1, extra=extra) if landed else 0
+                            variation=rng.uniform(.95, 1.05), critical=value(attacker, 'critical_damage') if critical else 1,
+                            extra=extra, element_factor=factor) if landed else 0
             taken, absorbed, broken = hurt(target, amount)
-            events.append({'actor': attacker['name'], 'target': target['name'], 'action': action_name, 'kind': 'damage',
-                           'damage': taken, 'absorbed': absorbed, 'hit': landed, 'critical': landed and critical})
+            event = {'actor': attacker['name'], 'target': target['name'], 'action': action_name, 'kind': 'damage',
+                     'damage': taken, 'absorbed': absorbed, 'hit': landed, 'critical': landed and critical}
+            if landed and element and abs(factor - 1) > 1e-9:
+                event['element'] = element
+            events.append(event)
             if broken:
                 events.extend(_shield_break(catalog, target, attacker, broken, tick, rng))
         if variant and variant_successful:
             events.extend(_apply_summon_aftermath(attacker, target, variant, effect, action_name,
-                                                   tick, passive_bonus, group_bonus))
+                                                   tick, passive_bonus, group_bonus, catalog.rules))
     if allow_reflect and reflected_raw:
         events.extend(_reflect_damage(catalog, target, attacker, reflected_raw, tick, rng))
     enemy_status = [f for f in effects if f.get('target') == 'enemy' and f['code'] in ('modifier', 'dot')]
@@ -284,7 +325,14 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
             state.update(remaining=max(0, math.floor(raw)), expires=tick + duration)
         else:
             bonus = passive_bonus + sum(float(f['value']) for f in attacker['passives'] if f['code'] == 'passive_damage' and f['stat'] == fx['group'])
-            state.update(raw=raw * (1 + clamp(bonus, 0, 2)), remaining=duration, next_tick=tick + (1 if receiver is attacker else 0), source_level=attacker['level'], damage_type=fx['damage_type'])
+            factor = 1
+            if code == 'dot':
+                element = attack_element(fx, attacker)
+                skip = fx.get('group') == 'poison'
+                factor = element_multiplier(attacker, receiver, element, catalog.rules, skip=skip)
+                if element and not skip and abs(factor - 1) > 1e-9:
+                    state['element'] = element
+            state.update(raw=raw * (1 + clamp(bonus, 0, 2)) * factor, remaining=duration, next_tick=tick + (1 if receiver is attacker else 0), source_level=attacker['level'], damage_type=fx['damage_type'])
         status(receiver, state)
         events.append({'actor': attacker['name'], 'target': receiver['name'], 'action': name, 'kind': code, 'duration': duration, 'group': fx['group']})
     return events

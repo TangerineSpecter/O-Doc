@@ -42,7 +42,7 @@ class PreparationEquipmentTests(TestCase):
 
         def choice(run, agent, question_id, state, choices, fallback, instructions, **kwargs):
             asked.append(question_id)
-            selected = {'dungeon_id': 'dungeon.moss_cave', 'duration_seconds': '1800',
+            selected = {'dungeon_id': 'dungeon.sprout_meadow', 'duration_seconds': '1800',
                         'style_id': 'style.balanced', 'red_potion_count': '0',
                         'blue_potion_count': '0'}.get(question_id)
             if selected is None:
@@ -129,3 +129,13 @@ class PreparationEquipmentTests(TestCase):
         CombatFact.objects.filter(kind='gear_trade_in', payload__transaction_id='first-purchase').delete()
         with self.assertRaisesMessage(SyncError, '归属转移'):
             reconcile_market()
+
+    def test_gear_decision_key_fits_within_sync_limits(self):
+        from .preparation_decision import _gear_decision_key
+        from system_settings.models import SyncEntityState
+        key = _gear_decision_key('f' * 64, 'e' * 64, 'replace')
+        self.assertLessEqual(len(key), 120)
+        fact = append(self.profile, key, 'gear_prepare', {'equipment_id': self.starter.pk, 'action': 'replace', 'decision_source': 'test'})
+        state = SyncEntityState.objects.filter(model_label='system_settings.combatfact', object_pk=key).first()
+        self.assertIsNotNone(state)
+

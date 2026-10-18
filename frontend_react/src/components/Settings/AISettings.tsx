@@ -476,7 +476,13 @@ export const AISettings = ({
                                                      className="flex items-start justify-between gap-2.5 p-3 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all group/model">
                                                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
                                                         <div
-                                                            className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover/model:bg-orange-400 transition-colors shrink-0 mt-2"></div>
+                                                            className={`w-1.5 h-1.5 rounded-full transition-colors shrink-0 mt-2 ${
+                                                                provider.apiKey
+                                                                    ? 'bg-emerald-500'
+                                                                    : 'bg-slate-300 group-hover/model:bg-orange-400'
+                                                            }`}
+                                                            title={provider.apiKey ? 'API Key 已配置' : '未配置 API Key'}
+                                                        />
                                                         <div className="flex flex-col min-w-0 flex-1">
                                                             <span
                                                                 className="text-sm font-medium text-slate-700 truncate"

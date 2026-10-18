@@ -1,6 +1,6 @@
 import type {CombatCatalog, CombatRow} from '../../types/api/combat';
 import type {CatalogExportSheet} from '../../utils/catalogSpreadsheet';
-import {equipmentSlotLabel, equipmentTypeLabels, statLabels} from './presentation';
+import {elementLabels, equipmentSlotLabel, equipmentTypeLabels, statLabels} from './presentation';
 
 const tableLabels: Record<string, string> = {
     affixSlots: '词条可用部位',
@@ -18,6 +18,7 @@ const tableLabels: Record<string, string> = {
     monsterActions: '魔物行动配置',
     monsterProfiles: '魔物属性模板',
     monsterRanks: '魔物等级系数',
+    monsterResists: '魔物属性抗性',
     monsters: '怪物图鉴',
     potions: '战斗药剂图鉴',
     professions: '职业图鉴',
@@ -42,7 +43,7 @@ const fieldLabels: Record<string, string> = {
     dexAccuracyScale: '敏捷命中系数', dexEvasionMax: '敏捷闪避加成上限', dexEvasionScale: '敏捷闪避系数', dexterityGrowth: '敏捷成长',
     damageVariationMax: '伤害浮动上限', damageVariationMin: '伤害浮动下限', dailyMinutes: '每日冒险时长（分钟）', duration: '持续回合',
     dungeonId: '地牢名称', exclusiveProbability: '专属掉落概率', bossOnly: '是否首领专属', grip: '持握方式',
-    eliteGoldChance: '精英魔物金币掉落概率', eliteWeight: '精英魔物权重', enabled: '是否启用', encounterDelaySeconds: '遭遇间隔（秒）',
+    element: '属性', eliteGoldChance: '精英魔物金币掉落概率', eliteWeight: '精英魔物权重', enabled: '是否启用', encounterDelaySeconds: '遭遇间隔（秒）',
     encounterWeight: '遭遇权重', energyBlockSeconds: '体力消耗周期（秒）', energyPerBlock: '每个体力周期消耗', equipmentCarryCap: '装备携带上限',
     equipmentId: '装备名称', equipmentLevelMax: '装备等级上限', equipmentLevelMin: '装备等级下限', equipmentPerHourLimit: '每小时装备获取上限',
     equipmentType: '装备类型', equipmentIntervalSeconds: '装备掉落间隔（秒）', entryEnergyCost: '出发体力消耗', evasion: '闪避',
@@ -78,6 +79,9 @@ const fieldLabels: Record<string, string> = {
 const ruleLabels: Record<string, string> = {
     round_seconds: '每个战斗回合时长（秒）', encounter_delay_seconds: '寻找下一只魔物的间隔（秒）',
     loot_interval_seconds: '材料掉落间隔（秒）', equipment_interval_seconds: '装备掉落间隔（秒）',
+    element_power_min: '属性强化下限', element_power_max: '属性强化上限',
+    element_resist_min: '属性抗性下限', element_resist_max: '属性抗性上限',
+    element_factor_min: '属性修正下限', element_factor_max: '属性修正上限',
     loot_carry_cap: '材料携带上限', equipment_carry_cap: '装备携带上限', entry_energy_cost: '出发体力消耗',
     energy_per_block: '每个体力周期消耗', energy_block_seconds: '体力消耗周期（秒）', daily_minutes: '每日冒险时长（分钟）',
     level_cap: '等级上限', normal_equipment_chance: '普通魔物装备掉落概率', normal_gold_chance: '普通魔物金币掉落概率',
@@ -121,6 +125,7 @@ const effectCodeLabels: Record<string, string> = {
     passive_low_hp: '低血量减伤', passive_damage: '伤害提升', passive_duration: '减益延长', summon: '召唤',
     attack_penetration: '防御穿透', shared_hit: '共享命中与暴击', passive_conversion: '属性转化',
     passive_equipment_percent: '装备精通属性提升', passive_equipment_flat: '装备精通属性加成',
+    passive_element: '属性精通',
 };
 const effectStatLabels: Record<string, string> = {
     reduction: '伤害减免', weapon_attack: '武器攻击', attack: '攻击', defense: '防御', mp: '魔力',
@@ -196,6 +201,7 @@ function referenceValue(table: string, field: string, value: string, row: Combat
     if (field === 'itemKind') return itemKindLabels[value] || '其他掉落';
     if (field === 'condition') return conditionLabels[value] || '特殊条件';
     if (field === 'damageType') return damageTypeLabels[value] || value;
+    if (field === 'element') return value === 'none' ? '无属性' : elementLabels[value] ? `${elementLabels[value]}属性` : value;
     if (field === 'target') return targetLabels[value] || value;
     if (field === 'kind') return kindLabels[value] || value;
     if (field === 'code') return effectCodeLabels[value] || '其他技能效果';

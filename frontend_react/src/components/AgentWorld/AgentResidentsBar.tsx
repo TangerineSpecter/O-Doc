@@ -1,5 +1,6 @@
 import { BarChart3, Bot, Network, Settings, Sparkles, UserRound, Users } from 'lucide-react';
 import type { AgentWorldAgentStatus } from '../../types/api/setting';
+import useHorizontalWheelScroll from '../../hooks/useHorizontalWheelScroll';
 import AgentAvatar from './AgentAvatar';
 
 interface AgentResidentsProps {
@@ -99,6 +100,7 @@ export function AgentResidentsMobileBar({
 }: AgentResidentsProps) {
     const totalActivities = agents.reduce((sum, agent) => sum + (agent.todayCount || 0), 0);
     const activeAgentsCount = agents.filter(a => a.status === 'running').length;
+    const scrollRef = useHorizontalWheelScroll<HTMLDivElement>();
 
     return (
         <section aria-label="居民状态" className="mb-3 rounded-2xl border border-orange-100/90 bg-white/95 p-3 shadow-xs">
@@ -167,6 +169,7 @@ export function AgentResidentsMobileBar({
 
             {/* 横向滚动列表 */}
             <div
+                ref={scrollRef}
                 className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-0.5 pt-0.5 focus-visible:outline-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                 tabIndex={0}
                 aria-label="Agent 居民列表，可横向滑动"

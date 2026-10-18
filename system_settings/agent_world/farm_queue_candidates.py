@@ -1,7 +1,5 @@
 """Pure, bounded queue proposals. Estimates grant no resources or future purchases."""
 import copy
-import hashlib
-import json
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -10,9 +8,9 @@ from statistics import median
 
 from .farm_queue_estimate import estimate, planting_time, plot_availability
 
-MAX_PLANS = 80
-FERTILIZER_PROFILES = ('none', 'optional_quality', 'optional_yield',
-                       'required_quality', 'required_yield', 'economic')
+MAX_BASKETS = 10
+# Full subset enumeration stays cheap at this size. Above it, use a linear sample.
+SUBSET_ENUM_LIMIT = 8
 
 
 @dataclass
@@ -29,11 +27,6 @@ class FarmQueueFacts:
     cutoff: datetime
     reference_seed_price: Decimal | None = None
     seed_price_sources: dict[str, str] = field(default_factory=dict)
-
-
-def identity(value: object) -> str:
-    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
-    return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
 def allocate(facts: FarmQueueFacts, crops: list[dict], quantity: str, balanced=False,
@@ -70,23 +63,6 @@ def allocate(facts: FarmQueueFacts, crops: list[dict], quantity: str, balanced=F
     capacity = estimate(facts.state, rows, facts.rules, facts.seed, start, cutoff)['entries']
     return [{**entry, 'quantity': result['sowable']} for entry, result in zip(entries, capacity)
             if result['sowable']]
-
-
-def fertilize(entries: list[dict], crops: dict, profile: str) -> list[dict]:
-    result = []
-    for entry in entries:
-        mode, kind = 'none', None
-        if profile == 'economic':
-            options = crops[entry['sku']].get('fertilizers', {})
-            gains = {k: v.get('inventory_additional_net_revenue', v.get('additional_net_revenue', 0))
-                     for k, v in options.items()}
-            if gains and max(gains.values()) > 0:
-                kind = min(gains, key=lambda k: (-gains[k], k))
-                mode = 'optional'
-        elif profile != 'none':
-            mode, kind = profile.split('_')
-        result.append({**entry, 'fertilizer_mode': mode, 'fertilizer': kind})
-    return result
 
 
 def preview(facts: FarmQueueFacts, entries: list[dict]) -> dict:
@@ -135,91 +111,192 @@ def preview(facts: FarmQueueFacts, entries: list[dict]) -> dict:
                                           and missing.get(e['fertilizer'], 0) for e in entries)}
 
 
-def procurement(facts: FarmQueueFacts, crops: list[dict], profile: str, balanced: bool) -> list[dict]:
-    if not crops and facts.crops:
-        reference = {**facts.crops[0], 'seed_sku': 'seed.reference', 'seed_quantity': 0,
-                     'growth_seconds': int(median(c['growth_seconds'] for c in facts.crops))}
-        crops = [reference]
-        rules = {**facts.rules, 'crops': {**facts.rules['crops'], 'reference': {
-            'growth_seconds': reference['growth_seconds']}}}
-        facts = replace(facts, rules=rules, seed_prices={
-            'seed.reference': (facts.reference_seed_price if facts.reference_seed_price is not None
-                               else median(list(facts.seed_prices.values())))})
-    tiers = [{'tier': 'none', 'amount': '0.00'}]
-    for quantity in ('round', 'day'):
-        targets = fertilize(allocate(facts, crops, quantity, balanced, replenish=True),
-                            {c['seed_sku']: c for c in crops}, profile)
-        fert_need = Counter()
-        cost = Decimal(0)
-        by_sku = {c['seed_sku']: c for c in crops}
-        for entry in targets:
-            sku = entry['sku']
-            cost += max(0, entry['quantity'] - by_sku[sku]['seed_quantity']) * facts.seed_prices[sku]
-            if entry['fertilizer']:
-                fert_need[entry['fertilizer']] += entry['quantity']
-        for kind, count in fert_need.items():
-            stock = facts.fertilizers[kind]
-            price = Decimal(str((stock.get('quote') or {}).get('price')
-                                or facts.rules['fertilizers'][kind]['base_price']))
-            cost += max(0, count - stock['quantity']) * price
-        amount = max(Decimal(0), min(cost, facts.spendable)).quantize(Decimal('.01'), rounding=ROUND_DOWN)
-        tiers.append({'tier': quantity, 'amount': str(amount)})
-    return tiers
+def return_order(facts: FarmQueueFacts, crops: list[dict]) -> list[dict]:
+    return sorted(crops, key=lambda crop: (
+        -(crop['without_fertilizer']['expected_revenue'] - float(facts.seed_prices[crop['seed_sku']]))
+        / crop['growth_seconds'], crop['seed_sku']))
 
 
-def diverse(plans: list[dict]) -> list[dict]:
-    """Bound the set by coverage, never by a profit-only truncation."""
-    remaining = sorted(plans, key=lambda row: row['id'])
-    result, covered = [], set()
-    while remaining and len(result) < MAX_PLANS:
-        row = min(remaining, key=lambda row: (-len(row['coverage'] - covered), row['id']))
-        result.append(row)
-        covered.update(row['coverage'])
-        remaining.remove(row)
-    return result
+def _plain(entries: list[dict]) -> list[dict]:
+    return [{'sku': entry['sku'], 'quantity': entry['quantity'],
+             'fertilizer_mode': 'none', 'fertilizer': None} for entry in entries]
 
 
-def build_candidates(facts: FarmQueueFacts) -> dict[str, dict]:
+def _families(facts: FarmQueueFacts, owned: list[dict]) -> list[list[dict]]:
+    ranked = return_order(facts, owned)
+    count = len(ranked)
+    if count <= SUBSET_ENUM_LIMIT:
+        return [[ranked[index] for index in range(count) if mask >> index & 1]
+                for mask in range(1, 1 << count)]
+    groups = [ranked, *([crop] for crop in ranked)]
+    groups += [[crop for crop in ranked if crop is not skipped] for skipped in ranked]
+    groups += [ranked[:size] for size in range(1, count)]
+    return groups
+
+
+def ranked_baskets(facts: FarmQueueFacts) -> list[dict]:
+    """Distinct owned-seed baskets, highest unfertilized revenue first, at most 10."""
     if facts.start >= facts.cutoff:
-        return {'empty': {'farm_plan': {'entries': [], 'procurement_limit': '0.00'},
-                          'summary': {'reason': '没有剩余播种窗口'}}}
-    owned = sorted((c for c in facts.crops if c['seed_quantity'] > 0), key=lambda c: c['seed_sku'])
-    orders = [('single:' + c['seed_sku'], [c], False) for c in owned]
-    if owned:
-        orders += [
-            ('fast', sorted(owned, key=lambda c: (c['growth_seconds'], c['seed_sku'])), False),
-            ('return', sorted(owned, key=lambda c: (
-                -(c['without_fertilizer']['expected_revenue'] - float(facts.seed_prices[c['seed_sku']]))
-                / c['growth_seconds'], c['seed_sku'])), False),
-            ('balanced', owned, True),
-        ]
-    plans = {}
-    for family, crops, balanced in orders:
-        for quantity in ('round', 'day'):
-            entries = allocate(facts, crops, quantity, balanced)
-            for profile in FERTILIZER_PROFILES:
-                selected = fertilize(entries, {c['seed_sku']: c for c in crops}, profile)
-                key = identity(selected)
-                coverage = {('family', family), ('quantity', quantity), ('fertilizer', profile)}
-                coverage.update(('crop', entry['sku']) for entry in selected)
-                if key in plans:
-                    plans[key]['coverage'].update(coverage)
-                else:
-                    plans[key] = {'id': key, 'entries': selected, 'coverage': coverage,
-                                  'crops': crops, 'profile': profile, 'balanced': balanced,
-                                  'summary': preview(facts, selected)}
-    if not plans:
-        # No owned seed is exposed as a planting target. Reference prices and
-        # growth are only used to estimate a future replenishment allowance.
-        reference = {'id': 'empty', 'entries': [], 'coverage': set(),
-                     'crops': [], 'profile': 'none',
-                     'balanced': False, 'summary': {'reason': '无可用种子，等待市场采购'}}
-        plans['empty'] = reference
-    result = {}
-    for row in diverse(list(plans.values())):
-        for tier in procurement(facts, row['crops'], row['profile'], row['balanced']):
-            specification = {'entries': row['entries'], 'procurement_limit': tier['amount']}
-            key = identity(specification)
-            result.setdefault(key, {'farm_plan': copy.deepcopy(specification),
-                                    'summary': {**row['summary'], 'procurement_tier': tier['tier']}})
-    return result
+        return []
+    owned = [crop for crop in facts.crops if crop['seed_quantity'] > 0]
+    if not owned:
+        return []
+    found = {}
+    for group in _families(facts, owned):
+        raw = allocate(facts, return_order(facts, group), 'day')
+        if not raw:
+            continue
+        entries = _plain(raw)
+        key = tuple(sorted((entry['sku'], entry['quantity']) for entry in entries))
+        if key in found:
+            continue
+        found[key] = {'entries': entries, 'summary': preview(facts, entries)}
+    rows = sorted(found.values(), key=lambda row: (
+        -row['summary']['eventual_expected_revenue'], -row['summary']['sowable'],
+        tuple(sorted((entry['sku'], entry['quantity']) for entry in row['entries']))))
+    return rows[:MAX_BASKETS]
+
+
+def crop_name(facts: FarmQueueFacts, sku: str) -> str:
+    for crop in facts.crops:
+        if crop.get('seed_sku') == sku and crop.get('name'):
+            return crop['name']
+    return facts.rules['crops'].get(sku.removeprefix('seed.'), {}).get('name') or sku.removeprefix('seed.')
+
+
+def describe_basket(facts: FarmQueueFacts, row: dict) -> str:
+    summary = row['summary']
+    crops = '、'.join(f"{crop_name(facts, entry['sku'])}×{entry['quantity']}" for entry in row['entries'])
+    text = f"{crops}，可播{summary['sowable']}，估算{summary['eventual_expected_revenue']}"
+    if summary['harvestable_today'] != summary['sowable']:
+        text += f"，今日可收{summary['harvestable_today']}"
+    return text
+
+
+def _yuan(amount: str) -> str:
+    text = f'{Decimal(amount):.2f}'
+    return text.rstrip('0').rstrip('.')
+
+
+def capped(facts: FarmQueueFacts, cost: Decimal) -> str:
+    amount = max(Decimal(0), min(cost, facts.spendable)).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
+    return f'{amount:.2f}'
+
+
+def _owned(facts: FarmQueueFacts) -> dict[str, int]:
+    return {crop['seed_sku']: crop['seed_quantity'] for crop in facts.crops}
+
+
+def _unit_price(facts: FarmQueueFacts, kind: str) -> Decimal:
+    stock = facts.fertilizers.get(kind) or {}
+    quote = (stock.get('quote') or {}).get('price')
+    if quote in (None, ''):
+        quote = facts.rules['fertilizers'][kind]['base_price']
+    return Decimal(str(quote))
+
+
+def purchase_cost(facts: FarmQueueFacts, targets: list[dict], mode: str, kind: str | None) -> Decimal:
+    owned = _owned(facts)
+    cost, total = Decimal(0), 0
+    for entry in targets:
+        total += entry['quantity']
+        cost += Decimal(max(0, entry['quantity'] - owned.get(entry['sku'], 0))) * facts.seed_prices.get(
+            entry['sku'], Decimal(0))
+    if mode == 'required' and kind and total:
+        stock = facts.fertilizers.get(kind) or {}
+        cost += Decimal(max(0, total - int(stock.get('quantity') or 0))) * _unit_price(facts, kind)
+    return cost
+
+
+def _gain(facts: FarmQueueFacts, entries: list[dict], kind: str, inventory: bool) -> float:
+    crops = {crop['seed_sku']: crop for crop in facts.crops}
+    total = 0.0
+    for entry in entries:
+        option = ((crops.get(entry['sku']) or {}).get('fertilizers') or {}).get(kind) or {}
+        if inventory:
+            value = option.get('inventory_additional_net_revenue', option.get('additional_net_revenue', 0))
+        else:
+            value = option.get('additional_net_revenue', 0)
+        total += float(value or 0) * entry['quantity']
+    return total
+
+
+def _best_kind(facts: FarmQueueFacts, entries: list[dict], kinds: list[str], inventory: bool) -> str:
+    return min(kinds, key=lambda kind: (-_gain(facts, entries, kind, inventory), kind))
+
+
+def fertilizer_options(facts: FarmQueueFacts, entries: list[dict]) -> dict | None:
+    """One apply-or-not question. Kind, quantity and price stay in code."""
+    if not entries:
+        return None
+    stocked = [kind for kind, row in facts.fertilizers.items() if row.get('quantity', 0) > 0]
+    quoted = [kind for kind, row in facts.fertilizers.items()
+              if (row.get('quote') or {}).get('price') not in (None, '')]
+    if stocked:
+        kind = _best_kind(facts, entries, stocked, True)
+        name = facts.rules['fertilizers'][kind]['name']
+        quantity = facts.fertilizers[kind]['quantity']
+        return {'kind': kind, 'mode': 'optional', 'fact': f'手头{name}{quantity}袋',
+                'choices': {'no': '不施肥', 'yes': f'施肥：{name}，手头{quantity}袋，有多少施多少'}}
+    if not quoted:
+        return None
+    kind = _best_kind(facts, entries, quoted, False)
+    need = sum(entry['quantity'] for entry in entries)
+    amount = capped(facts, Decimal(need) * _unit_price(facts, kind))
+    if Decimal(amount) <= 0:
+        return None
+    name = facts.rules['fertilizers'][kind]['name']
+    return {'kind': kind, 'mode': 'required',
+            'fact': f"手头没有肥料，{name}报价{_yuan(str(_unit_price(facts, kind)))}元",
+            'choices': {'no': '现在种，不买肥',
+                        'yes': f"买{name}后再种，约{_yuan(amount)}元，现在种不下，要等买到"}}
+
+
+def _reference(facts: FarmQueueFacts) -> tuple[FarmQueueFacts, list[dict]]:
+    growth = int(median(crop['growth_seconds'] for crop in facts.crops))
+    price = facts.reference_seed_price if facts.reference_seed_price is not None else median(facts.seed_prices.values())
+    crop = {**facts.crops[0], 'seed_sku': 'seed.reference', 'seed_quantity': 0, 'growth_seconds': growth}
+    rules = {**facts.rules, 'crops': {**facts.rules['crops'], 'reference': {'growth_seconds': growth}}}
+    return replace(facts, rules=rules, seed_prices={'seed.reference': Decimal(price)}), [crop]
+
+
+def _shopping_list(facts: FarmQueueFacts, targets: list[dict]) -> str:
+    if targets and targets[0]['sku'] == 'seed.reference':
+        return '按种子报价中位数备种'
+    owned = _owned(facts)
+    parts = []
+    for entry in targets:
+        extra = entry['quantity'] - owned.get(entry['sku'], 0)
+        if extra > 0:
+            parts.append(f"{crop_name(facts, entry['sku'])}×{extra}")
+    return '、'.join(parts)
+
+
+def restock_options(facts: FarmQueueFacts, entries: list[dict], mode: str = 'none',
+                    kind: str | None = None) -> dict | None:
+    """Seed-budget tiers. None when buying more seeds cannot change the queue."""
+    if facts.start >= facts.cutoff:
+        return None
+    if entries:
+        by_sku = {crop['seed_sku']: crop for crop in facts.crops}
+        crops = return_order(facts, [by_sku[entry['sku']] for entry in entries if entry['sku'] in by_sku])
+        priced = facts
+        base_targets = entries
+    elif facts.crops:
+        priced, crops = _reference(facts)
+        base_targets = []
+    else:
+        return None
+    tiers = {'none': {'limit': capped(priced, purchase_cost(priced, base_targets, mode, kind)), 'label': '不补种'}}
+    for quantity, title in (('round', '再补一轮'), ('day', '补满今天')):
+        targets = allocate(priced, crops, quantity, replenish=True)
+        if not targets:
+            continue
+        amount = capped(priced, purchase_cost(priced, targets, mode, kind))
+        if any(row['limit'] == amount for row in tiers.values()):
+            continue
+        detail = _shopping_list(priced if entries else facts, targets) or '补充种子'
+        tiers[quantity] = {'limit': amount, 'label': f'{title}，{detail}，采购上限{_yuan(amount)}元'}
+    if len(tiers) == 1:
+        return None
+    return tiers

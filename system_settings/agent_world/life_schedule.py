@@ -275,6 +275,8 @@ def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
         context.pop('cooking_plan', None)
         context.pop('daily_choice', None)
         context.pop('travel_plan', None)
+        # 重新排队后必须允许规划器再次处理该时段。
+        context.pop('execution_started', None)
     elif item.activity == 'cooking' and context.get('cooking_plan'):
         from collections import Counter
         from copy import deepcopy
@@ -309,8 +311,13 @@ def requeue(item: LifeItem, reason: str) -> None:
             raise ValueError('旅行请在旅行面板继续或取消')
     if item.status not in (*OPEN, 'failed'):
         raise ValueError('安排已经结束')
+    context = _retry_context(item, clear_plan=True)
+    if item.context.get('farm_plan_id'):
+        from .farm_queue_schedule import cancel
+        cancel(item, reason)
+        context.pop('farm_plan_id', None)
     revise(item, reason, activity='unplanned', task_id='', intent='', budget=item.spent, status='pending',
-           attempts=0, context=_retry_context(item, clear_plan=True), result={}, record_id='')
+           attempts=0, context=context, result={}, record_id='')
 
 
 def retry_block_reason(item: LifeItem, now=None) -> str:

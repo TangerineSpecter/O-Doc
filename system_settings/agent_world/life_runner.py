@@ -97,6 +97,11 @@ def execute_item(item: LifeItem, scheduler) -> None:
             plan_items(config,agent,[item]);item.refresh_from_db()
         except Exception as exc:
             revise(item,'条件已失效且无法重新规划',status='failed',result={'reason':str(exc)[:500]});return
+        if item.status not in ('pending','deferred'):
+            return
+        if item.activity in ('unplanned', ''):
+            revise(item,'重新规划未生成活动意向',status='failed',
+                   result={'reason':'规划器未生成新的活动意向，请检查规划条件后重试'});return
     if item.activity=='rest':
         revise(item,'居民选择休息',status='rest',result={'reason':item.intent});check_goals(item.owner_id,agent);return
     task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()

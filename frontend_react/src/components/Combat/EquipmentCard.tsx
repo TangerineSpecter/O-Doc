@@ -1,5 +1,6 @@
 import type {CombatEquipment} from '../../types/api/combat';
-import {equipmentSlotLabel, equipmentTypeLabels, statLabels} from './presentation';
+import {equipmentSlotLabel, equipmentTypeLabels, formatRatio, isRatioStat, statLabels} from './presentation';
+import {ElementBadge} from './ElementBadge';
 import {EquipmentPortrait} from './atlas/EquipmentPortrait';
 import {CircleDollarSign, Coins, Heart, ShieldCheck, Sparkles} from 'lucide-react';
 
@@ -133,8 +134,11 @@ export default function EquipmentCard({
                     {/* 顶部第 2 行：固定在名称正下方的「通用/类型」标签 + 右侧「金币价格」+ (绑定/收藏) */}
                     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         <span className="rounded bg-orange-50 px-1.5 py-0.2 text-[10px] font-semibold text-orange-700">
-                            {equipmentTypeLabels[displayType] || displayType || '通用'}
+                            {equipmentTypeLabels[displayType || 'generic'] || displayType || '通用'}
                         </span>
+                        {gear.slot === 'weapon' && (
+                            <ElementBadge element={gear.element} size="xs" />
+                        )}
 
                         {/* 琥珀金币价格徽标（去掉文字，纯金币+数值） */}
                         {item.value ? (
@@ -188,9 +192,7 @@ export default function EquipmentCard({
                                     <Sparkles className="h-2.5 w-2.5 shrink-0 text-amber-500" />
                                     <span className="text-orange-600">{statLabels[affix.stat] || '附加属性'}</span>
                                     <strong className="font-semibold text-orange-900">
-                                        +{['accuracy', 'evasion', 'critical', 'critical_damage'].includes(affix.stat)
-                                            ? `${(affix.value * 100).toFixed(1)}%`
-                                            : affix.value}
+                                        +{isRatioStat(affix.stat) ? formatRatio(affix.value) : affix.value}
                                     </strong>
                                 </span>
                             ))}

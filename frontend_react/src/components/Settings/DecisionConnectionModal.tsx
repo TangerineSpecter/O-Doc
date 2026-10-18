@@ -3,6 +3,7 @@ import {X} from 'lucide-react';
 import {Select} from '../common/Select';
 import type {DecisionConnection, DecisionConnectionInput, DecisionProtocol} from '../../types/api/decision';
 import {fieldsAfterProtocolChange} from './decisionConnectionDefaults';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface DecisionConnectionModalProps {
     isOpen: boolean;
@@ -22,9 +23,12 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
     const [baseUrl, setBaseUrl] = useState('');
     const [modelId, setModelId] = useState('');
     const [apiKey, setApiKey] = useState('');
-    const [clearApiKey, setClearApiKey] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+
+    useEscapeDismissal(isOpen, () => {
+        if (!saving) onClose();
+    });
 
     useEffect(() => {
         if (!isOpen) return;
@@ -33,7 +37,6 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
         setBaseUrl(initialData?.baseUrl || '');
         setModelId(initialData?.modelId || '');
         setApiKey('');
-        setClearApiKey(false);
         setError('');
     }, [isOpen, initialData]);
 
@@ -51,8 +54,7 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
         setSaving(true);
         setError('');
         const value: DecisionConnectionInput = {name: name.trim(), protocol, baseUrl: baseUrl.trim(), modelId: modelId.trim()};
-        if (clearApiKey) value.apiKey = null;
-        else if (apiKey.trim()) value.apiKey = apiKey.trim();
+        if (apiKey.trim()) value.apiKey = apiKey.trim();
         try {
             await onSave(value);
             onClose();
@@ -69,7 +71,7 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
             <section role="dialog" aria-modal="true" aria-labelledby="decision-connection-title" className="relative z-10 max-h-[90vh] w-full max-w-xl overflow-y-auto scrollbar-hide rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
                 <header className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4">
                     <div className="min-w-0 flex-1">
-                        <h3 id="decision-connection-title" className="font-bold text-slate-900">{initialData ? '编辑决策模型连接' : '新增决策模型连接'}</h3>
+                        <h3 id="decision-connection-title" className="font-bold text-slate-900">{initialData ? '编辑' : '新增'}</h3>
                         <p className="mt-1 text-xs leading-5 text-slate-500">选择模型实际提供的协议。选中 JEV / TypeSafe System One 时，服务地址和模型 ID 会填入 JEV 默认值，仍可修改。名称和 API Key 保持空白。</p>
                     </div>
                     <button type="button" aria-label="关闭" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4"/></button>
@@ -97,12 +99,6 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
                         <span>API Key <span className="font-normal text-slate-400">（随 WebDAV 同步，可留空）</span></span>
                         <input type="password" autoComplete="new-password" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder={initialData?.apiKeyConfigured ? '已保存；留空表示不修改' : '填写服务密钥'} className="min-h-10 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm font-normal text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"/>
                     </label>
-                    {initialData?.apiKeyConfigured && (
-                        <label className="flex items-center gap-2 text-xs text-slate-500">
-                            <input type="checkbox" checked={clearApiKey} onChange={event => setClearApiKey(event.target.checked)}/>
-                            清除已保存的 API Key
-                        </label>
-                    )}
                     {error && <p role="alert" className="text-xs leading-5 text-red-600">{error}</p>}
                 </div>
 

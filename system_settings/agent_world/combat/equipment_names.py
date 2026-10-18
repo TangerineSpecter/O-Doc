@@ -9,6 +9,10 @@ _SINGLE = {
     'hp_max': '丰盈', 'mp_max': '充盈', 'physical_defense': '坚固',
     'magic_defense': '辟魔', 'healing': '复苏', 'critical': '致命',
     'critical_damage': '残忍', 'accuracy': '精准', 'evasion': '灵巧',
+    'water_power': '潮涌', 'fire_power': '炽炎', 'earth_power': '磐岩',
+    'wind_power': '疾风', 'light_power': '圣辉', 'dark_power': '幽影',
+    'water_resist': '避潮', 'fire_resist': '耐火', 'earth_resist': '固土',
+    'wind_resist': '稳风', 'light_resist': '承光', 'dark_resist': '御暗',
 }
 _GROUPS = {
     'power': ('strength', 'physical_attack', 'critical', 'critical_damage'),
@@ -16,6 +20,8 @@ _GROUPS = {
     'guard': ('vitality', 'hp_max', 'physical_defense', 'magic_defense'),
     'agility': ('dexterity', 'accuracy', 'evasion'),
     'fortune': ('luck',),
+    'element': ('water_power', 'fire_power', 'earth_power', 'wind_power', 'light_power', 'dark_power',
+                'water_resist', 'fire_resist', 'earth_resist', 'wind_resist', 'light_resist', 'dark_resist'),
 }
 _GROUP_BY_ID = {f'affix.{stat}': group for group, stats in _GROUPS.items() for stat in stats}
 
@@ -24,6 +30,7 @@ _SAME_GROUP = {
     'power': ('凶猛', '残暴'), 'magic': ('辉耀', '深邃'),
     'guard': ('厚重', '坚毅'), 'agility': ('迅捷', '无踪'),
     'fortune': ('吉祥', '鸿运'),
+    'element': ('蕴灵', '元素'),
 }
 _MIXED = {
     frozenset(('power', 'magic')): ('秘锋', '幻锋'),
@@ -46,6 +53,21 @@ _MIXED = {
     frozenset(('magic', 'guard', 'fortune')): ('皎洁',),
     frozenset(('magic', 'agility', 'fortune')): ('星影',),
     frozenset(('guard', 'agility', 'fortune')): ('安宁',),
+    frozenset(('power', 'element')): ('焰锋', '灵锋'),
+    frozenset(('magic', 'element')): ('灵辉', '秘辉'),
+    frozenset(('guard', 'element')): ('灵甲', '固灵'),
+    frozenset(('agility', 'element')): ('灵风', '迅灵'),
+    frozenset(('fortune', 'element')): ('灵运', '瑞灵'),
+    frozenset(('power', 'magic', 'element')): ('灵威',),
+    frozenset(('power', 'guard', 'element')): ('灵垒',),
+    frozenset(('power', 'agility', 'element')): ('灵迅',),
+    frozenset(('power', 'fortune', 'element')): ('灵兆',),
+    frozenset(('magic', 'guard', 'element')): ('灵护',),
+    frozenset(('magic', 'agility', 'element')): ('灵影',),
+    frozenset(('magic', 'fortune', 'element')): ('灵星',),
+    frozenset(('guard', 'agility', 'element')): ('灵韧',),
+    frozenset(('guard', 'fortune', 'element')): ('灵佑',),
+    frozenset(('agility', 'fortune', 'element')): ('灵隐',),
 }
 
 def _key(*stats: str) -> tuple[str, ...]:

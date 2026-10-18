@@ -1,15 +1,15 @@
 {
-  "version": "combat-1.0.18",
+  "version": "combat-1.0.19",
   "status": "released",
   "engine_schema": 5,
   "files": {
     "affix_slots.csv": {
-      "sha256": "5272b8c1643c35b3c89ef70f37fa42d1f32aa792cc3da1e527ff6f4938d7384b",
-      "rows": 83
+      "sha256": "ca5e40a69c952caa39245bb4c91e1c50633980f2efb932f66930232290b95d40",
+      "rows": 119
     },
     "affixes.csv": {
-      "sha256": "0e8d4d75f6d1c7b58a4098ad776239394d7e3e7aed18b311bcd71d30baca0dd3",
-      "rows": 17
+      "sha256": "f3569202dfd9c54a8f33f807dc4edae652ebbd060726abce4226df70e7cc4d0e",
+      "rows": 29
     },
     "boss_drops.csv": {
       "sha256": "8c67fddea196ba23f57e0d153ecf2384df315ca96511b5aa723a0050c61a3271",
@@ -28,8 +28,8 @@
       "rows": 7
     },
     "equipment_affixes.csv": {
-      "sha256": "7fd946754cc70df1d89a898a35a8d56d798f12f2a48348c70b0307fd2957522c",
-      "rows": 1147
+      "sha256": "7b1713d28f6254f66f532d998786cc6a536d8bb45e39eba362e070f0ee23b388",
+      "rows": 1675
     },
     "equipment_pools.csv": {
       "sha256": "78464f1bb2c25c97707419f1d9212efaac32cdce59ab71924f0cd7c344bbd5de",
@@ -40,7 +40,7 @@
       "rows": 1034
     },
     "equipment_templates.csv": {
-      "sha256": "d3c7922063f783377ec1daf9fbeb3d1d0b2ebb8298dbfb8fd7f5839d8e706ff8",
+      "sha256": "2c644e4bb5b47ad9913a0bceab41f63026e1018bc03d4974f8816de5c6ae197a",
       "rows": 97
     },
     "level_experience.csv": {
@@ -63,8 +63,12 @@
       "sha256": "81ceb4e8e5fa7640bbec6433f28a37712f8433e6e6da1082afb4e749fd10ec03",
       "rows": 3
     },
+    "monster_resists.csv": {
+      "sha256": "dce0f70452ca179e920191049c570ad1bd4cae650666b97985196e71b76bcbf3",
+      "rows": 53
+    },
     "monsters.csv": {
-      "sha256": "083de374f5d6ec4080195f7402caa921be055f2c759a5d0058687bcb2f7e09ec",
+      "sha256": "ee4b582319f3ad726b5c53c62e4ca70534f5dbb30e2b11ac3b3fd8bb2d79e912",
       "rows": 28
     },
     "potions.csv": {
@@ -80,12 +84,12 @@
       "rows": 3
     },
     "rules.csv": {
-      "sha256": "2b803353271edb4b437680b1b9101d43ec255682ae4296b6c5e22ef4809b6636",
-      "rows": 63
+      "sha256": "9f16c9dbcec7641890434add1d9d1a781a8851f0b99097ef24b9af4fa76daeb7",
+      "rows": 69
     },
     "skill_effects.csv": {
-      "sha256": "8ab98589ca6cc40cd962556e1d0cbf30116f5c5c5e295d3880ff1d159147d8e7",
-      "rows": 350
+      "sha256": "ce57de8f22c95c7950e2171bc3777d9f2a62c8529c2ad82eca7716f4b60eb47c",
+      "rows": 407
     },
     "skill_levels.csv": {
       "sha256": "0856699eb569ca4beb1791d713497a6b54504f2a5e5e4f1016af164a353d0db7",

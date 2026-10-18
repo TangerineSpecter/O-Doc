@@ -66,7 +66,8 @@ export default function CombatSkillsPanel({profile}: {profile: CombatProfile}) {
                                             <div className="rounded-md bg-slate-50/80 px-2 py-1 text-[11px] text-slate-600 border border-slate-100">
                                                 {description}
                                             </div>
-                                        ) : skill.effects.map((effect, idx) => (
+                                        ) : null}
+                                        {skill.effects.map((effect, idx) => (
                                             <div
                                                 key={idx}
                                                 className="rounded-md bg-slate-50/80 px-2 py-1 text-[11px] text-slate-600 border border-slate-100"

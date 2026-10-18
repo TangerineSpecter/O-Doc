@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle, UserRound, ArchiveRestore } from 'lucide-react';
+import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, UserRound, ArchiveRestore } from 'lucide-react';
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
 import { getNotifications, pushRandomMemoNotification } from '../api/message';
-import { getMemosPushConfig, getSystemUpdateStatus } from '../api/setting';
+import { getMemosPushConfig } from '../api/setting';
 import type { UserInfo } from '../types/api/user';
-import { getLatestReleaseTag, isReleaseUpdateAvailable } from '../utils/systemUpdate';
 
 interface NavbarProps {
     onNavigate?: (viewName: string, params?: any) => void;
@@ -20,7 +19,6 @@ interface NavbarProps {
 export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, onOpenProfile, isVisible = true }: NavbarProps) {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
-    const [hasNewVersion, setHasNewVersion] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -109,37 +107,6 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
         return () => clearInterval(timer);
     }, [userInfo]);
 
-    useEffect(() => {
-        let cancelled = false;
-        const checkUpdate = async () => {
-            try {
-                const release = await getLatestReleaseTag();
-                let currentVersion = packageJson.version;
-                let currentCommit = '';
-                if (userInfo) {
-                    const status = await getSystemUpdateStatus();
-                    currentVersion = status.currentVersion || currentVersion;
-                    currentCommit = status.currentCommit || '';
-                }
-                if (!cancelled) {
-                    setHasNewVersion(isReleaseUpdateAvailable(currentVersion, currentCommit, release));
-                }
-            } catch {
-                if (!cancelled) setHasNewVersion(false);
-            }
-        };
-        void checkUpdate();
-        return () => { cancelled = true; };
-    }, [userInfo]);
-
-    const handleVersionClick = () => {
-        if (hasNewVersion && onNavigate) {
-            onNavigate('settings', {tab: 'about'});
-            return;
-        }
-        window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
-    };
-
     const shouldHide = !isVisible && !isNotificationOpen && !isUserMenuOpen;
 
     return (
@@ -164,13 +131,15 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                             <span className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0">
                                 小橘<span className="text-orange-600">文档</span>
                             </span>
-                            <button
-                                className={`group hidden sm:flex items-center gap-1.5 px-2 py-0.5 ml-1 rounded-[4px] shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-hidden ${hasNewVersion ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-lime-50 border border-lime-200 text-lime-800'}`}
-                                onClick={handleVersionClick}
+                            <a
+                                href="https://github.com/TangerineSpecter/O-Doc"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group hidden sm:flex items-center gap-1.5 px-2 py-0.5 ml-1 rounded-[4px] bg-lime-50 border border-lime-200 text-lime-800 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-hidden"
                             >
-                                {hasNewVersion ? <ArrowUpCircle className="w-3 h-3 text-orange-500 animate-bounce" /> : <Leaf className="w-3 h-3 text-lime-600" />}
+                                <Leaf className="w-3 h-3 text-lime-600" />
                                 <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">v{packageJson.version}</span>
-                            </button>
+                            </a>
                         </div>
                     </div>
 

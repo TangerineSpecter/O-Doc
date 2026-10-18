@@ -1,13 +1,14 @@
 import {useMemo, useState} from 'react';
-import {Search, X, Skull, Shield, CheckCircle2, Eye, EyeOff, Info, Swords, Gem} from 'lucide-react';
+import {Search, X, Skull, Shield, CheckCircle2, Eye, EyeOff, Info, Swords, Gem, Crosshair} from 'lucide-react';
 import type {CombatCatalog, CombatProfile} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {MonsterPortrait} from './MonsterPortrait';
-import {RankBadge, RankTag} from './RankBadge';
+import {RankTag, AtlasStatusBadge} from './RankBadge';
 import {getMonsterHabitat} from './monsterHabitats';
 import {getMonsterVisual} from './atlasIcons';
 import {getMonsterPixelArt} from '../art/monsterPixelArt';
-import {statLabels} from '../presentation';
+import {elementNotes, elementOrder, statLabels} from '../presentation';
+import {ElementBadge, ElementResistCard} from '../ElementBadge';
 import {equipmentDropCandidates} from './equipmentDropCandidates';
 
 export interface MonsterAtlasViewProps {
@@ -27,6 +28,8 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
     const bossDrops = tables.bossDrops || [];
     const monsterActions = tables.monsterActions || [];
     const skills = tables.skills || [];
+    const skillLevels = tables.skillLevels || [];
+    const skillEffects = tables.skillEffects || [];
     const dungeonMonsters = tables.dungeonMonsters || [];
     const dungeons = tables.dungeons || [];
 
@@ -85,7 +88,13 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
         // 怪物技能
         const actions = monsterActions
             .filter(a => a.monsterId === selected.id && a.skillId)
-            .map(a => skills.find(s => s.id === a.skillId)?.name)
+            .map(a => {
+                const name = skills.find(s => s.id === a.skillId)?.name;
+                if (!name) return '';
+                const levelIds = new Set(skillLevels.filter(level => level.skillId === a.skillId).map(level => level.id));
+                const notes = elementNotes(skillEffects.filter(effect => levelIds.has(String(effect.skillLevelId || ''))));
+                return notes.length ? `${name}（${notes.join('、')}）` : name;
+            })
             .filter((n): n is string => Boolean(n));
 
         // 出没地牢
@@ -111,7 +120,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
             dungeonNames,
             habitat: getMonsterHabitat(dungeonIds),
         };
-    }, [selected, discoveries, catalog.monsterPreviews, monsters, drops, materials, equipmentPools, equipmentTemplates, bossDrops, monsterActions, skills, dungeonMonsters, dungeons]);
+    }, [selected, discoveries, catalog.monsterPreviews, monsters, drops, materials, equipmentPools, equipmentTemplates, bossDrops, monsterActions, skills, skillLevels, skillEffects, dungeonMonsters, dungeons]);
 
     const visual = selected ? getMonsterVisual(selected.id, selected.name, selected.rank) : null;
 
@@ -178,7 +187,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
             {/* 双栏布局 */}
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
                 {/* 左侧怪物网格 */}
-                <div className="scrollbar-hide h-full overflow-y-auto pr-1">
+                <div className="scrollbar-hide h-full overflow-y-auto p-1.5 pt-2">
                     {!visibleMonsters.length ? (
                         <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
                             <Skull className="h-8 w-8 text-slate-300" />
@@ -198,8 +207,6 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                             {visibleMonsters.map(monster => {
                                 const isSelected = selected?.id === monster.id;
                                 const mVisual = getMonsterVisual(monster.id, monster.name, monster.rank);
-                                const isBoss = monster.rank === 'boss';
-                                const isElite = monster.rank === 'elite';
                                 const isDefeated = discoveries?.defeated.includes(monster.id);
                                 const isEncountered = discoveries?.encountered.includes(monster.id);
 
@@ -210,6 +217,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                                         name={monster.name || monster.id}
                                         title={`${monster.name} · Lv.${monster.levelMin}–${monster.levelMax} · ${isDefeated ? '已击败' : isEncountered ? '已遭遇' : '尚未遭遇'}`}
                                         selected={isSelected}
+                                        completed={isDefeated}
                                         onClick={() => setSelectedId(monster.id)}
                                         icon={<MonsterPortrait monsterId={monster.id} name={monster.name} rank={monster.rank} includeDraftArt={includeDraftArt} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
                                         bgGradient={mVisual.bgGradient}
@@ -219,13 +227,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                                             </span>
                                         }
                                         topRightBadge={
-                                            isDefeated ? (
-                                                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xs" title="已击败">
-                                                    ✓
-                                                </span>
-                                            ) : isBoss || isElite ? (
-                                                <RankBadge rank={monster.rank} />
-                                            ) : undefined
+                                            <AtlasStatusBadge rank={monster.rank} />
                                         }
                                     />
                                 );
@@ -294,6 +296,33 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                                 </div>
                             </div>
 
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5">
+                                        <Swords className="h-3.5 w-3.5 text-orange-500" />
+                                        攻击属性与抗性
+                                    </span>
+                                    <span className="text-[10px] font-normal text-slate-400">负抗性受弱点克制</span>
+                                </h4>
+
+                                <div className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-gradient-to-r from-slate-50 via-white to-slate-50/60 px-3 py-2 text-xs shadow-2xs">
+                                    <span className="flex items-center gap-1.5 font-medium text-slate-600">
+                                        <Crosshair className="h-3.5 w-3.5 text-slate-400" />
+                                        普通攻击属性
+                                    </span>
+                                    <ElementBadge element={String(selectedDetails.attributes.element || '')} size="md" />
+                                </div>
+
+                                <dl className="grid grid-cols-3 gap-1.5 text-xs">
+                                    {elementOrder.map(element => {
+                                        const value = selectedDetails.attributes[`${element}Resist`] ?? selectedDetails.attributes[`${element}_resist`] ?? 0;
+                                        return (
+                                            <ElementResistCard key={element} element={element} value={value} />
+                                        );
+                                    })}
+                                </dl>
+                            </div>
+
                             {/* 基础属性网格 */}
                             <div className="space-y-1.5">
                                 <div className="flex items-center justify-between text-xs font-bold text-slate-700">
@@ -305,7 +334,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                                 </div>
                                 <dl className="grid grid-cols-2 gap-1.5 text-xs">
                                     {Object.entries(selectedDetails.attributes)
-                                        .filter(([key]) => statLabels[key])
+                                        .filter(([key]) => statLabels[key] && key !== 'element' && !key.endsWith('Resist') && !key.endsWith('_resist'))
                                         .map(([key, value]) => (
                                             <div
                                                 key={key}

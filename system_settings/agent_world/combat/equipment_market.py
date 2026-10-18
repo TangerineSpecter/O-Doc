@@ -90,7 +90,7 @@ def transfer_listed_equipment(owner: str, seller, buyer, listing: MarketListing,
     item.actor_id = buyer.pk
     item.save(update_fields=['actor_id', 'updated_at'])
     shared = {'equipment_id': item.pk, 'listing_id': listing.pk,
-              'transaction_id': transaction_id, 'snapshot': snapshot}
+              'transaction_id': transaction_id, 'snapshot': snapshot, 'equipment_rules': item.rules}
     append(seller_profile, transaction_id + ':gear-out', 'gear_trade_out',
            {**shared, 'buyer_id': buyer.pk})
     append(buyer_profile, transaction_id + ':gear-in', 'gear_trade_in',

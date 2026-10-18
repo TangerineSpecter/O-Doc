@@ -5,7 +5,7 @@ import {AtlasGridCard} from './AtlasGridCard';
 import {PlayerPortrait} from './PlayerPortrait';
 import {hasProfessionArt,auraNames,getProfessionAura} from '../art/professionAuras';
 import {getProfessionVisual} from './atlasIcons';
-import {effectText} from '../presentation';
+import {effectText, elementNotes} from '../presentation';
 import {getAtlasSkill} from '../animation/skillPreview/atlasSkillProfiles';
 import {SkillPreviewDialog} from './SkillPreviewDialog';
 
@@ -33,6 +33,7 @@ interface SkillItem {
     professionId: string;
     learnLevel: string;
     kind: string;
+    elementNotes: string[];
     ranks: SkillRankItem[];
 }
 
@@ -135,6 +136,7 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                     professionId: String(skill.professionId || ''),
                     learnLevel: String(skill.learnLevel || '1'),
                     kind: String(skill.kind || 'active'),
+                    elementNotes: elementNotes(ranks.flatMap(rank => skillEffects.filter(effect => effect.skillLevelId === rank.id))),
                     ranks,
                 };
             });
@@ -204,7 +206,7 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
             {/* 双栏布局 */}
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
                 {/* 左侧职业网格 */}
-                <div className="scrollbar-hide h-full overflow-y-auto pr-1">
+                <div className="scrollbar-hide h-full overflow-y-auto p-1.5 pt-2">
                     {!visibleProfessions.length ? (
                         <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
                             <BookOpen className="h-8 w-8 text-slate-300" />
@@ -370,9 +372,12 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                                 key={skill.id}
                                                 className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5 text-xs space-y-1.5"
                                             >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-1.5">
+                                                <div className="flex flex-wrap items-center justify-between gap-1">
+                                                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                                         <span className="font-bold text-slate-800">{skill.name}</span>
+                                                        {skill.elementNotes.map(note => (
+                                                            <span key={note} className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[9px] font-semibold text-orange-700">{note}</span>
+                                                        ))}
                                                         <span className={`rounded-full px-1.5 py-0.2 text-[9px] font-semibold ${
                                                             skill.kind === 'passive'
                                                                 ? 'bg-sky-100 text-sky-700'
@@ -410,10 +415,20 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                                                 </span>
                                                             </summary>
                                                             <div className="mt-1 pt-1 border-t border-slate-100 space-y-1 text-slate-600 leading-relaxed">
-                                                                <p className="text-slate-700 font-medium">
-                                                                    <span className="text-slate-500">技能说明：</span>
-                                                                    {rank.description || rank.effectsText || '无特殊效果'}
-                                                                </p>
+                                                                {rank.description ? (
+                                                                    <p className="text-slate-700 font-medium">
+                                                                        <span className="text-slate-500">技能说明：</span>
+                                                                        {rank.description}
+                                                                    </p>
+                                                                ) : null}
+                                                                {rank.effectsText ? (
+                                                                    <p className="text-slate-600">
+                                                                        <span className="text-slate-500">效果：</span>
+                                                                        {rank.effectsText}
+                                                                    </p>
+                                                                ) : !rank.description ? (
+                                                                    <p className="text-slate-700 font-medium">无特殊效果</p>
+                                                                ) : null}
                                                                 {skill.kind === 'active' && (
                                                                     <p className="text-[10px] text-slate-500">
                                                                         解锁等级时消耗 {rank.unlockCost} MP；角色等级提高后耗蓝会增加，减耗被动会降低实际消耗。计算：向上取整(({rank.costBase} + {rank.costPerLevel} ×角色等级) × {rank.costRankFactor})，再应用减耗被动，最低 1 MP。

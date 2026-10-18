@@ -78,6 +78,9 @@ def profile_view(owner,agent):
             discovered_equipment.add('equip.training_sword')
     skills=[{'id':sid,'rank':rank,**catalog.row('skills',sid),'parameters':{**catalog.skill(sid,rank)[0],'current_cost':str(engine.cost(catalog,{'level':progression['level'],'passives':attributes.passives(catalog,progression['skills'])},sid,rank))},'effects':catalog.skill(sid,rank)[1]} for sid,rank in progression['skills'].items()]
     run=Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,status__in=['preparing','active','paused','settling']).first()
+    if run and run.snapshot.get('food'):
+        from .food import combat_stats
+        derived = combat_stats(profile, catalog, run.snapshot)
     options=attributes.promotion_options(catalog,progression)
     promotion_run=run or (Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,ended_at__isnull=False).order_by('-ended_at').first() if options else None)
     promotion_runtime=CombatRuntime.objects.filter(pk=promotion_run.pk).first() if promotion_run else None
@@ -140,4 +143,5 @@ def history(owner,actor,page=1):
 
 def config(owner):
     row=CombatConfig.objects.filter(pk=owner).first()
-    return {'daily_minutes':row.daily_minutes if row else 120}
+    from .history import summary
+    return {'daily_minutes':row.daily_minutes if row else 120, 'history_storage':summary(owner)}

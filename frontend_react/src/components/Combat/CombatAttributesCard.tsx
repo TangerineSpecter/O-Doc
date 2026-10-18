@@ -1,4 +1,6 @@
 import {Activity, Crosshair, Sparkles, Swords} from 'lucide-react';
+import {elementOrder, formatRatio} from './presentation';
+import {getElementConfig} from './ElementBadge';
 
 const baseStatsConfig = [
     {key: 'strength', label: '力量', abbr: 'STR', theme: 'border-rose-200/80 bg-rose-50/60 text-rose-700'},
@@ -106,6 +108,32 @@ export default function CombatAttributesCard({
                         <span className="font-bold text-emerald-800">{formatValue('healing', attributes.healing)}</span>
                     </div>
                 )}
+            </div>
+
+            <div>
+                <p className="text-[11px] font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-orange-500" />
+                    <span>属性强化与抗性</span>
+                </p>
+                <div className="space-y-1">
+                    {elementOrder.map(element => {
+                        const cfg = getElementConfig(element);
+                        const Icon = cfg.Icon;
+                        const power = attributes[`${element}Power`] ?? attributes[`${element}_power`] ?? 0;
+                        const resist = attributes[`${element}Resist`] ?? attributes[`${element}_resist`] ?? 0;
+                        const isWeakness = Number(resist) < -0.0001;
+                        return (
+                            <div key={element} className={`grid grid-cols-[2.5rem_1fr_1fr] items-center gap-1 rounded-lg border px-2 py-1 text-[11px] shadow-2xs transition-all ${cfg.resistBg}`}>
+                                <span className={`flex items-center gap-1 font-bold ${cfg.resistLabelColor}`}>
+                                    <Icon className={`h-3 w-3 shrink-0 ${cfg.iconColor}`} />
+                                    <span>{cfg.label}</span>
+                                </span>
+                                <span className="text-slate-500">强化 <strong className="font-bold text-slate-800">{formatRatio(power)}</strong></span>
+                                <span className="text-right text-slate-500">抗性 <strong className={`font-bold ${isWeakness ? 'text-rose-600' : 'text-slate-800'}`}>{formatRatio(resist)}</strong></span>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* 3. 进阶判定属性 (4宫格精简标签) */}

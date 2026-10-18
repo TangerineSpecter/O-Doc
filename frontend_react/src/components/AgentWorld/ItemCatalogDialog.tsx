@@ -17,6 +17,8 @@ import {
 import WorldDialog from './WorldDialog';
 import {ItemIconImage} from './ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
+import {PotionPortrait} from '../Combat/atlas/PotionPortrait';
+import {MaterialPortrait} from '../Combat/atlas/MaterialPortrait';
 import {useItemCatalog} from '../../hooks/useItemCatalog';
 import type {CatalogItem, ItemCategory} from '../../types/api/itemCatalog';
 import {cropKinds, type CropKind} from '../../types/api/farm';
@@ -27,6 +29,128 @@ import {uploadItemIcon} from '../../api/itemIcons';
 import {setCatalogItemIcon, setCatalogInventoryIcon} from '../../api/itemCatalog';
 import DataExportButton from '../common/DataExportButton';
 import {itemCatalogExportSheets, itemCategoryLabels} from './itemCatalogExport';
+
+const POTION_NAME_MAP: Record<string, string> = {
+    '治疗药剂1': 'potion.heal.1',
+    '治疗药剂2': 'potion.heal.2',
+    '治疗药剂3': 'potion.heal.3',
+    '治疗药剂4': 'potion.heal.4',
+    '回蓝药剂1': 'potion.mana.1',
+    '回蓝药剂2': 'potion.mana.2',
+    '回蓝药剂3': 'potion.mana.3',
+    '回蓝药剂4': 'potion.mana.4',
+};
+
+const MATERIAL_NAME_MAP: Record<string, string> = {
+    '黏液': 'material.moss_cave.1',
+    '蝠翼': 'material.moss_cave.2',
+    '苔石碎片': 'material.moss_cave.3',
+    '苔石洞窟印记': 'material.moss_cave.4',
+    '矿鼠皮': 'material.abandoned_mine.1',
+    '铁矿': 'material.abandoned_mine.2',
+    '傀儡核心': 'material.abandoned_mine.3',
+    '废弃矿坑印记': 'material.abandoned_mine.4',
+    '孢子': 'material.mist_forest.1',
+    '狼牙': 'material.mist_forest.2',
+    '古木树脂': 'material.mist_forest.3',
+    '迷雾林地印记': 'material.mist_forest.4',
+    '骨片': 'material.sunken_ruins.1',
+    '水灵精华': 'material.sunken_ruins.2',
+    '骑士勋章': 'material.sunken_ruins.3',
+    '沉没遗迹印记': 'material.sunken_ruins.4',
+    '硫磺粉': 'material.magma_forge.1',
+    '熔岩晶体': 'material.magma_forge.2',
+    '热浪核心': 'material.magma_forge.3',
+    '熔岩熔炉印记': 'material.magma_forge.4',
+    '虚空微尘': 'material.abyssal_rift.1',
+    '虚空骨片': 'material.abyssal_rift.2',
+    '裂隙核心': 'material.abyssal_rift.3',
+    '深渊裂隙印记': 'material.abyssal_rift.4',
+};
+
+function resolveBuiltinPotionId(sku: string, name: string): string | null {
+    const raw = sku.startsWith('combat.') ? sku.slice('combat.'.length) : sku;
+    if (raw.startsWith('potion.')) return raw;
+    if (POTION_NAME_MAP[name]) return POTION_NAME_MAP[name];
+    const match = name.match(/(治疗|回蓝)药剂(\d+)?/);
+    if (match) {
+        const type = match[1] === '治疗' ? 'heal' : 'mana';
+        const level = match[2] || '1';
+        return `potion.${type}.${level}`;
+    }
+    return null;
+}
+
+function resolveBuiltinMaterialId(sku: string, name: string): string | null {
+    const raw = sku.startsWith('combat.') ? sku.slice('combat.'.length) : sku;
+    if (raw.startsWith('material.')) return raw;
+    if (MATERIAL_NAME_MAP[name]) return MATERIAL_NAME_MAP[name];
+    return null;
+}
+
+function CatalogItemThumbnail({
+    item,
+    className = 'h-full w-full object-cover rounded-xl',
+    fallbackClassName = 'h-6 w-6 text-slate-300',
+}: {
+    item: {sku: string; name: string; iconUrl?: string | null};
+    className?: string;
+    fallbackClassName?: string;
+}) {
+    // 1. 用户自定义上传图标优先
+    if (item.iconUrl) {
+        return (
+            <ItemIconImage
+                src={item.iconUrl}
+                alt={item.name}
+                className={className}
+                fallback={<Package className={fallbackClassName} />}
+            />
+        );
+    }
+
+    // 2. 战斗药剂（内置精美像素画）
+    const potionId = resolveBuiltinPotionId(item.sku || '', item.name || '');
+    if (potionId) {
+        return (
+            <PotionPortrait
+                potionId={potionId}
+                name={item.name}
+                decorative
+                className="h-full w-full p-1"
+            />
+        );
+    }
+
+    // 3. 战斗素材（内置精美像素画）
+    const materialId = resolveBuiltinMaterialId(item.sku || '', item.name || '');
+    if (materialId) {
+        return (
+            <MaterialPortrait
+                materialId={materialId}
+                name={item.name}
+                decorative
+                className="h-full w-full p-1"
+            />
+        );
+    }
+
+    // 4. 农场物品
+    const farmSrc = farmItemIcon(item.sku || '');
+    if (farmSrc) {
+        return (
+            <ItemIconImage
+                src={farmSrc}
+                alt={item.name}
+                className={className}
+                fallback={<Package className={fallbackClassName} />}
+            />
+        );
+    }
+
+    // 5. 默认兜底
+    return <Package className={fallbackClassName} />;
+}
 
 function cropKindFor(item: CatalogItem): CropKind | null {
     if (item.category !== 'crop' && item.category !== 'seed') return null;
@@ -246,11 +370,10 @@ export function ItemCatalogContent({active = true}: {active?: boolean}) {
                                             >
                                                 {/* 正方形图标展示区：尽可能铺满卡片宽度，微圆角，消除四边缝隙与尖锐直角 */}
                                                 <div className="relative flex aspect-square w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50 transition-transform duration-150 group-hover:scale-[1.02]">
-                                                    <ItemIconImage
-                                                        src={item.iconUrl || farmItemIcon(item.sku)}
-                                                        alt={item.name}
+                                                    <CatalogItemThumbnail
+                                                        item={item}
                                                         className="h-full w-full object-cover rounded-xl"
-                                                        fallback={<Package className="h-6 w-6 text-slate-300" />}
+                                                        fallbackClassName="h-6 w-6 text-slate-300"
                                                     />
                                                     {/* 持有数量角标：在正方形图标右上角精致呈现，不挤占下方垂直高度 */}
                                                     {hasQuantity && (
@@ -353,11 +476,10 @@ export function ItemCatalogContent({active = true}: {active?: boolean}) {
                                                 }`}
                                             >
                                                 {/* 物品图片 */}
-                                                <ItemIconImage
-                                                    src={selected.iconUrl || farmItemIcon(selected.sku)}
-                                                    alt={selected.name}
+                                                <CatalogItemThumbnail
+                                                    item={selected}
                                                     className="h-full w-full object-cover rounded-2xl transition-transform duration-200 group-hover/drop:scale-105"
-                                                    fallback={<Package className="h-10 w-10 text-slate-300" />}
+                                                    fallbackClassName="h-10 w-10 text-slate-300"
                                                 />
 
                                                 {/* 常态 Hover 遮罩浮层 */}

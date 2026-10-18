@@ -5,7 +5,7 @@ import hashlib
 from django.db import transaction
 from .models import Exploration, CombatProfile, CombatRuntime
 from .facts import append
-from .profiles import equip, promote, stats, wearing
+from .profiles import equip, promote, wearing
 from . import attributes
 from .store import current
 from .explorations import depart, finish, TERMINAL
@@ -67,7 +67,7 @@ def context(run: Exploration) -> dict:
 
 
 def validate(run: Exploration,plan: dict) -> dict:
-    if not isinstance(plan,dict) or set(plan)-{'dungeon_id','style_id','duration_seconds','equipment','purchases','potions','reason'}:
+    if not isinstance(plan,dict) or set(plan)-{'dungeon_id','style_id','duration_seconds','equipment','purchases','potions','reason','food'}:
         raise ValueError('探索准备计划格式无效')
     catalog=current(run.catalog_id)
     for field,table in (('dungeon_id','dungeons'),('style_id','styles')):
@@ -77,6 +77,8 @@ def validate(run: Exploration,plan: dict) -> dict:
     if profile.progression['level'] < int(dungeon['recommended_level_min']):
         raise ValueError('角色等级未达到迷宫推荐等级下限')
     if type(plan.get('duration_seconds'))is not int or plan['duration_seconds'] not in (1800,3600,7200):raise ValueError('计划时长无效')
+    from ..food_effects import validate_selection
+    validate_selection(plan.get('food'), plan['duration_seconds'])
     for key,value in run.snapshot['constraints'].items():
         if plan.get(key)!=value:raise ValueError('准备计划未遵守用户约束')
     for field in ('potions','purchases'):
@@ -157,17 +159,22 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
             if plan is None:
                 from system_settings.decision.routing import jev_enabled
                 preparation_decisions = None
+                def check_preparation():
+                    current_run = Exploration.objects.filter(pk=run_id, status='preparing').first()
+                    if not current_run or not CombatRuntime.objects.filter(pk=run_id, authorized=True).exists():
+                        raise ValueError('准备期间探索已取消')
                 if jev_enabled(run.owner_id, 'combat_preparation'):
                     from .preparation_decision import build_plan
-                    def check_preparation():
-                        current_run = Exploration.objects.filter(pk=run_id, status='preparing').first()
-                        if not current_run or not CombatRuntime.objects.filter(pk=run_id, authorized=True).exists():
-                            raise ValueError('准备期间探索已取消')
                     plan, preparation_decisions = build_plan(run, agent, check=check_preparation)
                 else:
                     with usage_scope(agent=agent,purpose='exploration_prepare'):
                         plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。探索本身不需要生活预算；药剂是可选补给，只能使用purchase_funds中的未预留真实余额。若余额不足，减少或放弃采购，并按现有库存决定携带，不要因此放弃探索。装备部位可用 weapon、offhand、head、body、hands、feet、accessory、ring_1、ring_2；accessory 是吊坠位，戒指分别使用 ring_1 和 ring_2。双手武器占用副手，不能同时填写 offhand。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。考虑职业精通、全程体力和推荐等级。',context(run))
                 plan=fit_potion_plan(run,agent,validate(run,plan))
+                if preparation_decisions is None:
+                    from .food import choose as choose_food
+                    food, record = choose_food(run, agent, plan['duration_seconds'], structured=False, planner=planner, check=check_preparation)
+                    plan = {**plan, 'food': food}
+                    preparation_decisions = {'food': record}
                 with farm_gate(),transaction.atomic():
                     locked=Exploration.objects.select_for_update().get(pk=run_id)
                     if locked.status!='preparing' or not CombatRuntime.objects.filter(pk=run_id,authorized=True).exists():return locked
@@ -277,7 +284,8 @@ def _promotion(run_id: str, *, planner=None, require_permit: bool=False) -> bool
             profile=promote(run.owner_id,agent,run.pk+':promote:'+original_job,plan['job_id'],
                 exploration_id=run.pk if in_paused_run else '',reason=reason)
             if in_paused_run:
-                derived=stats(profile,catalog)
+                from .food import combat_stats
+                derived=combat_stats(profile,catalog,locked.snapshot)
                 player={**locked.state['player'],'stats':derived,'level':profile.progression['level'],
                     'skills':profile.progression['skills'],'passives':attributes.passives(
                         catalog,profile.progression['skills'],wearing(profile)),

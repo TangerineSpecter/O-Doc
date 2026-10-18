@@ -7,6 +7,7 @@ import {useEffect, useMemo, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
 import {shanghaiDay, useDailyFeed} from '../../hooks/useDailyFeed';
+import useHorizontalWheelScroll from '../../hooks/useHorizontalWheelScroll';
 import AgentActivityCard from './AgentActivityCard';
 import AgentActivitySummary from './AgentActivitySummary';
 import AgentAvatar from './AgentAvatar';
@@ -231,6 +232,7 @@ export default function DailyFeedTimeline({actorId, residents, onOpen, onSummary
     refreshToken?: number;
 }) {
     const [category, setCategory] = useState<DailyFeedCategory>('all');
+    const tabsScrollRef = useHorizontalWheelScroll<HTMLDivElement>();
     const feed = useDailyFeed(actorId, category);
     useEffect(() => {if (refreshToken) feed.reload();}, [refreshToken, feed.reload]);
     const today = shanghaiDay();
@@ -241,9 +243,28 @@ export default function DailyFeedTimeline({actorId, residents, onOpen, onSummary
     }, [summary, today, onSummary]);
     return <section id="agent-world-daily-feed" aria-label="居民活动时间线" className="scroll-mt-6">
         <div className="mb-3 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-            <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide" role="tablist" aria-label="活动类型">
+            <div ref={tabsScrollRef} className="min-w-0 flex-1 overflow-x-auto scrollbar-hide" role="tablist" aria-label="活动类型">
                 <div className="flex w-max items-center gap-1">
-                    {tabs.map(tab => {const Icon = tab.icon; return <button key={tab.value} type="button" role="tab" aria-selected={category === tab.value} onClick={() => setCategory(tab.value)} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${category === tab.value ? categoryStyles[tab.value].active : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Icon className="h-3.5 w-3.5"/>{tab.label}</button>;})}
+                    {tabs.map(tab => {
+                        const Icon = tab.icon;
+                        const isSelected = category === tab.value;
+                        return (
+                            <button
+                                key={tab.value}
+                                type="button"
+                                role="tab"
+                                aria-selected={isSelected}
+                                onClick={(e) => {
+                                    setCategory(tab.value);
+                                    e.currentTarget.scrollIntoView({behavior: 'smooth', block: 'nearest', inline: 'nearest'});
+                                }}
+                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors ${isSelected ? categoryStyles[tab.value].active : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                            >
+                                <Icon className="h-3.5 w-3.5"/>
+                                {tab.label}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
             <span className="shrink-0 text-xs text-slate-500">{feed.loading ? '读取中' : `已加载 ${feed.items.length} 条`}</span>

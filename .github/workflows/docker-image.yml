@@ -9,7 +9,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  UPDATER_IMAGE: ghcr.io/tangerinespecter/o-doc-updater:v1
 
 jobs:
   docker-ghcr:
@@ -51,14 +50,6 @@ jobs:
             ODOC_BUILD_VERSION=${{ github.ref_name }}
             ODOC_BUILD_COMMIT=${{ github.sha }}
 
-      - name: Build and push updater image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile.updater
-          push: true
-          tags: ${{ env.UPDATER_IMAGE }}
-
   docker-tcr:
     name: Publish Tencent Cloud TCR
     runs-on: [self-hosted, Linux, X64]
@@ -75,7 +66,6 @@ jobs:
           TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
           TCR_REGISTRY: ccr.ccs.tencentyun.com
           TCR_IMAGE: ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest
-          TCR_UPDATER_IMAGE: ccr.ccs.tencentyun.com/tangerine_specter/o-doc-updater:v1
           TCR_PLATFORM: linux/amd64
           TCR_BUILD_VERSION: ${{ github.ref_name }}
           TCR_BUILD_COMMIT: ${{ github.sha }}

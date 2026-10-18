@@ -24,6 +24,7 @@ import type {CookingRecipe, CookingHistory} from '../../types/api/cooking';
 import {recipeStateConfigs} from './recipePresentation';
 import {RecipeHistoryView} from './RecipeHistoryView';
 import {recipeStarPrices, recipeStarTiers} from './recipePricing';
+import RecipeAdventureEffects from './RecipeAdventureEffects';
 
 export interface RecipeDetailsProps {
     recipe: CookingRecipe;
@@ -462,6 +463,7 @@ export function RecipeDetails({
                         </div>
                     </div>
 
+                    <RecipeAdventureEffects effects={recipe.adventureEffects}/>
                     <RecipeQualityPreview key={recipe.id} recipe={recipe}/>
 
                     {/* 美食描述与制作贴士 */}

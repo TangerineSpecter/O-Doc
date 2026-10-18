@@ -16,3 +16,15 @@ affix.critical,critical,0.005,0,0.02,0,ratio,1
 affix.critical_damage,critical_damage,0.03,0,0.08,0,ratio,1
 affix.accuracy,accuracy,0.01,0,0.03,0,ratio,1
 affix.evasion,evasion,0.01,0,0.03,0,ratio,1
+affix.water_power,water_power,0.03,0,0.06,0,ratio,1
+affix.water_resist,water_resist,0.03,0,0.06,0,ratio,1
+affix.fire_power,fire_power,0.03,0,0.06,0,ratio,1
+affix.fire_resist,fire_resist,0.03,0,0.06,0,ratio,1
+affix.earth_power,earth_power,0.03,0,0.06,0,ratio,1
+affix.earth_resist,earth_resist,0.03,0,0.06,0,ratio,1
+affix.wind_power,wind_power,0.03,0,0.06,0,ratio,1
+affix.wind_resist,wind_resist,0.03,0,0.06,0,ratio,1
+affix.light_power,light_power,0.03,0,0.06,0,ratio,1
+affix.light_resist,light_resist,0.03,0,0.06,0,ratio,1
+affix.dark_power,dark_power,0.03,0,0.06,0,ratio,1
+affix.dark_resist,dark_resist,0.03,0,0.06,0,ratio,1

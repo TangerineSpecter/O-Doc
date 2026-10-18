@@ -26,8 +26,13 @@ def validate_quality_operation(op, experience: int) -> int:
 def validate_source(data: list[dict], meta: dict | None = None) -> dict:
     from utils.sync_manager import SyncError
     version = (meta or {}).get('cooking_schema_version', 0)
-    if type(version) is not int or not 0 <= version <= 3:
+    if type(version) is not int or not 0 <= version <= 4:
         raise SyncError('烹饪快照版本高于本机，请升级后恢复')
+    from .food_sync import validate_source as validate_food
+    if meta is not None and version < 4 and any(row['model'] == 'system_settings.exploration'
+            and 'food_version' in row['fields'].get('snapshot', {}) for row in data):
+        raise SyncError('美食冒险数据需要新版烹饪同步协议')
+    validate_food(data, meta, require_manifest=version >= 4)
     quality_plans, plan_owners = set(), set()
     for row in data:
         if row['model'] != 'system_settings.worldaction':
@@ -109,6 +114,8 @@ def normalize_legacy_inventory() -> None:
 
 def metadata(data: list[dict] | None = None) -> dict:
     # Derive manifests from the exported data, so a later write cannot change its identity.
+    from .food_sync import metadata as food_metadata
+    food_meta = food_metadata(data)
     if data is None:
         from .cooking_models import CookingOperation, CookingIntegrity
         from system_settings.models import WorldAction
@@ -132,5 +139,5 @@ def metadata(data: list[dict] | None = None) -> dict:
         elif row['model'] == 'system_settings.worldaction' and snapshot.get('cooking') and any(
                 'quality_rules' in part.get('rule', {}) for part in snapshot.get('plan', [])):
             plans.append(str(row['pk']))
-    return {'cooking_schema_version': 3, 'cooking_schedule_plans': plan_ids(data), 'cooking_owners': sorted(owners),
+    return {'cooking_schema_version': 4, **food_meta, 'cooking_schedule_plans': plan_ids(data), 'cooking_owners': sorted(owners),
             'cooking_quality_operations': sorted(operations), 'cooking_quality_plans': sorted(plans)}
