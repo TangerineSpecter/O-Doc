@@ -56,7 +56,7 @@ from utils.remote_storage import (
     validate_sync_config,
 )
 from utils.sftp_client import SftpClient
-from utils.sync_manager import OverwriteConfirmationRequired, SyncError, SyncManager
+from utils.sync_manager import OverwriteConfirmationRequired, SyncChoicesRequired, SyncError, SyncManager
 from utils.webdav import WebDavClient
 from user.models import UserProfile
 
@@ -2365,6 +2365,118 @@ class SystemConfigViewSetTests(TestCase):
         self.assertTrue(manager.sync_v2.call_args.kwargs['force_overwrite'])
         self.assertTrue(manager.sync_v2.call_args.kwargs['manual_upload'])
         self.assertEqual(events[-1]['step'], 'done')
+
+    def _read_sync_events(self, response):
+        raw = b''.join(
+            chunk if isinstance(chunk, bytes) else chunk.encode('utf-8')
+            for chunk in response.streaming_content
+        )
+        events = [json.loads(line) for line in raw.decode('utf-8').splitlines() if line.strip()]
+        return raw.decode('utf-8'), events
+
+    def test_force_upload_stream_does_not_serialize_viewset(self):
+        """cf048e7 把 @staticmethod 重复挂到 _choice_payload，_sync_event 变成实例方法。
+
+        上传流第一次 yield 会把 SystemConfigViewSet 放进 step，json.dumps 抛出
+        TypeError；异常处理里再次 yield 时错误逃出生成器，接口变成 HTTP 500 HTML。
+        """
+        request = self.factory.post(
+            '/api/settings/config/sync_to_webdav/',
+            {'forceOverwrite': True},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        manager = Mock()
+        manager.sync_v2.return_value = (
+            {'meta': {'snapshot_id': 'forced-snapshot', 'base_snapshot_id': 'base-snapshot'}},
+            {'force_overwrite': True, 'created': 1, 'updated': 2, 'deleted': 0},
+            '/tmp/before-force-upload.zip',
+        )
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=manager):
+            response = view(request)
+            body, events = self._read_sync_events(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('SystemConfigViewSet', body)
+        self.assertNotIn('not JSON serializable', body)
+        self.assertGreaterEqual(len(events), 2)
+        self.assertTrue(all(
+            isinstance(event.get('step'), str) and isinstance(event.get('msg'), str)
+            for event in events
+        ))
+        self.assertEqual(events[0]['step'], 'init')
+        self.assertIn('远端', events[0]['msg'])
+        self.assertEqual(events[-1]['step'], 'done')
+        self.assertTrue(manager.sync_v2.call_args.kwargs['force_overwrite'])
+        runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+        self.assertEqual(runtime['status'], 'success')
+        self.assertEqual(runtime['last_error'], '')
+        self.assertEqual(runtime['last_uploaded_snapshot_id'], 'forced-snapshot')
+
+    def test_force_upload_failure_stays_ndjson_instead_of_http_500(self):
+        request = self.factory.post(
+            '/api/settings/config/sync_to_webdav/',
+            {'forceOverwrite': True},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        manager = Mock()
+        manager.sync_v2.side_effect = RuntimeError('远端锁被占用')
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=manager):
+            response = view(request)
+            body, events = self._read_sync_events(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(events[0]['step'], 'init')
+        self.assertEqual(events[-1]['step'], 'error')
+        self.assertIn('远端锁被占用', events[-1]['msg'])
+        self.assertNotIn('SystemConfigViewSet', body)
+        self.assertNotIn('not JSON serializable', body)
+        runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+        self.assertEqual(runtime['status'], 'error')
+        self.assertIn('远端锁被占用', runtime['last_error'])
+        self.assertNotIn('SystemConfigViewSet', runtime['last_error'])
+
+    def test_upload_conflict_choices_are_json_events(self):
+        request = self.factory.post(
+            '/api/settings/config/sync_to_webdav/',
+            {'compare': True},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        manager = Mock()
+        manager.sync_v2.side_effect = SyncChoicesRequired([{
+            'key': 'article:1',
+            'model': 'article.article',
+            'label': '本机标题',
+            'remote_label': '云端标题',
+            'local_at': '2026-10-18T00:00:00Z',
+            'remote_at': '2026-10-17T00:00:00Z',
+            'suggested': 'local',
+        }], 1)
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=manager):
+            response = view(request)
+            body, events = self._read_sync_events(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(events[-1]['step'], 'choose_items')
+        self.assertEqual(events[-1]['conflictTotal'], 1)
+        self.assertEqual(events[-1]['conflicts'], [{
+            'key': 'article:1',
+            'model': 'article.article',
+            'label': '本机标题',
+            'remoteLabel': '云端标题',
+            'localAt': '2026-10-18T00:00:00Z',
+            'remoteAt': '2026-10-17T00:00:00Z',
+            'suggested': 'local',
+        }])
+        self.assertNotIn('SystemConfigViewSet', body)
+        runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+        self.assertEqual(runtime['status'], 'idle')
+        self.assertEqual(runtime['last_error'], '')
 
     def test_manual_upload_confirmation_is_not_a_failed_sync(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')

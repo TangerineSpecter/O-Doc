@@ -130,7 +130,6 @@ class SystemConfigViewSet(viewsets.ViewSet):
     """
 
     @staticmethod
-    @staticmethod
     def _choice_payload(exc):
         return [{
             'key': item.get('key'),
@@ -142,6 +141,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'suggested': item.get('suggested'),
         } for item in exc.conflicts]
 
+    @staticmethod
     def _sync_event(step, msg, record=True, **extra):
         if record and msg:
             append_sync_message(msg)
