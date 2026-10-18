@@ -162,6 +162,69 @@ class FailoverBehaviorTests(TestCase):
         self.assertEqual([url for url, _ in self.calls], ['http://primary.invalid/v1/chat/completions'])
         self.assertIsNone(self._sticky())
 
+    def test_a_single_member_chain_does_not_call_other_connections(self):
+        config = LifeConfig.objects.get(pk='owner')
+        config.settings['decision_connection_id'] = self.backup
+        config.settings['decision_connection_ids'] = [self.backup]
+        config.save(update_fields=['settings'])
+        self.primary_mode = 'ok'
+        self.assertEqual(self._scene(), 'rest')
+        self.assertEqual([url for url, _ in self.calls], ['http://backup.invalid/v1/chat/completions'])
+        self.assertIsNone(self._sticky())
+
+    def test_three_models_follow_saved_order_and_reordering_drops_sticky(self):
+        third = _connection('owner', '第三本地决策', 'third.invalid')
+        config = LifeConfig.objects.get(pk='owner')
+        config.settings['decision_connection_id'] = self.primary
+        config.settings['decision_connection_ids'] = [self.primary, self.backup, third]
+        config.save(update_fields=['settings'])
+
+        def post(url, **kwargs):
+            self.calls.append(url)
+            if 'third.invalid' not in url:
+                raise requests.Timeout('hang')
+            return _answer('rest', self.criteria)
+
+        with patch('system_settings.decision.failover.time.time', side_effect=lambda: self.clock['now']), \
+                patch('system_settings.decision.jev.requests.post', side_effect=post):
+            self.assertEqual(choose_scene('owner', self.agent, 'social_action', {}, self.criteria,
+                                          deadline=time.monotonic() + 5), 'rest')
+        self.assertEqual(self.calls, [
+            'http://primary.invalid/v1/chat/completions',
+            'http://backup.invalid/v1/chat/completions',
+            'http://third.invalid/v1/chat/completions',
+        ])
+        self.assertEqual(self._sticky()['connection_id'], third)
+
+        self.calls.clear()
+        self.clock['now'] += 30
+        with patch('system_settings.decision.failover.time.time', side_effect=lambda: self.clock['now']), \
+                patch('system_settings.decision.jev.requests.post', side_effect=post):
+            self.assertEqual(choose_scene('owner', self.agent, 'social_action', {}, self.criteria,
+                                          deadline=time.monotonic() + 5), 'rest')
+        self.assertEqual(self.calls, ['http://third.invalid/v1/chat/completions'])
+
+        from system_settings.decision.failover import apply_saved_order
+        previous = dict(config.settings)
+        config.settings = apply_saved_order('owner', {
+            **config.settings,
+            'decision_connection_id': self.backup,
+            'decision_connection_ids': [self.backup, third, self.primary],
+        }, previous)
+        config.save(update_fields=['settings'])
+        self.assertEqual(config.settings['decision_connection_ids'], [self.backup, third, self.primary])
+        self.assertIsNone(self._sticky())
+
+        self.calls.clear()
+        with patch('system_settings.decision.failover.time.time', side_effect=lambda: self.clock['now']), \
+                patch('system_settings.decision.jev.requests.post', side_effect=post):
+            self.assertEqual(choose_scene('owner', self.agent, 'social_action', {}, self.criteria,
+                                          deadline=time.monotonic() + 5), 'rest')
+        self.assertEqual(self.calls, [
+            'http://backup.invalid/v1/chat/completions',
+            'http://third.invalid/v1/chat/completions',
+        ])
+
     def test_sticky_preference_is_local_and_not_exported(self):
         from utils.sync_manager import SyncManager
         self.assertEqual(self._scene(), 'rest')
@@ -230,6 +293,53 @@ class FailoverSettingsTests(TestCase):
         self.assertEqual(settings['decision_connection_ids'], [self.backup])
         self.assertIsNone(read_sticky('admin'))
         self.assertNotIn(self.primary, response.json()['data']['failover']['order'])
+
+    def test_ranked_chain_of_three_keeps_the_saved_positions(self):
+        third = _connection('admin', '第三本地决策', 'third.invalid')
+        response = self.client.post('/api/settings/agent-world/life/config/', {'settings': {
+            'decisionConnectionId': third,
+            'decisionConnectionIds': [third, self.backup, self.primary],
+            'decisionStickyTtlSeconds': 7200,
+            'jevEnabled': True,
+        }}, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+        settings = response.json()['data']['settings']
+        self.assertEqual(settings['decisionConnectionId'], third)
+        self.assertEqual(settings['decisionConnectionIds'], [third, self.backup, self.primary])
+
+    def test_saving_a_new_order_clears_sticky_and_the_same_order_keeps_it(self):
+        LifeConfig.objects.create(pk='admin', settings={
+            'decision_connection_id': self.primary,
+            'decision_connection_ids': [self.primary, self.backup],
+            'decision_sticky_ttl_seconds': 7200,
+            'jev_enabled': True,
+            'jev_excluded_scenes': [],
+        })
+        until = time.time() + 7200
+        SystemSetting.objects.create(pk=STICKY_KEY, value={
+            'admin': {'connection_id': self.backup, 'until': until},
+        })
+        same = self.client.post('/api/settings/agent-world/life/config/', {'settings': {
+            'decisionConnectionId': self.primary,
+            'decisionConnectionIds': [self.primary, self.backup],
+            'decisionStickyTtlSeconds': 14400,
+            'jevEnabled': True,
+        }}, format='json')
+        self.assertEqual(same.status_code, 200, same.content)
+        self.assertEqual(same.json()['data']['decisionFailover']['stickyConnectionId'], self.backup)
+        self.assertEqual(read_sticky('admin')['connection_id'], self.backup)
+
+        reordered = self.client.post('/api/settings/agent-world/life/config/', {'settings': {
+            'decisionConnectionId': self.backup,
+            'decisionConnectionIds': [self.backup, self.primary],
+            'decisionStickyTtlSeconds': 14400,
+            'jevEnabled': True,
+        }}, format='json')
+        self.assertEqual(reordered.status_code, 200, reordered.content)
+        payload = reordered.json()['data']
+        self.assertEqual(payload['settings']['decisionConnectionIds'], [self.backup, self.primary])
+        self.assertIsNone(payload['decisionFailover']['stickyConnectionId'])
+        self.assertIsNone(read_sticky('admin'))
 
     def test_delete_helper_removes_only_the_listed_connection(self):
         LifeConfig.objects.create(pk='admin', settings={

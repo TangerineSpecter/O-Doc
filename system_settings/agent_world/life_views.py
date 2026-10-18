@@ -81,8 +81,8 @@ class LifeConfigView(APIView):
                         'decision_sticky_ttl_seconds', 'jev_enabled', 'jev_excluded_scenes'):
                 if key not in raw_settings:
                     settings[key] = config.settings.get(key, DEFAULTS[key])
-            from system_settings.decision.failover import align_settings
-            settings = align_settings(settings)
+            from system_settings.decision.failover import apply_saved_order
+            settings = apply_saved_order(config.pk, settings, config.settings)
             from system_settings.models import Agent
             added=set(settings['agent_ids'])-set(config.settings.get('agent_ids', []))
             if Agent.objects.filter(pk__in=added, archived_at__isnull=False).exists():

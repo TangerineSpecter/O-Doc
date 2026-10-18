@@ -1,7 +1,7 @@
 export const STICKY_TTL_OPTIONS = [
-    {value: '3600', label: '1 小时', description: '到期后重新从主决策模型开始'},
-    {value: '7200', label: '2 小时（默认）', description: '主模型中断约两小时时，后续安排沿用已经成功的备用模型'},
-    {value: '14400', label: '4 小时', description: '更长的故障窗口内，不再每次先等待主模型'},
+    {value: '3600', label: '1 小时', description: '到期后重新从顺序第一位开始'},
+    {value: '7200', label: '2 小时（默认）', description: '第一位中断约两小时时，后续安排沿用已经成功的后面某个模型'},
+    {value: '14400', label: '4 小时', description: '更长的故障窗口内，不再每次先等待顺序第一位'},
 ] as const;
 
 export const DEFAULT_STICKY_TTL_SECONDS = 7200;

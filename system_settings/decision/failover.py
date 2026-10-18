@@ -30,7 +30,7 @@ def _valid_id(value) -> bool:
 
 
 def align_settings(settings: dict) -> dict:
-    """Keep the selected connection first in the failover order."""
+    """Keep ``decision_connection_id`` first; the other members keep their rank."""
     primary = settings.get('decision_connection_id') or 'jev'
     if not _valid_id(primary):
         primary = 'jev'
@@ -44,6 +44,23 @@ def align_settings(settings: dict) -> dict:
     settings['decision_connection_id'] = ordered[0]
     settings['decision_connection_ids'] = ordered
     return settings
+
+
+def apply_saved_order(owner: str, settings: dict, previous: dict | None) -> dict:
+    """Align a saved chain. A changed rank drops this device's sticky preference.
+
+    Reordering is how the user picks who is used first. An earlier sticky
+    choice must not keep skipping that new first member.
+    """
+    stored = previous if isinstance(previous, dict) else {}
+    before = align_settings({
+        'decision_connection_id': stored.get('decision_connection_id') or 'jev',
+        'decision_connection_ids': list(stored.get('decision_connection_ids') or []),
+    })
+    aligned = align_settings(settings)
+    if before['decision_connection_ids'] != aligned['decision_connection_ids']:
+        clear_sticky(owner)
+    return aligned
 
 
 def _settings(owner: str) -> dict:
