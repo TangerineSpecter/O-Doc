@@ -2,7 +2,8 @@
 from copy import deepcopy
 from collections import defaultdict, Counter
 from .store import digest
-from .models import CombatRuntime, Exploration, CombatProfile, CombatCatalog, CombatFact
+from .models import (CombatRuntime, Exploration, CombatProfile, CombatCatalog, CombatFact,
+                     MIN_DAILY_EXPLORATION_MINUTES, MAX_DAILY_EXPLORATION_MINUTES)
 from .facts import append
 from ..life_time import local_time
 
@@ -49,7 +50,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                     raise ValueError('转职层级无效')
                 validate_tables(row['tables'], expected_promotion_level=next(iter(gates)), catalog_version=row['id'])
             except (ValueError,KeyError,TypeError,IndexError) as exc:raise SyncError('战斗目录业务规则无效') from exc
-        if model==LABEL+'combatconfig' and (type(row['daily_minutes']) is not int or not 30<=row['daily_minutes']<=120):
+        if model==LABEL+'combatconfig' and (type(row['daily_minutes']) is not int or not MIN_DAILY_EXPLORATION_MINUTES<=row['daily_minutes']<=MAX_DAILY_EXPLORATION_MINUTES):
             raise SyncError('每日探索额度无效')
         if model in (GEAR,RUN,FACT,ENCOUNTER) and row['actor_id'] and row['actor_id'] not in profiles:raise SyncError('战斗事实缺少居民档案')
         if model==ENCOUNTER:

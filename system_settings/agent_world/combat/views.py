@@ -9,7 +9,8 @@ from utils.response_utils import success_result, valid_result
 from system_settings.models import Agent
 from ..farm_gate import farm_gate
 from ..cooking_queries import validate_actor
-from .models import CombatProfile, CombatFact, Exploration, CombatEncounter, CombatConfig, EquipmentInstance
+from .models import (CombatProfile, CombatFact, Exploration, CombatEncounter, CombatConfig, EquipmentInstance,
+                     MIN_DAILY_EXPLORATION_MINUTES, MAX_DAILY_EXPLORATION_MINUTES)
 from . import queries, profiles, explorations
 from .facts import append, replay
 from .permissions import local_runtime
@@ -98,7 +99,7 @@ class CombatView(APIView):
                     if set(arguments)-{'daily_minutes'}:raise ValueError('未知探索配置')
                     if 'daily_minutes' in arguments:
                         value=arguments['daily_minutes']
-                        if type(value)is not int or not 30<=value<=120:raise ValueError('每日探索额度须为 30 至 120 分钟')
+                        if type(value)is not int or not MIN_DAILY_EXPLORATION_MINUTES<=value<=MAX_DAILY_EXPLORATION_MINUTES:raise ValueError('每日探索额度须为 30 至 1440 分钟')
                         CombatConfig.objects.update_or_create(pk=owner,defaults={'daily_minutes':value})
                     business.refresh_from_db()
                     business.requests={**business.requests,key:arguments};business.save()

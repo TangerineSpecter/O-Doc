@@ -5,6 +5,10 @@ from django.utils import timezone
 from ..life_models import LifeTimedModel
 
 
+MIN_DAILY_EXPLORATION_MINUTES = 30
+MAX_DAILY_EXPLORATION_MINUTES = 24 * 60
+
+
 def identity():
     return uuid.uuid4().hex
 

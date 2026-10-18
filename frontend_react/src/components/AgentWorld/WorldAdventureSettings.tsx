@@ -6,7 +6,7 @@ import type {CombatHistoryStorage} from '../../types/api/combat';
 import {WorldAdventureHistory} from './WorldAdventureHistory';
 
 const MIN_DAILY_MINUTES = 30;
-const MAX_DAILY_MINUTES = 120;
+const MAX_DAILY_MINUTES = 1440;
 
 export function WorldAdventureSettings() {
     const toast = useToast();
@@ -85,7 +85,7 @@ export function WorldAdventureSettings() {
                     <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
                     <div className="space-y-1 text-xs leading-5">
                         <p>已出发后的实际探索时间会累计；未出发的准备失败不计入，跨午夜的部分归入次日。</p>
-                        <p className="text-slate-500">单次探索仍可选择 30、60 或 120 分钟。每日上限范围为 30～120 分钟。</p>
+                        <p className="text-slate-500">单次探索仍可选择 30、60 或 120 分钟。每日上限范围为 30～1440 分钟。</p>
                     </div>
                 </div>
             </div>
@@ -139,7 +139,7 @@ export function WorldAdventureSettings() {
                         </p>
                     )}
                     {dailyMinutes !== '' && !validMinutes && (
-                        <p role="alert" className="text-xs text-amber-700">请输入 30～120 之间的整数分钟。</p>
+                        <p role="alert" className="text-xs text-amber-700">请输入 30～1440 之间的整数分钟。</p>
                     )}
                     <button
                         type="submit"
