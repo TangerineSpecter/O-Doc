@@ -18,7 +18,7 @@
 
 ## 连接与协议
 
-连接在“AI 模型接入 → 决策模型连接”管理，保存稳定连接 ID、名称、协议、服务地址和模型 ID。JEV 是保留的内置连接，自定义连接按协议扩展：
+连接在“AI 模型接入 → 决策模型连接”管理，保存稳定连接 ID、名称、协议、服务地址和模型 ID。没有预置连接。机V1（JEV / System One）和本地决策模型都从「新增决策模型连接」添加，并选择对应协议：
 
 | 协议 | 请求和响应 |
 | --- | --- |
@@ -33,7 +33,8 @@
 
 ## 账号、持久化与同步
 
-- 连接元数据在 `SystemSetting.system_decision_connections`，API Key 按账号与连接 ID 保存在 `system_decision_credentials`；世界选择在 `LifeConfig.settings.decision_connection_id`。故障转移顺序 `decision_connection_ids`（第一位即平时使用的连接，并写回 `decision_connection_id`；若两者不一致，保存时把 `decision_connection_id` 放到第一位，其余成员保持原有先后）和暂时沿用时长 `decision_sticky_ttl_seconds` 同在 `LifeConfig.settings` 中，随既有世界配置同步。
+- 连接元数据在 `SystemSetting.system_decision_connections`，API Key 按账号与连接 ID 保存在 `system_decision_credentials`；世界选择在 `LifeConfig.settings.decision_connection_id`。故障转移顺序 `decision_connection_ids`（第一位即平时使用的连接，并写回 `decision_connection_id`；若两者不一致，保存时把 `decision_connection_id` 放到第一位，其余成员保持原有先后）和暂时沿用时长 `decision_sticky_ttl_seconds` 同在 `LifeConfig.settings` 中，随既有世界配置同步。顺序可以为空；空顺序不调用结构化决策。
+- 迁移 `0076_custom_decision_connections` 不新增列。已经保存 JEV 密钥的账号会得到一条普通连接，ID 仍是 `jev`，协议、地址和模型与原先内置值相同，之后可以改名、编辑或删除。没有密钥、只是默认指向 `jev` 的世界会从顺序里去掉这个占位。同步恢复后若快照里仍有 JEV 密钥但还没有这条档案，读取连接时会按同样规则补上，不覆盖用户已经改过的档案。
 - 本机正在沿用哪个连接存在 `SystemSetting.system_decision_sticky`，不进入快照、不记修订。本地决策服务是否宕机因设备而异，不能让另一台设备跳过自己仍然可用的第一位。调整顺序会清除本机沿用。
 - 上述连接元数据、世界选择及密钥均按现有 WebDAV 业务范围同步。配置读取仅返回密钥是否已设置，不回传密钥；远端快照包含凭证字段。
 - 旧 `AgentTask.market_config.decision_enabled/decision_provider` 保留历史兼容，当前策略读取世界设置。
@@ -41,7 +42,7 @@
 
 ## 接口与代码入口
 
-接口前缀为 `/api/settings/decision-models/`：GET/PATCH 管理内置 JEV 配置，`connections/` 新建自定义连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测；内置连接保留 `test/` 检测入口。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
+接口前缀为 `/api/settings/decision-models/`：`connections/` 新建连接，`connections/<id>/` 编辑/删除，`connections/<id>/test/` 检测。历史 `PATCH` 与 `test/` 仍只写或检测 ID 为 `jev` 的密钥，供已有客户端使用；新的机V1 连接走同一套连接接口。准确字段见前端 [api/decision.ts](../../frontend_react/src/api/decision.ts)和[类型](../../frontend_react/src/types/api/decision.ts)。
 
 - 后端：`system_settings/decision/config.py`、`views.py`、`routing.py`、`failover.py`、`jev.py`、`adapters/`、`restore.py`、`diagnostics.py`。`choose_connections` 供世界场景和市场循环共用。
 - 前端：`hooks/useDecisionConfig.ts`、`components/Settings/DecisionSettings.tsx`、`DecisionConnectionModal.tsx`；世界策略、决策顺序和沿用时间在 `components/AgentWorld/WorldDecisionModelSettings.tsx` 与 `DecisionFailoverEditor.tsx`。连接卡片显示顺序位置和暂时沿用状态。

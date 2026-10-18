@@ -20,15 +20,24 @@ class DecisionTests(TestCase):
 
     def test_credentials_write_only_account_scoped_and_clear(self):
         path = '/api/settings/decision-models/'
+        self.assertEqual(self.client.get(path).json()['data']['connections'], [])
         response = self.client.patch(path, {'apiKey': 'private-test-secret'}, format='json')
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.data['data']['providers'][0]['configured'])
-        self.assertNotIn('private-test-secret', str(response.data))
+        payload = response.json()['data']
+        self.assertEqual(len(payload['connections']), 1)
+        saved = payload['connections'][0]
+        self.assertEqual(saved['id'], 'jev')
+        self.assertFalse(saved['builtIn'])
+        self.assertTrue(saved['configured'])
+        self.assertTrue(saved['apiKeyConfigured'])
+        self.assertEqual(saved['baseUrl'], 'https://api.typesafe.ai/v1')
+        self.assertEqual(saved['modelId'], 'jev-latest')
+        self.assertNotIn('private-test-secret', str(response.content))
         self.assertEqual(api_key('admin'), 'private-test-secret')
         self.assertEqual(api_key('another-account'), '')
         other = User.objects.create_user('other', password='test')
         self.client.force_authenticate(other)
-        self.assertFalse(self.client.get(path).data['data']['providers'][0]['configured'])
+        self.assertEqual(self.client.get(path).json()['data']['connections'], [])
         self.client.patch(path, {'apiKey': 'other-key'}, format='json')
         self.assertEqual(api_key('admin'), 'private-test-secret')
         self.client.force_authenticate(self.user)
@@ -36,6 +45,55 @@ class DecisionTests(TestCase):
         self.assertEqual(self.client.patch(path, {'apiKey': None}, format='json').status_code, 200)
         self.assertEqual(api_key('admin'), '')
         self.assertTrue(SyncEntityState.objects.filter(object_pk=CREDENTIAL_KEY).exists())
+        self.assertEqual(self.client.get(path).json()['data']['connections'][0]['id'], 'jev')
+        removed = self.client.delete('/api/settings/decision-models/connections/jev/')
+        self.assertEqual(removed.status_code, 200, removed.content)
+        self.assertEqual(removed.json()['data']['connections'], [])
+        self.assertEqual(api_key('admin'), '')
+
+    def test_legacy_jev_migration_keeps_configured_accounts_and_drops_placeholders(self):
+        import importlib
+        from django.apps import apps
+        from django.db import connection as db_connection
+        from system_settings.agent_world.life_models import LifeConfig
+        migrate_legacy_jev = importlib.import_module(
+            'system_settings.migrations.0076_custom_decision_connections').migrate_legacy_jev
+
+        class Editor:
+            connection = db_connection
+
+        SystemSetting.objects.create(pk='system_decision_credentials', value={
+            'kept': {'jev': 'kept-secret'},
+        })
+        LifeConfig.objects.create(pk='kept', settings={
+            'decision_connection_id': 'jev', 'decision_connection_ids': ['jev'],
+        })
+        LifeConfig.objects.create(pk='plain', settings={
+            'decision_connection_id': 'jev', 'decision_connection_ids': ['jev'],
+        })
+        LifeConfig.objects.create(pk='mixed', settings={
+            'decision_connection_id': 'jev', 'decision_connection_ids': ['jev', 'dc_0123456789abcdef'],
+        })
+        migrate_legacy_jev(apps, Editor())
+        profiles = SystemSetting.objects.get(pk='system_decision_connections').value
+        self.assertEqual(profiles['kept'], [{
+            'id': 'jev', 'name': 'JEV', 'protocol': 'systemone',
+            'base_url': 'https://api.typesafe.ai/v1', 'model_id': 'jev-latest',
+        }])
+        self.assertNotIn('plain', profiles)
+        self.assertEqual(LifeConfig.objects.get(pk='kept').settings['decision_connection_id'], 'jev')
+        plain = LifeConfig.objects.get(pk='plain').settings
+        self.assertEqual(plain['decision_connection_id'], '')
+        self.assertEqual(plain['decision_connection_ids'], [])
+        mixed = LifeConfig.objects.get(pk='mixed').settings
+        self.assertEqual(mixed['decision_connection_id'], 'dc_0123456789abcdef')
+        self.assertEqual(mixed['decision_connection_ids'], ['dc_0123456789abcdef'])
+        profiles['kept'][0]['name'] = '机V1'
+        row = SystemSetting.objects.get(pk='system_decision_connections')
+        row.value = profiles
+        row.save(update_fields=['value'])
+        migrate_legacy_jev(apps, Editor())
+        self.assertEqual(SystemSetting.objects.get(pk='system_decision_connections').value['kept'][0]['name'], '机V1')
 
     def test_snapshot_export_and_restore_include_secret(self):
         from utils.sync_manager import SyncManager

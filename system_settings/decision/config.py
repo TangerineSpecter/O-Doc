@@ -13,13 +13,15 @@ PROVIDER = 'jev'
 PROTOCOLS = {'systemone', 'openai_chat_json'}
 MAX_CONNECTIONS = 50
 
-BUILTIN_JEV = {
+PROFILE_ID = re.compile(r'^(?:jev|dc_[a-f0-9]{16})$')
+# Historical installs stored only a JEV key. The endpoint and model are the
+# values that connection used before it became an ordinary saved profile.
+LEGACY_JEV_PROFILE = {
     'id': PROVIDER,
     'name': 'JEV',
     'protocol': 'systemone',
     'base_url': 'https://api.typesafe.ai/v1',
     'model_id': 'jev-latest',
-    'built_in': True,
 }
 
 
@@ -47,9 +49,7 @@ def _profiles(owner: str) -> list[dict]:
         return []
     profiles = []
     for item in value:
-        if (not isinstance(item, dict) or item.get('id') == PROVIDER
-                or not isinstance(item.get('id'), str)
-                or not re.fullmatch(r'dc_[a-f0-9]{16}', item['id'])):
+        if not isinstance(item, dict) or not isinstance(item.get('id'), str) or PROFILE_ID.fullmatch(item['id']) is None:
             continue
         try:
             normalized = _validate_profile({key: item.get(key) for key in ('name', 'protocol', 'base_url', 'model_id')})
@@ -59,9 +59,31 @@ def _profiles(owner: str) -> list[dict]:
     return profiles
 
 
+@transaction.atomic
+def materialize_legacy_jev(owner: str) -> None:
+    """Turn a saved historical JEV key into a normal connection profile.
+
+    Accounts that never stored a key get nothing. Repeating this does not
+    overwrite a profile the user has already edited or deleted.
+    """
+    if not api_key(owner, PROVIDER):
+        return
+    row, _ = SystemSetting.objects.get_or_create(pk=CONNECTIONS_KEY, defaults={'value': {}})
+    row = SystemSetting.objects.select_for_update().get(pk=row.pk)
+    values = dict(row.value or {})
+    profiles = values.get(owner)
+    if not isinstance(profiles, list):
+        profiles = []
+    if any(isinstance(item, dict) and item.get('id') == PROVIDER for item in profiles):
+        return
+    values[owner] = [*profiles, dict(LEGACY_JEV_PROFILE)]
+    row.value = values
+    row.save(update_fields=['value'])
+
+
 def connection(owner: str, connection_id: str = PROVIDER) -> dict:
     if connection_id == PROVIDER:
-        return dict(BUILTIN_JEV)
+        materialize_legacy_jev(owner)
     for item in _profiles(owner):
         if item.get('id') == connection_id:
             return dict(item)
@@ -69,10 +91,9 @@ def connection(owner: str, connection_id: str = PROVIDER) -> dict:
 
 
 def public_config(owner: str) -> dict:
-    rows = [BUILTIN_JEV, *_profiles(owner)]
+    materialize_legacy_jev(owner)
     connections = []
-    for item in rows:
-        built_in = item.get('built_in') is True
+    for item in _profiles(owner):
         secret_present = bool(api_key(owner, item['id']))
         connections.append({
             'id': item['id'],
@@ -80,8 +101,8 @@ def public_config(owner: str) -> dict:
             'protocol': item['protocol'],
             'base_url': item['base_url'],
             'model_id': item['model_id'],
-            'built_in': built_in,
-            'configured': secret_present if built_in else bool(item.get('base_url') and item.get('model_id')),
+            'built_in': False,
+            'configured': bool(item.get('base_url') and item.get('model_id')),
             'api_key_configured': secret_present,
         })
     from .failover import public_status
@@ -117,6 +138,8 @@ def save_key(owner: str, secret: str | None, connection_id: str = PROVIDER) -> N
         values.pop(owner, None)
     row.value = values
     row.save(update_fields=['value'])
+    if connection_id == PROVIDER and secret:
+        materialize_legacy_jev(owner)
 
 
 def _validate_profile(value: dict, existing: dict | None = None) -> dict:
@@ -183,8 +206,6 @@ def save_connection(owner: str, value: dict, *, connection_id: str | None = None
 
 @transaction.atomic
 def delete_connection(owner: str, connection_id: str) -> dict:
-    if connection_id == PROVIDER:
-        raise ValueError('JEV 内置连接不能删除')
     row = SystemSetting.objects.select_for_update().filter(pk=CONNECTIONS_KEY).first()
     if not row:
         raise ValueError('决策模型连接不存在')
@@ -223,8 +244,10 @@ def market_config(value: dict, previous: dict | None = None) -> dict:
 
 def selected_connection_id(owner: str | None) -> str:
     if not owner:
-        return PROVIDER
+        return ''
     from system_settings.agent_world.life_models import LifeConfig
-    settings = LifeConfig.objects.filter(pk=owner).values_list('settings', flat=True).first() or {}
-    value = settings.get('decision_connection_id', PROVIDER)
-    return value if isinstance(value, str) and value else PROVIDER
+    settings = LifeConfig.objects.filter(pk=owner).values_list('settings', flat=True).first()
+    if not isinstance(settings, dict) or 'decision_connection_id' not in settings:
+        return PROVIDER if api_key(owner, PROVIDER) else ''
+    value = settings.get('decision_connection_id') or ''
+    return value if isinstance(value, str) else ''

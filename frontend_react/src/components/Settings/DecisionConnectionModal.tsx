@@ -11,7 +11,7 @@ interface DecisionConnectionModalProps {
 }
 
 const protocolOptions = [
-    {value: 'systemone' as const, label: 'JEV / TypeSafe System One', description: '发送 state/questions，接收 answers'},
+    {value: 'systemone' as const, label: '机V1 / System One', description: '发送 state/questions，接收 answers'},
     {value: 'openai_chat_json' as const, label: 'OpenAI Chat + JSON 决策', description: '将 state/questions JSON 放入 user content，解析 assistant JSON'},
 ];
 
@@ -62,7 +62,7 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
                 <header className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4">
                     <div className="min-w-0 flex-1">
                         <h3 id="decision-connection-title" className="font-bold text-slate-900">{initialData ? '编辑决策模型连接' : '新增决策模型连接'}</h3>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">选择模型实际提供的协议；JEV 连接已内置。</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">选择模型实际提供的协议。机V1 和其他服务都从这里新增，地址、模型 ID 和密钥由你填写。</p>
                     </div>
                     <button type="button" aria-label="关闭" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4"/></button>
                 </header>

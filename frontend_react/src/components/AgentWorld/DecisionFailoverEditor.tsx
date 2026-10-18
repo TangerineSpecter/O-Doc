@@ -128,7 +128,8 @@ export function DecisionFailoverEditor({
                     </ol>
                 </SortableContext>
             </DndContext>
-            {order.length <= 1 && <p className="text-xs leading-5 text-slate-500">至少保留一个。要换掉它，先把另一个模型加入顺序，再移出这一个。</p>}
+            {order.length === 1 && <p className="text-xs leading-5 text-slate-500">至少保留一个。要换掉它，先把另一个模型加入顺序，再移出这一个。</p>}
+            {order.length === 0 && <p className="text-xs leading-5 text-slate-500">这条顺序现在是空的。有限选择会改走普通文本模型，直到你把决策连接加进来。</p>}
             {available.length > 0 && !atLimit ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div className="min-w-0 flex-1">

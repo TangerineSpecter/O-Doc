@@ -31,17 +31,17 @@ def _valid_id(value) -> bool:
 
 def align_settings(settings: dict) -> dict:
     """Keep ``decision_connection_id`` first; the other members keep their rank."""
-    primary = settings.get('decision_connection_id') or 'jev'
+    primary = settings.get('decision_connection_id') or ''
     if not _valid_id(primary):
-        primary = 'jev'
+        primary = ''
     raw = settings.get('decision_connection_ids') or []
     rest = []
     if isinstance(raw, list):
         for item in raw:
             if item != primary and item not in rest and _valid_id(item):
                 rest.append(item)
-    ordered = [primary, *rest][:MAX_FAILOVER]
-    settings['decision_connection_id'] = ordered[0]
+    ordered = ([primary, *rest] if primary else rest)[:MAX_FAILOVER]
+    settings['decision_connection_id'] = ordered[0] if ordered else ''
     settings['decision_connection_ids'] = ordered
     return settings
 
@@ -54,7 +54,7 @@ def apply_saved_order(owner: str, settings: dict, previous: dict | None) -> dict
     """
     stored = previous if isinstance(previous, dict) else {}
     before = align_settings({
-        'decision_connection_id': stored.get('decision_connection_id') or 'jev',
+        'decision_connection_id': stored.get('decision_connection_id') or '',
         'decision_connection_ids': list(stored.get('decision_connection_ids') or []),
     })
     aligned = align_settings(settings)
@@ -77,14 +77,21 @@ def ttl_for(owner: str) -> int:
 
 
 def configured_order(owner: str) -> list[str]:
-    from .config import connection
+    from .config import api_key, connection
     settings = _settings(owner)
-    primary = settings.get('decision_connection_id') or 'jev'
     raw = settings.get('decision_connection_ids')
     if not isinstance(raw, list):
         raw = []
+    if 'decision_connection_id' in settings:
+        primary = settings.get('decision_connection_id') or ''
+    elif raw:
+        primary = ''
+    else:
+        # Older worlds never stored a connection id. A saved JEV key is that
+        # world's existing provider; an account with no key has no provider.
+        primary = 'jev' if api_key(owner, 'jev') else ''
     ordered = []
-    for item in ([primary] if _valid_id(primary) else ['jev']) + list(raw):
+    for item in ([primary] if _valid_id(primary) else []) + list(raw):
         if _valid_id(item) and item not in ordered:
             ordered.append(item)
     if _valid_id(primary) and primary in ordered:
@@ -96,7 +103,7 @@ def configured_order(owner: str) -> list[str]:
         except ValueError:
             continue
         existing.append(item)
-    return existing or ['jev']
+    return existing
 
 
 def _stored_values() -> dict:
@@ -174,16 +181,16 @@ def forget_connection(owner: str, connection_id: str) -> None:
     life = LifeConfig.objects.filter(pk=owner).first()
     if life:
         settings = dict(life.settings or {})
-        primary = settings.get('decision_connection_id') or 'jev'
+        primary = settings.get('decision_connection_id') or ''
         raw = settings.get('decision_connection_ids')
         listed = connection_id == primary or (isinstance(raw, list) and connection_id in raw)
         if listed:
             source = [primary] if _valid_id(primary) else []
             if isinstance(raw, list):
                 source.extend(item for item in raw if _valid_id(item) and item not in source)
-            remaining = [item for item in source if item != connection_id] or ['jev']
+            remaining = [item for item in source if item != connection_id]
             settings['decision_connection_ids'] = remaining
-            settings['decision_connection_id'] = remaining[0]
+            settings['decision_connection_id'] = remaining[0] if remaining else ''
             life.settings = settings
             life.save(update_fields=['settings'])
     entry = _stored_values().get(owner)

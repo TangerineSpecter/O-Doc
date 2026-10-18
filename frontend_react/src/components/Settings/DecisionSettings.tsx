@@ -1,6 +1,6 @@
-import {useMemo, useState} from 'react';
+import {useState} from 'react';
 import {KeyRound, Loader2, Plus} from 'lucide-react';
-import {createDecisionConnection, deleteDecisionConnection, saveDecisionKey, testDecisionConnection, updateDecisionConnection} from '../../api/decision';
+import {createDecisionConnection, deleteDecisionConnection, testDecisionConnection, updateDecisionConnection} from '../../api/decision';
 import {useDecisionConfig} from '../../hooks/useDecisionConfig';
 import type {DecisionConnection, DecisionConnectionInput} from '../../types/api/decision';
 import {formatStickyUntil} from '../AgentWorld/decisionFailover';
@@ -10,8 +10,6 @@ import {DecisionConnectionModal} from './DecisionConnectionModal';
 
 export function DecisionSettings() {
     const {config, setConfig, loading, error, refresh} = useDecisionConfig();
-    const [secret, setSecret] = useState('');
-    const [busy, setBusy] = useState(false);
     const [testing, setTesting] = useState<string | null>(null);
     const [results, setResults] = useState<Record<string, string>>({});
     const [modalOpen, setModalOpen] = useState(false);
@@ -19,8 +17,6 @@ export function DecisionSettings() {
     const [deleteTarget, setDeleteTarget] = useState<DecisionConnection | null>(null);
     const toast = useToast();
     const connections = config?.connections || config?.providers || [];
-    const jev = connections.find(connection => connection.id === 'jev');
-    const customConnections = useMemo(() => connections.filter(connection => !connection.builtIn), [connections]);
     const failover = config?.failover;
     const connectionLabels = (id: string) => {
         const index = failover?.order.indexOf(id) ?? -1;
@@ -32,21 +28,6 @@ export function DecisionSettings() {
         };
     };
     const stickyConnection = connections.find(connection => connection.id === failover?.stickyConnectionId);
-
-    const updateJevKey = async (clear: boolean) => {
-        if (busy || (!clear && !secret.trim())) return;
-        setBusy(true);
-        setResults(previous => ({...previous, jev: ''}));
-        try {
-            setConfig(await saveDecisionKey(clear ? null : secret.trim()));
-            setSecret('');
-            toast.success(clear ? 'JEV 密钥已清除' : 'JEV 密钥已保存');
-        } catch (cause) {
-            toast.error(cause instanceof Error ? cause.message : '保存 JEV 密钥失败');
-        } finally {
-            setBusy(false);
-        }
-    };
 
     const test = async (connection: DecisionConnection) => {
         setTesting(connection.id);
@@ -113,7 +94,7 @@ export function DecisionSettings() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><KeyRound className="h-4 w-4"/></div>
                     <div>
                         <h3 id="decision-settings-title" className="font-bold text-slate-800">决策模型连接</h3>
-                        <p className="mt-0.5 text-xs text-slate-500">JEV 保持内置；按模型服务选择协议适配器。</p>
+                        <p className="mt-0.5 text-xs text-slate-500">按模型服务选择协议，自行添加决策连接。</p>
                     </div>
                 </div>
                 <button type="button" onClick={openCreate} disabled={loading} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50"><Plus className="h-3.5 w-3.5"/>新增决策模型连接</button>
@@ -121,17 +102,8 @@ export function DecisionSettings() {
 
             {loading ? <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin"/>正在读取决策连接…</p> : error ? <div role="alert" className="text-xs text-red-600">{error}<button type="button" onClick={() => void refresh()} className="ml-3 underline">重试</button></div> : <div className="space-y-3">
                 {stickyConnection && failover?.stickyUntil && <p role="status" className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-xs leading-5 text-lime-800">顺序里靠前的模型暂时跳过。当前沿用「{stickyConnection.name}」，{formatStickyUntil(failover.stickyUntil)} 后重新从第一位开始。沿用状态只保存在本机。</p>}
-                {jev && <div className="space-y-2">
-                    <DecisionConnectionCard connection={jev} result={results.jev} busy={testing === 'jev'} onTest={() => void test(jev)} {...connectionLabels('jev')}/>
-                    <div className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/70 p-3 sm:flex-row sm:items-center">
-                        <input type="password" autoComplete="new-password" aria-label="JEV API Key" value={secret} onChange={event => setSecret(event.target.value)} placeholder={jev.apiKeyConfigured ? '已保存；填写新密钥以替换' : '填写 TypeSafe API Key'} className="min-h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"/>
-                        <div className="flex shrink-0 gap-2">
-                            <button type="button" disabled={busy || !secret.trim()} onClick={() => void updateJevKey(false)} className="min-h-9 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-40">保存密钥</button>
-                            <button type="button" disabled={busy || !jev.apiKeyConfigured} onClick={() => void updateJevKey(true)} className="min-h-9 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">清除密钥</button>
-                        </div>
-                    </div>
-                </div>}
-                {customConnections.map(connection => <DecisionConnectionCard key={connection.id} connection={connection} result={results[connection.id]} busy={testing === connection.id} onTest={() => void test(connection)} onEdit={() => openEdit(connection)} onClearKey={() => void clearConnectionKey(connection)} onDelete={() => setDeleteTarget(connection)} {...connectionLabels(connection.id)}/>) }
+                {connections.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-xs leading-5 text-slate-500">还没有决策连接。机V1、本地决策模型和其他服务都从「新增决策模型连接」添加，选择对应协议后填写地址、模型 ID 和密钥。</p>}
+                {connections.map(connection => <DecisionConnectionCard key={connection.id} connection={connection} result={results[connection.id]} busy={testing === connection.id} onTest={() => void test(connection)} onEdit={() => openEdit(connection)} onClearKey={() => void clearConnectionKey(connection)} onDelete={() => setDeleteTarget(connection)} {...connectionLabels(connection.id)}/>)}
                 <p className="text-xs leading-5 text-slate-500">连接信息和 API Key 都随 WebDAV 同步；暂时沿用哪一个模型只记在本机，不进入快照。在世界设置 → 决策模型里选择哪些连接加入顺序，并拖动排列。平时用第一位；后面的模型成功后默认沿用 2 小时，也可选 1 小时或 4 小时。觉得第一位不稳定时，把稳定的模型拖到第一位。密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
             </div>}
 
@@ -140,7 +112,7 @@ export function DecisionSettings() {
                 <button type="button" aria-label="关闭删除确认" className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" onClick={() => setDeleteTarget(null)}/>
                 <section role="dialog" aria-modal="true" aria-labelledby="delete-decision-title" className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
                     <h3 id="delete-decision-title" className="font-bold text-slate-800">删除决策连接？</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">将删除“{deleteTarget.name}”及其 API Key。若它在决策顺序里，会从顺序中移除；排在第一位时由下一位接任，顺序空了则回到 JEV。</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">将删除“{deleteTarget.name}”及其 API Key。若它在决策顺序里，会从顺序中移除；排在第一位时由下一位接任。顺序空了之后，有限选择改走普通文本模型。</p>
                     <div className="mt-5 flex justify-end gap-2">
                         <button type="button" onClick={() => setDeleteTarget(null)} className="min-h-9 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">取消</button>
                         <button type="button" onClick={() => void removeConnection()} className="min-h-9 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">删除连接</button>

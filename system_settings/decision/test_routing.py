@@ -129,6 +129,8 @@ class RoutingTests(TestCase):
 
     @patch('system_settings.decision.jev.choose', side_effect=TimeoutError('决策请求达到执行时限'))
     def test_decision_timeout_returns_none_for_text_fallback(self, choose):
+        from system_settings.decision.config import save_key
+        save_key('owner', 'secret')
         result = choose_scene('owner', self.agent, 'social_action', {}, {'reply': '回复', 'rest': '休息'},
                               deadline=time.monotonic() + 30)
         self.assertIsNone(result)
@@ -136,6 +138,8 @@ class RoutingTests(TestCase):
 
     @patch('system_settings.decision.jev.choose', side_effect=DecisionUnavailable('fixture'))
     def test_jev_failure_exclusion_and_solo_candidate(self, choose):
+        from system_settings.decision.config import save_key
+        save_key('owner', 'secret')
         result = choose_scene('owner', self.agent, 'social_action', {}, {'reply':'回复','rest':'休息'}, deadline=time.monotonic()+10)
         self.assertIsNone(result)
         self.assertIn('公共要求', choose.call_args.args[1]['role'])

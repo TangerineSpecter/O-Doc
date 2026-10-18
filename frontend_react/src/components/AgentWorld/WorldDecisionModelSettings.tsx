@@ -34,7 +34,7 @@ export function WorldDecisionModelSettings() {
     const toast = useToast();
     const decisionConfig = useDecisionConfig();
     const [jevEnabled, setJevEnabled] = useState(false);
-    const [order, setOrder] = useState<string[]>(['jev']);
+    const [order, setOrder] = useState<string[]>([]);
     const [stickyTtl, setStickyTtl] = useState(String(DEFAULT_STICKY_TTL_SECONDS));
     const [failover, setFailover] = useState<DecisionFailoverState | null>(null);
     const [excluded, setExcluded] = useState<string[]>([]);
@@ -62,9 +62,9 @@ export function WorldDecisionModelSettings() {
                 setModels(chatModels);
                 setConfig(lifeConfig);
                 const storedOrder = (lifeConfig.settings.decisionConnectionIds || []).filter(id => id);
-                const fallback = lifeConfig.settings.decisionConnectionId || 'jev';
+                const fallback = lifeConfig.settings.decisionConnectionId || '';
                 setJevEnabled(lifeConfig.settings.jevEnabled ?? false);
-                setOrder(storedOrder.length ? storedOrder : [fallback]);
+                setOrder(storedOrder.length ? storedOrder : (fallback ? [fallback] : []));
                 setStickyTtl(stickyTtlValue(lifeConfig.settings.decisionStickyTtlSeconds));
                 setFailover(lifeConfig.decisionFailover ?? null);
                 setExcluded(lifeConfig.settings.jevExcludedScenes || []);
@@ -83,19 +83,25 @@ export function WorldDecisionModelSettings() {
         };
     }, []);
 
+    const decisionConnections = decisionConfig.config?.connections || decisionConfig.config?.providers || [];
+    const catalogIds = new Set(decisionConnections.map(connection => connection.id));
+    const visibleOrder = decisionConfig.loading ? order : order.filter(id => catalogIds.has(id));
+    const firstConnection = decisionConnections.find(connection => connection.id === visibleOrder[0]);
+
     const save = async () => {
         if (!config) return;
         setSaving(true);
         setError('');
         try {
-            const chain = order.filter((id, index) => id && order.indexOf(id) === index);
-            const first = chain[0] || 'jev';
+            const source = decisionConfig.loading ? order : visibleOrder;
+            const chain = source.filter((id, index) => id && source.indexOf(id) === index);
+            const first = chain[0] || '';
             const saved = await saveLifeConfig({...config.settings, decisionModelId: modelId,
-                decisionConnectionId: first, decisionConnectionIds: chain.length ? chain : [first],
+                decisionConnectionId: first, decisionConnectionIds: chain,
                 decisionStickyTtlSeconds: Number(stickyTtl), jevEnabled, jevExcludedScenes: excluded});
             const savedOrder = saved.settings.decisionConnectionIds?.length
                 ? saved.settings.decisionConnectionIds
-                : [saved.settings.decisionConnectionId || 'jev'];
+                : (saved.settings.decisionConnectionId ? [saved.settings.decisionConnectionId] : []);
             setConfig(saved);
             setModelId(saved.settings.decisionModelId || '');
             setOrder(savedOrder);
@@ -123,9 +129,6 @@ export function WorldDecisionModelSettings() {
             label: `${model.providerName} / ${model.displayName || model.name}`,
         })),
     ];
-    const decisionConnections = decisionConfig.config?.connections || decisionConfig.config?.providers || [];
-    const firstConnection = decisionConnections.find(connection => connection.id === order[0]);
-
     return (
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-start gap-3">
@@ -173,7 +176,7 @@ export function WorldDecisionModelSettings() {
                 ) : (
                     <DecisionFailoverEditor
                         connections={decisionConnections}
-                        order={order}
+                        order={visibleOrder}
                         ttlSeconds={stickyTtl}
                         failover={failover}
                         disabled={saving || !config}
@@ -185,7 +188,7 @@ export function WorldDecisionModelSettings() {
                     <Checkbox checked={jevEnabled} onChange={setJevEnabled} disabled={loading || saving} label="启用结构化决策连接处理有限候选选择"/>
                     <p className="text-xs leading-5 text-slate-500">农场种植规划一次选择整套作物、数量、施肥和采购上限，后续队列由程序推进。哪些连接加入顺序、它们的先后和沿用时间随 WebDAV 同步；本机正在沿用哪一个不同步。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。这条顺序里的连接全部失败后才使用普通文本模型。</p>
                     {decisionConfig.error && <p role="alert" className="text-xs text-red-600">{decisionConfig.error}<button type="button" onClick={() => void decisionConfig.refresh()} className="ml-2 underline">重试</button></p>}
-                    {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">顺序第一位：{firstConnection ? (firstConnection.configured ? '连接信息完整' : '请检查 API Key 和连接同步状态') : '连接已删除或尚未从 WebDAV 同步'}</p>}
+                    {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">{visibleOrder.length === 0 ? '顺序是空的，有限选择会使用普通文本模型。' : `顺序第一位：${firstConnection ? (firstConnection.configured ? '连接信息完整' : '请检查 API Key 和连接同步状态') : '连接已删除或尚未从 WebDAV 同步'}`}</p>}
                     {jevEnabled && <div className="space-y-2"><p className="text-xs font-semibold text-slate-600">排除场景（勾选后使用普通模型）</p><div className="grid gap-2 sm:grid-cols-2">
                         {Object.entries(decisionSceneLabels).map(([key, label]) => <Checkbox key={key} checked={excluded.includes(key)} disabled={saving} onChange={checked => setExcluded(previous => checked ? [...previous, key] : previous.filter(item => item !== key))} label={label}/>)}
                     </div></div>}

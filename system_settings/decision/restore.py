@@ -2,23 +2,40 @@
 from system_settings.agent_world.life_models import LifeConfig
 
 
+def _configured_jev_owners(data: list[dict]) -> set[str]:
+    owners = set()
+    for row in data:
+        if row.get('model') != 'system_settings.systemsetting' or row.get('pk') != 'system_decision_credentials':
+            continue
+        value = (row.get('fields') or {}).get('value') or {}
+        if not isinstance(value, dict):
+            continue
+        for owner, secrets in value.items():
+            if isinstance(secrets, dict) and isinstance(secrets.get('jev'), str) and secrets.get('jev'):
+                owners.add(str(owner))
+    return owners
+
+
 def policy_defaults(data: list[dict], *, full_overwrite: bool) -> dict[str, dict]:
     legacy = {}
+    configured_jev = _configured_jev_owners(data)
     for row in data:
         if row.get('model') == 'system_settings.agenttask':
             market = row.get('fields', {}).get('market_config') or {}
             owner = market.get('owner_id')
             if owner:
                 legacy[owner] = legacy.get(owner, False) or market.get('decision_enabled') is True
-    result = {owner: {'decision_connection_id': 'jev', 'jev_enabled': enabled,
-                      'jev_excluded_scenes': []} for owner, enabled in legacy.items()}
+    result = {owner: {'decision_connection_id': 'jev' if owner in configured_jev else '',
+                      'jev_enabled': enabled, 'jev_excluded_scenes': []}
+              for owner, enabled in legacy.items()}
     for row in data:
         if row.get('model') != 'system_settings.lifeconfig':
             continue
         identity = str(row['pk'])
         prior = LifeConfig.objects.filter(pk=identity).values_list('settings', flat=True).first() or {}
         settings = row['fields'].get('settings') or {}
-        defaults = {'decision_connection_id': 'jev', 'jev_enabled': legacy.get(identity, False),
+        defaults = {'decision_connection_id': 'jev' if identity in configured_jev else '',
+                    'jev_enabled': legacy.get(identity, False),
                     'jev_excluded_scenes': []}
         if not full_overwrite:
             defaults.update({key: prior[key] for key in defaults if key in prior})
