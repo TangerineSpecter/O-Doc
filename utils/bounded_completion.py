@@ -196,10 +196,16 @@ def complete(
     json_output: bool,
     max_tokens: int | None = None,
     extra_body: dict,
-    deadline_seconds: float = DEADLINE_SECONDS,
+    deadline_seconds: float | None = None,
     allow_retries: bool = True,
-    max_deadline_seconds: float = DEADLINE_SECONDS,
+    max_deadline_seconds: float | None = None,
 ) -> str:
+    # Read the module constant at call time. A default argument would freeze
+    # the import-time value, so a shorter hard limit would never take effect.
+    if deadline_seconds is None:
+        deadline_seconds = DEADLINE_SECONDS
+    if max_deadline_seconds is None:
+        max_deadline_seconds = DEADLINE_SECONDS
     hard_deadline_seconds = min(max_deadline_seconds, deadline_seconds)
     deadline = time.monotonic() + hard_deadline_seconds
     network_retries, request_attempt = 0, 0

@@ -7,7 +7,7 @@ def select_activities(agent, context, ask):
     owner = owner_for(agent)
     if not jev_enabled(owner, 'life_activity'):
         return None
-    deadline = context.get('_request_deadline', time.monotonic() + 180)
+    from system_settings.decision.jev import REQUEST_TIMEOUT_SECONDS
     plans, farm_days = [], set(context.get('existing_farm_days', []))
     activities = {row['kind']: row for row in context.get('activities', [])}
     # An existing farm commitment outside this batch also occupies the daily slot.
@@ -19,9 +19,11 @@ def select_activities(agent, context, ask):
         day = slot['time'][:10]
         choices = {kind: row.get('preference') or kind for kind, row in activities.items()
                    if kind != 'farm' or day not in farm_days}
+        # Each slot owns its decision minute. A slow earlier slot must not
+        # expire this one and abandon the batch with 「当前阶段总时限已耗尽」.
         selection = choose_scene(owner, agent, 'life_activity',
             {**{k: v for k, v in context.items() if k not in ('role', 'slots', '_request_deadline')},
-             'slot': slot, 'selected': plans}, choices, deadline=deadline)
+             'slot': slot, 'selected': plans}, choices, deadline=time.monotonic() + REQUEST_TIMEOUT_SECONDS)
         if selection is None:
             return None  # No writes occurred: normal model can plan this batch.
         if selection == 'farm':
