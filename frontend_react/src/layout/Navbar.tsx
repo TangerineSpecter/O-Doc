@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, UserRound, ArchiveRestore } from 'lucide-react';
-import packageJson from '../../package.json';
+import { useVersionInfo } from '@/contexts/VersionInfoContext';
 import NotificationPopover from '../components/NotificationPopover';
 import { getNotifications, pushRandomMemoNotification } from '../api/message';
 import { getMemosPushConfig } from '../api/setting';
@@ -17,6 +17,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, onOpenProfile, isVisible = true }: NavbarProps) {
+    const {currentVersion, latestVersion, updateAvailable} = useVersionInfo();
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -135,10 +136,15 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 href="https://github.com/TangerineSpecter/O-Doc"
                                 target="_blank"
                                 rel="noreferrer"
+                                aria-label={updateAvailable && latestVersion
+                                    ? `当前版本 v${currentVersion}，发现新版本 ${latestVersion.tagName}，打开 GitHub 项目`
+                                    : `当前版本 v${currentVersion}，打开 GitHub 项目`}
+                                title={updateAvailable && latestVersion ? `发现新版本 ${latestVersion.tagName}` : `当前版本 v${currentVersion}`}
                                 className="group hidden sm:flex items-center gap-1.5 px-2 py-0.5 ml-1 rounded-[4px] bg-lime-50 border border-lime-200 text-lime-800 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-hidden"
                             >
                                 <Leaf className="w-3 h-3 text-lime-600" />
-                                <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">v{packageJson.version}</span>
+                                <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">v{currentVersion}</span>
+                                {updateAvailable && <span className="rounded-sm bg-orange-100 px-1 py-0.5 text-[9px] font-bold leading-none text-orange-700">有更新</span>}
                             </a>
                         </div>
                     </div>

@@ -1,13 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Github, Info, Leaf, RefreshCw, UserRound } from 'lucide-react';
 import { getRuntimeInfo } from '@/api/setting';
-import {
-    getCurrentBuildInfo,
-    getLatestVersionInfo,
-    shortCommit,
-    type CurrentBuildInfo,
-    type LatestVersionInfo,
-} from '@/api/versionInfo';
+import { useVersionInfo } from '@/contexts/VersionInfoContext';
 
 const GITHUB_URL = 'https://github.com/TangerineSpecter/O-Doc';
 const formatUptime = (totalSeconds: number) => {
@@ -29,34 +23,14 @@ export const AboutSettings = () => {
     const [baseUptimeSeconds, setBaseUptimeSeconds] = useState(0);
     const [uptimeSeconds, setUptimeSeconds] = useState(0);
     const [runtimeSource, setRuntimeSource] = useState<'server' | 'browser'>('browser');
-    const [currentBuild, setCurrentBuild] = useState<CurrentBuildInfo | null>(null);
-    const [latestVersion, setLatestVersion] = useState<LatestVersionInfo | null>(null);
-    const [isCheckingVersions, setIsCheckingVersions] = useState(true);
-    const [versionError, setVersionError] = useState('');
-
-    const refreshVersions = useCallback(async (force = false, signal?: AbortSignal) => {
-        setIsCheckingVersions(true);
-        setVersionError('');
-        const [currentResult, latestResult] = await Promise.allSettled([
-            getCurrentBuildInfo(signal),
-            getLatestVersionInfo(force, signal),
-        ]);
-        if (signal?.aborted) return;
-
-        const errors: string[] = [];
-        if (currentResult.status === 'fulfilled') setCurrentBuild(currentResult.value);
-        else errors.push('当前版本读取失败');
-        if (latestResult.status === 'fulfilled') setLatestVersion(latestResult.value);
-        else errors.push('无法连接 GitHub 获取最新版本');
-        setVersionError(errors.join('；'));
-        setIsCheckingVersions(false);
-    }, []);
-
-    useEffect(() => {
-        const controller = new AbortController();
-        void refreshVersions(false, controller.signal);
-        return () => controller.abort();
-    }, [refreshVersions]);
+    const {
+        currentVersion,
+        latestVersion,
+        isChecking: isCheckingVersions,
+        error: versionError,
+        updateAvailable,
+        refresh: refreshVersions,
+    } = useVersionInfo();
 
     useEffect(() => {
         let cancelled = false;
@@ -122,18 +96,19 @@ export const AboutSettings = () => {
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <VersionMetric
                         label="当前版本"
-                        value={currentBuild?.version && currentBuild.version !== 'unknown' ? `v${currentBuild.version}` : '—'}
-                        detail={currentBuild ? `构建 ${shortCommit(currentBuild.commit)}` : '本机应用构建'}
+                        value={`v${currentVersion}`}
+                        detail="当前部署版本"
                     />
                     <VersionMetric
                         label="最新版本"
-                        value={latestVersion?.tagName || '—'}
+                        value={latestVersion?.tagName || (isCheckingVersions ? '检查中…' : '暂不可用')}
                         detail={latestVersion
                             ? `GitHub Tags · ${new Date(latestVersion.checkedAt).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}`
                             : 'GitHub 最新稳定标签'}
                     />
                 </div>
                 {versionError && <p className="mt-3 text-xs text-amber-700">{versionError}</p>}
+                {updateAvailable && <p className="mt-3 text-xs text-orange-700">发现新版本。版本检测只负责提醒；Docker 部署需要手动拉取新镜像并重建容器。</p>}
             </section>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

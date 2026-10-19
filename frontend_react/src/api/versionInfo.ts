@@ -1,8 +1,3 @@
-export interface CurrentBuildInfo {
-    version: string;
-    commit: string;
-}
-
 export interface LatestVersionInfo {
     version: string;
     tagName: string;
@@ -47,6 +42,10 @@ const compareVersions = (left: string, right: string) => {
     }
     return 0;
 };
+
+export const isNewerVersion = (candidate: string, current: string) => (
+    compareVersions(candidate, current) > 0
+);
 
 const selectLatestStableTag = (tags: unknown[], checkedAt: number): LatestVersionInfo | null => {
     const candidates = tags.flatMap((value) => {
@@ -94,20 +93,6 @@ const writeCachedLatestVersion = (release: LatestVersionInfo) => {
     }
 };
 
-export const getCurrentBuildInfo = async (signal?: AbortSignal): Promise<CurrentBuildInfo> => {
-    const response = await fetch('/api/health/', {
-        signal,
-        cache: 'no-store',
-        headers: {'Accept': 'application/json'},
-    });
-    // The health endpoint still includes build metadata when it returns 503 for a database outage.
-    const value: unknown = await response.json();
-    if (!isRecord(value) || typeof value.version !== 'string' || typeof value.commit !== 'string') {
-        throw new Error('当前版本信息不可用');
-    }
-    return {version: value.version, commit: value.commit};
-};
-
 export const getLatestVersionInfo = async (
     force = false,
     signal?: AbortSignal,
@@ -140,5 +125,3 @@ export const getLatestVersionInfo = async (
         signal?.removeEventListener('abort', abortFromCaller);
     }
 };
-
-export const shortCommit = (commit: string) => commit ? commit.slice(0, 8) : 'unknown';

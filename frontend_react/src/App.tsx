@@ -1,6 +1,7 @@
 import {lazy, Suspense, type ReactNode} from 'react';
 import {BrowserRouter, Navigate, Routes, Route, useLocation, useNavigate, useParams} from 'react-router-dom';
 import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Provider
+import {VersionInfoProvider} from './contexts/VersionInfoContext';
 import GlobalSwipeBack from './components/common/GlobalSwipeBack';
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
@@ -347,7 +348,9 @@ export default function App() {
     return (
         <BrowserRouter>
             <ToastProvider>
-                <AppWithRouter/>
+                <VersionInfoProvider>
+                    <AppWithRouter/>
+                </VersionInfoProvider>
             </ToastProvider>
         </BrowserRouter>
     );
