@@ -47,6 +47,7 @@ from .agent_world.social_theatre_views import (SocialTheatreListView, SocialThea
                                                SocialTheatreTriggerView, SocialTheatreResumeView)
 
 from .agent_world.cooking_views import CookingRecipesView, CookingRecipeView, CookingSkillView, CookingHistoryView
+from .agent_world.alchemy_views import AlchemyRecipesView, AlchemyRecipeView, AlchemySkillView, AlchemyHistoryView
 
 from .token_usage.views import TokenUsageView
 from .decision.views import (DecisionConfigView, DecisionTestView,
@@ -78,6 +79,10 @@ urlpatterns = [
     path('agent-world/cooking/recipes/<str:recipe_id>/', CookingRecipeView.as_view()),
     path('agent-world/cooking/agents/<str:agent_id>/', CookingSkillView.as_view()),
     path('agent-world/cooking/agents/<str:agent_id>/history/', CookingHistoryView.as_view()),
+    path('agent-world/alchemy/recipes/', AlchemyRecipesView.as_view()),
+    path('agent-world/alchemy/recipes/<str:recipe_id>/', AlchemyRecipeView.as_view()),
+    path('agent-world/alchemy/agents/<str:agent_id>/', AlchemySkillView.as_view()),
+    path('agent-world/alchemy/agents/<str:agent_id>/history/', AlchemyHistoryView.as_view()),
     path('agent-world/social/config/', SocialView.as_view(kind='config')),
     path('agent-world/social/discussions/', SocialTheatreListView.as_view()),
     path('agent-world/social/discussions/trigger/', SocialTheatreTriggerView.as_view()),

@@ -389,8 +389,8 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         from utils.drf_utils import get_current_user_identifier
         owner=get_current_user_identifier(self.request)
         rows = super().get_queryset()
-        for kind, field in [('memo_capture', 'memo_config'), ('cooking', 'cooking_config'), ('market', 'market_config'),
-                            ('investment', 'investment_config'), ('exploration', 'exploration_config')]:
+        for kind, field in [('memo_capture', 'memo_config'), ('cooking', 'cooking_config'), ('alchemy', 'alchemy_config'),
+                            ('market', 'market_config'), ('investment', 'investment_config'), ('exploration', 'exploration_config')]:
             rows = rows.filter(~Q(task_kind=kind) | Q(**{field + '__owner_id': owner}))
         for kind,field in [('farm','farm_config'),('travel','travel_config'),('post_publish','publish_config'),('post_interaction','world_state')]:
             rows=rows.filter(~Q(task_kind=kind) | Q(**{field+'__owner_id':owner}) | Q(**{field+'__owner_id__isnull':True}))
@@ -460,6 +460,8 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         if instance.task_kind == 'market':
             if instance.market_config.get('owner_id') != get_current_user_identifier(request):
                 return valid_result('无权操作其他账号的市场任务', status=403)
+        if instance.task_kind == 'alchemy' and instance.alchemy_config.get('owner_id') != get_current_user_identifier(request):
+            return valid_result('无权修改此炼金任务', status=403)
         if instance.task_kind == 'farm' and instance.farm_config.get('owner_id') != get_current_user_identifier(request):
             return valid_result('无权修改此农场任务', status=403)
         if instance.task_kind == 'travel' and instance.travel_config.get('owner_id') != get_current_user_identifier(request):

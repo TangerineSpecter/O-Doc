@@ -43,6 +43,7 @@ export interface ParsedSettlement {
     reason?: string;
     loots?: {name: string; count: number}[];
     potions?: number;
+    elixirs?: number;
     level?: number;
     raw: string;
 }
@@ -57,6 +58,7 @@ export function parseSettlementReport(text?: string): ParsedSettlement | null {
     const expMatch = text.match(/获得\s*(\d+)\s*经验/);
     const energyMatch = text.match(/消耗\s*(\d+)\s*体力/);
     const potionsMatch = text.match(/消耗药剂\s*(\d+)\s*瓶/);
+    const elixirsMatch = text.match(/炼金药水使用\s*(\d+)\s*瓶/);
     const levelMatch = text.match(/返回\s*Lv\.(\d+)/);
     const actorMatch = text.match(/^([^，,。.]+?)探索\d+分钟/);
 
@@ -88,6 +90,7 @@ export function parseSettlementReport(text?: string): ParsedSettlement | null {
     if (expMatch) reason = reason.replace(expMatch[0], '');
     if (energyMatch) reason = reason.replace(energyMatch[0], '');
     if (potionsMatch) reason = reason.replace(potionsMatch[0], '');
+    if (elixirsMatch) reason = reason.replace(elixirsMatch[0], '');
     if (levelMatch) reason = reason.replace(levelMatch[0], '');
     if (lootMatch) reason = reason.replace(lootMatch[0], '');
     reason = reason.replace(/[，,；;。.\s]+/g, ' ').trim();
@@ -99,6 +102,7 @@ export function parseSettlementReport(text?: string): ParsedSettlement | null {
         experience: expMatch ? parseInt(expMatch[1], 10) : undefined,
         energy: energyMatch ? parseInt(energyMatch[1], 10) : undefined,
         potions: potionsMatch ? parseInt(potionsMatch[1], 10) : undefined,
+        elixirs: elixirsMatch ? parseInt(elixirsMatch[1], 10) : undefined,
         level: levelMatch ? parseInt(levelMatch[1], 10) : undefined,
         reason: reason || undefined,
         loots: loots.length > 0 ? loots : undefined,

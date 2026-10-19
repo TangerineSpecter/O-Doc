@@ -39,7 +39,7 @@ def build_social_context(owner: str, agent) -> dict:
 def build_execution_context(owner: str, agent, item: LifeItem) -> dict:
     """Facts used by scoped tools after planning; do not prebuild every life domain."""
     context = {'current': {'id': item.pk, 'activity': item.activity, 'intent': item.intent}}
-    if item.activity in ('market', 'farm', 'cooking'):
+    if item.activity in ('market', 'farm', 'cooking', 'alchemy'):
         profile = LifeProfile.objects.filter(pk=agent.pk, owner_id=owner).only('preferences', 'direction').first()
         if profile and profile.preferences:
             context['preferences'] = profile.preferences
@@ -205,6 +205,8 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
     context = actor_context(owner, agent)
     from .cooking_queries import overview as cooking_overview, recipes as cooking_recipes
     context['cooking'] = {'skill': cooking_overview(owner, agent.pk), 'recipes': cooking_recipes(owner, agent)}
+    from .alchemy_queries import overview as alchemy_overview, recipes as alchemy_recipes
+    context['alchemy'] = {'skill': alchemy_overview(owner, agent.pk), 'recipes': alchemy_recipes(owner, agent)}
     context['inventory_total']=len(context['inventory'])
     context['inventory']=context['inventory'][:100]
     try:

@@ -54,6 +54,7 @@ def _source_row(kind: str, pk: str):
 
     from .combat.models import Exploration
     from .cooking_models import CookingOperation
+    from .alchemy_models import AlchemyOperation
     from .farm_models import FarmOperation
     from .investment_models import InvestmentTrade
     from .market_models import MarketTransaction
@@ -64,6 +65,7 @@ def _source_row(kind: str, pk: str):
         'exploration': Exploration,
         'farm': FarmOperation,
         'cooking': CookingOperation,
+        'alchemy': AlchemyOperation,
         'market': MarketTransaction,
         'investment': InvestmentTrade,
         'travel': TravelJourney,

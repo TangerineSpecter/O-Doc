@@ -62,7 +62,13 @@ def potion(catalog: Catalog, entity: dict, carried: dict, kind: str, tick: int):
     return min(rows, key=lambda r: (abs(int(r['restore_value']) - missing), int(r['restore_value'])))
 
 
-def player_action(catalog: Catalog, player: dict, enemy: dict, carried: dict, tick: int, style: dict, rng) -> list[dict]:
+def player_action(catalog: Catalog, player: dict, enemy: dict, carried: dict, tick: int, style: dict, rng,
+                  elixirs: list | None = None, state: dict | None = None) -> list[dict]:
+    if elixirs:
+        from .elixir import use as use_elixir
+        events = use_elixir(player, enemy, elixirs, state if state is not None else {}, tick)
+        if events:
+            return events
     skills = available(catalog, player, enemy, tick, style)
     h = player['hp'] / player['stats']['hp_max']
     m = player['mp'] / max(1, player['stats']['mp_max'])
@@ -164,10 +170,12 @@ def step(catalog: Catalog, state: dict, style_id: str, tick: int, rng, *, waitin
     events.extend(recover_passives(catalog, player))
     from ..food_effects import recover as recover_food
     events.extend(recover_food(player, result.get('food')))
-    events.extend(player_action(catalog, player, enemy, result['potions'], tick, catalog.row('styles', style_id), rng))
+    events.extend(player_action(catalog, player, enemy, result['potions'], tick, catalog.row('styles', style_id), rng,
+                                result.get('elixirs'), result))
     if enemy['hp'] > 0:
         upkeep(enemy, tick, events, opponent=player, catalog=catalog, rng=rng)
         if enemy['hp'] > 0 and player['hp'] > 0:
             events.extend(enemy_action(catalog, enemy, player, result['monster_id'], tick, rng))
     player['defending'] = False
+    result['round_in_encounter'] = int(result.get('round_in_encounter', 0)) + 1
     return result, events

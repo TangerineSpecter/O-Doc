@@ -132,7 +132,8 @@ def snapshot(run,cursor=0,limit=100):
         'remaining_seconds':remaining if end else None,
         'elapsed_seconds':run.elapsed_seconds,'duration_seconds':run.duration_seconds,'next_tick_at':local_time(run.next_tick_at).isoformat() if run.next_tick_at else None,
         'promotion_busy':promotion_busy,
-        'player':run.state.get('player'),'enemy':run.state.get('enemy'),'visual':visual,'potions':run.state.get('potions',{}),'result':run.result,
+        'player':run.state.get('player'),'enemy':run.state.get('enemy'),'visual':visual,'potions':run.state.get('potions',{}),
+        'elixirs':[{key:entry.get(key) for key in ('recipe_id','name','stars','count','remaining','summary','trigger')} for entry in run.state.get('elixirs',[])],'result':run.result,
         'events':events,'latest_cursor':confirmed,'next_cursor':events[-1]['sequence'] if events else min(cursor,confirmed),'has_more':bool(events and events[-1]['sequence']<confirmed)}
 
 

@@ -31,6 +31,9 @@ def validate_agents(owner: str, ids: list[str]) -> None:
             raise ValueError('居民已绑定其他账号的投资任务')
     from .cooking_queries import validate_cooking_agents
     validate_cooking_agents(owner, ids)
+    for task in AgentTask.objects.filter(task_kind='alchemy'):
+        if task.alchemy_config.get('owner_id') != owner and set(ids) & set(task.agent_ids or [task.agent_id]):
+            raise ValueError('居民已绑定其他账号的炼金任务')
     from .farm_models import AgentFarm
     if AgentFarm.objects.filter(pk__in=ids).exclude(owner_id=owner).exists():
         raise ValueError('居民农場属于其他账号')

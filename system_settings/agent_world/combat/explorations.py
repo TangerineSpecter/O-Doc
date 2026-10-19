@@ -215,6 +215,13 @@ def depart(run_id, plan, now=None):
         if type(count)is not int or not 0<=count<=99 or int(definition['required_level'])>profile.progression['level'] or definition['enabled']!='1':raise ValueError('携带药剂无效')
         if count:take_stock(profile.pk,profile.owner_id,'combat.'+sid,count)
     if sum(potions.values())>int(catalog.rules['potion_carry_cap']):raise ValueError('每次最多携带 20 瓶药剂')
+    from .elixir import auto_plan as plan_elixirs, consume as consume_elixirs, CARRY_CAP
+    elixir_entries = plan.get('elixirs')
+    if elixir_entries is None:
+        elixir_entries = plan_elixirs(profile.pk, profile.owner_id)
+    elixirs = consume_elixirs(run, elixir_entries)
+    plan = {**plan, 'elixirs': [{key: entry[key] for key in ('recipe_id', 'stars', 'count')} for entry in elixirs]}
+    run.snapshot = {**run.snapshot, 'elixir_version': 1, 'elixirs': elixirs}
     from .food import consume as consume_food, combat_stats
     food, food_adjustment = consume_food(run, plan.get('food'), duration)
     plan = {**plan, 'food': ({key: food[key] for key in ('recipe_id', 'stars', 'quantity')} if food else None)}
@@ -236,11 +243,13 @@ def depart(run_id, plan, now=None):
     profession_bonuses = rewards.profession_bonus_snapshot(agent)
     run.snapshot={**run.snapshot,'plan':plan,'equipment':wearing(profile),'progression':profile.progression,
                   'profession_bonuses':profession_bonuses}
-    run.result={'energy':0,'experience':0,'kills':0,'potions_used':{},'rewards':[],'growth':[]}
-    run.result.update(food=food, food_adjustment=food_adjustment)
+    run.result={'energy':0,'experience':0,'kills':0,'potions_used':{},'elixirs_used':{},'rewards':[],'growth':[]}
+    run.result.update(food=food, food_adjustment=food_adjustment,
+                      elixirs_carried=[{key: entry[key] for key in ('recipe_id', 'stars', 'count')} for entry in elixirs])
     run.state={'player':engine.fighter(derived,agent.name,profile.progression['level'],hp=profile.hp,mp=profile.mp,
         skills=profile.progression['skills'],passives=attributes.passives(catalog,profile.progression['skills'],wearing(profile))),
-        'enemy':None,'potions':potions,'encounter':0,'nonboss_kills':0,'boss_seen':False,'waiting_until':0,'food':food}
+        'enemy':None,'potions':potions,'elixirs':elixirs,'elixir_cooldown':0,'elixir_used_encounter':-1,
+        'encounter':0,'nonboss_kills':0,'boss_seen':False,'waiting_until':0,'food':food}
     charges=[consume(run,profile,10,'entry',now),consume(run,profile,2,0,now)]
     spawn(run,catalog,now)
     lease,_=AgentExecutionLease.objects.get_or_create(agent=agent)
@@ -250,7 +259,8 @@ def depart(run_id, plan, now=None):
     run.revision+=1
     run.save()
     append(profile,run.pk+':depart','depart',{'plan':plan,'profession_bonuses':profession_bonuses,'consumption':charges,
-           'food_version':1,'food':food,'food_adjustment':food_adjustment},run)
+           'food_version':1,'food':food,'food_adjustment':food_adjustment,
+           'elixir_version':1,'elixirs':elixirs},run)
     return run
 
 
@@ -271,6 +281,7 @@ def spawn(run,catalog,now):
     run.state['monster_id']=sid
     run.state['enemy']=engine.fighter(attributes.monster(catalog,template,level),template['name'],level,rank=template['rank'])
     run.state['encounter']+=1
+    run.state['round_in_encounter']=0
     CombatEncounter.objects.create(pk=f'{run.pk}:{run.state["encounter"]}',exploration_id=run.pk,owner_id=run.owner_id,actor_id=run.actor_id,number=run.state['encounter'],monster={'id':sid,'level':level,'name':template['name'],'rank':template['rank']},started_at=now)
     run.phase='battle'
 
@@ -284,6 +295,13 @@ def settle(run, profile, status, reason, now):
             row=catalog.row('potions',sid)
             add_stock(profile.pk,profile.owner_id,profile.actor_name,'combat.'+sid,count,row['name'],'combat_potion',row['purchase_price'],run.pk+':return')
             returned[sid]=count
+    returned_elixirs=[]
+    for entry in run.state.get('elixirs') or []:
+        remaining=int(entry.get('remaining') or 0)
+        if remaining:
+            add_stock(profile.pk,profile.owner_id,profile.actor_name,'elixir.'+entry['recipe_id'],remaining,
+                      entry['name'],'elixir',entry['unit_price'],run.pk+':elixir-return',stars=entry['stars'])
+            returned_elixirs.append({'recipe_id':entry['recipe_id'],'stars':entry['stars'],'count':remaining})
     player=run.state.get('player')
     if player:
         profile.hp,profile.mp=player['hp'],player['mp']
@@ -305,12 +323,15 @@ def settle(run, profile, status, reason, now):
     names=[f'{name}×{count}' for name, count in reward_counts.items()]
     if names:report+=' 收获：'+'、'.join(names)+'。'
     report+=f'消耗药剂 {sum(run.result.get("potions_used",{}).values())} 瓶，返回 Lv.{profile.progression["level"]}。'
+    elixir_used=sum(run.result.get('elixirs_used',{}).values())
+    if run.result.get('elixirs_carried') or elixir_used:
+        report+=f' 炼金药水使用 {elixir_used} 瓶，返还 {sum(row["count"] for row in returned_elixirs)} 瓶。'
     food = run.result.get('food')
     if food:
         report += f" 美食：{food['stars']}星{food['name']}×{food['quantity']}份（{food['summary']}），效果已结束。"
     if run.result.get('food_adjustment'):
         report += ' ' + run.result['food_adjustment']
-    run.result={**run.result,'report':report,'returned_potions':returned}
+    run.result={**run.result,'report':report,'returned_potions':returned,'returned_elixirs':returned_elixirs}
     from .history_snapshot import frozen_run
     run.snapshot = frozen_run(run.snapshot, catalog)
     run.save()
@@ -392,16 +413,25 @@ def tick(run_id, expected_revision=None, now=None):
         append(profile,f'{run.pk}:round:{run.elapsed_seconds//15}','round',{'events':[],'growth':[],'consumption':charges,'potions':{}},run)
         return settle(run,profile,'completed','按计划完成探索',now)
     before=dict(run.state['potions'])
+    elixir_before={(entry['recipe_id'],entry['stars']):entry.get('remaining',0) for entry in run.state.get('elixirs',[])}
     tick_number=run.elapsed_seconds//15
     waiting=run.state['enemy'] is None
     run.state,events=engine.step(catalog,run.state,run.snapshot['plan']['style_id'],tick_number,seeded(run,f'round:{tick_number}'),waiting=waiting)
     for sid,count in before.items():
         used=count-run.state['potions'].get(sid,0)
         if used:run.result['potions_used'][sid]=run.result['potions_used'].get(sid,0)+used
+    used_elixirs={}
+    for entry in run.state.get('elixirs',[]):
+        key=(entry['recipe_id'],entry['stars'])
+        used=elixir_before.get(key,0)-entry.get('remaining',0)
+        if used:
+            label=f'{key[0]}:{key[1]}'
+            used_elixirs[label]=used
+            run.result['elixirs_used'][label]=run.result['elixirs_used'].get(label,0)+used
     if run.state['player']['hp']<=0:
         profile.hp=0;profile.save()
         run.revision+=1;run.save()
-        append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before}},run)
+        append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before},'elixirs':used_elixirs},run)
         return settle(run,profile,'fallen','角色倒地，休息 30 分钟',now)
     enemy=run.state.get('enemy')
     earned=[];growth=[]
@@ -459,12 +489,12 @@ def tick(run_id, expected_revision=None, now=None):
             runtime.authorized=False;runtime.promotion_pending=True;runtime.token='';runtime.until=None
             runtime.save(update_fields=['authorized','promotion_pending','token','until'])
         AgentExecutionLease.objects.filter(agent_id=run.actor_id,token=lease_token(run.pk)).update(token='',until=None)
-        append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before},'promotion_gate':True},run)
+        append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before},'elixirs':used_elixirs,'promotion_gate':True},run)
         return run
     next_tick=local_time(run.next_tick_at)+timedelta(seconds=15)
     run.next_tick_at=min(next_tick,end) if end else next_tick
     run.revision+=1;run.save()
-    append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before},'promotion_gate':False},run)
+    append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before},'elixirs':used_elixirs,'promotion_gate':False},run)
     return run
 
 

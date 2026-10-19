@@ -109,7 +109,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
         revise(item,'已安排活动不可用',status='failed',result={'reason':'活动能力已停用或删除'});return
     from .travel_candidates import travelling_ids
     from system_settings.models import AgentExecutionLease
-    costs={'cooking':2,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
+    costs={'cooking':2,'alchemy':2,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
     from .combat.schedule import occupied_ids
     busy=item.actor_id in occupied_ids() or item.actor_id in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists()
     queue_farm = item.activity == 'farm' and bool(item.context.get('farm_plan_id'))
@@ -168,6 +168,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
                     from .combat.schedule import run_opportunity as run
                 elif item.activity=='cooking':
                     from .cooking_runner import run_cooking_opportunity as run
+                elif item.activity=='alchemy':
+                    from .alchemy_runner import run_alchemy_opportunity as run
                 elif item.activity=='farm':
                     if item.context.get('farm_plan_id'):
                         from .farm_queue_runner import run_queue_opportunity as run

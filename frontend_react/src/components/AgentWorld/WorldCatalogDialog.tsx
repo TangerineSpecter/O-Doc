@@ -1,15 +1,17 @@
 import {lazy, Suspense, useState} from 'react';
-import {ChefHat, Compass, Package} from 'lucide-react';
+import {ChefHat, Compass, FlaskConical, Package} from 'lucide-react';
 import WorldDialog from './WorldDialog';
 import WorldOrbitLoader from './WorldOrbitLoader';
 
 const Items = lazy(() => import('./ItemCatalogDialog').then(module => ({default:module.ItemCatalogContent})));
 const Recipes = lazy(() => import('../Cooking/CookingDialog').then(module => ({default:module.CookingCatalogContent})));
 const Adventure = lazy(() => import('../Combat/AdventureCatalog'));
-export type WorldCatalogSection = 'items' | 'recipes' | 'adventure';
+const Alchemy = lazy(() => import('../Alchemy/AlchemyCatalogContent').then(module => ({default: module.AlchemyCatalogContent})));
+export type WorldCatalogSection = 'items' | 'recipes' | 'alchemy' | 'adventure';
 const sections = [
     {id: 'items', label: '物品图鉴', icon: Package},
     {id: 'recipes', label: '美食食谱', icon: ChefHat},
+    {id: 'alchemy', label: '炼金图鉴', icon: FlaskConical},
     {id: 'adventure', label: '冒险资料', icon: Compass},
 ] as const;
 
@@ -22,7 +24,7 @@ export default function WorldCatalogDialog({onClose, residents, initialAgentId =
         setSection(id);
         setVisited(previous => previous.includes(id) ? previous : [...previous, id]);
     };
-    return <WorldDialog title="世界图鉴" description="认识世界中的物品、美食与冒险。" size="wide" onClose={onClose}>
+    return <WorldDialog title="世界图鉴" description="认识世界中的物品、美食、炼金药水与冒险。" size="wide" onClose={onClose}>
         <div className="flex h-full min-h-0 flex-col gap-3">
             {/* 一级模块导航：通栏下划线标签页，与下方二级胶囊筛选形成清晰的主次层级 */}
             <div
@@ -65,7 +67,7 @@ export default function WorldCatalogDialog({onClose, residents, initialAgentId =
             <div className="relative min-h-0 flex-1">
                 {visited.map(id => <section key={id} aria-label={`${sections.find(tab => tab.id === id)?.label}图鉴内容`} aria-hidden={section !== id} inert={section !== id} style={{contentVisibility: section === id ? 'visible' : 'hidden'}} className={`absolute inset-0 flex min-h-0 flex-col ${section === id ? '' : 'pointer-events-none'}`}>
                     <Suspense fallback={<WorldOrbitLoader title="正在翻开图鉴"/>}>
-                        {id === 'items' ? <Items active={section === id}/> : id === 'recipes' ? <Recipes residents={residents} initialAgentId={initialAgentId} active={section === id}/> : <Adventure residents={residents} initialAgentId={initialAgentId} active={section === id}/>}
+                        {id === 'items' ? <Items active={section === id}/> : id === 'recipes' ? <Recipes residents={residents} initialAgentId={initialAgentId} active={section === id}/> : id === 'alchemy' ? <Alchemy residents={residents} initialAgentId={initialAgentId} active={section === id}/> : <Adventure residents={residents} initialAgentId={initialAgentId} active={section === id}/>}
                     </Suspense>
                 </section>)}
             </div>

@@ -25,6 +25,12 @@ export const defaultTravelTask: AgentTaskConfig = {
 
 export const defaultCookingTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'cooking', name: '美食制作'};
 
+export const defaultAlchemyTask: AgentTaskConfig = {
+    ...defaultPostInteractionTask, taskKind: 'alchemy', name: '炼金制作',
+    scheduleMode: 'random', randomPeriod: 'daily', randomCount: 1,
+    schedule: '每天随机 · 1 次炼金机会',
+};
+
 export const defaultFarmTask: AgentTaskConfig = {
     ...defaultPostInteractionTask, taskKind: "farm", name: "农场经营", intervalMinutes: 30, schedule: "每 30 分钟 · 随机一位 Agent",
 };

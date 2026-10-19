@@ -150,6 +150,7 @@ export default function AgentWorldPage() {
         } else if (target.kind === 'travel') setTravelArchiveId(target.id);
         else if (target.kind === 'exploration') {setCombatActor(event.actorId);setCombatOpen(false);setCombatExploration(target.id);}
         else if (target.kind === 'cooking') {setCatalogSection('recipes'); setCatalogOpen(true);}
+        else if (target.kind === 'alchemy') {setCatalogSection('alchemy'); setCatalogOpen(true);}
         else if (target.kind === 'farm') setFarmOpen(true);
         else if (target.kind === 'market') setMarketOpen(true);
         else if (target.kind === 'investment') setInvestmentOpen(true);

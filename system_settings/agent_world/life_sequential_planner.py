@@ -79,7 +79,10 @@ def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
             tiers['travel'] = {}
         cooking = planning_facts(config.pk, agent, exclude_ids=[item.pk]) if any(
             row['kind'] == 'cooking' for row in context['activities']) else None
-        choices, reasons = filter_activities(context, slot, tiers, cooking, farm_days)
+        from .alchemy_schedule_plan import planning_facts as alchemy_facts
+        alchemy = alchemy_facts(config.pk, agent) if any(
+            row['kind'] == 'alchemy' for row in context['activities']) else None
+        choices, reasons = filter_activities(context, slot, tiers, cooking, farm_days, alchemy)
         state = selection_context(context)
         state['activities'] = [row for row in state['activities'] if row['kind'] in choices]
         state['selected'] = selected

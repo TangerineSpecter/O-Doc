@@ -1,5 +1,6 @@
 """物品图鉴目录：组合农牧规则、共享背包数量和可复用图片，不另建库存或收集记录。"""
 from assets.models import Asset
+from .alchemy_models import AlchemyCatalog
 from .farm_catalog import DEFAULT_RULES, normalized_rules
 from .farm_models import FarmCatalog
 from .travel_models import AgentInventoryItem
@@ -53,6 +54,24 @@ def item_catalog(owner: str) -> list[dict]:
             icon_asset_id=recipe['icon_asset_id'], icon_url=recipe['icon_url'],
             star_quantities={str(s): 0 for s in range(1, 6)},
             star_values={str(s): str(dish_value(recipe['sale_price'], s)) for s in range(1, 6)})
+    from .alchemy_catalog import rules_for as alchemy_rules
+    from .alchemy_quality import unit_value as elixir_value
+    alchemy_catalog = AlchemyCatalog.objects.filter(pk=owner).first()
+    elixir_icons = (alchemy_catalog.item_icons if alchemy_catalog else {}) or {}
+    elixir_icon_assets = {asset.pk for asset in Asset.objects.filter(
+        pk__in=elixir_icons.values(), uploader=owner, is_valid=True,
+        source_type='item_icon', file_type='image').only('pk')}
+    for recipe_id, rule in alchemy_rules(owner).items():
+        sku = 'elixir.' + recipe_id
+        asset_id = elixir_icons.get(sku)
+        entries[sku] = dict(id=sku, sku=sku, name=rule['name'], category='elixir',
+            description='炼金制作的一次性战斗药水；出发时携带，战斗中自动使用，未用完结算返还。',
+            purchase_price=None, sale_price=rule['sale_price'], quality='normal', quantity=0,
+            reference_value=rule['sale_price'],
+            icon_asset_id=asset_id if asset_id in elixir_icon_assets else None,
+            icon_url=f'/api/resource/view/{asset_id}' if asset_id in elixir_icon_assets else '',
+            star_quantities={str(s): 0 for s in range(1, 6)},
+            star_values={str(s): str(elixir_value(rule['sale_price'], s)) for s in range(1, 6)})
     rows = list(AgentInventoryItem.objects.filter(owner_id=owner).order_by('created_at', 'id'))
     serialized = InventorySerializer(rows, many=True, context=inventory_context(rows, owner)).data
     for row in serialized:
@@ -63,13 +82,18 @@ def item_catalog(owner: str) -> list[dict]:
             continue
         if sku in entries:
             entries[sku]['quantity'] += row['quantity']
-            if sku.startswith(('crop.', 'dish.')):
+            if sku.startswith(('crop.', 'dish.', 'elixir.')):
                 from .farm_quality import unit_value
                 stars = source.get('stars', 1)
                 counts = entries[sku].setdefault('star_quantities', {str(s): 0 for s in range(1, 6)})
                 counts[str(stars)] += row['quantity']
-                value_for = dish_value if sku.startswith('dish.') else unit_value
-                entries[sku]['star_values'] = {str(s): (str(value_for(entries[sku]['sale_price'], s)) if sku.startswith('dish.') else value_for(entries[sku]['sale_price'], s)) for s in range(1, 6)}
+                if sku.startswith('dish.'):
+                    value_for = dish_value
+                elif sku.startswith('elixir.'):
+                    value_for = elixir_value
+                else:
+                    value_for = unit_value
+                entries[sku]['star_values'] = {str(s): (str(value_for(entries[sku]['sale_price'], s)) if sku.startswith(('dish.', 'elixir.')) else value_for(entries[sku]['sale_price'], s)) for s in range(1, 6)}
             continue
         # 无稳定 SKU 的旅行纪念品按名称、品质及目的地归类，避免把不同旅行物品合并。
         destination = source.get('destination') or {}

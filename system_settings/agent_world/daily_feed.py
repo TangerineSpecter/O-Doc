@@ -21,7 +21,7 @@ from .models import WorldLedger
 from .travel_models import TravelJourney
 
 
-CATEGORIES = {'exploration', 'publication', 'interaction', 'travel', 'farm', 'cooking', 'market', 'trade', 'investment', 'finance', 'record'}
+CATEGORIES = {'exploration', 'publication', 'interaction', 'travel', 'farm', 'cooking', 'alchemy', 'market', 'trade', 'investment', 'finance', 'record'}
 MARKET_LABELS = {
     'buy_shop': '商店购买', 'sell': '商店回收', 'list': '居民上架',
     'buy_listing': '购买居民商品', 'reprice': '调整挂牌价格', 'withdraw': '撤回挂牌',
@@ -130,6 +130,9 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
     if category in ('all', 'cooking'):
         from .cooking_models import CookingOperation
         collect(CookingOperation.objects.filter(owner_id=owner), 'created_at')
+    if category in ('all', 'alchemy'):
+        from .alchemy_models import AlchemyOperation
+        collect(AlchemyOperation.objects.filter(owner_id=owner), 'created_at')
     if category in ('all', 'farm'):
         collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at', 'farm_id')
         for farm in AgentFarm.objects.filter(owner_id=owner):
@@ -484,6 +487,33 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         if row.opportunity_id:
             events[-1]['_execution_failed'] = cooking_actions.get(row.opportunity_id) == 'failed'
             events[-1]['_execution_running'] = cooking_actions.get(row.opportunity_id) == 'claimed'
+    from .alchemy_models import AlchemyOperation
+    day_alchemy = AlchemyOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
+    alchemy_ids = day_alchemy.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
+    alchemy_actions = dict(WorldAction.objects.filter(pk__in=alchemy_ids).values_list('pk', 'status'))
+    for row in day_alchemy:
+        potion_name = (row.snapshot or {}).get('name') or row.recipe_id
+        stars = (row.result or {}).get('stars', 1)
+        exp_gained = (row.result or {}).get('experience_gained', 0)
+        parts = [f"{potion_name} ★{stars} ×1", f"炼金经验 +{exp_gained}"]
+        if 'unit_price' in (row.result or {}):
+            parts.append(f"回收价值 {row.result['unit_price']} 币")
+        if (row.result or {}).get('level_after', 0) > (row.result or {}).get('level_before', 0):
+            parts.append(f"炼金升至 Lv.{row.result['level_after']}")
+        if row.reason and not row.opportunity_id:
+            parts.append(row.reason)
+        events.append(_event('alchemy', 'alchemy', row.pk, row.created_at, row.actor_id,
+                             names.get(row.actor_id, row.actor_name), '炼制', ' · '.join(parts),
+                             target={'kind': 'alchemy', 'id': row.pk}))
+        events[-1]['_potion'] = potion_name
+        events[-1]['_stars'] = stars
+        events[-1]['_exp'] = exp_gained
+        if row.reason:
+            events[-1]['reason'] = row.reason
+        events[-1]['_execution_group'] = ('alchemy:' + row.opportunity_id) if row.opportunity_id else ('alchemy:' + day.isoformat() + ':' + row.actor_id)
+        if row.opportunity_id:
+            events[-1]['_execution_failed'] = alchemy_actions.get(row.opportunity_id) == 'failed'
+            events[-1]['_execution_running'] = alchemy_actions.get(row.opportunity_id) == 'claimed'
     day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
     opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
     farm_actions = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))

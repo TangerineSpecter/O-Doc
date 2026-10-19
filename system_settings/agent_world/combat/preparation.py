@@ -59,15 +59,18 @@ def context(run: Exploration) -> dict:
     potions = [{key: row[key] for key in ('id', 'name', 'kind', 'restore_value', 'required_level',
                'purchase_price', 'shared_cooldown_rounds') if key in row}
                for row in catalog.tables['potions'] if row.get('enabled') == '1' and int(row['required_level']) <= level]
+    from .elixir import candidates as elixir_candidates
+    elixirs = elixir_candidates(agent.pk, run.owner_id)
     return {'constraints':run.snapshot['constraints'],'adventure':adventure,
-        'dungeons':dungeons,'styles':styles,'potions':potions,
+        'dungeons':dungeons,'styles':styles,'potions':potions,'elixirs':elixirs,
+        'elixir_carry_cap':5,
         'balance':str(agent.money),'inventory':{r['id']:stock_quantity(agent.pk,run.owner_id,'combat.'+r['id']) for r in potions},
         'purchase_funds':spending['spendable'],
         'energy_costs':{'30min':22,'60min':34,'120min':58,'market_entry':5}}
 
 
 def validate(run: Exploration,plan: dict) -> dict:
-    if not isinstance(plan,dict) or set(plan)-{'dungeon_id','style_id','duration_seconds','equipment','purchases','potions','reason','food'}:
+    if not isinstance(plan,dict) or set(plan)-{'dungeon_id','style_id','duration_seconds','equipment','purchases','potions','reason','food','elixirs'}:
         raise ValueError('探索准备计划格式无效')
     catalog=current(run.catalog_id)
     for field,table in (('dungeon_id','dungeons'),('style_id','styles')):
@@ -79,6 +82,10 @@ def validate(run: Exploration,plan: dict) -> dict:
     if type(plan.get('duration_seconds'))is not int or plan['duration_seconds'] not in (1800,3600,7200):raise ValueError('计划时长无效')
     from ..food_effects import validate_selection
     validate_selection(plan.get('food'), plan['duration_seconds'])
+    from ..elixir_effects import validate_carried
+    from ..alchemy_limits import CARRY_CAP
+    if plan.get('elixirs') is not None:
+        validate_carried(plan['elixirs'], CARRY_CAP)
     for key,value in run.snapshot['constraints'].items():
         if plan.get(key)!=value:raise ValueError('准备计划未遵守用户约束')
     for field in ('potions','purchases'):

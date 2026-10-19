@@ -20,13 +20,14 @@ import {InventoryItemIcon} from './InventoryItemIcon';
 export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onClose: () => void}) {
     const isDish = Boolean(item.source.sku?.startsWith('dish.'));
     const isCombat = Boolean(item.source.sku?.startsWith('combat.'));
+    const isElixir = Boolean(item.source.sku?.startsWith('elixir.'));
     const isFarm = hasItemStars(item.source.sku) || Boolean(farmItemIcon(item.source.sku || ''));
     const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
     const value = item.value ?? item.source.unitPrice;
     const number = value ? Number(value) : NaN;
     const displayValue = Number.isFinite(number) ? number.toLocaleString('zh-CN', {maximumFractionDigits: 2}) : '—';
     const firstChar = Array.from(item.name.trim())[0] || '物';
-    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isCombat ? '冒险探索' : isDish ? '居民制作' : isFarm ? '世界物品' : '未明旅途');
+    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isElixir ? '炼金制作' : isCombat ? '冒险探索' : isDish ? '居民制作' : isFarm ? '世界物品' : '未明旅途');
 
     return (
         <section
@@ -85,7 +86,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="inventory-item-hero-meta">
                     <div className="inventory-item-badge-tag">
                         <Compass size={11} />
-                        <span>{isCombat ? item.kind === 'combat_potion' ? '战斗药剂' : '冒险材料' : isDish ? '美食成品' : isFarm ? '经营物品' : '旅行纪念珍藏'}</span>
+                        <span>{isElixir ? '炼金药水' : isCombat ? item.kind === 'combat_potion' ? '战斗药剂' : '冒险材料' : isDish ? '美食成品' : isFarm ? '经营物品' : '旅行纪念珍藏'}</span>
                     </div>
                     <h3 className="inventory-item-title" title={item.name}>{item.name}</h3>
                 </div>

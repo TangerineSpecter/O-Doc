@@ -20,13 +20,17 @@ export function InventoryItemIcon({item, className, fallback}: {
         ? (item.name.includes('治疗') ? `potion.heal.${item.name.match(/\d+/)?.[0] || '1'}` : `potion.mana.${item.name.match(/\d+/)?.[0] || '1'}`)
         : null;
 
+    const elixirId = sku.startsWith('elixir.') ? sku : null;
+
     const materialId = sku.startsWith('combat.material.')
         ? sku.slice('combat.'.length)
         : sku.startsWith('material.')
         ? sku
         : null;
 
-    const builtin = potionId
+    const builtin = elixirId
+        ? <PotionPortrait potionId={elixirId} name={item.name} decorative className={className}/>
+        : potionId
         ? <PotionPortrait potionId={potionId} name={item.name} decorative className={className}/>
         : materialId
         ? <MaterialPortrait materialId={materialId} name={item.name} decorative className={className}/>

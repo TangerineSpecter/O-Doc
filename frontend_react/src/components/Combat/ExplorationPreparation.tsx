@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {Select} from '../common/Select';
 import type {CombatCatalog, CombatProfile} from '../../types/api/combat';
-import {AlertCircle, Compass, Flame, ShieldAlert, Sparkles} from 'lucide-react';
+import {AlertCircle, Compass, FlaskConical, Flame, ShieldAlert, Sparkles} from 'lucide-react';
 
 export default function ExplorationPreparation({
     catalog,
@@ -112,6 +112,10 @@ export default function ExplorationPreparation({
                         <span>生命低于 {Math.round(Number(selected.healThreshold) * 100)}% 优先使用药剂</span>
                     </div>
                 )}
+                <div className="flex items-start gap-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-violet-600">
+                    <FlaskConical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-400" />
+                    <span>居民会从背包自动挑选最多 5 瓶炼金药水：恢复类按血量触发，攻击类只在精英或 Boss 首回合使用，未用完结算返还。</span>
+                </div>
             </div>
 
             {/* 倒地休息警告 */}

@@ -11,6 +11,7 @@ DESCRIPTIONS = {
     'investment': '按最新可用行情管理模拟股票持仓；具体交易在执行时决定。',
     'farm': '进入农场领取已成熟的畜牧产物，启动当天种植队列；后续程序自动收获、播种和施肥。',
     'cooking': '使用真实已有材料制作满足厨艺等级的美食，具体菜谱另行准备。',
+    'alchemy': '使用背包里的迷宫素材炼制一次性药水，具体配方与瓶数另行准备。',
     'post_publish': '根据兴趣和经历自主选题、检索并发布帖子。',
     'post_interaction': '阅读符合范围的帖子并发表评论与评分。',
 }
@@ -183,6 +184,8 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
     tasks = {task.pk: task for task in tasks_for(owner) if task.enabled}
     cooking = planning_facts(owner, agent, exclude_ids=[i.pk for i in items]) if any(
         row['kind'] == 'cooking' for row in context['activities']) else None
+    from .alchemy_schedule_plan import planning_facts as alchemy_facts
+    alchemy = alchemy_facts(owner, agent) if any(row['kind'] == 'alchemy' for row in context['activities']) else None
     available = available_cash(owner, agent.pk, exclude_ids=[i.pk for i in items])
     tiers = {'travel': {'quoted': True} if quotes.get('candidates') else {},
              'investment': BudgetChoices(agent.money).options('investment', cash_left=available)}
@@ -190,7 +193,7 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
     for slot in context['slots']:
         at = local_time(datetime.fromisoformat(slot['time']))
         slot['time'] = at.isoformat()
-        allowed, _ = filter_activities(context, slot, tiers, cooking, farm_days)
+        allowed, _ = filter_activities(context, slot, tiers, cooking, farm_days, alchemy)
         slot['allowed_activities'] = [kind for kind in allowed if not task_reason(
             owner, agent, tasks[next(row['task_id'] for row in context['activities'] if row['kind'] == kind)], at)]
         allowed_kinds.update(slot['allowed_activities'])

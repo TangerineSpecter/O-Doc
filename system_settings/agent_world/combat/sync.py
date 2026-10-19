@@ -21,7 +21,7 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>8:
+    if meta and meta.get('combat_schema_version',0)>9:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     from .history_snapshot import normalize_source, compact_source, aggregate_frame, verify_chain
     if meta is None or meta.get('combat_schema_version', 0) < 8:
@@ -31,6 +31,8 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             row['model'] == RUN and 'food_version' in row['fields'].get('snapshot', {}) for row in data):
         raise SyncError('美食冒险数据需要新版战斗同步协议')
     validate_food(data, meta, require_manifest=bool(meta and meta.get('combat_schema_version', 0) >= 7))
+    from .elixir_sync import validate_source as validate_elixirs
+    validate_elixirs(data, meta, require_manifest=bool(meta and meta.get('combat_schema_version', 0) >= 9))
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
     profiles={pk:r for (model,pk),r in rows.items() if model==PROFILE}
     if meta and meta.get('combat_actors') is not None and set(meta['combat_actors'])!=set(profiles):raise SyncError('战斗快照缺少居民业务数据')
@@ -336,5 +338,6 @@ def metadata(data=None):
         exported = sorted(str(row['pk']) for row in catalogs)
         checkpoints = {row['fields']['actor_id']: str(row['pk']) for row in sorted(data, key=lambda row: row['fields'].get('sequence', 0))
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
-    return {'combat_schema_version':8,'combat_actors':actors, **food_metadata(data),
+    from .elixir_sync import metadata as elixir_metadata
+    return {'combat_schema_version':9,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

@@ -160,7 +160,7 @@ function cropKindFor(item: CatalogItem): CropKind | null {
 
 const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
     {value: 'all', label: '全部'},
-    ...(['souvenir', 'seed', 'fertilizer', 'feed', 'crop', 'animal_product', 'other'] as const)
+    ...(['souvenir', 'seed', 'fertilizer', 'feed', 'crop', 'animal_product', 'elixir', 'other'] as const)
         .map(value => ({value, label: itemCategoryLabels[value]})),
 ];
 

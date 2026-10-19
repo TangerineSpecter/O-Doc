@@ -335,7 +335,7 @@ export function WorldRunnerSwitch({agents}: {agents: AgentConfig[]}) {
                                 什么是统一生活运行？
                             </h5>
                             <p className="mt-1 text-slate-600">
-                                统一生活体系统筹<strong>自主发帖、阅读评论、美食制作、农场经营、旅行与股票投资</strong>，由居民结合自身体力、现金预算与生活目标<strong>自主决定做什么</strong>。每日市场机会独立分散安排，不占普通行动次数；到点后再决定去不去。
+                                统一生活体系统筹<strong>自主发帖、阅读评论、美食制作、炼金、农场经营、旅行与股票投资</strong>，由居民结合自身体力、现金预算与生活目标<strong>自主决定做什么</strong>。每日市场机会独立分散安排，不占普通行动次数；到点后再决定去不去。
                             </p>
                         </div>
 

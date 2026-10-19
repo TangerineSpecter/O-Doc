@@ -14,6 +14,7 @@ import {
     Clock3,
     Coffee,
     Compass,
+    FlaskConical,
     MessageSquare,
     Moon,
     PlayCircle,
@@ -110,6 +111,13 @@ const activityMetaConfig: Record<
         badgeColor: 'bg-orange-50 text-orange-700 border-orange-200/80',
         accentBar: 'bg-orange-500',
         dotColor: 'bg-orange-500',
+    },
+    alchemy: {
+        label: '炼金制作',
+        icon: FlaskConical,
+        badgeColor: 'bg-violet-50 text-violet-700 border-violet-200/80',
+        accentBar: 'bg-violet-500',
+        dotColor: 'bg-violet-500',
     },
     exploration: {
         label: '迷宫探索',

@@ -211,7 +211,9 @@ class SyncManager:
         travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>8:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>9:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 1:
+            raise SyncError('炼金快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
@@ -884,6 +886,8 @@ class SyncManager:
         cooking_source_hashes = guard('烹饪', lambda: validate_dishes(data_list, remote_meta)) or {}
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
         guard('战斗', lambda: validate_combat(data_list, remote_meta))
+        from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy
+        alchemy_source_hashes = guard('炼金', lambda: validate_alchemy(data_list, remote_meta)) or {}
 
         def check_owner_set(label, meta_key, model_label, message):
             expected = (remote_meta or {}).get(meta_key)
@@ -1028,6 +1032,8 @@ class SyncManager:
 
             from system_settings.agent_world.cooking_sync import reconcile_cooking
             guard('烹饪恢复', lambda: reconcile_cooking(source_hashes=cooking_source_hashes))
+            from system_settings.agent_world.alchemy_sync import reconcile_alchemy
+            guard('炼金恢复', lambda: reconcile_alchemy(source_hashes=alchemy_source_hashes))
             from memos.sprout_sync import reset_execution as reset_sprouts
             reset_sprouts()
             from learning.sync import reset_execution
@@ -1048,6 +1054,8 @@ class SyncManager:
             normalize_dishes()
             from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
             checkpoint_cooking()
+            from system_settings.agent_world.alchemy_sync import checkpoint_all as checkpoint_alchemy
+            checkpoint_alchemy()
             from system_settings.agent_world.market_sync import end_restored_sessions, refresh_restored_checkpoints
             end_restored_sessions()
             refresh_restored_checkpoints()
@@ -1335,6 +1343,7 @@ class SyncManager:
         from system_settings.agent_world.social_models import SocialIntegrity
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
         from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
+        from system_settings.agent_world.alchemy_quality_sync import metadata as alchemy_metadata
         from learning.sync import metadata as learning_metadata
         from novel.sync import metadata as novel_metadata
         from memos.sprout_sync import metadata as sprout_metadata
@@ -1347,6 +1356,7 @@ class SyncManager:
             **sprout_metadata(data_list),
             **crop_metadata(data_list),
             **cooking_metadata(data_list),
+            **alchemy_metadata(data_list),
             **memory_metadata(data_list),
             'social_schema_version': 2,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
@@ -1360,7 +1370,9 @@ class SyncManager:
 
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
-        if remote_meta and remote_meta.get('combat_schema_version',0)>8:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>9:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 1:
+            raise SyncError('炼金快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
@@ -1391,6 +1403,8 @@ class SyncManager:
         checkpoint_all()
         from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
         checkpoint_cooking()
+        from system_settings.agent_world.alchemy_sync import checkpoint_all as checkpoint_alchemy
+        checkpoint_alchemy()
         from system_settings.agent_world.social_sync import checkpoint_all as checkpoint_social
         checkpoint_social()
         from system_settings.agent_world.market_sync import normalize_legacy_dates as normalize_market_dates
@@ -1411,6 +1425,8 @@ class SyncManager:
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
         validate_combat(all_data, combat_metadata(all_data),
                         allow_exploration_review_mismatch=allow_exploration_review_mismatch or relax_integrity)
+        from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy, metadata as alchemy_metadata
+        validate_alchemy(all_data, alchemy_metadata(all_data))
         return self._strip_device_local_user_fields(all_data)
 
     @staticmethod
@@ -1818,6 +1834,9 @@ class SyncManager:
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_cooking_source, metadata as cooking_metadata
         guard('烹饪', lambda: validate_cooking_source(local_data, cooking_metadata(local_data)))
         guard('烹饪', lambda: validate_cooking_source(remote.get('data') or [], remote.get('meta')))
+        from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy_source, metadata as alchemy_metadata
+        guard('炼金', lambda: validate_alchemy_source(local_data, alchemy_metadata(local_data)))
+        guard('炼金', lambda: validate_alchemy_source(remote.get('data') or [], remote.get('meta')))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat, validate_catalog_conflicts
         from system_settings.agent_world.food_sync import validate_import as validate_food_import
         validate_food_import(remote.get('data') or [], remote.get('meta'))

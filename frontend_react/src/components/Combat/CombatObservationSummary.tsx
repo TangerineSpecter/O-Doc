@@ -66,6 +66,9 @@ export default function CombatObservationSummary({
     const result = snapshot.result;
     const used = Object.values(result.potionsUsed || {}).reduce((sum, value) => sum + value, 0);
     const carried = Object.values(snapshot.potions).reduce((sum, value) => sum + value, 0);
+    const elixirRows = snapshot.elixirs || [];
+    const elixirLeft = elixirRows.reduce((sum, row) => sum + (row.remaining || 0), 0);
+    const elixirUsed = Object.values(result.elixirsUsed || {}).reduce((sum, value) => sum + value, 0);
     const active = ['preparing', 'active', 'paused'].includes(snapshot.status);
     const statusTheme = getStatusTheme(snapshot.status);
 
@@ -155,6 +158,17 @@ export default function CombatObservationSummary({
                 <span aria-hidden="true" className="text-[10px] text-slate-400">·</span>
                 <span className="font-mono text-slate-600 tabular-nums">剩余 {carried} 瓶</span>
             </div>
+
+            {(elixirRows.length > 0 || elixirUsed > 0) && (
+                <div className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-violet-50/80 px-2 py-0.5 text-violet-600"
+                    title="炼金药水：已消耗与本次探索剩余数量">
+                    <Sparkles className="h-3 w-3 shrink-0 text-violet-400" />
+                    <span>炼金</span>
+                    <span className="font-mono font-bold tabular-nums">已用 {elixirUsed} 瓶</span>
+                    <span aria-hidden="true" className="text-[10px] text-violet-300">·</span>
+                    <span className="font-mono tabular-nums">剩余 {elixirLeft} 瓶</span>
+                </div>
+            )}
 
             {/* 快捷操作按钮 */}
             {snapshot.canControl && active && onCommand && (

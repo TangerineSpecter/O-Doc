@@ -70,7 +70,7 @@ import {SystemTaskProgress} from './agent/SystemTaskProgress';
 import {InvestmentTaskFields} from './agent/InvestmentTaskFields';
 import {MemoCaptureSettings} from './agent/MemoCaptureSettings';
 import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
-import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask, defaultFarmTask, defaultMarketTask, defaultInvestmentTask, defaultCookingTask, defaultExplorationTask} from './agent/builtinTasks';
+import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask, defaultFarmTask, defaultMarketTask, defaultInvestmentTask, defaultCookingTask, defaultAlchemyTask, defaultExplorationTask} from './agent/builtinTasks';
 import {TravelTaskFields} from './agent/TravelTaskFields';
 import {emptyTravelConfig, type TravelConfig} from '@/types/api/travel';
 import {travelConfigError} from '@/utils/agentTaskValidation';
@@ -121,7 +121,7 @@ type AgentView = 'list' | 'tasks';
 type AgentTaskForm = {
     marketConfig?: import('../../types/api/decision').MarketDecisionConfig;
     model: string;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration' | 'memo_capture';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'alchemy' | 'exploration' | 'memo_capture';
     mcpToolScope: import('@/types/api/setting').AgentTaskMcpToolScope;
     investmentConfig?: import('../../types/api/investment').InvestmentConfig;
     publishConfig?: AgentPublishConfig;
@@ -368,7 +368,7 @@ export const AgentSettings = ({
         return `每 ${task.intervalMinutes || '1'} 分钟`;
     };
 
-    const isSystemTask = ['post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'].includes(taskForm.taskKind || '');
+    const isSystemTask = ['post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'].includes(taskForm.taskKind || '');
     const isInvestmentTask = taskForm.taskKind === 'investment';
     const builtinInvestmentTask = tasks.find(task => task.taskKind === 'investment') || defaultInvestmentTask;
     const isMarketTask = taskForm.taskKind === 'market';
@@ -377,6 +377,8 @@ export const AgentSettings = ({
     const builtinExplorationTask = tasks.find(task => task.taskKind === 'exploration') || defaultExplorationTask;
     const isCookingTask = taskForm.taskKind === 'cooking';
     const builtinCookingTask = tasks.find(task => task.taskKind === 'cooking') || defaultCookingTask;
+    const isAlchemyTask = taskForm.taskKind === 'alchemy';
+    const builtinAlchemyTask = tasks.find(task => task.taskKind === 'alchemy') || defaultAlchemyTask;
     const isFarmTask = taskForm.taskKind === 'farm';
     const builtinFarmTask = tasks.find(task => task.taskKind === 'farm') || defaultFarmTask;
     const isTravelTask = taskForm.taskKind === 'travel';
@@ -385,7 +387,7 @@ export const AgentSettings = ({
     const builtinPublishTask = tasks.find(task => task.taskKind === 'post_publish') || defaultPostPublishTask;
     const isManualTask = taskForm.trigger === '手动执行';
     const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
-    const customTasks = tasks.filter(task => !['memo_capture', 'post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'].includes(task.taskKind || 'custom'));
+    const customTasks = tasks.filter(task => !['memo_capture', 'post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'].includes(task.taskKind || 'custom'));
 
     const openCreateModal = () => {
         clearAvatarPreview();
@@ -661,7 +663,7 @@ export const AgentSettings = ({
 
     const [manualLifeTask, setManualLifeTask] = useState<{taskId: string; publishCategoryIds?: string[]} | null>(null);
     const runTaskNow = async (taskId: string) => {
-        const lifeTask = [builtinPostTask, builtinPublishTask, builtinTravelTask, builtinInvestmentTask, builtinMarketTask, builtinFarmTask, builtinCookingTask, builtinExplorationTask].find(task => task.id === taskId);
+        const lifeTask = [builtinPostTask, builtinPublishTask, builtinTravelTask, builtinInvestmentTask, builtinMarketTask, builtinFarmTask, builtinCookingTask, builtinAlchemyTask, builtinExplorationTask].find(task => task.id === taskId);
         if (lifeTask) {
             setManualLifeTask({
                 taskId,
@@ -793,6 +795,7 @@ export const AgentSettings = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <BuiltinPostTaskCard task={builtinExplorationTask} agentNames={getTaskAgentNames(builtinExplorationTask)} running={!!builtinExplorationTask.id && runningTaskId === builtinExplorationTask.id} onConfigure={() => openEditTaskModal(builtinExplorationTask)} onToggle={() => toggleTaskEnabled(builtinExplorationTask.id)} onRun={() => runTaskNow(builtinExplorationTask.id)}/>
                             <BuiltinPostTaskCard task={builtinCookingTask} agentNames={getTaskAgentNames(builtinCookingTask)} running={!!builtinCookingTask.id && runningTaskId === builtinCookingTask.id} onConfigure={() => openEditTaskModal(builtinCookingTask)} onToggle={() => toggleTaskEnabled(builtinCookingTask.id)} onRun={() => runTaskNow(builtinCookingTask.id)}/>
+                            <BuiltinPostTaskCard task={builtinAlchemyTask} agentNames={getTaskAgentNames(builtinAlchemyTask)} running={!!builtinAlchemyTask.id && runningTaskId === builtinAlchemyTask.id} onConfigure={() => openEditTaskModal(builtinAlchemyTask)} onToggle={() => toggleTaskEnabled(builtinAlchemyTask.id)} onRun={() => runTaskNow(builtinAlchemyTask.id)}/>
                             <BuiltinPostTaskCard task={builtinPostTask}
                                 agentNames={getTaskAgentNames(builtinPostTask)}
                                 running={!!builtinPostTask.id && runningTaskId === builtinPostTask.id}
@@ -1111,7 +1114,7 @@ export const AgentSettings = ({
                         <div className="max-h-[72vh] space-y-5 overflow-y-auto scrollbar-hide p-6">
                             <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
                             {isSystemTask && <>
-                                <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <MarketTaskFields value={taskForm.marketConfig || {}} onChange={marketConfig => setTaskForm({...taskForm, marketConfig})}/> : isExplorationTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民准备地点、装备与药剂，规则自动推进持续战斗。手动探索可直接使用；自动安排还需在冒险面板开启本机自动探索。准备和返回转职使用居民当前模型，战斗不调用模型。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields imageModels={getModelsByType('image_generation')} value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
+                                <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <MarketTaskFields value={taskForm.marketConfig || {}} onChange={marketConfig => setTaskForm({...taskForm, marketConfig})}/> : isExplorationTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民准备地点、装备与药剂，规则自动推进持续战斗。手动探索可直接使用；自动安排还需在冒险面板开启本机自动探索。准备和返回转职使用居民当前模型，战斗不调用模型。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isAlchemyTask ? <p className="rounded-2xl bg-violet-50 p-4 text-sm leading-relaxed text-slate-600">使用背包里的迷宫素材炼制一次性药水，一次最多三道配方、每道五瓶；每瓶消耗一体力并获得炼金经验。药水不在商店出售，探索出发时最多携带五瓶，未用完自动返还。配方与效果在炼金图鉴查看。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields imageModels={getModelsByType('image_generation')} value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
                                     onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>
                             </>}
 

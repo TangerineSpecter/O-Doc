@@ -9,6 +9,7 @@ export const itemCategoryLabels: Record<ItemCategory, string> = {
     crop: '农作物',
     animal_product: '畜产品',
     dish: '美食',
+    elixir: '炼金药水',
     other: '其他',
 };
 

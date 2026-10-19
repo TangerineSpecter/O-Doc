@@ -202,7 +202,7 @@ export interface AgentTaskConfig {
     memoConfig?: {ownerId: string};
     model?: string | null;
     investmentConfig?: import('./investment').InvestmentConfig;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration' | 'memo_capture';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'alchemy' | 'exploration' | 'memo_capture';
     publishConfig?: import('./agentPublish').AgentPublishConfig;
     explorationConfig?: {ownerId: string};
     travelConfig?: import('./travel').TravelConfig;

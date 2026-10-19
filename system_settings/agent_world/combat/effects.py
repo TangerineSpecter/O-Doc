@@ -50,6 +50,11 @@ def element_multiplier(attacker: dict, target: dict, element: str, rules: dict |
     rules = rules or {}
     power = float((attacker.get('stats') or {}).get(element + '_power', 0) or 0)
     resist = float((target.get('stats') or {}).get(element + '_resist', 0) or 0)
+    # Elixir element buffs live in temporary states; cap them like permanent stats.
+    power += sum(float(s.get('value') or 0) for s in attacker.get('states', [])
+                 if s.get('code') == 'modifier' and s.get('stat') == element + '_power')
+    power = max(float(rules.get('element_power_min', 0)), min(float(rules.get('element_power_max', .4)), power))
+    resist = max(float(rules.get('element_resist_min', -.25)), min(float(rules.get('element_resist_max', .45)), resist))
     low = float(rules.get('element_factor_min', .6))
     high = float(rules.get('element_factor_max', 1.5))
     # Ratios live on a 0.0001 grid. Rounding keeps the later Fraction from seeing binary dust.
@@ -62,7 +67,7 @@ def value(fighter: dict, stat: str) -> float:
                  (s['stat'] == stat or (s['stat'] == 'attack' and stat in ('physical_attack', 'magic_attack')) or
                   (s['stat'] == 'defense' and stat in ('physical_defense', 'magic_defense')))]
     total = sum(s['value'] for s in modifiers)
-    if stat in ('accuracy', 'evasion', 'reduction', 'damage_taken'):
+    if stat in ('accuracy', 'evasion', 'reduction', 'damage_taken', 'critical', 'critical_damage'):
         return base + total
     return base * (1 + clamp(total, -.9, 2))
 
@@ -105,6 +110,9 @@ def hurt(target: dict, amount: int) -> tuple[int, int, dict | None]:
 
 
 def status(target: dict, effect: dict) -> None:
+    if any(s.get('code') == 'immune' for s in target['states']) and (
+            effect['code'] == 'dot' or (effect['code'] == 'modifier' and effect.get('value', 0) < 0)):
+        return
     same = next((s for s in target['states'] if s['group'] == effect['group']), None)
     if same is None:
         target['states'].append(effect)

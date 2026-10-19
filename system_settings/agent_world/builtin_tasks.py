@@ -8,11 +8,13 @@ TRAVEL_ID = 'builtin-travel'
 TRAVEL_NAME = '旅行'
 COOKING_ID = 'builtin-cooking'
 COOKING_NAME = '美食制作'
+ALCHEMY_ID = 'builtin-alchemy'
+ALCHEMY_NAME = '炼金制作'
 FARM_ID = 'builtin-farm'
 FARM_NAME = '农场经营'
 MARKET_ID = 'builtin-market'
 MARKET_NAME = '市场交易'
-SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration')
+SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration')
 
 INVESTMENT_ID = 'builtin-investment'
 INVESTMENT_NAME = 'A 股投资'

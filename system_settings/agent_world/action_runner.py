@@ -143,6 +143,9 @@ def repair_effects(action):
     if action.snapshot.get('cooking'):
         from .cooking_runner import finish
         return finish(action)
+    if action.snapshot.get('alchemy'):
+        from .alchemy_runner import finish
+        return finish(action)
     if action.snapshot.get('farm'):
         from .farm_runner import finish
         return finish(action)
@@ -284,7 +287,7 @@ def tick(scheduler):
     recover_investments()
     # 崩溃后不重做模型选择；已提交事实由上面的恢复逻辑完成后续处理。
     stale = timezone.now() - timedelta(minutes=15)
-    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel', 'farm', 'investment', 'cooking'])
+    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel', 'farm', 'investment', 'cooking', 'alchemy'])
     record_ids = list(interrupted.values_list('record_id', flat=True))
     interrupted.update(status='failed', result={'reason': '执行中断，本机会结束；已提交操作保留。未捕获底层异常，无法确定中断原因。'})
     AgentRunRecord.objects.filter(pk__in=record_ids, status='running').update(status='failed', summary='执行中断，本机会结束', updated_at=timezone.now())
@@ -298,6 +301,8 @@ def tick(scheduler):
     from .life_runner import tick_life
     from .cooking_runner import tick_cooking
     tick_cooking(scheduler)
+    from .alchemy_runner import tick_alchemy
+    tick_alchemy(scheduler)
     tick_life(scheduler)
     with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
         if not token:

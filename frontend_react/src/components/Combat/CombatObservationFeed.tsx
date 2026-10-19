@@ -314,6 +314,9 @@ function SettlementCard({report, parsed}: {report: string; parsed: ParsedSettlem
                 {parsed.potions != null && parsed.potions > 0 && (
                     <span className="ml-auto font-medium text-slate-600">消耗药剂 {parsed.potions} 瓶</span>
                 )}
+                {parsed.elixirs != null && parsed.elixirs > 0 && (
+                    <span className="font-medium text-violet-600">炼金药水 {parsed.elixirs} 瓶</span>
+                )}
             </div>
         </article>
     );
