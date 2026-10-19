@@ -1,6 +1,10 @@
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import type {CombatEquipment, CombatProfile} from '../../types/api/combat';
-import {resolveLoadoutSlots} from './loadoutPresentation';
+import {
+    hasLoadoutSlotCandidate,
+    resolveLoadoutHeroArchetype,
+    resolveLoadoutSlots,
+} from './loadoutPresentation';
 import {DiabloHumanSilhouette} from './DiabloHumanSilhouette';
 import {DiabloEquipmentSlot, type SlotPlacement} from './DiabloEquipmentSlot';
 import {Shield, Sparkles} from 'lucide-react';
@@ -15,8 +19,10 @@ export default function CombatLoadoutSlots({
     onInspect: (item: CombatEquipment, remove?: boolean, slot?: string) => void;
 }) {
     const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
+    const stageRef = useRef<HTMLDivElement | null>(null);
     const equippedSlots = resolveLoadoutSlots(profile);
     const equippedCount = equippedSlots.size;
+    const heroArchetype = resolveLoadoutHeroArchetype(profile.progression?.job);
 
     // 计算已穿戴平均装等 (Gear Score)
     const equippedList = Array.from(equippedSlots.values()).map(v => v.item);
@@ -41,12 +47,14 @@ export default function CombatLoadoutSlots({
         // 关键修复：悬停当前槽位时，必须赋予最顶层的 stacking context (z-50)，确保弹出的 Tooltip 绝不会被其他槽位遮挡！
         const zIndexClass = isCurrentHovered ? 'z-50' : 'z-10';
         const equipped = equippedSlots.get(slotKey);
+        const hasCandidate = !equipped && hasLoadoutSlotCandidate(profile, slotKey, equippedSlots);
         return (
             <div key={slotKey} className={`absolute ${positionClass} ${zIndexClass}`}>
                 <DiabloEquipmentSlot
                     slot={slotKey}
                     item={equipped?.item}
                     sourceSlot={equipped?.sourceSlot}
+                    hasCandidate={hasCandidate}
                     disabled={disabled}
                     placement={placement}
                     onInspect={onInspect}
@@ -90,39 +98,42 @@ export default function CombatLoadoutSlots({
             </div>
 
             {/* 白色现代主题：英雄装备纸娃娃展台 (overflow-visible 保证 Tooltip 浮窗不被截断) */}
-            <div className="relative w-full h-[410px] sm:h-[430px] rounded-2xl bg-gradient-to-b from-slate-50/90 via-white to-orange-50/20 border border-slate-200/90 shadow-2xs select-none">
-                {/* 独立背景裁剪层 (背景光晕与包角不超出圆角) */}
+            <div
+                ref={stageRef}
+                className="relative w-full h-[480px] sm:h-[500px] rounded-2xl bg-gradient-to-b from-slate-50/95 via-white to-orange-50/20 border border-slate-200/90 shadow-2xs select-none"
+            >
+                {/* 独立背景裁剪层 (背景光晕、人物立绘、连接引线与包角不超出圆角) */}
                 <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
                     {/* 展台四角精致浅橙色现代几何包角 */}
-                    <div className="absolute top-2.5 left-2.5 w-3 h-3 border-t-2 border-l-2 border-orange-300/60 rounded-tl-sm" />
-                    <div className="absolute top-2.5 right-2.5 w-3 h-3 border-t-2 border-r-2 border-orange-300/60 rounded-tr-sm" />
-                    <div className="absolute bottom-2.5 left-2.5 w-3 h-3 border-b-2 border-l-2 border-orange-300/60 rounded-bl-sm" />
-                    <div className="absolute bottom-2.5 right-2.5 w-3 h-3 border-b-2 border-r-2 border-orange-300/60 rounded-br-sm" />
+                    <div className="absolute top-3 left-3 w-3.5 h-3.5 border-t-2 border-l-2 border-orange-400/70 rounded-tl-sm" />
+                    <div className="absolute top-3 right-3 w-3.5 h-3.5 border-t-2 border-r-2 border-orange-400/70 rounded-tr-sm" />
+                    <div className="absolute bottom-3 left-3 w-3.5 h-3.5 border-b-2 border-l-2 border-orange-400/70 rounded-bl-sm" />
+                    <div className="absolute bottom-3 right-3 w-3.5 h-3.5 border-b-2 border-r-2 border-orange-400/70 rounded-br-sm" />
 
-                    {/* 展台中心空灵魔导星盘水印剪影 */}
-                    <div className="absolute inset-0 flex items-center justify-center p-2">
-                        <DiabloHumanSilhouette
-                            activeSlot={hoveredSlot}
-                            className="h-full w-full max-w-[340px] max-h-[420px]"
-                        />
-                    </div>
+                    {/* 展台中心一转职业英雄立绘、脚底光环与解剖对位引线 */}
+                    <DiabloHumanSilhouette
+                        activeSlot={hoveredSlot}
+                        archetype={heroArchetype}
+                        equippedSlots={equippedSlots}
+                        stageRef={stageRef}
+                    />
                 </div>
 
-                {/* 9 个暗黑纸娃娃装备槽位 (根据 hover 动态提升 z-index，彻底解决装备遮挡 Tooltip) */}
-                {/* 1. 中轴线防具 (头部 -> 胸甲 -> 双足) */}
-                {renderSlot('head', 'top-center', 'top-[3.5%] left-1/2 -translate-x-1/2')}
-                {renderSlot('body', 'mid-center', 'top-[36%] left-1/2 -translate-x-1/2')}
-                {renderSlot('feet', 'bottom-center', 'bottom-[3.5%] left-1/2 -translate-x-1/2')}
+                {/* 9 个环绕式装备槽位 (中心人物与脚底光环 100% 无遮挡，悬停时提升 z-index 防止 Tooltip 遮挡) */}
+                {/* 1. 顶部中轴：头饰 */}
+                {renderSlot('head', 'top-center', 'top-[1.5%] left-1/2 -translate-x-1/2')}
 
-                {/* 2. 左翼部位 (上：手套 -> 中：武器 -> 下：戒指位 1) */}
-                {renderSlot('hands', 'top-left', 'top-[12%] left-[4%] sm:left-[6%]')}
-                {renderSlot('weapon', 'mid-left', 'top-[42%] left-[4%] sm:left-[6%]')}
-                {renderSlot('ring_1', 'bottom-left', 'bottom-[9%] left-[6%] sm:left-[9%]')}
+                {/* 2. 左翼四槽 (手套 -> 武器 -> 护甲 -> 戒指位 1) */}
+                {renderSlot('hands', 'top-left', 'top-[13%] left-[3%] sm:left-[4%]')}
+                {renderSlot('weapon', 'mid-left', 'top-[36.5%] left-[1.5%] sm:left-[2.5%]')}
+                {renderSlot('body', 'mid-left', 'top-[60%] left-[1.5%] sm:left-[2.5%]')}
+                {renderSlot('ring_1', 'bottom-left', 'bottom-[2%] left-[7%] sm:left-[8%]')}
 
-                {/* 3. 右翼部位 (上：吊坠 -> 中：副手 -> 下：戒指位 2) */}
-                {renderSlot('accessory', 'top-right', 'top-[12%] right-[4%] sm:right-[6%]')}
-                {renderSlot('offhand', 'mid-right', 'top-[42%] right-[4%] sm:right-[6%]')}
-                {renderSlot('ring_2', 'bottom-right', 'bottom-[9%] right-[6%] sm:right-[9%]')}
+                {/* 3. 右翼四槽 (吊坠 -> 副手 -> 靴子 -> 戒指位 2) */}
+                {renderSlot('accessory', 'top-right', 'top-[13%] right-[3%] sm:right-[4%]')}
+                {renderSlot('offhand', 'mid-right', 'top-[36.5%] right-[1.5%] sm:right-[2.5%]')}
+                {renderSlot('feet', 'mid-right', 'top-[60%] right-[1.5%] sm:right-[2.5%]')}
+                {renderSlot('ring_2', 'bottom-right', 'bottom-[2%] right-[7%] sm:right-[8%]')}
             </div>
         </section>
     );

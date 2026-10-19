@@ -1,186 +1,332 @@
-import {useId} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject} from 'react';
+import warriorHeroImg from '../../assets/combat/loadout-hero-warrior-v1.png';
+import mageHeroImg from '../../assets/combat/loadout-hero-mage-v1.png';
+import archerHeroImg from '../../assets/combat/loadout-hero-archer-v1.png';
+import priestHeroImg from '../../assets/combat/loadout-hero-priest-v1.png';
+import {
+    LOADOUT_HERO_ANCHORS,
+    type LoadoutHeroArchetype,
+    type PresentedLoadoutItem,
+} from './loadoutPresentation';
 
-/**
- * 对应人体纸娃娃的 9 个解剖学部位锚点坐标 (在 320 x 420 视口坐标系下)
- */
-const ANATOMY_ANCHORS: Record<string, {x: number; y: number; label: string}> = {
-    head: {x: 160, y: 56, label: '头部'},
-    hands: {x: 114, y: 132, label: '护手'},
-    accessory: {x: 172, y: 92, label: '吊坠'},
-    weapon: {x: 104, y: 198, label: '主武器'},
-    body: {x: 160, y: 148, label: '护甲'},
-    offhand: {x: 216, y: 198, label: '副手'},
-    ring_1: {x: 120, y: 268, label: '左戒'},
-    ring_2: {x: 200, y: 268, label: '右戒'},
-    feet: {x: 160, y: 356, label: '战靴'},
+interface HeroVisualMeta {
+    image: string;
+    alt: string;
+    aura: string;
+    footAura: string;
+}
+
+const HERO_VISUAL_META: Record<LoadoutHeroArchetype, HeroVisualMeta> = {
+    warrior: {
+        image: warriorHeroImg,
+        alt: '战士中心立绘',
+        aura: 'radial-gradient(circle, rgba(56, 189, 248, 0.22) 0%, rgba(249, 115, 22, 0.08) 55%, transparent 75%)',
+        footAura:
+            'radial-gradient(ellipse at center, rgba(56, 189, 248, 0.30) 0%, rgba(245, 158, 11, 0.14) 55%, transparent 78%)',
+    },
+    mage: {
+        image: mageHeroImg,
+        alt: '法师中心立绘',
+        aura: 'radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, rgba(56, 189, 248, 0.10) 55%, transparent 75%)',
+        footAura:
+            'radial-gradient(ellipse at center, rgba(168, 85, 247, 0.34) 0%, rgba(56, 189, 248, 0.18) 55%, transparent 78%)',
+    },
+    archer: {
+        image: archerHeroImg,
+        alt: '弓手中心立绘',
+        aura: 'radial-gradient(circle, rgba(16, 185, 129, 0.24) 0%, rgba(234, 179, 8, 0.08) 55%, transparent 75%)',
+        footAura:
+            'radial-gradient(ellipse at center, rgba(16, 185, 129, 0.32) 0%, rgba(234, 179, 8, 0.16) 55%, transparent 78%)',
+    },
+    priest: {
+        image: priestHeroImg,
+        alt: '牧师中心立绘',
+        aura: 'radial-gradient(circle, rgba(251, 191, 36, 0.26) 0%, rgba(244, 114, 182, 0.10) 55%, transparent 75%)',
+        footAura:
+            'radial-gradient(ellipse at center, rgba(245, 158, 11, 0.34) 0%, rgba(244, 114, 182, 0.18) 55%, transparent 78%)',
+    },
 };
 
-/**
- * 极简高级浅色主题：空灵水润的冒险者星盘水印纸娃娃
- * 采用极淡雅的剪影质感 (不喧宾夺主)、优美端庄的自然站姿、与高精度的魔导星盘刻度环
- */
+const ALL_SLOTS = [
+    'head',
+    'hands',
+    'accessory',
+    'weapon',
+    'body',
+    'offhand',
+    'ring_1',
+    'feet',
+    'ring_2',
+] as const;
+
+const FALLBACK_SLOT_CENTERS: Record<string, {sx: number; sy: number}> = {
+    head: {sx: 230, sy: 44},
+    hands: {sx: 52, sy: 104},
+    accessory: {sx: 408, sy: 104},
+    weapon: {sx: 44, sy: 222},
+    body: {sx: 44, sy: 340},
+    offhand: {sx: 416, sy: 222},
+    feet: {sx: 416, sy: 340},
+    ring_1: {sx: 72, sy: 448},
+    ring_2: {sx: 388, sy: 448},
+};
+
+interface ConduitLineGeometry {
+    slot: string;
+    sx: number;
+    sy: number;
+    midX: number;
+    tx: number;
+    ty: number;
+}
+
+function buildFallbackGeometry(archetype: LoadoutHeroArchetype): {
+    width: number;
+    height: number;
+    lines: ConduitLineGeometry[];
+} {
+    const width = 460;
+    const height = 500;
+    const heroWidth = 316;
+    const heroHeight = 352;
+    const heroLeft = (width - heroWidth) / 2;
+    const heroTop = 82 + (height - 82 - heroHeight) / 2;
+    const anchors = LOADOUT_HERO_ANCHORS[archetype] || LOADOUT_HERO_ANCHORS.warrior;
+
+    const lines = ALL_SLOTS.map(slot => {
+        const start = FALLBACK_SLOT_CENTERS[slot] || {sx: width / 2, sy: height / 2};
+        const anchor = anchors[slot] || {nx: 0.5, ny: 0.5};
+        const tx = heroLeft + heroWidth * anchor.nx;
+        const ty = heroTop + heroHeight * anchor.ny;
+        const midX = start.sx + (tx - start.sx) * 0.55;
+        return {
+            slot,
+            sx: start.sx,
+            sy: start.sy,
+            midX,
+            tx,
+            ty,
+        };
+    });
+
+    return {width, height, lines};
+}
+
+function resolveLineColor(isActive: boolean, quality?: string): string {
+    if (isActive) return '#f97316';
+    if (quality === 'gold') return '#f59e0b';
+    if (quality === 'blue') return '#38bdf8';
+    if (quality === 'white') return '#94a3b8';
+    return '#94a3b8';
+}
+
 export function DiabloHumanSilhouette({
     activeSlot,
+    archetype = 'warrior',
+    equippedSlots,
+    stageRef,
     className = '',
 }: {
     activeSlot?: string | null;
+    archetype?: LoadoutHeroArchetype;
+    equippedSlots?: Map<string, PresentedLoadoutItem>;
+    stageRef?: RefObject<HTMLDivElement | null>;
     className?: string;
 }) {
-    const rawId = useId();
-    const maskId = `paperdoll-${rawId.replace(/[:]/g, '')}`;
+    const heroImgRef = useRef<HTMLImageElement | null>(null);
+    const [geometry, setGeometry] = useState(() => buildFallbackGeometry(archetype));
+
+    const measureConduits = useCallback(() => {
+        const stageEl = stageRef?.current;
+        const heroEl = heroImgRef.current;
+        if (!stageEl || !heroEl) {
+            setGeometry(buildFallbackGeometry(archetype));
+            return;
+        }
+
+        const stageRect = stageEl.getBoundingClientRect();
+        const heroRect = heroEl.getBoundingClientRect();
+        if (stageRect.width <= 0 || stageRect.height <= 0 || heroRect.width <= 0 || heroRect.height <= 0) {
+            setGeometry(buildFallbackGeometry(archetype));
+            return;
+        }
+
+        const anchors = LOADOUT_HERO_ANCHORS[archetype] || LOADOUT_HERO_ANCHORS.warrior;
+        const lines: ConduitLineGeometry[] = ALL_SLOTS.map(slot => {
+            const slotBoxEl = stageEl.querySelector<HTMLElement>(`[data-loadout-slot-box="${slot}"]`);
+            const fallbackStart = FALLBACK_SLOT_CENTERS[slot] || {
+                sx: stageRect.width / 2,
+                sy: stageRect.height / 2,
+            };
+            let sx = fallbackStart.sx;
+            let sy = fallbackStart.sy;
+            if (slotBoxEl) {
+                const rect = slotBoxEl.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                    sx = rect.left - stageRect.left + rect.width / 2;
+                    sy = rect.top - stageRect.top + rect.height / 2;
+                }
+            }
+
+            const anchor = anchors[slot] || {nx: 0.5, ny: 0.5};
+            const tx = heroRect.left - stageRect.left + heroRect.width * anchor.nx;
+            const ty = heroRect.top - stageRect.top + heroRect.height * anchor.ny;
+            const midX = sx + (tx - sx) * 0.55;
+
+            return {slot, sx, sy, midX, tx, ty};
+        });
+
+        setGeometry({
+            width: stageRect.width,
+            height: stageRect.height,
+            lines,
+        });
+    }, [archetype, stageRef]);
+
+    useLayoutEffect(() => {
+        measureConduits();
+    }, [measureConduits]);
+
+    useEffect(() => {
+        const stageEl = stageRef?.current;
+        if (!stageEl) return;
+
+        const handleResize = () => {
+            measureConduits();
+        };
+        window.addEventListener('resize', handleResize);
+
+        let observer: ResizeObserver | null = null;
+        if (typeof ResizeObserver !== 'undefined') {
+            observer = new ResizeObserver(() => {
+                measureConduits();
+            });
+            observer.observe(stageEl);
+            if (heroImgRef.current) {
+                observer.observe(heroImgRef.current);
+            }
+        }
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            observer?.disconnect();
+        };
+    }, [measureConduits, stageRef]);
+
+    const visual = HERO_VISUAL_META[archetype] || HERO_VISUAL_META.warrior;
 
     return (
-        <svg
-            viewBox="0 0 320 420"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={`pointer-events-none select-none ${className}`}
+        <div
+            className={`relative flex h-full w-full items-center justify-center pointer-events-none select-none ${className}`}
             aria-hidden="true"
         >
-            <defs>
-                {/* 舞台中心极淡暖色微光 */}
-                <radialGradient id={`${maskId}-center-glow`} cx="50%" cy="45%" r="48%">
-                    <stop offset="0%" stopColor="#ffedd5" stopOpacity="0.35" />
-                    <stop offset="60%" stopColor="#f8fafc" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-                </radialGradient>
+            <style>{`
+                @keyframes loadoutOrbitSpinSlow {
+                    from { transform: translate(-50%, -50%) rotate(0deg); }
+                    to { transform: translate(-50%, -50%) rotate(360deg); }
+                }
+                @keyframes loadoutOrbitSpinReverse {
+                    from { transform: translate(-50%, -50%) rotate(360deg); }
+                    to { transform: translate(-50%, -50%) rotate(0deg); }
+                }
+                @keyframes loadoutHeroBreathe {
+                    0%, 100% { transform: translateY(0px) scale(1); }
+                    50% { transform: translateY(-3px) scale(1.008); }
+                }
+                @keyframes loadoutConduitDash {
+                    to { stroke-dashoffset: -24; }
+                }
+            `}</style>
 
-                {/* 空灵淡雅的人形渐变 (透明度极低，作为安静的解剖底衬) */}
-                <linearGradient id={`${maskId}-figure-gradient`} x1="160" y1="35" x2="160" y2="375" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.22" />
-                    <stop offset="50%" stopColor="#94a3b8" stopOpacity="0.16" />
-                    <stop offset="100%" stopColor="#cbd5e1" stopOpacity="0.1" />
-                </linearGradient>
+            {/* 1. 职业专属中心柔和背景光晕 */}
+            <div
+                className="absolute left-1/2 top-[54%] -translate-x-1/2 -translate-y-1/2 w-[250px] h-[340px] rounded-full blur-2xl opacity-65 transition-all duration-500"
+                style={{background: visual.aura}}
+            />
 
-                {/* 激活部位的柔光脉冲 */}
-                <radialGradient id={`${maskId}-active-pulse`} cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.9" />
-                    <stop offset="50%" stopColor="#fb923c" stopOpacity="0.5" />
-                    <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
-                </radialGradient>
-            </defs>
+            {/* 2. 双层微旋奥术星盘环 */}
+            <div
+                className="absolute left-1/2 top-[54%] w-[310px] h-[310px] sm:w-[360px] sm:h-[360px] rounded-full border border-dashed border-slate-400/25 opacity-60"
+                style={{animation: 'loadoutOrbitSpinSlow 56s linear infinite'}}
+            />
+            <div
+                className="absolute left-1/2 top-[54%] w-[220px] h-[220px] sm:w-[255px] sm:h-[255px] rounded-full border border-slate-400/20 opacity-50"
+                style={{animation: 'loadoutOrbitSpinReverse 38s linear infinite'}}
+            />
 
-            {/* 1. 中心柔和光晕 */}
-            <circle cx="160" cy="180" r="140" fill={`url(#${maskId}-center-glow)`} />
+            {/* 3. 职业脚底光环柔光底衬 */}
+            <div
+                className="absolute left-1/2 top-[84%] -translate-x-1/2 -translate-y-1/2 w-[250px] h-[66px] rounded-full blur-xl opacity-75 transition-all duration-500"
+                style={{background: visual.footAura}}
+            />
 
-            {/* 2. 精致高级的魔导星盘刻度几何环 (带来现代高精游戏 UI 仪式感) */}
-            <g opacity="0.45">
-                {/* 外层大星盘刻度环 */}
-                <circle cx="160" cy="180" r="132" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="3 8" />
-                <circle cx="160" cy="180" r="118" stroke="#cbd5e1" strokeWidth="0.6" strokeDasharray="1 5" />
-                <circle cx="160" cy="180" r="88" stroke="#e2e8f0" strokeWidth="0.8" />
-
-                {/* 经纬四象刻度微线与十字星标 */}
-                <line x1="160" y1="36" x2="160" y2="44" stroke="#94a3b8" strokeWidth="1" />
-                <line x1="160" y1="316" x2="160" y2="324" stroke="#94a3b8" strokeWidth="1" />
-                <line x1="16" y1="180" x2="24" y2="180" stroke="#94a3b8" strokeWidth="1" />
-                <line x1="296" y1="180" x2="304" y2="180" stroke="#94a3b8" strokeWidth="1" />
-
-                {/* 脚底微透视召唤同心圆 */}
-                <ellipse cx="160" cy="370" rx="88" ry="18" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
-                <ellipse cx="160" cy="370" rx="58" ry="12" stroke="#e2e8f0" strokeWidth="0.8" />
-                <ellipse cx="160" cy="370" rx="28" ry="6" stroke="#fdba74" strokeWidth="1" strokeOpacity="0.5" />
-            </g>
-
-            {/* 3. 比例匀称自然的英姿冒险者全身立体立绘剪影 (极淡空灵，绝不突兀扎眼) */}
-            <g opacity="0.85">
-                {/* 优雅冒险者身姿主路径：圆润头部、微立领、匀称双肩、自然收拢腰际的双手、修长双腿 */}
-                <path
-                    d="
-                    M160,36
-                    C170,36 177,44 177,55
-                    C177,65 171,73 165,76
-                    C162,77 158,77 155,76
-                    C149,73 143,65 143,55
-                    C143,44 150,36 160,36 Z
-
-                    M154,77
-                    C154,82 150,86 142,91
-                    C132,97 124,106 120,118
-                    C116,130 114,146 112,166
-                    L108,198
-                    C107,208 111,212 116,211
-                    C120,210 122,202 124,190
-                    L127,160
-                    C129,148 135,140 142,136
-                    C144,146 144,166 145,188
-                    C145,210 146,226 146,236
-                    L158,236
-                    L158,196
-                    L162,196
-                    L162,236
-                    L174,236
-                    C174,226 175,210 175,188
-                    C176,166 176,146 178,136
-                    C185,140 191,148 193,160
-                    L196,190
-                    C198,202 200,210 204,211
-                    C209,212 213,208 212,198
-                    L208,166
-                    C206,146 204,130 200,118
-                    C196,106 188,97 178,91
-                    C170,86 166,82 166,77 Z
-
-                    M146,236
-                    C144,256 143,284 144,310
-                    C144,328 143,344 140,355
-                    C139,359 142,362 147,363
-                    C152,364 156,361 157,356
-                    C158,348 157,328 156,308
-                    C155,288 156,262 156,236 Z
-
-                    M174,236
-                    C176,256 177,284 176,310
-                    C176,328 177,344 180,355
-                    C181,359 178,362 173,363
-                    C168,364 164,361 163,356
-                    C162,348 163,328 164,308
-                    C165,288 164,262 164,236 Z
-                    "
-                    fill={`url(#${maskId}-figure-gradient)`}
-                    stroke="#94a3b8"
-                    strokeWidth="0.8"
-                    strokeOpacity="0.4"
+            {/* 4. 紧凑比例一转职业立绘 (带专属透视脚底光环，避开顶部头饰遮挡) */}
+            <div
+                className="relative z-0 flex items-center justify-center mt-[74px] sm:mt-[80px] w-[284px] h-[316px] sm:w-[316px] sm:h-[352px] transition-all duration-300"
+                style={{
+                    opacity: 0.9,
+                    animation: 'loadoutHeroBreathe 4.2s ease-in-out infinite',
+                }}
+            >
+                <img
+                    ref={heroImgRef}
+                    data-loadout-hero-img={archetype}
+                    src={visual.image}
+                    alt={visual.alt}
+                    onLoad={measureConduits}
+                    className="w-full h-full object-contain select-none"
                 />
+            </div>
 
-                {/* 极简优雅的衣领与腰饰微弧线 */}
-                <path d="M152,88 Q160,92 168,88" stroke="#94a3b8" strokeWidth="0.8" strokeOpacity="0.35" fill="none" />
-                <path d="M146,176 Q160,180 174,176" stroke="#94a3b8" strokeWidth="0.8" strokeOpacity="0.3" fill="none" />
-            </g>
+            {/* 5. 解剖对位折线引线与靶心锚点 SVG 叠层 */}
+            <svg
+                viewBox={`0 0 ${geometry.width} ${geometry.height}`}
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="absolute inset-0 w-full h-full z-0"
+            >
+                {geometry.lines.map(line => {
+                    const isActive = activeSlot === line.slot;
+                    const equipped = equippedSlots?.get(line.slot);
+                    const quality = equipped?.item.snapshot.quality;
+                    const strokeColor = resolveLineColor(isActive, quality);
+                    const strokeOpacity = isActive ? 0.95 : equipped ? 0.52 : 0.32;
+                    const strokeWidth = isActive ? 2.2 : 1.3;
 
-            {/* 4. 各部位解剖共鸣点 (悬停时在对应身体部位绽放优雅光晕，干净利落) */}
-            {Object.entries(ANATOMY_ANCHORS).map(([slotKey, pt]) => {
-                const isActive = activeSlot === slotKey;
-                return (
-                    <g key={slotKey} className="transition-all duration-300">
-                        {/* 基础极淡点 (平时轻盈不抢眼) */}
-                        <circle
-                            cx={pt.x}
-                            cy={pt.y}
-                            r={isActive ? 5.5 : 2}
-                            fill={isActive ? `url(#${maskId}-active-pulse)` : '#cbd5e1'}
-                            fillOpacity={isActive ? 1 : 0.35}
-                            stroke={isActive ? '#ffffff' : 'none'}
-                            strokeWidth={isActive ? 1.5 : 0}
-                            className={isActive ? 'animate-pulse' : ''}
-                        />
-
-                        {/* 激活时的柔和扩散光环 */}
-                        {isActive && (
-                            <circle
-                                cx={pt.x}
-                                cy={pt.y}
-                                r={12}
-                                stroke="#f97316"
-                                strokeWidth="1"
-                                strokeOpacity="0.75"
-                                strokeDasharray="2 2"
-                                className="animate-ping"
+                    return (
+                        <g key={line.slot} opacity={strokeOpacity}>
+                            <polyline
+                                points={`${line.sx.toFixed(1)},${line.sy.toFixed(1)} ${line.midX.toFixed(1)},${line.ty.toFixed(1)} ${line.tx.toFixed(1)},${line.ty.toFixed(1)}`}
+                                stroke={strokeColor}
+                                strokeWidth={strokeWidth}
+                                strokeDasharray={isActive ? '5 3' : '3 3'}
+                                fill="none"
+                                style={
+                                    isActive
+                                        ? {animation: 'loadoutConduitDash 0.9s linear infinite'}
+                                        : undefined
+                                }
                             />
-                        )}
-                    </g>
-                );
-            })}
-        </svg>
+                            <circle
+                                cx={line.tx}
+                                cy={line.ty}
+                                r={isActive ? 4.5 : 3}
+                                fill={strokeColor}
+                            />
+                            {isActive && (
+                                <circle
+                                    cx={line.tx}
+                                    cy={line.ty}
+                                    r={8}
+                                    stroke={strokeColor}
+                                    strokeWidth="1.2"
+                                    fill="none"
+                                />
+                            )}
+                        </g>
+                    );
+                })}
+            </svg>
+        </div>
     );
 }

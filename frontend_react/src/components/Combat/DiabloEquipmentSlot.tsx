@@ -38,6 +38,7 @@ export interface DiabloEquipmentSlotProps {
     slot: string;
     item?: CombatEquipment;
     sourceSlot?: string;
+    hasCandidate?: boolean;
     disabled?: boolean;
     placement?: SlotPlacement;
     onInspect: (item: CombatEquipment, remove?: boolean, slot?: string) => void;
@@ -49,6 +50,7 @@ export function DiabloEquipmentSlot({
     slot,
     item,
     sourceSlot,
+    hasCandidate = false,
     disabled,
     placement = 'mid-center',
     onInspect,
@@ -119,77 +121,110 @@ export function DiabloEquipmentSlot({
 
     return (
         <div
-            className={`relative group ${className}`}
+            className={`relative group flex flex-col items-center ${className}`}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
             {item && gear ? (
-                /* 已装配装备槽位 (纯实心高级白底，绝不使用透明玻璃) */
-                <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onInspect(item, true, sourceSlot)}
-                    title={`已装备：${gear.name} (Lv.${gear.level})`}
-                    className={`relative flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl border-2 p-1 text-left transition-all duration-200 active:scale-95 disabled:cursor-not-allowed ${
-                        isGold
-                            ? 'border-amber-300 bg-amber-50/70 hover:border-amber-400 shadow-sm shadow-amber-500/10 hover:shadow-md'
-                            : isBlue
-                              ? 'border-sky-300 bg-sky-50/70 hover:border-sky-400 shadow-sm shadow-sky-500/10 hover:shadow-md'
-                              : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs hover:shadow-xs'
-                    }`}
-                >
-                    {/* 装备像素大肖像 */}
-                    <div className="relative h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center overflow-hidden">
-                        <EquipmentPortrait
-                            equipmentId={gear.templateId || item.templateId || item.id}
-                            name={gear.name}
-                            slot={gear.slot}
-                            equipmentType={gear.equipmentType || item.displayType}
-                            bossOnly={(gear.templateId || item.templateId || item.id).includes('boss')}
-                            decorative
-                            className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-110"
-                            fallbackClassName="h-6 w-6"
-                        />
-                    </div>
-
-                    {/* 左下角：纯实心等级徽标 (Lv.X) */}
-                    <span
-                        className={`absolute bottom-1 left-1 flex items-center rounded px-1 py-0.2 font-mono text-[9px] font-bold shadow-2xs leading-none select-none ${
+                /* 已装配装备槽位卡片 + 底部部位微标签 */
+                <>
+                    <button
+                        type="button"
+                        data-loadout-slot-box={slot}
+                        disabled={disabled}
+                        onClick={() => onInspect(item, true, sourceSlot)}
+                        title={`已装备：${gear.name} (Lv.${gear.level})`}
+                        className={`relative flex h-16 w-16 sm:h-[74px] sm:w-[74px] items-center justify-center rounded-[18px] sm:rounded-[20px] border-2 p-1.5 text-left backdrop-blur-xs transition-all duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed ${
                             isGold
-                                ? 'bg-amber-600 text-white'
+                                ? 'border-amber-400 bg-gradient-to-br from-amber-50/95 to-orange-50/90 shadow-[0_6px_16px_-3px_rgba(245,158,11,0.24),inset_0_0_12px_rgba(251,191,36,0.14)] group-hover:border-amber-500 group-hover:shadow-[0_0_0_3px_rgba(245,158,11,0.24),0_10px_24px_-4px_rgba(245,158,11,0.3)]'
                                 : isBlue
-                                  ? 'bg-sky-600 text-white'
-                                  : 'bg-slate-700 text-white'
+                                  ? 'border-[#38bdf8] bg-gradient-to-br from-[#f0f9ff]/95 to-[#e0f2fe]/90 shadow-[0_6px_16px_-3px_rgba(14,165,233,0.22),inset_0_0_12px_rgba(56,189,248,0.12)] group-hover:border-[#0284c7] group-hover:shadow-[0_0_0_3px_rgba(56,189,248,0.28),0_10px_24px_-4px_rgba(14,165,233,0.3)]'
+                                  : 'border-[#cbd5e1] bg-gradient-to-br from-white/95 to-slate-100/90 shadow-[0_4px_12px_-2px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.85)] group-hover:border-slate-400 group-hover:shadow-[0_0_0_3px_rgba(100,116,139,0.18),0_8px_20px_-4px_rgba(15,23,42,0.12)]'
                         }`}
                     >
-                        Lv.{gear.level}
-                    </span>
+                        {/* 右上角：品质胶囊徽标 (金/蓝/白) */}
+                        <span
+                            className={`absolute top-1 right-1 flex items-center justify-center rounded-md px-1.5 py-0.5 text-[9px] font-bold leading-none border select-none ${
+                                isGold
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : isBlue
+                                      ? 'bg-sky-100 text-sky-700 border-sky-300'
+                                      : 'bg-slate-200/90 text-slate-700 border-slate-300'
+                            }`}
+                        >
+                            {isGold ? '金' : isBlue ? '蓝' : '白'}
+                        </span>
 
-                    {/* 右上角：纯实心品质徽标 (金/蓝/白) */}
+                        {/* 装备像素肖像 */}
+                        <div className="relative h-10 w-10 sm:h-12 sm:w-12 flex items-center justify-center overflow-hidden">
+                            <EquipmentPortrait
+                                equipmentId={gear.templateId || item.templateId || item.id}
+                                name={gear.name}
+                                slot={gear.slot}
+                                equipmentType={gear.equipmentType || item.displayType}
+                                bossOnly={(gear.templateId || item.templateId || item.id).includes('boss')}
+                                decorative
+                                className="h-full w-full object-contain drop-shadow-xs transition-transform duration-200 group-hover:scale-110"
+                                fallbackClassName="h-6 w-6"
+                            />
+                        </div>
+
+                        {/* 左下角：胶囊等级徽标 (Lv.X) */}
+                        <span
+                            className={`absolute bottom-1 left-1 flex items-center rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold shadow-xs leading-none select-none ${
+                                isGold
+                                    ? 'bg-amber-600 text-white'
+                                    : isBlue
+                                      ? 'bg-sky-600 text-white'
+                                      : 'bg-slate-700 text-white'
+                            }`}
+                        >
+                            Lv.{gear.level}
+                        </span>
+                    </button>
                     <span
-                        className={`absolute top-1 right-1 flex items-center justify-center rounded px-1 py-0.2 text-[8px] font-extrabold leading-none shadow-2xs border select-none ${
-                            isGold
-                                ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                : isBlue
-                                  ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                  : 'bg-slate-100 text-slate-700 border-slate-300'
+                        className={`mt-1 text-[10px] sm:text-[11px] font-semibold tracking-tight leading-none transition-colors select-none ${
+                            isHovered ? 'text-orange-500 font-bold' : 'text-slate-500'
                         }`}
                     >
-                        {isGold ? '金' : isBlue ? '蓝' : '白'}
-                    </span>
-                </button>
-            ) : (
-                /* 空槽位状态 (纯实心浅灰底，杜绝半透明脏底) */
-                <div
-                    className="group/empty relative flex h-14 w-14 sm:h-16 sm:w-16 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/90 p-1 shadow-2xs transition-all duration-200 hover:border-orange-400 hover:bg-orange-50/60 hover:shadow-xs"
-                >
-                    {/* 部位水印图标 */}
-                    <Icon className="h-6 w-6 text-slate-400/70 transition-all duration-200 group-hover/empty:scale-110 group-hover/empty:text-orange-500" />
-                    {/* 底部微型部位名称 */}
-                    <span className="absolute bottom-1 text-[9px] font-medium tracking-tight text-slate-400 transition-colors group-hover/empty:text-orange-600 font-sans">
                         {label}
                     </span>
-                </div>
+                </>
+            ) : (
+                /* 空槽位状态 + 底部未装配/可穿戴微标签 */
+                <>
+                    <div
+                        data-loadout-slot-box={slot}
+                        className="group/empty relative flex h-16 w-16 sm:h-[74px] sm:w-[74px] flex-col items-center justify-center gap-1 rounded-[18px] sm:rounded-[20px] border-[1.5px] border-dashed border-slate-300/90 bg-white/80 p-1.5 text-slate-400 shadow-2xs backdrop-blur-xs transition-all duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.03] hover:border-solid hover:border-orange-500 hover:bg-orange-50/40 hover:shadow-[0_0_0_3px_rgba(249,115,22,0.14)]"
+                    >
+                        {hasCandidate && (
+                            <>
+                                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-orange-500 animate-ping" />
+                                <span
+                                    className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-orange-500"
+                                    title="背包中有可穿戴装备"
+                                />
+                            </>
+                        )}
+                        {/* 部位水印图标 */}
+                        <Icon className="h-5 w-5 opacity-75 transition-all duration-200 group-hover/empty:scale-110 group-hover/empty:text-orange-500" />
+                        {/* 框内部位名称 */}
+                        <span className="text-[10px] sm:text-[11px] font-semibold tracking-tight leading-none text-slate-400 transition-colors group-hover/empty:text-orange-500 font-sans">
+                            {label}
+                        </span>
+                    </div>
+                    <span
+                        className={`mt-1 text-[9px] sm:text-[10px] font-medium tracking-tight leading-none transition-colors select-none ${
+                            isHovered
+                                ? 'text-orange-500 font-semibold'
+                                : hasCandidate
+                                  ? 'text-orange-500/85'
+                                  : 'text-slate-400'
+                        }`}
+                    >
+                        {hasCandidate ? '可穿戴' : '未装配'}
+                    </span>
+                </>
             )}
 
             {/* 实心白底高级浮动卡片 (纯白实底 opacity-100，彻底消除透底污渍与溢出裁剪) */}
