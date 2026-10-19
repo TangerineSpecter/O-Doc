@@ -179,6 +179,13 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
             context['cooking_plan'] = specification
         elif activity != 'cooking':
             context.pop('cooking_plan', None)
+        if activity == 'alchemy' and detail.get('alchemy_plan'):
+            from .alchemy_schedule_plan import validate_plan, ensure_materials, available_pool
+            specification = copy.deepcopy(validate_plan(detail['alchemy_plan']))
+            ensure_materials(specification, available_pool(owner, agent.pk, exclude_ids=[item.pk]))
+            context['alchemy_plan'] = specification
+        elif activity != 'alchemy':
+            context.pop('alchemy_plan', None)
         if activity == 'travel' and detail.get('travel_plan'):
             from .life_daily_travel import recheck
             travel_plan = copy.deepcopy(detail['travel_plan'])

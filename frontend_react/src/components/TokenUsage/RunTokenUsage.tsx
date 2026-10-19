@@ -1,4 +1,6 @@
 import {useState} from 'react';
+import {Download, Loader2} from 'lucide-react';
+import {useTokenUsageExport} from '../../hooks/useTokenUsageExport';
 import type {TokenMetrics, RunTokenMetrics} from '../../types/api/tokenUsage';
 import {tokenNumber} from '../../utils/tokenUsage';
 import TokenModelTotals from './TokenModelTotals';
@@ -6,9 +8,18 @@ import TokenRequestList from './TokenRequestList';
 
 export default function RunTokenUsage({id, usage, chain}: {id: string; usage?: RunTokenMetrics; chain?: TokenMetrics | null}) {
     const [expanded, setExpanded] = useState(false);
+    const {exporting, exportError, download} = useTokenUsageExport({all: '1', record_id: id, include_content: '1'});
     return <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-800">本次 Token 用量</h3>
+            <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-sm font-semibold text-slate-800">本次 Token 用量</h3>
+                <button type="button" onClick={download} disabled={exporting}
+                    title="导出本次执行每轮的模型输入、输出和用量（JSON）"
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 rounded-lg border border-orange-200 px-2.5 py-1 text-xs font-medium text-orange-600 hover:bg-orange-50 focus-visible:outline-orange-500 disabled:opacity-50">
+                    {exporting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin"/> : <Download className="h-3.5 w-3.5 shrink-0"/>}
+                    {exporting ? '导出中…' : '导出明细'}
+                </button>
+            </div>
             {usage?.collected ? (
                 <div className="text-right">
                     <p className="text-xs font-semibold tabular-nums text-slate-500">合计 {tokenNumber(usage.totalTokens)} token</p>
@@ -20,6 +31,7 @@ export default function RunTokenUsage({id, usage, chain}: {id: string; usage?: R
                 </div>
             ) : <span className="text-sm font-semibold tabular-nums text-slate-500">未采集</span>}
         </div>
+        {exportError && <p role="alert" className="mt-2 text-xs text-red-600">{exportError}</p>}
         {usage?.collected && <>
             <p className="mt-2 text-xs text-slate-500">输入 {tokenNumber(usage.inputTokens)} · 输出 {tokenNumber(usage.outputTokens)} · {usage.requestCount} 次模型请求</p>
             {!!usage.incompleteCount && <p className="mt-1 text-xs text-amber-700">另有 {usage.incompleteCount} 次用量不完整，合计仅包含已知消耗。</p>}

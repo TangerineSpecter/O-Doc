@@ -3,7 +3,7 @@ from decimal import Decimal
 from .alchemy_quality import outcome, skill_progress
 from .alchemy_plan import validate_quality_snapshot
 
-ALCHEMY_SCHEMA_VERSION = 1
+ALCHEMY_SCHEMA_VERSION = 2
 
 
 def validate_quality_operation(op, experience: int) -> int:
@@ -30,6 +30,8 @@ def validate_source(data: list[dict], meta: dict | None = None) -> dict:
     version = (meta or {}).get('alchemy_schema_version', 0)
     if type(version) is not int or not 0 <= version <= ALCHEMY_SCHEMA_VERSION:
         raise SyncError('炼金快照版本高于本机，请升级后恢复')
+    from .alchemy_schedule_sync import validate_source as validate_schedule
+    validate_schedule(data, version, (meta or {}).get('alchemy_schedule_plans'))
     plans, plan_owners = set(), set()
     for row in data:
         if row['model'] != 'system_settings.worldaction':
@@ -94,6 +96,9 @@ def metadata(data: list[dict] | None = None) -> dict:
                  for row in AlchemyOperation.objects.values('id', 'snapshot')]
         data += [{'model': 'system_settings.worldaction', 'pk': row['id'], 'fields': row}
                  for row in WorldAction.objects.filter(snapshot__alchemy=True).values('id', 'snapshot')]
+        from .life_models import LifeItem
+        data += [{'model': 'system_settings.lifeitem', 'pk': row['id'], 'fields': row}
+                 for row in LifeItem.objects.values('id', 'context')]
     owners, operations, plans = [], [], []
     for row in data:
         snapshot = row['fields'].get('snapshot') or {}
@@ -104,5 +109,6 @@ def metadata(data: list[dict] | None = None) -> dict:
         elif row['model'] == 'system_settings.worldaction' and snapshot.get('alchemy') and any(
                 'quality_rules' in part.get('rule', {}) for part in snapshot.get('plan', [])):
             plans.append(str(row['pk']))
-    return {'alchemy_schema_version': ALCHEMY_SCHEMA_VERSION, 'alchemy_owners': sorted(owners),
+    from .alchemy_schedule_sync import plan_ids
+    return {'alchemy_schema_version': ALCHEMY_SCHEMA_VERSION, 'alchemy_schedule_plans': plan_ids(data), 'alchemy_owners': sorted(owners),
             'alchemy_operations': sorted(operations), 'alchemy_quality_plans': sorted(plans)}

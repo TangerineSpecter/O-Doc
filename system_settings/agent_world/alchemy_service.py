@@ -62,6 +62,14 @@ def commit_bottle(actor_id: str, opportunity_id: str, index: int, recipe_id: str
         raise ValueError('体力不足')
     from .alchemy_plan import validate_quality_snapshot
     validate_quality_snapshot(snapshot)
+    from .alchemy_schedule_plan import available_pool
+    from .life_scope import CURRENT
+    scope = CURRENT.get()
+    free = {row['inventory_id']: row for row in available_pool(
+        owner, actor_id, exclude_ids=[scope['item_id']] if scope else [])}
+    if any(free.get(row['inventory_id'], {}).get('quantity', 0) < row['quantity']
+           for row in snapshot['materials']):
+        raise ValueError('炼金材料已被其他日程预留')
     cost = consume(actor_id, owner, snapshot['materials'])
     quality = outcome(key, before['level'], snapshot['materials'], snapshot)
     price = quality['unit_price']

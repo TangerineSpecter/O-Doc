@@ -8,6 +8,7 @@ import CombatAttributesCard from './CombatAttributesCard';
 import CombatMarketPanel from './CombatMarketPanel';
 import CombatSkillsPanel from './CombatSkillsPanel';
 import WorldDialog from '../AgentWorld/WorldDialog';
+import {DecisionProcessInfo} from '../AgentWorld/DecisionProcessInfo';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import type {useCombatActions} from '../../hooks/useCombatActions';
 import {Backpack, BookOpen, ChevronLeft, ChevronRight, Compass, Eye, Flame, Heart, History, ShoppingBag, Sparkles} from 'lucide-react';
@@ -258,7 +259,10 @@ export default function CombatProfilePanel({
                                 <Compass className="h-5 w-5" />
                             </span>
                             <div className="min-w-0">
-                                <h3 className="text-sm font-bold text-slate-800">探索出发</h3>
+                                <div className="flex items-center gap-1">
+                                    <h3 className="text-sm font-bold text-slate-800">探索出发</h3>
+                                    <DecisionProcessInfo kind="exploration" />
+                                </div>
                                 <p className="mt-0.5 text-[11px] text-slate-500 truncate">配置迷宫目的地、探索时长与战术风格</p>
                             </div>
                         </div>

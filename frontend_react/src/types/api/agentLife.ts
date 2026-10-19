@@ -29,6 +29,13 @@ export interface LifeTravelPlan {
     budgetSource: 'structured' | 'price_tier';
     quotedAt: string;
 }
+export interface LifeAlchemyPlan {
+    version: 1;
+    entries: Array<{recipeId: string; quantity: number;
+        rule: {name: string; ingredients: Array<{sku: string; quantity: number}>;
+            requiredLevel: number; salePrice: string; experience: number; energyCost: number}}>;
+    materials: Array<{sku: string; quantity: number}>;
+}
 export interface LifeDailyChoice {
     time: string;
     plan: {id: string; activity: string; reason: string; offeredActivities?: string[]; travelPlan?: LifeTravelPlan};
@@ -37,7 +44,7 @@ export interface LifeItem {
     id: string; actorId: string; originalAt: string; scheduledAt: string; activity: string; taskId: string;
     status: string; intent: string; budget: string; spent: string; recordId: string;
     result: {reason?: string}; context?: Record<string, unknown> & {
-        cookingPlan?: LifeCookingPlan; travelPlan?: LifeTravelPlan; dailyChoice?: LifeDailyChoice};
+        cookingPlan?: LifeCookingPlan; alchemyPlan?: LifeAlchemyPlan; travelPlan?: LifeTravelPlan; dailyChoice?: LifeDailyChoice};
     retryAvailable?: boolean; retryBlockedReason?: string;
     revisions?: Array<{id: string; before: Record<string, unknown>; after: Record<string, unknown>; reason: string; createdAt: string}>;
 }

@@ -109,13 +109,22 @@ def execute_item(item: LifeItem, scheduler) -> None:
         revise(item,'已安排活动不可用',status='failed',result={'reason':'活动能力已停用或删除'});return
     from .travel_candidates import travelling_ids
     from system_settings.models import AgentExecutionLease
-    costs={'cooking':2,'alchemy':2,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
+    costs={'cooking':2,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
     from .combat.schedule import occupied_ids
     busy=item.actor_id in occupied_ids() or item.actor_id in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists()
     queue_farm = item.activity == 'farm' and bool(item.context.get('farm_plan_id'))
     if item.activity == 'exploration':
         from .combat.explorations import energy as exploration_energy
         required_energy = exploration_energy(30 * 60)
+    elif item.activity == 'alchemy':
+        from .alchemy_queries import minimum_start_energy
+        from .alchemy_schedule_plan import validate_plan
+        specification = item.context.get('alchemy_plan')
+        if specification:
+            required_energy = sum(entry['quantity'] * entry['rule']['energy_cost']
+                                  for entry in validate_plan(specification)['entries'])
+        else:
+            required_energy = minimum_start_energy(item.owner_id, agent)
     else:
         required_energy = costs.get(item.activity, 2)
     energy_insufficient = stamina(agent) < required_energy

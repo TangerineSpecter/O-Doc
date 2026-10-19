@@ -273,6 +273,7 @@ def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
     if clear_plan:
         context.pop('planned_on', None)
         context.pop('cooking_plan', None)
+        context.pop('alchemy_plan', None)
         context.pop('daily_choice', None)
         context.pop('travel_plan', None)
         # 重新排队后必须允许规划器再次处理该时段。
@@ -291,6 +292,20 @@ def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
             raise ValueError('已确认的美食计划已经全部制作，不能重复执行')
         plan['materials'] = requirements(plan['entries'])
         context['cooking_plan'] = plan
+    elif item.activity == 'alchemy' and context.get('alchemy_plan'):
+        from collections import Counter
+        from copy import deepcopy
+        from .alchemy_models import AlchemyOperation
+        from .alchemy_schedule_plan import requirements
+        done = Counter(AlchemyOperation.objects.filter(opportunity_id=execution_key(item)).values_list('recipe_id', flat=True))
+        plan = deepcopy(context['alchemy_plan'])
+        for entry in plan['entries']:
+            entry['quantity'] = max(0, entry['quantity'] - done[entry['recipe_id']])
+        plan['entries'] = [entry for entry in plan['entries'] if entry['quantity']]
+        if not plan['entries']:
+            raise ValueError('已确认的炼金计划已经全部制作，不能重复执行')
+        plan['materials'] = requirements(plan['entries'])
+        context['alchemy_plan'] = plan
     # 已规划或已有执行身份必须换键，避免 runner 撞上旧 WorldAction。
     if item.record_id or context.get('execution_key') or item.activity not in ('unplanned', ''):
         context['execution_key'] = stable_id(item.pk, 'retry', timezone.now().isoformat())

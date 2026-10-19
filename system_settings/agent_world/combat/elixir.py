@@ -90,6 +90,17 @@ def _trigger(recipe_id: str) -> dict:
     return dict(TRIGGERS[recipe_id])
 
 
+def unused_lots(entry: dict) -> list[dict]:
+    """Use carried bottles FIFO, returning the untouched tail at its original prices."""
+    lots = [lot for allocation in entry['consumed'] for lot in allocation['lots']]
+    count, remaining = entry['count'], entry['remaining']
+    if (type(remaining) is not int or not 0 <= remaining <= count
+            or sum(lot['quantity'] for lot in lots) != count):
+        raise ValueError('炼金药水返还数量与原批次不一致')
+    _, kept = split_lots(lots, count - remaining)
+    return kept
+
+
 def _matches(entry: dict, player: dict, enemy: dict | None, state: dict) -> bool:
     trigger = entry.get('trigger') or {}
     kind = trigger.get('kind')

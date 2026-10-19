@@ -185,7 +185,8 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
     cooking = planning_facts(owner, agent, exclude_ids=[i.pk for i in items]) if any(
         row['kind'] == 'cooking' for row in context['activities']) else None
     from .alchemy_schedule_plan import planning_facts as alchemy_facts
-    alchemy = alchemy_facts(owner, agent) if any(row['kind'] == 'alchemy' for row in context['activities']) else None
+    alchemy = alchemy_facts(owner, agent, exclude_ids=[i.pk for i in items]) if any(
+        row['kind'] == 'alchemy' for row in context['activities']) else None
     available = available_cash(owner, agent.pk, exclude_ids=[i.pk for i in items])
     tiers = {'travel': {'quoted': True} if quotes.get('candidates') else {},
              'investment': BudgetChoices(agent.money).options('investment', cash_left=available)}

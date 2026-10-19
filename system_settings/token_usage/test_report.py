@@ -1,13 +1,17 @@
 import json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from tempfile import TemporaryDirectory, SpooledTemporaryFile
+from pathlib import Path
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .models import AgentTokenUsage
 from .views import TokenUsageView
+from . import details
 from utils.drf_utils import get_current_user_identifier
 from system_settings.agent_world.life_time import storage_time
 
@@ -16,6 +20,13 @@ SHANGHAI = ZoneInfo('Asia/Shanghai')
 
 class TokenReportTests(TestCase):
     def setUp(self):
+        temporary = TemporaryDirectory(prefix='token-report-tests-')
+        self.addCleanup(temporary.cleanup)
+        self.detail_dir = Path(temporary.name) / 'details'
+        isolated = override_settings(TOKEN_USAGE_DETAIL_DIR=self.detail_dir,
+                                     TOKEN_USAGE_DETAILS_ENABLED=True)
+        isolated.enable()
+        self.addCleanup(isolated.disable)
         self.user = get_user_model().objects.create_user(username='token-report')
         self.factory = APIRequestFactory()
         request = self.factory.get('/')
@@ -123,3 +134,74 @@ class TokenReportTests(TestCase):
             with self.subTest(params=params):
                 self.assertEqual(self.api(params).status_code, 400)
         self.assertIn(self.api(authenticated=False).status_code, (401, 403))
+
+    def save_content(self, row, status=None):
+        details.write({'id': row.pk, 'started_at': row.started_at.isoformat(),
+                       'status': status or row.status,
+                       'request': {'messages': [{'role': 'user', 'content': '分析持仓'}]},
+                       'response': {'choices': [{'message': {'content': '分析结果',
+                           'tool_calls': [{'id': 'tool-1', 'function': {'name': 'holdings'}}]}}]},
+                       'error_type': 'TimeoutError' if row.status == 'failed' else None})
+
+    def test_execution_content_export_is_complete_ordered_and_repeatable(self):
+        for index in range(55):
+            row = self.row(id=f'{index:032x}', attempt=index % 3 + 1)
+            self.save_content(row)
+        hidden = self.row(owner_key='another-user')
+        self.save_content(hidden)
+        self.row(record_key='unrelated-run')
+        params = {'all': '1', 'record_id': 'run-1', 'include_content': '1'}
+        value = self.report(params)
+        self.assertEqual(value, self.report(params) | {'metadata': value['metadata']})
+        self.assertEqual(value['metadata']['format_version'], 2)
+        self.assertEqual(value['summary']['request_count'], 55)
+        self.assertEqual(value['summary']['content_available_count'], 55)
+        self.assertEqual(value['summary']['content_unavailable_count'], 0)
+        self.assertEqual([r['sequence'] for r in value['requests']], list(range(1, 56)))
+        self.assertEqual([r['id'] for r in value['requests']], [f'{i:032x}' for i in range(55)])
+        self.assertEqual(value['requests'][0]['content']['request']['messages'][0]['content'], '分析持仓')
+        self.assertEqual(value['requests'][0]['content']['response']['choices'][0]['message']['tool_calls'][0]['id'], 'tool-1')
+        self.assertEqual(value['summary']['total_tokens'], 825)
+        with patch('system_settings.token_usage.content.details.read') as read:
+            self.assertNotIn('content', self.report()['requests'][0])
+            read.assert_not_called()
+        response = self.api(params)
+        self.assertEqual(response['Cache-Control'], 'no-store')
+        response.close()
+
+    def test_content_missing_stale_failed_running_disabled_and_empty(self):
+        missing = self.row()
+        stale = self.row()
+        self.save_content(stale, status='running')
+        failed = self.row(status='failed', usage_complete=False, attempt=2)
+        self.save_content(failed)
+        running = self.row(status='running', ended_at=None)
+        self.save_content(running)
+        params = {'all': '1', 'record_id': 'run-1', 'include_content': '1'}
+        value = self.report(params)
+        rows = {r['id']: r['content'] for r in value['requests']}
+        self.assertFalse(rows[missing.pk]['available'])
+        self.assertFalse(rows[stale.pk]['available'])
+        self.assertEqual(rows[failed.pk]['error_type'], 'TimeoutError')
+        self.assertEqual(rows[running.pk]['status'], 'running')
+        self.assertEqual(value['summary']['content_unavailable_count'], 2)
+        with override_settings(TOKEN_USAGE_DETAILS_ENABLED=False):
+            self.assertEqual(self.report(params)['summary']['content_unavailable_count'], 4)
+        empty = self.report({**params, 'record_id': 'missing'})
+        self.assertEqual(empty['requests'], [])
+        self.assertEqual(empty['summary']['content_available_count'], 0)
+        for invalid in ({'include_content': '1'}, {'include_content': 'invalid'},
+                        {'include_content': '1', 'record_id': ''}):
+            self.assertEqual(self.api(invalid).status_code, 400)
+        self.assertIn(self.api(params, authenticated=False).status_code, (401, 403))
+
+    def test_content_export_failure_closes_temporary_file(self):
+        self.row()
+        report_file = SpooledTemporaryFile(mode='w+b')
+        self.addCleanup(report_file.close)
+        with patch('system_settings.token_usage.report.request_content', side_effect=OSError), \
+                patch('system_settings.token_usage.report.SpooledTemporaryFile', return_value=report_file):
+            with self.assertRaises(OSError):
+                self.report({'all': '1', 'record_id': 'run-1', 'include_content': '1'})
+            # 构建失败必须关闭文件；不在媒体或备份目录落地。
+            self.assertTrue(report_file.closed)

@@ -15,6 +15,8 @@ SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'life
           'farm_queue': '农场种植队列规划',
           'cooking_recipe': '美食菜谱选择', 'cooking_quantity': '美食份数选择',
           'cooking_continue': '美食继续制作', 'cooking_ingredient_strategy': '美食用料策略',
+          'alchemy_recipe': '炼金配方选择', 'alchemy_quantity': '炼金瓶数选择',
+          'alchemy_continue': '炼金继续制作',
           'social_action': '社交行为选择',
           'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇',
           'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}

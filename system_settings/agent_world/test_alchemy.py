@@ -1,4 +1,8 @@
 from decimal import Decimal
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import patch
 from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
@@ -130,3 +134,73 @@ class AlchemyIconTests(TestCase):
         self.assertEqual(AlchemyCatalog.objects.get(pk='admin').item_icons, {})
         with self.assertRaises(LookupError):
             set_catalog_item_icon('admin', 'elixir.unknown', None)
+
+
+class AlchemyScheduleEnergyTests(TestCase):
+    def setUp(self):
+        temp = TemporaryDirectory(prefix='odoc-alchemy-energy-tests-')
+        self.addCleanup(temp.cleanup)
+        isolation = self.settings(MEDIA_ROOT=temp.name, ODOC_WORLD_LOCK_PATH=str(Path(temp.name) / 'world.lock'))
+        isolation.enable()
+        self.addCleanup(isolation.disable)
+        provider = AIProvider.objects.create(name='test', type='OpenAi', base_url='https://example.invalid')
+        model = AIModel.objects.create(name='test', type='chat', provider=provider)
+        self.agent = Agent.objects.create(name='炼金师', model=model)
+        self.task = AgentTask.objects.create(name='炼金', task_kind='alchemy', enabled=True,
+            agent=self.agent, agent_ids=[self.agent.pk], alchemy_config={'owner_id': 'admin'})
+        from .inventory_stock import add_stock
+        for ingredient in DEFAULT_RULES['healing']['ingredients']:
+            add_stock(self.agent.pk, 'admin', self.agent.name, ingredient['sku'], ingredient['quantity'],
+                      '素材', 'combat_material', '1', 'fixture')
+
+    def execute(self, energy):
+        from .life_models import LifeItem
+        from .life_time import local_time
+        from .life_runner import execute_item
+        item = LifeItem.objects.create(pk='alchemy-slot', owner_id='admin', actor_id=self.agent.pk,
+            activity='alchemy', task_id=self.task.pk, original_at=local_time(), scheduled_at=local_time())
+        with patch('system_settings.agent_world.life_runner.stamina', return_value=Decimal(energy)), \
+                patch('system_settings.agent_world.alchemy_queries.recipes', side_effect=AssertionError('体力预检不生成图鉴')), \
+                patch('system_settings.agent_world.life_runner.check_goals'), \
+                patch('system_settings.agent_world.alchemy_runner.run_alchemy_opportunity',
+                      return_value=SimpleNamespace(pk='record', status='success', summary='已制作')) as run:
+            execute_item(item, None)
+        item.refresh_from_db()
+        return item, run
+
+    def test_one_energy_can_start_default_one_energy_recipe(self):
+        item, run = self.execute('1')
+        run.assert_called_once()
+        self.assertEqual(item.status, 'completed')
+
+    def test_insufficient_energy_still_defers(self):
+        item, run = self.execute('0')
+        run.assert_not_called()
+        self.assertEqual((item.status, item.attempts), ('deferred', 1))
+
+    def test_edited_recipe_cost_is_used_instead_of_fixed_threshold(self):
+        from .alchemy_catalog import catalog_for
+        catalog = catalog_for('admin')
+        catalog.rules['healing']['energy_cost'] = 3
+        catalog.save()
+        item, run = self.execute('2')
+        run.assert_not_called()
+        self.assertEqual(item.status, 'deferred')
+
+    def test_start_energy_ignores_locked_and_material_short_recipes(self):
+        from .alchemy_catalog import catalog_for
+        from .alchemy_queries import minimum_start_energy
+        from .inventory_stock import add_stock, stock_rows
+        catalog = catalog_for('admin')
+        catalog.rules['healing']['energy_cost'] = 3
+        catalog.save()
+        for ingredient in DEFAULT_RULES['focus']['ingredients']:
+            add_stock(self.agent.pk, 'admin', self.agent.name, ingredient['sku'], ingredient['quantity'],
+                      '素材', 'combat_material', '1', 'fixture')
+        # 更省体力但等级未解锁，不能降低旧日程的启动门槛。
+        self.assertEqual(minimum_start_energy('admin', self.agent), 3)
+        catalog.rules['focus']['required_level'] = 1
+        catalog.save()
+        self.assertEqual(minimum_start_energy('admin', self.agent), 1)
+        stock_rows(self.agent.pk, 'admin', DEFAULT_RULES['focus']['ingredients'][0]['sku']).delete()
+        self.assertEqual(minimum_start_energy('admin', self.agent), 3)

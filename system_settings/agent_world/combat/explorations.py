@@ -296,11 +296,13 @@ def settle(run, profile, status, reason, now):
             add_stock(profile.pk,profile.owner_id,profile.actor_name,'combat.'+sid,count,row['name'],'combat_potion',row['purchase_price'],run.pk+':return')
             returned[sid]=count
     returned_elixirs=[]
+    from .elixir import unused_lots
     for entry in run.state.get('elixirs') or []:
         remaining=int(entry.get('remaining') or 0)
         if remaining:
-            add_stock(profile.pk,profile.owner_id,profile.actor_name,'elixir.'+entry['recipe_id'],remaining,
-                      entry['name'],'elixir',entry['unit_price'],run.pk+':elixir-return',stars=entry['stars'])
+            for lot in unused_lots(entry):
+                add_stock(profile.pk,profile.owner_id,profile.actor_name,'elixir.'+entry['recipe_id'],lot['quantity'],
+                          entry['name'],'elixir',lot['price'],run.pk+':elixir-return',stars=entry['stars'])
             returned_elixirs.append({'recipe_id':entry['recipe_id'],'stars':entry['stars'],'count':remaining})
     player=run.state.get('player')
     if player:

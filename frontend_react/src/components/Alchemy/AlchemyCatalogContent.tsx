@@ -2,6 +2,7 @@ import {useMemo, useState} from 'react';
 import {AlertCircle, BookOpen, FlaskConical, RefreshCw, Search, Sparkles, X} from 'lucide-react';
 import {Select} from '../common/Select';
 import LevelPlate from '../AgentWorld/LevelPlate';
+import {DecisionProcessInfo} from '../AgentWorld/DecisionProcessInfo';
 import DataExportButton from '../common/DataExportButton';
 import {ItemIconPicker} from '../AgentWorld/ItemIconPicker';
 import {useAlchemy} from '../../hooks/useAlchemy';
@@ -107,7 +108,8 @@ export function AlchemyCatalogContent({residents, initialAgentId = '', active = 
                         </button>;
                     })}
                 </div>
-                {view === 'recipes' && <div className="flex flex-wrap gap-1 rounded-2xl border border-slate-200/60 bg-slate-100 p-1" aria-label="炼金制作状态筛选">
+                {view === 'recipes' && <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap gap-1 rounded-2xl border border-slate-200/60 bg-slate-100 p-1" aria-label="炼金制作状态筛选">
                     {([{id: 'all', label: '全部', dot: ''}, {id: 'ready', label: '可制作', dot: 'bg-teal-500'},
                         {id: 'missing', label: '素材不足', dot: 'bg-amber-500'}, {id: 'locked', label: '等级不足', dot: 'bg-slate-400'},
                         {id: 'tired', label: '体力不足', dot: 'bg-sky-500'}] as const).map(tab => {
@@ -118,6 +120,8 @@ export function AlchemyCatalogContent({residents, initialAgentId = '', active = 
                             <span className={`rounded-full px-1.5 text-[10px] font-medium leading-none ${activeTab ? 'bg-violet-100 text-violet-700' : 'bg-slate-200/80 text-slate-500'}`}>{counts[tab.id] ?? 0}</span>
                         </button>;
                     })}
+                    </div>
+                    <DecisionProcessInfo kind="alchemy" />
                 </div>}
                 <span className="ml-auto shrink-0 rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-semibold text-violet-600">探索最多携带 {carryCap} 瓶</span>
             </div>

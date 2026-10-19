@@ -1,6 +1,7 @@
 import {useMemo, useState} from 'react';
 import {Search, X, ChefHat, AlertCircle, RefreshCw, BookOpen} from 'lucide-react';
 import WorldDialog from '../AgentWorld/WorldDialog';
+import {DecisionProcessInfo} from '../AgentWorld/DecisionProcessInfo';
 import {Select} from '../common/Select';
 import LevelPlate from '../AgentWorld/LevelPlate';
 import {ItemIconPicker} from '../AgentWorld/ItemIconPicker';
@@ -181,7 +182,7 @@ export function CookingCatalogContent({
                 </div>
 
                 {/* 状态过滤胶囊栏 */}
-                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <div
                         className="flex flex-wrap gap-1 rounded-2xl bg-slate-100 p-1 border border-slate-200/60"
                         aria-label="食谱制作状态筛选"
@@ -224,6 +225,7 @@ export function CookingCatalogContent({
                             );
                         })}
                     </div>
+                    <DecisionProcessInfo kind="cooking" />
                 </div>
 
                 {/* 异常提示条 */}

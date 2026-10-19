@@ -1,7 +1,8 @@
 import request from '../utils/request';
 import type {TokenFilters, TokenGroups, TokenRequestContent, TokenRequests, TokenSummary} from '../types/api/tokenUsage';
 const base = '/settings/agent-world/token-usage';
-export const exportTokenReport = (params: TokenFilters, signal?: AbortSignal) =>
+export type TokenExportFilters = TokenFilters & {include_content?: '1'};
+export const exportTokenReport = (params: TokenExportFilters, signal?: AbortSignal) =>
     request.get<never, Blob>(`${base}/export/`, {params, signal, responseType: 'blob', timeout: 120000});
 export const getTokenSummary = (params: TokenFilters, signal?: AbortSignal) =>
     request.get<never, TokenSummary>(`${base}/summary/`, {params, signal});

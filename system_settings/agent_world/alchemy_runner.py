@@ -13,45 +13,31 @@ from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, s
 from .action_schedule import select_agent
 from .alchemy_models import AlchemyOperation
 from .alchemy_catalog import catalog_for
-from .alchemy_queries import validate_actor, recipes as recipe_rows
+from .alchemy_queries import validate_actor
 from .alchemy_service import commit_bottle
 from .alchemy_plan import build_plan
-from .alchemy_limits import MAX_RECIPES, MAX_BOTTLES, MAX_TOTAL
-from .alchemy_materials import material_pool
 from .farm_gate import farm_gate
 
 logger = logging.getLogger(__name__)
 
 
-def choose_recipe_ids(options: list[dict]) -> list[dict]:
-    """Prefer higher-tier recipes, then fill bottles up to the per-recipe limit."""
-    ready = [row for row in options if row['state'] == 'ready' and row['max_bottles'] > 0]
-    ready.sort(key=lambda row: (-row['required_level'], -row['max_bottles'], row['id']))
-    chosen, total = [], 0
-    for row in ready[:MAX_RECIPES]:
-        quantity = min(MAX_BOTTLES, row['max_bottles'], MAX_TOTAL - total)
-        if quantity < 1:
-            break
-        chosen.append({'recipe_id': row['id'], 'quantity': quantity})
-        total += quantity
-    return chosen
-
-
-def plan_for(agent, owner: str) -> tuple[list[dict], list[dict], str]:
-    options = recipe_rows(owner, agent)
-    choices = choose_recipe_ids(options)
-    reason = '按库存与炼金等级优先制作高阶药水。'
-    if not choices:
-        return [], options, '暂时没有可执行的炼金操作'
-    while choices:
-        try:
-            with farm_gate():
-                pool = material_pool(agent.pk, owner)
-                selected = build_plan(owner, agent.pk, choices, options, stamina(agent), pool=pool)
-            return selected, options, reason
-        except ValueError:
-            choices = choices[:-1]
-    return [], options, '素材或体力不足，本次不制作'
+def prepare_decision(task, agent):
+    from .alchemy_schedule_plan import planning_facts, recipe_options, decide_plan, validate_plan
+    from .life_scope import CURRENT
+    from .life_models import LifeItem
+    scope = CURRENT.get()
+    item = LifeItem.objects.filter(pk=scope['item_id']).first() if scope else None
+    specification = item.context.get('alchemy_plan') if item else None
+    if specification:
+        specification = validate_plan(specification)
+    else:
+        facts = planning_facts(task.alchemy_config['owner_id'], agent, exclude_ids=[item.pk] if item else [])
+        if not recipe_options(facts['rules'], facts['level'], facts['pool'], facts['energy']):
+            return [], [], '暂时没有可执行的炼金操作'
+        specification = decide_plan(agent, task.alchemy_config['owner_id'], facts, task=task)
+    choices = [{key: entry[key] for key in ('recipe_id', 'quantity')} for entry in specification['entries']]
+    options = [{**entry['rule'], 'id': entry['recipe_id']} for entry in specification['entries']]
+    return choices, options, '系统选择说明：按已确认的炼金配方和瓶数制作。'
 
 
 def finish(action, scheduler=None):
@@ -113,8 +99,15 @@ def run_alchemy_opportunity(task, scheduler=None, *, key=None, manual=False, loc
                 update_work_activity(record, agent, status='running', current_action='正在决定炼金配方')
                 phase = '确认炼金计划'
                 progress(record, phase)
-                selected, options, reason = plan_for(agent, owner)
+                from utils.token_usage import usage_scope
+                with usage_scope(agent=agent, task=task, record=record, purpose='task', phase=phase):
+                    choices, options, reason = prepare_decision(task, agent)
                 with farm_gate(), transaction.atomic():
+                    from .alchemy_schedule_plan import available_pool
+                    from .life_scope import CURRENT
+                    scope = CURRENT.get()
+                    pool = available_pool(owner, agent.pk, exclude_ids=[scope['item_id']] if scope else [])
+                    selected = build_plan(owner, agent.pk, choices, options, stamina(agent), pool=pool)
                     if selected:
                         catalog_for(owner)
                     action.snapshot = {'alchemy': True, 'owner_id': owner, 'plan': selected, 'reason': reason}

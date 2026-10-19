@@ -29,6 +29,19 @@ def overview(owner: str, actor_id: str) -> dict:
     return {'actor_id': actor_id, **skill_progress(skill.experience if skill else 0), 'bottles_made': made}
 
 
+def minimum_start_energy(owner: str, agent: Agent) -> int:
+    """旧日程启动门槛只看等级和材料，不生成图鉴、图标或品质预览。"""
+    validate_actor(owner, agent.pk)
+    experience = AlchemySkill.objects.filter(pk=agent.pk, owner_id=owner).values_list('experience', flat=True).first()
+    level = skill_progress(experience or 0)['level']
+    quantities = dict(inventory_items(agent.pk, owner).order_by().filter(
+        source__sku__startswith='combat.material.').values('source__sku').annotate(total=Sum('quantity'))
+        .values_list('source__sku', 'total'))
+    return min((rule['energy_cost'] for rule in rules_for(owner).values()
+                if level >= rule['required_level'] and all(
+                    quantities.get(row['sku'], 0) >= row['quantity'] for row in rule['ingredients'])), default=1)
+
+
 def recipes(owner: str, agent: Agent | None = None) -> list[dict]:
     progress = overview(owner, agent.pk) if agent else skill_progress(0)
     energy = stamina(agent) if agent else Decimal(0)

@@ -73,6 +73,14 @@ def reconcile_life() -> None:
                     validate_plan(item.context['cooking_plan'])
                 except (ValueError, TypeError) as exc:
                     raise SyncError('美食日程计划不一致') from exc
+            if 'alchemy_plan' in item.context:
+                from .alchemy_schedule_plan import validate_plan
+                try:
+                    if item.activity != 'alchemy':
+                        raise ValueError('炼金计划属于其他活动')
+                    validate_plan(item.context['alchemy_plan'])
+                except (ValueError, TypeError) as exc:
+                    raise SyncError('炼金日程计划不一致') from exc
             if item.cycle_id and item.cycle.owner_id!=owner:raise SyncError('生活周期归属不一致')
             if not LifeProfile.objects.filter(pk=item.actor_id,owner_id=owner).exists():raise SyncError('安排缺少居民生活资料')
             if item.record_id:

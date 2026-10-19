@@ -4,7 +4,7 @@ from .life_time import local_time
 
 
 def filter_activities(context: dict, slot: dict, budgets: dict, cooking: dict | None,
-                      farm_days: set[str], alchemy: list[dict] | None = None) -> tuple[dict, dict]:
+                      farm_days: set[str], alchemy: dict | None = None) -> tuple[dict, dict]:
     choices, reasons = {}, {}
     for activity in context['activities']:
         kind = activity['kind']
@@ -18,13 +18,18 @@ def filter_activities(context: dict, slot: dict, budgets: dict, cooking: dict | 
         elif kind == 'cooking' and (not cooking or not recipe_options(
                 cooking['rules'], cooking['level'], cooking['pool'], cooking['energy'])):
             reason = '没有材料、厨艺等级和体力均满足的菜谱'
-        elif kind == 'alchemy' and not any(row.get('state') == 'ready' for row in (alchemy or [])):
+        elif kind == 'alchemy' and not alchemy_options(alchemy):
             reason = '没有素材、炼金等级和体力均满足的配方'
         if reason:
             reasons[kind] = reason
         else:
             choices[kind] = activity.get('preference') or kind
     return choices, reasons
+
+
+def alchemy_options(facts: dict | None) -> dict:
+    from .alchemy_schedule_plan import recipe_options
+    return recipe_options(facts['rules'], facts['level'], facts['pool'], facts['energy']) if facts else {}
 
 
 def local_time_from_slot(slot: dict):

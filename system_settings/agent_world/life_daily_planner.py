@@ -162,6 +162,15 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
                 return {**plan, 'activity': 'rest', 'reason': '最新材料或体力已不足，当前无其他候选，系统安排休息'}
             raise ValueError('已选美食活动的材料或体力不足，请重新规划')
         plan['cooking_plan'] = decide_plan(agent, config.pk, {**facts, 'task_preference': task.prompt}, key=item.pk)
+    elif activity == 'alchemy':
+        from .alchemy_schedule_plan import planning_facts as alchemy_facts, decide_plan as alchemy_plan
+        from .life_eligibility import alchemy_options
+        facts = alchemy_facts(config.pk, agent, exclude_ids=[item.pk])
+        if not alchemy_options(facts):
+            if choice.get('offered_activities') == ['alchemy']:
+                return {**plan, 'activity': 'rest', 'reason': '最新素材或体力已不足，当前无其他候选，系统安排休息'}
+            raise ValueError('已选炼金活动的素材或体力不足，请重新规划')
+        plan['alchemy_plan'] = alchemy_plan(agent, config.pk, {**facts, 'task_preference': task.prompt})
     elif activity == 'farm':
         from .farm_queue_decision import decide_plan as farm_plan
         from .life_models import LifeProfile

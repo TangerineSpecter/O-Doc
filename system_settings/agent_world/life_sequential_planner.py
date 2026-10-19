@@ -80,7 +80,7 @@ def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
         cooking = planning_facts(config.pk, agent, exclude_ids=[item.pk]) if any(
             row['kind'] == 'cooking' for row in context['activities']) else None
         from .alchemy_schedule_plan import planning_facts as alchemy_facts
-        alchemy = alchemy_facts(config.pk, agent) if any(
+        alchemy = alchemy_facts(config.pk, agent, exclude_ids=[item.pk]) if any(
             row['kind'] == 'alchemy' for row in context['activities']) else None
         choices, reasons = filter_activities(context, slot, tiers, cooking, farm_days, alchemy)
         state = selection_context(context)
@@ -111,6 +111,10 @@ def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
             cooking_activity = next(row for row in context['activities'] if row['kind'] == 'cooking')
             plan['cooking_plan'] = decide_plan(
                 agent, config.pk, {**cooking, 'task_preference': cooking_activity['preference']}, key=item.pk)
+        elif activity == 'alchemy':
+            from .alchemy_schedule_plan import decide_plan as alchemy_plan
+            task = next(row for row in context['activities'] if row['kind'] == 'alchemy')
+            plan['alchemy_plan'] = alchemy_plan(agent, config.pk, {**alchemy, 'task_preference': task['preference']})
         elif activity == 'farm':
             from .farm_queue_decision import decide_plan as decide_farm_queue
             plan['farm_plan'] = decide_farm_queue(agent, config.pk, slot, reason,
