@@ -1,6 +1,7 @@
 """每日种植意图及版本依据；计划数量不等于库存或播种事实。"""
 import copy
 import hashlib
+import re
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
@@ -12,6 +13,25 @@ from .life_config import config_for, effective_settings
 from .life_schedule import window
 from .life_time import local_time
 from .farm_plan_inventory import seed_sku
+
+
+_FARM_REASON_LABELS = {
+    'seed_quantity': '种子库存',
+    'seed_sku': '种子品种',
+    'farm_plan': '种植计划',
+    'farm_queue': '种植队列',
+    'farm': '农场',
+}
+_FARM_REASON_PATTERN = re.compile(
+    r'(?<![A-Za-z0-9_])('
+    + '|'.join(re.escape(key) for key in sorted(_FARM_REASON_LABELS, key=len, reverse=True))
+    + r')(?![A-Za-z0-9_])'
+)
+
+
+def _humanize_farm_reason(reason: str) -> str:
+    """Replace internal farm labels in a newly saved, user-facing plan reason."""
+    return _FARM_REASON_PATTERN.sub(lambda match: _FARM_REASON_LABELS[match.group(0)], reason)
 
 
 def identity(*parts: str) -> str:
@@ -105,6 +125,7 @@ def install(item, task, specification: dict | None, reason: str, *, recheck_inve
         return pid
     if not isinstance(specification, dict):
         raise ValueError('农场日程须同时提供farm_plan种植意图（允许空队列）')
+    reason = _humanize_farm_reason(reason)
     if recheck_inventory:
         from .farm_queue_decision import recheck
         specification = recheck(item, specification)

@@ -31,8 +31,10 @@ class SocialView(APIView):
             from .life_models import LifeProfile
             from system_settings.models import Agent
             ids = LifeProfile.objects.filter(owner_id=owner).values_list('pk', flat=True)
+            from .publish_config import search_servers
             return success_result({'settings': settings_for(config), 'overrides': config.overrides,
-                'agents': list(Agent.objects.filter(pk__in=ids).values('id', 'name'))})
+                'agents': list(Agent.objects.filter(pk__in=ids).values('id', 'name')),
+                'searchServers': [{'id': server.pk, 'name': server.name} for server in search_servers()]})
         if self.kind == 'inbox':
             notifications = user_notifications(owner)
             rows = notifications.order_by('-created_at')[:100]

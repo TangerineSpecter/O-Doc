@@ -24,6 +24,10 @@ def validate_result(value, context, selected):
     elif action == 'publish' or (action == 'read' and value.get('content')):
         text(value.get('content'), 3000 if action == 'publish' else AUTO_COMMENT_MAX_LENGTH)
     text(value.get('reason'), 1000)
+    required_appraisals = ('received_appraisal', 'sent_appraisal') if action == 'reply' else (
+        ('sent_appraisal',) if action == 'read' and value.get('content') else ())
+    if any(key not in value for key in required_appraisals):
+        raise ValueError('关系事件分类缺失')
     for key in ('received_appraisal', 'sent_appraisal'):
         if key in value:
             appraisal = value[key]

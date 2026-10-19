@@ -256,7 +256,7 @@ export function WorldManagement() {
                         />
                     )}
 
-                    {tab === 'social' && <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div><h3 className="text-sm font-bold text-slate-800">居民的社交习惯</h3><p className="mt-2 text-xs text-slate-400">管理参与居民、自动社交节奏和可选配图。</p></div><button type="button" onClick={() => setSocialSettingsOpen(true)} className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white">社交设置</button></div>}
+                    {tab === 'social' && <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div><h3 className="text-sm font-bold text-slate-800">居民的社交习惯</h3><p className="mt-2 text-xs text-slate-400">管理参与居民、自动社交节奏和可选配图。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setSocialSettingsOpen(true)} className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white">社交设置</button></div></div>}
                     {tab === 'decision-model' && <WorldDecisionModelSettings/>}
                     {socialSettingsOpen && <SocialSettingsDialog onClose={() => setSocialSettingsOpen(false)}/>}
                     {tab === 'market' && <MarketSettings/>}

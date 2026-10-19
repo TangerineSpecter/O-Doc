@@ -54,7 +54,10 @@ def jev_enabled(owner: str | None, scene: str) -> bool:
     return settings.get('jev_enabled', False) is True and scene not in settings.get('jev_excluded_scenes', [])
 
 
-def candidates(agent, *, task=None, decision=False, owner=None) -> list[str]:
+def candidates(agent, *, task=None, decision=False, owner=None, model_only=False) -> list[str]:
+    if model_only:
+        identity = getattr(agent, 'model_id', None)
+        return [identity] if identity and AIModel.objects.filter(pk=identity, type='chat').exists() else []
     ids = []
     if task and task.model_id:
         ids.append(task.model_id)
@@ -76,14 +79,14 @@ def report(scene, model_id, exc):
 
 
 def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None, deadline=None,
-               scene='模型请求', check=None):
+               scene='模型请求', check=None, model_only=False):
     """invoke must perform no replayable writes; tool callers retain their effect ledger.
 
     ``deadline`` is not a shared pool. A provider that hangs does not stop the
     next provider with 「当前阶段总时限已耗尽」.
     """
     _ = deadline
-    models = candidates(agent, task=task, decision=decision, owner=owner)
+    models = candidates(agent, task=task, decision=decision, owner=owner, model_only=model_only)
     last = None
     for identity in models:
         check_ai_control()
@@ -113,20 +116,24 @@ def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None
 
 
 def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision=False, owner=None,
-                  deadline=None, seconds=180, scene='模型请求', check=None, max_tokens=None, passthrough=()):
+                  deadline=None, seconds=180, scene='模型请求', check=None, max_tokens=None, passthrough=(),
+                  model_only=False, repair_invalid=True, attempt_seconds=None):
     # Callers still pass a stage clock. It does not size or cancel later providers.
     _ = (deadline, seconds)
+    window_seconds = MODEL_ATTEMPT_SECONDS if attempt_seconds is None else float(attempt_seconds)
+    if not 0 < window_seconds < float('inf'):
+        raise ValueError('模型等待时间必须为正数')
     def invoke(config):
         # Repair budget and prompt stay on this provider. A previous provider's
         # invalid or empty output must not shorten or rewrite the next request.
         repair_used = False
         text = prompt
-        model_deadline = time.monotonic() + MODEL_ATTEMPT_SECONDS
+        model_deadline = time.monotonic() + window_seconds
         while True:
             remaining = model_deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('当前模型时限已耗尽')
-            attempt = min(remaining, MODEL_ATTEMPT_SECONDS)
+            attempt = min(remaining, window_seconds)
             raw = complete(config, text, json_output=True, extra_body=thinking_options(config),
                            max_tokens=max_tokens, deadline_seconds=attempt, max_deadline_seconds=attempt,
                            allow_retries=False)
@@ -144,12 +151,12 @@ def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision
                 if isinstance(exc, passthrough):
                     raise
                 reason = 'JSON 格式无效' if isinstance(exc, json.JSONDecodeError) else str(exc)[:200]
-                if repair_used:
+                if repair_used or not repair_invalid:
                     raise InvalidModelOutput('模型输出未通过场景校验：' + reason) from exc
                 repair_used = True
                 text = prompt + '\n上次输出未通过校验，请只返回规定JSON并遵守候选与字段要求。校验原因：' + reason
     return run_models(agent, invoke, task=task, decision=decision, owner=owner, deadline=deadline,
-                      scene=scene, check=check)
+                      scene=scene, check=check, model_only=model_only)
 
 
 def choose_connections(owner, state, choices, *, deadline, instructions=None, question_id='next_action',

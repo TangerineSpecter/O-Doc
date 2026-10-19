@@ -18,6 +18,7 @@ from .life_time import local_time, storage_time
 INSTRUCTION = (
     '请一起安排目标日期所有slots中的日程，结合性格、兴趣、目标、当前资源和实际成果，'
     '为每个时段选择allowed_activities中的一个活动并说明自己的规划理由。职业仅供参考，不要求职业固定搭配。'
+    '规划理由会展示给用户，必须用中文自然表达；不要直接写英文活动kind或程序字段名，例如用“农场”“种子库存”，不要写farm或seed_quantity。'
     '不能新增时间点、任务或游戏能力；有可用活动时不能休息，候选为空或唯一候选farm已安排在当天另一时段时填rest。farm每天最多一次。'
     '旅行必须从travel.candidates选择destination_id；报价与预算是上限参考，不是已扣款。'
     '探索时长由准备阶段决定，执行程序负责顺延，不能因下一日程临近而排除探索。'

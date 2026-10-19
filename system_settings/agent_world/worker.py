@@ -22,6 +22,8 @@ def advance_world_months() -> None:
     try:
         from .social_media_worker import start_manual_image_worker
         start_manual_image_worker()
+        from .social_theatre_worker import start_manual_theatre_worker
+        start_manual_theatre_worker()
         now = time.monotonic()
         if now-_last_attempt >= 60:
             _last_attempt = now

@@ -1,7 +1,7 @@
 import WorldDialogSuspense from '../components/AgentWorld/WorldDialogSuspense';
 import {lazy, useCallback, useEffect, useState} from 'react';
 import WorldOrbitLoader from '../components/AgentWorld/WorldOrbitLoader';
-import {Activity, ArrowLeft, BarChart3, Bot, BookOpenText, CalendarDays, MessageCircle, Settings, Sprout, Store, TrendingUp} from 'lucide-react';
+import {Activity, ArrowLeft, BarChart3, Bot, BookOpenText, CalendarDays, MessageCircle, MessagesSquare, Settings, Sprout, Store, TrendingUp} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import DailyFeedTimeline from '../components/AgentWorld/DailyFeedTimeline';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
@@ -18,6 +18,7 @@ import type {AgentActivity as AgentActivityData, AgentActivityType} from '../typ
 
 const AgentManagementDialog = lazy(() => import('../components/AgentWorld/AgentManagementDialog'));
 const ResidentAnalyticsDialog = lazy(() => import('../components/AgentWorld/Analytics/ResidentAnalyticsDialog'));
+const SocialTheatreHistoryDialog = lazy(() => import('../components/AgentWorld/SocialTheatreHistoryDialog'));
 const TokenUsageDialog = lazy(() => import('../components/TokenUsage/TokenUsageDialog'));
 const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDialog');
 const preloadMarket = () => import('../components/Market/MarketDialog');
@@ -43,6 +44,8 @@ export default function AgentWorldPage() {
     const navigate = useNavigate();
     const [analyticsActor, setAnalyticsActor] = useState<string | null>(null);
     const closeAnalytics = useCallback(() => setAnalyticsActor(null), []);
+    const [socialTheatreHistoryOpen, setSocialTheatreHistoryOpen] = useState(false);
+    const [socialTheatreEventId, setSocialTheatreEventId] = useState('');
     const [usageOpen, setUsageOpen] = useState(false);
     const closeUsage = useCallback(() => setUsageOpen(false), []);
     const [lifeOpen, setLifeOpen] = useState(false);
@@ -126,6 +129,11 @@ export default function AgentWorldPage() {
     const openDailyTarget = (event: DailyFeedEvent) => {
         const target = event.target;
         if (!target) return;
+        if (target.kind === 'theatre') {
+            setSocialTheatreEventId(target.id);
+            setSocialTheatreHistoryOpen(true);
+            return;
+        }
         if (target.artifactKind === 'moment' || target.kind === 'moment') {
             if (target.artifactId) {
                 setMomentDetailId(target.artifactId);
@@ -151,6 +159,8 @@ export default function AgentWorldPage() {
     const residents = (world.summary?.agents || []).map(agent => ({...agent, todayCount: dailySummary?.actorCounts[agent.id] ?? agent.todayCount}));
 
     const analyticsButton = <button type="button" onClick={() => setAnalyticsActor(world.agentId)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs font-semibold text-orange-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"><BarChart3 className="h-4 w-4"/>居民数据分析</button>;
+
+    const theatreHistoryButton = <button type="button" onClick={() => {setSocialTheatreEventId('');setSocialTheatreHistoryOpen(true);}} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"><MessagesSquare className="h-4 w-4 text-orange-500"/>小剧场记录</button>;
 
     const managementButton = <button type="button" onClick={openAgentManagement} className="mt-3 inline-flex w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"><Settings className="h-4 w-4 shrink-0"/>Agent 管理</button>;
 
@@ -266,10 +276,12 @@ export default function AgentWorldPage() {
                         onOpenAttributes={() => setPanel('attributes')}
                     />
                     {analyticsButton}
-                {managementButton}
+                    {theatreHistoryButton}
+                    {managementButton}
                 </div>
             </div>
             {analyticsActor !== null && <WorldDialogSuspense title="居民数据分析" onClose={closeAnalytics} size="wide" fallback={<WorldOrbitLoader title="正在打开居民数据分析"/>}><ResidentAnalyticsDialog initialActorId={analyticsActor} initialResidents={residents.map(row => ({id: row.id, name: row.name, avatar: row.avatar || '', departed: false}))} onClose={closeAnalytics}/></WorldDialogSuspense>}
+            {socialTheatreHistoryOpen && <WorldDialogSuspense title="小剧场记录" description="查看新闻主题、参与居民和完整群聊内容。" onClose={() => setSocialTheatreHistoryOpen(false)} size="wide" fixedHeight fallback={<WorldOrbitLoader title="正在读取小剧场记录"/>}><SocialTheatreHistoryDialog initialEventId={socialTheatreEventId} onClose={() => setSocialTheatreHistoryOpen(false)} onRelationsChanged={() => {void relation.reload();setFeedRefreshToken(value => value + 1);}}/></WorldDialogSuspense>}
             {panel === 'graph' ? (
                 <AgentRelationCard
                     graph={relation.graph}

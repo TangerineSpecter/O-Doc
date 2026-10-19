@@ -8,6 +8,7 @@ export interface DailyFeedEvent {
     category: Exclude<DailyFeedCategory, 'all'>;
     source: string;
     actorId: string;
+    actorIds?: string[];
     actorName: string;
     occurredAt: string;
     title: string;

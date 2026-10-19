@@ -43,6 +43,8 @@ from .agent_world.life_views import LifeConfigView, LifeProfileView, LifeGoalVie
 from .agent_world.daily_feed_views import DailyFeedView
 
 from .agent_world.social_views import SocialView
+from .agent_world.social_theatre_views import (SocialTheatreListView, SocialTheatreDetailView,
+                                               SocialTheatreTriggerView, SocialTheatreResumeView)
 
 from .agent_world.cooking_views import CookingRecipesView, CookingRecipeView, CookingSkillView, CookingHistoryView
 
@@ -77,6 +79,10 @@ urlpatterns = [
     path('agent-world/cooking/agents/<str:agent_id>/', CookingSkillView.as_view()),
     path('agent-world/cooking/agents/<str:agent_id>/history/', CookingHistoryView.as_view()),
     path('agent-world/social/config/', SocialView.as_view(kind='config')),
+    path('agent-world/social/discussions/', SocialTheatreListView.as_view()),
+    path('agent-world/social/discussions/trigger/', SocialTheatreTriggerView.as_view()),
+    path('agent-world/social/discussions/<str:identity>/resume/', SocialTheatreResumeView.as_view()),
+    path('agent-world/social/discussions/<str:identity>/', SocialTheatreDetailView.as_view()),
     path('agent-world/social/inbox/', SocialView.as_view(kind='inbox')),
     path('agent-world/social/inbox/<str:identity>/read/', SocialView.as_view(kind='inbox')),
     path('agent-world/moments/', SocialView.as_view()),

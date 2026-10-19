@@ -1008,7 +1008,7 @@ from .agent_world.investment_models import InvestmentAccount, InvestmentDecision
 from .agent_world.life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision  # noqa: E402,F401
 from .agent_world.life_models import LifeIntegrity  # noqa: E402,F401
 
-from .agent_world.social_models import (SocialConfig, Moment, MomentComment, MomentLike, SocialInbox, SocialRelation, SocialEvent, SocialOpportunity, SocialIntegrity)  # noqa: E402,F401
+from .agent_world.social_models import (SocialConfig, Moment, MomentComment, MomentLike, SocialInbox, SocialRelation, SocialEvent, SocialOpportunity, SocialTheatreEvent, SocialIntegrity)  # noqa: E402,F401
 
 from .agent_world.cooking_models import CookingCatalog, CookingSkill, CookingOperation, CookingIntegrity  # noqa: E402,F401
 

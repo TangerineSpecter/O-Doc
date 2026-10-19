@@ -58,6 +58,10 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
 
     const schedule = useAgentLifeSchedule(scheduleStart, scheduleEnd, actorId, status, page, mode === 'week' ? 'week' : 'list');
 
+    const hasFailedItems = schedule.data.items.some(
+        (i) => i.status === 'failed' && !i.recordId && !(i as {record_id?: string}).record_id && i.activity !== 'market_prepare'
+    );
+
     useEffect(() => {
         const c = new AbortController();
         Promise.all([getLifeAgents(c.signal), getLifeConfig(c.signal)])
@@ -349,7 +353,9 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                             </div>
                         )}
 
-                        <LifeFailedReplanBar actorId={actorId} start={scheduleStart} end={scheduleEnd} onDone={schedule.refresh} />
+                        {hasFailedItems && (
+                            <LifeFailedReplanBar actorId={actorId} start={scheduleStart} end={scheduleEnd} onDone={schedule.refresh} />
+                        )}
 
                         {/* 视图展示 */}
                         <div className="flex flex-1 min-h-0 flex-col overflow-hidden">

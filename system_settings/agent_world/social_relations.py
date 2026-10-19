@@ -10,7 +10,7 @@ from .social_models import SocialRelation, SocialEvent
 BANDS = ('敌对', '反感', '不合', '中性', '友好', '朋友', '知己')
 FLOORS = (-100, -74, -44, -19, 20, 45, 75)
 RULES = {'like': (1, 1, '开心'), 'neutral': (0, 2, '平静'), 'agreement': (3, 2, '开心'),
-         'disagreement': (0, 2, '不满'), 'misunderstanding': (-2, 2, '委屈'),
+         'disagreement': (-1, 2, '不满'), 'misunderstanding': (-2, 2, '委屈'),
          'insult': (-8, 3, '烦躁'), 'boundary_violation': (-8, 3, '不满'),
          'explanation': (2, 2, '平静'), 'apology': (5, 2, '释然'), 'help': (8, 3, '感激')}
 
@@ -75,6 +75,7 @@ def apply_event(owner, actor, peer, source, appraisal=None, identity=None):
     row.save()
     return SocialEvent.objects.create(id=key, owner_id=owner, actor_id=actor, counterpart_id=peer,
         source_key=source, category=category, reason=reason, before=before, after={**relation_data(row),
+            'rule_effect': {'affinity': delta, 'familiarity': familiarity},
             'actor_identity': {'name': actor_row.name, 'avatar': actor_row.avatar},
             'counterpart_identity': row.counterpart_identity})
 
@@ -89,3 +90,5 @@ def rebuild_relations(owner):
             'affinity': result['affinity'], 'familiarity': result['familiarity'], 'band': result['band'],
             'emotion': result.get('emotion', {}), 'reason': result.get('reason', event.reason),
             'counterpart_identity': result.get('counterpart_identity', {})})
+    from .social_relation_replay import rebuild_deleted_relations
+    rebuild_deleted_relations(owner)

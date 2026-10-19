@@ -4,12 +4,14 @@ import json
 from django.core.serializers.json import DjangoJSONEncoder
 from utils.sync_datetime import SyncJSONEncoder
 from .social_models import (SocialConfig, Moment, MomentComment, MomentLike, SocialInbox,
-                            SocialRelation, SocialEvent, SocialOpportunity, SocialIntegrity)
+                            SocialRelation, SocialEvent, SocialOpportunity, SocialTheatreEvent, SocialIntegrity)
 
 
-def fingerprints(owner, *, legacy=False):
+def fingerprints(owner, *, legacy=False, include_theatre=True):
     queries = [SocialConfig.objects.filter(pk=owner)]
     queries += [m.objects.filter(owner_id=owner) for m in (Moment, SocialInbox, SocialRelation, SocialEvent, SocialOpportunity)]
+    if include_theatre:
+        queries.append(SocialTheatreEvent.objects.filter(owner_id=owner))
     queries += [m.objects.filter(moment__owner_id=owner) for m in (MomentComment, MomentLike)]
     return {q.model.__name__: hashlib.sha256(json.dumps(list(q.order_by('pk').values()), cls=DjangoJSONEncoder if legacy else SyncJSONEncoder,
             sort_keys=True, separators=(',', ':')).encode()).hexdigest() for q in queries}
@@ -18,21 +20,39 @@ def fingerprints(owner, *, legacy=False):
 def checkpoint_all():
     owners = set(SocialConfig.objects.values_list('pk', flat=True)) | set(Moment.objects.values_list('owner_id', flat=True))
     owners |= set(SocialRelation.objects.values_list('owner_id', flat=True)) | set(SocialInbox.objects.values_list('owner_id', flat=True))
+    owners |= set(SocialTheatreEvent.objects.values_list('owner_id', flat=True))
     for owner in owners:
         hashes = fingerprints(owner)
         row, created = SocialIntegrity.objects.get_or_create(pk=owner, defaults={'hashes': hashes})
-        if not created and row.hashes != hashes: row.hashes = hashes; row.save()
+        if not created and (row.hashes != hashes or row.version != 2):
+            row.hashes = hashes
+            row.version = 2
+            row.save(update_fields=['hashes', 'version', 'updated_at'])
 
 
 def reconcile_social():
     from utils.sync_manager import SyncError
     from system_settings.models import WorldActionRuntime
     owners = set(SocialIntegrity.objects.values_list('pk', flat=True))
-    for model in (SocialConfig, Moment, SocialInbox, SocialRelation, SocialEvent, SocialOpportunity):
+    for model in (SocialConfig, Moment, SocialInbox, SocialRelation, SocialEvent, SocialOpportunity, SocialTheatreEvent):
         owners |= set(model.objects.values_list('pk' if model == SocialConfig else 'owner_id', flat=True))
     for owner in owners:
         row = SocialIntegrity.objects.filter(pk=owner).first()
-        if not row or row.version != 1 or row.hashes != fingerprints(owner): raise SyncError('社交快照版本或业务事实不完整，拒绝恢复')
+        if not row:
+            raise SyncError('社交快照版本或业务事实不完整，拒绝恢复')
+        if row.version == 1:
+            has_theatre = SocialTheatreEvent.objects.filter(owner_id=owner).exists()
+            valid_legacy = (not has_theatre and row.hashes in (
+                fingerprints(owner, include_theatre=False),
+                fingerprints(owner, legacy=True, include_theatre=False),
+            ))
+            if not valid_legacy:
+                raise SyncError('社交快照版本或业务事实不完整，拒绝恢复')
+            row.version = 2
+            row.hashes = fingerprints(owner)
+            row.save(update_fields=['version', 'hashes', 'updated_at'])
+        elif row.version != 2 or row.hashes != fingerprints(owner):
+            raise SyncError('社交快照版本或业务事实不完整，拒绝恢复')
     from assets.models import Asset
     for row in Moment.objects.filter(is_valid=True):
         if Asset.objects.filter(pk__in=row.images, is_valid=True).count() != len(set(row.images)): raise SyncError('朋友圈快照缺少引用图片')
@@ -43,3 +63,10 @@ def reconcile_social():
     WorldActionRuntime.objects.filter(pk__startswith='social-').update(token='', until=None, enabled=False)
     # 社交也受全世界本机运行开关约束。
     WorldActionRuntime.objects.filter(pk='world').update(token='', until=None, enabled=False)
+    # 先校验原始快照，再由删除墓碑重建投影，避免旧端关系行覆盖撤销结果。
+    from .social_relation_replay import rebuild_deleted_relations
+    changed = False
+    for owner in owners:
+        changed = bool(rebuild_deleted_relations(owner)) or changed
+    if changed:
+        checkpoint_all()

@@ -114,8 +114,33 @@ class SocialOpportunity(LifeTimedModel):
     updated_at = models.DateTimeField(auto_now=True)
 
 
+class SocialTheatreEvent(LifeTimedModel):
+    """A scheduled, news-led group discussion and its durable transcript."""
+    id = models.CharField(primary_key=True, max_length=64)
+    owner_id = models.CharField(max_length=40, db_index=True)
+    business_date = models.DateField(db_index=True)
+    slot_index = models.PositiveSmallIntegerField()
+    scheduled_at = models.DateTimeField(db_index=True)
+    status = models.CharField(max_length=20, default='scheduled')
+    snapshot = models.JSONField(default=dict)
+    source = models.JSONField(default=dict)
+    # The day's news anchor stores the one Tavily result batch shared by its scenes.
+    search_batch = models.JSONField(default=list)
+    participants = models.JSONField(default=list)
+    rounds = models.PositiveSmallIntegerField(default=0)
+    transcript = models.JSONField(default=list)
+    error = models.TextField(blank=True)
+    search_state = models.CharField(max_length=20, default='pending')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['owner_id', 'business_date', 'slot_index'], name='social_theatre_day_slot')]
+        indexes = [models.Index(fields=['owner_id', 'business_date', 'status'], name='social_theatre_owner_day')]
+
+
 class SocialIntegrity(models.Model):
     id = models.CharField(primary_key=True, max_length=40)
-    version = models.PositiveSmallIntegerField(default=1)
+    version = models.PositiveSmallIntegerField(default=2)
     hashes = models.JSONField(default=dict)
     updated_at = models.DateTimeField(auto_now=True)

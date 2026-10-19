@@ -1,5 +1,5 @@
 import type {CombatEquipment} from '../../types/api/combat';
-import {equipmentSlotLabel, equipmentTypeLabels, formatRatio, isRatioStat, statLabels} from './presentation';
+import {equipmentSlotLabel, equipmentTypeLabels, formatRatio, isRatioStat, normalizeStatKey, statLabels} from './presentation';
 import {ElementBadge} from './ElementBadge';
 import {EquipmentPortrait} from './atlas/EquipmentPortrait';
 import {CircleDollarSign, Coins, Heart, ShieldCheck, Sparkles} from 'lucide-react';
@@ -60,8 +60,9 @@ export default function EquipmentCard({
 
     const baseStats = Object.entries(gear.stats)
         .map(([key, totalValue]) => {
+            const normalizedKey = normalizeStatKey(key);
             const affixSum = gear.affixes
-                .filter(a => a.stat === key)
+                .filter(a => normalizeStatKey(a.stat) === normalizedKey)
                 .reduce((sum, a) => sum + (Number(a.value) || 0), 0);
             const baseValue = Math.round((Number(totalValue) - affixSum) * 10000) / 10000;
             return [key, baseValue] as [string, number];

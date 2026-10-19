@@ -31,7 +31,9 @@ class SocialStageTests(TestCase):
     @patch('system_settings.decision.routing.complete')
     @patch('system_settings.agent_world.social_model.choose_scene', return_value='reply')
     def test_reply_loads_only_reply_contract_and_keeps_identity(self, choose, completion):
-        completion.return_value=json.dumps({'action':'reply','content':'先喝口热水吧。','reason':'回应'}, ensure_ascii=False)
+        appraisal={'category':'neutral','reason':'这次交流没有改变关系'}
+        completion.return_value=json.dumps({'action':'reply','content':'先喝口热水吧。','reason':'回应',
+            'received_appraisal':appraisal,'sent_appraisal':appraisal}, ensure_ascii=False)
         source={'allowed':['reply','publish'],'inbox':{'sender_id':'x','discussion':{'content':'今天累了'}},'image_choices':['none','generate'], 'existing_images':[{'id':'unused'}]}
         before=deepcopy(source)
         result=decide_social(self.agent, source)

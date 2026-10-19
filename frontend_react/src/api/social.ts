@@ -1,6 +1,6 @@
 import type {AIProvider} from '../types/api/setting';
 import request from '../utils/request';
-import type {Moment, MomentComment, SocialConfiguration, SocialNotification} from '../types/api/social';
+import type {Moment, MomentComment, SocialConfiguration, SocialNotification, SocialTheatreEvent} from '../types/api/social';
 const base = '/settings/agent-world';
 export const getMoments = (params: {actorId?: string; related?: string; before?: string}, signal?: AbortSignal) =>
     request.get<unknown, {moments: Moment[]; nextCursor: string | null}>(`${base}/moments/`, {params, signal});
@@ -16,6 +16,11 @@ export const getSocialInbox = (signal?: AbortSignal) => request.get<unknown, {it
 export const readSocialNotification = (id: string) => request.post(`${base}/social/inbox/${id}/read/`);
 export const getSocialConfiguration = () => request.get<unknown, SocialConfiguration>(`${base}/social/config/`);
 export const saveSocialConfiguration = (value: SocialConfiguration) => request.post<unknown, SocialConfiguration>(`${base}/social/config/`, value);
+export const getSocialTheatreEvents = (before?: string) => request.get<unknown, {items: SocialTheatreEvent[]; nextCursor: string | null}>(`${base}/social/discussions/`, {params: before ? {before} : {}});
+export const getSocialTheatreEvent = (id: string) => request.get<unknown, SocialTheatreEvent>(`${base}/social/discussions/${id}/`);
+export const deleteSocialTheatreEvent = (id: string) => request.delete(`${base}/social/discussions/${id}/`);
+export const triggerSocialTheatre = () => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/trigger/`, {});
+export const resumeSocialTheatre = (id: string) => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/${id}/resume/`, {});
 export const regenerateMomentImage = (id: string) => request.post<unknown, Moment>(`${base}/moments/${id}/regenerate/`);
 
 export const getSocialImageProviders = () => request.get<unknown, AIProvider[]>('/settings/providers/');

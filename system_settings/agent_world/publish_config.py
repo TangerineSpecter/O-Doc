@@ -83,6 +83,13 @@ def search_server(config: dict):
     return server
 
 
+def search_servers():
+    """Return only selectable Tavily services; never expose their credentials."""
+    from system_settings.models import MCPServer
+    return [server for server in MCPServer.objects.filter(enabled=True, transport='streamableHttp').order_by('name')
+            if any(t.get('name') in SEARCH_NAMES and t.get('enabled', True) for t in (server.tools or []))]
+
+
 def categories_for(config: dict):
     ids = [r['category_id'] for r in config.get('rules', [])]
     return [c for c in WorldCategory.objects.filter(pk__in=ids, enabled=True).exclude(workflow_kind='travel') if not is_travel_name(c.name)]

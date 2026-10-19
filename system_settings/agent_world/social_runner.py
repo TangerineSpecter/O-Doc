@@ -269,7 +269,13 @@ def tick_social(scheduler):
         SocialOpportunity.objects.filter(status__in=['pending', 'running'], business_date__lt=now.date()).update(status='expired', result={'reason': '过去日期不补做'}, updated_at=timezone.now())
         SocialOpportunity.objects.filter(status='running', updated_at__lt=timezone.now()-timedelta(minutes=10)).update(status='failed', result={'reason': '执行中断，保留已提交业务'}, updated_at=timezone.now())
         for config in SocialConfig.objects.all():
-            if not settings_for(config)['enabled']: continue
+            if not settings_for(config)['enabled']:
+                try:
+                    from .social_theatre_runner import tick_theatres
+                    tick_theatres(config, now)
+                except Exception:
+                    logger.exception('更新居民小剧场状态失败 owner=%s', config.pk)
+                continue
             from .life_models import LifeProfile
             ids = LifeProfile.objects.filter(owner_id=config.pk, pk__in=config.settings.get('agent_ids', [])).values_list('pk', flat=True)
             for agent in Agent.objects.filter(pk__in=ids, archived_at__isnull=True).select_related('model'):
@@ -277,5 +283,10 @@ def tick_social(scheduler):
                     with farm_gate(), transaction.atomic(): op = next_opportunity(config, agent, now)
                     if op: run(op, agent)
                 except Exception: logger.exception('安排社交失败 owner=%s actor=%s', config.pk, agent.pk)
+            try:
+                from .social_theatre_runner import tick_theatres
+                tick_theatres(config, now)
+            except Exception:
+                logger.exception('安排居民小剧场失败 owner=%s', config.pk)
         from .social_media import recover_images
         recover_images()

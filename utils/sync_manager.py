@@ -220,7 +220,7 @@ class SyncManager:
             raise SyncError('农作物快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('cooking_schema_version', 0) > 4:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
-        if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
+        if remote_meta and remote_meta.get('social_schema_version', 0) > 2:
             raise SyncError('社交快照版本高于本机，请升级后同步。')
         if not remote_meta:
             return
@@ -1348,7 +1348,7 @@ class SyncManager:
             **crop_metadata(data_list),
             **cooking_metadata(data_list),
             **memory_metadata(data_list),
-            'social_schema_version': 1,
+            'social_schema_version': 2,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'snapshot_id': uuid.uuid4().hex,
             'generated_at': datetime.utcnow().isoformat() + 'Z',
@@ -1369,7 +1369,7 @@ class SyncManager:
             raise SyncError('农作物快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('cooking_schema_version', 0) > 4:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
-        if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
+        if remote_meta and remote_meta.get('social_schema_version', 0) > 2:
             raise SyncError('社交快照版本高于本机，请升级后恢复。')
         if not remote_meta or not remote_meta.get('app_version'):
             raise SyncError('备份缺少版本信息，无法导入。')

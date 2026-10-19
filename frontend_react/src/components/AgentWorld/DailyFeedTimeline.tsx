@@ -56,6 +56,9 @@ function money(value: string) {
 function getInteractionBadge(event: DailyFeedEvent) {
     if (event.category !== 'interaction') return null;
     const action = event.subAction || event.currentAction || '';
+    if (action === '小剧场') {
+        return {label: '小剧场', icon: MessageSquare, className: 'bg-orange-50 text-orange-700 border-orange-200/80'};
+    }
     if (action === 'like' || action === '动态点赞' || action.includes('点赞')) {
         return {label: '动态点赞', icon: Heart, className: 'bg-rose-50 text-rose-700 border-rose-200/80'};
     }
@@ -101,6 +104,7 @@ function getEventActionLabel(target?: DailyFeedEvent['target']): string | null {
         investment: '打开投资',
         travel: '查看旅行',
         life: '查看日程',
+        theatre: '查看讨论',
     };
     if (kindLabels[target.kind]) return kindLabels[target.kind];
     if (target.artifactKind === 'moment' && target.artifactId) return '查看关联动态';

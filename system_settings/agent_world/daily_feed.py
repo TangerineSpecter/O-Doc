@@ -81,6 +81,18 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
     scope = scope or feed_scope(request, owner)
     actors, visible_colls = scope.actors, scope.visible_colls
     candidates = []
+    if category in ('all', 'interaction'):
+        from .social_models import SocialTheatreEvent
+        scenes = SocialTheatreEvent.objects.filter(owner_id=owner).exclude(status='deleted')
+        scenes = scenes.filter(updated_at__lt=before).order_by('-updated_at')
+        if actor_id:
+            # 同时兼容 SQLite 和 PostgreSQL 的身份快照查询。
+            collect_scene = next((when for when, people in scenes.values_list('updated_at', 'participants').iterator()
+                                  if any(str(person.get('id')) == actor_id for person in people)), None)
+        else:
+            collect_scene = scenes.values_list('updated_at', flat=True).first()
+        if collect_scene is not None:
+            candidates.append(collect_scene)
 
     def collect(queryset, field, actor_field='actor_id'):
         if actor_id and actor_field:
@@ -228,6 +240,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     scope = scope or feed_scope(request, owner)
     actors, names = scope.actors, scope.names
     events = []
+    from .social_theatre_feed import theatre_feed
+    events.extend(theatre_feed(owner, start, end))
     visible_colls = scope.visible_colls
     activities = AgentActivity.objects.filter(
         Q(activity_type='work', agent_id__in=actors) |
@@ -685,9 +699,10 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     events = grouped_execution_events(events, start, end)
     global_events = [event for event in events if event['category'] != 'record' and not event.get('_finance_only')]
     summary_events = global_events
-    actor_counts = dict(Counter(event['actorId'] for event in summary_events if event['actorId']))
+    actor_counts = dict(Counter(identity for event in summary_events
+                                for identity in (event.get('actorIds') or [event['actorId']]) if identity))
     if actor_id:
-        events = [event for event in events if event['actorId'] == actor_id]
+        events = [event for event in events if event['actorId'] == actor_id or actor_id in event.get('actorIds', [])]
     counts = Counter(category for event in events for category in event.get('categories', [event['category']]))
     all_events = [event for event in events if event['category'] != 'record' and not event.get('_finance_only')]
     all_events.sort(key=lambda event: (event['occurredAt'], event['id']), reverse=True)

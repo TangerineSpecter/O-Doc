@@ -17,9 +17,32 @@ export interface SocialSettings {
     enabled: boolean; agentIds: string[]; publishEnabled: boolean; readEnabled: boolean; replyEnabled: boolean;
     replyMode: 'idle_daily' | 'daily'; dailyReplies: number; dailyMoments: number; dailyImages: number; readLimit: number;
     imageEnabled: boolean; imageModelId: string; imageAspectRatio: string; imageSize: string;
+    theatreDailyCount: number; theatreSearchServerId: string;
 }
 export interface SocialConfiguration {
     settings: SocialSettings; overrides: Record<string, Partial<SocialSettings>>; agents: {id: string; name: string}[];
+    searchServers: {id: string; name: string}[];
+}
+export interface SocialTheatreTurn {
+    id?: string; replyTo?: string;
+    round: number; speakerId: string; name: string; avatar: string; content: string; createdAt: string;
+}
+export interface SocialTheatreRelationChange {
+    actorId: string; counterpartId: string; actorName: string; counterpartName: string;
+    affinityDelta: number; familiarityDelta: number; category: string; reason: string;
+}
+export interface SocialTheatreEvent {
+    id: string; businessDate: string; scheduledAt: string; status: 'scheduled' | 'searching' | 'running' | 'completed' | 'skipped' | 'failed' | 'expired';
+    error: string; manual?: boolean; source: {title: string; summary: string; url: string; publishedAt: string};
+    messageCount?: number;
+    topic?: {title?: string; event: string; question: string; tradeoff: string} | null;
+    progress?: {
+        stage: string; speakerName: string; startedAt: string; stageStartedAt: string;
+        messageCount: number; reviewedCount: number; participantCount: number;
+        candidateIndex: number; candidateCount: number;
+    };
+    relationChanges?: SocialTheatreRelationChange[];
+    participants: {id: string; name: string; avatar: string}[]; rounds?: number; transcript?: SocialTheatreTurn[];
 }
 export interface SocialFeeling {
     actorId: string; counterpartId: string; familiarity: number; familiarityLabel: string; affinity: number; band: string;

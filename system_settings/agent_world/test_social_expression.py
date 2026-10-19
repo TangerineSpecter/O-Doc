@@ -100,7 +100,8 @@ class AutoCommentLengthTests(SimpleTestCase):
             return result, complete.call_count
 
     def feedback(self, content):
-        return {'action': 'interact', 'comment': content, 'stance': 'approve', 'rating': 8}
+        return {'action': 'interact', 'comment': content, 'stance': 'approve', 'rating': 8,
+                'appraisal': {'category': 'neutral', 'reason': '只是评价内容，没有影响对作者的关系'}}
 
     def test_long_first_comment_is_rewritten_before_it_can_be_committed(self):
         result, calls = self.evaluate([
@@ -145,6 +146,9 @@ class AutoCommentLengthTests(SimpleTestCase):
         for action in ('read', 'reply'):
             value = {'action': action, 'reason': '接话', 'content': '这预测的范围也太宽了。'}
             if action == 'read': value['moment_id'] = 'm'
+            value['sent_appraisal'] = {'category': 'neutral', 'reason': '这次交流没有改变关系'}
+            if action == 'reply':
+                value['received_appraisal'] = {'category': 'neutral', 'reason': '对方发言没有改变关系'}
             context = {'allowed': [action], 'image_choices': ['none'], 'moments': [{'id': 'm', 'content': '原动态'}] if action == 'read' else [], 'inbox': {'discussion': {'content': '消息'}} if action == 'reply' else None}
             with self.subTest(action=action), patch('system_settings.decision.routing.complete', return_value=json.dumps(value, ensure_ascii=False)) as completion:
                 decide(self.agent, context, owner='owner')
@@ -162,7 +166,8 @@ class AutoCommentLengthTests(SimpleTestCase):
         for stance, rating, content in cases:
             with self.subTest(stance=stance, rating=rating):
                 feedback = {'action': 'interact', 'comment': content,
-                            'stance': stance, 'rating': rating}
+                            'stance': stance, 'rating': rating,
+                            'appraisal': {'category': 'neutral', 'reason': '评价作品本身，没有影响对作者的关系'}}
                 result, calls = self.evaluate([feedback])
                 self.assertEqual(result, feedback)
                 self.assertEqual(calls, 1)
@@ -180,6 +185,10 @@ class AutoCommentLengthTests(SimpleTestCase):
         from .social_runner import decide
         value = {'action': action, 'reason': '回应', 'content': content}
         if action == 'read': value['moment_id'] = 'm'
+        if action == 'reply' or (action == 'read' and content):
+            value['sent_appraisal'] = {'category': 'neutral', 'reason': '这次交流没有改变关系'}
+        if action == 'reply':
+            value['received_appraisal'] = {'category': 'neutral', 'reason': '对方发言没有改变关系'}
         context = {'allowed': [action], 'image_choices': ['none'], 'moments': [{'id':'m','content':'动态'}] if action == 'read' else [], 'inbox': {'discussion': {'content':'消息'}} if action == 'reply' else None}
         with patch('system_settings.decision.routing.complete', return_value=json.dumps(value, ensure_ascii=False)):
             return decide(self.agent, context, owner='owner')
@@ -196,7 +205,7 @@ class AutoCommentLengthTests(SimpleTestCase):
             'inbox': {'discussion': {'source':'种子明天给你。','content':'原帖背景','entries':[]}}}
         before = deepcopy(context)
         for content in ('长' * (AUTO_REPLY_MAX_LENGTH + 1), '谢谢。\n明天见。'):
-            with self.subTest(content=content), patch('system_settings.agent_world.social_model.choose_scene', return_value='reply'), patch('system_settings.decision.routing.complete', side_effect=[json.dumps({'action':'reply','reason':'接话','content':content},ensure_ascii=False), json.dumps({'action':'reply','reason':'接话','content':'好，我明天来拿。'},ensure_ascii=False)]) as completion:
+            with self.subTest(content=content), patch('system_settings.agent_world.social_model.choose_scene', return_value='reply'), patch('system_settings.decision.routing.complete', side_effect=[json.dumps({'action':'reply','reason':'接话','content':content,'received_appraisal':{'category':'neutral','reason':'对方发言没有改变关系'},'sent_appraisal':{'category':'neutral','reason':'这次回复没有改变关系'}},ensure_ascii=False), json.dumps({'action':'reply','reason':'接话','content':'好，我明天来拿。','received_appraisal':{'category':'neutral','reason':'对方发言没有改变关系'},'sent_appraisal':{'category':'neutral','reason':'这次回复没有改变关系'}},ensure_ascii=False)]) as completion:
                 result = decide(self.agent, context, owner='owner')
                 self.assertEqual(result['content'],'好，我明天来拿。')
                 self.assertEqual(completion.call_count,2)
@@ -206,8 +215,9 @@ class AutoCommentLengthTests(SimpleTestCase):
     def test_reply_rewrite_cannot_change_selected_action(self):
         from .social_runner import decide
         context = {'allowed':['reply','ignore','defer','skip','publish'],'image_choices':['none'], 'inbox':{'discussion':{'content':'消息'}}}
+        appraisal = {'category':'neutral','reason':'这次交流没有改变关系'}
         for action in ('ignore','defer','skip','publish'):
-            with self.subTest(action=action), patch('system_settings.agent_world.social_model.choose_scene',return_value='reply'), patch('system_settings.decision.routing.complete', side_effect=[json.dumps({'action':'reply','reason':'接话','content':'长'*121}), json.dumps({'action':action,'reason':'结束','content':'短动态'})]):
+            with self.subTest(action=action), patch('system_settings.agent_world.social_model.choose_scene',return_value='reply'), patch('system_settings.decision.routing.complete', side_effect=[json.dumps({'action':'reply','reason':'接话','content':'长'*121,'received_appraisal':appraisal,'sent_appraisal':appraisal}), json.dumps({'action':action,'reason':'结束','content':'短动态'})]):
                 with self.assertRaises(ValueError): decide(self.agent,context,owner='owner')
 
     def test_reply_limit_does_not_shorten_first_comments(self):

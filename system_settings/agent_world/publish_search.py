@@ -4,6 +4,7 @@ import time
 import queue
 import threading
 from datetime import timedelta
+from email.utils import parsedate_to_datetime
 from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
@@ -29,6 +30,11 @@ def date_value(value):
         if day:
             from datetime import datetime, time as daytime
             parsed = datetime.combine(day, daytime.min)
+        else:
+            try:
+                parsed = parsedate_to_datetime(value)
+            except (TypeError, ValueError):
+                return None
     if parsed and timezone.is_naive(parsed):
         parsed = timezone.make_aware(parsed)
     if parsed and not settings.USE_TZ and timezone.is_aware(parsed):
@@ -36,31 +42,98 @@ def date_value(value):
     return parsed
 
 
-def search(config: dict, query: str, mode: str, days: int, deadline: float, *, search_depth: str = 'advanced') -> list[dict]:
+def _schema_accepts(spec, value):
+    spec = spec or {}
+    if 'const' in spec and spec['const'] != value:
+        return False
+    if 'enum' in spec and value not in spec['enum']:
+        return False
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if 'minimum' in spec and value < spec['minimum']:
+            return False
+        if 'maximum' in spec and value > spec['maximum']:
+            return False
+    return True
+
+
+def _max_results_for_schema(spec, requested):
+    """Choose the closest requested count accepted by the saved MCP schema."""
+    spec = spec or {}
+    if 'const' in spec:
+        value = spec['const']
+        return value if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 20 else None
+    if 'enum' in spec:
+        values = [value for value in spec['enum'] if isinstance(value, int) and not isinstance(value, bool)
+                  and 1 <= value <= 20]
+        return min(values, key=lambda value: abs(value - requested)) if values else None
+    minimum = max(1, int(spec.get('minimum', 1)))
+    maximum = min(20, int(spec.get('maximum', 20)))
+    if minimum > maximum:
+        return None
+    return max(minimum, min(maximum, requested))
+
+
+def search(config: dict, query: str, mode: str, days: int, deadline: float, *, search_depth: str = 'advanced',
+           max_results: int = 5, time_range: str = '', require_news_filters: bool = False,
+           preserve_content: bool = False) -> list[dict]:
     server = search_server(config)
     tool = next(t for t in server.tools if t.get('name') in SEARCH_NAMES and t.get('enabled', True))
     schema = tool.get('inputSchema') or tool.get('input_schema') or {}
     properties = schema.get('properties', {})
     args = {'query': query}
-    for key, value in [('max_results', 5), ('search_depth', search_depth), ('topic', 'news' if mode == 'news' else 'general'), ('days', days)]:
+    if preserve_content:
+        for key in ('include_answer', 'include_raw_content'):
+            if key in properties and _schema_accepts(properties[key], False):
+                args[key] = False
+    requested_results = max(1, min(20, int(max_results)))
+    results_spec = properties.get('max_results')
+    schema_max_results = (_max_results_for_schema(results_spec, requested_results)
+                          if 'max_results' in properties else None)
+    if schema_max_results is not None:
+        args['max_results'] = schema_max_results
+    elif mode == 'news' and require_news_filters:
+        raise ValueError('Tavily MCP 工具定义不支持 max_results，请在 MCP 设置中刷新工具定义')
+    max_results = schema_max_results or requested_results
+    for key, value in [('search_depth', search_depth)]:
         spec = properties.get(key, {})
-        if key in properties and (key != 'days' or mode == 'news'):
-            # Tavily MCP 的 topic 可能被 const 限定为 general；不能只检查 enum。
-            if 'const' in spec:
-                args[key] = spec['const']
-            elif 'enum' not in spec or value in spec['enum']:
-                args[key] = value
-    if mode == 'news' and 'days' not in args:
+        if key in properties:
+            args[key] = spec.get('const', value) if isinstance(spec, dict) else value
+
+    topic = 'news' if mode == 'news' else 'general'
+    topic_spec = properties.get('topic')
+    if 'topic' in properties and _schema_accepts(topic_spec, topic):
+        args['topic'] = topic
+    elif mode == 'news' and require_news_filters:
+        raise ValueError('Tavily MCP 工具定义不支持 topic=news，请在 MCP 设置中刷新工具定义')
+
+    if mode == 'news':
         now = timezone.now()
         today = timezone.localtime(now).date() if timezone.is_aware(now) else now.date()
-        for key, value in [('start_date', (today-timedelta(days=days)).isoformat()),
-                           ('end_date', (today+timedelta(days=1)).isoformat())]:
-            if key in properties:
-                spec = properties[key]
-                if 'const' in spec:
-                    args[key] = spec['const']
-                elif 'enum' not in spec or value in spec['enum']:
+        published_date_spec = properties.get('filter_by_published_date')
+        if 'filter_by_published_date' in properties and _schema_accepts(published_date_spec, True):
+            args['filter_by_published_date'] = True
+        requested_range = time_range or ''
+        range_spec = properties.get('time_range', {})
+        range_aliases = {'day': ('day', 'd'), 'week': ('week', 'w'),
+                         'month': ('month', 'm'), 'year': ('year', 'y')}
+        accepted_range = next((value for value in range_aliases.get(requested_range, (requested_range,))
+                               if _schema_accepts(range_spec, value)), '') if 'time_range' in properties else ''
+        if requested_range and accepted_range:
+            args['time_range'] = accepted_range
+        elif 'days' in properties and _schema_accepts(properties['days'], days):
+            args['days'] = days
+        elif 'start_date' in properties or 'end_date' in properties:
+            start_day = today if requested_range == 'day' else today - timedelta(days=days)
+            date_args_added = False
+            for key, value in [('start_date', start_day.isoformat()),
+                               ('end_date', (today + timedelta(days=1)).isoformat())]:
+                if key in properties and _schema_accepts(properties[key], value):
                     args[key] = value
+                    date_args_added = True
+            if require_news_filters and not date_args_added:
+                raise ValueError('Tavily MCP 工具定义不支持今日时间范围，请在 MCP 设置中刷新工具定义')
+        elif require_news_filters:
+            raise ValueError('Tavily MCP 工具定义不支持今日时间范围，请在 MCP 设置中刷新工具定义')
     missing = set(schema.get('required', [])) - set(args)
     if missing:
         raise ValueError('搜索工具 schema 包含不支持的必填参数，请更新服务配置')
@@ -107,15 +180,18 @@ def search(config: dict, query: str, mode: str, days: int, deadline: float, *, s
             return []
     rows = payload.get('results', []) if isinstance(payload, dict) else []
     results = []
-    for row in rows[:5]:
+    for row in rows[:max_results]:
         if not isinstance(row, dict):
             continue
         url = canonical_url(str(row.get('url') or ''))
         if not url or any(item['url'] == url for item in results):
             continue
         published = date_value(row.get('published_date') or row.get('published_at'))
+        # Theatre uses the complete built-in snippet, never a full-page fallback.
+        summary = (str(row.get('content') or '') if preserve_content else
+                   str(row.get('content') or row.get('raw_content') or '')[:6000])
         results.append({'url': url, 'title': str(row.get('title') or '')[:500],
-                        'summary': str(row.get('content') or row.get('raw_content') or '')[:6000],
+                        'summary': summary,
                         'published_at': published.isoformat() if published else None,
                         'search_window': {key: args[key] for key in ('days', 'start_date', 'end_date', 'time_range') if key in args and args[key] is not None},
                         'fetched_at': timezone.now().isoformat()})

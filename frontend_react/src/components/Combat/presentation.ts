@@ -8,7 +8,10 @@ export const elementStatLabels: Record<string, string> = Object.fromEntries(elem
 }));
 export const ratioStatKeys = new Set(['accuracy', 'evasion', 'critical', 'criticalDamage', 'critical_damage', ...Object.keys(elementStatLabels)]);
 export function isRatioStat(key: string) {
-    return ratioStatKeys.has(key);
+    return ratioStatKeys.has(key) || ratioStatKeys.has(normalizeStatKey(key));
+}
+export function normalizeStatKey(k: string): string {
+    return k.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 }
 export function formatRatio(value: number | string | null | undefined) {
     const number = Number(value ?? 0);

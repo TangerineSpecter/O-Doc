@@ -5,7 +5,8 @@ from .life_models import LifeProfile
 DEFAULTS = {'enabled': False, 'agent_ids': [], 'publish_enabled': True, 'read_enabled': True,
             'reply_enabled': True, 'reply_mode': 'idle_daily', 'daily_replies': 3,
             'daily_moments': 1, 'daily_images': 1, 'read_limit': 5, 'image_enabled': True,
-            'image_model_id': '', 'image_aspect_ratio': '1:1', 'image_size': '1K'}
+            'image_model_id': '', 'image_aspect_ratio': '1:1', 'image_size': '1K',
+            'theatre_daily_count': 1, 'theatre_search_server_id': ''}
 
 
 def config_for(owner):
@@ -25,6 +26,15 @@ def validate(owner, data, *, override=False):
     for key, cap in (('daily_replies', 20), ('daily_moments', 10), ('daily_images', 9), ('read_limit', 5)):
         if key in value and (type(value[key]) is not int or not 0 <= value[key] <= cap):
             raise ValueError(f'{key} 须为0至{cap}整数')
+    if 'theatre_daily_count' in value and (type(value['theatre_daily_count']) is not int or not 0 <= value['theatre_daily_count'] <= 3):
+        raise ValueError('每日小剧场场数须为0至3整数')
+    if 'theatre_search_server_id' in value:
+        server_id = value['theatre_search_server_id']
+        if not isinstance(server_id, str) or len(server_id) > 40:
+            raise ValueError('小剧场新闻搜索服务无效')
+        if server_id:
+            from .publish_config import search_server
+            search_server({'search_server_id': server_id})
     if value.get('reply_mode', 'idle_daily') not in ('idle_daily', 'daily'): raise ValueError('回应模式无效')
     if 'agent_ids' in value:
         ids = value['agent_ids']
@@ -33,6 +43,8 @@ def validate(owner, data, *, override=False):
         if LifeProfile.objects.filter(owner_id=owner, pk__in=ids).count() != len(ids):
             raise ValueError('请先在生活日程中配置所属居民')
     if override and 'agent_ids' in value: raise ValueError('角色覆盖不能修改参与名单')
+    if override and {'theatre_daily_count', 'theatre_search_server_id'} & set(value):
+        raise ValueError('小剧场配置只能在世界默认设置中修改')
     for key in ('image_model_id', 'image_aspect_ratio', 'image_size'):
         if key in value and (not isinstance(value[key], str) or len(value[key]) > 40): raise ValueError('生图配置无效')
     if value.get('image_aspect_ratio', '1:1') not in ('1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'): raise ValueError('配图比例无效')

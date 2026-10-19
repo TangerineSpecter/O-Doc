@@ -143,14 +143,14 @@ class SocialTests(TestCase):
         peer = f'agent-id:{self.other.pk}'
         for i in range(12): apply_event(self.owner, self.agent.pk, peer, f'disagree:{i}', {'category': 'disagreement', 'reason': '观点不同'})
         relation = SocialRelation.objects.get(actor_id=self.agent.pk)
-        self.assertEqual(relation.affinity, 0); self.assertEqual(relation.familiarity, 24)
+        self.assertEqual(relation.affinity, -12); self.assertEqual(relation.familiarity, 24)
         self.assertEqual(emotion_now(relation.emotion)['kind'], '不满')
         apply_event(self.owner, self.agent.pk, peer, 'insult', {'category': 'insult', 'reason': '受到轻视'})
         apply_event(self.owner, self.agent.pk, peer, 'insult', {'category': 'insult', 'reason': '受到轻视'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, -8)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, -28)
         self.assertEqual(SocialEvent.objects.count(), 13)
         apply_event(self.owner, self.agent.pk, peer, 'apology', {'category': 'apology', 'reason': '对方道歉并解释'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, -3)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, -23)
         self.assertFalse(SocialRelation.objects.filter(actor_id=self.other.pk).exists())
         old = {**relation.emotion, 'at': (local_time()-timedelta(days=8)).isoformat()}
         self.assertEqual(emotion_now(old)['intensity'], 0)
@@ -191,7 +191,9 @@ class SocialTests(TestCase):
         from system_settings.models import AgentActivity
         op = self.op()
         with self.mock_social({
-                'action': 'reply', 'reason': '继续讨论', 'content': content, 'moment_id': model_id}), \
+                'action': 'reply', 'reason': '继续讨论', 'content': content, 'moment_id': model_id,
+                'received_appraisal': {'category': 'neutral', 'reason': '对方发言没有改变关系'},
+                'sent_appraisal': {'category': 'neutral', 'reason': '这次回复没有改变关系'}}), \
                 patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
             run(op, self.agent)
         op.refresh_from_db()
@@ -373,7 +375,9 @@ class SocialTests(TestCase):
         first = comment(self.owner, self.moment.pk, user_actor(self.owner), {}, '原评论')
         def change(*args, **kwargs):
             first.content = '修改后的评论'; first.save()
-            return {'action': 'reply', 'reason': '回应', 'content': '回复原评论'}
+            appraisal = {'category': 'neutral', 'reason': '这次交流没有改变关系'}
+            return {'action': 'reply', 'reason': '回应', 'content': '回复原评论',
+                    'received_appraisal': appraisal, 'sent_appraisal': appraisal}
         with self.mock_social(change): run(self.op(), self.agent)
         self.assertEqual(self.moment.comments.count(), 1)
         self.assertFalse(WorldAction.objects.exists())
@@ -412,9 +416,9 @@ class SocialTests(TestCase):
         self.assertEqual(relation.affinity, 65); self.assertEqual(relation.familiarity, 60)
         self.assertEqual(relation.pk, stable_id(self.owner, self.agent.pk, f'agent-id:{self.other.pk}'))
         apply_event(self.owner, self.agent.pk, f'agent-id:{self.other.pk}', 'new', {'category': 'disagreement', 'reason': '有分歧'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, 65)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, 64)
         SocialRelation.objects.all().delete(); rebuild_relations(self.owner)
-        self.assertEqual(SocialRelation.objects.get(actor_id=self.agent.pk).affinity, 65)
+        self.assertEqual(SocialRelation.objects.get(actor_id=self.agent.pk).affinity, 64)
 
     def test_media_failure_does_not_overwrite_new_request(self):
         from .social_media import recover_image
