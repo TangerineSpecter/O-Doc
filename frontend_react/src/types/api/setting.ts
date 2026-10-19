@@ -326,6 +326,7 @@ export interface AgentRelationNode {
     money: string;
     stamina?: string;
     cooking?: import('./cooking').CookingSkill;
+    alchemy?: import('./cooking').CookingSkill;
     planting?: import('./farm').PlantingSkill;
     creativity: number;
     postCount: number;

@@ -132,6 +132,15 @@ class AgentRelationFlowTests(TestCase):
         self.assertEqual(len(response.data['data']['nodes']), 2)
         self.assertEqual(response.data['data']['edges'], [])
 
+    def test_graph_exposes_alchemy_progress(self):
+        from system_settings.agent_world.alchemy_models import AlchemySkill
+        AlchemySkill.objects.create(pk=self.author.pk, owner_id='owner', actor_name=self.author.name, experience=200)
+        graph = relation_graph('owner')
+        node = next(item for item in graph['nodes'] if item['id'] == self.author.pk)
+        self.assertEqual(node['alchemy']['experience'], 200)
+        self.assertEqual(node['alchemy']['level'], 2)
+        self.assertEqual(node['alchemy']['progress'], 100 / 300)
+
     def test_old_posts_do_not_raise_creativity(self):
         self.article.created_at = timezone.now() - timedelta(days=40)
         self.article.save(update_fields=['created_at'])
