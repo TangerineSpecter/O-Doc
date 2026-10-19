@@ -10,9 +10,9 @@
 
 战斗动态按确认战报展示动作卡片、行动双方、伤害/治疗与暴击。相邻同一有效战斗时间的事实归为一组，保持原始顺序；时间以带时钟图标的橙色边框加粗标签显示，当前分组时间在组内滚动时吸顶。击败记录使用事件内稳定怪物 ID 对应图鉴缩略图、等级、时间和经验，不用名称猜测素材；缺少旧事件 ID 时保留通用图标。掉落复用 EquipmentPortrait 与 MaterialPortrait，材料按 SKU 叠放，随机装备逐件保留；点击格子打开只读详情，装备属性及词条使用掉落实例快照，材料展示回收价、数量和获得时间。这里不是另一套可操作库存，也不修改实际奖励。
 
-六张确认后的背景由 `Combat/art/battleBackgroundArt.ts` 按地牢 ID 注册，状态均为 approved。场景复用 160×94 最近邻纹理，脚底位置与图鉴形象/武器源素材独立。原图鉴 SVG 出没地背景未替换。
+七张确认后的背景由 `Combat/art/battleBackgroundArt.ts` 按地牢 ID 注册，状态均为 approved。场景复用 160×94 最近邻纹理，脚底位置与图鉴形象/武器源素材独立。原图鉴 SVG 出没地背景未替换。
 
-2026-10-17 增加新芽草甸的背景候选 `dungeon.sprout_meadow`。该资源只由 `CombatObservationPreviewApp` 显式传入，便于用同一战斗角色、状态 HUD 和站位查看效果；未登记进正式背景表，正式探索行为不变。确认后再补正式地图注册。
+2026-10-17 增加新芽草甸的背景候选 `dungeon.sprout_meadow`；2026-10-19 用户确认该图并发现正式探索观察缺少背景后，将其登记进正式 `battleBackgroundArt`，状态 `approved`，同时删除仅供预览的 `sproutMeadowBackgroundCandidate.ts` 与 `backgroundCandidate` 参数链路，预览页与其他地牢共用同一注册表。`dungeon.sprout_meadow` 从此按地牢 ID 直接取用背景，不再需要额外传参。
 
 ## 展示与结算的边界
 

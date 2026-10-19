@@ -38,8 +38,8 @@
 
 用户发现新芽草甸战斗画面缺少区域背景，要求参考其他区域补一版查看。新增 `battle-sprout-meadow-pixel-v1.png`，沿用低密度大色块像素风、160×94 最近邻采样与 79% 脚底线；画面以开阔草地、远处草坡、浅蓝天空和两侧少量野花表现新手区域。
 
-该版本状态为 `review`，仅通过 `CombatObservationPreviewApp` 的 `backgroundCandidate` 参数预览，默认遭遇软泥怪。它未加入正式 `battleBackgroundArt` 注册表，正式探索暂时仍使用原简洁底色；用户确认后再注册并将地区名与素材用于正式战斗场景。
+2026-10-19 用户确认该背景，并反馈正式探索观察仍显示占位底色。现已登记进正式 `battleBackgroundArt`（状态 `approved`，160×94 最近邻采样、79% 脚底线），`dungeon.sprout_meadow` 探索时直接取用；原 `sproutMeadowBackgroundCandidate.ts` 与 `backgroundCandidate` 预览参数已删除，预览页改为与其他地图共用注册表。
 
 - 素材：`frontend_react/src/assets/combat/battle-sprout-meadow-pixel-v1.png`
 - 预览入口：`frontend_react/combat-observation-preview.html`
-- 候选元数据与提示词：`docs/agents/assets/combat/battle-sprout-meadow-pixel-v1-generation.json`
+- 生成提示词：`docs/agents/assets/combat/battle-sprout-meadow-pixel-v1-generation.json`

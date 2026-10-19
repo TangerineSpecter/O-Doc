@@ -1,3 +1,4 @@
+import sproutMeadowPixel from '../../../assets/combat/battle-sprout-meadow-pixel-v1.png';
 import mossCavePixel from '../../../assets/combat/battle-moss-cave-pixel-v2.png';
 import minePixel from '../../../assets/combat/battle-abandoned-mine-pixel-v2.png';
 import forestPixel from '../../../assets/combat/battle-mist-forest-pixel-v2.png';
@@ -17,6 +18,8 @@ export interface BattleBackgroundArt {
 
 /** Battle background review assets are independent of approved atlas habitats. */
 export const battleBackgroundArt={
+    'dungeon.sprout_meadow':{id:'dungeon.sprout_meadow',name:'新芽草甸',src:sproutMeadowPixel,
+        status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},
     'dungeon.moss_cave':{id:'dungeon.moss_cave',name:'苔石洞窟',src:mossCavePixel,
         status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},
     'dungeon.abandoned_mine':{id:'dungeon.abandoned_mine',name:'废弃矿坑',src:minePixel,

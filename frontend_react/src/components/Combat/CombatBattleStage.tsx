@@ -4,12 +4,12 @@ import type {CombatSnapshot} from '../../types/api/combat';
 import {battleBackgroundArt} from './art/battleBackgroundArt';
 import {professionConcepts} from './art/professionConcepts';
 import CombatFighterStatus from './CombatFighterStatus';
-import type {BattleBackgroundArt,BattleBackgroundId} from './art/battleBackgroundArt';
+import type {BattleBackgroundId} from './art/battleBackgroundArt';
 import {observationVisual} from './animation/observation/observationPresentation';
 import type {ObservationBattleScene} from './animation/observation/ObservationBattleScene';
 
 /** React owns mounting and controls; Pixi owns choreography, never combat state. */
-export default function CombatBattleStage({snapshot,disconnected=false,fit=false,backgroundCandidate}:{snapshot:CombatSnapshot;disconnected?:boolean;fit?:boolean;backgroundCandidate?:BattleBackgroundArt}) {
+export default function CombatBattleStage({snapshot,disconnected=false,fit=false}:{snapshot:CombatSnapshot;disconnected?:boolean;fit?:boolean}) {
     const host=useRef<HTMLDivElement>(null),scene=useRef<ObservationBattleScene|null>(null);
     const visual=useMemo(()=>observationVisual(snapshot,disconnected),[snapshot,disconnected]);
     const latest=useRef(visual);
@@ -21,7 +21,7 @@ export default function CombatBattleStage({snapshot,disconnected=false,fit=false
         let active=true;
         void import('./animation/observation/ObservationBattleScene').then(async ({ObservationBattleScene})=>{
             if(!active||!host.current)return;
-            const instance=new ObservationBattleScene(host.current,latest.current,setPhase,setError,backgroundCandidate);scene.current=instance;
+            const instance=new ObservationBattleScene(host.current,latest.current,setPhase,setError);scene.current=instance;
             await instance.init();if(active){instance.setPaused(pauseRef.current);setReady(true);}
         }).catch(error=>{if(active)setError(error instanceof Error?error.message:'战斗画面加载失败');});
         return ()=>{active=false;scene.current?.dispose();scene.current=null;};
@@ -32,7 +32,7 @@ export default function CombatBattleStage({snapshot,disconnected=false,fit=false
         const change=()=>{if(preference.matches)setPaused(true);};
         preference.addEventListener('change',change);return ()=>preference.removeEventListener('change',change);
     },[]);
-    const map=backgroundCandidate?.id===visual.dungeonId?backgroundCandidate:battleBackgroundArt[visual.dungeonId as BattleBackgroundId];
+    const map=battleBackgroundArt[visual.dungeonId as BattleBackgroundId];
     const profession=professionConcepts.find(item=>item.id===visual.jobId)?.name||'居民';
     const rank=({normal:'普通',elite:'精英',boss:'首领'} as Record<string,string>)[snapshot.enemy?.rank||'']||'怪物';
     const hud=<><CombatFighterStatus entity={snapshot.player} label={profession}/><CombatFighterStatus entity={snapshot.enemy} label={rank} enemy/></>;
