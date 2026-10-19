@@ -6,7 +6,7 @@ export function drawMaterialArt(ctx:CanvasRenderingContext2D,p:MaterialArtProfil
     ctx.clearRect(0,0,32,32);const g=new PixelPainter(ctx);const {color:c,shadow:s,light:l,shape}=p;
     g.ellipse(16,28,11,2,'#cbd9d0');
     const gem=(x:number,y:number,w:number,h:number)=>{g.polygon([x,y-h,x+w,y-3,x+w-1,y+h,x,y+h+3,x-w,y+h,x-w,y-3],s);g.polygon([x,y-h+2,x+w-2,y-2,x,y+h,x-w+2,y-2],c);g.polygon([x,y-h+2,x,y+h,x-w+2,y-2],l);};
-    const spark=(x:number,y:number,col=l)=>{g.rect(x-2,y,5,1,col);g.rect(x,y-2,1,5,col);};
+    const spark=(x:number,y:number,col:string=l)=>{g.rect(x-2,y,5,1,col);g.rect(x,y-2,1,5,col);};
     switch(shape) {
         case 'slime':
             g.polygon([5,26,6,19,10,13,15,5,17,10,25,18,28,25,24,28,10,28],s);

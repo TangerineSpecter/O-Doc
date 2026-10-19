@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {ExternalLink, MessagesSquare, Newspaper, Play, RotateCcw, Trash2} from 'lucide-react';
+import {ArrowLeft, ExternalLink, MessagesSquare, Newspaper, Play, RotateCcw, Trash2} from 'lucide-react';
 import {deleteSocialTheatreEvent, getSocialTheatreEvent, getSocialTheatreEvents, triggerSocialTheatre, resumeSocialTheatre} from '../../api/social';
 import type {SocialTheatreEvent} from '../../types/api/social';
 import ConfirmationModal from '../common/ConfirmationModal';
@@ -28,6 +28,7 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
     const [items, setItems] = useState<SocialTheatreEvent[]>([]);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [selected, setSelected] = useState<SocialTheatreEvent | null>(null);
+    const [mobileShowDetail, setMobileShowDetail] = useState(Boolean(initialEventId));
     const [busy, setBusy] = useState(true);
     const [triggering, setTriggering] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -43,7 +44,10 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
         let active = true;
         const request = ++detailRequest.current;
         void getSocialTheatreEvent(initialEventId).then(event => {
-            if (active && request === detailRequest.current) setSelected(event);
+            if (active && request === detailRequest.current) {
+                setSelected(event);
+                setMobileShowDetail(true);
+            }
         }).catch(reason => {
             if (active && request === detailRequest.current) setError(reason instanceof Error ? reason.message : '讨论详情加载失败');
         });
@@ -91,9 +95,12 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
                 if (!active) return;
                 const hidden = emptyAttempt(latest);
                 setSelected(current => current?.id === pollingId ? (hidden ? null : latest) : current);
-                if (hidden) setNotice(latest.status === 'failed'
-                    ? '本次讨论暂未开始，可稍后重新发起。活动流已保留简短记录。'
-                    : '本次没有形成讨论，活动流已保留简短记录。');
+                if (hidden) {
+                    setNotice(latest.status === 'failed'
+                        ? '本次讨论暂未开始，可稍后重新发起。活动流已保留简短记录。'
+                        : '本次没有形成讨论，活动流已保留简短记录。');
+                    setMobileShowDetail(false);
+                }
                 if (!activeStatuses.has(latest.status)) onRelationsChangedRef.current?.();
                 setItems(previous => {
                     if (hidden) return previous.filter(item => item.id !== latest.id);
@@ -122,7 +129,10 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
         setNotice('');
         try {
             const result = await triggerSocialTheatre();
-            if (request === detailRequest.current) setSelected(result.event);
+            if (request === detailRequest.current) {
+                setSelected(result.event);
+                setMobileShowDetail(true);
+            }
             setItems(previous => {
                 const next = [...previous.filter(item => item.id !== result.event.id), result.event];
                 return next.sort((left, right) => right.scheduledAt.localeCompare(left.scheduledAt));
@@ -140,6 +150,7 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
         setNotice('');
         setError('');
         setSelected(item);
+        setMobileShowDetail(true);
         try {
             const event = await getSocialTheatreEvent(item.id);
             if (request === detailRequest.current) setSelected(event);
@@ -174,6 +185,7 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
             await deleteSocialTheatreEvent(target.id);
             setItems(previous => previous.filter(item => item.id !== target.id));
             setSelected(current => current?.id === target.id ? null : current);
+            setMobileShowDetail(false);
             setConfirmDelete(false);
             setNotice('记录已删除，该场关系影响已撤销，其他互动的影响已保留。');
             onRelationsChanged?.();
@@ -186,23 +198,40 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
     };
 
     return <WorldDialog title="小剧场记录" description="查看新闻主题、参与居民和完整群聊内容。" size="wide" fixedHeight onClose={onClose}>
-        <div className="flex h-[min(70vh,680px)] min-h-0 flex-col gap-3 lg:flex-row">
-            <aside className="flex min-h-0 w-full flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-3 lg:w-[34%] lg:shrink-0">
-                <div className="mb-2 flex items-center justify-between gap-2"><h3 className="shrink-0 text-xs font-bold text-slate-700">最近场次</h3><div className="flex items-center gap-1"><button type="button" onClick={() => void trigger()} disabled={busy || triggering} className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-orange-600 disabled:cursor-wait disabled:opacity-50"><Play className="h-3 w-3 fill-current"/>{triggering ? '提交中…' : '手动触发'}</button><button type="button" aria-label="刷新记录" onClick={() => void loadPage()} disabled={busy} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-orange-600 disabled:opacity-40"><RotateCcw className="h-3.5 w-3.5"/></button></div></div>
-                {notice && <p role="status" className="mb-2 rounded-lg bg-orange-50 px-2.5 py-2 text-[10px] leading-4 text-orange-700">{notice}</p>}
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-hide">
-                    {items.map(item => <button key={item.id} type="button" onClick={() => void openEvent(item)} className={`w-full rounded-xl border p-3 text-left transition-colors ${selected?.id === item.id ? 'border-orange-200 bg-orange-50' : 'border-slate-200 bg-white hover:border-orange-200'}`}>
-                        <div className="flex items-center justify-between gap-2"><span className="text-[10px] text-slate-400">{timeLabel(item.scheduledAt)}</span><span className="flex items-center gap-1.5">{item.manual && <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] text-orange-700">手动</span>}<span className={`rounded-full px-2 py-0.5 text-[10px] ${item.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : item.status === 'failed' || item.status === 'skipped' ? 'bg-slate-100 text-slate-500' : 'bg-orange-50 text-orange-700'}`}>{statusText[item.status]}</span></span></div>
-                        <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-800">{item.topic?.title || item.source.title || '正在准备讨论话题'}</p>
-                        {item.participants.length > 0 && <p className="mt-1 truncate text-[10px] text-slate-400">{item.participants.map(person => person.name).join('、')}</p>}
-                    </button>)}
-                    {!items.length && !busy && <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-xs text-slate-400">还没有小剧场记录</p>}
-                    {nextCursor && <button type="button" disabled={busy} onClick={() => void loadPage(nextCursor)} className="w-full rounded-xl py-2 text-xs text-orange-600 disabled:opacity-40">{busy ? '读取中…' : '加载更早记录'}</button>}
-                </div>
-            </aside>
-            <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                {error && <p role="alert" className="m-3 rounded-xl bg-red-50 p-3 text-xs text-red-600">{error}</p>}
-                {!selected ? <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center text-slate-400"><MessagesSquare className="mb-3 h-7 w-7 text-orange-300"/><p className="text-sm font-medium text-slate-600">选择一场讨论</p><p className="mt-1 text-xs">新闻来源链接只在这里展示，不会发给参与讨论的居民。</p></div> : <>
+        <div className="relative h-[min(70vh,680px)] min-h-0 w-full overflow-hidden">
+            <div className={`flex h-full w-full transition-transform duration-300 ease-in-out lg:transform-none lg:gap-3 ${mobileShowDetail ? '-translate-x-full lg:translate-x-0' : 'translate-x-0'}`}>
+                <aside className="flex h-full w-full shrink-0 flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-3 lg:w-[34%] lg:shrink-0">
+                    <div className="mb-2 flex items-center justify-between gap-2"><h3 className="shrink-0 text-xs font-bold text-slate-700">最近场次</h3><div className="flex items-center gap-1"><button type="button" onClick={() => void trigger()} disabled={busy || triggering} className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-orange-600 disabled:cursor-wait disabled:opacity-50"><Play className="h-3 w-3 fill-current"/>{triggering ? '提交中…' : '手动触发'}</button><button type="button" aria-label="刷新记录" onClick={() => void loadPage()} disabled={busy} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-orange-600 disabled:opacity-40"><RotateCcw className="h-3.5 w-3.5"/></button></div></div>
+                    {notice && <p role="status" className="mb-2 rounded-lg bg-orange-50 px-2.5 py-2 text-[10px] leading-4 text-orange-700">{notice}</p>}
+                    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-hide">
+                        {items.map(item => <button key={item.id} type="button" onClick={() => void openEvent(item)} className={`w-full rounded-xl border p-3 text-left transition-colors ${selected?.id === item.id ? 'border-orange-200 bg-orange-50' : 'border-slate-200 bg-white hover:border-orange-200'}`}>
+                            <div className="flex items-center justify-between gap-2"><span className="text-[10px] text-slate-400">{timeLabel(item.scheduledAt)}</span><span className="flex items-center gap-1.5">{item.manual && <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] text-orange-700">手动</span>}<span className={`rounded-full px-2 py-0.5 text-[10px] ${item.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : item.status === 'failed' || item.status === 'skipped' ? 'bg-slate-100 text-slate-500' : 'bg-orange-50 text-orange-700'}`}>{statusText[item.status]}</span></span></div>
+                            <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-800">{item.topic?.title || item.source.title || '正在准备讨论话题'}</p>
+                            {item.participants.length > 0 && <p className="mt-1 truncate text-[10px] text-slate-400">{item.participants.map(person => person.name).join('、')}</p>}
+                        </button>)}
+                        {!items.length && !busy && <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-xs text-slate-400">还没有小剧场记录</p>}
+                        {nextCursor && <button type="button" disabled={busy} onClick={() => void loadPage(nextCursor)} className="w-full rounded-xl py-2 text-xs text-orange-600 disabled:opacity-40">{busy ? '读取中…' : '加载更早记录'}</button>}
+                    </div>
+                </aside>
+                <section className="flex h-full w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white lg:min-w-0 lg:flex-1">
+                    {/* 移动端专属返回栏 */}
+                    <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2 lg:hidden">
+                        <button
+                            type="button"
+                            onClick={() => setMobileShowDetail(false)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                        >
+                            <ArrowLeft className="h-3.5 w-3.5" />
+                            <span>返回列表</span>
+                        </button>
+                        {selected && (
+                            <span className="text-[11px] font-medium text-slate-500">
+                                {timeLabel(selected.scheduledAt)}
+                            </span>
+                        )}
+                    </div>
+                    {error && <p role="alert" className="m-3 rounded-xl bg-red-50 p-3 text-xs text-red-600">{error}</p>}
+                    {!selected ? <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center text-slate-400"><MessagesSquare className="mb-3 h-7 w-7 text-orange-300"/><p className="text-sm font-medium text-slate-600">选择一场讨论</p><p className="mt-1 text-xs">新闻来源链接只在这里展示，不会发给参与讨论的居民。</p></div> : <>
                     <div className="border-b border-slate-100 p-4">
                         <div className="flex items-start gap-2"><Newspaper className="mt-0.5 h-4 w-4 shrink-0 text-orange-500"/><div className="min-w-0 flex-1"><h3 className="text-sm font-bold leading-6 text-slate-800">{selected.topic?.title || selected.source.title || '未生成新闻主题'}</h3>
                             {selected.source.summary ? <details key={selected.id} open={!selected.topic} className="mt-1 text-xs text-slate-600">
@@ -243,6 +272,7 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
                     </div>
                 </>}
             </section>
+        </div>
         </div>
         <ConfirmationModal isOpen={confirmDelete} onClose={() => setConfirmDelete(false)} onConfirm={() => void deleteSelected()} title="删除这条小剧场记录？" description="删除记录并撤销本场对好感、熟悉度和情绪的影响，保留其他互动的效果。删除状态与恢复后的关系会通过 WebDAV 同步。" confirmText="删除并撤销影响" type="danger" isLoading={deleting}/>
     </WorldDialog>;

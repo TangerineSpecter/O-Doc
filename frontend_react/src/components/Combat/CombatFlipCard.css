@@ -1,0 +1,51 @@
+/* 移动端战斗角色卡片 3D 翻转动画 */
+.combat-flip-perspective {
+    perspective: 1200px;
+    -webkit-perspective: 1200px;
+}
+
+.combat-flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+
+.combat-flip-card-inner.is-flipped {
+    transform: rotateY(180deg);
+    -webkit-transform: rotateY(180deg);
+}
+
+.combat-flip-card-face {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+}
+
+.combat-flip-card-front {
+    z-index: 2;
+    transform: rotateY(0deg);
+    -webkit-transform: rotateY(0deg);
+}
+
+.combat-flip-card-back {
+    z-index: 1;
+    transform: rotateY(180deg);
+    -webkit-transform: rotateY(180deg);
+}
+
+/* 翻转后禁用背面/正面的点击事件，杜绝点击穿透 */
+.combat-flip-card-inner:not(.is-flipped) .combat-flip-card-back {
+    pointer-events: none;
+}
+
+.combat-flip-card-inner.is-flipped .combat-flip-card-front {
+    pointer-events: none;
+}

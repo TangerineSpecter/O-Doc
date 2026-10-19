@@ -258,6 +258,10 @@ export default function AgentWorldPage() {
                     onOpenRelation={() => setPanel('graph')}
                     onOpenAttributes={() => setPanel('attributes')}
                     onOpenAnalytics={() => setAnalyticsActor(world.agentId)}
+                    onOpenTheatre={() => {
+                        setSocialTheatreEventId('');
+                        setSocialTheatreHistoryOpen(true);
+                    }}
                     onOpenManagement={openAgentManagement}
                 />
             </div>

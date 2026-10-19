@@ -7,16 +7,18 @@ import {
 } from './loadoutPresentation';
 import {DiabloHumanSilhouette} from './DiabloHumanSilhouette';
 import {DiabloEquipmentSlot, type SlotPlacement} from './DiabloEquipmentSlot';
-import {Shield, Sparkles} from 'lucide-react';
+import {RotateCw, Shield, Sparkles} from 'lucide-react';
 
 export default function CombatLoadoutSlots({
     profile,
     disabled,
     onInspect,
+    onFlip,
 }: {
     profile: CombatProfile;
     disabled?: boolean;
     onInspect: (item: CombatEquipment, remove?: boolean, slot?: string) => void;
+    onFlip?: () => void;
 }) {
     const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
     const stageRef = useRef<HTMLDivElement | null>(null);
@@ -86,7 +88,7 @@ export default function CombatLoadoutSlots({
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px]">
+                <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] shrink-0">
                     <span className="text-slate-400">
                         平均装等 <strong className="font-mono text-slate-700 font-bold">{avgLevel}</strong>
                     </span>
@@ -94,6 +96,17 @@ export default function CombatLoadoutSlots({
                     <span className="text-slate-400">
                         已装配 <strong className="text-orange-600 font-bold">{equippedCount}</strong> / 9
                     </span>
+                    {onFlip && (
+                        <button
+                            type="button"
+                            onClick={onFlip}
+                            className="inline-flex items-center gap-1 rounded-lg border border-orange-200/90 bg-orange-50/90 px-2 py-1 text-[11px] font-semibold text-orange-700 shadow-2xs hover:bg-orange-100 active:scale-95 transition-all ml-0.5"
+                            title="翻转卡片：查看战斗属性与探索出发"
+                        >
+                            <RotateCw className="w-3 h-3 text-orange-600" />
+                            <span>属性/出发</span>
+                        </button>
+                    )}
                 </div>
             </div>
 

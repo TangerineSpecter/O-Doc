@@ -76,7 +76,7 @@ const readCachedLatestVersion = (): LatestVersionInfo | null => {
             || typeof release.checkedAt !== 'number'
             || value.expiresAt <= Date.now()
         ) return null;
-        return release as LatestVersionInfo;
+        return release as unknown as LatestVersionInfo;
     } catch {
         return null;
     }

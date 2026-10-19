@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Network, Settings, Sparkles, UserRound, Users } from 'lucide-react';
+import { BarChart3, Bot, MessagesSquare, Network, Settings, Sparkles, UserRound, Users } from 'lucide-react';
 import type { AgentWorldAgentStatus } from '../../types/api/setting';
 import useHorizontalWheelScroll from '../../hooks/useHorizontalWheelScroll';
 import AgentAvatar from './AgentAvatar';
@@ -10,6 +10,7 @@ interface AgentResidentsProps {
     onOpenRelation?: () => void;
     onOpenAttributes?: () => void;
     onOpenAnalytics?: () => void;
+    onOpenTheatre?: () => void;
     onOpenManagement?: () => void;
 }
 
@@ -21,14 +22,15 @@ function ResidentActions({
     onOpenRelation,
     onOpenAttributes,
     onOpenAnalytics,
+    onOpenTheatre,
     onOpenManagement,
     compact = false,
-}: Pick<AgentResidentsProps, 'onOpenRelation' | 'onOpenAttributes' | 'onOpenAnalytics' | 'onOpenManagement'> & {compact?: boolean}) {
-    if (!onOpenRelation && !onOpenAttributes && !onOpenAnalytics && !onOpenManagement) return null;
+}: Pick<AgentResidentsProps, 'onOpenRelation' | 'onOpenAttributes' | 'onOpenAnalytics' | 'onOpenTheatre' | 'onOpenManagement'> & {compact?: boolean}) {
+    if (!onOpenRelation && !onOpenAttributes && !onOpenAnalytics && !onOpenTheatre && !onOpenManagement) return null;
 
     if (compact) {
         return (
-            <div className="mt-2 grid grid-cols-4 gap-1.5 border-t border-slate-100/90 pt-2">
+            <div className="mt-2 grid grid-cols-5 gap-1 border-t border-slate-100/90 pt-2">
                 {onOpenRelation && (
                     <button
                         type="button"
@@ -57,6 +59,16 @@ function ResidentActions({
                     >
                         <BarChart3 className="h-3 w-3 shrink-0 text-orange-600" />
                         <span className="truncate">数据分析</span>
+                    </button>
+                )}
+                {onOpenTheatre && (
+                    <button
+                        type="button"
+                        onClick={onOpenTheatre}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-slate-50 py-1.5 px-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                    >
+                        <MessagesSquare className="h-3 w-3 shrink-0" />
+                        <span className="truncate">小剧场</span>
                     </button>
                 )}
                 {onOpenManagement && (
@@ -96,6 +108,7 @@ export function AgentResidentsMobileBar({
     onOpenRelation,
     onOpenAttributes,
     onOpenAnalytics,
+    onOpenTheatre,
     onOpenManagement,
 }: AgentResidentsProps) {
     const totalActivities = agents.reduce((sum, agent) => sum + (agent.todayCount || 0), 0);
@@ -119,12 +132,12 @@ export function AgentResidentsMobileBar({
                 </div>
 
                 {/* 右上角快捷操作工具组 */}
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1 overflow-x-auto scrollbar-hide py-0.5">
                     {onOpenRelation && (
                         <button
                             type="button"
                             onClick={onOpenRelation}
-                            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
                             title="关系图谱"
                         >
                             <Network className="h-3 w-3 shrink-0 text-slate-500" />
@@ -135,7 +148,7 @@ export function AgentResidentsMobileBar({
                         <button
                             type="button"
                             onClick={onOpenAttributes}
-                            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
                             title="属性"
                         >
                             <UserRound className="h-3 w-3 shrink-0 text-slate-500" />
@@ -146,18 +159,29 @@ export function AgentResidentsMobileBar({
                         <button
                             type="button"
                             onClick={onOpenAnalytics}
-                            className="inline-flex items-center gap-0.5 rounded-lg border border-orange-200/80 bg-orange-50/80 px-1.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100 active:scale-95"
+                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-orange-200/80 bg-orange-50/80 px-1.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100 active:scale-95"
                             title="居民数据分析"
                         >
                             <BarChart3 className="h-3 w-3 shrink-0 text-orange-600" />
                             <span>分析</span>
                         </button>
                     )}
+                    {onOpenTheatre && (
+                        <button
+                            type="button"
+                            onClick={onOpenTheatre}
+                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                            title="小剧场记录"
+                        >
+                            <MessagesSquare className="h-3 w-3 shrink-0 text-slate-500" />
+                            <span>剧场</span>
+                        </button>
+                    )}
                     {onOpenManagement && (
                         <button
                             type="button"
                             onClick={onOpenManagement}
-                            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
+                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
                             title="Agent 管理"
                         >
                             <Settings className="h-3 w-3 shrink-0 text-slate-500" />
