@@ -49,32 +49,30 @@ export default function CombatAttributesCard({
     };
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+        <section className="flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs gap-2">
+            <div className="flex shrink-0 items-center justify-between pb-1.5 border-b border-slate-100">
                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5 text-orange-500" />
                     <span>战斗属性面板</span>
                 </h4>
-                <span className="text-[10px] text-slate-400">实时战斗判定参考</span>
+                <span className="text-[10px] text-slate-400">实时战斗判定</span>
             </div>
 
-            {/* 1. 基础六维属性 (6宫格彩色高密度胶囊) */}
+            {/* 1. 基础六维属性 (3x2 高密度胶囊，兼顾紧凑高度与多位数可读性) */}
             <div>
-                <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-amber-500" />
-                        <span>基础六维</span>
-                    </p>
-                </div>
-                <div className="grid grid-cols-6 gap-1">
+                <p className="text-[10px] font-semibold text-slate-500 mb-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>基础六维</span>
+                </p>
+                <div className="grid grid-cols-3 gap-1">
                     {baseStatsConfig.map(({key, label, abbr, theme}) => (
                         <div
                             key={key}
                             title={`${label} (${abbr}): ${attributes[key] ?? '-'}`}
-                            className={`flex flex-col items-center justify-center rounded-lg border py-1 px-0.5 text-center transition-all ${theme}`}
+                            className={`flex items-center justify-between rounded-lg border px-2 py-1 transition-all ${theme}`}
                         >
-                            <span className="text-[9px] font-bold tracking-tight opacity-75">{label}</span>
-                            <span className="text-xs font-extrabold mt-0.5">
+                            <span className="text-[10px] font-bold tracking-tight opacity-80">{label}</span>
+                            <span className="font-mono text-xs font-extrabold">
                                 {formatValue(key, attributes[key])}
                             </span>
                         </div>
@@ -84,17 +82,20 @@ export default function CombatAttributesCard({
 
             {/* 2. 核心攻防对比 (物理/魔法双通道) */}
             <div>
-                <p className="text-[11px] font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
+                <p className="text-[10px] font-semibold text-slate-500 mb-1 flex items-center gap-1">
                     <Swords className="w-3 h-3 text-rose-500" />
                     <span>攻防面板</span>
                 </p>
                 <div className="grid grid-cols-2 gap-1.5">
                     {combatStatGroups.map(group => (
-                        <div key={group.title} className="rounded-xl bg-slate-50/80 p-2 border border-slate-100 space-y-1">
+                        <div
+                            key={group.title}
+                            className="rounded-xl bg-slate-50/80 px-2 py-1.5 border border-slate-100 space-y-0.5"
+                        >
                             {group.items.map(item => (
-                                <div key={item.key} className="flex items-center justify-between text-xs">
-                                    <span className="text-[11px] text-slate-500">{item.label}</span>
-                                    <span className="font-bold text-slate-800">
+                                <div key={item.key} className="flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-500">{item.label}</span>
+                                    <span className="font-mono font-bold text-slate-800">
                                         {formatValue(item.key, attributes[item.key])}
                                     </span>
                                 </div>
@@ -103,15 +104,40 @@ export default function CombatAttributesCard({
                     ))}
                 </div>
                 {attributes.healing != null && Number(attributes.healing) > 0 && (
-                    <div className="mt-1 flex items-center justify-between rounded-lg bg-emerald-50/60 px-2.5 py-1 border border-emerald-100 text-xs">
-                        <span className="text-[11px] text-emerald-700">治疗能力</span>
-                        <span className="font-bold text-emerald-800">{formatValue('healing', attributes.healing)}</span>
+                    <div className="mt-1 flex items-center justify-between rounded-lg bg-emerald-50/60 px-2 py-0.5 border border-emerald-100 text-[11px]">
+                        <span className="text-emerald-700">治疗能力</span>
+                        <span className="font-mono font-bold text-emerald-800">
+                            {formatValue('healing', attributes.healing)}
+                        </span>
                     </div>
                 )}
             </div>
 
+            {/* 3. 进阶判定属性 (2x2 对齐胶囊，防止长数值截断) */}
             <div>
-                <p className="text-[11px] font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
+                <p className="text-[10px] font-semibold text-slate-500 mb-1 flex items-center gap-1">
+                    <Crosshair className="w-3 h-3 text-sky-500" />
+                    <span>进阶战斗判定</span>
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                    {advancedStatKeys.map(({key, label}) => (
+                        <div
+                            key={key}
+                            title={`${label}: ${formatValue(key, attributes[key])}`}
+                            className="flex items-center justify-between rounded-lg bg-sky-50/45 px-2 py-1 border border-sky-100/80 text-[11px]"
+                        >
+                            <span className="text-slate-500 truncate">{label}</span>
+                            <span className="font-mono font-bold text-sky-800">
+                                {formatValue(key, attributes[key])}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* 4. 五系属性强化与抗性 */}
+            <div>
+                <p className="text-[10px] font-semibold text-slate-500 mb-1 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-orange-500" />
                     <span>属性强化与抗性</span>
                 </p>
@@ -123,38 +149,30 @@ export default function CombatAttributesCard({
                         const resist = attributes[`${element}Resist`] ?? attributes[`${element}_resist`] ?? 0;
                         const isWeakness = Number(resist) < -0.0001;
                         return (
-                            <div key={element} className={`grid grid-cols-[2.5rem_1fr_1fr] items-center gap-1 rounded-lg border px-2 py-1 text-[11px] shadow-2xs transition-all ${cfg.resistBg}`}>
+                            <div
+                                key={element}
+                                className={`grid grid-cols-[2.2rem_1fr_1fr] items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] sm:text-[11px] shadow-2xs transition-all ${cfg.resistBg}`}
+                            >
                                 <span className={`flex items-center gap-1 font-bold ${cfg.resistLabelColor}`}>
                                     <Icon className={`h-3 w-3 shrink-0 ${cfg.iconColor}`} />
                                     <span>{cfg.label}</span>
                                 </span>
-                                <span className="text-slate-500">强化 <strong className="font-bold text-slate-800">{formatRatio(power)}</strong></span>
-                                <span className="text-right text-slate-500">抗性 <strong className={`font-bold ${isWeakness ? 'text-rose-600' : 'text-slate-800'}`}>{formatRatio(resist)}</strong></span>
+                                <span className="text-slate-500">
+                                    强化 <strong className="font-mono font-bold text-slate-800">{formatRatio(power)}</strong>
+                                </span>
+                                <span className="text-right text-slate-500">
+                                    抗性{' '}
+                                    <strong
+                                        className={`font-mono font-bold ${
+                                            isWeakness ? 'text-rose-600' : 'text-slate-800'
+                                        }`}
+                                    >
+                                        {formatRatio(resist)}
+                                    </strong>
+                                </span>
                             </div>
                         );
                     })}
-                </div>
-            </div>
-
-            {/* 3. 进阶判定属性 (4宫格精简标签) */}
-            <div>
-                <p className="text-[11px] font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
-                    <Crosshair className="w-3 h-3 text-sky-500" />
-                    <span>进阶战斗判定</span>
-                </p>
-                <div className="grid grid-cols-4 gap-1">
-                    {advancedStatKeys.map(({key, label}) => (
-                        <div
-                            key={key}
-                            title={`${label}: ${formatValue(key, attributes[key])}`}
-                            className="rounded-lg bg-sky-50/40 p-1.5 text-center border border-sky-100/70"
-                        >
-                            <span className="block text-[10px] text-slate-500 truncate">{label}</span>
-                            <span className="block text-[11px] font-bold text-sky-800 mt-0.5">
-                                {formatValue(key, attributes[key])}
-                            </span>
-                        </div>
-                    ))}
                 </div>
             </div>
         </section>

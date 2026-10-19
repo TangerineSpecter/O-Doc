@@ -67,30 +67,28 @@ export default function CombatProfilePanel({
     const isWorn = (itemId: string) => Object.values(profile.loadout).includes(itemId);
 
     return (
-        <div className="grid h-full min-h-0 grid-rows-2 lg:grid-cols-12 lg:grid-rows-1 gap-3.5">
-            {/* 左栏：角色状态、纸娃娃装配与属性面板 (约 5/12 宽度) */}
-            <div className="lg:col-span-5 flex flex-col min-h-0 overflow-y-auto scrollbar-hide space-y-3 pr-0.5">
-                {/* 1. 角色英雄名片区 (Hero Profile) */}
-                <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-                    <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                            {/* 居民真实头像 */}
-                            <div className="relative shrink-0 h-14 w-14 overflow-hidden rounded-xl bg-orange-50 border border-orange-100/80 shadow-2xs">
+        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-12 gap-3 overflow-y-auto lg:overflow-hidden scrollbar-hide">
+            {/* 左中主展区：顶部角色基础信息条 + 下部【装备装配 + 战斗属性面板】双栏并排 (占 7/12 宽度，一屏完整呈现) */}
+            <div className="lg:col-span-7 flex flex-col min-h-0 gap-2.5">
+                {/* 1. 紧凑型角色基础状态横条 (头像 + 等级职业 + 切换器 + HP/MP/EXP 三联状态条) */}
+                <section className="shrink-0 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-2xs">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        {/* 左侧：头像、姓名、居民切换、等级职业与观察按钮 */}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="relative shrink-0 h-11 w-11 overflow-hidden rounded-xl bg-orange-50 border border-orange-100/80 shadow-2xs">
                                 <AgentAvatar
                                     key={activeResident?.id || activeResident?.name}
                                     name={activeResident?.name || '居民'}
                                     avatar={activeResident?.avatar}
-                                    size="lg"
+                                    size="md"
                                 />
                             </div>
 
-                            {/* 角色姓名、切换器与等级信息 */}
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="text-base font-bold text-slate-800 truncate">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h3 className="text-sm font-bold text-slate-800 truncate">
                                         {activeResident?.name || '居民'}
                                     </h3>
-                                    {/* 居民微型切换器 (若有多位居民) */}
                                     {residents && residents.length > 1 && (
                                         <div
                                             role="group"
@@ -105,9 +103,9 @@ export default function CombatProfilePanel({
                                                 onClick={() => onChangeResident?.(actorIndex - 1)}
                                                 className="rounded p-0.5 text-slate-500 hover:bg-white hover:text-orange-600 disabled:opacity-30 disabled:hover:bg-transparent"
                                             >
-                                                <ChevronLeft className="h-3.5 w-3.5" />
+                                                <ChevronLeft className="h-3 w-3" />
                                             </button>
-                                            <span className="px-1 text-[11px] font-medium text-slate-500 select-none">
+                                            <span className="px-1 text-[10px] font-medium text-slate-500 select-none">
                                                 {actorIndex + 1}/{residents.length}
                                             </span>
                                             <button
@@ -118,14 +116,14 @@ export default function CombatProfilePanel({
                                                 onClick={() => onChangeResident?.(actorIndex + 1)}
                                                 className="rounded p-0.5 text-slate-500 hover:bg-white hover:text-orange-600 disabled:opacity-30 disabled:hover:bg-transparent"
                                             >
-                                                <ChevronRight className="h-3.5 w-3.5" />
+                                                <ChevronRight className="h-3 w-3" />
                                             </button>
                                         </div>
                                     )}
                                 </div>
 
                                 <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                    <span className="inline-flex items-center rounded-md bg-orange-50 px-2 py-0.5 text-xs font-bold text-orange-700 border border-orange-200/60">
+                                    <span className="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 border border-orange-200/60">
                                         Lv.{profile.progression.level} · {job?.name || '新手'}
                                     </span>
                                     {profile.promotionOptions.length > 0 && (
@@ -134,155 +132,144 @@ export default function CombatProfilePanel({
                                             可转职
                                         </span>
                                     )}
+                                    {viewableExplorationId && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onObserve(viewableExplorationId)}
+                                            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg bg-orange-500 px-2 py-0.5 text-[11px] font-semibold text-white shadow-2xs transition-all hover:bg-orange-600 active:scale-95"
+                                        >
+                                            <Eye className="w-3 h-3" />
+                                            {profile.activeExplorationId ? '观察探索' : '上次战报'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* 观察进行中 / 查看上次战报 */}
-                        {viewableExplorationId && (
-                            <button
-                                type="button"
-                                onClick={() => onObserve(viewableExplorationId)}
-                                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-orange-500 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95"
-                            >
-                                <Eye className="w-3.5 h-3.5" />
-                                {profile.activeExplorationId ? '观察探索' : '上次战报'}
-                            </button>
-                        )}
-                    </div>
+                        {/* 右侧：HP / MP / EXP 三联紧凑充能槽 */}
+                        <div className="grid grid-cols-3 gap-2 flex-1 min-w-[280px]">
+                            {/* HP 生命 */}
+                            <div className="rounded-xl bg-emerald-50/45 px-2.5 py-1.5 border border-emerald-100/80 space-y-1">
+                                <div className="flex items-center justify-between text-[10px] font-semibold gap-1">
+                                    <span className="flex items-center gap-1 text-emerald-700 whitespace-nowrap">
+                                        <Heart className="w-2.5 h-2.5 fill-emerald-500 text-emerald-500 shrink-0" />
+                                        HP
+                                    </span>
+                                    <span className="font-mono text-slate-700 truncate">
+                                        {profile.hp}/{profile.attributes.hpMax}
+                                    </span>
+                                </div>
+                                <div className="h-1.5 w-full rounded-full bg-emerald-100/90 overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                                        style={{width: `${hpPercent}%`}}
+                                    />
+                                </div>
+                            </div>
 
-                    {/* 历练经验成长条 (EXP) */}
-                    <div className="mt-3 rounded-xl bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-yellow-50/50 p-2.5 border border-amber-200/70 space-y-1.5 shadow-2xs">
-                        <div className="flex items-center justify-between text-[11px] font-semibold">
-                            <span className="flex items-center gap-1 text-amber-800">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                历练经验 (EXP)
-                            </span>
-                            <span className="text-amber-900 font-bold">
-                                {isMaxLevel ? (
-                                    <span className="rounded bg-amber-200/80 px-1.5 py-0.5 text-[10px] text-amber-900 font-extrabold">
-                                        MAX 已达上限
+                            {/* MP 魔力 */}
+                            <div className="rounded-xl bg-sky-50/45 px-2.5 py-1.5 border border-sky-100/80 space-y-1">
+                                <div className="flex items-center justify-between text-[10px] font-semibold gap-1">
+                                    <span className="flex items-center gap-1 text-sky-700 whitespace-nowrap">
+                                        <Flame className="w-2.5 h-2.5 text-sky-500 shrink-0" />
+                                        MP
                                     </span>
-                                ) : maxExp > 0 ? (
-                                    <span className="flex items-center gap-1 font-mono text-xs">
-                                        <span className="text-slate-800 font-bold">{currentExp}</span>
-                                        <span className="text-slate-400 font-normal">/ {maxExp} Exp</span>
-                                        <span className="ml-1 rounded bg-amber-100/90 px-1.5 py-0.2 text-[10px] font-bold text-amber-700">
-                                            {expPercent.toFixed(1)}%
-                                        </span>
+                                    <span className="font-mono text-slate-700 truncate">
+                                        {profile.mp}/{profile.attributes.mpMax}
                                     </span>
-                                ) : (
-                                    <span className="font-mono text-xs text-slate-700">{currentExp} Exp</span>
-                                )}
-                            </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-amber-100/80 overflow-hidden shadow-inner">
-                            <div
-                                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 transition-all duration-300 shadow-xs"
-                                style={{width: `${expPercent}%`}}
-                            />
+                                </div>
+                                <div className="h-1.5 w-full rounded-full bg-sky-100/90 overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full bg-sky-500 transition-all duration-300"
+                                        style={{width: `${mpPercent}%`}}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* EXP 历练经验 */}
+                            <div className="rounded-xl bg-amber-50/55 px-2.5 py-1.5 border border-amber-200/70 space-y-1">
+                                <div className="flex items-center justify-between text-[10px] font-semibold gap-1">
+                                    <span className="flex items-center gap-1 text-amber-800 whitespace-nowrap">
+                                        <Sparkles className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                        EXP
+                                    </span>
+                                    <span className="font-mono text-amber-900 font-bold truncate">
+                                        {isMaxLevel
+                                            ? 'MAX'
+                                            : maxExp > 0
+                                              ? `${currentExp}/${maxExp}`
+                                              : `${currentExp} Exp`}
+                                    </span>
+                                </div>
+                                <div className="h-1.5 w-full rounded-full bg-amber-100/90 overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 transition-all duration-300"
+                                        style={{width: `${expPercent}%`}}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     {/* 可转职提醒横幅 */}
                     {profile.promotionOptions.length > 0 && (
-                        <div className="mt-3 rounded-xl bg-amber-50/80 p-2.5 border border-amber-200/70 text-xs text-amber-800">
-                            <p className="font-semibold">已达到转职等级。Agent 完成职业选择前，不能继续探索。</p>
-                            <p className="text-[11px] text-amber-700 mt-0.5">
-                                Agent 可选分支：{profile.promotionOptions.map(row => row.name).join('、')}
-                            </p>
-                            <p className="mt-0.5 text-[11px] text-amber-700">门槛后的经验会暂存，转职后继续结算。</p>
-                            {profile.activeExplorationId && (
-                                <p className="mt-0.5 text-[11px] text-amber-700">当前探索已暂停；选择完成后会自动继续剩余行程。</p>
-                            )}
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50/80 px-3 py-1.5 border border-amber-200/70 text-xs text-amber-800">
+                            <div className="min-w-0">
+                                <span className="font-semibold">已达转职等级：</span>
+                                <span className="text-[11px] text-amber-700">
+                                    可选 {profile.promotionOptions.map(row => row.name).join('、')}（完成转职前暂停探索，溢出经验将暂存）
+                                </span>
+                            </div>
                             <button
                                 type="button"
                                 disabled={actions.busy || profile.promotionBusy}
                                 onClick={() => void actions.act({operation: 'retry_promotion'})}
-                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                <Sparkles className="h-3.5 w-3.5" />
-                                {profile.promotionBusy ? 'Agent 正在选择职业…' : profile.activeExplorationId ? '让 Agent 重试转职' : '让 Agent 选择职业'}
+                                <Sparkles className="h-3 w-3" />
+                                {profile.promotionBusy ? '选择职业中…' : profile.activeExplorationId ? '重试转职' : '让 Agent 选择职业'}
                             </button>
                         </div>
                     )}
-
-                    {/* HP / MP 双通道充能槽 */}
-                    <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50/80 p-2.5 border border-slate-100">
-                        {/* HP */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px] font-semibold">
-                                <span className="flex items-center gap-1 text-emerald-700">
-                                    <Heart className="w-3 h-3 fill-emerald-500 text-emerald-500" />
-                                    HP 生命
-                                </span>
-                                <span className="text-slate-700">
-                                    {profile.hp} / {profile.attributes.hpMax}
-                                </span>
-                            </div>
-                            <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                                <div
-                                    className="h-full rounded-full bg-emerald-500 transition-all duration-300"
-                                    style={{width: `${hpPercent}%`}}
-                                />
-                            </div>
-                        </div>
-
-                        {/* MP */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px] font-semibold">
-                                <span className="flex items-center gap-1 text-sky-700">
-                                    <Flame className="w-3 h-3 text-sky-500" />
-                                    MP 魔力
-                                </span>
-                                <span className="text-slate-700">
-                                    {profile.mp} / {profile.attributes.mpMax}
-                                </span>
-                            </div>
-                            <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                                <div
-                                    className="h-full rounded-full bg-sky-500 transition-all duration-300"
-                                    style={{width: `${mpPercent}%`}}
-                                />
-                            </div>
-                        </div>
-                    </div>
                 </section>
 
-                {/* 2. 纸娃娃六槽装备 */}
-                <CombatLoadoutSlots
-                    profile={profile}
-                    disabled={busy}
-                    onInspect={(item, remove, slot) => setPreview({item, remove, slot})}
-                />
-
-                {/* 3. 高密度战斗属性面板 */}
-                <CombatAttributesCard attributes={profile.attributes} />
+                {/* 2. 下部双栏并排：左侧【角色装配窗口】 + 右侧【完整战斗属性面板】 */}
+                <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                    <div className="sm:col-span-7 min-h-0 flex flex-col">
+                        <CombatLoadoutSlots
+                            profile={profile}
+                            disabled={busy}
+                            onInspect={(item, remove, slot) => setPreview({item, remove, slot})}
+                        />
+                    </div>
+                    <div className="sm:col-span-5 min-h-0 flex flex-col">
+                        <CombatAttributesCard attributes={profile.attributes} />
+                    </div>
+                </div>
             </div>
 
-            {/* 右栏：探索出发 & 整备工作台 (约 7/12 宽度) */}
-            <div className="lg:col-span-7 flex flex-col min-h-0 overflow-y-auto overscroll-y-contain scrollbar-hide lg:overflow-visible space-y-3">
-                {/* 1. 探索出发卡片 (内嵌“探索历史”入口按钮) */}
-                <section className="shrink-0 rounded-2xl border border-orange-200/80 bg-gradient-to-br from-orange-50/40 via-white to-amber-50/30 p-3.5 shadow-2xs sm:p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+            {/* 右栏：探索出发 & 整备工作台 (占 5/12 宽度) */}
+            <div className="lg:col-span-5 flex flex-col min-h-0 gap-2.5">
+                {/* 1. 探索出发卡片 (与左侧顶部角色状态横条等高对齐) */}
+                <section className="shrink-0 rounded-2xl border border-orange-200/80 bg-gradient-to-br from-orange-50/40 via-white to-amber-50/30 px-3.5 py-2.5 shadow-2xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
                                 <Compass className="h-5 w-5" />
                             </span>
                             <div className="min-w-0">
                                 <h3 className="text-sm font-bold text-slate-800">探索出发</h3>
-                                <p className="mt-0.5 text-xs text-slate-500">配置迷宫目的地、探索时长与战术风格</p>
+                                <p className="mt-0.5 text-[11px] text-slate-500 truncate">配置迷宫目的地、探索时长与战术风格</p>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-2">
-                            {/* 探索历史内嵌按钮 */}
                             {onOpenHistory && (
                                 <button
                                     type="button"
                                     onClick={onOpenHistory}
                                     title="点击查看历史历练战报"
-                                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-orange-200/80 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:bg-orange-50/70 hover:text-orange-600 active:scale-95"
+                                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-orange-200/80 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:bg-orange-50/70 hover:text-orange-600 active:scale-95"
                                 >
                                     <History className="h-3.5 w-3.5 text-orange-500" />
                                     <span>探索历史</span>
@@ -295,13 +282,13 @@ export default function CombatProfilePanel({
                             )}
 
                             {profile.activeExplorationId ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-2 text-xs font-semibold text-orange-700">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1.5 text-xs font-semibold text-orange-700">
                                     <Flame className="h-3.5 w-3.5" />
                                     {profile.promotionOptions.length > 0 ? '等待转职' : '探索进行中'}
                                 </span>
                             ) : profile.promotionOptions.length > 0 ? (
-                                <span className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800">
-                                    <Sparkles className="h-4 w-4" />
+                                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                                    <Sparkles className="h-3.5 w-3.5" />
                                     待转职
                                 </span>
                             ) : (
@@ -309,23 +296,23 @@ export default function CombatProfilePanel({
                                     type="button"
                                     disabled={actions.busy}
                                     onClick={() => setPreparationOpen(true)}
-                                    className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    <Compass className="h-4 w-4" />
+                                    <Compass className="h-3.5 w-3.5" />
                                     出发
                                 </button>
                             )}
                         </div>
                     </div>
                     {profile.restUntil && !profile.activeExplorationId && (
-                        <p className="mt-2.5 rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-800">
+                        <p className="mt-2 rounded-xl border border-amber-200/70 bg-amber-50/80 px-2.5 py-1.5 text-xs text-amber-800">
                             居民正在休息，仍可查看配置；休息结束前无法出发。
                         </p>
                     )}
                 </section>
 
                 {/* 2. 下部：整备工作台 Tab 容器 */}
-                <div className="shrink-0 lg:flex-1 min-h-0 flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs">
                     {/* Tab 导航头 */}
                     <div className="flex shrink-0 items-center justify-between pb-3 border-b border-slate-100 gap-2 flex-wrap">
                         <div className="flex max-w-full gap-1 overflow-x-auto scrollbar-hide rounded-full bg-slate-100 p-1">

@@ -240,29 +240,29 @@ export function DiabloHumanSilhouette({
 
             {/* 1. 职业专属中心柔和背景光晕 */}
             <div
-                className="absolute left-1/2 top-[54%] -translate-x-1/2 -translate-y-1/2 w-[250px] h-[340px] rounded-full blur-2xl opacity-65 transition-all duration-500"
+                className="absolute left-1/2 top-[54%] -translate-x-1/2 -translate-y-1/2 w-[220px] h-[290px] rounded-full blur-2xl opacity-65 transition-all duration-500"
                 style={{background: visual.aura}}
             />
 
             {/* 2. 双层微旋奥术星盘环 */}
             <div
-                className="absolute left-1/2 top-[54%] w-[310px] h-[310px] sm:w-[360px] sm:h-[360px] rounded-full border border-dashed border-slate-400/25 opacity-60"
+                className="absolute left-1/2 top-[54%] w-[260px] h-[260px] sm:w-[296px] sm:h-[296px] rounded-full border border-dashed border-slate-400/25 opacity-60"
                 style={{animation: 'loadoutOrbitSpinSlow 56s linear infinite'}}
             />
             <div
-                className="absolute left-1/2 top-[54%] w-[220px] h-[220px] sm:w-[255px] sm:h-[255px] rounded-full border border-slate-400/20 opacity-50"
+                className="absolute left-1/2 top-[54%] w-[184px] h-[184px] sm:w-[210px] sm:h-[210px] rounded-full border border-slate-400/20 opacity-50"
                 style={{animation: 'loadoutOrbitSpinReverse 38s linear infinite'}}
             />
 
             {/* 3. 职业脚底光环柔光底衬 */}
             <div
-                className="absolute left-1/2 top-[84%] -translate-x-1/2 -translate-y-1/2 w-[250px] h-[66px] rounded-full blur-xl opacity-75 transition-all duration-500"
+                className="absolute left-1/2 top-[84%] -translate-x-1/2 -translate-y-1/2 w-[220px] h-[56px] rounded-full blur-xl opacity-75 transition-all duration-500"
                 style={{background: visual.footAura}}
             />
 
             {/* 4. 紧凑比例一转职业立绘 (带专属透视脚底光环，避开顶部头饰遮挡) */}
             <div
-                className="relative z-0 flex items-center justify-center mt-[74px] sm:mt-[80px] w-[284px] h-[316px] sm:w-[316px] sm:h-[352px] transition-all duration-300"
+                className="relative z-0 flex items-center justify-center mt-[58px] sm:mt-[62px] w-[238px] h-[264px] sm:w-[264px] sm:h-[294px] transition-all duration-300"
                 style={{
                     opacity: 0.9,
                     animation: 'loadoutHeroBreathe 4.2s ease-in-out infinite',

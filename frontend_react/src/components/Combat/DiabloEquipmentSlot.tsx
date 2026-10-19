@@ -134,7 +134,7 @@ export function DiabloEquipmentSlot({
                         disabled={disabled}
                         onClick={() => onInspect(item, true, sourceSlot)}
                         title={`已装备：${gear.name} (Lv.${gear.level})`}
-                        className={`relative flex h-16 w-16 sm:h-[74px] sm:w-[74px] items-center justify-center rounded-[18px] sm:rounded-[20px] border-2 p-1.5 text-left backdrop-blur-xs transition-all duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed ${
+                        className={`relative flex h-[56px] w-[56px] sm:h-[60px] sm:w-[60px] items-center justify-center rounded-[16px] border-2 p-1 text-left backdrop-blur-xs transition-all duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed ${
                             isGold
                                 ? 'border-amber-400 bg-gradient-to-br from-amber-50/95 to-orange-50/90 shadow-[0_6px_16px_-3px_rgba(245,158,11,0.24),inset_0_0_12px_rgba(251,191,36,0.14)] group-hover:border-amber-500 group-hover:shadow-[0_0_0_3px_rgba(245,158,11,0.24),0_10px_24px_-4px_rgba(245,158,11,0.3)]'
                                 : isBlue
@@ -144,7 +144,7 @@ export function DiabloEquipmentSlot({
                     >
                         {/* 右上角：品质胶囊徽标 (金/蓝/白) */}
                         <span
-                            className={`absolute top-1 right-1 flex items-center justify-center rounded-md px-1.5 py-0.5 text-[9px] font-bold leading-none border select-none ${
+                            className={`absolute top-1 right-1 flex items-center justify-center rounded px-1 py-0.2 text-[8px] font-bold leading-none border select-none ${
                                 isGold
                                     ? 'bg-amber-100 text-amber-800 border-amber-300'
                                     : isBlue
@@ -156,7 +156,7 @@ export function DiabloEquipmentSlot({
                         </span>
 
                         {/* 装备像素肖像 */}
-                        <div className="relative h-10 w-10 sm:h-12 sm:w-12 flex items-center justify-center overflow-hidden">
+                        <div className="relative h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center overflow-hidden">
                             <EquipmentPortrait
                                 equipmentId={gear.templateId || item.templateId || item.id}
                                 name={gear.name}
@@ -165,13 +165,13 @@ export function DiabloEquipmentSlot({
                                 bossOnly={(gear.templateId || item.templateId || item.id).includes('boss')}
                                 decorative
                                 className="h-full w-full object-contain drop-shadow-xs transition-transform duration-200 group-hover:scale-110"
-                                fallbackClassName="h-6 w-6"
+                                fallbackClassName="h-5 w-5"
                             />
                         </div>
 
                         {/* 左下角：胶囊等级徽标 (Lv.X) */}
                         <span
-                            className={`absolute bottom-1 left-1 flex items-center rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold shadow-xs leading-none select-none ${
+                            className={`absolute bottom-1 left-1 flex items-center rounded-full px-1.5 py-0.2 font-mono text-[8px] font-bold shadow-xs leading-none select-none ${
                                 isGold
                                     ? 'bg-amber-600 text-white'
                                     : isBlue
@@ -183,7 +183,7 @@ export function DiabloEquipmentSlot({
                         </span>
                     </button>
                     <span
-                        className={`mt-1 text-[10px] sm:text-[11px] font-semibold tracking-tight leading-none transition-colors select-none ${
+                        className={`mt-0.5 text-[10px] font-semibold tracking-tight leading-tight transition-colors select-none ${
                             isHovered ? 'text-orange-500 font-bold' : 'text-slate-500'
                         }`}
                     >
@@ -195,26 +195,26 @@ export function DiabloEquipmentSlot({
                 <>
                     <div
                         data-loadout-slot-box={slot}
-                        className="group/empty relative flex h-16 w-16 sm:h-[74px] sm:w-[74px] flex-col items-center justify-center gap-1 rounded-[18px] sm:rounded-[20px] border-[1.5px] border-dashed border-slate-300/90 bg-white/80 p-1.5 text-slate-400 shadow-2xs backdrop-blur-xs transition-all duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.03] hover:border-solid hover:border-orange-500 hover:bg-orange-50/40 hover:shadow-[0_0_0_3px_rgba(249,115,22,0.14)]"
+                        className="group/empty relative flex h-[56px] w-[56px] sm:h-[60px] sm:w-[60px] flex-col items-center justify-center gap-0.5 rounded-[16px] border-[1.5px] border-dashed border-slate-300/90 bg-white/80 p-1 text-slate-400 shadow-2xs backdrop-blur-xs transition-all duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.03] hover:border-solid hover:border-orange-500 hover:bg-orange-50/40 hover:shadow-[0_0_0_3px_rgba(249,115,22,0.14)]"
                     >
                         {hasCandidate && (
                             <>
-                                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-orange-500 animate-ping" />
+                                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-orange-500 animate-ping" />
                                 <span
-                                    className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-orange-500"
+                                    className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-orange-500"
                                     title="背包中有可穿戴装备"
                                 />
                             </>
                         )}
                         {/* 部位水印图标 */}
-                        <Icon className="h-5 w-5 opacity-75 transition-all duration-200 group-hover/empty:scale-110 group-hover/empty:text-orange-500" />
+                        <Icon className="h-4 w-4 opacity-75 transition-all duration-200 group-hover/empty:scale-110 group-hover/empty:text-orange-500" />
                         {/* 框内部位名称 */}
-                        <span className="text-[10px] sm:text-[11px] font-semibold tracking-tight leading-none text-slate-400 transition-colors group-hover/empty:text-orange-500 font-sans">
+                        <span className="text-[10px] font-semibold tracking-tight leading-none text-slate-400 transition-colors group-hover/empty:text-orange-500 font-sans">
                             {label}
                         </span>
                     </div>
                     <span
-                        className={`mt-1 text-[9px] sm:text-[10px] font-medium tracking-tight leading-none transition-colors select-none ${
+                        className={`mt-0.5 text-[9px] font-medium tracking-tight leading-tight transition-colors select-none ${
                             isHovered
                                 ? 'text-orange-500 font-semibold'
                                 : hasCandidate

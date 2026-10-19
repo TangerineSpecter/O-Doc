@@ -70,7 +70,7 @@ export default function CombatDialog({
         <WorldDialog
             title="冒险与战斗"
             description="准备出发，探索迷宫，见证居民的历练与成长。"
-            size="wide"
+            size="extra-wide"
             onClose={onClose}
         >
             <div ref={contentRef} className="flex h-full min-h-0 flex-col gap-2.5">

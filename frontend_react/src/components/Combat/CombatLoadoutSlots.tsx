@@ -65,9 +65,9 @@ export default function CombatLoadoutSlots({
     };
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-2.5">
+        <section className="flex h-full min-h-[420px] flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs">
             {/* 顶部标题与装等概览 */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className="flex shrink-0 items-center justify-between pb-2 mb-2 border-b border-slate-100">
                 <div className="flex items-center gap-1.5 flex-wrap">
                     <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                         <Shield className="w-3.5 h-3.5 text-orange-500" />
@@ -86,7 +86,7 @@ export default function CombatLoadoutSlots({
                     )}
                 </div>
 
-                <div className="flex items-center gap-2.5 text-[11px]">
+                <div className="flex items-center gap-2 text-[11px]">
                     <span className="text-slate-400">
                         平均装等 <strong className="font-mono text-slate-700 font-bold">{avgLevel}</strong>
                     </span>
@@ -100,15 +100,15 @@ export default function CombatLoadoutSlots({
             {/* 白色现代主题：英雄装备纸娃娃展台 (overflow-visible 保证 Tooltip 浮窗不被截断) */}
             <div
                 ref={stageRef}
-                className="relative w-full h-[480px] sm:h-[500px] rounded-2xl bg-gradient-to-b from-slate-50/95 via-white to-orange-50/20 border border-slate-200/90 shadow-2xs select-none"
+                className="relative w-full flex-1 min-h-[375px] rounded-2xl bg-gradient-to-b from-slate-50/95 via-white to-orange-50/20 border border-slate-200/90 shadow-2xs select-none"
             >
                 {/* 独立背景裁剪层 (背景光晕、人物立绘、连接引线与包角不超出圆角) */}
                 <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
                     {/* 展台四角精致浅橙色现代几何包角 */}
-                    <div className="absolute top-3 left-3 w-3.5 h-3.5 border-t-2 border-l-2 border-orange-400/70 rounded-tl-sm" />
-                    <div className="absolute top-3 right-3 w-3.5 h-3.5 border-t-2 border-r-2 border-orange-400/70 rounded-tr-sm" />
-                    <div className="absolute bottom-3 left-3 w-3.5 h-3.5 border-b-2 border-l-2 border-orange-400/70 rounded-bl-sm" />
-                    <div className="absolute bottom-3 right-3 w-3.5 h-3.5 border-b-2 border-r-2 border-orange-400/70 rounded-br-sm" />
+                    <div className="absolute top-2.5 left-2.5 w-3 h-3 border-t-2 border-l-2 border-orange-400/70 rounded-tl-sm" />
+                    <div className="absolute top-2.5 right-2.5 w-3 h-3 border-t-2 border-r-2 border-orange-400/70 rounded-tr-sm" />
+                    <div className="absolute bottom-2.5 left-2.5 w-3 h-3 border-b-2 border-l-2 border-orange-400/70 rounded-bl-sm" />
+                    <div className="absolute bottom-2.5 right-2.5 w-3 h-3 border-b-2 border-r-2 border-orange-400/70 rounded-br-sm" />
 
                     {/* 展台中心一转职业英雄立绘、脚底光环与解剖对位引线 */}
                     <DiabloHumanSilhouette
@@ -124,16 +124,16 @@ export default function CombatLoadoutSlots({
                 {renderSlot('head', 'top-center', 'top-[1.5%] left-1/2 -translate-x-1/2')}
 
                 {/* 2. 左翼四槽 (手套 -> 武器 -> 护甲 -> 戒指位 1) */}
-                {renderSlot('hands', 'top-left', 'top-[13%] left-[3%] sm:left-[4%]')}
-                {renderSlot('weapon', 'mid-left', 'top-[36.5%] left-[1.5%] sm:left-[2.5%]')}
-                {renderSlot('body', 'mid-left', 'top-[60%] left-[1.5%] sm:left-[2.5%]')}
-                {renderSlot('ring_1', 'bottom-left', 'bottom-[2%] left-[7%] sm:left-[8%]')}
+                {renderSlot('hands', 'top-left', 'top-[11%] left-[2.5%] sm:left-[3%]')}
+                {renderSlot('weapon', 'mid-left', 'top-[34%] left-[1.5%] sm:left-[2%]')}
+                {renderSlot('body', 'mid-left', 'top-[57%] left-[1.5%] sm:left-[2%]')}
+                {renderSlot('ring_1', 'bottom-left', 'bottom-[2.5%] left-[6%] sm:left-[7%]')}
 
                 {/* 3. 右翼四槽 (吊坠 -> 副手 -> 靴子 -> 戒指位 2) */}
-                {renderSlot('accessory', 'top-right', 'top-[13%] right-[3%] sm:right-[4%]')}
-                {renderSlot('offhand', 'mid-right', 'top-[36.5%] right-[1.5%] sm:right-[2.5%]')}
-                {renderSlot('feet', 'mid-right', 'top-[60%] right-[1.5%] sm:right-[2.5%]')}
-                {renderSlot('ring_2', 'bottom-right', 'bottom-[2%] right-[7%] sm:right-[8%]')}
+                {renderSlot('accessory', 'top-right', 'top-[11%] right-[2.5%] sm:right-[3%]')}
+                {renderSlot('offhand', 'mid-right', 'top-[34%] right-[1.5%] sm:right-[2%]')}
+                {renderSlot('feet', 'mid-right', 'top-[57%] right-[1.5%] sm:right-[2%]')}
+                {renderSlot('ring_2', 'bottom-right', 'bottom-[2.5%] right-[6%] sm:right-[7%]')}
             </div>
         </section>
     );
