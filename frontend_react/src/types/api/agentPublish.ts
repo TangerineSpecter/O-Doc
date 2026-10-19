@@ -10,6 +10,7 @@ export interface PublishCategoryRule {
     imageSubject?: 'auto' | 'scene' | 'agent';
     imagePrompt?: string;
 }
+export type PublishQuotaPeriod = 'daily' | 'weekly' | 'monthly';
 export interface AgentPublishConfig {
     collectionId: string;
     searchServerId: string;
@@ -17,6 +18,10 @@ export interface AgentPublishConfig {
     cooldownHours: number;
     unreadEnabled: boolean;
     unreadCount: number;
+    quotaEnabled: boolean;
+    quotaPeriod: PublishQuotaPeriod;
+    quotaTotal: number;
+    quotaPerAgent: number;
     ownerId?: string;
 }
 export interface PublishMaterial {

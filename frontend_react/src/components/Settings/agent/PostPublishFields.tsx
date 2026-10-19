@@ -1,12 +1,17 @@
 import {PostImageFields} from './PostImageFields';
 import {Select} from '@/components/common/Select';
 import {Checkbox} from '@/components/common/Checkbox';
-import type {AgentPublishConfig, PublishCategoryRule} from '@/types/api/agentPublish';
+import type {AgentPublishConfig, PublishCategoryRule, PublishQuotaPeriod} from '@/types/api/agentPublish';
 import type {AIModel, MCPServerConfig} from '@/types/api/setting';
 import {usePostScopeOptions} from './usePostScopeOptions';
 import {newPublishRule} from './publishDefaults';
 
 const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20';
+const quotaPeriodOptions: {value: PublishQuotaPeriod; label: string}[] = [
+    {value: 'daily', label: '每日'},
+    {value: 'weekly', label: '每周'},
+    {value: 'monthly', label: '每月'},
+];
 interface Props {value: AgentPublishConfig; onChange: (value: AgentPublishConfig) => void; servers: MCPServerConfig[]; imageModels: (AIModel & {providerName: string})[]}
 export function PostPublishFields({value, onChange, servers, imageModels}: Props) {
     const {collections, categories, loading, error, retry} = usePostScopeOptions(true);
@@ -50,6 +55,27 @@ export function PostPublishFields({value, onChange, servers, imageModels}: Props
         </>}
         <div className="grid gap-4 sm:grid-cols-2"><label className="space-y-2 text-sm text-slate-700"><span>每位 Agent 发帖冷却（小时）</span><input className={inputClass} type="number" min={1} max={720} value={value.cooldownHours} onChange={e => onChange({...value, cooldownHours: Number(e.target.value)})}/></label><label className="space-y-2 text-sm text-slate-700"><span>未读积压检查篇数</span><input className={inputClass} type="number" min={1} max={100} disabled={!value.unreadEnabled} value={value.unreadCount} onChange={e => onChange({...value, unreadCount: Number(e.target.value)})}/></label></div>
         <Checkbox checked={value.unreadEnabled} onChange={unreadEnabled => onChange({...value, unreadEnabled})} label="最近指定篇数全部未读时暂停发帖"/>
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <div>
+                <h4 className="text-sm font-semibold text-slate-900">周期发帖数量限制</h4>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">默认关闭。开启后按自然日／周／月统计本任务绑定 Agent 已发布的帖子，达到上限的居民不再获得发帖日程与选题输入。</p>
+            </div>
+            <Checkbox checked={value.quotaEnabled} onChange={quotaEnabled => onChange({...value, quotaEnabled})} label="限制周期内发帖数量"/>
+            {value.quotaEnabled && <>
+                <div className="grid gap-4 sm:grid-cols-3">
+                    <label className="space-y-2 text-sm text-slate-700"><span>统计周期</span>
+                        <Select value={value.quotaPeriod} menuPortal options={quotaPeriodOptions} onChange={quotaPeriod => onChange({...value, quotaPeriod})}/>
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700"><span>所有 Agent 最多发帖（篇）</span>
+                        <input className={inputClass} type="number" min={1} max={10000} value={value.quotaTotal || ''} onChange={e => onChange({...value, quotaTotal: Math.max(0, Number(e.target.value) || 0)})}/>
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700"><span>每位 Agent 最多发帖（篇）</span>
+                        <input className={inputClass} type="number" min={1} max={Math.max(1, Number(value.quotaTotal) || 1)} placeholder="留空不限" value={value.quotaPerAgent || ''} onChange={e => onChange({...value, quotaPerAgent: Math.max(0, Number(e.target.value) || 0)})}/>
+                    </label>
+                </div>
+                <p className="text-xs leading-relaxed text-slate-500">达到总量上限后，本任务所有 Agent 都不再获得发帖日程与选题输入；设置单 Agent 上限后，达到上限的 Agent 单独停止。统计按自然周期计算本任务绑定 Agent 已发布的帖子，包含其他入口发布的作品。</p>
+            </>}
+        </div>
         <p className="text-xs text-slate-500">成功发帖消耗20点体力，每次机会最多一篇；没有合适素材可以跳过。配图按分类设置生成，正文先发布，图片完成后补入。</p>
     </section>;
 }

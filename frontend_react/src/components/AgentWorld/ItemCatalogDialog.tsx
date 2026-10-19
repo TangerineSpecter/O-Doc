@@ -160,13 +160,14 @@ function cropKindFor(item: CatalogItem): CropKind | null {
 
 const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
     {value: 'all', label: '全部'},
-    ...(['souvenir', 'seed', 'fertilizer', 'feed', 'crop', 'animal_product', 'elixir', 'other'] as const)
+    ...(['souvenir', 'seed', 'fertilizer', 'feed', 'crop', 'animal_product', 'other'] as const)
         .map(value => ({value, label: itemCategoryLabels[value]})),
 ];
 
 export function ItemCatalogContent({active = true}: {active?: boolean}) {
     const {items, loading, error, reload} = useItemCatalog();
-    const catalogItems = useMemo(() => items.filter(item => item.category !== 'dish'), [items]);
+    // 美食归「美食食谱」、炼金药水归「炼金图鉴」，物品图鉴不重复展示。
+    const catalogItems = useMemo(() => items.filter(item => item.category !== 'dish' && item.category !== 'elixir'), [items]);
     const exportSheets = useMemo(() => itemCatalogExportSheets(catalogItems), [catalogItems]);
     const [category, setCategory] = useState<'all' | ItemCategory>('all');
     const [search, setSearch] = useState('');

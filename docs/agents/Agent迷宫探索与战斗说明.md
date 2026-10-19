@@ -96,7 +96,7 @@ flowchart TD
 | 探索请求、推进、结算与恢复 | `combat/explorations.py`、`worker.py`、`recovery.py`、`permissions.py` |
 | 模型准备与转职 | `combat/preparation.py`、`schedule.py`；[统一生活执行说明](./Agent世界统一生活执行说明.md) |
 | 纯战斗、技能、成长与掉落 | `combat/engine.py`、`effects.py`、`attributes.py`、`profiles.py`、`rewards.py`及[生产包说明](../../system_settings/agent_world/combat/data/README.md)；图鉴候选展示见 `frontend_react/src/components/Combat/atlas/equipmentDropCandidates.ts` |
-| 请求和界面状态 | `system_settings/urls.py`、`combat/views.py`、`frontend_react/src/api/combat.ts`及 `components/Combat/` |
+| 请求和界面状态 | `system_settings/urls.py`、`combat/views.py`、`frontend_react/src/api/combat.ts` 及 `components/Combat/`；出发准备决策指引与 `(i)` 说明见 `frontend_react/src/components/AgentWorld/decisionProcessGuides.ts`（准备流程变动时须同步更新） |
 | 观察画面和动画 | [探索观察接入说明](./Agent探索观察战斗画面接入说明.md)、[魔物与动画规范](./Agent魔物形象与战斗动画设计规范.md) |
 | 设计依据与历史版本 | [系统规划](./Agent迷宫探索与战斗系统规划.md)、[实施与验收记录](./Agent战斗探索一期实施与验收记录.md) |
 

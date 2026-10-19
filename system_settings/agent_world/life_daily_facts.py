@@ -124,7 +124,7 @@ def investment_summary(owner: str, agent) -> dict:
             'valuation_complete': complete}
 
 
-def task_reason(owner: str, agent, task, at) -> str:
+def task_reason(owner: str, agent, task, at, quota=None) -> str:
     """Reuse authoritative predicates without initializing domain state or using providers."""
     from .execution import stamina
     from .life_scope import allowed
@@ -132,7 +132,7 @@ def task_reason(owner: str, agent, task, at) -> str:
         return '任务未向当前居民开放'
     if task.task_kind == 'post_publish':
         from .publish_config import eligibility
-        return eligibility(task, agent)
+        return eligibility(task, agent, quota=quota)
     if task.task_kind == 'post_interaction':
         from .post_interaction import candidate_posts, merged_scope
         if stamina(agent) < 10:
@@ -191,13 +191,21 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
     tiers = {'travel': {'quoted': True} if quotes.get('candidates') else {},
              'investment': BudgetChoices(agent.money).options('investment', cash_left=available)}
     allowed_kinds = set()
+    quotas = {}
+    from .publish_config import quota_usage
     for slot in context['slots']:
         at = local_time(datetime.fromisoformat(slot['time']))
         slot['time'] = at.isoformat()
         allowed, _ = filter_activities(context, slot, tiers, cooking, farm_days, alchemy)
-        slot['allowed_activities'] = [kind for kind in allowed if not task_reason(
-            owner, agent, tasks[next(row['task_id'] for row in context['activities'] if row['kind'] == kind)], at)]
-        allowed_kinds.update(slot['allowed_activities'])
+        slot_allowed = []
+        for kind in allowed:
+            task = tasks[next(row['task_id'] for row in context['activities'] if row['kind'] == kind)]
+            if task.task_kind == 'post_publish' and task.pk not in quotas:
+                quotas[task.pk] = quota_usage(task)
+            if not task_reason(owner, agent, task, at, quota=quotas.get(task.pk)):
+                slot_allowed.append(kind)
+        slot['allowed_activities'] = slot_allowed
+        allowed_kinds.update(slot_allowed)
     context['activities'] = [{**row, 'description': DESCRIPTIONS[row['kind']]}
                              for row in context['activities'] if row['kind'] in allowed_kinds]
     if 'travel' in allowed_kinds:

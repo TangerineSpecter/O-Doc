@@ -17,7 +17,7 @@ from system_settings.agent_activity import record_post_publication, update_work_
 from system_settings.models import Agent, AgentExecutionLease, AgentRunRecord, AgentTask, WorldAction, WorldActionRuntime
 from .action_schedule import select_agent
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
-from .publish_config import PUBLISH_COST, categories_for, eligibility, own_posts
+from .publish_config import PUBLISH_COST, categories_for, eligibility, own_posts, quota_usage
 from utils.source_urls import duplicate_source_key
 from .publish_workflow import SkipPublication, Workflow, validate_draft
 from .publishing import publish_post
@@ -179,8 +179,9 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
             action.save()
     else:
         reasons = {}
+        quota = quota_usage(task)
         def qualifies(candidate):
-            reason = eligibility(task, candidate)
+            reason = eligibility(task, candidate, quota=quota)
             if reason:
                 reasons[candidate.pk] = reason
             return not reason

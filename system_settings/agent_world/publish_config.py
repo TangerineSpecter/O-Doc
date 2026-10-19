@@ -14,6 +14,7 @@ from .execution import stamina
 
 PUBLISH_COST = Decimal('20')
 SEARCH_NAMES = {'tavily_search', 'tavily-search'}
+QUOTA_PERIODS = ('daily', 'weekly', 'monthly')
 
 
 class CategoryRuleSerializer(serializers.Serializer):
@@ -48,9 +49,15 @@ class PublishConfigSerializer(serializers.Serializer):
     cooldown_hours = serializers.IntegerField(min_value=1, max_value=720, default=6)
     unread_enabled = serializers.BooleanField(default=False)
     unread_count = serializers.IntegerField(min_value=1, max_value=100, default=3)
+    quota_enabled = serializers.BooleanField(default=False)
+    quota_period = serializers.ChoiceField(choices=QUOTA_PERIODS, default='daily')
+    quota_total = serializers.IntegerField(min_value=1, max_value=10000, required=False, default=1)
+    quota_per_agent = serializers.IntegerField(min_value=0, max_value=10000, required=False, default=0)
     owner_id = serializers.CharField(read_only=True)
 
     def validate(self, data):
+        if data['quota_enabled'] and data['quota_per_agent'] and data['quota_per_agent'] > data['quota_total']:
+            raise serializers.ValidationError('每位 Agent 的发帖上限不能超过周期总量上限')
         ids = [r['category_id'] for r in data['rules']]
         if len(ids) != len(set(ids)) or len(ids) > 100:
             raise serializers.ValidationError('分类不能重复且最多100项')
@@ -101,7 +108,79 @@ def own_posts(agent):
         Q(agent_post_author_id=agent.pk) | Q(agent_post_creator_id=f'agent:{agent.pk}') | Q(agent_post_creator_id=f'agent-id:{agent.pk}'))
 
 
-def eligibility(task, agent, *, config=None, preview=False) -> str:
+def quota_agents(task) -> list:
+    """合并任务绑定与当前生效生活参与者，覆盖保存任务后新增的居民。"""
+    from .life_config import config_for, effective_settings, task_owner
+    ids = [key for key in (task.agent_ids or ([task.agent_id] if task.agent_id else [])) if key]
+    owner = task_owner(task)
+    if owner:
+        ids = list(dict.fromkeys([*ids, *effective_settings(config_for(owner)).get('agent_ids', [])]))
+    return [key for key in ids if key]
+
+
+def quota_bounds(config: dict, now=None):
+    from system_settings.agent_random_schedule import period_bounds
+    from .life_time import local_time, storage_time
+    period = config.get('quota_period') or 'daily'
+    if period not in QUOTA_PERIODS:
+        period = 'daily'
+    start, end = period_bounds(period, local_time(now))
+    return storage_time(start), storage_time(end)
+
+
+def creator_key(value: str) -> str:
+    for prefix in ('agent-id:', 'agent:'):
+        if value and value.startswith(prefix):
+            return value[len(prefix):]
+    return ''
+
+
+def quota_usage(task, config=None, now=None):
+    """返回当前配额周期内任务绑定及生活参与居民的（发帖总数，各 Agent 数量）。"""
+    config = config or task.publish_config
+    if not config.get('quota_enabled'):
+        return 0, {}
+    ids = quota_agents(task)
+    if not ids:
+        return 0, {}
+    start, end = quota_bounds(config, now)
+    creators = [prefix + key for key in ids for prefix in ('agent:', 'agent-id:')]
+    rows = Article.objects.filter(coll_id__in=Anthology.objects.filter(type='agent').values('coll_id'),
+        created_at__gte=start, created_at__lt=end).filter(
+        Q(agent_post_author_id__in=ids) | Q(agent_post_creator_id__in=creators)
+    ).values_list('agent_post_author_id', 'agent_post_creator_id')
+    allowed = set(ids)
+    total, counts = 0, {}
+    for author, creator in rows:
+        key = author if author in allowed else creator_key(creator)
+        if key not in allowed:
+            continue
+        total += 1
+        counts[key] = counts.get(key, 0) + 1
+    return total, counts
+
+
+def quota_limit(config: dict, key: str) -> int:
+    try:
+        return max(0, int(config.get(key) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def quota_reason(task, agent, config: dict, quota=None) -> str:
+    if not config.get('quota_enabled'):
+        return ''
+    total, counts = quota if quota is not None else quota_usage(task, config)
+    limit = quota_limit(config, 'quota_total')
+    if limit and total >= limit:
+        return '本期发帖总量已达到上限'
+    per_agent = quota_limit(config, 'quota_per_agent')
+    if per_agent and counts.get(agent.pk, 0) >= per_agent:
+        return '该 Agent 本期发帖量已达到上限'
+    return ''
+
+
+def eligibility(task, agent, *, config=None, preview=False, quota=None) -> str:
     config = config or task.publish_config
     from .life_scope import allowed
     if not allowed(task,agent.pk):
@@ -121,6 +200,10 @@ def eligibility(task, agent, *, config=None, preview=False) -> str:
         return '输出文集失效或管理权限发生变化'
     if not categories_for(config):
         return '没有启用且允许发布的分类'
+    if config.get('quota_enabled'):
+        reason = quota_reason(task, agent, config, quota)
+        if reason:
+            return reason
     if not preview and stamina(agent) < PUBLISH_COST:
         return '体力不足，发帖需要20点'
     now = timezone.now()

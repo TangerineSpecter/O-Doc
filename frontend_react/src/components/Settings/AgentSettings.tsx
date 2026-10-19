@@ -451,7 +451,7 @@ export const AgentSettings = ({
             mcpToolScope: task.mcpToolScope ?? null,
             investmentConfig: task.investmentConfig || {},
             marketConfig: task.marketConfig || {decisionEnabled: false, decisionProvider: 'jev'},
-            publishConfig: task.publishConfig || emptyPublishConfig(),
+            publishConfig: {...emptyPublishConfig(), ...(task.publishConfig || {})},
             travelConfig: task.travelConfig || emptyTravelConfig(),
             postCollectionIds: task.postCollectionIds || [],
             postCategoryIds: task.postCategoryIds || [],
@@ -580,6 +580,18 @@ export const AgentSettings = ({
         if (isPublishTask && (!taskForm.publishConfig?.collectionId || !taskForm.publishConfig.searchServerId || !taskForm.publishConfig.rules.length || taskForm.publishConfig.rules.some(rule => !rule.modes.length))) {
             toast.warning('请选择输出文集、搜索服务和至少一个有效分类及内容方式');
             return;
+        }
+        if (isPublishTask && taskForm.publishConfig?.quotaEnabled) {
+            const total = Number(taskForm.publishConfig.quotaTotal);
+            const perAgent = Number(taskForm.publishConfig.quotaPerAgent) || 0;
+            if (!Number.isSafeInteger(total) || total < 1 || total > 10000) {
+                toast.warning('周期内所有 Agent 最多发帖数须为 1 到 10000 之间的整数');
+                return;
+            }
+            if (perAgent && (!Number.isSafeInteger(perAgent) || perAgent < 1 || perAgent > total)) {
+                toast.warning('每位 Agent 的发帖上限须为 1 到周期总量之间的整数，留空表示不限');
+                return;
+            }
         }
         if (selectedAgents.length === 0) {
             toast.warning(isSystemTask ? '请先在统一生活运行中选择居民' : '请至少选择一个 Agent');

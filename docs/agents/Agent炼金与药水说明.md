@@ -83,6 +83,7 @@
 - `GET /api/agent-world/alchemy/agents/<agent_id>/history/`：分页制作历史，含配方、星级、材料价值、加工收益、经验变化和体力。
 - `PATCH /api/agent-world/alchemy/recipes/<recipe_id>/`：修改等级、经验、体力、回收价和材料数量；材料 SKU 必须是现有迷宫素材且不重复。
 - 图鉴接口只读，不在 GET 中建立熟练度或目录记录；配方只有 10 条，一次请求返回全部投影，前端按 15 秒轮询并在页面隐藏时暂停。
+- 炼金药水只在「炼金图鉴」展示：物品图鉴目录接口不再返回 `elixir.*` 条目，背包中的 `elixir.*` 行也不回填到物品图鉴，避免两处重复且图标只维护一份（药水图标仍存于 `AlchemyCatalog.item_icons`）。
 
 ## 背包、市场与同步
 
@@ -99,7 +100,7 @@
 - 接口与同步：`alchemy_views.py`（路由在 `system_settings/urls.py`）、`alchemy_sync.py`、`alchemy_quality_sync.py`、`alchemy_integrity.py`。
 - 战斗衔接：`combat/elixir.py`（候选、冻结、触发、效果应用与返还口径）、`combat/explorations.py`（出发扣库/冻结/结算）、`combat/preparation.py`（携带清单校验）、`combat/effects.py`（元素强化合并）、`combat/sync.py`（协议版本）。
 - 生活日程：`life_runner.py`（分派与体力）、`life_eligibility.py`（可执行性）、`life_sequential_planner.py` 与 `life_daily_facts.py`（候选与当日事实）、`daily_feed.py` / `daily_feed_groups.py`（动态与摘要）、`action_runner.py`（恢复与轮询）。
-- 前端：`frontend_react/src/components/Alchemy/`、`hooks/useAlchemy.ts`、`api/alchemy.ts`、`types/api/alchemy.ts`，页签入口在 `components/AgentWorld/WorldCatalogDialog.tsx`。
+- 前端：`frontend_react/src/components/Alchemy/`、`hooks/useAlchemy.ts`、`api/alchemy.ts`、`types/api/alchemy.ts`，页签入口在 `components/AgentWorld/WorldCatalogDialog.tsx`；界面决策流程与 `(i)` 说明配置见 `frontend_react/src/components/AgentWorld/decisionProcessGuides.ts`（业务逻辑变动时须同步更新）。
 
 ## 未验收事项
 

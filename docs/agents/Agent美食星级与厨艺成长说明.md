@@ -85,7 +85,7 @@
 ## 代码入口
 
 - 后端规则：`system_settings/agent_world/cooking_catalog.py`、`cooking_quality.py`、`cooking_plan.py`、`cooking_materials.py`、`cooking_service.py`、`cooking_runner.py`、`cooking_quality_sync.py`。
-- 前端：`frontend_react/src/components/Cooking/`、`frontend_react/src/hooks/useCooking.ts`、`frontend_react/src/api/cooking.ts`、`frontend_react/src/types/api/cooking.ts`。
+- 前端：`frontend_react/src/components/Cooking/`、`frontend_react/src/hooks/useCooking.ts`、`frontend_react/src/api/cooking.ts`、`frontend_react/src/types/api/cooking.ts`；界面决策流程与 `(i)` 说明配置见 `frontend_react/src/components/AgentWorld/decisionProcessGuides.ts`（业务逻辑变动时须同步更新）。
 - 生活活动、库存、市场和 WebDAV 的通用约束分别见[统一生活执行说明](./Agent世界统一生活执行说明.md)、[市场与交易说明](./Agent世界市场与交易一期说明.md)和[数据同步逻辑说明](../数据同步逻辑说明.md)。
 
 ## 相关历史记录

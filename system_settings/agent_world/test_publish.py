@@ -14,7 +14,7 @@ from article.models import Article
 from system_settings.models import Agent, AgentExecutionLease, AgentTask, AIModel, AIProvider, MCPServer, WorldAction, WorldActionRuntime, AgentActivity
 from system_settings.agent_task_scheduler import AgentTaskScheduler
 from .models import WorldCategory, WorldIncomeConfig, WorldLedger
-from .publish_config import PublishConfigSerializer, eligibility
+from .publish_config import PublishConfigSerializer, eligibility, quota_bounds, quota_reason, quota_usage
 from .publish_search import canonical_url, search
 from .publish_workflow import Workflow, SkipPublication, validate_draft
 from .publish_runner import commit_publication, preview, run_publish_opportunity, repair_publication
@@ -117,6 +117,107 @@ class PublicationTests(TestCase):
         Article.objects.update(created_at=timezone.now()-timedelta(days=1))
         self.task.publish_config={**self.config,'unread_enabled':True}
         self.assertIn('未读', eligibility(self.task,self.agent))
+
+    def quota_config(self, **values):
+        return {**self.config, 'cooldown_hours': 1, 'quota_enabled': True,
+                'quota_period': 'daily', 'quota_total': 2, 'quota_per_agent': 0, **values}
+
+    def quota_post(self, title, agent=None, created_at=None):
+        row = Article.objects.create(title=title, coll_id=self.collection.pk, author='admin', content='正文',
+                                     agent_post_author_id=(agent or self.agent).pk)
+        if created_at:
+            Article.objects.filter(pk=row.pk).update(created_at=created_at)
+        return row
+
+    def test_quota_limits_total_and_per_agent(self):
+        other = Agent.objects.create(name='另一位', model=self.agent.model)
+        self.task.agent_ids = [self.agent.pk, other.pk]
+        self.task.publish_config = self.quota_config(quota_total=2)
+        self.assertEqual(quota_reason(self.task, self.agent, self.task.publish_config), '')
+        self.quota_post('今日一'); self.quota_post('今日二')
+        self.assertEqual(quota_reason(self.task, self.agent, self.task.publish_config), '本期发帖总量已达到上限')
+        self.assertEqual(quota_reason(self.task, other, self.task.publish_config), '本期发帖总量已达到上限')
+        self.assertIn('总量', eligibility(self.task, other))
+        self.task.publish_config = self.quota_config(quota_total=5, quota_per_agent=1)
+        self.assertEqual(quota_reason(self.task, self.agent, self.task.publish_config), '该 Agent 本期发帖量已达到上限')
+        self.assertEqual(quota_reason(self.task, other, self.task.publish_config), '')
+
+    def test_quota_counts_new_life_participant(self):
+        from .life_config import ensure_profiles
+        from .life_models import LifeConfig
+        from .life_scope import allowed
+        other = Agent.objects.create(name='新增生活居民', model=self.agent.model)
+        LifeConfig.objects.create(id='admin', settings={'agent_ids': [self.agent.pk, other.pk]})
+        ensure_profiles('admin', [self.agent.pk, other.pk])
+        self.task.publish_config = self.quota_config(quota_total=2, quota_per_agent=1)
+        self.assertNotIn(other.pk, self.task.agent_ids)
+        self.assertTrue(allowed(self.task, other.pk))
+        self.quota_post('新增居民的帖子', agent=other)
+        self.assertEqual(quota_usage(self.task), (1, {other.pk: 1}))
+        self.assertIn('该 Agent', quota_reason(self.task, other, self.task.publish_config))
+        self.quota_post('原居民的帖子')
+        self.assertIn('总量', quota_reason(self.task, other, self.task.publish_config))
+
+    def test_quota_counts_active_cycle_participant(self):
+        from .life_models import LifeConfig, LifeCycle, LifeProfile
+        from .life_scope import allowed
+        other = Agent.objects.create(name='当期生活居民', model=self.agent.model)
+        LifeConfig.objects.create(id='admin', settings={'agent_ids': [self.agent.pk]})
+        LifeProfile.objects.create(id=other.pk, owner_id='admin')
+        now = timezone.now()
+        LifeCycle.objects.create(id='quota-cycle', owner_id='admin',
+                                 starts_at=now-timedelta(hours=1), ends_at=now+timedelta(hours=1),
+                                 snapshot={'participants': [self.agent.pk, other.pk]})
+        self.task.publish_config = self.quota_config(quota_total=1)
+        self.assertNotIn(other.pk, self.task.agent_ids)
+        self.assertTrue(allowed(self.task, other.pk))
+        self.quota_post('当期居民的帖子', agent=other)
+        self.assertEqual(quota_usage(self.task), (1, {other.pk: 1}))
+        self.assertIn('总量', quota_reason(self.task, self.agent, self.task.publish_config))
+
+    def test_selector_skips_agent_at_personal_quota(self):
+        from .action_schedule import select_agent
+        other = Agent.objects.create(name='候选', model=self.agent.model)
+        self.task.agent_ids = [self.agent.pk, other.pk]
+        self.task.publish_config = self.quota_config(quota_total=5, quota_per_agent=1)
+        self.quota_post('今日一')
+        chosen = select_agent(self.task, cost=Decimal('20'),
+                              qualifies=lambda candidate: not quota_reason(self.task, candidate, self.task.publish_config))
+        self.assertEqual(chosen.pk, other.pk)
+
+    def test_quota_disabled_and_window_scope(self):
+        self.task.publish_config = {**self.config, 'quota_enabled': False, 'quota_total': 1, 'quota_per_agent': 1}
+        self.quota_post('今日一')
+        self.assertEqual(quota_usage(self.task), (0, {}))
+        self.assertEqual(quota_reason(self.task, self.agent, self.task.publish_config), '')
+        self.task.publish_config = self.quota_config(quota_total=1)
+        self.quota_post('昨日一', created_at=timezone.now()-timedelta(days=1))
+        self.assertEqual(quota_usage(self.task), (1, {self.agent.pk: 1}))
+        start, end = quota_bounds(self.task.publish_config)
+        self.assertLess(start, end)
+        self.assertEqual((end-start).days, 1)
+        weekly = quota_bounds({**self.task.publish_config, 'quota_period': 'weekly'})
+        self.assertEqual(weekly[0].weekday(), 0)
+        Article.objects.create(title='旧身份帖子', coll_id=self.collection.pk, author='admin', content='正文',
+                               agent_post_creator_id=f'agent-id:{self.agent.pk}')
+        self.assertEqual(quota_usage(self.task), (2, {self.agent.pk: 2}))
+
+    def test_quota_config_validation_and_defaults(self):
+        data = PublishConfigSerializer(data={**self.config, 'quota_enabled': True, 'quota_total': 2, 'quota_per_agent': 3})
+        self.assertFalse(data.is_valid())
+        invalid = PublishConfigSerializer(data={**self.config, 'quota_enabled': True, 'quota_period': 'yearly'})
+        self.assertFalse(invalid.is_valid())
+        data = PublishConfigSerializer(data=self.config)
+        self.assertTrue(data.is_valid(), data.errors)
+        self.assertFalse(data.validated_data['quota_enabled'])
+        self.assertEqual(data.validated_data['quota_period'], 'daily')
+        self.assertEqual(data.validated_data['quota_per_agent'], 0)
+
+    def test_life_schedule_hides_publish_when_quota_reached(self):
+        from .life_daily_facts import task_reason
+        self.task.publish_config = self.quota_config(quota_total=1)
+        self.quota_post('今日一')
+        self.assertEqual(task_reason('admin', self.agent, self.task, timezone.now()), '本期发帖总量已达到上限')
 
     def test_unknown_or_stale_news_date_is_rejected(self):
         for date in (None, (timezone.now()-timedelta(days=5)).isoformat(), (timezone.now()+timedelta(days=1)).isoformat()):
