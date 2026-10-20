@@ -79,8 +79,7 @@ class AnalyticsLedgerView(APIView):
         offset = (page-1)*page_size
         ledger_query = WorldLedger.objects.filter(
             agent_id=values['actor_id'], created_at__gte=start, created_at__lt=end,
-        ).exclude(kind='opening').exclude(amount=0)
-         .exclude(kind='investment', snapshot__side='buy')
+        ).exclude(kind='opening').exclude(amount=0).exclude(kind='investment', snapshot__side='buy')
         visible_count, entries, cursor = 0, [], None
         scan_size = 100
         from ..market_finance import classify_market_ledger_entries

@@ -124,8 +124,8 @@ def _goal_sku(goal_id: str) -> str:
 
 
 def _record_farm_purchase(owner: str, actor_id: str, key: str, sku: str, amount) -> None:
-	"""自动化种子与肥料成交也计入当天种植队列采购上限。"""
-	if not sku.startswith(('seed.', 'fertilizer.')):
+    """自动化种子与肥料成交也计入当天种植队列采购上限。"""
+    if not sku.startswith(('seed.', 'fertilizer.')):
         return
     from .farm_models import AgentFarm
     from .farm_queue_plan import current, save
