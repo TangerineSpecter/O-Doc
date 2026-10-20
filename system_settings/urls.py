@@ -37,7 +37,7 @@ from .agent_world.farm_views import FarmListView, FarmDetailView, FarmHistoryVie
 from .agent_world.bounty_views import BountyView
 from .agent_world.item_catalog_views import ItemCatalogView, ItemCatalogIconView, ItemCatalogInventoryIconView
 
-from .agent_world.market_views import MarketShopView, MarketConfigView, MarketListView
+from .agent_world.market_views import MarketShopView, MarketConfigView, MarketListView, MarketAutomationView
 
 from .agent_world.investment_views import InvestmentView
 
@@ -116,6 +116,7 @@ urlpatterns = [
     path('agent-world/market/shop/', MarketShopView.as_view()),
     path('agent-world/market/config/', MarketConfigView.as_view()),
     path('agent-world/market/listings/', MarketListView.as_view()),
+    path('agent-world/market/automation/', MarketAutomationView.as_view()),
     path('agent-world/market/transactions/', MarketListView.as_view(kind='transactions')),
     path('agent-world/market/sessions/', MarketListView.as_view(kind='sessions')),
     path('agent-world/item-catalog/', ItemCatalogView.as_view()),

@@ -9,7 +9,8 @@ DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'interval_minutes': 60, 'active_start': '00:00', 'active_end': '24:00',
             'min_gap_minutes': 15, 'min_remaining_minutes': 240, 'decision_model_id': '',
             'decision_connection_id': '', 'decision_connection_ids': [],
-            'decision_sticky_ttl_seconds': 7200, 'jev_enabled': False, 'jev_excluded_scenes': []}
+            'decision_sticky_ttl_seconds': 7200, 'jev_enabled': False, 'jev_excluded_scenes': [],
+            'market_automation_v2': False}
 
 
 def task_owner(task: AgentTask) -> str | None:
@@ -77,6 +78,8 @@ def validate_settings(data: dict) -> dict:
     from system_settings.decision.routing import SCENES
     if type(value['jev_enabled']) is not bool:
         raise ValueError('结构化决策开关无效')
+    if type(value['market_automation_v2']) is not bool:
+        raise ValueError('市场自动化开关无效')
     excluded = value['jev_excluded_scenes']
     if not isinstance(excluded, list) or any(not isinstance(key, str) or key not in SCENES for key in excluded) or len(set(excluded)) != len(excluded):
         raise ValueError('结构化决策排除场景无效')
@@ -105,6 +108,11 @@ def effective_settings(config: LifeConfig, now=None) -> dict:
         value = dict(config.settings)
     archived = set(Agent.objects.filter(pk__in=value.get('agent_ids', []), archived_at__isnull=False).values_list('pk', flat=True))
     return {**value, 'agent_ids': [key for key in value.get('agent_ids', []) if key not in archived]}
+
+
+def market_automation_enabled(config: LifeConfig, now=None) -> bool:
+    """灰度开关；旧配置没有该字段时按关闭处理。"""
+    return bool(effective_settings(config, now).get('market_automation_v2', False))
 
 
 def owns_actor(owner: str, actor: str) -> bool:

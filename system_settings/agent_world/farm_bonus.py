@@ -36,6 +36,8 @@ def add_production(farm: AgentFarm, sku: str, base: int, name: str, kind: str, p
     profession_quantity = quantity
     quantity = event_quantity(quantity + fertilizer_extra, event)
     add_stock(farm.pk, farm.owner_id, farm.actor_name, sku, quantity, name, kind, price, key, stars=stars)
+    from .market_disposition import enqueue
+    enqueue(farm.owner_id, farm.pk, sku, quantity, source='harvest', operation=key)
     return {'sku': sku, 'name': name, 'base_quantity': base, 'quantity': quantity,
             'extra_quantity': quantity-base, 'profession_quantity': profession_quantity,
             'fertilizer_extra': fertilizer_extra, 'event': event, 'stars': stars, 'remainder_before': before, 'remainder_after': after, **bonus}

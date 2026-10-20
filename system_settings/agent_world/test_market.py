@@ -664,7 +664,7 @@ class MarketTests(TestCase):
         client=MagicMock();client.chat.completions.create.side_effect=responses
         events=[]
         with patch('system_settings.agent_world.market_runner.select_agent',return_value=self.a), \
-             patch.object(AIService,'get_client_config_for_model',return_value={'api_key':'mock','base_url':'https://example.invalid','model_name':'mock-model'}), \
+             patch.object(AIService,'get_client_config_for_model',return_value={'api_key':'mock','base_url':'https://example.invalid','model_name':'mock-model','model_id':'mock-model'}), \
              patch('utils.ai_service.OpenAI',return_value=client) as factory, \
              override_settings(SYSTEM_LOG_ENABLED=True), \
              patch('system_logs.capture.start',return_value=SimpleNamespace(put_nowait=events.append)):

@@ -1004,6 +1004,8 @@ from .agent_world.farm_models import FarmCatalog, AgentFarm, FarmOperation  # no
 
 from .agent_world.market_models import MarketConfig, MarketBatch, MarketListing, MarketSession, MarketTransaction, MarketRuntime, MarketIntegrity  # noqa: E402,F401
 
+from .agent_world.market_plan_models import MarketPlan, MarketGoal, MarketDisposition, MarketDispositionTask, MarketNoBuy, MarketTick  # noqa: E402,F401
+
 from .agent_world.investment_models import InvestmentAccount, InvestmentDecision, InvestmentTrade, InvestmentNewsClaim, InvestmentIntegrity, InvestmentCache  # noqa: E402,F401
 
 from .agent_world.bounty_models import Bounty, BountyInvite, BountyDelivery  # noqa: E402,F401

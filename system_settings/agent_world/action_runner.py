@@ -274,6 +274,28 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
 def tick(scheduler):
     from .market_sessions import cleanup
     cleanup(restart=True)
+    # 入库处置标记独立于市场会话；任务至少静置一分钟再跑，避免每次 tick 都调模型。
+    from .life_config import market_automation_enabled
+    from .life_models import LifeConfig
+    from .market_plan_models import MarketDispositionTask
+    from .market_disposition_worker import recover_stale_tasks, run as run_dispositions
+    automation = any(market_automation_enabled(config) for config in LifeConfig.objects.filter(migrated=True))
+    if automation:
+        recover_stale_tasks()
+    oldest = (MarketDispositionTask.objects
+              .filter(status__in=('pending', 'failed'), attempts__lt=3)
+              .order_by('created_at').first())
+    if automation and oldest and (timezone.now() - oldest.created_at).total_seconds() >= 60:
+        try:
+            run_dispositions(limit=5, seconds=20)
+        except Exception:
+            logger.exception('市场处置标记失败')
+    # 小时预检：只读判断，命中才进场；每次 tick 最多处理少量居民，避免占满执行位。
+    from .market_tick import run as run_market_ticks
+    try:
+        run_market_ticks(limit=3)
+    except Exception:
+        logger.exception('市场小时预检失败')
     from .bounty_runner import tick as tick_bounties
     try:
         tick_bounties(scheduler)

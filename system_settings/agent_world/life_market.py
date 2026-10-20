@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 @transaction.atomic
 def ensure_daily_market(config: LifeConfig, now: datetime) -> None:
     settings = {**DEFAULTS, **effective_settings(config, now)}
+    if settings.get('market_automation_v2'):
+        # 新版日规划与小时预检接管市场；旧每日机会只在功能关闭时保留。
+        return
     task = next((t for t in tasks_for(config.pk) if t.enabled and t.task_kind == 'market'), None)
     if not task:
         return

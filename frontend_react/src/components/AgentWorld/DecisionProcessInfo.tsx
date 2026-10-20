@@ -439,12 +439,12 @@ export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
                             </div>
                         )}
 
-                        {/* 待接入未来规划 (Upcoming Roadmap) */}
+                        {/* 同时说明当前执行边界与尚待接入的流程。 */}
                         {guide.upcoming && (
                             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-2.5 text-[11px] text-slate-400 leading-relaxed flex items-start gap-1.5">
                                 <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" aria-hidden="true" />
                                 <div>
-                                    <span className="font-medium text-slate-600 mr-1">待接入未来规划：</span>
+                                    <span className="font-medium text-slate-600 mr-1">当前边界与待接入：</span>
                                     <span>{guide.upcoming.replace(/^待接入：/, '')}</span>
                                 </div>
                             </div>

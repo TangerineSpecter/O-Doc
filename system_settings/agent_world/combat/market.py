@@ -39,6 +39,8 @@ def transact(owner,agent,key,operation,change_money,at):
             raise ValueError('装备正在居民集市挂牌，请先撤回')
         if count!=1:raise ValueError('装备只能单件出售')
         amount=item.value;item.sold=True;item.save()
+        from ..market_no_buy import clear_equipment
+        clear_equipment(item.pk)
         result={'name':item.snapshot['name'],'quantity':1,'total':str(amount)}
     else:raise ValueError('未知战斗商店操作')
     change_money(agent,amount,key,at)

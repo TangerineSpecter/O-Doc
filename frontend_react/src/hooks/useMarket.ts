@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState} from 'react';
-import {getMarketListings, getMarketSessions, getMarketShop, getMarketTransactions} from '../api/market';
-import type {MarketListing, MarketPage, MarketSession, MarketShop, MarketTab, MarketTransaction} from '../types/api/market';
+import {getMarketAutomation, getMarketListings, getMarketSessions, getMarketShop, getMarketTransactions} from '../api/market';
+import type {MarketAutomation, MarketListing, MarketPage, MarketSession, MarketShop, MarketTab, MarketTransaction} from '../types/api/market';
 
 export function useMarket() {
     const [tab, setTabState] = useState<MarketTab>('shop');
@@ -11,11 +11,12 @@ export function useMarket() {
     const [listings, setListings] = useState<MarketPage<MarketListing> | null>(null);
     const [transactions, setTransactions] = useState<MarketPage<MarketTransaction> | null>(null);
     const [sessions, setSessions] = useState<MarketPage<MarketSession> | null>(null);
+    const [automation, setAutomation] = useState<MarketAutomation | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(0);
     const refresh = useCallback(() => setRetry(v => v+1), []);
-    const clearPages = () => {setListings(null); setTransactions(null); setSessions(null); setLoading(true); setError('');};
+    const clearPages = () => {setListings(null); setTransactions(null); setSessions(null); setAutomation(null); setLoading(true); setError('');};
     const setPage = (value: number) => {clearPages(); setPageState(value);};
     const reset = () => {setPageState(1); clearPages();};
     const setTab = (value: MarketTab) => {reset(); setTabState(value);};
@@ -43,10 +44,14 @@ export function useMarket() {
                     const data = await getMarketTransactions(page, actorId, abort.signal);
                     if (!alive || abort.signal.aborted) return;
                     setTransactions(data);
-                } else {
+                } else if (tab === 'sessions') {
                     const data = await getMarketSessions(page, actorId, abort.signal);
                     if (!alive || abort.signal.aborted) return;
                     setSessions(data);
+                } else {
+                    const data = await getMarketAutomation(actorId, abort.signal);
+                    if (!alive || abort.signal.aborted) return;
+                    setAutomation(data);
                 }
                 setError('');
             } catch (e) {
@@ -59,5 +64,5 @@ export function useMarket() {
         document.addEventListener('visibilitychange', visibility); void poll();
         return () => {alive = false; active?.abort(); clearTimeout(timer); document.removeEventListener('visibilitychange', visibility);};
     }, [tab, page, search, actorId, retry]);
-    return {tab, setTab, page, setPage, search, setSearch, actorId, setActorId, shop, listings, transactions, sessions, loading, error, refresh};
+    return {tab, setTab, page, setPage, search, setSearch, actorId, setActorId, shop, listings, transactions, sessions, automation, loading, error, refresh};
 }

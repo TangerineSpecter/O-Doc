@@ -267,6 +267,21 @@ def _plan_cycle(config, scheduler, now):
     ensure_daily_market(config, now)
     from .life_config import effective_settings
     active_ids = effective_settings(config, now).get('agent_ids', [])
+    # 日规划很重，每个 tick 只补一位居民；已生成/失败的当天计划不重复调用模型。
+    from .life_config import market_automation_enabled
+    if market_automation_enabled(config, now):
+        from .market_plan_models import MarketPlan
+        from .market_planning import ensure_plan
+        today = local_time(now).date()
+        for actor_id in active_ids:
+            if MarketPlan.objects.filter(owner_id=config.pk, actor_id=actor_id, plan_date=today,
+                                         status__in=('active', 'failed', 'closed')).exists():
+                continue
+            try:
+                ensure_plan(config.pk, actor_id, now)
+            except Exception:
+                logger.exception('每日市场规划失败 actor=%s', actor_id)
+            break
     for capability in tasks_for(config.pk):
         if not capability.enabled:
             continue

@@ -33,7 +33,7 @@ MARKET_TOOLS = [
     schema('sell_combat_material','出售自己的探索材料，使用材料ID及数量，按目录回收价结算。',{**WRITE,'material_id':S,'quantity':N},['request_id','material_id','quantity']),
     schema('sell_combat_equipment','出售自己的闲置装备实例；已穿戴、收藏、绑定或探索占用装备不能出售。',{**WRITE,'equipment_id':S},['request_id','equipment_id']),
     schema('list_combat_equipment','将出发准备阶段已决定上架的闲置冒险装备挂牌到居民集市；价格由当前定价步骤给出。',{**WRITE,'equipment_id':S,'unit_price':S},['request_id','equipment_id','unit_price']),
-    schema('create_market_listing', '自主定价上架农作物、畜产品、美食或纪念品，数量立即转入托管。', {**WRITE,'item_id':S,'quantity':N,'unit_price':S}, ['request_id','item_id','quantity','unit_price']),
+    schema('create_market_listing', '自主定价上架农作物、畜产品、美食、炼金成品、炼金材料或纪念品，数量立即转入托管。', {**WRITE,'item_id':S,'quantity':N,'unit_price':S}, ['request_id','item_id','quantity','unit_price']),
     schema('reprice_market_listing', '修改自己挂牌的单价，保留首次上架时间。', {**WRITE,'listing_id':S,'version':N,'unit_price':S}, ['request_id','listing_id','version','unit_price']),
     schema('withdraw_market_listing', '撤回自己的挂牌，将剩余物品返还背包。', {**WRITE,'listing_id':S,'version':N}, ['request_id','listing_id','version']),
     schema('update_farm_queue', '按实际持有种子调整当天尚未播种队列，需说明新增、替代或取消理由。先采购成功并查询get_market_context，未播种数量不得超过背包种子。已播种项目必须保留原ID及策略，quantity不得小于已播种数。仅改变意图，不代买或增加采购上限。', {**WRITE, 'plan_id':S, 'revision':N, 'reason':S, 'entries':{'type':'array','items':{'type':'object','properties':{'id':S,'sku':S,'quantity':N,'fertilizer_mode':{'type':'string','enum':['none','optional','required']},'fertilizer':{'type':['string','null'],'enum':['quality','yield',None]}},'required':['sku','quantity'], 'additionalProperties':False}}}, ['request_id','plan_id','revision','reason','entries']),

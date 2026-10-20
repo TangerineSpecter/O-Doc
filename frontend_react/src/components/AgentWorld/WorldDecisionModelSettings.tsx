@@ -14,6 +14,9 @@ import {DEFAULT_STICKY_TTL_SECONDS, stickyTtlValue} from './decisionFailover';
 
 const decisionSceneLabels = {
     market: '市场选择',
+    market_plan: '市场日规划选择',
+    market_disposition: '市场处置标记',
+    market_equipment: '装备购买判断',
     life_budget: '生活预算选择',
     farm_queue: '农场种植队列规划',
     cooking_recipe: '美食菜谱选择',

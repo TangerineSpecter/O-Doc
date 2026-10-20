@@ -21,12 +21,14 @@ import type {MarketTab} from '../../types/api/market';
 import {MarketShop} from './MarketShop';
 import {MarketListings} from './MarketListings';
 import {MarketSessions, MarketTransactions} from './MarketRecords';
+import {MarketPlanPanel} from './MarketPlanPanel';
 
 const tabs: Array<{value: MarketTab; label: string; icon: typeof Store}> = [
     {value: 'shop', label: '系统商店', icon: ShoppingBag},
     {value: 'listings', label: '居民集市', icon: Tag},
     {value: 'transactions', label: '交易记录', icon: ReceiptText},
     {value: 'sessions', label: '市场动态', icon: Footprints},
+    {value: 'plan', label: '市场规划', icon: Sparkles},
 ];
 
 export default function MarketDialog({
@@ -42,7 +44,9 @@ export default function MarketDialog({
             ? market.listings
             : market.tab === 'transactions'
               ? market.transactions
-              : market.sessions;
+              : market.tab === 'sessions'
+                ? market.sessions
+                : null;
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -171,7 +175,7 @@ export default function MarketDialog({
 
                 {/* 主内容区域：高度锁死，弹性伸缩，内部局部滚动 */}
                 <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
-                    {market.loading && !data && market.tab !== 'shop' ? (
+                    {market.loading && !data && market.tab !== 'shop' && !(market.tab === 'plan' && market.automation) ? (
                         <div className="flex h-64 flex-col items-center justify-center">
                             <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
                             <p className="mt-3 text-xs text-slate-500">正在翻看集市账本…</p>
@@ -188,6 +192,8 @@ export default function MarketDialog({
                                 <p className="mt-3 text-xs text-slate-500">正在布置商店货架…</p>
                             </div>
                         )
+                    ) : market.tab === 'plan' ? (
+                        <MarketPlanPanel plans={market.automation?.plans || []} />
                     ) : !data?.items.length ? (
                         <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
                             <Sparkles className="h-10 w-10 text-orange-300" />

@@ -2,6 +2,8 @@
 import hashlib
 
 from .market_models import MarketListing, MarketSession, MarketTransaction
+from .market_plan_models import (MarketDisposition, MarketDispositionTask, MarketGoal,
+                                 MarketNoBuy, MarketPlan, MarketTick)
 from .market_service import withdraw_listing
 
 
@@ -25,3 +27,6 @@ def withdraw_for_archive(agent, now):
         MarketTransaction.objects.create(pk=key, owner_id=listing.owner_id, session=session,
                                          actor_id=agent.pk, actor_name=agent.name, operation=operation, result=result,
                                          created_at=now)
+    # 归档后不再有自动规划或处置；本机队列与业务策略一并清理。
+    for model in (MarketDispositionTask, MarketTick, MarketNoBuy, MarketDisposition, MarketGoal, MarketPlan):
+        model.objects.filter(actor_id=agent.pk).delete()

@@ -75,6 +75,8 @@ def commit_bottle(actor_id: str, opportunity_id: str, index: int, recipe_id: str
     price = quality['unit_price']
     gained = quality['experience_gained']
     add_stock(actor_id, owner, agent.name, 'elixir.' + recipe_id, 1, snapshot['name'], 'elixir', price, key, stars=quality['stars'])
+    from .market_disposition import enqueue
+    enqueue(owner, actor_id, 'elixir.' + recipe_id, 1, source='alchemy', operation=key)
     skill.experience += gained
     skill.actor_name, skill.updated_at = agent.name, now
     skill.save(update_fields=['experience', 'actor_name', 'updated_at'])

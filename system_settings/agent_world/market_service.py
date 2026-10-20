@@ -53,7 +53,8 @@ def change_money(agent, amount, key, at, *, operation_kind=None, ledger_kind='ma
 
 def tradable(item):
     sku = item.source.get('sku', '')
-    return item.kind == 'souvenir' or sku.startswith(('crop.', 'product.', 'dish.'))
+    return item.kind == 'souvenir' or sku.startswith(
+        ('crop.', 'product.', 'dish.', 'elixir.', 'combat.material.'))
 
 
 def check_session(session, at):

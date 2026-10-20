@@ -29,6 +29,7 @@ LOCAL_ONLY_MODEL_LABELS = frozenset({
     'learning.runtime', 'learning.devicejob', 'learning.goaljob',
     'system_settings.investmentcache',
     'system_settings.marketruntime',
+    'system_settings.markettick', 'system_settings.marketdispositiontask',
     'system_settings.travelruntime', 'system_settings.travelmaterialcache',
     'system_settings.travelseedstate',
     'system_settings.agentexecutionlease', 'system_settings.worldactionruntime',

@@ -67,6 +67,12 @@ class DailyMarketScheduleTests(TestCase):
             self.assertGreaterEqual(local_time(at), NOW + timedelta(minutes=5) + index * span)
             self.assertLess(local_time(at), NOW + timedelta(minutes=5) + (index + 1) * span)
 
+    def test_automation_switch_suppresses_legacy_daily_opportunity(self):
+        self.config.settings = {**self.config.settings, 'market_automation_v2': True}
+        self.config.save(update_fields=['settings'])
+        ensure_daily_market(self.config, NOW)
+        self.assertEqual(self.daily_items().count(), 0)
+
     def test_late_start_uses_only_remaining_window(self):
         late = NOW.replace(hour=18)
         ensure_daily_market(self.config, late)
