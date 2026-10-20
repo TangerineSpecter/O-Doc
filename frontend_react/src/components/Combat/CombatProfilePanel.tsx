@@ -67,10 +67,10 @@ export default function CombatProfilePanel({
 
     const currentLevel = profile.progression.level || 1;
     const currentExp = profile.progression.experience || 0;
-    const levelExpRow = catalog?.tables?.level_experience?.find(
+    const levelExpRow = catalog?.tables?.levelExperience?.find(
         row => row.id === `level.${currentLevel}` || row.level === String(currentLevel)
     );
-    const maxExp = levelExpRow ? Number(levelExpRow.experience_to_next) || 0 : 0;
+    const maxExp = levelExpRow ? Number(levelExpRow.experienceToNext) || 0 : 0;
     const isMaxLevel = currentLevel >= 99;
     const expPercent = isMaxLevel ? 100 : maxExp > 0 ? Math.min(100, Math.max(0, (currentExp / maxExp) * 100)) : 0;
 
