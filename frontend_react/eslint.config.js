@@ -30,6 +30,11 @@ export default defineConfig([
       'no-empty': 'warn',
       'no-unsafe-finally': 'warn',
       'prefer-const': 'warn',
+      'no-restricted-properties': ['error', {
+        object: 'crypto',
+        property: 'randomUUID',
+        message: '内网 HTTP 部署没有 crypto.randomUUID，请使用 @/utils/requestKey 的 createRequestKey()。',
+      }],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-expressions': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', {
@@ -45,6 +50,10 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/static-components': 'warn',
     },
+  },
+  {
+    files: ['src/**/*.test.{ts,tsx}'],
+    rules: {'no-restricted-properties': 'off'},
   },
   {
     files: ['*.{js,ts}', 'scripts/**/*.{js,ts}'],

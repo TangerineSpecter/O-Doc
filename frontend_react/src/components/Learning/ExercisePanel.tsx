@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState, type MutableRefObject} from 'r
 import {Award, CheckCircle2, FileCheck, Play, RotateCcw} from 'lucide-react';
 import ExerciseQuestionCard from './ExerciseQuestionCard';
 import {learningApi} from '../../api/learning';
+import {createRequestKey} from '../../utils/requestKey';
 import type {Attempt, Exercise} from '../../types/api/learning';
 import {buttonClass, cardClass, kindName, statusName} from './presentation';
 
@@ -194,7 +195,7 @@ export default function ExercisePanel({collId, exercise, busy, refresh, act, ask
                                     onClick={() =>
                                         void act(() =>
                                             exercise.format === 'scenario'
-                                                ? learningApi.startSession(collId, exercise.id, crypto.randomUUID())
+                                                ? learningApi.startSession(collId, exercise.id, createRequestKey())
                                                 : learningApi.exerciseAction(collId, exercise.id, 'start')
                                         )
                                     }
@@ -217,7 +218,7 @@ export default function ExercisePanel({collId, exercise, busy, refresh, act, ask
                         onClick={() =>
                             void act(() =>
                                 exercise.format === 'scenario'
-                                    ? learningApi.startSession(collId, exercise.id, crypto.randomUUID())
+                                    ? learningApi.startSession(collId, exercise.id, createRequestKey())
                                     : learningApi.exerciseAction(collId, exercise.id, 'start')
                             )
                         }
@@ -270,9 +271,9 @@ export default function ExercisePanel({collId, exercise, busy, refresh, act, ask
                 />
             );
         })}
-        {isDraft && <section className={`${cardClass} space-y-3`}><p className="text-xs text-slate-400">{saving ? '正在保存答案…' : '离开输入框时保存；提交前会再次保存。'}</p>{totalSkipped > 0 && <label className="flex gap-2 text-sm text-slate-500"><input type="checkbox" checked={skipConfirm} onChange={e => setSkipConfirm(e.target.checked)}/>确认跳过 {totalSkipped} 道未作答题（不记为能力错误）</label>}<button disabled={busy || (totalSkipped > 0 && !skipConfirm)} className={buttonClass} onClick={() => void act(async () => {await save(); await learningApi.submit(collId, attempt.id, 'submit', crypto.randomUUID(), skipConfirm);})}>提交并批改</button></section>}
-        {attempt?.status === 'failed' && <button disabled={busy} className={buttonClass} onClick={() => void act(() => learningApi.submit(collId, attempt.id, 'retry', crypto.randomUUID()))}>重试批改</button>}
-        {attempt?.status === 'completed' && !attempt.reviewRequested && <button disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm" onClick={() => void act(() => learningApi.submit(collId, attempt.id, 'review', crypto.randomUUID()))}>申请一次评分复核</button>}
+        {isDraft && <section className={`${cardClass} space-y-3`}><p className="text-xs text-slate-400">{saving ? '正在保存答案…' : '离开输入框时保存；提交前会再次保存。'}</p>{totalSkipped > 0 && <label className="flex gap-2 text-sm text-slate-500"><input type="checkbox" checked={skipConfirm} onChange={e => setSkipConfirm(e.target.checked)}/>确认跳过 {totalSkipped} 道未作答题（不记为能力错误）</label>}<button disabled={busy || (totalSkipped > 0 && !skipConfirm)} className={buttonClass} onClick={() => void act(async () => {await save(); await learningApi.submit(collId, attempt.id, 'submit', createRequestKey(), skipConfirm);})}>提交并批改</button></section>}
+        {attempt?.status === 'failed' && <button disabled={busy} className={buttonClass} onClick={() => void act(() => learningApi.submit(collId, attempt.id, 'retry', createRequestKey()))}>重试批改</button>}
+        {attempt?.status === 'completed' && !attempt.reviewRequested && <button disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm" onClick={() => void act(() => learningApi.submit(collId, attempt.id, 'review', createRequestKey()))}>申请一次评分复核</button>}
         {['pending', 'running'].includes(attempt?.status || '') && <p className="rounded-xl bg-orange-50 p-4 text-sm text-orange-700">老师正在批改，答案已保留，可稍后回来查看。</p>}
         {(exercise.attempts.length > 1 || exercise.attempts.some(a => a.grades.length > 1)) && <details className={cardClass}><summary className="cursor-pointer text-sm font-semibold">历史作答与评分版本</summary>{exercise.attempts.map(a => <div key={a.id} className="mt-4 border-t border-slate-100 pt-3 text-sm"><p>{a.submittedAt ? new Date(a.submittedAt).toLocaleString() : '未提交'} · {statusName[a.status]}</p>{a.grades.map(g => <div key={g.id} className="mt-2"><p>评分版本 {g.version}：{g.result.score ?? '—'} 分</p>{exercise.questions.map(q => <p key={q.id} className="mt-1 whitespace-pre-wrap text-xs text-slate-500">{q.prompt} — {a.answers[q.id] || '跳过'}；{g.result.items.find(i => i.questionId === q.id)?.feedback}</p>)}</div>)}</div>)}</details>}
     </div>;

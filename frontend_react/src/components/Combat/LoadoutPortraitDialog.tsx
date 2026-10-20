@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import type {DragEvent} from 'react';
 import {collectDroppedFiles} from '@/utils/imageUpload';
+import {createRequestKey} from '@/utils/requestKey';
 import {Check, ImagePlus, LoaderCircle, Sparkles, UserRound, X} from 'lucide-react';
 import {getPortraitOptions} from '@/api/loadoutPortrait';
 import type {PortraitOptions} from '@/api/loadoutPortrait';
@@ -69,7 +70,7 @@ export default function LoadoutPortraitDialog({agentId, portrait, onClose}: Prop
     const generate = () => {
         setShowCurrent(false);
         void portrait.generate({
-            modelId: modelId || undefined, prompt: extra, requestId: crypto.randomUUID(),
+            modelId: modelId || undefined, prompt: extra, requestId: createRequestKey(),
             referenceImageId: reference.reference?.id,
             ...(options?.defaultAspectRatio ? {aspectRatio: options.defaultAspectRatio} : {}),
             ...(options?.defaultImageSize ? {imageSize: options.defaultImageSize} : {}),

@@ -2,6 +2,7 @@ import {useRef, useState} from 'react';
 import {ArrowLeft, GraduationCap, Settings2} from 'lucide-react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {learningApi} from '../api/learning';
+import {createRequestKey} from '../utils/requestKey';
 import {useLearning} from '../hooks/useLearning';
 import LearningHeroCard from '../components/Learning/LearningHeroCard';
 import LearningSettings from '../components/Learning/LearningSettings';
@@ -25,7 +26,7 @@ export default function LearningPage() {
     const generateKey = useRef<string | null>(null);
     const open = (id: string) => {setQuestionId(undefined); navigate(`/learning/${collId}/exercises/${id}`);};
     const generate = (target?: {knowledgeId?: string; itemId?: string}) => void run(async () => {
-        generateKey.current ||= crypto.randomUUID();
+        generateKey.current ||= createRequestKey();
         const result = await learningApi.generate(collId, generateKey.current, target);
         generateKey.current = null;
         if (result.request) open(result.request.targetId);
@@ -44,19 +45,19 @@ export default function LearningPage() {
                         <nav aria-label="学习内容" className="flex gap-1 overflow-x-auto rounded-full bg-slate-100 p-1 scrollbar-hide">{['今日学习', '复习', '学习画像', '学习记录'].map(v => <button key={v} aria-current={tab === v ? 'page' : undefined} onClick={() => setTab(v)} className={`flex-1 whitespace-nowrap rounded-full px-3 py-2 text-sm ${tab === v ? 'bg-white font-medium text-orange-600 shadow-sm' : 'text-slate-500'}`}>{v}</button>)}</nav>
                         {tab === '今日学习' && <><ExerciseList course={course} history={false} open={open}/><PlanEditor course={course} busy={busy} save={async (stages, stage) => {await learningApi.plan(collId, course.plan!.id, stages, stage); await refresh();}}/></>}
                         {tab === '复习' && <><KnowledgeList knowledge={course.knowledge || []} dueOnly open={open} practice={id => generate({knowledgeId: id})} busy={busy}/><LearningItems collId={collId} items={course.items || []} busy={busy} refresh={refresh} act={run} practice={generate} open={open}/></>}
-                        {tab === '学习画像' && <><LearningStatistics course={course} open={open}/><LearningGrowth course={course} open={open}/><ProfilePanel course={course} busy={busy} evaluate={() => void run(() => learningApi.evaluate(collId, crypto.randomUUID()))} correct={async value => {await learningApi.correct(collId, value); await refresh();}}/><KnowledgeList knowledge={course.knowledge || []} dueOnly={false} open={open} practice={id => generate({knowledgeId: id})} busy={busy}/></>}
+                        {tab === '学习画像' && <><LearningStatistics course={course} open={open}/><LearningGrowth course={course} open={open}/><ProfilePanel course={course} busy={busy} evaluate={() => void run(() => learningApi.evaluate(collId, createRequestKey()))} correct={async value => {await learningApi.correct(collId, value); await refresh();}}/><KnowledgeList knowledge={course.knowledge || []} dueOnly={false} open={open} practice={id => generate({knowledgeId: id})} busy={busy}/></>}
                         {tab === '学习记录' && <ExerciseList course={course} history open={open}/>}
                     </>}
                 </div>
                 <aside className="min-w-0 space-y-4 lg:sticky lg:top-6">
                     {questionId && exercise && <div className="rounded-xl bg-orange-50 p-3 text-xs text-orange-700">正在讨论 {exercise.questions.find(q => q.id === questionId)?.knowledgeName || '当前题目'}<button className="ml-2 underline" onClick={() => setQuestionId(undefined)}>清除</button></div>}
-                    <TeacherChat name={course.config.teacherName} messages={course.messages || []} busy={busy} pending={!!course.requests?.some(r => r.kind === 'chat' && ['pending', 'running'].includes(r.status))} send={async content => {await flush.current?.(); await learningApi.chat(collId, content, crypto.randomUUID(), exercise?.attempt?.id, questionId); await refresh();}}/>
+                    <TeacherChat name={course.config.teacherName} messages={course.messages || []} busy={busy} pending={!!course.requests?.some(r => r.kind === 'chat' && ['pending', 'running'].includes(r.status))} send={async content => {await flush.current?.(); await learningApi.chat(collId, content, createRequestKey(), exercise?.attempt?.id, questionId); await refresh();}}/>
                     {course.requests?.filter(r => r.status === 'failed').slice(0, 3).map(r => <p key={r.id} className="rounded-xl bg-red-50 p-3 text-xs leading-relaxed text-red-600">{r.error}{['chat', 'evaluate', 'generate'].includes(r.kind) && <button className="ml-2 underline" disabled={busy} onClick={() => void run(async () => {
                         if (r.kind === 'chat') {
                             const message = course.messages?.find(m => m.id === r.targetId);
-                            if (message) await learningApi.chat(collId, message.content, crypto.randomUUID(), message.attemptId || undefined, message.questionId || undefined);
-                        } else if (r.kind === 'evaluate') await learningApi.evaluate(collId, crypto.randomUUID());
-                        else {const value = await learningApi.generate(collId, crypto.randomUUID()); if (value.request) open(value.request.targetId);}
+                            if (message) await learningApi.chat(collId, message.content, createRequestKey(), message.attemptId || undefined, message.questionId || undefined);
+                        } else if (r.kind === 'evaluate') await learningApi.evaluate(collId, createRequestKey());
+                        else {const value = await learningApi.generate(collId, createRequestKey()); if (value.request) open(value.request.targetId);}
                     })}>重试</button>}</p>)}
                 </aside>
             </div>

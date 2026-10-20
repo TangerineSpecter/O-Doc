@@ -1,6 +1,7 @@
 import {useRef, useState} from 'react';
 import {AlertCircle, ArrowRight, Loader2, MessageSquare, Pencil, RotateCcw} from 'lucide-react';
 import {learningApi} from '../../api/learning';
+import {createRequestKey} from '../../utils/requestKey';
 import type {Attempt} from '../../types/api/learning';
 import {buttonClass, inputClass, statusName} from './presentation';
 
@@ -42,7 +43,7 @@ export default function RevisionPanel({
     const send = (revisionId?: string) =>
         void act(async () => {
             const identity = revisionId || text;
-            const key = keys.current.get(identity) || crypto.randomUUID();
+            const key = keys.current.get(identity) || createRequestKey();
             keys.current.set(identity, key);
             await learningApi.revise(collId, attempt.id, questionId, text, key, revisionId);
             keys.current.delete(identity);

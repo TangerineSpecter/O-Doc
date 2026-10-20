@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState, type MutableRefObject} from 'react';
 import {learningApi} from '../api/learning';
+import {createRequestKey} from '../utils/requestKey';
 import type {LearningSession} from '../types/api/learning';
 
 export function useLessonSession(collId: string, session: LearningSession | null, flushRef: MutableRefObject<(() => Promise<void>) | null>, enabled = true) {
@@ -52,7 +53,7 @@ export function useLessonSession(collId: string, session: LearningSession | null
         await save();
         if (!live.current) return;
         const identity = `${live.current.id}:${type}:${turnId || ''}`;
-        const key = keys.current.get(identity) || crypto.randomUUID();
+        const key = keys.current.get(identity) || createRequestKey();
         keys.current.set(identity, key);
         try {
             await learningApi.sessionAction(collId, live.current.id, live.current.revision, type, key, turnId);

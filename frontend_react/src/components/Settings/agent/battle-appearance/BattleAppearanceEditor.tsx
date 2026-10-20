@@ -7,6 +7,7 @@ import {clearAgentBattleAppearance, generateBattleAppearanceImage, getAgentBattl
 import {downloadResource, uploadResource} from '@/api/resources';
 import {getCombatProfile} from '@/api/combat';
 import {imageExceedsUploadLimit} from '@/utils/imageUpload';
+import {createRequestKey} from '@/utils/requestKey';
 import {useToast} from '@/components/common/ToastProvider';
 import {SettingsSelect} from '../../SettingsSelect';
 import {BattleHeadPreview} from './BattleHeadPreview';
@@ -289,7 +290,7 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
                 if(poseReference.current?.key!==key){const uploaded=await uploadResource(await createBattlePoseReference(jobId,weaponId),'agent_art');poseReference.current={key,assetId:uploaded.id};}
                 poseReferenceImageId=poseReference.current.assetId;
             }
-            const data=await generateBattleAppearanceImage(agent.id,{prompt:extraRequirements.trim(),modelId:modelId||undefined,requestId:crypto.randomUUID(),aspectRatio:ratio||'3:4',imageSize:selectedSize||'1K',poseReferenceImageId,appearanceReferenceImageId:appearanceReferenceImageId||undefined,useAgentAvatar:true,backgroundMode:generationBackground});
+            const data=await generateBattleAppearanceImage(agent.id,{prompt:extraRequirements.trim(),modelId:modelId||undefined,requestId:createRequestKey(),aspectRatio:ratio||'3:4',imageSize:selectedSize||'1K',poseReferenceImageId,appearanceReferenceImageId:appearanceReferenceImageId||undefined,useAgentAvatar:true,backgroundMode:generationBackground});
             await loadTaskAsset(data);toast.success(ACTIVE_TASKS.has(data.status)?'生图任务已提交；关闭编辑器后可再次打开继续查询':'图片已生成');
         }catch(error){const text=error instanceof Error?error.message:'生图请求失败';setMessage(text);toast.error(text);}
         finally{generationSubmission.current=false;setBusy(false);}

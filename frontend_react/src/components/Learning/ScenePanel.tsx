@@ -1,6 +1,7 @@
 import {useRef, useState, type ComponentProps} from 'react';
 import {ArrowRight, BookOpen, MessageCircle, BookmarkPlus} from 'lucide-react';
 import {learningApi} from '../../api/learning';
+import {createRequestKey} from '../../utils/requestKey';
 import {useLessonSession} from '../../hooks/useLessonSession';
 import type {LessonPhase, LessonTeaching} from '../../types/api/learning';
 import ExercisePanel from './ExercisePanel';
@@ -33,7 +34,7 @@ export default function ScenePanel(props: ComponentProps<typeof ExercisePanel>) 
             <ol aria-label="学习步骤" className="mt-5 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">{phases.map((p, index) => <li key={p.id} aria-current={phase === p.id ? 'step' : undefined} className={`shrink-0 rounded-full px-3 py-1.5 text-xs ${phase === p.id ? 'bg-orange-100 font-semibold text-orange-700' : 'bg-slate-50 text-slate-500'}`}>{index + 1} · {p.title}</li>)}</ol>
             <p className="mt-3 text-xs leading-relaxed text-slate-500">先有表达可用，再练独立使用。教学提示和订正不会增加掌握证据。</p>
             {ending && <div className="mt-4 space-y-3 rounded-xl bg-orange-50 p-4 text-sm"><p>已有交流会保留，结束后释放未完成名额。</p><div className="flex flex-wrap gap-3"><button disabled={busy} className={buttonClass} onClick={() => void act(async () => {await draft.save(); await learningApi.exerciseAction(collId, exercise.id, 'end');})}>确认结束</button><button className="whitespace-nowrap shrink-0" onClick={() => setEnding(false)}>继续学习</button></div></div>}
-            {!session && exercise.status === 'ready' && <button disabled={busy} className={`${buttonClass} mt-4`} onClick={() => void act(async () => {startKey.current ||= crypto.randomUUID(); await learningApi.startSession(collId, exercise.id, startKey.current); startKey.current = null;})}>开始这次学习</button>}
+            {!session && exercise.status === 'ready' && <button disabled={busy} className={`${buttonClass} mt-4`} onClick={() => void act(async () => {startKey.current ||= createRequestKey(); await learningApi.startSession(collId, exercise.id, startKey.current); startKey.current = null;})}>开始这次学习</button>}
             {terminal && <p className="mt-4 text-sm text-slate-500">本次学习已结束，交流记录保留。</p>}
         </section>
         {draft.error && <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-600">{draft.error}<button className="ml-3 whitespace-nowrap shrink-0 underline" onClick={() => void act(draft.reload)}>重新加载并核对输入</button></div>}

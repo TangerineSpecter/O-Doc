@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {learningApi} from '../api/learning';
+import {createRequestKey} from '../utils/requestKey';
 import type {GoalProposal, LearningSubject} from '../types/api/learning';
 
 export function useLearningGoal(collId: string, subject: string) {
@@ -48,7 +49,7 @@ export function useLearningGoal(collId: string, subject: string) {
         if (!modelId) {setError('请先选择老师模型。'); return;}
         setPreparing(true); setError('');
         if (proposal && ['failed', 'rejected'].includes(proposal.status)) requestKey.current = null;
-        requestKey.current ||= crypto.randomUUID();
+        requestKey.current ||= createRequestKey();
         try {
             const value = await learningApi.prepareGoal(collId, selected, supplement, modelId, style, requestKey.current, subject);
             setProposal(value); setDirty(true); setError(value.error);
