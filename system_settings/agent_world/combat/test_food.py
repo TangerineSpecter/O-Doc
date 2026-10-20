@@ -204,6 +204,20 @@ class FoodExplorationTests(TestCase):
         with patch('system_settings.agent_world.combat.preparation_decision._choice', return_value=('none', {})):
             self.assertIsNone(food.choose(run, self.agent, 1800, structured=True)[0])
 
+    def test_food_context_carries_job_and_previous_settled_trip(self):
+        from .profiles import ensure
+        ensure('admin', self.agent, self.now)
+        self.stock()
+        first = self.trip('first')
+        explorations.finish(first.pk, now=self.now + timedelta(seconds=15))
+        run = explorations.request('admin', self.agent, 'second', {}, now=self.now)
+        self.assertEqual(food.decision_state(run, 1800),
+                         {'profession': '新手', 'last_exploration': {'used_food': True, 'outcome': '提前召回'},
+                          'required_quantity': 1})
+        # The run itself never counts as its own previous result, and unfinished runs are ignored.
+        self.assertIsNone(food.last_exploration(first))
+        self.assertEqual(food.last_exploration(run), {'used_food': True, 'outcome': '提前召回'})
+
     def test_structured_order_minimal_input_and_selected_summary(self):
         self.stock()
         run = explorations.request('admin', self.agent, 'trip', {}, now=self.now)
@@ -214,7 +228,8 @@ class FoodExplorationTests(TestCase):
             selected = {'dungeon_id': self.plan['dungeon_id'], 'duration_seconds': '1800', 'food': 'baked_potato:3',
                         'style_id': 'style.balanced', 'red_potion_count': '0', 'blue_potion_count': '0'}.get(question_id, fallback)
             if question_id == 'food':
-                self.assertEqual(state, {'required_quantity': 1})
+                self.assertEqual(state, {'profession': '新手', 'last_exploration': None,
+                                         'required_quantity': 1})
                 self.assertIn('物理攻击+9%', choices[selected])
             if question_id in ('style_id', 'red_potion_count', 'blue_potion_count'):
                 self.assertEqual(state['selected_food'], '物理攻击+9%')
@@ -392,7 +407,8 @@ class FoodExplorationTests(TestCase):
         run = explorations.request('admin', self.agent, 'trip', {}, now=self.now)
         def complete(agent, prompt, validate, **kwargs):
             context = json.loads(prompt.split('\n', 1)[1])
-            self.assertEqual(set(context), {'choices', 'required_quantity'})
+            self.assertEqual(set(context), {'choices', 'profession', 'last_exploration', 'required_quantity'})
+            self.assertEqual((context['profession'], context['last_exploration']), ('新手', None))
             self.assertNotIn('memory', prompt)
             return validate({'choice': 'baked_potato:3'})
         with patch('system_settings.decision.routing.complete_json', side_effect=complete):

@@ -1,13 +1,15 @@
 import {useState} from 'react';
-import {Download, Loader2} from 'lucide-react';
+import {Download, Loader2, Network} from 'lucide-react';
 import {useTokenUsageExport} from '../../hooks/useTokenUsageExport';
 import type {TokenMetrics, RunTokenMetrics} from '../../types/api/tokenUsage';
 import {tokenNumber} from '../../utils/tokenUsage';
+import ExecutionFlowDialog from './ExecutionFlowDialog';
 import TokenModelTotals from './TokenModelTotals';
 import TokenRequestList from './TokenRequestList';
 
-export default function RunTokenUsage({id, usage, chain}: {id: string; usage?: RunTokenMetrics; chain?: TokenMetrics | null}) {
+export default function RunTokenUsage({id, usage, chain, taskName, startedAt}: {id: string; usage?: RunTokenMetrics; chain?: TokenMetrics | null; taskName?: string; startedAt?: string}) {
     const [expanded, setExpanded] = useState(false);
+    const [flowOpen, setFlowOpen] = useState(false);
     const {exporting, exportError, download} = useTokenUsageExport({all: '1', record_id: id, include_content: '1'});
     return <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -18,6 +20,12 @@ export default function RunTokenUsage({id, usage, chain}: {id: string; usage?: R
                     className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 rounded-lg border border-orange-200 px-2.5 py-1 text-xs font-medium text-orange-600 hover:bg-orange-50 focus-visible:outline-orange-500 disabled:opacity-50">
                     {exporting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin"/> : <Download className="h-3.5 w-3.5 shrink-0"/>}
                     {exporting ? '导出中…' : '导出明细'}
+                </button>
+                <button type="button" onClick={() => setFlowOpen(true)}
+                    title="按步骤查看每次模型请求的输入分段与输出（字数/字节数）"
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 rounded-lg border border-orange-200 px-2.5 py-1 text-xs font-medium text-orange-600 hover:bg-orange-50 focus-visible:outline-orange-500">
+                    <Network className="h-3.5 w-3.5 shrink-0"/>
+                    执行流程
                 </button>
             </div>
             {usage?.collected ? (
@@ -69,5 +77,6 @@ export default function RunTokenUsage({id, usage, chain}: {id: string; usage?: R
         </>}
         <button onClick={() => setExpanded(value => !value)} aria-expanded={expanded} className="mt-3 text-xs font-medium text-orange-600 hover:underline">{expanded ? '收起模型请求' : '查看模型请求'}</button>
         {expanded && <div className="mt-3"><TokenRequestList filters={{all: '1', record_id: id}}/></div>}
+        {flowOpen && <ExecutionFlowDialog recordId={id} taskName={taskName} startedAt={startedAt} onClose={() => setFlowOpen(false)}/>}
     </section>;
 }

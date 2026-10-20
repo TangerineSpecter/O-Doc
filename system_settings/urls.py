@@ -33,6 +33,8 @@ from .agent_world.travel_views import TravelListView, TravelDetailView, Inventor
 from .agent_world.item_icon_views import ItemIconListView, ItemIconDetailView, InventoryManageView, InventoryIconView
 
 from .agent_world.farm_views import FarmListView, FarmDetailView, FarmHistoryView, FarmCatalogView, FarmCropRuleView
+
+from .agent_world.bounty_views import BountyView
 from .agent_world.item_catalog_views import ItemCatalogView, ItemCatalogIconView, ItemCatalogInventoryIconView
 
 from .agent_world.market_views import MarketShopView, MarketConfigView, MarketListView
@@ -100,6 +102,9 @@ urlpatterns = [
     path('agent-world/life/config/', LifeConfigView.as_view()),
     path('agent-world/life/profiles/<str:actor>/', LifeProfileView.as_view()),
     path('agent-world/life/goals/', LifeGoalView.as_view()),
+    path('agent-world/bounties/', BountyView.as_view()),
+    path('agent-world/bounties/options/', BountyView.as_view(kind='options')),
+    path('agent-world/bounties/<str:bounty_id>/', BountyView.as_view(kind='detail')),
     path('agent-world/life/schedule/', LifeScheduleView.as_view()),
     path('agent-world/life/schedule/<str:identity>/', LifeScheduleView.as_view()),
     path('agent-world/investment/accounts/', InvestmentView.as_view()),

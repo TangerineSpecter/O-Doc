@@ -24,6 +24,7 @@
     "test:system-logs": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/diagnostics.test.ts src/utils/dateRangeUtils.test.ts",
     "test:novel": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/novelEditor.test.ts src/utils/novelPreparation.test.ts src/utils/novelNavigation.test.ts",
     "test:farm-scene": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Farm/scene/sceneModel.test.ts src/components/Farm/scene/pacing.test.ts src/components/Farm/scene/rainPattern.test.ts src/components/Farm/scene/simulation.test.ts",
+    "test:execution-flow": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/executionFlow.test.ts",
     "test:agent-run-records": "node --test scripts/agent-run-records.test.mjs"
   },
   "dependencies": {

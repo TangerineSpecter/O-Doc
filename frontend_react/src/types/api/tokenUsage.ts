@@ -45,3 +45,29 @@ export interface TokenRequestContent {
     startedAt?: string;
     endedAt?: string | null;
 }
+export interface FlowBlock {
+    id: string;
+    label: string;
+    text: string;
+    chars: number;
+    bytes: number;
+    preview: string;
+}
+export interface FlowStep {
+    id: string;
+    index: number;
+    title: string;
+    purposeLabel: string;
+    modelName: string;
+    modelType: 'large_model' | 'decision_model';
+    agentName: string;
+    startedAt: string;
+    totalTokens: number | null;
+    inputs: FlowBlock[];
+    output: FlowBlock[];
+    outputSummary: string;
+    /** 正文无法展示时的说明；为空表示输入输出均已解析。 */
+    unavailable?: string;
+    rawRequest?: unknown;
+    rawResponse?: unknown;
+}

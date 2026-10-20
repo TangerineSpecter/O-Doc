@@ -140,7 +140,13 @@ def commit_feedback(action_id, task, agent, post, feedback, token, *, manual=Fal
 
 
 def repair_effects(action):
-    if action.snapshot.get('cooking'):
+    result = action.result if isinstance(action.result, dict) else {}
+    snapshot = action.snapshot if isinstance(action.snapshot, dict) else {}
+    if snapshot.get('bounty') or result.get('bounty_id'):
+        # 悬赏交付自带帖子，不进入互动恢复分支，避免被当成评论/评分重放。
+        WorldAction.objects.filter(pk=action.pk).update(effects_done=True)
+        return
+    if snapshot.get('cooking'):
         from .cooking_runner import finish
         return finish(action)
     if action.snapshot.get('alchemy'):
@@ -268,6 +274,11 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
 def tick(scheduler):
     from .market_sessions import cleanup
     cleanup(restart=True)
+    from .bounty_runner import tick as tick_bounties
+    try:
+        tick_bounties(scheduler)
+    except Exception:
+        logger.exception('悬赏轮询失败')
     for action in WorldAction.objects.filter(status__in=['success', 'skipped', 'failed'], effects_done=False).select_related('agent', 'record')[:20]:
         try:
             repair_effects(action)

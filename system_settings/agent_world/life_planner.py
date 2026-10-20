@@ -211,6 +211,9 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         reason = str(update.get('reason',''))[:1000]
         if status != 'active' and not reason:
             raise ValueError('结束或暂停目标须说明原因')
+        if goal.condition.get('kind') == 'bounty' and status != 'active':
+            # 悬赏目标由看板验收驱动，模型只能更新进展。
+            continue
         if status=='completed':
             from system_settings.models import AgentRunRecord
             if goal.condition.get('kind','subjective') != 'subjective' or not AgentRunRecord.objects.filter(pk=update.get('evidence_record_id'),agent_id=agent.pk,status='success').exists():

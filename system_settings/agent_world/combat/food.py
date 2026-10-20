@@ -12,6 +12,37 @@ from ..inventory_stock import inventory_items
 
 logger = logging.getLogger(__name__)
 
+# Only settled outcomes describe how the previous trip actually went.
+OUTCOMES = {'completed': '完成', 'recalled': '提前召回', 'fallen': '倒地',
+            'exhausted': '资源不足', 'interrupted': '系统中断'}
+
+
+def profession(run) -> str:
+    from .models import CombatProfile
+    from .store import current
+    profile = CombatProfile.objects.filter(pk=run.actor_id, owner_id=run.owner_id).first()
+    job = ((profile.progression or {}).get('job') if profile else '') or 'job.novice'
+    try:
+        return current(run.catalog_id).row('professions', job)['name']
+    except ValueError:
+        return job
+
+
+def last_exploration(run) -> dict | None:
+    """The previous settled trip, so a repeated choice can learn from its outcome."""
+    from .models import Exploration
+    row = (Exploration.objects.filter(owner_id=run.owner_id, actor_id=run.actor_id, status__in=tuple(OUTCOMES))
+                               .exclude(pk=run.pk).order_by('-created_at', '-pk').first())
+    if row is None:
+        return None
+    return {'used_food': bool((row.result or {}).get('food')), 'outcome': OUTCOMES[row.status]}
+
+
+def decision_state(run, duration: int) -> dict:
+    """The job and the previous trip are what tell the model whether food is worth its portions."""
+    return {'profession': profession(run), 'last_exploration': last_exploration(run),
+            'required_quantity': food_effects.portions(duration)}
+
 
 def candidates(actor_id: str, owner: str, duration: int) -> dict[str, dict]:
     required = food_effects.portions(duration)
@@ -34,8 +65,8 @@ def choose(run, agent, duration: int, *, structured: bool, planner=None, check=N
     options = candidates(agent.pk, run.owner_id, duration)
     choices = {'none': '不消耗', **{key: f"{row['stars']}星{row['name']}｜库存{row['owned']}份｜消耗{row['quantity']}份｜{row['summary']}"
                                    for key, row in options.items()}}
-    state = {'required_quantity': food_effects.portions(duration)}
-    instructions = '从本人背包候选中选择一种美食，或选择不消耗；所选美食覆盖本次冒险，不同星级不能混用。只返回候选标识。'
+    state = decision_state(run, duration)
+    instructions = '结合本人职业与上次探索结果，从本人背包候选中选择一种美食，或选择不消耗；所选美食覆盖本次冒险，不同星级不能混用。只返回候选标识。'
     if check:
         check()
     check_ai_control()

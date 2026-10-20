@@ -16,7 +16,7 @@ function ExecutionUsage({id}: {id: string}) {
             <TokenRequestList filters={{all: '1', record_id: id}}/>
         </div>
     ) : record ? (
-        <RunTokenUsage id={id} usage={record.tokenUsage} chain={record.chainTokenUsage}/>
+        <RunTokenUsage id={id} usage={record.tokenUsage} chain={record.chainTokenUsage} taskName={record.taskName} startedAt={record.startedAt}/>
     ) : (
         <div className="p-3 text-center text-xs text-slate-400">正在读取执行用量…</div>
     );

@@ -1006,6 +1006,8 @@ from .agent_world.market_models import MarketConfig, MarketBatch, MarketListing,
 
 from .agent_world.investment_models import InvestmentAccount, InvestmentDecision, InvestmentTrade, InvestmentNewsClaim, InvestmentIntegrity, InvestmentCache  # noqa: E402,F401
 
+from .agent_world.bounty_models import Bounty, BountyInvite, BountyDelivery  # noqa: E402,F401
+
 from .agent_world.life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision  # noqa: E402,F401
 from .agent_world.life_models import LifeIntegrity  # noqa: E402,F401
 
