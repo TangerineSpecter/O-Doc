@@ -128,7 +128,7 @@ def tend_farm(farm_id: str, world_token: str, agent_token: str, task: AgentTask,
                     commit(farm, key, {'kind': 'fertilize', 'fertilizer': entry['fertilizer'], 'targets': targets}, task, agent_token, world_token, now, context)
                 farm.refresh_from_db(); agent.refresh_from_db(); plan = current(farm, now)
         if not plan['entries']:
-            event(plan, 'seeds', '暂无种子目标，等待市场实际采购后确定种植队列', now)
+            event(plan, 'seeds', '没有可播目标：当前没有可采购额度或空余地块，等待下一轮', now)
         elif all(plan['progress'][e['id']] >= e['quantity'] for e in plan['entries']):
             plan['status'] = 'completed'
             event(plan, 'completed', '当天种植队列已播种完成，等待实际成熟后收获', now)

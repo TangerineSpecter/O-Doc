@@ -2,8 +2,9 @@ import {useState} from 'react';
 import {Coins, Loader2, Plus, RefreshCw} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useToast} from '../../common/ToastProvider';
+import ConfirmationModal from '../../common/ConfirmationModal';
 import {useBountyBoard} from '../../../hooks/useBountyBoard';
-import {cancelBounty, getBounty, reinviteBounty, reviewBounty, runBountyNow} from '../../../api/bounty';
+import {cancelBounty, deleteBounty, getBounty, reinviteBounty, reviewBounty, runBountyNow} from '../../../api/bounty';
 import type {Bounty, BountyStatus} from '../../../types/api/bounty';
 import BountyCard from './BountyCard';
 import BountyCreateDialog from './BountyCreateDialog';
@@ -23,6 +24,8 @@ export default function BountyBoard() {
     const [expandedId, setExpandedId] = useState('');
     const [busyId, setBusyId] = useState('');
     const [createOpen, setCreateOpen] = useState(false);
+    const [deleting, setDeleting] = useState<Bounty | null>(null);
+    const [removing, setRemoving] = useState(false);
 
     const toggle = async (bounty: Bounty) => {
         if (expandedId === bounty.id) {
@@ -47,6 +50,25 @@ export default function BountyBoard() {
             toast.error(e instanceof Error ? e.message : '操作失败');
         } finally {
             setBusyId('');
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!deleting) return;
+        const id = deleting.id;
+        setRemoving(true);
+        try {
+            await deleteBounty(id);
+            board.removeItem(id);
+            if (expandedId === id) setExpandedId('');
+            setDeleting(null);
+            toast.success('悬赏记录已删除');
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : '删除失败');
+            // 记录可能已在其他设备删除，重新拉取让看板与服务端对齐。
+            void board.reload();
+        } finally {
+            setRemoving(false);
         }
     };
 
@@ -104,6 +126,7 @@ export default function BountyBoard() {
                                         () => reviewBounty(bounty.id, approve, reason),
                                         approve ? '已通过验收并发放奖励' : '已驳回，居民会继续处理')}
                                     onCancel={() => void run(bounty, () => cancelBounty(bounty.id), '悬赏已取消')}
+                                    onDelete={() => setDeleting(bounty)}
                                     onRunNow={() => void run(bounty, () => runBountyNow(bounty.id), '已开始征询居民')}
                                     onReinvite={() => void run(bounty, () => reinviteBounty(bounty.id), '已重新抽签')}
                                     onOpenArticle={(collId, articleId) => navigate(`/article/${collId}/${articleId}`)}/>
@@ -125,6 +148,15 @@ export default function BountyBoard() {
                                         void board.reload();
                                     }}/>
             )}
+
+            <ConfirmationModal isOpen={Boolean(deleting)} type="danger" isLoading={removing}
+                               title="删除悬赏记录"
+                               description={<>删除“{deleting?.title}”后将不再出现在看板中，邀请与交付记录也会一并清除，且无法恢复。</>}
+                               confirmText="确认删除"
+                               onClose={() => {
+                                   if (!removing) setDeleting(null);
+                               }}
+                               onConfirm={() => void confirmDelete()}/>
         </div>
     );
 }

@@ -324,6 +324,36 @@ class FarmQueueTests(TestCase):
         self.assertEqual(plan['status'], 'completed')
         validate_plan(self.farm());reconcile_farms();reconcile_farms()
 
+    def test_queue_purchase_gap_is_bought_by_market_then_planted(self):
+        from decimal import Decimal
+        from .market_plan_models import MarketGoal, MarketPlan
+        from .market_planning import refresh_queue_needs
+        self.plan(entries=[{'sku': 'seed.radish', 'quantity': 3}], limit='30')
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'seed.radish'), 0)
+        MarketPlan.objects.create(pk='day-plan', owner_id='owner', actor_id=self.agent.pk,
+                                  plan_date=NOW.date(), status='active', budget=Decimal('0'))
+        shop = {'slots': [{'sku': 'seed.radish', 'price': '10'}], 'supplies': [],
+                'feed': {'price': '1'}}
+        with patch('system_settings.agent_world.market_plan_candidates.shop_payload', return_value=shop), \
+             patch('django.utils.timezone.now', return_value=NOW):
+            self.assertEqual(refresh_queue_needs('owner', self.agent.pk, NOW), 1)
+            # 缺口没有变化时不再重复建目标
+            self.assertEqual(refresh_queue_needs('owner', self.agent.pk, NOW), 0)
+        goal = MarketGoal.objects.get(plan_id='day-plan')
+        self.assertEqual((goal.sku, goal.quantity), ('seed.radish', 3))
+        self.assertEqual(MarketPlan.objects.get(pk='day-plan').budget, Decimal('30.00'))
+        batch, session = self.market(NOW)
+        self.buy(batch, session, NOW, count=3, slot='1', request='buy-seed')
+        self.close_market(session)
+        queue_plan = current(self.farm(), NOW)
+        self.assertEqual([row['sku'] for row in queue_plan['purchases']], ['seed.radish'])
+        self.activate()
+        operation = FarmOperation.objects.get(operation__kind='plant')
+        self.assertEqual(operation.operation['crop'], 'radish')
+        self.assertEqual(len(operation.operation['targets']), 3)
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'seed.radish'), 0)
+        validate_plan(self.farm()); reconcile_farms(); reconcile_farms()
+
     def test_known_crop_identifiers_only_are_compatible(self):
         from .farm_queue_plan import entries_for
         from .farm_catalog import DEFAULT_RULES

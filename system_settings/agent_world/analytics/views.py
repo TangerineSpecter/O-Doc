@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta
+from django.db.models import Q
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
@@ -76,13 +77,35 @@ class AnalyticsLedgerView(APIView):
         end = storage_time(datetime.combine(values['end_date']+timedelta(days=1), time.min, SHANGHAI))
         page, page_size = values['page'], values['page_size']
         offset = (page-1)*page_size
-        entries = list(WorldLedger.objects.filter(
+        ledger_query = WorldLedger.objects.filter(
             agent_id=values['actor_id'], created_at__gte=start, created_at__lt=end,
-        ).exclude(kind='opening').exclude(amount=0).order_by('-created_at', '-id')[offset:offset+page_size+1])
+        ).exclude(kind='opening').exclude(amount=0)
+         .exclude(kind='investment', snapshot__side='buy')
+        visible_count, entries, cursor = 0, [], None
+        scan_size = 100
+        from ..market_finance import classify_market_ledger_entries
+        from ..investment_finance import settle_investment_entries
+        while len(entries) <= page_size:
+            batch_query = ledger_query
+            if cursor is not None:
+                batch_query = batch_query.filter(
+                    Q(created_at__lt=cursor[0]) | Q(created_at=cursor[0], pk__lt=cursor[1]))
+            batch = list(batch_query.order_by('-created_at', '-id')[:scan_size])
+            if not batch:
+                break
+            cursor = (batch[-1].created_at, batch[-1].pk)
+            classify_market_ledger_entries(batch, owner)
+            settled = settle_investment_entries(batch, owner)
+            for entry in settled:
+                if visible_count >= offset:
+                    entries.append(entry)
+                    if len(entries) > page_size:
+                        break
+                visible_count += 1
+            if len(batch) < scan_size or len(entries) > page_size:
+                break
         has_more = len(entries) > page_size
         entries = entries[:page_size]
-        from ..market_finance import classify_market_ledger_entries
-        classify_market_ledger_entries(entries, owner)
         details = ledger_details(entries, owner)
         serialized = LedgerSerializer(entries, many=True).data
         items = [

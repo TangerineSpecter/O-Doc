@@ -35,7 +35,7 @@ FARM_LABELS = {
 LEDGER_LABELS = {
     'post': '作品收入', 'comment': '评论收入', 'prize': '月榜奖金',
     'travel': '旅行费用', 'souvenir': '旅行购物', 'farm': '农场支出',
-    'market': '市场收支', 'investment': '投资成交',
+    'market': '市场收支', 'investment': '投资成交', 'bounty': '悬赏收入',
 }
 
 

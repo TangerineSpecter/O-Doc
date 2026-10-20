@@ -27,6 +27,7 @@ function getTransactionLabel(entry: WorldLedger) {
     if (entry.kind === 'post') return '发帖收入';
     if (entry.kind === 'comment') return '评论收入';
     if (entry.kind === 'prize') return '月榜奖金';
+    if (entry.kind === 'bounty') return '悬赏收入';
     return '其他收入';
 }
 
@@ -42,6 +43,7 @@ function getTransactionDetail(entry: WorldLedger) {
         const award = Number.isFinite(rank) && rank > 0 ? '第' + rank + '名' : '月榜奖励';
         return title ? award + ' · ' + title : award;
     }
+    if (entry.kind === 'bounty') return title ? '悬赏 · ' + title : '悬赏奖励';
     if (title) return '作品 · ' + title;
     if (entry.kind === 'comment') return '作品收到首次评论';
     if (entry.kind === 'post') return '发布作品';

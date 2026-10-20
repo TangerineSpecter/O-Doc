@@ -7,7 +7,8 @@ import {ProfessionBadge} from '../ProfessionBadge';
 
 const kindLabels: Record<string, string> = {
     post: '作品收入', comment: '评论收入', prize: '月榜奖金', travel: '旅行支出',
-    souvenir: '旅行购物', farm: '农场收支', market: '市场收支', investment: '投资成交',
+    souvenir: '旅行购物', farm: '农场收支', market: '市场收支', investment: '投资盈亏',
+    bounty: '悬赏收入',
 };
 
 function snapshotText(snapshot: Record<string, unknown> | null, ...keys: string[]) {
@@ -21,17 +22,17 @@ function snapshotText(snapshot: Record<string, unknown> | null, ...keys: string[
 
 function labelFor(entry: ResidentAnalyticsLedgerEntry, expense: boolean) {
     if (entry.kind === 'market') return expense ? '市场支出' : '市场收入';
-    if (entry.kind === 'investment') return expense ? '股票买入' : '卖出回款';
+    if (entry.kind === 'investment') return expense ? '投资亏损' : '投资盈利';
     if (entry.kind === 'farm') return expense ? '农场支出' : '农场收入';
     return kindLabels[entry.kind] || (expense ? '支出' : '收入');
 }
 
 function detailFor(entry: ResidentAnalyticsLedgerEntry) {
+    const code = snapshotText(entry.snapshot, 'code');
+    if (entry.kind === 'investment') return code ? `已实现盈亏 · ${code}` : '已实现盈亏';
     if (entry.detail?.trim()) return entry.detail.trim();
     const title = snapshotText(entry.snapshot, 'postTitle', 'post_title', 'title');
     const description = snapshotText(entry.snapshot, 'description', 'reason', 'memo');
-    const code = snapshotText(entry.snapshot, 'code');
-    if (entry.kind === 'investment') return code ? `模拟股票交易 · ${code}` : '模拟股票交易';
     if (entry.kind === 'market') return '世界市场交易';
     if (description || title) return description || title;
     if (entry.kind === 'prize') return title ? `月榜奖励 · ${title}` : '月榜奖励';

@@ -78,9 +78,10 @@ const financeLabels: Record<string, string> = {
     souvenir: '旅行购物',
     farm: '农场收支',
     market: '市场收支',
-    investment: '投资成交',
+    investment: '投资已实现盈亏',
     combat: '冒险收支',
     cooking: '烹饪收支',
+    bounty: '悬赏收入',
 };
 
 const categoryTheme: Record<string, {label: string; color: string; bar: string; bg: string; icon: typeof Users}> = {

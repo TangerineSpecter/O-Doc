@@ -169,6 +169,8 @@ def load_facts(request, owner, start, end):
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)))
     from ..market_finance import classify_market_ledger_entries
     classify_market_ledger_entries(facts.ledger, owner)
+    from ..investment_finance import settle_investment_entries
+    facts.ledger = settle_investment_entries(facts.ledger, owner, facts.unknown)
     return facts
 
 

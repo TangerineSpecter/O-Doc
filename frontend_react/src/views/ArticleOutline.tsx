@@ -3,6 +3,7 @@ import {AgentPostShare} from '../components/AgentPost/AgentPostShare';
 import {SocialDiscussion, type DiscussionEntry} from '../components/AgentWorld/SocialDiscussion';
 import PostRatingBadge from '../components/AgentPost/PostRatingBadge';
 import { CategoryMigration, MigrationAlert } from "../components/AgentWorld/CategoryMigration";
+import { AgentPostMissingState } from "../components/AgentWorld/AgentPostMissingState";
 import { PostRanking } from "../components/AgentWorld/PostRanking";
 import { LatestCommentsCard } from "../components/AgentWorld/LatestCommentsCard";
 import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
@@ -16,6 +17,8 @@ import {useNavigate} from 'react-router-dom';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
+import ErrorState from '../components/common/ErrorState';
+import {isResourceNotFoundError} from '../utils/requestError';
 import {getHtmlDeletionSummary} from '../api/htmlNote';
 import SaveWebpageModal, {type WebpageImportOptions, type WebpageImportProgress} from '../components/common/SaveWebpageModal';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
@@ -132,6 +135,8 @@ function AgentPostCollectionView({
         }
     }, [activePost?.articleId, activePost?.agentPostHasBeenRead]);
     const [postLoading, setPostLoading] = useState(false);
+    const [postNotFound, setPostNotFound] = useState(false);
+    const [postLoadError, setPostLoadError] = useState<unknown>(null);
     const [comments, setComments] = useState<AgentPostComment[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
     const [replyTarget, setReplyTarget] = useState<DiscussionEntry | null>(null);
@@ -311,6 +316,8 @@ function AgentPostCollectionView({
     useEffect(() => {setReplyTarget(null); setCommentDraft(''); setIsRatingPickerOpen(false);}, [articleId]);
 
     const loadPostDetail = useCallback(async () => {
+        setPostNotFound(false);
+        setPostLoadError(null);
         if (!articleId) {
             setActivePost(null);
             setComments([]);
@@ -319,17 +326,22 @@ function AgentPostCollectionView({
         setPostLoading(true);
         setCommentsLoading(true);
         try {
-            const [detail, commentResult] = await Promise.all([
-                getArticleDetail(articleId),
-                getAgentPostComments(articleId)
-            ]);
+            // 先确认帖子本身可读，再单独加载评论，避免评论接口失败被误判为帖子不存在
+            const detail = await getArticleDetail(articleId);
             setActivePost(detail);
-            setComments(commentResult.comments || []);
+            const commentResult = await getAgentPostComments(articleId).catch(() => null);
+            setComments(commentResult?.comments || []);
         } catch (error) {
             console.error('加载 Agent 帖子详情失败:', error);
-            toast.error('加载帖子详情失败');
             setActivePost(null);
             setComments([]);
+            if (isResourceNotFoundError(error)) {
+                // 帖子已被删除或不可见：事件流等旧入口仍可能跳到这里
+                setPostNotFound(true);
+            } else {
+                setPostLoadError(error);
+                toast.error('加载帖子详情失败');
+            }
         } finally {
             setPostLoading(false);
             setCommentsLoading(false);
@@ -458,7 +470,19 @@ function AgentPostCollectionView({
                         返回帖子列表
                     </button>
 
-                    {postLoading || !activePost ? (
+                    {postNotFound ? (
+                        <AgentPostMissingState
+                            onBack={() => onNavigate?.('article', {collId})}
+                            onRetry={loadPostDetail}
+                            retrying={postLoading}
+                        />
+                    ) : postLoadError ? (
+                        <ErrorState
+                            fullPage={false}
+                            error={postLoadError}
+                            onRetry={loadPostDetail}
+                        />
+                    ) : postLoading || !activePost ? (
                         <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white">
                             <StarLoader />
                             <span className="mt-2 text-xs font-medium text-slate-400">正在加载帖子...</span>

@@ -13,6 +13,7 @@ from ..farm_models import AgentFarm, FarmOperation
 from ..travel_models import TravelJourney
 from ..social_models import Moment, MomentComment
 from ..combat.models import CombatFact, CombatEncounter, Exploration
+from ..investment_models import InvestmentDecision, InvestmentTrade
 from .views import AnalyticsParams
 
 
@@ -99,6 +100,44 @@ class AnalyticsTests(TestCase):
         self.assertEqual(sum(Decimal(row['income']) for row in result['daily']), Decimal('0.30'))
         self.assertEqual(sum(Decimal(row['income']) for row in result['comparison']), Decimal('0.30'))
         self.assertEqual(self.fetch(self.b.pk)['overview']['expense'], '0.10')
+
+    def investment(self, key, side, amount, profit='0', trade_actor=None):
+        ledger_actor, trade_actor = self.a, trade_actor or self.a
+        decision = InvestmentDecision.objects.create(pk='decision:'+key, owner_id='admin', actor_id=trade_actor.pk,
+            actor_name=trade_actor.name, reference_date=self.at.date(), execution_date=self.at.date())
+        InvestmentTrade.objects.create(pk=key, owner_id='admin', actor_id=trade_actor.pk, actor_name=trade_actor.name,
+            decision=decision, operation={'side': side, 'code': '000001', 'quantity': 100},
+            result={'realized_profit': profit, 'cash_delta': amount}, created_at=self.at)
+        WorldLedger.objects.create(pk='investment:'+key, agent_id=ledger_actor.pk, agent_name=ledger_actor.name,
+            kind='investment', amount=Decimal(amount), created_at=self.at,
+            snapshot={'trade_id': key, 'code': '000001', 'side': side})
+
+    def test_investment_flow_counts_realized_profit_only(self):
+        self.investment('buy', 'buy', '-1000.00')
+        self.investment('win', 'sell', '600.00', '200.00')
+        self.investment('loss', 'sell', '300.00', '-200.00')
+        result = self.fetch()
+        self.assertEqual(result['overview']['income'], '200.00')
+        self.assertEqual(result['overview']['expense'], '200.00')
+        self.assertEqual(result['overview']['net'], '0.00')
+
+    def test_investment_bad_profit_and_foreign_trade_are_ignored(self):
+        self.investment('broken', 'sell', '600.00', 'not-a-number')
+        self.investment('foreign', 'sell', '600.00', '200.00', trade_actor=self.b)
+        result = self.fetch()
+        self.assertEqual(result['overview']['income'], '0.00')
+        self.assertEqual(result['overview']['expense'], '0.00')
+
+    def test_investment_ledger_hides_buy_and_shows_profit(self):
+        self.investment('buy', 'buy', '-1000.00')
+        self.investment('sell', 'sell', '600.00', '200.00')
+        response = self.client.get('/api/settings/agent-world/analytics/ledger/', {
+            'start_date': '2026-10-01', 'end_date': '2026-10-02', 'actor_id': self.a.pk,
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+        items = response.data['data']['items']
+        self.assertEqual([row['id'] for row in items], ['investment:sell'])
+        self.assertEqual(items[0]['amount'], '200.00')
 
     def test_business_success_and_cross_day_outcomes(self):
         farm = AgentFarm.objects.create(pk=self.a.pk, owner_id='admin', actor_name=self.a.name)

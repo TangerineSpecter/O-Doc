@@ -117,6 +117,27 @@ def _record_goal(goal_id: str, quantity: int) -> None:
         goal.save(update_fields=['filled_quantity', 'status', 'updated_at'])
 
 
+def _goal_sku(goal_id: str) -> str:
+    if not goal_id:
+        return ''
+    return MarketGoal.objects.filter(pk=goal_id).values_list('sku', flat=True).first() or ''
+
+
+def _record_farm_purchase(owner: str, actor_id: str, key: str, sku: str, amount) -> None:
+	"""自动化种子与肥料成交也计入当天种植队列采购上限。"""
+	if not sku.startswith(('seed.', 'fertilizer.')):
+        return
+    from .farm_models import AgentFarm
+    from .farm_queue_plan import current, save
+    with transaction.atomic():
+        farm = AgentFarm.objects.select_for_update().filter(pk=actor_id, owner_id=owner).first()
+        plan = current(farm) if farm else None
+        if not plan or any(row['id'] == key for row in plan['purchases']):
+            return
+        plan['purchases'].append({'id': key, 'sku': sku, 'amount': str(Decimal(str(amount)))})
+        save(farm)
+
+
 @guarded
 @transaction.atomic
 def _purchase(session, agent, plan: MarketPlan, key: str, operation: dict,
@@ -176,7 +197,11 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
             operation = {key: value for key, value in operation.items() if key != '_goal'}
             key = _key(tick.pk, operation)
             try:
-                _purchase(session, agent, plan, key, operation, goal_id, now)
+                done = _purchase(session, agent, plan, key, operation, goal_id, now)
+                try:
+                    _record_farm_purchase(tick.owner_id, agent.pk, key, _goal_sku(goal_id), done['total'])
+                except Exception:  # noqa: BLE001 - 已成交，账目补齐失败不回滚交易
+                    logger.exception('种植队列采购记账失败 key=%s', key)
                 result['done'].append(operation)
             except Exception as exc:  # noqa: BLE001
                 result['failed'].append({'operation': operation, 'reason': str(exc)[:300]})

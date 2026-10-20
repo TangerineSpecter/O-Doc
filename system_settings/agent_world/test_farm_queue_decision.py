@@ -9,7 +9,8 @@ from django.test import SimpleTestCase, TestCase, override_settings
 
 from .farm_catalog import DEFAULT_RULES
 from .farm_queue_candidates import (FarmQueueFacts, describe_basket, fertilizer_options,
-                                    ranked_baskets, restock_options, preview)
+                                    preview, purchase_baskets, purchase_cost, ranked_baskets,
+                                    restock_options)
 from .farm_clock import SHANGHAI
 
 NOW = datetime(2026, 10, 10, 8, tzinfo=SHANGHAI)
@@ -32,7 +33,7 @@ def facts():
         fertilizers={k: {'quantity': 2, 'next_inventory_cost': '2', 'quote': {'price': 10}}
                      for k in rules['fertilizers']},
         seed_prices={c['seed_sku']: Decimal(rules['crops'][c['seed_sku'][5:]]['seed_price']) for c in crops},
-        price_source='fixture', spendable=Decimal('1000'), start=NOW,
+        spendable=Decimal('1000'), start=NOW,
         cutoff=NOW.replace(hour=0) + timedelta(days=1))
 
 
@@ -96,17 +97,31 @@ class CandidateTests(SimpleTestCase):
             row['quote'] = {'price': 10}
         self.assertIsNone(fertilizer_options(value, entries))
 
-    def test_no_seeds_keeps_only_empty_entries_and_replenishment_choices(self):
+    def test_no_seeds_offers_real_purchase_baskets_within_budget(self):
         value = facts()
         for crop in value.crops:
             crop['seed_quantity'] = 0
-        value.reference_seed_price = Decimal('7')
-        value.spendable = Decimal('50')
         self.assertEqual(ranked_baskets(value), [])
-        options = restock_options(value, [])
-        limits = {Decimal(row['limit']) for row in options.values()}
-        self.assertEqual(limits, {Decimal(0), Decimal(28), Decimal(50)})
+        baskets = purchase_baskets(value)
+        self.assertTrue(baskets)
+        for row in baskets:
+            self.assertTrue(row['purchase'])
+            self.assertTrue(row['entries'])
+            self.assertTrue(all(entry['sku'].startswith('seed.') for entry in row['entries']))
+            self.assertLessEqual(purchase_cost(value, row['entries'], 'none', None), value.spendable)
+        self.assertIn('需先买种子', describe_basket(value, baskets[0]))
+        options = restock_options(value, baskets[0]['entries'])
+        self.assertGreaterEqual(len(options), 2)
+        for row in options.values():
+            self.assertIn('采购上限', row['label'])
+            self.assertTrue(row['entries'])
+            self.assertLessEqual(Decimal(row['limit']), value.spendable)
+        # 余额不足时篮子按实际可支配金额截断，不会给出买不起的目标。
+        value.spendable = Decimal('20')
+        for row in purchase_baskets(value):
+            self.assertLessEqual(purchase_cost(value, row['entries'], 'none', None), value.spendable)
         value.spendable = Decimal(0)
+        self.assertEqual(purchase_baskets(value), [])
         self.assertIsNone(restock_options(value, []))
 
     def test_no_remaining_time_or_land_gives_one_zero_purchase_plan(self):
@@ -205,13 +220,12 @@ class FarmDecisionTests(TestCase):
         self.assertEqual(value.seed_price_sources['seed.radish'], '可见报价')
         self.assertEqual(value.seed_prices['seed.corn'], Decimal('35'))
         self.assertEqual(value.seed_price_sources['seed.corn'], '目录基准价')
-        self.assertEqual(value.reference_seed_price, Decimal('12'))
         baskets = ranked_baskets(value)
         self.assertEqual({entry['sku'] for entry in baskets[0]['entries']}, {'seed.radish'})
         # Two held seeds cover half of one round; the missing two cost 7 each.
         self.assertEqual(Decimal(restock_options(value, baskets[0]['entries'])['round']['limit']), Decimal('14'))
 
-    def test_empty_queue_uses_visible_seed_quote_median_for_replenishment(self):
+    def test_empty_queue_purchase_baskets_use_visible_seed_quotes(self):
         from .travel_models import AgentInventoryItem
         from .farm_queue_decision import planning_facts
         self.market_slots([{'sku': 'seed.radish', 'price': '7'},
@@ -221,20 +235,23 @@ class FarmDecisionTests(TestCase):
         with patch('django.utils.timezone.now', return_value=NOW):
             value = planning_facts('owner', self.agent, self.slot)
         self.assertEqual(ranked_baskets(value), [])
-        self.assertEqual(Decimal(restock_options(value, [])['round']['limit']), Decimal('48'))
-        self.assertIn('可见种子报价中位数', value.price_source)
+        baskets = purchase_baskets(value)
+        self.assertTrue(baskets)
+        self.assertEqual(value.seed_prices['seed.radish'], Decimal('7'))
+        self.assertEqual(value.seed_price_sources['seed.radish'], '可见报价')
+        self.assertEqual(value.seed_price_sources['seed.corn'], '目录基准价')
+        for row in baskets:
+            self.assertLessEqual(purchase_cost(value, row['entries'], 'none', None), value.spendable)
 
-    def test_no_visible_seed_quote_falls_back_to_catalog_median(self):
-        from statistics import median
+    def test_no_visible_seed_quote_falls_back_to_catalog_price(self):
         from .farm_catalog import DEFAULT_RULES
         from .farm_queue_decision import planning_facts
         self.market_slots([{'sku': 'animal.cow', 'price': '999'}])
         with patch('django.utils.timezone.now', return_value=NOW):
             value = planning_facts('owner', self.agent, self.slot)
-        self.assertEqual(value.reference_seed_price, median([
-            Decimal(row['seed_price']) for row in DEFAULT_RULES['crops'].values()]))
+        self.assertEqual(value.seed_prices['seed.radish'],
+                         Decimal(str(DEFAULT_RULES['crops']['radish']['seed_price'])))
         self.assertEqual(value.seed_price_sources['seed.radish'], '目录基准价')
-        self.assertIn('缺少种子报价', value.price_source)
 
     def test_shared_decision_connection_success_skips_text_generation(self):
         with patch('system_settings.decision.jev.choose',
@@ -257,6 +274,35 @@ class FarmDecisionTests(TestCase):
         self.assertIn('现在种，不买肥', asked[0][1].values())
         self.assertEqual(asked[1][0]['fertilizer'], asked[0][1]['no'])
         self.assertIn('不补种', asked[1][1].values())
+
+    def test_no_seed_stock_still_plans_purchasable_crop_targets(self):
+        from .farm_catalog import catalog_for
+        from .farm_queue_decision import decide_plan
+        from .travel_models import AgentInventoryItem
+        AgentInventoryItem.objects.all().delete()
+        with patch('django.utils.timezone.now', return_value=NOW), \
+             patch('system_settings.decision.jev.choose',
+                   side_effect=lambda owner, state, choices, **kw: (next(iter(choices)), .8)), \
+             patch('system_settings.decision.routing.complete', side_effect=AssertionError('不得请求普通模型')):
+            result = decide_plan(self.agent, 'owner', self.slot, '想种点作物', task=self.task)
+        self.assertTrue(result['entries'])
+        self.assertTrue(all(entry['sku'].startswith('seed.') for entry in result['entries']))
+        rules = catalog_for('owner').rules
+        cost = sum(Decimal(entry['quantity']) * Decimal(str(rules['crops'][entry['sku'][5:]]['seed_price']))
+                   for entry in result['entries'])
+        self.assertGreater(Decimal(result['procurement_limit']), 0)
+        # 采购上限必须覆盖队列目标；余额不足时按余额截断，不会给出买不起的数量
+        self.assertGreaterEqual(Decimal(result['procurement_limit']) - cost, Decimal(0))
+        self.plan_shows_purchase_gap(result)
+
+    def plan_shows_purchase_gap(self, specification):
+        from .farm_queue_plan import install, overview
+        from .farm_models import AgentFarm
+        with patch('django.utils.timezone.now', return_value=NOW):
+            install(self.item, self.task, specification, '想种点作物', recheck_inventory=True)
+        plan = overview(AgentFarm.objects.get(pk=self.agent.pk), NOW)
+        self.assertTrue(plan['entries'])
+        self.assertTrue(any(entry['missing_seeds'] > 0 for entry in plan['entries']))
 
     def test_on_hand_intent_does_not_ask_to_buy_seeds(self):
         from .farm_queue_decision import decide_plan

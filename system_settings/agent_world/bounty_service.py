@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from anthology.models import Anthology
 from system_settings.models import Agent, WorldLedger
+from system_settings.sync_state import permanent_deletion
 
 from .bounty_models import Bounty, BountyDelivery, BountyInvite
 from .life_models import LifeGoal, LifeProfile
@@ -259,6 +260,18 @@ def review(owner: str, bounty_id: str, approve: bool, reason: str = '') -> Bount
         LifeGoal.objects.filter(id=f'goal_{bounty.pk}', status='active').update(
             progress=f'被驳回：{reason}'[:2000], reason=reason)
     return bounty
+
+
+@transaction.atomic
+def delete_bounty(owner: str, bounty_id: str) -> None:
+    """删除已取消的悬赏记录；仅 cancelled 可删，accepted 属结算凭证不清理。"""
+    bounty = Bounty.objects.select_for_update().filter(pk=bounty_id, owner_id=owner).first()
+    if bounty is None:
+        raise ValueError('悬赏不存在')
+    if bounty.status != 'cancelled':
+        raise ValueError('只有已取消的悬赏可以删除')
+    with permanent_deletion():
+        bounty.delete()
 
 
 @transaction.atomic

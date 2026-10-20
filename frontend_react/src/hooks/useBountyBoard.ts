@@ -87,8 +87,17 @@ export function useBountyBoard(active: boolean) {
         setItems(current => current.map(row => (row.id === bounty.id ? bounty : row)));
     }, []);
 
+    const removeItem = useCallback((id: string) => {
+        // 作废在途列表请求，避免轮询把已删除记录写回。
+        requestRef.current += 1;
+        setLoading(false);
+        setItems(current => current.filter(row => row.id !== id));
+        // 偏移分页下删除会让后续页边界前移，多页时重新对齐第 1 页避免漏项。
+        if (page > 1 || hasMore) void load(1, true);
+    }, [page, hasMore, load]);
+
     return {
         items, options, filter, hasMore, loading, busy, error,
-        setError, setBusy, reload, loadMore, changeFilter, updateItem,
+        setError, setBusy, reload, loadMore, changeFilter, updateItem, removeItem,
     };
 }

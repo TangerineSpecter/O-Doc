@@ -3,12 +3,11 @@ import copy
 import time
 from datetime import datetime
 from decimal import Decimal
-from statistics import median
 
 from django.utils import timezone
 
 from .farm_queue_candidates import (FarmQueueFacts, capped, describe_basket, fertilizer_options,
-                                    purchase_cost, ranked_baskets, restock_options)
+                                    purchase_baskets, purchase_cost, ranked_baskets, restock_options)
 from .life_choices import choose
 from .life_time import local_time
 
@@ -49,8 +48,6 @@ def planning_facts(owner: str, agent, slot: dict) -> FarmQueueFacts:
         quote = quotes.get(sku)
         prices[sku] = Decimal(str(quote['price'] if quote else rule['seed_price']))
         price_sources[sku] = '可见报价' if quote else '目录基准价'
-    reference_prices = [Decimal(str(row['price'])) for sku, row in quotes.items() if sku in prices]
-    reference = median(reference_prices or list(prices.values()))
     fertilizers = context.get('planting', {}).get('fertilizers', {})
     from .inventory_stock import stock_rows
     for kind, stock in fertilizers.items():
@@ -64,9 +61,7 @@ def planning_facts(owner: str, agent, slot: dict) -> FarmQueueFacts:
         rules=catalog.rules, seed=catalog.seed,
         crops=context.get('planting', {}).get('crop_comparisons', []),
         fertilizers=fertilizers,
-        seed_prices=prices, seed_price_sources=price_sources, reference_seed_price=reference,
-        price_source=('空队列使用可见种子报价中位数；明确作物缺失报价时使用目录基准价'
-                      if reference_prices else '缺少种子报价，使用目录基准价及其中位数'),
+        seed_prices=prices, seed_price_sources=price_sources,
         spendable=available_cash(owner, agent.pk, exclude_ids=[slot['id']]),
         start=start, cutoff=cutoff,
     )
@@ -100,7 +95,11 @@ def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '
     facts = planning_facts(owner, agent, slot)
     deadline = time.monotonic() + 180
     reason, preferences = reason or '', preferences or ''
+    on_hand = ON_HAND in f'{reason}{preferences}'
     baskets = ranked_baskets(facts)
+    if not baskets and not on_hand:
+        # 手头没有种子时仍要给出可采购的真实作物，否则队列没有目标、市场也就没有缺口。
+        baskets = purchase_baskets(facts)
     planting, bare = '', []
     if len(baskets) == 1:
         bare = baskets[0]['entries']
@@ -122,7 +121,7 @@ def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '
     entries = _stamp(bare, mode, kind)
     limit = capped(facts, purchase_cost(facts, entries, mode, kind))
     # The schedule already asked to use what is on hand. Do not ask to buy seeds again.
-    if ON_HAND not in f'{reason}{preferences}':
+    if not on_hand:
         options = restock_options(facts, bare, mode, kind)
         if options:
             note = '肥料决定已经作出。' if fertilizer_label else ''
@@ -131,6 +130,9 @@ def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '
                 {key: row['label'] for key, row in options.items()},
                 note + '决定要不要再买种子。金额是采购上限，还没购买。', deadline, task)
             limit = options[picked]['limit']
+            # 补种档位也带着真实目标；只改金额会让队列永远等不到可种的东西。
+            if options[picked].get('entries'):
+                entries = _stamp(options[picked]['entries'], mode, kind)
     return {'entries': entries, 'procurement_limit': limit}
 
 
@@ -153,10 +155,33 @@ def recheck(item, specification: dict) -> dict:
     limit = money(result.get('procurement_limit', '0'))
     if limit < 0:
         raise ValueError('采购上限不能为负数')
-    result['procurement_limit'] = str(min(limit, available_cash(
-        item.owner_id, item.actor_id, exclude_ids=[item.pk])))
+    limit = min(limit, available_cash(item.owner_id, item.actor_id, exclude_ids=[item.pk]))
+    result['procurement_limit'] = str(limit)
+    result['entries'] = affordable_targets(result['entries'], comparisons, catalog, limit)
     scheduled = local_time(item.scheduled_at)
     end = window(effective_settings(config_for(item.owner_id), scheduled), scheduled.date())[1]
     if local_time(timezone.now()) >= end:
         result = {'entries': [], 'procurement_limit': '0.00'}
     return result
+
+
+def affordable_targets(entries: list[dict], comparisons: list[dict], catalog, limit) -> list[dict]:
+    """采购目标不超过采购上限：现有种子照留，待购部分按目录种子价截断。"""
+    stock = {row['seed_sku']: int(row['seed_quantity']) for row in comparisons}
+    remaining, kept = limit, []
+    for entry in entries:
+        owned = stock.get(entry['sku'], 0)
+        extra = max(0, entry['quantity'] - owned)
+        rule = catalog.rules['crops'].get(entry['sku'][5:]) or {}
+        price = Decimal(str(rule.get('seed_price') or 0))
+        buy = 0
+        if extra and price > 0:
+            buy = min(extra, int(remaining // price))
+            remaining -= price * buy
+        elif extra:
+            buy = extra
+        total = min(entry['quantity'], owned + buy)
+        stock[entry['sku']] = max(0, owned - total)
+        if total > 0:
+            kept.append({**entry, 'quantity': total})
+    return kept

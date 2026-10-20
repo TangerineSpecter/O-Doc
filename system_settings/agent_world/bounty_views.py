@@ -11,8 +11,8 @@ from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
 
 from .bounty_models import Bounty
-from .bounty_service import (bounty_data, cancel, create, owner_agents, review,
-                             renew_invites)
+from .bounty_service import (bounty_data, cancel, create, delete_bounty,
+                             owner_agents, review, renew_invites)
 from .farm_gate import guarded
 from .models import WorldCategory
 from .publish_config import is_travel_name, search_servers
@@ -93,6 +93,9 @@ class BountyView(APIView):
                 return valid_result('悬赏不存在', status=404)
             if action == 'cancel':
                 cancel(owner, bounty_id)
+            elif action == 'delete':
+                delete_bounty(owner, bounty_id)
+                return success_result({'id': bounty_id, 'deleted': True})
             elif action == 'review':
                 approve = request.data.get('approve')
                 if type(approve) is not bool:

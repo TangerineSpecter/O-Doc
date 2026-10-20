@@ -1,16 +1,17 @@
 """Pure, bounded queue proposals. Estimates grant no resources or future purchases."""
 import copy
 from collections import Counter
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, ROUND_DOWN
-from statistics import median
 
 from .farm_queue_estimate import estimate, planting_time, plot_availability
 
 MAX_BASKETS = 10
 # Full subset enumeration stays cheap at this size. Above it, use a linear sample.
 SUBSET_ENUM_LIMIT = 8
+# 手头没有种子时只比较收益最高的几种作物，避免购物清单过长。
+PURCHASE_CROPS = 3
 
 
 @dataclass
@@ -21,11 +22,9 @@ class FarmQueueFacts:
     crops: list[dict]
     fertilizers: dict
     seed_prices: dict[str, Decimal]
-    price_source: str
     spendable: Decimal
     start: datetime
     cutoff: datetime
-    reference_seed_price: Decimal | None = None
     seed_price_sources: dict[str, str] = field(default_factory=dict)
 
 
@@ -157,6 +156,51 @@ def ranked_baskets(facts: FarmQueueFacts) -> list[dict]:
     return rows[:MAX_BASKETS]
 
 
+def budgeted(facts: FarmQueueFacts, targets: list[dict]) -> list[dict]:
+    """只保留可支配余额买得起的数量，按目标顺序截断。"""
+    budget, kept = facts.spendable, []
+    for entry in targets:
+        price = facts.seed_prices.get(entry['sku'], Decimal(0))
+        if price <= 0:
+            continue
+        count = min(int(entry['quantity']), int(budget // price))
+        if count <= 0:
+            break
+        budget -= price * count
+        kept.append({**entry, 'quantity': count})
+    return kept
+
+
+def purchase_baskets(facts: FarmQueueFacts) -> list[dict]:
+    """手头没有种子时，按收益给出可采购的真实作物组合。
+
+    数量仍由代码算好，成交与否则由每日市场按队列缺口执行；没有可支配余额
+    或没有空余地块时间时返回空列表，让队列保持空队列而不是许诺买不起的种子。
+    """
+    if facts.spendable <= 0 or facts.start >= facts.cutoff:
+        return []
+    pool = [crop for crop in return_order(facts, facts.crops)
+            if facts.seed_prices.get(crop['seed_sku'], Decimal(0)) > 0][:PURCHASE_CROPS]
+    if not pool:
+        return []
+    found = {}
+    for group in _families(facts, pool):
+        targets = allocate(facts, return_order(facts, group), 'day',
+                           balanced=len(group) > 1, replenish=True)
+        targets = budgeted(facts, targets)
+        if not targets:
+            continue
+        entries = _plain(targets)
+        key = tuple(sorted((entry['sku'], entry['quantity']) for entry in entries))
+        if key in found:
+            continue
+        found[key] = {'entries': entries, 'summary': preview(facts, entries), 'purchase': True}
+    rows = sorted(found.values(), key=lambda row: (
+        -row['summary']['eventual_expected_revenue'], -row['summary']['sowable'],
+        tuple(sorted((entry['sku'], entry['quantity']) for entry in row['entries']))))
+    return rows[:MAX_BASKETS]
+
+
 def crop_name(facts: FarmQueueFacts, sku: str) -> str:
     for crop in facts.crops:
         if crop.get('seed_sku') == sku and crop.get('name'):
@@ -170,6 +214,9 @@ def describe_basket(facts: FarmQueueFacts, row: dict) -> str:
     text = f"{crops}，可播{summary['sowable']}，估算{summary['eventual_expected_revenue']}"
     if summary['harvestable_today'] != summary['sowable']:
         text += f"，今日可收{summary['harvestable_today']}"
+    if row.get('purchase'):
+        cost = purchase_cost(facts, row['entries'], 'none', None)
+        text += f"，需先买种子约{_yuan(str(cost))}元"
     return text
 
 
@@ -252,17 +299,7 @@ def fertilizer_options(facts: FarmQueueFacts, entries: list[dict]) -> dict | Non
                         'yes': f"买{name}后再种，约{_yuan(amount)}元，现在种不下，要等买到"}}
 
 
-def _reference(facts: FarmQueueFacts) -> tuple[FarmQueueFacts, list[dict]]:
-    growth = int(median(crop['growth_seconds'] for crop in facts.crops))
-    price = facts.reference_seed_price if facts.reference_seed_price is not None else median(facts.seed_prices.values())
-    crop = {**facts.crops[0], 'seed_sku': 'seed.reference', 'seed_quantity': 0, 'growth_seconds': growth}
-    rules = {**facts.rules, 'crops': {**facts.rules['crops'], 'reference': {'growth_seconds': growth}}}
-    return replace(facts, rules=rules, seed_prices={'seed.reference': Decimal(price)}), [crop]
-
-
 def _shopping_list(facts: FarmQueueFacts, targets: list[dict]) -> str:
-    if targets and targets[0]['sku'] == 'seed.reference':
-        return '按种子报价中位数备种'
     owned = _owned(facts)
     parts = []
     for entry in targets:
@@ -272,31 +309,43 @@ def _shopping_list(facts: FarmQueueFacts, targets: list[dict]) -> str:
     return '、'.join(parts)
 
 
+def _none_label(facts: FarmQueueFacts, targets: list[dict], mode: str, kind: str | None,
+                amount: str) -> str:
+    detail = _shopping_list(facts, targets)
+    if not detail:
+        return '不补种'
+    return f'不补种，只买{detail}，采购上限{_yuan(amount)}元'
+
+
 def restock_options(facts: FarmQueueFacts, entries: list[dict], mode: str = 'none',
                     kind: str | None = None) -> dict | None:
-    """Seed-budget tiers. None when buying more seeds cannot change the queue."""
+    """Seed-budget tiers; each tier carries the queue targets it stands for."""
     if facts.start >= facts.cutoff:
         return None
     if entries:
         by_sku = {crop['seed_sku']: crop for crop in facts.crops}
         crops = return_order(facts, [by_sku[entry['sku']] for entry in entries if entry['sku'] in by_sku])
-        priced = facts
         base_targets = entries
     elif facts.crops:
-        priced, crops = _reference(facts)
+        # 空队列仍可补种：直接给出收益最高的真实作物，避免只有金额没有说话对象。
+        crops = [crop for crop in return_order(facts, facts.crops)
+                 if facts.seed_prices.get(crop['seed_sku'], Decimal(0)) > 0][:PURCHASE_CROPS]
         base_targets = []
     else:
         return None
-    tiers = {'none': {'limit': capped(priced, purchase_cost(priced, base_targets, mode, kind)), 'label': '不补种'}}
+    base = capped(facts, purchase_cost(facts, base_targets, mode, kind))
+    tiers = {'none': {'limit': base, 'entries': base_targets,
+                      'label': _none_label(facts, base_targets, mode, kind, base)}}
     for quantity, title in (('round', '再补一轮'), ('day', '补满今天')):
-        targets = allocate(priced, crops, quantity, replenish=True)
+        targets = budgeted(facts, allocate(facts, crops, quantity, balanced=not entries, replenish=True))
         if not targets:
             continue
-        amount = capped(priced, purchase_cost(priced, targets, mode, kind))
+        amount = capped(facts, purchase_cost(facts, targets, mode, kind))
         if any(row['limit'] == amount for row in tiers.values()):
             continue
-        detail = _shopping_list(priced if entries else facts, targets) or '补充种子'
-        tiers[quantity] = {'limit': amount, 'label': f'{title}，{detail}，采购上限{_yuan(amount)}元'}
+        detail = _shopping_list(facts, targets) or '补充种子'
+        tiers[quantity] = {'limit': amount, 'entries': targets,
+                           'label': f'{title}，{detail}，采购上限{_yuan(amount)}元'}
     if len(tiers) == 1:
         return None
     return tiers

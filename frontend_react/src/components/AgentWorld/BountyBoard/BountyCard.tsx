@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {CheckCircle2, ChevronDown, Coins, RotateCcw, Send, TimerReset, XCircle} from 'lucide-react';
+import {CheckCircle2, ChevronDown, Coins, RotateCcw, Send, TimerReset, Trash2, XCircle} from 'lucide-react';
 import type {Bounty, BountyStatus} from '../../../types/api/bounty';
 
 export const bountyStatusMeta: Record<BountyStatus, {label: string; className: string; dot: string}> = {
@@ -17,13 +17,14 @@ function formatTime(value: string | null) {
     return date.toLocaleString('zh-CN', {hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'});
 }
 
-export default function BountyCard({bounty, expanded, busy, onToggle, onReview, onCancel, onRunNow, onReinvite, onOpenArticle}: {
+export default function BountyCard({bounty, expanded, busy, onToggle, onReview, onCancel, onDelete, onRunNow, onReinvite, onOpenArticle}: {
     bounty: Bounty;
     expanded: boolean;
     busy: boolean;
     onToggle: () => void;
     onReview: (approve: boolean, reason: string) => void;
     onCancel: () => void;
+    onDelete: () => void;
     onRunNow: () => void;
     onReinvite: () => void;
     onOpenArticle: (collId: string, articleId: string) => void;
@@ -132,6 +133,12 @@ export default function BountyCard({bounty, expanded, busy, onToggle, onReview, 
                     <button type="button" disabled={busy} onClick={onCancel}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-500 disabled:opacity-50">
                         <TimerReset className="h-3.5 w-3.5"/>取消悬赏
+                    </button>
+                )}
+                {bounty.status === 'cancelled' && (
+                    <button type="button" disabled={busy} onClick={onDelete}
+                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-medium text-rose-600 disabled:opacity-50">
+                        <Trash2 className="h-3.5 w-3.5"/>删除记录
                     </button>
                 )}
                 <button type="button" onClick={onToggle}

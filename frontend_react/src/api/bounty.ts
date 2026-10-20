@@ -21,6 +21,9 @@ export const createBounty = (value: BountyCreateInput) =>
 export const cancelBounty = (bountyId: string) =>
     request.post<never, Bounty>(`${base}/${bountyId}/`, {action: 'cancel'});
 
+export const deleteBounty = (bountyId: string) =>
+    request.post<never, {id: string; deleted: boolean}>(`${base}/${bountyId}/`, {action: 'delete'});
+
 export const reviewBounty = (bountyId: string, approve: boolean, reason: string) =>
     request.post<never, Bounty>(`${base}/${bountyId}/`, {action: 'review', approve, reason});
 

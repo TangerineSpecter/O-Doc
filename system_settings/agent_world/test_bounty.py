@@ -11,7 +11,8 @@ from rest_framework.test import APIClient
 
 from anthology.models import Anthology
 from article.models import Article
-from system_settings.models import Agent, AgentRunRecord, WorldAction, WorldLedger
+from system_settings.models import (Agent, AgentRunRecord, SyncEntityState, WorldAction,
+                                    WorldLedger)
 
 from . import bounty_service
 from .bounty_models import Bounty
@@ -217,6 +218,21 @@ class BountyServiceTests(TestCase):
         self.assertEqual(detail['categoryName'], '感情')
         self.assertEqual(len(detail['invites']), 3)
         self.assertEqual(detail['deliveries'], [])
+
+    def test_cancelled_bounty_can_be_deleted_and_other_states_rejected(self):
+        from .bounty_models import BountyInvite
+
+        bounty = self.create_bounty()
+        self.assertEqual(self.post_bounty(bounty, 'delete').status_code, 400)
+        self.assertTrue(Bounty.objects.filter(pk=bounty.pk).exists())
+        self.assertEqual(self.post_bounty(bounty, 'cancel').status_code, 200)
+        self.assertEqual(self.post_bounty(bounty, 'delete').status_code, 200)
+        self.assertFalse(Bounty.objects.filter(pk=bounty.pk).exists())
+        self.assertFalse(BountyInvite.objects.filter(bounty_id=bounty.pk).exists())
+        # 硬删除必须留下永久删除墓碑，否则三方合并会把记录复活。
+        tombstone = SyncEntityState.objects.get(model_label='system_settings.bounty', object_pk=bounty.pk)
+        self.assertTrue(tombstone.is_deleted)
+        self.assertTrue(tombstone.content_hash.startswith('!'))
 
     def test_reopen_clears_previous_rejection_before_new_claim(self):
         bounty = self.create_bounty()

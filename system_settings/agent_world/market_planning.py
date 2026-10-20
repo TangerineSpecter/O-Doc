@@ -82,6 +82,111 @@ def _facts(owner: str, agent, now) -> dict:
     }
 
 
+def needs_signature(rows: list[dict]) -> str:
+    """种子与肥料缺口的指纹；变化时才重新评估，避免每小时重复建目标。"""
+    payload = [[row['kind'], row['sku'], int(row['missing'])] for row in rows]
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:32]
+
+
+def queue_purchase_room(owner: str, actor_id: str, now) -> Decimal | None:
+    """当天农场队列剩余的采购上限；没有可用队列时返回 None。"""
+    from .farm_models import AgentFarm
+    from .farm_queue_plan import current
+    farm = AgentFarm.objects.filter(pk=actor_id, owner_id=owner).first()
+    plan = current(farm, now) if farm else None
+    if not plan or plan['status'] not in ('pending', 'active', 'completed'):
+        return None
+    if now.timestamp() >= plan['cutoff']:
+        return None
+    spent = sum((Decimal(purchase['amount']) for purchase in plan['purchases']), Decimal(0))
+    return max(Decimal(0), money(plan['procurement_limit']) - spent)
+
+
+def _queue_goals(owner: str, agent, plan: MarketPlan, rows: list[dict], room: Decimal,
+                 now) -> tuple[int, Decimal, list[str]]:
+    """按缺口生成采购目标；只补未被现有目标覆盖的部分。"""
+    covered = {goal.sku: max(0, goal.quantity - goal.filled_quantity)
+               for goal in plan.goals.filter(kind='shop', status='open')}
+    committed = sum((goal.max_unit_price * max(0, goal.quantity - goal.filled_quantity)
+                     for goal in plan.goals.filter(status='open')), Decimal(0))
+    remaining = min(room, max(Decimal(0), _available_budget(owner, agent) - plan.spent - committed))
+    created, added, lines = 0, Decimal(0), []
+    deadline = _end_of_day(now)
+    for row in rows:
+        if remaining <= 0:
+            break
+        missing = int(row['missing']) - covered.get(row['sku'], 0)
+        if missing <= 0:
+            continue
+        price = money(row['unit_price'])
+        if price <= 0:
+            continue
+        count = min(missing, int(remaining // price))
+        if count <= 0:
+            continue
+        identity = stable_key('market-goal', plan.pk, 'queue', row['sku'], length=80)
+        goal = MarketGoal.objects.filter(pk=identity).first()
+        if goal:
+            # 早前已成交或已结束的同 sku 目标：按新缺口重新开放，不另造重复目标。
+            goal.quantity, goal.filled_quantity = count, 0
+            goal.max_unit_price, goal.deadline, goal.status = price, deadline, 'open'
+            goal.reason = f"农场队列缺口{missing}{row['unit']}"
+            goal.save(update_fields=['quantity', 'filled_quantity', 'max_unit_price',
+                                     'deadline', 'status', 'reason', 'updated_at'])
+        else:
+            MarketGoal.objects.create(
+                pk=identity, owner_id=plan.owner_id, actor_id=plan.actor_id, plan=plan,
+                kind='shop', sku=row['sku'], slot='', min_stars=1, quantity=count,
+                max_unit_price=price, deadline=deadline, status='open',
+                reason=f"农场队列缺口{missing}{row['unit']}")
+        covered[row['sku']] = covered.get(row['sku'], 0) + count
+        remaining -= price * count
+        added += price * count
+        created += 1
+        lines.append(f"{row['name']}×{count}")
+    return created, added, lines
+
+
+def refresh_queue_needs(owner: str, actor_id: str, now=None) -> int:
+    """农场队列出现种子或肥料缺口时，按采购上限补入市场目标。
+
+    每日市场规划可能早于当天种植计划生成，队列出现缺口后不再重问模型：
+    缺口金额已由代码算好，成交仍受当日市场预算、生活预留与队列采购上限约束。
+    """
+    now = now or timezone.now()
+    plan = MarketPlan.objects.filter(owner_id=owner, actor_id=actor_id,
+                                     plan_date=local_time(now).date()).first()
+    if not plan or plan.status != 'active':
+        return 0
+    agent = Agent.objects.filter(pk=actor_id, archived_at__isnull=True).first()
+    if not agent:
+        return 0
+    rows = need_rows(owner, agent, now)
+    signature = needs_signature(rows)
+    context = dict(plan.context or {})
+    if context.get('needs_signature') == signature:
+        return 0
+    created, added, lines = 0, Decimal(0), []
+    room = queue_purchase_room(owner, actor_id, now)
+    if room:
+        created, added, lines = _queue_goals(owner, agent, plan, rows, room, now)
+    if not created and rows:
+        # 有缺口但暂时买不起或已由现有目标覆盖：不记指纹，下一小时重新评估。
+        return 0
+    context['needs_signature'] = signature
+    fields = ['context', 'updated_at']
+    if created:
+        cash = _available_budget(owner, agent)
+        plan.budget = min(plan.budget + added, max(plan.budget, cash)).quantize(Decimal('0.01'))
+        plan.summary = (plan.summary.rstrip('。')
+                        + f'；农场队列缺口补入{"、".join(lines)}，预算增至{plan.budget}。')[:1000]
+        plan.version += 1
+        fields.extend(['budget', 'summary', 'version'])
+    plan.context = context
+    plan.save(update_fields=fields)
+    return created
+
+
 def _ask(owner: str, agent, plan: MarketPlan, key: str, state: dict, choices: dict,
          instructions: str, questions_left: int) -> tuple[str | None, int]:
     """单题调用决策链；答案写入计划上下文，恢复或重试不重复提问。"""
@@ -310,7 +415,8 @@ def _apply(plan: MarketPlan, result: dict, context: dict, now) -> None:
         row.status = 'active'
         row.context = {**(row.context or {}),
                        'available_budget': context['available_budget'],
-                       'goal_count': len(result['goals'])}
+                       'goal_count': len(result['goals']),
+                       'needs_signature': context.get('needs_signature', '')}
         if context.get('fallback'):
             row.context['fallback'] = context['fallback']
         row.version += 1
@@ -383,6 +489,7 @@ def ensure_plan(owner: str, actor_id: str, now=None) -> MarketPlan | None:
                                validation_context, facts['shop_skus'])
         _apply(plan, result, {'available_budget': facts['available'],
                               'equipment_signature': facts['signature'],
+                              'needs_signature': needs_signature(facts['needs']),
                               'fallback': fallback}, now)
         # 待复核策略重新入队，由标记 worker 补问。
         from .market_disposition_worker import enqueue_review
