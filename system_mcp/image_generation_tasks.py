@@ -51,7 +51,7 @@ def _scope(agent: Agent | None, user_id: str = MCP_USER_ID) -> dict:
 
 def _output(task: ImageGenerationTask) -> dict:
     result = {'task_id': task.pk, 'request_id': task.request_id, 'status': task.status}
-    if task.request_data.get('scene') == 'battle_head':
+    if task.request_data.get('scene') in ('battle_head', 'loadout_portrait'):
         result.update(created_at=task.created_at.isoformat(), updated_at=task.updated_at.isoformat(),
                       elapsed_seconds=max(0, int((timezone.now() - task.created_at).total_seconds())),
                       wait_limit_seconds=BATTLE_HEAD_WAIT_SECONDS)
@@ -69,7 +69,7 @@ def _output(task: ImageGenerationTask) -> dict:
 
 
 def _write(task: ImageGenerationTask, **values) -> None:
-    if task.request_data.get('scene') == 'battle_head':
+    if task.request_data.get('scene') in ('battle_head', 'loadout_portrait'):
         write_image_task(task, **values)
         return
     for key, value in values.items():
@@ -126,7 +126,13 @@ def _download(task: ImageGenerationTask, client, content: bytes | str | None = N
             image = _download_generated_images([task.image_url])[0]
         else:
             image = _validate_image_content(content if isinstance(content, bytes) else client.fetch_image(task.image_url))
-        source_type = 'agent_art' if task.request_data.get('scene') == 'battle_head' else 'content'
+        if task.request_data.get('scene') == 'loadout_portrait':
+            from system_settings.loadout_portrait import prepare_portrait
+            try:
+                image = prepare_portrait(image)
+            except ValueError as exc:
+                raise GrsaiImageError(str(exc), status_code=422) from exc
+        source_type = 'agent_art' if task.request_data.get('scene') in ('battle_head', 'loadout_portrait') else 'content'
         saved = save_article_illustration(image=image, user_id=task.user_id, task_id=marker,
                                           original_name='生成图片', source_type=source_type)
     _write(task, status='succeeded', asset_id=saved['id'], error_message='')
@@ -164,6 +170,12 @@ def generate_image(arguments: object, agent: Agent | None = None, *, user_id: st
     with farm_gate(), transaction.atomic():
         if agent:
             require_active_agent(agent)
+        if scene == 'loadout_portrait':
+            active_task = ImageGenerationTask.objects.filter(
+                **scope, request_data__scene=scene, status__in=ACTIVE,
+            ).order_by('-created_at').first()
+            if active_task:
+                return _output(active_task)
         task, created = ImageGenerationTask.objects.get_or_create(**scope, request_id=request_id, defaults={
             'input_hash': digest, 'request_data': {**data, 'scene': scene, 'provider_options': options,
                                                  'provider_config_hash': _provider_config_hash(model)},
@@ -188,7 +200,9 @@ def generate_image(arguments: object, agent: Agent | None = None, *, user_id: st
             _write(task, status='download_pending', image_url=first if isinstance(first, str) else '')
             _download(task, client, first)
     except GrsaiImageError as exc:
-        if task.status == 'submitting':
+        if task.request_data.get('scene') == 'loadout_portrait' and exc.status_code == 422:
+            _write(task, status='failed', error_message=str(exc)[:200])
+        elif task.status == 'submitting':
             status = 'failed' if exc.status_code < 500 else 'submission_unknown'
             _write(task, status=status, error_message=str(exc)[:200])
         else:
@@ -218,8 +232,8 @@ def get_image_generation_result(arguments: object, agent: Agent | None = None, *
     task = ImageGenerationTask.objects.filter(pk=task_id, **_scope(agent, user_id)).first()
     if task is None:
         raise ValueError('生成任务不存在或无权访问')
-    if task.request_data.get('scene') == 'battle_head':
-        expire_battle_head_tasks(user_id, task.agent_key)
+    if task.request_data.get('scene') in ('battle_head', 'loadout_portrait'):
+        expire_battle_head_tasks(user_id, task.agent_key, task.request_data['scene'])
         task.refresh_from_db()
     if task.status not in ACTIVE:
         return _output(task)

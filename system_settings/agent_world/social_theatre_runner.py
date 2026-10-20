@@ -27,8 +27,8 @@ BUSY_RETRY_MINUTES = 10
 MIN_SCENE_GAP_MINUTES = 10
 # Automatic scenes use slots 0–2. Manual scenes are stored beyond that range.
 MANUAL_SLOT_START = 3
-# Version 3 adds event validation and refreshes caches from the old broad query.
-NEWS_SNAPSHOT_VERSION = 3
+# Version 4 permits a fresh manual batch after the old news-only MCP check failed.
+NEWS_SNAPSHOT_VERSION = 4
 
 
 def _is_manual_event(event):
@@ -182,7 +182,8 @@ def queue_manual_event(config, now=None):
         search_state = 'pending'
         if (anchor and anchor.search_state in ('ready', 'failed')
                 and (anchor.snapshot or {}).get('version') != NEWS_SNAPSHOT_VERSION):
-            # Refresh once after upgrading; old cached prefixes cannot be restored.
+            # Refresh once after upgrading, including failed searches that
+            # exhausted their manual retry under the old MCP topic restriction.
             snapshot['manual_news_retry'] = True
         elif anchor and anchor.search_state == 'ready':
             # A cached batch may have been produced before the current article

@@ -168,6 +168,50 @@ class SocialTheatreContentTests(SimpleTestCase):
 
 
 class SocialTheatreTests(TestCase):
+    def test_manual_trigger_can_retry_version_three_topic_failure_only_once(self):
+        now = datetime(2026, 10, 20, 12, tzinfo=ZoneInfo('Asia/Shanghai'))
+        WorldActionRuntime.objects.create(pk='world', enabled=True)
+        for succeeds in (True, False):
+            owner = f'topic-upgrade-{succeeds}'
+            with self.subTest(succeeds=succeeds):
+                LifeConfig.objects.create(id=owner, migrated=True, settings={
+                    **LIFE_DEFAULTS, 'active_start': '09:00', 'active_end': '18:00'})
+                config = SocialConfig.objects.create(id=owner, settings={
+                    **SOCIAL_DEFAULTS, 'enabled': True, 'theatre_daily_count': 0,
+                    'theatre_search_server_id': 'search', 'agent_ids': ['a', 'b', 'c']})
+                old = SocialTheatreEvent.objects.create(
+                    id=owner, owner_id=owner, business_date=now.date(), slot_index=3,
+                    scheduled_at=now, status='skipped', search_state='failed',
+                    error='新闻搜索失败：Tavily MCP 工具定义不支持 topic=news，请在 MCP 设置中刷新工具定义',
+                    snapshot={'manual': True, 'manual_news_retry': True, 'version': 3})
+                residents = [SimpleNamespace(pk=identity) for identity in ('a', 'b', 'c')]
+                with patch('system_settings.agent_world.social_theatre_runner.configured_residents',
+                           return_value=residents), \
+                     patch('system_settings.agent_world.publish_search.search', return_value=[{
+                         'title': '新产品发布', 'summary': '公司正式发布新产品。',
+                         'url': 'https://news.example/new-product'}],
+                         side_effect=None if succeeds else ValueError('测试搜索失败')) as query:
+                    first = queue_manual_event(config, now)
+                    self.assertEqual(first.search_state, 'pending')
+                    self.assertEqual(first.snapshot['version'], NEWS_SNAPSHOT_VERSION)
+                    self.assertIs(_news_anchor([old, first]), first)
+                    self.assertEqual(_ensure_news([old, first], now), succeeds)
+                    first.refresh_from_db()
+                    self.assertTrue(first.snapshot['manual_news_retry'])
+                    if succeeds:
+                        first.status = 'completed'
+                        first.save()
+                        second = queue_manual_event(config, now)
+                        self.assertEqual(second.search_state, 'ready')
+                        self.assertEqual(second.source['url'], 'https://news.example/new-product')
+                    else:
+                        with self.assertRaisesMessage(ValueError, '今天的手动新闻重搜也失败了'):
+                            queue_manual_event(config, now)
+                    query.assert_called_once()
+                old.refresh_from_db()
+                self.assertEqual(old.search_state, 'failed')
+                self.assertEqual(old.snapshot['version'], 3)
+
     def test_manual_trigger_refreshes_legacy_cache_once_and_reuses_full_snippets(self):
         owner = 'snippet-upgrade-owner'
         now = datetime(2026, 10, 19, 12, tzinfo=ZoneInfo('Asia/Shanghai'))

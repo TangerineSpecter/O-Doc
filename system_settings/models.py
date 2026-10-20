@@ -208,6 +208,16 @@ class Agent(models.Model):
         db_comment='角色全身立绘或设定拆解图的资源地址，随 Agent 配置同步'
     )
 
+    loadout_portrait = models.CharField(
+        max_length=255, blank=True, default='', verbose_name='冒险立绘',
+        db_comment='装备页专属角色立绘资源地址，随 Agent 配置和 Asset 同步'
+    )
+
+    loadout_portrait_scale = models.FloatField(
+        default=1.0, verbose_name='冒险立绘显示比例',
+        db_comment='装备页立绘缩放，随 Agent 配置同步'
+    )
+
     battle_appearance = models.JSONField(
         null=True, blank=True, default=None,
         verbose_name='战斗形象',

@@ -14,11 +14,17 @@ export default function CombatLoadoutSlots({
     disabled,
     onInspect,
     onFlip,
+    portraitImageUrl,
+    portraitScale,
+    onEditPortrait,
 }: {
     profile: CombatProfile;
     disabled?: boolean;
     onInspect: (item: CombatEquipment, remove?: boolean, slot?: string) => void;
     onFlip?: () => void;
+    portraitImageUrl?: string;
+    portraitScale: number;
+    onEditPortrait: () => void;
 }) {
     const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
     const stageRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +81,9 @@ export default function CombatLoadoutSlots({
                         <Shield className="w-3.5 h-3.5 text-orange-500" />
                         <span>装备装配</span>
                     </h4>
+                    <button type="button" onClick={onEditPortrait} className="inline-flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700 hover:bg-orange-100" title="根据 Agent 头像与设定生成专属冒险立绘">
+                        <Sparkles className="h-3 w-3"/>冒险立绘
+                    </button>
                     {goldCount > 0 && (
                         <span className="flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 text-[10px] font-bold text-amber-700">
                             <Sparkles className="w-2.5 h-2.5 text-amber-500" />
@@ -125,6 +134,8 @@ export default function CombatLoadoutSlots({
 
                     {/* 展台中心一转职业英雄立绘、脚底光环与解剖对位引线 */}
                     <DiabloHumanSilhouette
+                        imageUrl={portraitImageUrl}
+                        imageScale={portraitScale}
                         activeSlot={hoveredSlot}
                         archetype={heroArchetype}
                         equippedSlots={equippedSlots}

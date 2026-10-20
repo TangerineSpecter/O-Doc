@@ -175,7 +175,7 @@ def is_asset_used_by_agent(resource_id):
     from prompts.models import ImageGenerationTask
     # Keep the ordered references needed to inspect/recover a battle-head task.
     references = ImageGenerationTask.objects.filter(
-        request_data__scene='battle_head', request_data__icontains=resource_id,
+        request_data__scene__in=['battle_head', 'loadout_portrait'], request_data__icontains=resource_id,
     ).values_list('request_data', flat=True)
     if any(resource_id in data.get('reference_image_ids', []) for data in references):
         return True
@@ -190,7 +190,7 @@ def is_asset_used_by_agent(resource_id):
     return (
         is_asset_used_by_inventory(resource_id)
         or is_asset_used_by_catalog_item(resource_id)
-        or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)
+        or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url) | Q(loadout_portrait=url)
                                 | Q(battle_appearance__source_asset_id=resource_id)
                                 | Q(battle_appearance__cutout_asset_id=resource_id)
                                 | Q(battle_appearance__head_asset_id=resource_id)
@@ -238,7 +238,7 @@ def get_agent_resource_usage(resource_ids=None):
     from django.db.models import Q
 
     prefix = RESOURCE_VIEW_PREFIX
-    queryset = Agent.objects.filter(Q(avatar__startswith=prefix) | Q(full_body_image__startswith=prefix)
+    queryset = Agent.objects.filter(Q(avatar__startswith=prefix) | Q(full_body_image__startswith=prefix) | Q(loadout_portrait__startswith=prefix)
                                     | Q(battle_appearance__source_asset_id__isnull=False)
                                     | Q(battle_appearance__cutout_asset_id__isnull=False)
                                     | Q(battle_appearance__head_asset_id__isnull=False)
@@ -246,14 +246,14 @@ def get_agent_resource_usage(resource_ids=None):
 
     usage = {}
     from prompts.models import ImageGenerationTask
-    image_tasks = list(ImageGenerationTask.objects.filter(request_data__scene='battle_head').values('agent_key', 'request_data'))
+    image_tasks = list(ImageGenerationTask.objects.filter(request_data__scene__in=['battle_head', 'loadout_portrait']).values('agent_key', 'request_data'))
     names = dict(Agent.objects.filter(pk__in={task['agent_key'] for task in image_tasks}).values_list('pk', 'name'))
     for task in image_tasks:
         for reference_id in task['request_data'].get('reference_image_ids', []):
             if resource_ids is None or reference_id in resource_ids:
                 usage.setdefault(reference_id, {'id': task['agent_key'], 'title': f"{names.get(task['agent_key'], '居民')} · 战斗生图参考"})
-    for agent in queryset.only('id', 'name', 'avatar', 'full_body_image', 'battle_appearance'):
-        for image_url in (agent.avatar, agent.full_body_image):
+    for agent in queryset.only('id', 'name', 'avatar', 'full_body_image', 'loadout_portrait', 'battle_appearance'):
+        for image_url in (agent.avatar, agent.full_body_image, agent.loadout_portrait):
             resource_id = extract_resource_id_from_view_url(image_url)
             if not resource_id:
                 continue

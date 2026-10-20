@@ -3,6 +3,8 @@ import type {CombatEquipment, CombatCatalog, CombatProfile, CombatSnapshot} from
 import EquipmentPreview from './EquipmentPreview';
 import ExplorationPreparation from './ExplorationPreparation';
 import CombatLoadoutSlots from './CombatLoadoutSlots';
+import LoadoutPortraitDialog from './LoadoutPortraitDialog';
+import {useLoadoutPortrait, usePortraitImage} from './useLoadoutPortrait';
 import CombatAttributesCard from './CombatAttributesCard';
 import ExplorationDepartureCard from './ExplorationDepartureCard';
 import CombatWorkbenchPanel from './CombatWorkbenchPanel';
@@ -51,6 +53,10 @@ export default function CombatProfilePanel({
     onOpenHistory?: () => void;
     historyCount?: number;
 }) {
+    // Both responsive layouts share one resident's request, mutation and editor state.
+    const portrait = useLoadoutPortrait(profile.actorId);
+    const portraitImage = usePortraitImage(portrait.saved.assetId);
+    const [portraitOpen, setPortraitOpen] = useState(false);
     const [preview, setPreview] = useState<{item: CombatEquipment; remove?: boolean; slot?: string} | null>(null);
     const [preparationOpen, setPreparationOpen] = useState(false);
     const [tab, setTab] = useState<'equipment' | 'market' | 'skills'>('equipment');
@@ -265,7 +271,11 @@ export default function CombatProfilePanel({
                     <div className="flex-1 min-h-0 grid grid-cols-12 gap-2.5">
                         <div className="col-span-7 min-h-0 flex flex-col">
                             <CombatLoadoutSlots
+                                key={profile.actorId}
                                 profile={profile}
+                                portraitImageUrl={portraitImage.url}
+                                portraitScale={portrait.saved.scale}
+                                onEditPortrait={() => setPortraitOpen(true)}
                                 disabled={busy}
                                 onInspect={(item, remove, slot) => setPreview({item, remove, slot})}
                             />
@@ -306,7 +316,11 @@ export default function CombatProfilePanel({
                         {/* 正面：默认展示角色装备装配纸娃娃 */}
                         <div className="combat-flip-card-face combat-flip-card-front">
                             <CombatLoadoutSlots
+                                key={profile.actorId}
                                 profile={profile}
+                                portraitImageUrl={portraitImage.url}
+                                portraitScale={portrait.saved.scale}
+                                onEditPortrait={() => setPortraitOpen(true)}
                                 disabled={busy}
                                 onInspect={(item, remove, slot) => setPreview({item, remove, slot})}
                                 onFlip={() => setIsFlipped(true)}
@@ -457,6 +471,8 @@ export default function CombatProfilePanel({
                     onClose={() => setReselectOpen(false)}
                 />
             )}
+
+            {portraitOpen && <LoadoutPortraitDialog agentId={profile.actorId} portrait={portrait} onClose={() => setPortraitOpen(false)}/>}
 
             {/* 换装预览弹窗 */}
             {preview && (

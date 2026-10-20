@@ -50,7 +50,10 @@ def _local_now():
     return now if timezone.is_naive(now) else timezone.localtime(now)
 
 
-class AgentViewSet(viewsets.ModelViewSet):
+from .loadout_portrait_views import LoadoutPortraitActions
+
+
+class AgentViewSet(LoadoutPortraitActions, viewsets.ModelViewSet):
     queryset = Agent.objects.select_related('model', 'model__provider', 'profession').all()
     serializer_class = AgentSerializer
 

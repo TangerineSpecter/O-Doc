@@ -103,8 +103,12 @@ def search(config: dict, query: str, mode: str, days: int, deadline: float, *, s
     topic_spec = properties.get('topic')
     if 'topic' in properties and _schema_accepts(topic_spec, topic):
         args['topic'] = topic
+    elif mode == 'news' and 'topic' in properties and _schema_accepts(topic_spec, 'general'):
+        # Official Tavily MCP can expose only general; the date window and
+        # downstream article checks still constrain the search to current news.
+        args['topic'] = 'general'
     elif mode == 'news' and require_news_filters:
-        raise ValueError('Tavily MCP 工具定义不支持 topic=news，请在 MCP 设置中刷新工具定义')
+        raise ValueError('Tavily MCP 工具定义不支持 topic=news 或 topic=general，请在 MCP 设置中刷新工具定义')
 
     if mode == 'news':
         now = timezone.now()

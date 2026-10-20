@@ -121,12 +121,16 @@ function resolveLineColor(isActive: boolean, quality?: string): string {
 }
 
 export function DiabloHumanSilhouette({
+    imageUrl,
+    imageScale = 1,
     activeSlot,
     archetype = 'warrior',
     equippedSlots,
     stageRef,
     className = '',
 }: {
+    imageUrl?: string;
+    imageScale?: number;
     activeSlot?: string | null;
     archetype?: LoadoutHeroArchetype;
     equippedSlots?: Map<string, PresentedLoadoutItem>;
@@ -181,7 +185,7 @@ export function DiabloHumanSilhouette({
             height: stageRect.height,
             lines,
         });
-    }, [archetype, stageRef]);
+    }, [archetype, stageRef, imageScale, imageUrl]);
 
     useLayoutEffect(() => {
         measureConduits();
@@ -269,11 +273,13 @@ export function DiabloHumanSilhouette({
                 }}
             >
                 <img
+                    style={imageUrl ? {transform: `scale(${imageScale})`, transformOrigin: '50% 95.7%'} : undefined}
                     ref={heroImgRef}
                     data-loadout-hero-img={archetype}
-                    src={visual.image}
-                    alt={visual.alt}
+                    src={imageUrl || visual.image}
+                    alt={imageUrl ? 'Agent 专属冒险立绘' : visual.alt}
                     onLoad={measureConduits}
+                    onError={event => {if (event.currentTarget.getAttribute('src') !== visual.image) event.currentTarget.src = visual.image;}}
                     className="w-full h-full object-contain select-none"
                 />
             </div>

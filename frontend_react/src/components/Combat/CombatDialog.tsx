@@ -43,7 +43,7 @@ export default function CombatDialog({
             if (residents.length <= 1) return;
 
             // 子弹窗开启时暂停切换
-            if (historyOpen) return;
+            if (historyOpen || document.querySelector('[data-loadout-portrait-dialog]')) return;
 
             // 忽略在输入框、文本域中的操作
             const target = event.target instanceof Element ? event.target : document.activeElement;
@@ -93,6 +93,7 @@ export default function CombatDialog({
                     {data ? (
                         data.profile ? (
                             <CombatProfilePanel
+                                key={data.profile.actorId}
                                 profile={data.profile}
                                 catalog={data.catalog}
                                 actions={actions}

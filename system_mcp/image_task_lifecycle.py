@@ -29,10 +29,10 @@ def write_image_task(task: ImageGenerationTask, **values) -> None:
         task.refresh_from_db()
 
 
-def expire_battle_head_tasks(user_id: str, agent_key: str) -> None:
+def expire_battle_head_tasks(user_id: str, agent_key: str, scene: str = 'battle_head') -> None:
     cutoff = timezone.now() - timedelta(seconds=BATTLE_HEAD_WAIT_SECONDS)
     tasks = ImageGenerationTask.objects.filter(
-        user_id=user_id, agent_key=agent_key, request_data__scene='battle_head',
+        user_id=user_id, agent_key=agent_key, request_data__scene=scene,
         status__in=ACTIVE_IMAGE_STATUSES, created_at__lte=cutoff,
     )
     for task in tasks:
@@ -40,9 +40,9 @@ def expire_battle_head_tasks(user_id: str, agent_key: str) -> None:
                          error_message='已等待 15 分钟，自动停止等待；服务商是否完成尚未确认，可重新生成')
 
 
-def cancel_battle_head_task(task_id: str, user_id: str, agent_key: str) -> ImageGenerationTask:
+def cancel_battle_head_task(task_id: str, user_id: str, agent_key: str, scene: str = 'battle_head') -> ImageGenerationTask:
     selected = ImageGenerationTask.objects.filter(
-        pk=task_id, user_id=user_id, agent_key=agent_key, request_data__scene='battle_head',
+        pk=task_id, user_id=user_id, agent_key=agent_key, request_data__scene=scene,
     ).first()
     if selected is None:
         raise ValueError('生成任务不存在或无权访问')
@@ -50,7 +50,7 @@ def cancel_battle_head_task(task_id: str, user_id: str, agent_key: str) -> Image
         # Earlier versions allowed duplicate submissions. Stop older pending
         # requests as well so they cannot block the user's next generation.
         tasks = ImageGenerationTask.objects.filter(
-            user_id=user_id, agent_key=agent_key, request_data__scene='battle_head',
+            user_id=user_id, agent_key=agent_key, request_data__scene=scene,
             status__in=ACTIVE_IMAGE_STATUSES, created_at__lte=selected.created_at,
         )
         for task in tasks:
@@ -60,14 +60,14 @@ def cancel_battle_head_task(task_id: str, user_id: str, agent_key: str) -> Image
     return selected
 
 
-def recover_battle_head_task(task_id: str, user_id: str, agent_key: str) -> ImageGenerationTask:
+def recover_battle_head_task(task_id: str, user_id: str, agent_key: str, scene: str = 'battle_head') -> ImageGenerationTask:
     """Manually query a timed-out request once; never submit a new generation."""
     from .image_generation_tasks import _model, _download, image_task_context
     from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
     from system_settings.newapi_images import NewApiImageClient
 
     task = ImageGenerationTask.objects.filter(
-        pk=task_id, user_id=user_id, agent_key=agent_key, request_data__scene='battle_head',
+        pk=task_id, user_id=user_id, agent_key=agent_key, request_data__scene=scene,
     ).first()
     if task is None:
         raise ValueError('生成任务不存在或无权访问')
