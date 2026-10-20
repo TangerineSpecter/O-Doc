@@ -21,7 +21,7 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>9:
+    if meta and meta.get('combat_schema_version',0)>10:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     from .history_snapshot import normalize_source, compact_source, aggregate_frame, verify_chain
     if meta is None or meta.get('combat_schema_version', 0) < 8:
@@ -103,14 +103,18 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             validate_consumption(rows, row, actor)
             if row['sequence'] <= checkpoint['sequence']:
                 continue
-            if kind in ('initialize', 'catalog', 'promote'):
+            if kind in ('initialize', 'catalog', 'promote', 'reselect'):
                 try:
+                    if kind == 'reselect' and payload.get('from_job') != progression['job']:
+                        raise ValueError('职业重选来源与固化成长不一致')
                     progression = deepcopy(payload['progression_after'])
                     validate_progression(progression)
                     if kind == 'catalog' and progression['skills'] != payload['skills']:
                         raise ValueError('当前技能与固化结果不一致')
                     if kind == 'promote' and (progression != payload['progression'] or progression['job'] != payload['arguments']):
                         raise ValueError('转职结果与固化成长不一致')
+                    if kind == 'reselect' and (progression != payload['progression'] or progression['job'] != payload['arguments']):
+                        raise ValueError('职业重选结果与固化成长不一致')
                     for identity, value in payload.get('equipment_after', {}).items():
                         validate_gear(value['snapshot'], value['rules'])
                         if identity in expected_gear and (expected_gear[identity] != value['snapshot'] or expected_rules[identity] != value['rules']):
@@ -339,5 +343,6 @@ def metadata(data=None):
         checkpoints = {row['fields']['actor_id']: str(row['pk']) for row in sorted(data, key=lambda row: row['fields'].get('sequence', 0))
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
-    return {'combat_schema_version':9,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+    # 10：新增 CombatFact.kind=reselect（一转职业重选），旧端必须明确拒绝而不是误判为事实链损坏。
+    return {'combat_schema_version':10,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

@@ -13,7 +13,7 @@ from .life_models import LifeConfig, LifeItem
 from .life_schedule import stable_id, window, OPEN
 from .life_time import local_time, storage_time
 from .social_models import SocialConfig, SocialOpportunity, SocialInbox, Moment, SocialRelation, SocialEvent
-from .social_config import settings_for
+from .social_config import DEFAULTS, settings_for
 from .social_discussion import thread_context, auto_reply_count
 from .social_relations import context_for, apply_event, RULES
 from .social_content import publish, comment, like, text
@@ -30,11 +30,52 @@ def agent_identity(agent):
     return {'name': agent.name, 'avatar': agent.avatar}
 
 
-def inbox_for(owner, actor):
-    rows = list(SocialInbox.objects.filter(owner_id=owner, target_id=f'agent-id:{actor}',
-        status__in=['pending', 'deferred'], available_at__lte=timezone.now()).order_by('created_at')[:100])
+def window_cutoff(days):
+    """0 表示不限制；否则只保留该天数以内产生的内容。"""
+    return timezone.now() - timedelta(days=days) if days else None
+
+
+def inbox_for(owner, actor, window_days=0):
+    cutoff = window_cutoff(window_days)
+    query = SocialInbox.objects.filter(owner_id=owner, target_id=f'agent-id:{actor}',
+        status__in=['pending', 'deferred'], available_at__lte=timezone.now())
+    if cutoff:
+        query = query.filter(created_at__gte=cutoff)
+    rows = list(query.order_by('created_at')[:100])
     rows.sort(key=lambda r: (not bool(r.root_id and r.root_id != r.source_id), not r.sender_id.startswith('user:'), r.created_at))
     return rows[0] if rows else None
+
+
+def pick_incoming(owner, actor, cfg):
+    """本次是否理会最早的一条待回应事项。
+
+    只做判定、不落库，返回 (incoming, dismissed)。落库由调用方在机会创建成功或业务提交成功后
+    调用 dismiss_incoming，避免模型调用失败时把来信永久吞掉。
+    不理会即永久忽略：旧消息不会每天被重新翻出来占用机会，避免互动全部消耗在处理旧事上。
+    用户直接发来的消息不受概率影响。
+    """
+    incoming = inbox_for(owner, actor, cfg['interaction_window_days'])
+    if not incoming or incoming.sender_id.startswith('user:'):
+        return incoming, None
+    if random.random() * 100 < cfg['reply_chance']:
+        return incoming, None
+    return None, incoming
+
+
+def dismiss_incoming(incoming):
+    """永久忽略一条待回应事项；重复调用无副作用。"""
+    SocialInbox.objects.filter(pk=incoming.pk, status__in=['pending', 'deferred']).update(
+        status='ignored', reason='本次没有理会这条消息', updated_at=timezone.now())
+
+
+def expire_stale_inbox(owner, actor, window_days):
+    """超出互动时间范围的待回应事项直接结束，不再进入后续机会。"""
+    cutoff = window_cutoff(window_days)
+    if not cutoff:
+        return
+    SocialInbox.objects.filter(owner_id=owner, target_id=f'agent-id:{actor}',
+        status__in=['pending', 'deferred'], created_at__lt=cutoff).update(
+        status='expired', reason='超出互动时间范围，不再回应', updated_at=timezone.now())
 
 
 def replies_today(owner, actor, day):
@@ -42,10 +83,14 @@ def replies_today(owner, actor, day):
                                            status='completed', result__action='reply').count()
 
 
-def candidate_moments(owner, actor, limit):
+def candidate_moments(owner, actor, limit, window_days=0):
     from .social_selection import interest_terms, interest_weight
     interests = interest_terms(actor)
-    rows = list(Moment.objects.filter(owner_id=owner, is_valid=True).exclude(actor_id=f'agent-id:{actor}').order_by('-created_at')[:100])
+    query = Moment.objects.filter(owner_id=owner, is_valid=True).exclude(actor_id=f'agent-id:{actor}')
+    cutoff = window_cutoff(window_days)
+    if cutoff:
+        query = query.filter(created_at__gte=cutoff)
+    rows = list(query.order_by('-created_at')[:100])
     relations = {r.counterpart_id: r for r in SocialRelation.objects.filter(owner_id=owner, actor_id=actor)}
     known = [m for m in rows if m.actor_id in relations]
     strangers = [m for m in rows if m.actor_id not in relations]
@@ -61,13 +106,23 @@ def candidate_moments(owner, actor, limit):
 
 def prepare(op, agent):
     from .life_context import build_social_context
-    cfg = op.snapshot
-    incoming = inbox_for(op.owner_id, agent.pk) if cfg['reply_enabled'] and replies_today(op.owner_id, agent.pk, op.business_date) < cfg['daily_replies'] else None
+    # 旧机会快照可能缺少后加的配置项，按默认值补齐。
+    cfg = {**DEFAULTS, **op.snapshot}
+    dismissed = None
+    can_reply = cfg['reply_enabled'] and replies_today(op.owner_id, agent.pk, op.business_date) < cfg['daily_replies']
+    if not can_reply:
+        incoming = None
+    elif op.kind == 'daily':
+        # 日终机会不是因来信而创建，仍需在准备阶段判定一次。
+        incoming, dismissed = pick_incoming(op.owner_id, agent.pk, cfg)
+    else:
+        # 空闲机会在创建前已完成概率判定，这里直接取，避免重复掷骰。
+        incoming = inbox_for(op.owner_id, agent.pk, cfg['interaction_window_days'])
     discussion = thread_context(incoming) if incoming else None
     if incoming and not discussion:
         incoming.status = 'invalid'; incoming.reason = '来源内容已失效'; incoming.save()
         incoming = None
-    rows = candidate_moments(op.owner_id, agent.pk, cfg['read_limit']) if op.kind == 'daily' and cfg['read_enabled'] else []
+    rows = candidate_moments(op.owner_id, agent.pk, cfg['read_limit'], cfg['interaction_window_days']) if op.kind == 'daily' and cfg['read_enabled'] else []
     can_publish = False
     if op.kind == 'daily' and cfg['publish_enabled'] and cfg['daily_moments']:
         day_start = local_time().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -95,7 +150,7 @@ def prepare(op, agent):
         context['existing_images'] = available_images(op.owner_id, agent.pk)
     context['image_choices'] = (['none'] + (['existing'] if cfg['image_enabled'] and context['existing_images'] else []) +
                                 (['generate'] if cfg['image_enabled'] and cfg['daily_images'] else [])) if can_publish else ['none']
-    return context, incoming, discussion, rows
+    return context, incoming, discussion, rows, dismissed
 
 
 @attributed('social')
@@ -113,7 +168,8 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
         life = LifeConfig.objects.get(pk=op.owner_id)
         if not current_cfg['enabled'] or agent.pk not in config.settings.get('agent_ids', []) or agent.pk in life.paused_agents:
             raise ValueError('居民已暂停或退出社交')
-        if current_cfg != op.snapshot: raise ValueError('社交配置已修改，本次未提交')
+        # 旧机会快照可能缺少后加的配置项，按默认值补齐后再比较，避免升级后整批机会失败。
+        if current_cfg != {**DEFAULTS, **op.snapshot}: raise ValueError('社交配置已修改，本次未提交')
         if not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists(): raise ValueError('世界运行已关闭')
         if not AgentExecutionLease.objects.filter(agent=agent, token=token, until__gt=timezone.now()).exists(): raise ValueError('执行锁失效')
         agent = Agent.objects.select_for_update().get(pk=agent.pk)
@@ -213,10 +269,13 @@ def run(op, agent):
             locked = SocialOpportunity.objects.select_for_update().get(pk=op.pk)
             if locked.status != 'pending': return
             locked.status = 'running'; locked.save()
+        dismissed = None
         try:
-            context, incoming, discussion, rows = prepare(op, agent)
+            context, incoming, discussion, rows, dismissed = prepare(op, agent)
             value = decide(agent, context, owner=op.owner_id)
             commit(op, agent, token, context, incoming, discussion, rows, value)
+            # 业务提交成功后才落库，模型失败时来信仍保留待下次机会。
+            if dismissed: dismiss_incoming(dismissed)
         except Exception as exc:
             logger.exception('社交机会失败 id=%s', op.pk)
             SocialOpportunity.objects.filter(pk=op.pk, status='running').update(status='failed', result={'reason': str(exc)[:1000]}, updated_at=timezone.now())
@@ -252,12 +311,24 @@ def next_opportunity(config, agent, now):
         key = stable_id(config.pk, agent.pk, now.date().isoformat(), 'social-daily')
         if not SocialOpportunity.objects.filter(pk=key).exists():
             return SocialOpportunity.objects.create(id=key, owner_id=config.pk, actor_id=agent.pk, business_date=now.date(), kind='daily', snapshot=cfg)
-    if cfg['reply_enabled'] and cfg['reply_mode'] == 'idle_daily' and inbox_for(config.pk, agent.pk):
+    if cfg['reply_enabled'] and cfg['reply_mode'] == 'idle_daily':
         attempts = SocialOpportunity.objects.filter(owner_id=config.pk, actor_id=agent.pk, business_date=now.date(), kind='idle').count()
         if attempts < cfg['daily_replies'] and replies_today(config.pk, agent.pk, now.date()) < cfg['daily_replies']:
-            key = stable_id(config.pk, agent.pk, now.date().isoformat(), 'social-idle', str(attempts))
-            return SocialOpportunity.objects.get_or_create(pk=key, defaults={'owner_id': config.pk, 'actor_id': agent.pk,
-                'business_date': now.date(), 'kind': 'idle', 'snapshot': cfg})[0]
+            # 机会本就为一条来信而创建，先判定是否理会；不理会则不留待执行的机会，
+            # 避免空转一次模型调用。无论是否理会都占用一次当日尝试，防止积压被短时间内丢光。
+            incoming, dismissed = pick_incoming(config.pk, agent.pk, cfg)
+            if incoming or dismissed:
+                key = stable_id(config.pk, agent.pk, now.date().isoformat(), 'social-idle', str(attempts))
+                opportunity, _ = SocialOpportunity.objects.get_or_create(pk=key, defaults={'owner_id': config.pk, 'actor_id': agent.pk,
+                    'business_date': now.date(), 'kind': 'idle', 'snapshot': cfg})
+                if not dismissed:
+                    return opportunity
+                dismiss_incoming(dismissed)
+                if opportunity.status == 'pending':
+                    opportunity.status = 'completed'
+                    opportunity.result = {'action': 'skip', 'reason': '本次没有理会这条消息'}
+                    opportunity.save(update_fields=['status', 'result', 'updated_at'])
+                return None
     return None
 
 
@@ -280,7 +351,9 @@ def tick_social(scheduler):
             ids = LifeProfile.objects.filter(owner_id=config.pk, pk__in=config.settings.get('agent_ids', [])).values_list('pk', flat=True)
             for agent in Agent.objects.filter(pk__in=ids, archived_at__isnull=True).select_related('model'):
                 try:
-                    with farm_gate(), transaction.atomic(): op = next_opportunity(config, agent, now)
+                    with farm_gate(), transaction.atomic():
+                        expire_stale_inbox(config.pk, agent.pk, settings_for(config, agent.pk)['interaction_window_days'])
+                        op = next_opportunity(config, agent, now)
                     if op: run(op, agent)
                 except Exception: logger.exception('安排社交失败 owner=%s actor=%s', config.pk, agent.pk)
             try:

@@ -1,4 +1,4 @@
-/* 移动端战斗角色卡片 3D 翻转动画 */
+/* 移动端战斗角色卡片 3D 翻转动画与穿透杜绝方案 */
 .combat-flip-perspective {
     perspective: 1200px;
     -webkit-perspective: 1200px;
@@ -10,7 +10,7 @@
     height: 100%;
     transform-style: preserve-3d;
     -webkit-transform-style: preserve-3d;
-    transition: transform 0.5s cubic-bezier(0.2, 0.85, 0.25, 1);
+    transition: transform 0.48s cubic-bezier(0.2, 0.85, 0.25, 1);
 }
 
 .combat-flip-card-inner.is-flipped {
@@ -25,27 +25,52 @@
     height: 100%;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
-    transform-style: preserve-3d;
-    -webkit-transform-style: preserve-3d;
+    /* 关键：将面片内部限制为扁平上下文，防止 WebKit 将纸娃娃绝对定位子元素穿透泄漏到 3D 空间 */
+    transform-style: flat;
+    -webkit-transform-style: flat;
+    -webkit-font-smoothing: antialiased;
+    border-radius: 1rem;
 }
 
+/* 1. 正面：未翻转时位于最顶层 (z-index: 10, translateZ: 1px) */
 .combat-flip-card-front {
-    z-index: 2;
-    transform: rotateY(0deg);
-    -webkit-transform: rotateY(0deg);
+    z-index: 10;
+    transform: rotateY(0deg) translateZ(1px);
+    -webkit-transform: rotateY(0deg) translateZ(1px);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.2s ease 0.12s, visibility 0.2s ease 0.12s, z-index 0s 0.24s;
 }
 
+/* 2. 背面：未翻转时位于底层并彻底隐藏 (z-index: 1, translateZ: 0) */
 .combat-flip-card-back {
     z-index: 1;
-    transform: rotateY(180deg);
-    -webkit-transform: rotateY(180deg);
-}
-
-/* 翻转后禁用背面/正面的点击事件，杜绝点击穿透 */
-.combat-flip-card-inner:not(.is-flipped) .combat-flip-card-back {
+    transform: rotateY(180deg) translateZ(0);
+    -webkit-transform: rotateY(180deg) translateZ(0);
+    opacity: 0;
+    visibility: hidden;
     pointer-events: none;
+    transition: opacity 0.2s ease 0.12s, visibility 0.2s ease 0.12s, z-index 0s 0.24s;
 }
 
+/* 3. 翻转后状态：背面升为顶层 (z-index: 10, translateZ: 1px)，正面降到底层并彻底隐藏 */
 .combat-flip-card-inner.is-flipped .combat-flip-card-front {
+    z-index: 1;
+    opacity: 0;
+    visibility: hidden;
     pointer-events: none;
+    transform: rotateY(0deg) translateZ(0);
+    -webkit-transform: rotateY(0deg) translateZ(0);
+    transition: opacity 0.18s ease 0.12s, visibility 0.18s ease 0.12s, z-index 0s 0.24s;
+}
+
+.combat-flip-card-inner.is-flipped .combat-flip-card-back {
+    z-index: 10;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: rotateY(180deg) translateZ(1px);
+    -webkit-transform: rotateY(180deg) translateZ(1px);
+    transition: opacity 0.22s ease 0.12s, visibility 0.22s ease 0.12s, z-index 0s 0.24s;
 }

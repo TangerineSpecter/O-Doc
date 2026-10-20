@@ -27,12 +27,12 @@ def append(profile, key, kind, payload, run=None):
         return old
     chain, _ = CombatIntegrity.objects.select_for_update().get_or_create(pk=profile.pk, defaults={'owner_id': profile.owner_id})
     payload = dict(payload)
-    if kind in ('initialize', 'catalog', 'promote') or (kind == 'round' and any(
+    if kind in ('initialize', 'catalog', 'promote', 'reselect') or (kind == 'round' and any(
             event.get('kind') == 'kill' for event in payload.get('events', []))):
         from copy import deepcopy
         payload['progression_after'] = deepcopy(profile.progression)
     equipment_ids = ([payload['equipment_id']] if kind == 'initialize' else list(payload.get('loadout', {}).values())
-                     if kind == 'promote' else [reward['equipment_id'] for event in payload.get('events', [])
+                     if kind in ('promote', 'reselect') else [reward['equipment_id'] for event in payload.get('events', [])
                          if event.get('kind') == 'kill' for reward in event.get('rewards', []) if reward.get('kind') == 'equipment']
                      if kind == 'round' else [])
     if equipment_ids:

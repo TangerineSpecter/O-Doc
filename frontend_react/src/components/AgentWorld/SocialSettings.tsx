@@ -23,7 +23,7 @@ export default function SocialSettings({onSaved, onCancel}: {onSaved?: () => voi
     const [info, setInfo] = useState(false);
     const {config, settings, actor, update, busy} = state;
     if (!config || !settings) return <div className="flex min-h-0 flex-1 items-center justify-center">{state.error ? <p role="alert" className="text-sm text-red-600">{state.error}</p> : <WorldOrbitLoader title="正在读取社交配置" subtitle="整理参与居民与交流偏好"/>}</div>;
-    const number = (key: keyof Settings, max: number) => <input aria-label={key === 'dailyImages' ? '每日生成新图' : quotas.find(q => q[0] === key)?.[1]} type="number" min={0} max={max} value={Number(settings[key])} disabled={busy} onChange={e => update(key, Number(e.target.value))} className="h-9 w-full rounded-lg border border-slate-200 px-3 text-xs text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"/>;
+    const number = (key: keyof Settings, max: number, label?: string) => <input aria-label={label ?? (key === 'dailyImages' ? '每日生成新图' : quotas.find(q => q[0] === key)?.[1])} type="number" min={0} max={max} value={Number(settings[key])} disabled={busy} onChange={e => update(key, Math.max(0, Math.min(max, Math.trunc(Number(e.target.value) || 0))))} className="h-9 w-full rounded-lg border border-slate-200 px-3 text-xs text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"/>;
     return <div className="world-dialog-content-enter space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-2">
             <div className="min-w-[200px] sm:w-64"><Select value={actor} onChange={state.setActor} disabled={busy} menuPortal options={[{value: '', label: '世界默认设置'}, ...config.agents.map(a => ({value: a.id, label: `${a.name} · 独立设置`}))]}/></div>
@@ -50,7 +50,11 @@ export default function SocialSettings({onSaved, onCancel}: {onSaved?: () => voi
                 <div className="space-y-2">{actions.map(([key, label, description]) => <Checkbox key={key} checked={Boolean(settings[key])} onChange={v => update(key, v)} disabled={busy} label={label} description={description} className="w-full rounded-xl bg-slate-50 px-3 py-2"/>)}</div>
                 <Field label="收到评论后，什么时候处理"><Select value={settings.replyMode} onChange={v => update('replyMode', v)} disabled={busy} menuPortal options={[{value: 'idle_daily', label: '空闲处理＋日终兜底'}, {value: 'daily', label: '仅日终处理'}]}/></Field>
                 <div className="grid grid-cols-3 gap-2">{quotas.map(([key, label, max]) => <Field key={key} label={label}>{number(key, max)}</Field>)}</div>
-                <p className="text-[11px] leading-5 text-slate-400">以上是机会和额度上限。一次回应最多一条回复，日终最多选择一种行为；不回复也是一种选择。</p>
+                <div className="grid grid-cols-2 gap-2">
+                    <Field label="互动只处理最近（天）">{number('interactionWindowDays', 30, '互动时间范围')}</Field>
+                    <Field label="理会旧评论的概率（%）">{number('replyChance', 100, '理会概率')}</Field>
+                </div>
+                <p className="text-[11px] leading-5 text-slate-400">以上是机会和额度上限。一次回应最多一条回复，日终最多选择一种行为；不回复也是一种选择。互动只看最近这段时间内的动态、评论和帖子，0 表示不限。收到旧评论时按上面的概率决定是否理会，这一轮没理会就永久忽略，不会每天被重新翻出来；用户直接发来的消息不受概率影响。</p>
             </section>
             <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                 <h3 className="flex items-center gap-2 text-xs font-bold text-slate-800"><Image className="h-4 w-4 text-orange-500"/>配图选择</h3>

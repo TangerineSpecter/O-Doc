@@ -6,7 +6,8 @@ DEFAULTS = {'enabled': False, 'agent_ids': [], 'publish_enabled': True, 'read_en
             'reply_enabled': True, 'reply_mode': 'idle_daily', 'daily_replies': 3,
             'daily_moments': 1, 'daily_images': 1, 'read_limit': 5, 'image_enabled': True,
             'image_model_id': '', 'image_aspect_ratio': '1:1', 'image_size': '1K',
-            'theatre_daily_count': 1, 'theatre_search_server_id': ''}
+            'theatre_daily_count': 1, 'theatre_search_server_id': '',
+            'interaction_window_days': 7, 'reply_chance': 60}
 
 
 def config_for(owner):
@@ -23,7 +24,8 @@ def validate(owner, data, *, override=False):
     value = dict(data) if override else {**DEFAULTS, **data}
     for key in ('enabled', 'publish_enabled', 'read_enabled', 'reply_enabled', 'image_enabled'):
         if key in value and type(value[key]) is not bool: raise ValueError('开关须为布尔值')
-    for key, cap in (('daily_replies', 20), ('daily_moments', 10), ('daily_images', 9), ('read_limit', 5)):
+    for key, cap in (('daily_replies', 20), ('daily_moments', 10), ('daily_images', 9), ('read_limit', 5),
+                     ('interaction_window_days', 30), ('reply_chance', 100)):
         if key in value and (type(value[key]) is not int or not 0 <= value[key] <= cap):
             raise ValueError(f'{key} 须为0至{cap}整数')
     if 'theatre_daily_count' in value and (type(value['theatre_daily_count']) is not int or not 0 <= value['theatre_daily_count'] <= 3):

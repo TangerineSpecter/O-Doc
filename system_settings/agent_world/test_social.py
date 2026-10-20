@@ -18,7 +18,7 @@ from .social_config import DEFAULTS, validate
 from .social_content import publish, comment, like, delete_moment
 from .social_relations import apply_event, emotion_now
 from .social_discussion import user_actor, auto_reply_count
-from .social_runner import run, next_opportunity
+from .social_runner import run, next_opportunity, dismiss_incoming, expire_stale_inbox, inbox_for, pick_incoming
 from .social_sync import checkpoint_all, reconcile_social
 from .life_schedule import stable_id
 
@@ -58,6 +58,75 @@ class SocialTests(TestCase):
     def op(self, kind='idle'):
         return SocialOpportunity.objects.create(id=stable_id('op', str(SocialOpportunity.objects.count())), owner_id=self.owner,
             actor_id=self.agent.pk, business_date=local_time().date(), kind=kind, snapshot=self.config.settings)
+
+    def inbox(self, sender, days=0):
+        row = SocialInbox.objects.create(id=stable_id('inbox', str(SocialInbox.objects.count())), owner_id=self.owner,
+            target_id=f'agent-id:{self.agent.pk}', sender_id=sender, source_kind='moment', source_id=self.moment.pk,
+            content_id=self.moment.pk, identity={'name': self.other.name})
+        if days:
+            SocialInbox.objects.filter(pk=row.pk).update(created_at=timezone.now() - timedelta(days=days))
+        return row
+
+    def test_interaction_window_excludes_and_expires_old_inbox(self):
+        row = self.inbox(f'agent-id:{self.other.pk}', days=10)
+        self.assertIsNone(inbox_for(self.owner, self.agent.pk, 7))
+        self.assertIsNotNone(inbox_for(self.owner, self.agent.pk, 0))  # 0 表示不限
+        expire_stale_inbox(self.owner, self.agent.pk, 7)
+        row.refresh_from_db()
+        self.assertEqual(row.status, 'expired')
+        self.assertIn('互动时间范围', row.reason)
+        self.assertIsNone(inbox_for(self.owner, self.agent.pk, 0))
+
+    def test_reply_chance_zero_defers_dismissal_until_caller_commits(self):
+        row = self.inbox(f'agent-id:{self.other.pk}')
+        with patch('system_settings.agent_world.social_runner.random.random', return_value=0.0):
+            incoming, dismissed = pick_incoming(self.owner, self.agent.pk, {**DEFAULTS, 'reply_chance': 0})
+        self.assertIsNone(incoming)
+        self.assertEqual(dismissed.pk, row.pk)
+        row.refresh_from_db()
+        self.assertEqual(row.status, 'pending')  # 判定阶段不落库，模型失败不会吞消息
+        dismiss_incoming(dismissed)
+        row.refresh_from_db()
+        self.assertEqual(row.status, 'ignored')
+        self.assertIsNone(inbox_for(self.owner, self.agent.pk, 7))  # 不再被后续机会捞起
+        fresh = self.inbox(f'agent-id:{self.other.pk}')
+        with patch('system_settings.agent_world.social_runner.random.random', return_value=0.0):
+            incoming, dismissed = pick_incoming(self.owner, self.agent.pk, {**DEFAULTS, 'reply_chance': 100})
+        self.assertEqual(incoming.pk, fresh.pk)
+        self.assertIsNone(dismissed)
+
+    def test_user_message_is_not_subject_to_reply_chance(self):
+        row = self.inbox('user:' + self.owner)
+        with patch('system_settings.agent_world.social_runner.random.random', return_value=0.0):
+            incoming, dismissed = pick_incoming(self.owner, self.agent.pk, {**DEFAULTS, 'reply_chance': 0})
+        self.assertEqual(incoming.pk, row.pk)
+        self.assertIsNone(dismissed)
+
+    def test_idle_opportunity_is_not_created_when_incoming_is_dismissed(self):
+        daily = self.op('daily'); daily.status = 'completed'; daily.save()
+        SocialOpportunity.objects.filter(pk=daily.pk).update(updated_at=timezone.now() - timedelta(minutes=30))
+        row = self.inbox(f'agent-id:{self.other.pk}')
+        with patch('system_settings.agent_world.social_runner.pick_incoming', return_value=(None, row)):
+            self.assertIsNone(next_opportunity(self.config, self.agent, local_time()))
+        row.refresh_from_db()
+        self.assertEqual(row.status, 'ignored')  # 不建机会，但队列已推进
+        self.assertEqual(SocialOpportunity.objects.filter(owner_id=self.owner, kind='idle').count(), 1)
+        self.assertEqual(SocialOpportunity.objects.get(owner_id=self.owner, kind='idle').status, 'completed')
+
+    def test_interaction_window_and_reply_chance_are_bounded(self):
+        for key, value in (('interaction_window_days', 31), ('reply_chance', 101)):
+            with self.assertRaises(ValueError): validate(self.owner, {**DEFAULTS, key: value})
+        allowed = validate(self.owner, {**DEFAULTS, 'interaction_window_days': 0, 'reply_chance': 0})
+        self.assertEqual((allowed['interaction_window_days'], allowed['reply_chance']), (0, 0))
+
+    def test_post_candidates_respect_interaction_window(self):
+        from .post_interaction import candidate_posts
+        coll = Anthology.objects.create(title='世界', type='agent', user_id=self.owner)
+        recent = Article.objects.create(title='新观点', content='最近的想法', coll_id=coll.pk, agent_post_author_id=self.other.pk, is_valid=True)
+        old = Article.objects.create(title='旧观点', content='很久以前的想法', coll_id=coll.pk, agent_post_author_id=self.other.pk, is_valid=True)
+        Article.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=10))
+        self.assertEqual([row.pk for row in candidate_posts(self.agent, None, None, 7)], [recent.pk])
+        self.assertEqual(candidate_posts(self.agent, None, None, 0).count(), 2)
 
     def test_daily_opportunity_can_skip_without_publishing_or_energy_cost(self):
         op = self.op('daily')

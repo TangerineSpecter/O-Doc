@@ -82,6 +82,7 @@ def profile_view(owner,agent):
         from .food import combat_stats
         derived = combat_stats(profile, catalog, run.snapshot)
     options=attributes.promotion_options(catalog,progression)
+    reselect_blocked=attributes.reselect_blocked(catalog,progression) or ('探索进行中，装备和职业已固定' if run else '')
     promotion_run=run or (Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,ended_at__isnull=False).order_by('-ended_at').first() if options else None)
     promotion_runtime=CombatRuntime.objects.filter(pk=promotion_run.pk).first() if promotion_run else None
     promotion_busy=bool(promotion_runtime and (promotion_runtime.promotion_pending or promotion_runtime.requests.get('promotion_allowed')))
@@ -90,6 +91,7 @@ def profile_view(owner,agent):
         'potions':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['potions']],
         'materials':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['materials']],
         'active_exploration_id':run.pk if run else None,'promotion_options':options,'promotion_busy':promotion_busy,
+        'reselect_options':attributes.reselect_options(catalog),'reselect_blocked':reselect_blocked,
         'rest_until':local_time(profile.rest_until).isoformat() if profile and profile.rest_until else None,
         'loot_progress':profile.loot_progress if profile else {},'discoveries':{'encountered':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('monster__id',flat=True))),'defeated':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk,result__killed=True).values_list('monster__id',flat=True))),'equipment':sorted(discovered_equipment)}}
 

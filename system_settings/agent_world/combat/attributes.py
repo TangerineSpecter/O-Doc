@@ -87,6 +87,66 @@ def promotion_level(catalog: Catalog, progress: dict) -> int | None:
     return min(levels) if levels else None
 
 
+def reselect_options(catalog: Catalog) -> list[dict]:
+    """Only level-one professions may be re-selected; later stages stay earned."""
+    return [row for row in catalog.tables['professions'] if row['stage'] == '1' and row['enabled'] == '1']
+
+
+def reselect_gate(catalog: Catalog) -> int | None:
+    levels = [int(row['required_level']) for row in catalog.tables['professions']
+              if row['stage'] == '2' and row['enabled'] == '1']
+    return min(levels) if levels else None
+
+
+def reselect_blocked(catalog: Catalog, progress: dict) -> str:
+    """Return the reason a level-one re-selection is unavailable, or an empty string."""
+    if promotion_options(catalog, progress):
+        return '当前有未完成的转职，请先完成转职'
+    options = reselect_options(catalog)
+    if not options:
+        return '当前内容没有可更换的一转职业'
+    if progress['level'] < min(int(row['required_level']) for row in options):
+        return '达到一转等级后才能更换职业'
+    gate = reselect_gate(catalog)
+    if gate is not None and progress['level'] >= gate:
+        return '已进入二转阶段，不能再更换一转职业'
+    return ''
+
+
+def reselect(catalog: Catalog, progress: dict, job_id: str) -> dict:
+    """Keep level and experience, replay growth along the new profession path.
+
+    Growth accumulates level by level, so the only history that matters is which
+    profession was held while each level was reached. The catalog's required
+    levels make that path deterministic: the root profession covers the levels
+    below the target's required level, the target covers the rest.
+    """
+    blocked = reselect_blocked(catalog, progress)
+    if blocked:
+        raise ValueError(blocked)
+    if job_id not in {row['id'] for row in reselect_options(catalog)}:
+        raise ValueError('只能更换为一转职业')
+    if job_id == progress['job']:
+        raise ValueError('当前已是该职业，无需更换')
+    job = catalog.row('professions', job_id)
+    root = catalog.row('professions', catalog.path(job_id)[0])
+    target_level = int(job['required_level'])
+    updated = deepcopy(progress)
+    updated['job'] = job_id
+    updated['stats'] = dict(initial()['stats'])
+    updated['fixed_hp'] = 0
+    updated['fixed_mp'] = 0
+    for reached in range(2, updated['level'] + 1):
+        holder = root if reached <= target_level else job
+        for stat in STATS:
+            updated['stats'][stat] += int(holder[stat + '_growth'])
+        updated['fixed_hp'] += int(holder['hp_growth'])
+        updated['fixed_mp'] += int(holder['mp_growth'])
+    # A voluntary re-selection drops the previous branch instead of keeping its skills.
+    updated['skills'] = catalog.learned(job_id, updated['level'], {})
+    return updated
+
+
 def attributes(catalog: Catalog, progress: dict, equipment: list[dict], *, food_effects: dict | None = None) -> dict:
     additions = {}
     for item in equipment:

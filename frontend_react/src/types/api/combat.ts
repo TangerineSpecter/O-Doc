@@ -9,7 +9,8 @@ export interface CombatProfile {
     discoveries: {encountered: string[]; defeated: string[]; equipment: string[]}; initialized: boolean; actorId: string; progression: {level: number; experience: number; job: string; stats: Record<string, number>; skills: Record<string, number>};
     attributes: Record<string, number | string>; hp: number; mp: number; loadout: Record<string, string>; equipment: CombatEquipment[];
     skills: (CombatRow & {rank: number; effects: CombatRow[]; parameters: CombatRow})[];
-    potions: (CombatRow & {owned: number})[]; materials: (CombatRow & {owned: number})[]; activeExplorationId: string | null; promotionOptions: CombatRow[]; promotionBusy: boolean; restUntil: string | null;
+    potions: (CombatRow & {owned: number})[]; materials: (CombatRow & {owned: number})[]; activeExplorationId: string | null; promotionOptions: CombatRow[]; promotionBusy: boolean;
+    reselectOptions: CombatRow[]; reselectBlocked: string; restUntil: string | null;
 }
 export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; skills?: Record<string, number>; rank?: string; states: {code: string; name: string; remaining?: number}[]}
 /** Derived from existing exploration state, never persisted as animation data. */

@@ -6,6 +6,7 @@ import CombatLoadoutSlots from './CombatLoadoutSlots';
 import CombatAttributesCard from './CombatAttributesCard';
 import ExplorationDepartureCard from './ExplorationDepartureCard';
 import CombatWorkbenchPanel from './CombatWorkbenchPanel';
+import CombatJobReselectDialog from './CombatJobReselectDialog';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import type {useCombatActions} from '../../hooks/useCombatActions';
@@ -20,6 +21,7 @@ import {
     RotateCw,
     Shield,
     ShoppingBag,
+    Shuffle,
     Sparkles,
 } from 'lucide-react';
 import './CombatFlipCard.css';
@@ -57,6 +59,7 @@ export default function CombatProfilePanel({
     // 移动端专属交互状态：卡片翻转与整备弹窗
     const [isFlipped, setIsFlipped] = useState(false);
     const [mobileWorkbenchOpen, setMobileWorkbenchOpen] = useState(false);
+    const [reselectOpen, setReselectOpen] = useState(false);
 
     const job = catalog.tables.professions.find(row => row.id === profile.progression.job);
     const busy = actions.busy || Boolean(profile.activeExplorationId);
@@ -129,9 +132,25 @@ export default function CombatProfilePanel({
                             </div>
 
                             <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                <span className="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 border border-orange-200/60">
-                                    Lv.{profile.progression.level} · {job?.name || '新手'}
-                                </span>
+                                {profile.reselectBlocked ? (
+                                    <span
+                                        title={profile.reselectBlocked}
+                                        className="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 border border-orange-200/60"
+                                    >
+                                        Lv.{profile.progression.level} · {job?.name || '新手'}
+                                    </span>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => setReselectOpen(true)}
+                                        title="更换一转职业（保留等级，按新职业成长重算属性）"
+                                        className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 border border-orange-200/60 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        Lv.{profile.progression.level} · {job?.name || '新手'}
+                                        <Shuffle className="h-2.5 w-2.5 opacity-70" />
+                                    </button>
+                                )}
                                 {profile.promotionOptions.length > 0 && (
                                     <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
                                         <Sparkles className="w-2.5 h-2.5" />
@@ -427,6 +446,16 @@ export default function CombatProfilePanel({
                         }}
                     />
                 </WorldDialog>
+            )}
+
+            {/* 更换一转职业弹窗 */}
+            {reselectOpen && (
+                <CombatJobReselectDialog
+                    key={profile.actorId + profile.progression.job}
+                    profile={profile}
+                    actions={actions}
+                    onClose={() => setReselectOpen(false)}
+                />
             )}
 
             {/* 换装预览弹窗 */}

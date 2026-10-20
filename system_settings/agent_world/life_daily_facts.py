@@ -134,11 +134,12 @@ def task_reason(owner: str, agent, task, at, quota=None) -> str:
         from .publish_config import eligibility
         return eligibility(task, agent, quota=quota)
     if task.task_kind == 'post_interaction':
-        from .post_interaction import candidate_posts, merged_scope
+        from .post_interaction import candidate_posts, interaction_window_days, merged_scope
         if stamina(agent) < 10:
             return '体力不足以互动'
         if not candidate_posts(agent, merged_scope(task.post_collection_ids, agent.post_collection_ids),
-                               merged_scope(task.post_category_ids, agent.post_category_ids)).exists():
+                               merged_scope(task.post_category_ids, agent.post_category_ids),
+                               interaction_window_days(task, agent)).exists():
             return '没有可互动帖子'
     if task.task_kind == 'exploration':
         from .combat.models import CombatConfig, CombatProfile

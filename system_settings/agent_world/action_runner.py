@@ -25,7 +25,7 @@ from .action_activity import finish_activity
 from .farm_gate import guarded
 from .comments import create_comment
 from .execution import INTERACTION_COST, WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
-from .post_interaction import candidate_posts, merged_scope
+from .post_interaction import candidate_posts, interaction_window_days, merged_scope
 from .ratings import rate_post
 from .social_prompt import (AUTO_COMMENT_MAX_LENGTH, RELATION_APPRAISAL_RULES,
                             SOCIAL_COMMENT_RULES, SOCIAL_RATING_RULES)
@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 
 def choose_post(task, agent):
     candidates = list(candidate_posts(agent, merged_scope(task.post_collection_ids, agent.post_collection_ids),
-                                      merged_scope(task.post_category_ids, agent.post_category_ids)).defer('content'))
+                                      merged_scope(task.post_category_ids, agent.post_category_ids),
+                                      interaction_window_days(task, agent)).defer('content'))
     if not candidates:
         return None
     from system_settings.agent_relation import selection_weight, weighted_choice
@@ -112,7 +113,8 @@ def commit_feedback(action_id, task, agent, post, feedback, token, *, manual=Fal
         if not AgentExecutionLease.objects.filter(agent=agent, token=token, until__gt=timezone.now()).exists():
             raise ValueError('Agent 执行锁已失效')
         posts = candidate_posts(agent, merged_scope(task.post_collection_ids, agent.post_collection_ids),
-                                merged_scope(task.post_category_ids, agent.post_category_ids))
+                                merged_scope(task.post_category_ids, agent.post_category_ids),
+                                interaction_window_days(task, agent))
         current = posts.select_for_update().filter(pk=post.pk).first()
         if not current or current.content != post.content:
             raise ValueError('帖子内容、互动范围或评论状态发生变化，本次未提交')

@@ -18,6 +18,7 @@ export interface SocialSettings {
     replyMode: 'idle_daily' | 'daily'; dailyReplies: number; dailyMoments: number; dailyImages: number; readLimit: number;
     imageEnabled: boolean; imageModelId: string; imageAspectRatio: string; imageSize: string;
     theatreDailyCount: number; theatreSearchServerId: string;
+    interactionWindowDays: number; replyChance: number;
 }
 export interface SocialConfiguration {
     settings: SocialSettings; overrides: Record<string, Partial<SocialSettings>>; agents: {id: string; name: string}[];

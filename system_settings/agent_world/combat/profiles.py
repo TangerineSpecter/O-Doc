@@ -1,5 +1,6 @@
 """Resident growth, recovery and immutable equipment ownership."""
 import random
+from copy import copy
 from datetime import timedelta
 import hashlib
 from django.db import transaction
@@ -68,6 +69,39 @@ def wearing(profile):
     if len(by_id) != len(profile.loadout):
         raise ValueError('穿戴装备来源缺失')
     return [by_id[key].snapshot for key in profile.loadout.values()]
+
+
+def _job_loadout(profile, catalog, job):
+    """Keep only the slots the new profession may wear, then drop an invalid offhand."""
+    loadout = {}
+    for slot, identity in profile.loadout.items():
+        item = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, sold=False).first()
+        if not item:
+            # A missing slot record is corrupt data, not an unwearable item; never drop it silently.
+            raise ValueError('穿戴装备来源缺失')
+        if equipment_snapshot.permitted(item.snapshot, item.rules, job, profile.progression['level']):
+            loadout[slot] = identity
+    weapon = EquipmentInstance.objects.filter(pk=loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
+    if two_handed(weapon, catalog):
+        loadout.pop('offhand', None)
+    return loadout
+
+
+def _reselect_weapon(catalog, job, key='') -> dict:
+    """Shared replacement snapshot; starter weapon attributes do not depend on the seed."""
+    try:
+        level = int(catalog.row('professions', job)['required_level'])
+        template = equipment.promotion_weapon(catalog, job, level)
+        return equipment.generate(catalog, template, level, 'white', random.Random(key), starter=True)
+    except ValueError as exc:
+        raise ValueError('新职业在当前等级没有可补发的武器，请先装备可用武器') from exc
+
+
+def _grant_weapon(owner, agent, catalog, job, key):
+    item = _reselect_weapon(catalog, job, key)
+    gear = EquipmentInstance.objects.create(pk='reselect:' + hashlib.sha256(key.encode()).hexdigest()[:54],
+        owner_id=owner, actor_id=agent.pk, catalog_id=catalog.version, template_id=item['template_id'], snapshot=item, bound=True)
+    return gear.pk
 
 
 def stats(profile, catalog=None):
@@ -181,13 +215,7 @@ def promote(owner, agent, key, job, *, exploration_id='', reason=''):
     idle(profile,excluding=exploration_id)
     catalog = current(profile.catalog_id)
     profile.progression = attributes.promote(catalog,profile.progression,job)
-    for slot, identity in list(profile.loadout.items()):
-        item = EquipmentInstance.objects.get(pk=identity)
-        if not equipment_snapshot.permitted(item.snapshot, item.rules, job, profile.progression['level']):
-            del profile.loadout[slot]
-    weapon = EquipmentInstance.objects.filter(pk=profile.loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
-    if two_handed(weapon, catalog):
-        profile.loadout.pop('offhand', None)
+    profile.loadout = _job_loadout(profile, catalog, job)
     if 'weapon' not in profile.loadout:
         level = int(catalog.row('professions',job)['required_level'])
         template = equipment.promotion_weapon(catalog, job, level)
@@ -199,6 +227,42 @@ def promote(owner, agent, key, job, *, exploration_id='', reason=''):
     profile.save()
     append(profile,key,'promote',{'arguments':job,'reason':reason[:400],'progression':profile.progression,'loadout':profile.loadout,'catalog_id':catalog.version})
     return profile
+
+
+@guarded
+@transaction.atomic
+def reselect(owner, agent, key, job, *, reason=''):
+    """Owner-driven level-one profession change: keep level, replay growth, refit gear."""
+    if replay(agent.pk,key,'reselect',job):
+        return CombatProfile.objects.get(pk=agent.pk)
+    profile = ensure(owner,agent)
+    idle(profile)
+    catalog = current(profile.catalog_id)
+    previous = profile.progression['job']
+    profile.progression = attributes.reselect(catalog,profile.progression,job)
+    profile.loadout = _job_loadout(profile, catalog, job)
+    if 'weapon' not in profile.loadout:
+        profile.loadout['weapon'] = _grant_weapon(owner, agent, catalog, job, key)
+    derived = stats(profile,catalog)
+    profile.hp, profile.mp = min(profile.hp,derived['hp_max']),min(profile.mp,derived['mp_max'])
+    profile.save()
+    append(profile,key,'reselect',{'arguments':job,'from_job':previous,'reason':reason[:400],
+        'progression':profile.progression,'loadout':profile.loadout,'catalog_id':catalog.version})
+    return profile
+
+
+def preview_reselect(profile, job):
+    """Dry-run a profession change without writing facts, equipment or growth."""
+    catalog = current(profile.catalog_id)
+    progression = attributes.reselect(catalog, profile.progression, job)
+    candidate = copy(profile)
+    candidate.progression = progression
+    candidate.loadout = _job_loadout(candidate, catalog, job)
+    worn = wearing(candidate)
+    if 'weapon' not in candidate.loadout:
+        worn.append(_reselect_weapon(catalog, job))
+    return {'attributes': attributes.attributes(catalog, progression, worn), 'progression': progression,
+            'unequipped': sorted(slot for slot in profile.loadout if slot not in candidate.loadout)}
 
 
 def preview_equipment(profile,changes):

@@ -30,6 +30,12 @@ def key_for(data):
     return key
 
 
+def job_choice(data):
+    job=data.get('job_id')
+    if not isinstance(job,str) or not job.strip():raise ValueError('职业选择无效')
+    return job
+
+
 def respond(data):
     return success_result(queries.with_timezone(data))
 
@@ -129,7 +135,15 @@ class CombatView(APIView):
                 if operation=='preview_equip':
                     profile=get_object_or_404(CombatProfile,pk=agent.pk,owner_id=owner)
                     return respond({'attributes':profiles.preview_equipment(profile,request.data.get('equipment',{}))})
+                if operation=='preview_reselect':
+                    profile=get_object_or_404(CombatProfile,pk=agent.pk,owner_id=owner)
+                    return respond(profiles.preview_reselect(profile,job_choice(request.data)))
                 if operation=='equip':profiles.equip(owner,agent,key,request.data.get('equipment',{}))
+                elif operation=='reselect_job':
+                    reason=request.data.get('reason','')
+                    if not isinstance(reason,str):raise ValueError('重选理由格式无效')
+                    # Owner-driven correction of a level-one profession; the agent never picks this.
+                    profiles.reselect(owner,agent,key,job_choice(request.data),reason=reason)
                 elif operation=='promote':raise ValueError('转职分支由 Agent 根据探索经历自动选择')
                 elif operation=='initialize':
                     profile=profiles.ensure(owner,agent)
