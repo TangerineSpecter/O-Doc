@@ -16,7 +16,7 @@ def choose(agent, owner: str, scene: str, state: dict, choices: dict, *, task=No
         return next(iter(choices))
     deadline = deadline or time.monotonic() + 180
     result = choose_scene(owner, agent, scene, state, choices, deadline=deadline,
-                          instructions=instructions)
+                          instructions=instructions, task=task)
     if result is None:
         shown_state = state if prompt_state is None else prompt_state
         shown_choices = choices if prompt_choices is None else prompt_choices

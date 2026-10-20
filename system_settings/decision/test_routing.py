@@ -167,6 +167,55 @@ class RoutingTests(TestCase):
         import_module('system_settings.migrations.0073_world_jev_policy').migrate_policy(apps, None)
         config.refresh_from_db(); self.assertFalse(config.settings['jev_enabled'])
 
+    def test_combat_preparation_shares_the_exploration_prepare_purpose(self):
+        from utils.token_usage import usage_context
+        seen = []
+
+        def observe(*args, **kwargs):
+            seen.append(usage_context())
+            return 'a', .9
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=observe):
+            choose_scene('owner', self.agent, 'combat_preparation', {}, {'a': 'A', 'b': 'B'},
+                         deadline=time.monotonic() + 10)
+            choose_scene('owner', self.agent, 'market', {}, {'a': 'A', 'b': 'B'},
+                         deadline=time.monotonic() + 10)
+        self.assertEqual([row['purpose'] for row in seen], ['exploration_prepare', 'planning'])
+        self.assertEqual([row['phase'] for row in seen], ['迷宫探索准备', '市场选择'])
+
+    def test_scene_answered_for_a_task_belongs_to_that_task(self):
+        from utils.token_usage import usage_context
+        seen = []
+
+        def observe(*args, **kwargs):
+            seen.append(usage_context())
+            return 'a', .9
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=observe):
+            choose_scene('owner', self.agent, 'farm_queue', {}, {'a': 'A', 'b': 'B'},
+                         deadline=time.monotonic() + 10, task=self.task)
+        self.assertEqual((seen[0]['task_key'], seen[0]['task_name']), (self.task.pk, self.task.name))
+        self.assertEqual((seen[0]['purpose'], seen[0]['phase']), ('task', '农场种植队列规划'))
+
+    def test_task_scene_records_the_task_on_the_usage_row(self):
+        from types import SimpleNamespace
+        from system_settings.models import AgentTokenUsage
+        from system_settings.token_usage.capture import Capture
+
+        def observe(*args, **kwargs):
+            captured = Capture({'model_name': 'fixture', 'model_id': 'm', 'provider_id': 'p',
+                                'provider_name': 'fixture', 'provider_type': 'OpenAi'})
+            captured.usage(SimpleNamespace(prompt_tokens=3, completion_tokens=2, total_tokens=5))
+            captured.finish('success')
+            return 'a', .9
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=observe):
+            choose_scene('owner', self.agent, 'farm_queue', {}, {'a': 'A', 'b': 'B'},
+                         deadline=time.monotonic() + 10, task=self.task)
+        row = AgentTokenUsage.objects.get()
+        self.assertEqual((row.task_key, row.task_name, row.purpose, row.phase),
+                         (self.task.pk, self.task.name, 'task', '农场种植队列规划'))
+
     def test_tool_failure_is_not_replayed_on_another_model(self):
         from .routing import ToolOperationFailure
         invoke = Mock(side_effect=ToolOperationFailure('工具状态待核实'))

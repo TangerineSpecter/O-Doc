@@ -8,6 +8,7 @@ from django.db import transaction
 
 from .farm_gate import farm_gate
 from .farm_queue_decision import available_cash
+from .life_config import task_for
 from .life_daily_facts import build, task_reason
 from .life_daily_travel import prepare, selected_plan, recheck
 from .life_models import LifeItem
@@ -161,7 +162,8 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
             if choice.get('offered_activities') == ['cooking']:
                 return {**plan, 'activity': 'rest', 'reason': '最新材料或体力已不足，当前无其他候选，系统安排休息'}
             raise ValueError('已选美食活动的材料或体力不足，请重新规划')
-        plan['cooking_plan'] = decide_plan(agent, config.pk, {**facts, 'task_preference': task.prompt}, key=item.pk)
+        plan['cooking_plan'] = decide_plan(agent, config.pk, {**facts, 'task_preference': task.prompt}, key=item.pk,
+                                           task=task_for(config.pk, agent, 'cooking'))
     elif activity == 'alchemy':
         from .alchemy_schedule_plan import planning_facts as alchemy_facts, decide_plan as alchemy_plan
         from .life_eligibility import alchemy_options
@@ -170,12 +172,14 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
             if choice.get('offered_activities') == ['alchemy']:
                 return {**plan, 'activity': 'rest', 'reason': '最新素材或体力已不足，当前无其他候选，系统安排休息'}
             raise ValueError('已选炼金活动的素材或体力不足，请重新规划')
-        plan['alchemy_plan'] = alchemy_plan(agent, config.pk, {**facts, 'task_preference': task.prompt})
+        plan['alchemy_plan'] = alchemy_plan(agent, config.pk, {**facts, 'task_preference': task.prompt},
+                                            task=task_for(config.pk, agent, 'alchemy'))
     elif activity == 'farm':
         from .farm_queue_decision import decide_plan as farm_plan
         from .life_models import LifeProfile
         preferences = LifeProfile.objects.filter(pk=agent.pk, owner_id=config.pk).values_list('preferences', flat=True).first() or ''
-        plan['farm_plan'] = farm_plan(agent, config.pk, {'id': item.pk, 'time': local_time(item.scheduled_at).isoformat()}, choice['reason'], preferences)
+        plan['farm_plan'] = farm_plan(agent, config.pk, {'id': item.pk, 'time': local_time(item.scheduled_at).isoformat()},
+                                      choice['reason'], preferences, task=task_for(config.pk, agent, 'farm'))
         plan['_farm_queue_candidate'] = True
     return plan
 

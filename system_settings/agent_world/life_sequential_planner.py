@@ -10,6 +10,7 @@ from .life_context import build_planning_selection_context
 from .life_eligibility import filter_activities, local_time_from_slot
 from .cooking_schedule_plan import planning_facts, decide_plan
 from .life_choices import choose
+from .life_config import task_for, tasks_for
 
 
 def prepare_targets(config, agent, items: list, preserve: bool) -> list:
@@ -49,6 +50,7 @@ def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
     budget = BudgetChoices(agent.money, sum((remaining_reservation(item) for item in others), Decimal(0)))
     minimum = TravelDestination.objects.filter(enabled=True).aggregate(value=Min('price'))['value']
     farm_days = {local_time(at).date().isoformat() for at in others.filter(activity='farm').values_list('scheduled_at', flat=True)}
+    tasks = tasks_for(config.pk)
     selected = []
     for item in ordered:
         item.refresh_from_db()
@@ -110,15 +112,18 @@ def plan_slots(config, agent, items: list, *, apply, ask, ask_detail,
         elif activity == 'cooking':
             cooking_activity = next(row for row in context['activities'] if row['kind'] == 'cooking')
             plan['cooking_plan'] = decide_plan(
-                agent, config.pk, {**cooking, 'task_preference': cooking_activity['preference']}, key=item.pk)
+                agent, config.pk, {**cooking, 'task_preference': cooking_activity['preference']}, key=item.pk,
+                task=task_for(config.pk, agent, 'cooking', tasks=tasks))
         elif activity == 'alchemy':
             from .alchemy_schedule_plan import decide_plan as alchemy_plan
-            task = next(row for row in context['activities'] if row['kind'] == 'alchemy')
-            plan['alchemy_plan'] = alchemy_plan(agent, config.pk, {**alchemy, 'task_preference': task['preference']})
+            alchemy_activity = next(row for row in context['activities'] if row['kind'] == 'alchemy')
+            plan['alchemy_plan'] = alchemy_plan(agent, config.pk, {**alchemy, 'task_preference': alchemy_activity['preference']},
+                                                task=task_for(config.pk, agent, 'alchemy', tasks=tasks))
         elif activity == 'farm':
             from .farm_queue_decision import decide_plan as decide_farm_queue
             plan['farm_plan'] = decide_farm_queue(agent, config.pk, slot, reason,
-                                                 context.get('preferences', ''))
+                                                 context.get('preferences', ''),
+                                                 task=task_for(config.pk, agent, 'farm', tasks=tasks))
             plan['_farm_queue_candidate'] = True
         proposal = {'plans': [plan], '_automatic_rest': activity == 'rest',
                     '_expected_versions': {item.pk: item.updated_at.isoformat()}}

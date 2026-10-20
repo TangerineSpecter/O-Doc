@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 from django.db.models import QuerySet
@@ -8,7 +9,7 @@ from .models import AgentTokenUsage
 from system_settings.agent_world.life_time import local_time, storage_time
 
 SHANGHAI = ZoneInfo('Asia/Shanghai')
-PURPOSES = {'task', 'planning', 'im', 'memory', 'social', 'profile', 'learning', 'preview', 'sprout'}
+
 
 
 def decision_model_filter() -> Q:
@@ -44,7 +45,9 @@ def filtered_usage(request: Request) -> QuerySet:
             rows = rows.filter(**{field: key})
     purpose = params.get('purpose')
     if purpose:
-        if purpose not in PURPOSES:
+        # A well-formed but unused purpose simply matches no rows; rejecting it would hide
+        # legacy values such as combat_preparation that the UI still lists.
+        if not re.fullmatch(r'[a-z_]{1,40}', purpose):
             raise ValueError('调用用途无效')
         rows = rows.filter(purpose=purpose)
     if params.get('other') == '1':

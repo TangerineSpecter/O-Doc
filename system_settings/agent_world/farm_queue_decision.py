@@ -82,8 +82,10 @@ def _context(reason: str, preferences: str, **fields) -> dict:
     return state
 
 
-def _ask(agent, owner: str, state: dict, choices: dict, instructions: str, deadline: float) -> str:
-    return choose(agent, owner, 'farm_queue', state, choices, deadline=deadline, instructions=instructions)
+def _ask(agent, owner: str, state: dict, choices: dict, instructions: str, deadline: float,
+         task=None) -> str:
+    return choose(agent, owner, 'farm_queue', state, choices, task=task,
+                  deadline=deadline, instructions=instructions)
 
 
 def _stamp(entries: list[dict], mode: str, kind: str | None) -> list[dict]:
@@ -91,7 +93,8 @@ def _stamp(entries: list[dict], mode: str, kind: str | None) -> list[dict]:
              'fertilizer': kind if mode != 'none' else None} for entry in entries]
 
 
-def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '') -> dict:
+def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '', *,
+                task=None) -> dict:
     if not owner:
         raise ValueError('农场规划缺少居民账号范围')
     facts = planning_facts(owner, agent, slot)
@@ -105,14 +108,14 @@ def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '
     elif baskets:
         choices = {str(index): describe_basket(facts, row) for index, row in enumerate(baskets, 1)}
         picked = _ask(agent, owner, _context(reason, preferences), choices,
-                      '从这些种植组合里选一个。收益是估算，采购还没发生。', deadline)
+                      '从这些种植组合里选一个。收益是估算，采购还没发生。', deadline, task)
         bare = baskets[int(picked) - 1]['entries']
         planting = choices[picked]
     mode, kind, fertilizer_label = 'none', None, ''
     question = fertilizer_options(facts, bare)
     if question:
         picked = _ask(agent, owner, _context(reason, preferences, planting=planting, fertilizer=question['fact']),
-                      question['choices'], '决定这一批施不施肥。', deadline)
+                      question['choices'], '决定这一批施不施肥。', deadline, task)
         fertilizer_label = question['choices'][picked]
         if picked == 'yes':
             mode, kind = question['mode'], question['kind']
@@ -126,7 +129,7 @@ def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '
             picked = _ask(agent, owner, _context(
                 reason, preferences, planting=planting or '手头没有可种的种子', fertilizer=fertilizer_label),
                 {key: row['label'] for key, row in options.items()},
-                note + '决定要不要再买种子。金额是采购上限，还没购买。', deadline)
+                note + '决定要不要再买种子。金额是采购上限，还没购买。', deadline, task)
             limit = options[picked]['limit']
     return {'entries': entries, 'procurement_limit': limit}
 

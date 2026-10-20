@@ -181,7 +181,7 @@ class FarmDecisionTests(TestCase):
     def decide(self):
         from .farm_queue_decision import decide_plan
         with patch('django.utils.timezone.now', return_value=NOW):
-            return decide_plan(self.agent, 'owner', self.slot, '想种点作物')
+            return decide_plan(self.agent, 'owner', self.slot, '想种点作物', task=self.task)
 
     def market_slots(self, slots):
         from .market_shop import current_batch
@@ -270,6 +270,20 @@ class FarmDecisionTests(TestCase):
         self.assertTrue(result['entries'])
         self.assertEqual(result['procurement_limit'], '0.00')
         self.assertTrue(all(entry['fertilizer_mode'] == 'none' for entry in result['entries']))
+
+    def test_queue_questions_carry_the_farm_task(self):
+        from .farm_queue_decision import decide_plan
+        seen = []
+
+        def select(agent, owner, scene, state, choices, **kwargs):
+            seen.append(kwargs.get('task'))
+            return next(iter(choices))
+
+        with patch('django.utils.timezone.now', return_value=NOW), \
+             patch('system_settings.agent_world.farm_queue_decision.choose', side_effect=select):
+            decide_plan(self.agent, 'owner', self.slot, '安排种植，利用现有资源', task=self.task)
+        self.assertTrue(seen)
+        self.assertTrue(all(task is self.task for task in seen))
 
     def test_later_question_receives_the_previous_choice(self):
         from .inventory_stock import add_stock

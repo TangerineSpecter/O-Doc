@@ -25,6 +25,16 @@ def tasks_for(owner: str) -> list[AgentTask]:
     return [t for t in AgentTask.objects.filter(task_kind__in=KINDS) if task_owner(t) == owner]
 
 
+def task_for(owner: str, agent, kind: str, tasks: list[AgentTask] | None = None) -> AgentTask | None:
+    """The single enabled task this agent may use for the activity, else no attribution."""
+    from .life_scope import allowed
+
+    rows = [row for row in (tasks_for(owner) if tasks is None else tasks)
+            if row.enabled and row.task_kind == kind and task_owner(row) == owner
+            and allowed(row, agent.pk)]
+    return rows[0] if len(rows) == 1 else None
+
+
 def validate_settings(data: dict) -> dict:
     if not isinstance(data, dict):
         raise ValueError('生活配置必须为对象')

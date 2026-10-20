@@ -20,6 +20,9 @@ SCENES = {'market': '市场选择', 'life_activity': '生活活动选择', 'life
           'social_action': '社交行为选择', 'bounty_accept': '悬赏接单选择',
           'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇',
           'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}
+# Usage purpose per scene. Exploration preparation shares one purpose on both paths: the
+# structured questions here and the single text plan recorded by preparation.prepare.
+SCENE_PURPOSES = {'social_action': 'social', 'combat_preparation': 'exploration_prepare'}
 logger = logging.getLogger(__name__)
 # Each provider owns this window, including its one format repair.
 # Earlier hangs do not reduce it and must not skip the next provider.
@@ -201,7 +204,8 @@ def choose_connections(owner, state, choices, *, deadline, instructions=None, qu
 
 
 def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=None,
-                 instructions=None, include_role=True, max_probability=False, return_confidence=False):
+                 instructions=None, include_role=True, max_probability=False, return_confidence=False,
+                 task=None):
     """None means use the normal model. Empty/sole choices never call a provider."""
     if not choices:
         return None
@@ -215,9 +219,13 @@ def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=N
     from utils.token_usage import usage_scope
     decision_state = ({'role': role_text(agent, 'social' if scene == 'social_action' else 'decision'),
                        'context': state} if include_role else state)
-    purpose = 'social' if scene == 'social_action' else 'task' if scene.startswith('travel_') else 'planning'
+    # A scene answered for a task belongs to that task, even when it also has a scene purpose.
+    if task:
+        purpose = 'task'
+    else:
+        purpose = SCENE_PURPOSES.get(scene) or ('task' if scene.startswith('travel_') else 'planning')
     try:
-        with usage_scope(owner_id=owner, agent=agent, purpose=purpose, phase=SCENES[scene]):
+        with usage_scope(owner_id=owner, agent=agent, task=task, purpose=purpose, phase=SCENES[scene]):
             result, confidence = choose_connections(
                 owner, decision_state, choices, deadline=deadline, instructions=instructions,
                 question_id=question_id or scene, max_probability=max_probability, scene=scene)
