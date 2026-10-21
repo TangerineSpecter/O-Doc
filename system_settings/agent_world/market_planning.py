@@ -75,7 +75,7 @@ def _facts(owner: str, agent, now) -> dict:
     return {
         'available': str(_available_budget(owner, agent)),
         'needs': need_rows(owner, agent, now),
-        'listings': listing_rows(owner, agent.pk),
+        'listings': listing_rows(owner, agent.pk, agent=agent),
         'equipment': equipment_rows(owner, agent.pk),
         'shop_skus': shop_skus,
         'signature': signature,

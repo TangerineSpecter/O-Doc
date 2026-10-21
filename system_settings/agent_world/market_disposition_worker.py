@@ -3,6 +3,7 @@
 问题拆开问：持有量、渠道、比例、星级顺序、挂牌价。禁止把数量与星级合并成
 笛卡尔候选；每个答案写入任务缓存，重启或限流后不重掷。
 """
+import logging
 import time
 from datetime import timedelta
 
@@ -22,6 +23,7 @@ RUN_SECONDS = 60
 QUESTION_SECONDS = 20
 MIN_ASK_QUANTITY = 3
 TASK_TIMEOUT = timedelta(minutes=5)
+logger = logging.getLogger(__name__)
 
 
 def recover_stale_tasks(owner: str | None = None) -> int:
@@ -65,6 +67,13 @@ def _ask(owner: str, agent, task: MarketDispositionTask, budget: Budget, key: st
         raise BudgetExhausted()
     else:
         budget.spend()
+        if state.get('crafting_demand'):
+            instructions = (
+                f'{instructions} 请参考 crafting_demand 中排除当前居民后的总居民数和需求居民数；'
+                '需求人数按当前等级、配方和可用库存下“购买1件该 SKU 会增加至少一种配方可制作数量”计算。'
+                'status 为 partial/unavailable 或需求人数为 null 表示统计不完整或未知，不能当作零需求。'
+                '它用于判断市场需求，不是禁止上架的硬条件，仍由你在给定选项中决策。'
+            )
         selected = choose_scene(
             owner, agent, 'market_disposition', state, choices,
             deadline=time.monotonic() + QUESTION_SECONDS,
@@ -145,6 +154,16 @@ def _decide_task(owner: str, agent, task: MarketDispositionTask, budget: Budget)
         task.error = ''
         task.save(update_fields=['status', 'error', 'updated_at'])
         return
+
+    from .market_plan_candidates import crafting_demand_facts
+    try:
+        crafting_demand = crafting_demand_facts(owner, task.actor_id, task.sku)
+    except Exception:  # noqa: BLE001 - 辅助统计失败不阻断处置，显式标记未知并保留诊断。
+        logger.exception('市场需求统计失败 actor=%s sku=%s', task.actor_id, task.sku)
+        crafting_demand = {'status': 'unavailable', 'resident_count_excluding_self': None,
+                           'demand_resident_count': None}
+    if crafting_demand:
+        state['crafting_demand'] = crafting_demand
 
     try:
         mid = available // 2

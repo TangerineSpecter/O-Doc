@@ -1,178 +1,199 @@
-import {Ban, Clock3, SlidersHorizontal, Target} from 'lucide-react';
-import type {ReactNode} from 'react';
+import {useState, useMemo} from 'react';
+import {Target, Users, Sparkles} from 'lucide-react';
 import type {MarketAutomationPlan} from '../../types/api/market';
-import {marketEquipmentSlotLabels, marketMoney, marketSkuName, marketTickStatusLabels} from './marketPresentation';
+import AgentAvatar from '../AgentWorld/AgentAvatar';
+import {PlanResidentHeader} from './PlanResidentHeader';
+import {PlanGoalsCard} from './PlanGoalsCard';
+import {PlanDispositionsCard} from './PlanDispositionsCard';
+import {PlanAuditCard} from './PlanAuditCard';
+import {MarketPlanFullscreenModal} from './MarketPlanFullscreenModal';
 
-const kindLabel: Record<string, string> = {shop: '商店', listing: '居民挂牌', equipment: '装备'};
-const statusLabel: Record<string, string> = {
-    active: '执行中',
-    failed: '规划失败',
-    closed: '已结束',
-    open: '待完成',
-    filled: '已完成',
-    cancelled: '已取消',
-    expired: '已过期',
-};
-
-function Pill({children, tone = 'slate'}: {children: ReactNode; tone?: 'slate' | 'orange' | 'emerald' | 'red'}) {
-    const classes = {
-        slate: 'bg-slate-100 text-slate-600',
-        orange: 'bg-orange-100 text-orange-700',
-        emerald: 'bg-emerald-100 text-emerald-700',
-        red: 'bg-red-100 text-red-700',
-    }[tone];
-    return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${classes}`}>{children}</span>;
-}
-
-function PlanCard({plan, actorName, itemNames}: {
+function PlanCard({
+    plan,
+    actorName,
+    actorAvatar,
+    itemNames,
+    onMaximize,
+}: {
     plan: MarketAutomationPlan;
     actorName: string;
+    actorAvatar?: string;
     itemNames: Record<string, string>;
+    onMaximize: () => void;
 }) {
-    const budget = Number(plan.budget || 0);
-    const spent = Number(plan.spent || 0);
-    const ratio = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <header className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-800">{actorName}</span>
-                    <Pill tone={plan.status === 'active' ? 'emerald' : plan.status === 'failed' ? 'red' : 'slate'}>
-                        {statusLabel[plan.status] || '状态未知'}
-                    </Pill>
-                </div>
-                <div className="text-xs text-slate-500 tabular-nums">
-                    预算 {marketMoney(plan.budget)} · 已花 {marketMoney(plan.spent)} · 剩余{' '}
-                    {marketMoney(String(Math.max(0, budget - spent)))}
-                </div>
-            </header>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-400" style={{width: `${ratio}%`}} />
-            </div>
-            {plan.summary && <p className="mt-2 text-xs leading-relaxed text-slate-500">{plan.summary}</p>}
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs hover:border-orange-200/80 hover:shadow-sm transition-all space-y-3.5">
+            {/* 居民信息与财务看板 */}
+            <PlanResidentHeader
+                actorName={actorName}
+                actorAvatar={actorAvatar}
+                plan={plan}
+                onMaximize={onMaximize}
+            />
 
-            <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                        <Target className="h-3.5 w-3.5 text-orange-500" />
-                        今日采购目标
-                    </div>
-                    {plan.goals.length ? (
-                        <ul className="mt-2 space-y-1.5">
-                            {plan.goals.map(goal => (
-                                <li key={goal.id} className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-600">
-                                    <span className="min-w-0 truncate">
-                                        <span className="mr-1 rounded bg-white px-1 py-0.5 font-semibold text-slate-500 ring-1 ring-slate-200">
-                                            {kindLabel[goal.kind] || '采购'}
-                                        </span>
-                                        <span>
-                                            {goal.kind === 'equipment'
-                                                ? marketEquipmentSlotLabels[goal.slot] || '装备部位'
-                                                : marketSkuName(goal.sku || goal.slot, itemNames)}
-                                        </span>
-                                        {goal.minStars > 1 ? ` · ${goal.minStars}星以上` : ''}
-                                    </span>
-                                    <span className="tabular-nums text-slate-500">
-                                        {goal.filledQuantity}/{goal.quantity} · 上限 {marketMoney(goal.maxUnitPrice)}
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="mt-2 text-[11px] text-slate-400">今天没有采购目标，只执行处置。</p>
-                    )}
+            {/* 核心双栏：今日采购目标 vs 产物处置策略 */}
+            <div className="grid gap-3.5 lg:grid-cols-2">
+                <div className="h-[280px]">
+                    <PlanGoalsCard goals={plan.goals || []} itemNames={itemNames} />
                 </div>
-
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                        <SlidersHorizontal className="h-3.5 w-3.5 text-orange-500" />
-                        处置策略
-                    </div>
-                    {plan.dispositions.length ? (
-                        <ul className="mt-2 max-h-32 space-y-1.5 overflow-y-auto scrollbar-hide">
-                            {plan.dispositions.map(row => (
-                                <li key={row.sku} className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-600">
-                                    <span className="min-w-0 truncate">{marketSkuName(row.sku, itemNames)}</span>
-                                    <span className="tabular-nums text-slate-500">
-                                        留 {row.targetHold} · 卖 {row.sellRatio}% · 挂 {row.listRatio}% ·{' '}
-                                        {row.starOrder === 'high' ? '高星优先' : '低星优先'}
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="mt-2 text-[11px] text-slate-400">还没有处置策略，入库物品会进入待标记队列。</p>
-                    )}
+                <div className="h-[280px]">
+                    <PlanDispositionsCard dispositions={plan.dispositions || []} itemNames={itemNames} />
                 </div>
             </div>
 
-            <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                        <Ban className="h-3.5 w-3.5 text-slate-400" />
-                        永久不买（{plan.noBuy.length}）
-                    </div>
-                    {plan.noBuy.length ? (
-                        <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto scrollbar-hide">
-                            {plan.noBuy.map(row => (
-                                <li key={row.equipmentId} className="truncate text-[11px] text-slate-500">
-                                    已记录一件不购买装备 · {row.reason || '比较后判定不买'}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="mt-2 text-[11px] text-slate-400">没有拉黑的装备，遇到候选会逐件判断。</p>
-                    )}
-                </div>
-
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                        <Clock3 className="h-3.5 w-3.5 text-orange-500" />
-                        小时预检
-                    </div>
-                    {plan.ticks.length ? (
-                        <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto scrollbar-hide">
-                            {plan.ticks.map(tick => (
-                                <li key={tick.scheduledAt} className="text-[11px] text-slate-500">
-                                    <span className="tabular-nums">{new Date(tick.scheduledAt).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}</span>
-                                    {' · '}
-                                    <span className={tick.status === 'done' ? 'text-emerald-600' : tick.status === 'failed' ? 'text-red-600' : ''}>
-                                        {marketTickStatusLabels[tick.status] || '状态未知'}
-                                    </span>
-                                    {tick.reason ? ` · ${tick.reason}` : ''}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="mt-2 text-[11px] text-slate-400">本小时还没有预检记录。</p>
-                    )}
-                </div>
-            </div>
+            {/* 决策风控与整点巡检 */}
+            <PlanAuditCard noBuy={plan.noBuy || []} ticks={plan.ticks || []} />
         </section>
     );
 }
 
-export function MarketPlanPanel({plans, residents = [], itemNames = {}}: {
+export function MarketPlanPanel({
+    plans,
+    residents = [],
+    itemNames = {},
+}: {
     plans: MarketAutomationPlan[];
-    residents?: Array<{id: string; name: string}>;
+    residents?: Array<{id: string; name: string; avatar?: string}>;
     itemNames?: Record<string, string>;
 }) {
+    // 支持按居民快捷聚焦过滤
+    const [selectedActorId, setSelectedActorId] = useState<string>('all');
+    // 全屏查看详情弹窗状态
+    const [fullscreenPlan, setFullscreenPlan] = useState<{
+        plan: MarketAutomationPlan;
+        actorName: string;
+        actorAvatar?: string;
+    } | null>(null);
+
+    // 建立居民映射快速查找
+    const residentMap = useMemo(() => {
+        const map = new Map<string, {name: string; avatar?: string}>();
+        for (const r of residents) {
+            if (r.id) map.set(r.id, r);
+            if (r.name) map.set(r.name, r);
+        }
+        return map;
+    }, [residents]);
+
     if (!plans.length) {
         return (
             <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
                 <Target className="h-10 w-10 text-orange-300" />
                 <p className="mt-3 text-sm font-semibold text-slate-700">今天还没有市场规划</p>
-                <p className="mt-1 text-xs text-slate-400">每日规划生成后，这里会显示预算、采购目标与小时执行原因。</p>
+                <p className="mt-1 text-xs text-slate-400">
+                    每日晨间规划生成后，这里将呈现各居民的预算调配、采购目标与产物挂牌策略。
+                </p>
             </div>
         );
     }
+
+    // 过滤出当前展示的计划
+    const filteredPlans =
+        selectedActorId === 'all'
+            ? plans
+            : plans.filter(p => p.actorId === selectedActorId);
+
+    // 如果选中的居民在当前 plans 中找不到，则回退到 'all'
+    const displayPlans = filteredPlans.length ? filteredPlans : plans;
+
     return (
-        <div className="flex-1 space-y-3 overflow-y-auto scrollbar-hide pb-1">
-            {plans.map(plan => {
-                const residentName = residents.find(resident => resident.id === plan.actorId)?.name;
-                const actorName = residentName || (plan.actorName && plan.actorName !== plan.actorId ? plan.actorName : '未知居民');
-                return <PlanCard key={plan.id} plan={plan} actorName={actorName} itemNames={itemNames} />;
-            })}
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden gap-2.5">
+            {/* 多居民快捷切换胶囊条 (当居民数 > 1 时显示) */}
+            {plans.length > 1 && (
+                <div className="flex shrink-0 items-center justify-between gap-2 overflow-x-auto scrollbar-hide rounded-xl bg-slate-100/80 p-1">
+                    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedActorId('all')}
+                            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                                selectedActorId === 'all'
+                                    ? 'bg-white text-orange-600 shadow-2xs'
+                                    : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
+                            }`}
+                        >
+                            <Users className="h-3.5 w-3.5" />
+                            <span>全部居民概览</span>
+                            <span
+                                className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
+                                    selectedActorId === 'all'
+                                        ? 'bg-orange-100 text-orange-700'
+                                        : 'bg-slate-200 text-slate-500'
+                                }`}
+                            >
+                                {plans.length}
+                            </span>
+                        </button>
+
+                        {plans.map(plan => {
+                            const res = residentMap.get(plan.actorId) || residentMap.get(plan.actorName);
+                            const name = res?.name || (plan.actorName && plan.actorName !== plan.actorId ? plan.actorName : '居民');
+                            const isSelected = selectedActorId === plan.actorId;
+                            const budget = Number(plan.budget || 0);
+                            const spent = Number(plan.spent || 0);
+                            const ratio = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+
+                            return (
+                                <button
+                                    key={plan.id}
+                                    type="button"
+                                    onClick={() => setSelectedActorId(plan.actorId)}
+                                    className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                                        isSelected
+                                            ? 'bg-white text-orange-600 shadow-2xs border border-orange-200/50'
+                                            : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <AgentAvatar name={name} avatar={res?.avatar} size="xs" />
+                                    <span>{name}</span>
+                                    <span
+                                        className={`rounded px-1 text-[9px] font-bold tabular-nums ${
+                                            isSelected
+                                                ? 'bg-orange-100 text-orange-700'
+                                                : 'bg-slate-200 text-slate-500'
+                                        }`}
+                                    >
+                                        {ratio}%
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400 shrink-0 pr-1">
+                        <Sparkles className="h-3 w-3 text-orange-400" />
+                        <span>点击居民可快速聚焦专属决策</span>
+                    </div>
+                </div>
+            )}
+
+            {/* 卡片主滚动区 */}
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-3.5 pr-0.5">
+                {displayPlans.map(plan => {
+                    const res = residentMap.get(plan.actorId) || residentMap.get(plan.actorName);
+                    const actorName = res?.name || (plan.actorName && plan.actorName !== plan.actorId ? plan.actorName : '未知居民');
+                    return (
+                        <PlanCard
+                            key={plan.id}
+                            plan={plan}
+                            actorName={actorName}
+                            actorAvatar={res?.avatar}
+                            itemNames={itemNames}
+                            onMaximize={() => setFullscreenPlan({plan, actorName, actorAvatar: res?.avatar})}
+                        />
+                    );
+                })}
+            </div>
+
+            {/* 全屏全景查看弹窗 */}
+            {fullscreenPlan && (
+                <MarketPlanFullscreenModal
+                    plan={fullscreenPlan.plan}
+                    actorName={fullscreenPlan.actorName}
+                    actorAvatar={fullscreenPlan.actorAvatar}
+                    itemNames={itemNames}
+                    onClose={() => setFullscreenPlan(null)}
+                />
+            )}
         </div>
     );
 }

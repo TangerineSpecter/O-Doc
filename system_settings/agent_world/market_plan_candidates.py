@@ -4,6 +4,7 @@
 控制在一千字符上下，候选最多 MAX_OPTIONS 个；模型不可用时由代码按缺口
 默认值收官，不再回退到付费文本模型。
 """
+import logging
 from decimal import Decimal
 
 from .inventory_stock import stock_quantity
@@ -13,10 +14,13 @@ from .market_shop import shop_payload
 
 MAX_OPTIONS = 10
 MAX_QUESTIONS = 6
+CRAFTING_SIMULATION_ENERGY = Decimal('1000000')
 GOAL_SLOTS = ('weapon', 'offhand', 'head', 'body', 'hands', 'legs', 'feet',
               'accessory', 'ring_1', 'ring_2')
 SEED_PREFIX = 'seed.'
 FERTILIZER_PREFIX = 'fertilizer.'
+
+logger = logging.getLogger(__name__)
 
 
 def money(value) -> Decimal:
@@ -124,8 +128,112 @@ def need_rows(owner: str, agent, now=None) -> list[dict]:
     return rows
 
 
-def listing_rows(owner: str, actor_id: str, limit: int = 2) -> list[dict]:
-    """按 sku 聚合居民挂牌，优先高星、其次性价比，最多返回 limit 个。"""
+def crafting_input_domain(sku: str) -> str:
+    if sku.startswith(('crop.', 'product.')):
+        return 'cooking'
+    if sku.startswith('combat.material.'):
+        return 'alchemy'
+    return ''
+
+
+def craftable_after_purchase(owner: str, agent, sku: str, quantity: int = 1, *,
+                             facts_cache: dict | None = None) -> bool:
+    """仅允许能增加当前可制作产出的食材或炼金材料进入购买候选。"""
+    domain = crafting_input_domain(sku)
+    if not domain:
+        return True
+    if type(quantity) is not int or quantity < 1:
+        return False
+
+    return sku in craftable_purchase_skus(owner, agent, {sku: quantity}, facts_cache=facts_cache)
+
+
+def _crafting_facts(owner: str, actor_id: str, domain: str) -> dict:
+    """市场仅需等级、规则和扣除制作预留的原料，不重放体力或加载偏好、成品。"""
+    if domain == 'cooking':
+        from .cooking_catalog import rules_for, skill_progress
+        from .cooking_models import CookingSkill as Skill
+        from .cooking_queries import validate_actor
+        from .cooking_schedule_plan import available_pool
+    else:
+        from .alchemy_catalog import rules_for, skill_progress
+        from .alchemy_models import AlchemySkill as Skill
+        from .alchemy_queries import validate_actor
+        from .alchemy_schedule_plan import available_pool
+    validate_actor(owner, actor_id)
+    experience = Skill.objects.filter(pk=actor_id, owner_id=owner).values_list('experience', flat=True).first()
+    return {'rules': rules_for(owner), 'level': skill_progress(experience or 0)['level'],
+            'pool': available_pool(owner, actor_id)}
+
+
+def crafting_demand_facts(owner: str, seller_id: str, sku: str) -> dict | None:
+    """统计除卖家外，当前会通过该 SKU 采购用途校验的活跃居民。"""
+    domain = crafting_input_domain(sku)
+    if not domain:
+        return None
+
+    from system_settings.models import Agent
+    from .social_config import resident_ids
+    residents = list(Agent.objects.filter(pk__in=resident_ids(owner), archived_at__isnull=True)
+                     .exclude(pk=seller_id).only('id').order_by('id'))
+    demand_count, unknown_count = 0, 0
+    for resident in residents:
+        try:
+            demand_count += sku in craftable_purchase_skus(owner, resident, {sku: 1}, strict=True)
+        except (KeyError, TypeError, ValueError):
+            logger.exception('市场需求用途校验失败 actor=%s sku=%s', resident.pk, sku)
+            unknown_count += 1
+    return {
+        'status': 'partial' if unknown_count else 'complete',
+        'domain': domain,
+        'resident_count_excluding_self': len(residents),
+        'demand_resident_count': None if unknown_count else demand_count,
+        'known_demand_resident_count': demand_count,
+        'unknown_resident_count': unknown_count,
+        'demand_basis': '当前等级、配方和可用库存下（不以可恢复体力为门槛），购买1件该SKU会增加至少一种配方的可制作数量',
+    }
+
+
+def craftable_purchase_skus(owner: str, agent, quantities: dict[str, int], *,
+                            facts_cache: dict | None = None, strict: bool = False) -> set[str]:
+    """批量校验挂牌原料，按制作领域各读取一次当前技能与可用库存。"""
+    allowed = set()
+    cache = facts_cache if facts_cache is not None else {}
+    for domain in ('cooking', 'alchemy'):
+        candidates = {sku: quantity for sku, quantity in quantities.items()
+                      if crafting_input_domain(sku) == domain and type(quantity) is int and quantity > 0}
+        if not candidates:
+            continue
+        if domain == 'cooking':
+            from .cooking_schedule_plan import recipe_options
+        else:
+            from .alchemy_schedule_plan import recipe_options
+        try:
+            key = (owner, agent.pk, domain)
+            if key not in cache:
+                cache[key] = _crafting_facts(owner, agent.pk, domain)
+            facts = cache[key]
+        except (KeyError, TypeError, ValueError):
+            if strict:
+                raise
+            logger.exception('市场制作用途校验失败 actor=%s domain=%s', agent.pk, domain)
+            continue
+
+        rules, level, pool = facts['rules'], facts['level'], facts['pool']
+        output_limit_key = 'max_portions' if domain == 'cooking' else 'max_bottles'
+        before = recipe_options(rules, level, pool, CRAFTING_SIMULATION_ENERGY)
+        for sku, quantity in candidates.items():
+            after = recipe_options(rules, level, [*pool, {'sku': sku, 'quantity': quantity}],
+                                   CRAFTING_SIMULATION_ENERGY)
+            if any(any(row['sku'] == sku for row in recipe['ingredients'])
+                   and recipe[output_limit_key] > before.get(recipe_id, {}).get(output_limit_key, 0)
+                   for recipe_id, recipe in after.items()):
+                allowed.add(sku)
+    return allowed
+
+
+def listing_rows(owner: str, actor_id: str, limit: int = 2, agent=None) -> list[dict]:
+    """按 sku 聚合居民挂牌，先过滤无法加工增产的原料，再排高星与性价比。"""
     best = {}
     for row in MarketListing.objects.filter(owner_id=owner, status='active').exclude(seller_id=actor_id):
         item = row.item or {}
@@ -147,7 +255,22 @@ def listing_rows(owner: str, actor_id: str, limit: int = 2) -> list[dict]:
         ratio = (entry['min_price'] / value) if value > 0 else Decimal('999')
         return (-entry['max_stars'], ratio, entry['sku'])
 
-    return sorted(best.values(), key=rank)[:limit]
+    if agent is None:
+        from system_settings.models import Agent
+        from .life_config import owns_actor
+        agent = (Agent.objects.filter(pk=actor_id, archived_at__isnull=True).first()
+                 if owns_actor(owner, actor_id) else None)
+
+    input_quantities = {entry['sku']: 1 for entry in best.values()
+                        if crafting_input_domain(entry['sku'])}
+    craftable = craftable_purchase_skus(owner, agent, input_quantities) if agent else set()
+    candidates = []
+    for entry in best.values():
+        if crafting_input_domain(entry['sku']):
+            if entry['sku'] not in craftable:
+                continue
+        candidates.append(entry)
+    return sorted(candidates, key=rank)[:limit]
 
 
 def equipment_rows(owner: str, actor_id: str, limit: int = 2) -> list[dict]:

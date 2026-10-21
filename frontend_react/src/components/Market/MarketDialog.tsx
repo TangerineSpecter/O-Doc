@@ -23,6 +23,7 @@ import {MarketShop} from './MarketShop';
 import {MarketListings} from './MarketListings';
 import {MarketSessions, MarketTransactions} from './MarketRecords';
 import {MarketPlanPanel} from './MarketPlanPanel';
+import {createMarketPlanPreview, marketPlanPreviewNames} from './marketPlanPreviewData';
 
 const tabs: Array<{value: MarketTab; label: string; icon: typeof Store}> = [
     {value: 'shop', label: '系统商店', icon: ShoppingBag},
@@ -41,6 +42,22 @@ export default function MarketDialog({
 }) {
     const market = useMarket();
     const marketItemNames = useMarketItemNames(market.tab === 'plan');
+    const marketPlanPreviewMode = new URLSearchParams(window.location.search).get('marketPlanPreview');
+    const marketPlanPreviewEnabled = import.meta.env.DEV
+        && marketPlanPreviewMode === '1'
+        && market.tab === 'plan'
+        && !market.loading;
+    const previewResidents = market.actorId
+        ? [residents.find(resident => resident.id === market.actorId) || residents[0]].filter(Boolean)
+        : residents.slice(0, 20);
+    const marketPlanPreviewPlans = marketPlanPreviewEnabled
+        ? (market.automation?.plans.length
+            ? market.automation.plans.map((plan, index) =>
+                createMarketPlanPreview({id: plan.actorId, name: plan.actorName}, index))
+            : (previewResidents.length ? previewResidents : [undefined]).map((resident, index) =>
+                createMarketPlanPreview(resident, index),
+            ))
+        : [];
     const data =
         market.tab === 'listings'
             ? market.listings
@@ -177,7 +194,7 @@ export default function MarketDialog({
 
                 {/* 主内容区域：高度锁死，弹性伸缩，内部局部滚动 */}
                 <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
-                    {market.loading && !data && market.tab !== 'shop' && !(market.tab === 'plan' && market.automation) ? (
+                    {market.loading && !data && market.tab !== 'shop' && !(market.tab === 'plan' && (market.automation || marketPlanPreviewPlans.length)) ? (
                         <div className="flex h-64 flex-col items-center justify-center">
                             <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
                             <p className="mt-3 text-xs text-slate-500">正在翻看集市账本…</p>
@@ -196,9 +213,9 @@ export default function MarketDialog({
                         )
                     ) : market.tab === 'plan' ? (
                         <MarketPlanPanel
-                            plans={market.automation?.plans || []}
+                            plans={marketPlanPreviewPlans.length ? marketPlanPreviewPlans : market.automation?.plans || []}
                             residents={residents}
-                            itemNames={marketItemNames}
+                            itemNames={marketPlanPreviewPlans.length ? {...marketItemNames, ...marketPlanPreviewNames} : marketItemNames}
                         />
                     ) : !data?.items.length ? (
                         <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">

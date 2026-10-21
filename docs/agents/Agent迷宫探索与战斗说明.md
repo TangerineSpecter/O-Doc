@@ -115,6 +115,8 @@ flowchart TD
 
 只有点击「应用这张立绘」才写入 Agent `loadout_portrait`；本地上传图片也必须点击应用后才替换当前立绘。人物大小滑块支持 60%–150%，以脚底附近为缩放原点即时预览；人物位置提供水平、垂直微调，各自可移动立绘框尺寸的 ±20%，并随预览即时更新；保存大小或位置均不调用生图服务、不改变图片资源，关闭弹窗不保存未应用的调整。大小写入 `loadout_portrait_scale`，位置写入 `loadout_portrait_offset_x`、`loadout_portrait_offset_y`；装备页连线按调整后的立绘边界重新计算。预览可在当前立绘、未应用的生成结果和本地上传候选之间切换。恢复默认同时清空图片并重置比例为 100%、位置居中。生成成功、失败或重新生成都不自动替换已应用图片。恢复默认仅解除关联，保留资源。已应用图片参与资源库关联展示和删除保护，读取通过登录账号的图片资源接口；不赋予匿名读取权限。上述字段由专用接口管理，不随普通 Agent 编辑表单写回，避免旧设置表单覆盖新立绘。
 
+预览舞台支持鼠标与触摸拖动，拖动期间即限制在水平、垂直各 ±20% 的可保存范围；像素与百分比换算使用未缩放的图片布局尺寸。舞台内滚轮调整缩放时阻止弹窗随之滚动，舞台外仍可正常滚动；拖动期间不接受滚轮缩放。
+
 立绘仅用于装备页中心人物，保留职业光环和装备槽；不会修改职业、装备事实、战斗数值、已有像素战斗形象或历史探索。换装不自动重画，职业变化后可手动重新生成。不同体型人物的槽位连线仍使用现有职业锚点，未做逐角色解剖标注。
 
 入口：`system_settings/loadout_portrait.py`（提示词、透明图处理）、`loadout_portrait_views.py`（授权任务与应用接口）、`frontend_react/src/api/loadoutPortrait.ts`、`components/Combat/useLoadoutPortrait.ts`、`LoadoutPortraitDialog.tsx`、`usePortraitReference.ts`、`CombatLoadoutSlots.tsx`。真实提供商生成质量及多设备 WebDAV 往返需单独验收。

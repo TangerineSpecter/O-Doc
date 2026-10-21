@@ -520,6 +520,8 @@ class MarketAutomationTests(TestCase):
             self.assertTrue(should_track(model))
 
     def test_tick_skips_without_actions_and_does_not_enter(self):
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
         plan = self.plan()
         tick = self.tick(plan)
         with patch.object(market_batch, 'enter') as enter:

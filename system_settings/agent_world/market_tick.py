@@ -195,7 +195,7 @@ def run(now=None, limit: int = 3) -> dict:
             except Exception:  # noqa: BLE001 - 补目标失败不应跳过本小时其他动作
                 logger.exception('农场队列缺口刷新失败 actor=%s', tick.actor_id)
             plan.refresh_from_db()
-            actions = build_actions(tick.owner_id, tick.actor_id, plan, now)
+            actions = build_actions(tick.owner_id, tick.actor_id, plan, now, agent=agent)
             actions['goals'].extend(_equipment_actions(tick.owner_id, agent, plan, now))
             if not any(actions.get(key) for key in ('dispositions', 'goals', 'reprices', 'withdraws')):
                 tick.status = 'skipped'

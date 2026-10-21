@@ -22,6 +22,7 @@ from .life_time import storage_time
 from .market_disposition import select_rows, surplus_plan
 from .market_models import MarketListing, MarketTransaction
 from .market_plan_models import MarketGoal, MarketPlan
+from .market_plan_candidates import craftable_after_purchase, crafting_input_domain
 from .market_service import trade
 from .market_shop import current_batch
 from .market_sessions import close_session, enter
@@ -68,7 +69,8 @@ def _list_operations(owner: str, actor_id: str, sku: str, quantity: int, star_or
     return operations
 
 
-def _goal_buy(owner: str, actor_id: str, plan: MarketPlan, goal: MarketGoal, now) -> dict | None:
+def _goal_buy(owner: str, actor_id: str, plan: MarketPlan, goal: MarketGoal, now,
+              agent=None, crafting_facts: dict | None = None) -> dict | None:
     remain = max(0, goal.quantity - goal.filled_quantity)
     if remain <= 0:
         return None
@@ -98,10 +100,19 @@ def _goal_buy(owner: str, actor_id: str, plan: MarketPlan, goal: MarketGoal, now
         # 装备由 tick 层逐件判断“买/永久不买”，这里不直接生成购买动作。
         return None
     candidates = list(rows.order_by('unit_price', 'created_at')[:20])
+    cache = crafting_facts if crafting_facts is not None else {}
+    buyer = agent
+    if goal.kind == 'listing' and crafting_input_domain(goal.sku) and buyer is None:
+        from .life_config import owns_actor
+        buyer = (Agent.objects.filter(pk=actor_id, archived_at__isnull=True).first()
+                 if owns_actor(owner, actor_id) else None)
     for listing in candidates:
         if goal.max_unit_price and listing.unit_price > goal.max_unit_price:
             continue
         quantity = 1 if goal.kind == 'equipment' else min(remain, listing.remaining_quantity)
+        if goal.kind == 'listing' and crafting_input_domain(goal.sku):
+            if not buyer or not craftable_after_purchase(owner, buyer, goal.sku, quantity, facts_cache=cache):
+                continue
         return {'kind': 'buy_listing', 'listing_id': listing.pk, 'version': listing.version,
                 'quantity': quantity, 'unit_price': str(listing.unit_price), '_goal': goal.pk}
     return None
@@ -212,7 +223,7 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
     return result
 
 
-def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None) -> dict:
+def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None, agent=None) -> dict:
     """根据策略与目标生成可执行动作；不做模型调用。"""
     now = now or timezone.now()
     actions = {'dispositions': [], 'goals': [], 'reprices': [], 'withdraws': []}
@@ -230,8 +241,10 @@ def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None) -> dict
         if operations:
             actions['dispositions'].append({'sku': disposition.sku, 'operations': operations,
                                              'sell': state['sell'], 'list': state['list']})
+    # 仅在本轮只读预检中复用；下一轮重新读取库存和计划预留。
+    crafting_facts = {}
     for goal in plan.goals.filter(status='open'):
-        operation = _goal_buy(owner, agent_id, plan, goal, now)
+        operation = _goal_buy(owner, agent_id, plan, goal, now, agent=agent, crafting_facts=crafting_facts)
         if operation:
             actions['goals'].append(operation)
     # 挂牌超过两天每天最多小幅降价一次，且不低于回收价；装备挂牌同样适用。
