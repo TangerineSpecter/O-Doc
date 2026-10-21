@@ -163,8 +163,10 @@ def generate_image(arguments: object, agent: Agent | None = None, *, user_id: st
         if get_image_generation_profile(model).mode == 'automatic':
             request_options = {}
         options = resolve_image_generation_request(model, request_options, scene=scene)
-        if scene == 'loadout_portrait' and supports_transparent_background(model):
-            # The provider cuts the figure out itself; chroma removal stays unused.
+        native_background_requested = scene == 'loadout_portrait' or (
+            scene == 'battle_head' and data.get('background_mode') == 'transparent')
+        if native_background_requested and supports_transparent_background(model):
+            # Ask the provider for alpha instead of relying only on prompt wording.
             options = {**options, 'background': 'transparent'}
         images = load_reference_images(references, user_id=user_id)
         client = GrsaiImageClient(model) if model.provider.type == 'Grsai' else NewApiImageClient(model)

@@ -18,6 +18,7 @@ class GenerateImageInput(serializers.Serializer):
         child=serializers.CharField(max_length=32), max_length=MAX_REFERENCE_IMAGES, required=False, default=list)
     aspect_ratio = serializers.CharField(max_length=20, required=False)
     image_size = serializers.ChoiceField(choices=['1K', '2K', '4K'], required=False)
+    background_mode = serializers.ChoiceField(choices=['flat', 'transparent'], required=False)
     request_id = serializers.CharField(max_length=80, required=False)
     model_id = serializers.CharField(max_length=40, required=False)
 

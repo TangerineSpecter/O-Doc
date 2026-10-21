@@ -58,9 +58,9 @@ SCENE_DEFAULTS = {
 
 AGENT_POST_IMAGE_SIZE = '1K'
 
-# Grsai only forwards `background: transparent` for these models; the base
-# gpt-image-2 / gpt-image-2.5 and nano-banana always return an opaque canvas.
-TRANSPARENT_BACKGROUND_MODELS = frozenset({'gpt-image-2-vip', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'})
+# Request native transparency for these Grsai models; loadout portraits must
+# fail rather than fall back to chroma removal if the provider returns opaque output.
+TRANSPARENT_BACKGROUND_MODELS = frozenset({'gpt-image-2.5', 'gpt-image-2-vip', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'})
 
 
 def supports_transparent_background(model: AIModel) -> bool:

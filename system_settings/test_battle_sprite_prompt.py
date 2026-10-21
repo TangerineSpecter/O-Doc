@@ -1,4 +1,4 @@
-"""Prompt-only regressions; no database or provider requests."""
+"""Battle sprite request regressions; no database or provider requests."""
 import unittest
 from types import SimpleNamespace
 
@@ -20,10 +20,11 @@ class BattleSpritePromptTests(unittest.TestCase):
         self.assertIn('genuinely transparent alpha', request['prompt'])
         self.assertIn('Do not paint a checkerboard', request['prompt'])
         self.assertNotIn('magenta background', request['prompt'])
-        self.assertNotIn('background_mode', request)
+        self.assertEqual(request['background_mode'], 'transparent')
 
     def test_default_flat_background_covers_enclosed_gaps(self):
         request = build_battle_head_request({}, {})
+        self.assertEqual(request['background_mode'], 'flat')
         self.assertIn('#FF00FF', request['prompt'])
         self.assertIn('every gap between hair and arms', request['prompt'])
 

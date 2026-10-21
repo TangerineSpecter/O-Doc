@@ -110,6 +110,7 @@ export interface BattleOverlayTransform {x:number;y:number;scale:number;rotation
 export interface BattleAppearanceOverlays {leftHand:BattleOverlayTransform;rightHand:BattleOverlayTransform;weapon:BattleOverlayTransform}
 
 export interface BattleAppearanceGenerationOptions {
+    supportsTransparentBackground?: boolean;
     configured: boolean;
     message?: string;
     modelId?: string;

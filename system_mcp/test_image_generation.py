@@ -108,19 +108,59 @@ class ImageGenerationLifecycleTests(ImageGenerationOptionsTests):
         from system_settings.grsai_images import GrsaiImageResult
         from .image_generation_tasks import generate_image
 
-        model = AIModel.objects.create(provider=self.provider, name='gpt-image-2.5-flare', type='image_generation')
-        with patch('system_mcp.image_generation_tasks.GrsaiImageClient') as client:
-            client.return_value.generate.return_value = GrsaiImageResult('portrait-native-task', 'pending')
-            result = generate_image({
-                'prompt': '完整冒险者立绘',
-                'request_id': 'portrait-native-transparency',
-                'model_id': str(model.pk),
-            }, scene='loadout_portrait')
+        for name in ('gpt-image-2.5', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'):
+            with self.subTest(model=name):
+                model = AIModel.objects.create(provider=self.provider, name=name, type='image_generation')
+                with patch('system_mcp.image_generation_tasks.GrsaiImageClient') as client:
+                    client.return_value.generate.return_value = GrsaiImageResult('portrait-native-task', 'pending')
+                    result = generate_image({
+                        'prompt': '完整冒险者立绘',
+                        'request_id': 'portrait-native-transparency',
+                        'model_id': str(model.pk),
+                    }, scene='loadout_portrait')
 
-        self.assertEqual(result['status'], 'generating')
-        self.assertEqual(client.return_value.generate.call_args.kwargs['generation_options']['background'], 'transparent')
-        task = ImageGenerationTask.objects.get(pk=result['task_id'])
-        self.assertEqual(task.request_data['provider_options']['background'], 'transparent')
+                self.assertEqual(result['status'], 'generating')
+                self.assertEqual(client.return_value.generate.call_args.kwargs['generation_options']['background'], 'transparent')
+                task = ImageGenerationTask.objects.get(pk=result['task_id'])
+                self.assertEqual(task.request_data['provider_options']['background'], 'transparent')
+                task.delete()
+
+    def test_battle_background_parameter_follows_model_mode_and_scene(self):
+        from unittest.mock import patch
+        from prompts.models import ImageGenerationTask
+        from system_settings.battle_head_generation import build_battle_head_request
+        from system_settings.grsai_images import GrsaiImageResult
+        from .image_generation_tasks import generate_image
+
+        cases = [
+            ('gpt-image-2.5', 'transparent', 'battle_head', True),
+            ('gpt-image-2.5-flare', 'transparent', 'battle_head', True),
+            ('gpt-image-2.5-sunburst', 'transparent', 'battle_head', True),
+            ('gpt-image-2-vip', 'transparent', 'battle_head', True),
+            ('gpt-image-2.5', 'flat', 'battle_head', False),
+            ('nano-banana-pro', 'transparent', 'battle_head', False),
+            ('gpt-image-2.5', 'transparent', 'generic', False),
+        ]
+        for index, (name, background, scene, native) in enumerate(cases):
+            with self.subTest(model=name, background=background, scene=scene):
+                model, _ = AIModel.objects.get_or_create(
+                    provider=self.provider, name=name, type='image_generation')
+                data = build_battle_head_request({
+                    'background_mode': background, 'model_id': str(model.pk),
+                    'request_id': f'battle-background-{index}',
+                }, {})
+                with patch('system_mcp.image_generation_tasks.GrsaiImageClient') as client:
+                    client.return_value.generate.return_value = GrsaiImageResult('battle-task', 'pending')
+                    result = generate_image(data, scene=scene)
+                sent = client.return_value.generate.call_args.kwargs['generation_options']
+                task = ImageGenerationTask.objects.get(pk=result['task_id'])
+                self.assertEqual(sent.get('background'), 'transparent' if native else None)
+                self.assertEqual(task.request_data['provider_options'], sent)
+                if background == 'transparent':
+                    self.assertNotIn('#FF00FF', task.request_data['prompt'])
+                else:
+                    self.assertIn('#FF00FF', task.request_data['prompt'])
+                task.delete()
 
     def test_invalid_explicit_model_does_not_fall_back_or_submit(self):
         from unittest.mock import patch

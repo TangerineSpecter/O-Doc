@@ -24,10 +24,10 @@ class ImageGenerationDimensionsTests(SimpleTestCase):
         for size in ['1K', '2K', '4K']:
             self.assertEqual(resolve_image_generation_request(model, {'aspect_ratio': '3:2', 'image_size': size}, scene='generic'), {'aspectRatio': '3:2', 'imageSize': size})
 
-    def test_only_high_tier_gpt_models_accept_a_transparent_canvas(self):
-        for name in ('gpt-image-2-vip', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'):
+    def test_configured_gpt_models_request_a_transparent_canvas(self):
+        for name in ('gpt-image-2.5', 'gpt-image-2-vip', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'):
             self.assertTrue(supports_transparent_background(self.model(name)), name)
-        for name in ('gpt-image-2', 'gpt-image-2.5', 'nano-banana-pro', 'nano-banana-2'):
+        for name in ('gpt-image-2', 'nano-banana-pro', 'nano-banana-2'):
             self.assertFalse(supports_transparent_background(self.model(name)), name)
         new_api = SimpleNamespace(name='gpt-image-2.5-flare', provider=SimpleNamespace(type='NewAPI'))
         self.assertFalse(supports_transparent_background(new_api))

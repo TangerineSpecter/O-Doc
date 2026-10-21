@@ -83,4 +83,5 @@ def build_battle_head_request(arguments: dict, options: dict, agent=None) -> dic
     if agent is not None:
         prompt += '\n' + role_text(agent, 'image')
     data['prompt'] = prompt
+    data['background_mode'] = background_mode
     return data
