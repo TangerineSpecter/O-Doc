@@ -202,7 +202,12 @@ def execute_item(item: LifeItem, scheduler) -> None:
             return  # 后续节点只继续本次 workflow。
         action=WorldAction.objects.filter(pk=execution_key(item)).first()
         skipped = bool(action and action.status == 'skipped')
-        status = 'failed' if not outcome or outcome.status in ('failed', 'skipped') or skipped else 'completed'
+        if item.activity == 'investment' and outcome and outcome.status == 'success' and skipped:
+            status = 'rest'
+        elif not outcome or outcome.status in ('failed', 'skipped') or skipped:
+            status = 'failed'
+        else:
+            status = 'completed'
         revise(item,'本次活动结束',status=status,record_id=outcome.pk if outcome else '',result={'reason':outcome.summary if outcome else '活动未能启动'})
         check_goals(item.owner_id,agent)
     except WorldLeaseBusy:
