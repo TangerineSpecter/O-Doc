@@ -15,6 +15,7 @@ from .life_models import LifeItem, LifeProfile, LifeRevision
 from .life_config import task_owner
 from .life_time import SHANGHAI, local_time, storage_time
 from .market_models import MarketListing, MarketSession, MarketTransaction
+from .market_history_order import batch_operation_orders, operation_key
 from .market_recovery import PROCESS_INTERRUPTED
 from .market_narrative import public_leave_reason
 from .models import WorldLedger
@@ -567,6 +568,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     ).select_related('record'))
     session_map = {row.pk: row for row in sessions}
     transactions = list(MarketTransaction.objects.filter(owner_id=owner, session_id__in=session_map))
+    batch_session_ids = [row.pk for row in sessions if row.mode == 'batch']
+    batch_orders = batch_operation_orders(owner, batch_session_ids)
     listing_ids = {row.operation.get('listing_id') for row in transactions
                    if isinstance(row.operation, dict) and row.operation.get('listing_id')}
     listings = {row.pk: row for row in MarketListing.objects.filter(owner_id=owner, pk__in=listing_ids)}
@@ -601,6 +604,9 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         session = session_map[row.session_id]
         if session.mode != 'archive':
             events[-1]['_execution_group'] = 'market:' + (session.record_id or session.pk)
+            if session.mode == 'batch':
+                order = batch_orders.get(session.pk, {})
+                events[-1]['_execution_order'] = order.get(operation_key(op), len(order))
         events[-1]['_execution_failed'] = bool(session.record and session.record.status == 'failed')
         seller_id = result.get('seller_id') if kind == 'buy_listing' else None
         if seller_id:
@@ -616,16 +622,21 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         group = 'market:' + (row.record_id or row.pk)
         event = _event('market', 'market-enter', row.pk, row.created_at, row.actor_id,
                        row.actor_name, '进入市场', target={'kind': 'market', 'id': row.pk})
-        event.update(_execution_group=group, _execution_running=row.status == 'active',
+        event.update(_execution_group=group, _execution_order=-1,
+                     _execution_running=row.status == 'active',
                      _execution_failed=bool(row.record and row.record.status == 'failed'))
         events.append(event)
         if row.ended_at:
             interrupted = row.reason == PROCESS_INTERRUPTED
+            leave_reason = public_leave_reason(row.reason, row.record.summary if row.record else '')
+            if row.mode == 'batch' and row.reason == '按日计划批量执行完成':
+                leave_reason = ''
             event = _event('market', 'market-session', row.pk, row.ended_at, row.actor_id,
                            row.actor_name, '市场会话中断' if interrupted else '离开市场',
-                           public_leave_reason(row.reason, row.record.summary if row.record else ''),
+                           leave_reason,
                            target={'kind': 'market', 'id': row.pk})
             event['_execution_group'] = group
+            event['_execution_order'] = 1_000_000_000
             event['_execution_failed'] = interrupted
             events.append(event)
 

@@ -1,6 +1,7 @@
 """市场可见性统一按账号过滤，分页避免将无限挂牌装进模型上下文。"""
 from decimal import Decimal
 from .market_models import MarketListing, MarketTransaction, MarketSession
+from .market_history_order import batch_operation_orders, operation_key
 from .inventory_stock import inventory_items
 from .farm_models import AgentFarm
 from .execution import stamina
@@ -53,11 +54,27 @@ def sessions(owner: str, arguments: dict) -> dict:
     from .market_life_history import budget_calls
     from .life_time import local_time
     adjustments = budget_calls(owner, items)
+    batch_session_ids = [row['id'] for row in items if row['mode'] == 'batch']
+    transactions_by_session = {}
+    if batch_session_ids:
+        orders = batch_operation_orders(owner, batch_session_ids)
+        for transaction in MarketTransaction.objects.filter(
+                owner_id=owner, session_id__in=batch_session_ids
+        ).order_by('created_at', 'id').values('id', 'session_id', 'operation', 'result', 'created_at'):
+            transactions_by_session.setdefault(transaction['session_id'], []).append({
+                key: value for key, value in transaction.items() if key != 'session_id'
+            })
+        for session_id, transactions in transactions_by_session.items():
+            order = orders.get(session_id, {})
+            transactions.sort(key=lambda row: (
+                row['created_at'], order.get(operation_key(row['operation']), len(order)), row['id']
+            ))
     from datetime import datetime
     for row in items:
         row.pop('record_id')
         row['calls'] = sorted([*row['calls'], *adjustments.get(row['id'], [])],
                               key=lambda call: local_time(datetime.fromisoformat(call['at'])))
+        row['transactions'] = transactions_by_session.get(row['id'], [])
     return {'total':rows.count(), 'page':page, 'items':items}
 
 

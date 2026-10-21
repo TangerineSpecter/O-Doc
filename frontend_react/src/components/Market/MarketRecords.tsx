@@ -223,6 +223,7 @@ export function MarketSessions({
                 const isActive = row.status === 'active';
                 const isExpanded = expandedIds[row.id] ?? true; // 默认展开最新动态
                 const resident = residentMap.get(row.actorId) || residentMap.get(row.actorName);
+                const isBatch = row.mode === 'batch';
 
                 return (
                     <article
@@ -252,14 +253,19 @@ export function MarketSessions({
                                         </span>
                                     </div>
                                     <p className="mt-0.5 text-[11px] text-slate-400">
-                                        {marketTime(row.createdAt)} {row.mode === 'archive' ? '归档下架' : '进入集市'} · {row.reason || '自主经营采办'}
+                                        {marketTime(row.createdAt)} {row.mode === 'archive' ? '归档下架' : '进入集市'}
+                                        {!isBatch && ` · ${row.reason || '自主经营采办'}`}
                                     </p>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-2">
                                 <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 tabular-nums">
-                                    {row.mode === 'archive' ? '管理操作 · 不消耗体力' : `${row.callCount} / 20 次交互操作`}
+                                    {row.mode === 'archive'
+                                        ? '管理操作 · 不消耗体力'
+                                        : isBatch
+                                          ? `${row.transactions.length} 项市场操作`
+                                          : `${row.callCount} / 20 次交互操作`}
                                 </span>
                                 <button
                                     type="button"
@@ -272,8 +278,47 @@ export function MarketSessions({
                             </div>
                         </div>
 
-                        {/* 漫步决策时间轴 */}
-                        {isExpanded && row.calls.length > 0 && (
+                        {/* 按日计划批量执行的真实成交与挂牌；交互会话仍展示工具调用 */}
+                        {isExpanded && isBatch && row.transactions.length > 0 && (
+                            <div className="mt-3.5 space-y-2 border-l-2 border-orange-100 pl-4 ml-2">
+                                {row.transactions.map(transaction => {
+                                    const kind = transaction.operation.kind;
+                                    const isBuy = kind.startsWith('buy_');
+                                    const isSell = kind.startsWith('sell_') || kind === 'sell';
+                                    const result = transaction.result;
+
+                                    return (
+                                        <div key={transaction.id} className="relative text-xs">
+                                            <div className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-orange-400 ring-2 ring-white" />
+                                            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                                                <span className="font-semibold text-slate-700">
+                                                    {transaction.operation.reason === 'agent_archive'
+                                                        ? '归档下架'
+                                                        : marketOperationLabels[kind] || kind}
+                                                </span>
+                                                <span className="text-slate-400 tabular-nums">{marketTime(transaction.createdAt)}</span>
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50/80 px-2 py-1 text-[11px] text-slate-600">
+                                                <span>
+                                                    {result.name || '市场商品'}
+                                                    {result.quantity ? ` × ${result.quantity}` : ''}
+                                                    {result.unitPrice ? ` · 单价 ${marketMoney(result.unitPrice)} 币` : ''}
+                                                </span>
+                                                {result.total && (
+                                                    <span className={`font-bold tabular-nums ${isSell ? 'text-emerald-600' : isBuy ? 'text-orange-600' : 'text-slate-600'}`}>
+                                                        {isSell ? '+' : isBuy ? '−' : ''}{marketMoney(result.total)} 币
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {isExpanded && isBatch && row.transactions.length === 0 && (
+                            <p className="mt-3.5 pl-4 text-[11px] text-slate-400">本次没有记录到成功的市场操作。</p>
+                        )}
+                        {isExpanded && !isBatch && row.calls.length > 0 && (
                             <div className="mt-3.5 space-y-2 border-l-2 border-orange-100 pl-4 ml-2">
                                 {row.calls.map((call, index) => {
                                     const hasError = Boolean(call.result?.error);

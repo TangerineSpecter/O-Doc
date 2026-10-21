@@ -274,6 +274,38 @@ class MarketTests(TestCase):
         self.assertEqual(adjustments[0]['result']['reason'], '购买饲料预算')
         self.assertEqual(sessions('other-owner', {})['items'], [])
 
+    def test_batch_session_history_uses_completed_order_with_legacy_fallback(self):
+        from .market_plan_models import MarketTick
+        from .market_queries import sessions
+
+        self.sa.mode = 'batch'
+        self.sa.save(update_fields=['mode'])
+        sell = {'kind': 'sell', 'item_id': 'crop', 'quantity': 1}
+        buy = {'kind': 'buy_shop', 'slot_id': 'feed', 'quantity': 1}
+        for identity, operation in [('a-buy', buy), ('z-sell', sell)]:
+            MarketTransaction.objects.create(
+                pk=identity, owner_id='admin', session=self.sa, actor_id=self.a.pk,
+                actor_name=self.a.name, operation=operation, result={}, created_at=self.now)
+        tick = MarketTick.objects.create(
+            pk='history-order', owner_id='admin', actor_id=self.a.pk,
+            hour=self.now, scheduled_at=self.now, session_id=self.sa.pk,
+            hits={'outcome': {'done': [dict(reversed(list(sell.items()))), buy]}})
+        MarketTick.objects.create(
+            pk='foreign-history-order', owner_id='other-owner', actor_id=self.a.pk,
+            hour=self.now, scheduled_at=self.now, session_id=self.sa.pk,
+            hits={'outcome': {'done': [buy, sell]}})
+
+        def transaction_ids():
+            row = next(row for row in sessions('admin', {})['items'] if row['id'] == self.sa.pk)
+            return [transaction['id'] for transaction in row['transactions']]
+
+        self.assertEqual(transaction_ids(), ['z-sell', 'a-buy'])
+        tick.hits = {'outcome': {'done': None}}
+        tick.save(update_fields=['hits'])
+        self.assertEqual(transaction_ids(), ['a-buy', 'z-sell'])
+        tick.delete()
+        self.assertEqual(transaction_ids(), ['a-buy', 'z-sell'])
+
     def test_shared_stock_and_idempotency(self):
         args={'batch_id':self.shop.pk,'slot_id':'0','quantity':1}
         first=self.operation(self.a,self.sa,'buy-a','buy_shop',**args)

@@ -145,6 +145,11 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
     } else if (hasSteps && planReason && mainDetail.endsWith(` · ${planReason}`)) {
         mainDetail = mainDetail.slice(0, -` · ${planReason}`.length);
     }
+    const showMainDetail = Boolean(mainDetail) && !(
+        event.category === 'interaction' &&
+        event.subAction === 'skip' &&
+        mainDetail.trim() === '本次跳过社交机会'
+    );
 
     const parsedExploration = useMemo(() => {
         if (event.category !== 'exploration' || !mainDetail) return null;
@@ -172,7 +177,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                     <h3 className="text-sm font-semibold text-slate-800">{renderHighlightedTitle(event.title)}</h3>
                     <PostRatingBadge rating={event.rating}/>
                 </div>
-                {mainDetail && (
+                {showMainDetail && (
                     <div className="mt-1.5">
                         {parsedExploration ? (
                             <ExplorationFeedSettlement parsed={parsedExploration} status={event.status} />

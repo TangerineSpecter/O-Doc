@@ -13,7 +13,9 @@ def grouped_execution_events(events, start, end):
         else:
             projected.append(event)
     for (identity, actor), rows in groups.items():
-        rows.sort(key=lambda row: (row['occurredAt'], row['id']))
+        rows.sort(key=lambda row: (row['occurredAt'], row.get('_execution_order', 0), row['id']))
+        for row in rows:
+            row.pop('_execution_order', None)
         latest = rows[-1]
         if identity.startswith('activity:') and len(rows) == 1:
             projected.append(latest)
