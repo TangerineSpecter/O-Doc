@@ -3,7 +3,7 @@
 from rest_framework import serializers
 
 from system_settings.grsai_images import GrsaiImageError, get_default_image_generation_model
-from system_settings.image_generation_options import serialize_image_generation_options
+from system_settings.image_generation_options import serialize_image_generation_options, supports_transparent_background
 from utils.resource_assets import extract_resource_id_from_view_url
 from .image_references import MAX_REFERENCE_IMAGES, readable_reference_assets
 from system_settings.models import AIModel
@@ -52,6 +52,7 @@ def image_generation_options(agent=None, model_id=None, scene='generic', user_id
         return {'configured': False, 'message': str(exc)}
     options = serialize_image_generation_options(model, scene=scene)
     options.update(configured=True, model_id=str(model.pk), supports_reference_images=supports_references(model),
+                   supports_transparent_background=supports_transparent_background(model),
                    max_reference_images=MAX_REFERENCE_IMAGES if supports_references(model) else 0)
     references = {}
     if agent is not None:

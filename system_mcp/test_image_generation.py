@@ -102,6 +102,26 @@ class ImageGenerationLifecycleTests(ImageGenerationOptionsTests):
             with self.assertRaises(ValueError):
                 self._submit(model_id=str(self.model.pk))
 
+    def test_loadout_portrait_injects_and_persists_native_background_option(self):
+        from unittest.mock import patch
+        from prompts.models import ImageGenerationTask
+        from system_settings.grsai_images import GrsaiImageResult
+        from .image_generation_tasks import generate_image
+
+        model = AIModel.objects.create(provider=self.provider, name='gpt-image-2.5-flare', type='image_generation')
+        with patch('system_mcp.image_generation_tasks.GrsaiImageClient') as client:
+            client.return_value.generate.return_value = GrsaiImageResult('portrait-native-task', 'pending')
+            result = generate_image({
+                'prompt': '完整冒险者立绘',
+                'request_id': 'portrait-native-transparency',
+                'model_id': str(model.pk),
+            }, scene='loadout_portrait')
+
+        self.assertEqual(result['status'], 'generating')
+        self.assertEqual(client.return_value.generate.call_args.kwargs['generation_options']['background'], 'transparent')
+        task = ImageGenerationTask.objects.get(pk=result['task_id'])
+        self.assertEqual(task.request_data['provider_options']['background'], 'transparent')
+
     def test_invalid_explicit_model_does_not_fall_back_or_submit(self):
         from unittest.mock import patch
         from prompts.models import ImageGenerationTask

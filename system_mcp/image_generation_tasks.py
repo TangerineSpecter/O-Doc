@@ -14,7 +14,8 @@ from prompts.article_illustration import get_saved_article_illustration, save_ar
 from prompts.generation import _validate_image_content
 from prompts.models import ImageGenerationTask
 from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
-from system_settings.image_generation_options import get_image_generation_profile, resolve_image_generation_request
+from system_settings.image_generation_options import (get_image_generation_profile, resolve_image_generation_request,
+                                                      supports_transparent_background)
 from system_settings.models import AIModel, Agent
 from system_settings.newapi_images import NewApiImageClient
 from system_settings.sync_state import canonical_hash
@@ -129,7 +130,8 @@ def _download(task: ImageGenerationTask, client, content: bytes | str | None = N
         if task.request_data.get('scene') == 'loadout_portrait':
             from system_settings.loadout_portrait import prepare_portrait
             try:
-                image = prepare_portrait(image)
+                image = prepare_portrait(image, transparent=(
+                    task.request_data.get('provider_options', {}).get('background') == 'transparent'))
             except ValueError as exc:
                 raise GrsaiImageError(str(exc), status_code=422) from exc
         source_type = 'agent_art' if task.request_data.get('scene') in ('battle_head', 'loadout_portrait') else 'content'
@@ -161,6 +163,9 @@ def generate_image(arguments: object, agent: Agent | None = None, *, user_id: st
         if get_image_generation_profile(model).mode == 'automatic':
             request_options = {}
         options = resolve_image_generation_request(model, request_options, scene=scene)
+        if scene == 'loadout_portrait' and supports_transparent_background(model):
+            # The provider cuts the figure out itself; chroma removal stays unused.
+            options = {**options, 'background': 'transparent'}
         images = load_reference_images(references, user_id=user_id)
         client = GrsaiImageClient(model) if model.provider.type == 'Grsai' else NewApiImageClient(model)
     except GrsaiImageError as exc:

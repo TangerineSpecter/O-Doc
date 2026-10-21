@@ -207,6 +207,67 @@ class LoadoutPortraitTests(TestCase):
         self.agent.refresh_from_db()
         self.assertEqual(self.agent.loadout_portrait, '/api/resource/view/portrait-asset')
 
+    def test_prompt_requests_transparency_only_when_the_model_supports_it(self):
+        options = {'supports_reference_images': True, 'max_reference_images': 3,
+                   'agent_reference_images': {'avatar': 'avatar-id'}}
+        native = build_portrait_request(self.agent, {}, {**options, 'supports_transparent_background': True})
+        self.assertIn('transparent (alpha 0)', native['prompt'])
+        self.assertNotIn('#FF00FF', native['prompt'])
+        keyed = build_portrait_request(self.agent, {}, options)
+        self.assertIn('#FF00FF', keyed['prompt'])
+        self.assertNotIn('transparent (alpha 0)', keyed['prompt'])
+
+    def test_native_transparency_skips_chroma_and_normalizes_canvas(self):
+        image = Image.new('RGBA', (100, 150), (0, 0, 0, 0))
+        for y in range(20, 140):
+            for x in range(30, 70): image.putpixel((x, y), (245, 150, 180, 255))
+        # A magenta accent inside the character must survive without color keying.
+        for y in range(55, 65):
+            for x in range(45, 55): image.putpixel((x, y), (255, 0, 255, 255))
+        buffer = BytesIO(); image.save(buffer, format='PNG')
+        result = prepare_portrait(_validate_image_content(buffer.getvalue()), transparent=True)
+        with Image.open(BytesIO(result.content)) as rendered:
+            self.assertEqual(rendered.size, (768, 1024))
+            self.assertEqual(rendered.getpixel((0, 0))[3], 0)
+            self.assertEqual(rendered.getchannel('A').getbbox()[3], 980)
+            self.assertIn((255, 0, 255, 255), rendered.getdata())
+        opaque = BytesIO(); Image.new('RGB', (10, 10), 'white').save(opaque, format='PNG')
+        with self.assertRaisesMessage(ValueError, '透明背景'):
+            prepare_portrait(_validate_image_content(opaque.getvalue()), transparent=True)
+
+    def test_existing_transparent_canvas_preserves_magenta_details_in_fallback_mode(self):
+        image = Image.new('RGBA', (100, 150), (0, 0, 0, 0))
+        for y in range(20, 140):
+            for x in range(30, 70): image.putpixel((x, y), (245, 150, 180, 255))
+        for y in range(55, 65):
+            for x in range(45, 55): image.putpixel((x, y), (255, 0, 255, 255))
+        buffer = BytesIO(); image.save(buffer, format='PNG')
+        result = prepare_portrait(_validate_image_content(buffer.getvalue()))
+        with Image.open(BytesIO(result.content)) as rendered:
+            self.assertEqual(rendered.getpixel((0, 0))[3], 0)
+            self.assertIn((255, 0, 255, 255), rendered.getdata())
+
+    def test_download_recovery_uses_persisted_native_background_option(self):
+        from system_mcp import image_generation_tasks
+        image_buffer = BytesIO()
+        native = Image.new('RGBA', (8, 8), (0, 0, 0, 0))
+        native.putpixel((4, 4), (255, 0, 255, 255))
+        native.save(image_buffer, format='PNG')
+        image = _validate_image_content(image_buffer.getvalue())
+        self.task.status = 'download_pending'
+        self.task.image_url = 'https://images.example/native.png'
+        self.task.request_data = {'scene': SCENE, 'provider_options': {'background': 'transparent'}}
+        self.task.save()
+
+        with patch.object(image_generation_tasks, '_download_generated_images', return_value=[image]), \
+                patch('system_settings.loadout_portrait.prepare_portrait', wraps=prepare_portrait) as prepare, \
+                patch.object(image_generation_tasks, 'save_article_illustration', return_value={'id': self.asset.pk}):
+            image_generation_tasks._download(self.task, None)
+
+        prepare.assert_called_once_with(image, transparent=True)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, 'succeeded')
+
     def test_chroma_removal_preserves_pink_character_and_normalizes_canvas(self):
         image = Image.new('RGB', (100, 150), '#FF00FF')
         for y in range(20, 140):

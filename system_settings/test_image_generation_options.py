@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from django.test import SimpleTestCase
-from .image_generation_options import COMMON_IMAGE_RATIOS, resolve_image_generation_request, serialize_image_generation_options
+from .image_generation_options import (COMMON_IMAGE_RATIOS, resolve_image_generation_request,
+                                       serialize_image_generation_options, supports_transparent_background)
 
 
 class ImageGenerationDimensionsTests(SimpleTestCase):
@@ -22,6 +23,14 @@ class ImageGenerationDimensionsTests(SimpleTestCase):
         model = self.model('nano-banana-pro')
         for size in ['1K', '2K', '4K']:
             self.assertEqual(resolve_image_generation_request(model, {'aspect_ratio': '3:2', 'image_size': size}, scene='generic'), {'aspectRatio': '3:2', 'imageSize': size})
+
+    def test_only_high_tier_gpt_models_accept_a_transparent_canvas(self):
+        for name in ('gpt-image-2-vip', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'):
+            self.assertTrue(supports_transparent_background(self.model(name)), name)
+        for name in ('gpt-image-2', 'gpt-image-2.5', 'nano-banana-pro', 'nano-banana-2'):
+            self.assertFalse(supports_transparent_background(self.model(name)), name)
+        new_api = SimpleNamespace(name='gpt-image-2.5-flare', provider=SimpleNamespace(type='NewAPI'))
+        self.assertFalse(supports_transparent_background(new_api))
 
     def test_travel_and_mcp_offer_only_common_ratios(self):
         for name in ['gpt-image-2', 'gpt-image-2.5', 'nano-banana-pro']:

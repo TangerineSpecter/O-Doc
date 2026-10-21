@@ -12,7 +12,7 @@ import type {useLoadoutPortrait} from './useLoadoutPortrait';
 import {usePortraitReference} from './usePortraitReference';
 
 type Props = {agentId: string; portrait: ReturnType<typeof useLoadoutPortrait>; onClose: () => void};
-const labels: Record<string, string> = {submitting: '正在提交', generating: '正在绘制人物', download_pending: '正在保存和去背景', succeeded: '立绘已生成，确认后应用', failed: '生成失败', submission_unknown: '提交结果暂不明确，请稍后重新打开查询', timed_out: '已达到等待上限，可重新生成', cancelled: '已停止等待'};
+const labels: Record<string, string> = {submitting: '正在提交', generating: '正在绘制人物', download_pending: '正在保存图片', succeeded: '立绘已生成，确认后应用', failed: '生成失败', submission_unknown: '提交结果暂不明确，请稍后重新打开查询', timed_out: '已达到等待上限，可重新生成', cancelled: '已停止等待'};
 
 export default function LoadoutPortraitDialog({agentId, portrait, onClose}: Props) {
     const [options, setOptions] = useState<PortraitOptions | null>(null);
