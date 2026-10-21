@@ -1,11 +1,10 @@
 import {hasItemStars} from '../../utils/itemQuality';
 import {useState} from 'react';
 import {Package, User, ArrowDownRight, ArrowUpRight} from 'lucide-react';
-import {farmItemIcon} from '../Farm/assets';
 import type {MarketListing} from '../../types/api/market';
-import {ItemIconImage} from '../AgentWorld/ItemIconImage';
-import {marketMoney, marketTime} from './marketPresentation';
+import {marketListingCategory, marketMoney, marketTime} from './marketPresentation';
 import {MarketDetailSidebar} from './MarketDetailSidebar';
+import {MarketListingItemIcon} from './MarketListingItemIcon';
 
 export function MarketListings({items}: {items: MarketListing[]}) {
     const [selectedId, setSelectedId] = useState<string>(items[0]?.id || '');
@@ -16,21 +15,21 @@ export function MarketListings({items}: {items: MarketListing[]}) {
             <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
                 <Package className="h-10 w-10 text-orange-300" />
                 <p className="mt-3 text-sm font-semibold text-slate-700">暂无居民上架商品</p>
-                <p className="mt-1 text-xs text-slate-400">居民在背包拥有多余物品或农产品时，会自行在此摆摊销售</p>
+                <p className="mt-1 text-xs text-slate-400">居民会把背包中可交易的物品自行挂到这里</p>
             </div>
         );
     }
 
     return (
-        <div className="grid h-full min-h-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid h-full min-h-0 min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             {/* 左侧：居民挂牌商品货架 */}
-            <div className="flex h-full flex-col min-h-0 overflow-y-auto pr-1 scrollbar-hide space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex h-full min-w-0 flex-col min-h-0 overflow-y-auto pb-1 pr-1 pt-1 scrollbar-hide space-y-3">
+                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                     {items.map(item => {
                         const isSelected = selectedId === item.id;
                         const isGold = item.item.source?.quality === 'gold';
-                        const isSouvenir = item.item.kind === 'souvenir';
-                        const isCombatEquipment = item.item.kind === 'combat_equipment';
+                        const isCombatEquipment = item.item.kind === 'combat_equipment' || item.item.source?.kind === 'combat_equipment';
+                        const category = marketListingCategory(item.item);
                         const hasRepriced = (item.history && item.history.length > 0) || Boolean(item.repricedAt);
                         const lastChange = item.history && item.history.length > 0 ? item.history[item.history.length - 1] : null;
                         const isPriceDrop = lastChange ? Number(lastChange.to) < Number(lastChange.from) : false;
@@ -44,16 +43,15 @@ export function MarketListings({items}: {items: MarketListing[]}) {
                                 onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedId(item.id)}
                                 className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-200 outline-none cursor-pointer ${
                                     isSelected
-                                        ? 'border-orange-400 bg-orange-50/20 shadow-md ring-2 ring-orange-500/20 -translate-y-0.5'
+                                        ? 'border-orange-400 bg-orange-50/20 shadow-md ring-2 ring-orange-500/20'
                                         : 'border-slate-200/90 bg-white hover:border-orange-200 hover:shadow-xs hover:bg-slate-50/30'
                                 }`}
                             >
                                 <div className="flex gap-3">
                                     {/* 物品图标舞台 */}
                                     <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-orange-100 bg-gradient-to-b from-orange-50/60 to-orange-100/30 p-2 shadow-xs group-hover:scale-105 transition-transform">
-                                        <ItemIconImage
-                                            src={item.item.iconAssetId ? `/api/resource/view/${item.item.iconAssetId}` : farmItemIcon(item.item.source?.sku || '')}
-                                            alt={item.item.name}
+                                        <MarketListingItemIcon
+                                            item={item.item}
                                             className="h-9 w-9"
                                             fallback={<Package className="h-6 w-6 text-orange-400" />}
                                         />
@@ -69,15 +67,10 @@ export function MarketListings({items}: {items: MarketListing[]}) {
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             <span
                                                 className={`rounded-md border px-1.5 py-0.2 text-[10px] font-medium leading-none ${
-                                                    isGold
-                                                        ? 'bg-amber-50 border-amber-200 text-amber-700'
-                                                        : isSouvenir
-                                                          ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                                          : isCombatEquipment ? 'bg-orange-50 border-orange-200 text-orange-700'
-                                                          : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                                    category.className
                                                 }`}
                                             >
-                                                {isGold ? '金色' : isSouvenir ? '纪念品' : isCombatEquipment ? '冒险装备' : '农产自营'}
+                                                {category.label}
                                             </span>
                                             <span className="flex items-center gap-0.5 text-[11px] text-slate-500 font-medium">
                                                 <User className="h-3 w-3 text-slate-400" />
@@ -129,7 +122,7 @@ export function MarketListings({items}: {items: MarketListing[]}) {
             </div>
 
             {/* 右侧：挂牌物语与卖家档案 */}
-            <div className="h-full min-h-0 hidden lg:block">
+            <div className="h-full min-h-0 min-w-0 hidden lg:block">
                 <MarketDetailSidebar type="listing" listing={selectedListing} />
             </div>
         </div>

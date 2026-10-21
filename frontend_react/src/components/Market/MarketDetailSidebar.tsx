@@ -4,7 +4,8 @@ import type {MarketSlot, MarketListing, MarketTransaction, MarketSupply} from '.
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
 import {getSkuKnowledge, getSupplyKnowledge} from './marketMetadata';
-import {marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
+import {marketListingCategory, marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
+import {MarketListingItemIcon} from './MarketListingItemIcon';
 import {elementStatLabels, equipmentSlotLabel, formatRatio, statLabels} from '../Combat/presentation';
 
 export interface MarketSidebarProps {
@@ -202,10 +203,9 @@ export function MarketDetailSidebar({
     // 2. 如果是居民集市的挂牌详情
     if (type === 'listing' && listing) {
         const item = listing.item;
-        const iconSrc = item.iconAssetId ? `/api/resource/view/${item.iconAssetId}` : farmItemIcon(item.source?.sku || '');
         const isGold = item.source?.quality === 'gold';
-        const isSouvenir = item.kind === 'souvenir';
-        const isCombatEquipment = item.kind === 'combat_equipment';
+        const isCombatEquipment = item.kind === 'combat_equipment' || item.source?.kind === 'combat_equipment';
+        const category = marketListingCategory(item);
 
         return (
             <div className="flex h-full flex-col gap-4 overflow-y-auto scrollbar-hide text-xs">
@@ -213,9 +213,8 @@ export function MarketDetailSidebar({
                 <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-orange-50/30 to-white p-4 shadow-xs">
                     <div className="flex items-start gap-3.5">
                         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-orange-200/80 bg-white p-2 shadow-xs">
-                            <ItemIconImage
-                                src={iconSrc}
-                                alt={item.name}
+                            <MarketListingItemIcon
+                                item={item}
                                 className="h-10 w-10"
                                 fallback={<Sparkles className="h-8 w-8 text-orange-400" />}
                             />
@@ -228,10 +227,10 @@ export function MarketDetailSidebar({
 
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none ${
-                                    isGold ? 'bg-amber-50 border-amber-200 text-amber-700' : isSouvenir ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                    {hasItemStars(item.source?.sku) ? `★${item.source?.stars || 1} ${item.source?.sku?.startsWith('dish.') ? '美食' : '农作物'}` : isGold ? '金色品质' : isSouvenir ? '旅行纪念品' : isCombatEquipment ? '冒险装备' : '标准农产品'}
+                                <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none ${category.className}`}>
+                                    {hasItemStars(item.source?.sku) && category.label === '农产自营'
+                                        ? `★${item.source?.stars || 1} ${item.source?.sku?.startsWith('dish.') ? '美食' : '农作物'}`
+                                        : isGold && category.label === '金色' ? '金色品质' : category.label}
                                 </span>
                             </div>
                             <h3 className="mt-1.5 text-sm font-bold text-slate-900 truncate">{item.name}</h3>

@@ -1,3 +1,5 @@
+import type {MarketItem} from '../../types/api/market';
+
 export const marketOperationLabels: Record<string, string> = {
     adjust_life_budget: '调整采购预算（不计市场次数）',
     buy_shop: '购买商店商品', buy_listing: '购买居民商品', sell: '出售给商店', list: '上架商品', reprice: '调整价格', withdraw: '撤回商品',
@@ -7,6 +9,29 @@ export const marketOperationLabels: Record<string, string> = {
 };
 export const marketTime = (value?: string) => value ? new Date(value).toLocaleString('zh-CN', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '—';
 export const marketMoney = (value: string) => Number(value).toLocaleString('zh-CN', {maximumFractionDigits: 2});
+
+export function marketListingCategory(item: MarketItem) {
+    const sku = item.source?.sku || '';
+    if (item.kind === 'combat_material' || item.source?.kind === 'combat_material' || sku.startsWith('combat.material.')) {
+        return {label: '冒险材料', className: 'bg-sky-50 border-sky-200 text-sky-700'};
+    }
+    if (item.kind === 'combat_equipment' || item.source?.kind === 'combat_equipment') {
+        return {label: '冒险装备', className: 'bg-orange-50 border-orange-200 text-orange-700'};
+    }
+    if (item.kind === 'souvenir') {
+        return {label: '纪念品', className: 'bg-indigo-50 border-indigo-200 text-indigo-700'};
+    }
+    if (item.source?.quality === 'gold') {
+        return {label: '金色', className: 'bg-amber-50 border-amber-200 text-amber-700'};
+    }
+    if (sku.startsWith('dish.')) {
+        return {label: '美食', className: 'bg-rose-50 border-rose-200 text-rose-700'};
+    }
+    if (sku.startsWith('elixir.')) {
+        return {label: '炼金成品', className: 'bg-violet-50 border-violet-200 text-violet-700'};
+    }
+    return {label: '农产自营', className: 'bg-emerald-50 border-emerald-200 text-emerald-700'};
+}
 
 const unknownSkuLabels: Array<[string, string]> = [
     ['seed.', '作物种子'],

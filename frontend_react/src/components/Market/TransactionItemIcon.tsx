@@ -45,7 +45,11 @@ const CROP_NAME_TO_KIND: Record<string, string> = {
 
 const MATERIAL_NAME_MAP: Record<string, string> = {
     '黏液': 'material.moss_cave.1',
+    '绒耳兔毛': 'material.sprout_meadow.rabbit',
+    '叶壳碎片': 'material.sprout_meadow.beetle',
+    '晨光粉尘': 'material.sprout_meadow.glowbug',
     '蝠翼': 'material.moss_cave.2',
+    '晶蜥鳞': 'material.moss_cave.crystal_lizard',
     '苔石碎片': 'material.moss_cave.3',
     '苔石洞窟印记': 'material.moss_cave.4',
     '矿鼠皮': 'material.abandoned_mine.1',
