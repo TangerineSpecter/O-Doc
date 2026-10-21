@@ -1,7 +1,7 @@
 import {Ban, Clock3, SlidersHorizontal, Target} from 'lucide-react';
 import type {ReactNode} from 'react';
 import type {MarketAutomationPlan} from '../../types/api/market';
-import {marketMoney} from './marketPresentation';
+import {marketEquipmentSlotLabels, marketMoney, marketSkuName, marketTickStatusLabels} from './marketPresentation';
 
 const kindLabel: Record<string, string> = {shop: '商店', listing: '居民挂牌', equipment: '装备'};
 const statusLabel: Record<string, string> = {
@@ -24,7 +24,11 @@ function Pill({children, tone = 'slate'}: {children: ReactNode; tone?: 'slate' |
     return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${classes}`}>{children}</span>;
 }
 
-function PlanCard({plan}: {plan: MarketAutomationPlan}) {
+function PlanCard({plan, actorName, itemNames}: {
+    plan: MarketAutomationPlan;
+    actorName: string;
+    itemNames: Record<string, string>;
+}) {
     const budget = Number(plan.budget || 0);
     const spent = Number(plan.spent || 0);
     const ratio = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
@@ -32,9 +36,9 @@ function PlanCard({plan}: {plan: MarketAutomationPlan}) {
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <header className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-800">{plan.actorName || plan.actorId}</span>
+                    <span className="text-sm font-bold text-slate-800">{actorName}</span>
                     <Pill tone={plan.status === 'active' ? 'emerald' : plan.status === 'failed' ? 'red' : 'slate'}>
-                        {statusLabel[plan.status] || plan.status}
+                        {statusLabel[plan.status] || '状态未知'}
                     </Pill>
                 </div>
                 <div className="text-xs text-slate-500 tabular-nums">
@@ -59,9 +63,13 @@ function PlanCard({plan}: {plan: MarketAutomationPlan}) {
                                 <li key={goal.id} className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-600">
                                     <span className="min-w-0 truncate">
                                         <span className="mr-1 rounded bg-white px-1 py-0.5 font-semibold text-slate-500 ring-1 ring-slate-200">
-                                            {kindLabel[goal.kind] || goal.kind}
+                                            {kindLabel[goal.kind] || '采购'}
                                         </span>
-                                        {goal.sku || goal.slot}
+                                        <span>
+                                            {goal.kind === 'equipment'
+                                                ? marketEquipmentSlotLabels[goal.slot] || '装备部位'
+                                                : marketSkuName(goal.sku || goal.slot, itemNames)}
+                                        </span>
                                         {goal.minStars > 1 ? ` · ${goal.minStars}星以上` : ''}
                                     </span>
                                     <span className="tabular-nums text-slate-500">
@@ -84,7 +92,7 @@ function PlanCard({plan}: {plan: MarketAutomationPlan}) {
                         <ul className="mt-2 max-h-32 space-y-1.5 overflow-y-auto scrollbar-hide">
                             {plan.dispositions.map(row => (
                                 <li key={row.sku} className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-600">
-                                    <span className="min-w-0 truncate">{row.sku}</span>
+                                    <span className="min-w-0 truncate">{marketSkuName(row.sku, itemNames)}</span>
                                     <span className="tabular-nums text-slate-500">
                                         留 {row.targetHold} · 卖 {row.sellRatio}% · 挂 {row.listRatio}% ·{' '}
                                         {row.starOrder === 'high' ? '高星优先' : '低星优先'}
@@ -108,7 +116,7 @@ function PlanCard({plan}: {plan: MarketAutomationPlan}) {
                         <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto scrollbar-hide">
                             {plan.noBuy.map(row => (
                                 <li key={row.equipmentId} className="truncate text-[11px] text-slate-500">
-                                    {row.equipmentId} · {row.reason || '比较后判定不买'}
+                                    已记录一件不购买装备 · {row.reason || '比较后判定不买'}
                                 </li>
                             ))}
                         </ul>
@@ -129,7 +137,7 @@ function PlanCard({plan}: {plan: MarketAutomationPlan}) {
                                     <span className="tabular-nums">{new Date(tick.scheduledAt).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}</span>
                                     {' · '}
                                     <span className={tick.status === 'done' ? 'text-emerald-600' : tick.status === 'failed' ? 'text-red-600' : ''}>
-                                        {tick.status}
+                                        {marketTickStatusLabels[tick.status] || '状态未知'}
                                     </span>
                                     {tick.reason ? ` · ${tick.reason}` : ''}
                                 </li>
@@ -144,7 +152,11 @@ function PlanCard({plan}: {plan: MarketAutomationPlan}) {
     );
 }
 
-export function MarketPlanPanel({plans}: {plans: MarketAutomationPlan[]}) {
+export function MarketPlanPanel({plans, residents = [], itemNames = {}}: {
+    plans: MarketAutomationPlan[];
+    residents?: Array<{id: string; name: string}>;
+    itemNames?: Record<string, string>;
+}) {
     if (!plans.length) {
         return (
             <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
@@ -156,7 +168,11 @@ export function MarketPlanPanel({plans}: {plans: MarketAutomationPlan[]}) {
     }
     return (
         <div className="flex-1 space-y-3 overflow-y-auto scrollbar-hide pb-1">
-            {plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}
+            {plans.map(plan => {
+                const residentName = residents.find(resident => resident.id === plan.actorId)?.name;
+                const actorName = residentName || (plan.actorName && plan.actorName !== plan.actorId ? plan.actorName : '未知居民');
+                return <PlanCard key={plan.id} plan={plan} actorName={actorName} itemNames={itemNames} />;
+            })}
         </div>
     );
 }

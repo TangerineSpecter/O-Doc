@@ -17,6 +17,7 @@ import {
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {Select} from '../common/Select';
 import {useMarket} from '../../hooks/useMarket';
+import {useMarketItemNames} from '../../hooks/useMarketItemNames';
 import type {MarketTab} from '../../types/api/market';
 import {MarketShop} from './MarketShop';
 import {MarketListings} from './MarketListings';
@@ -39,6 +40,7 @@ export default function MarketDialog({
     residents: Array<{id: string; name: string; avatar?: string}>;
 }) {
     const market = useMarket();
+    const marketItemNames = useMarketItemNames(market.tab === 'plan');
     const data =
         market.tab === 'listings'
             ? market.listings
@@ -101,7 +103,7 @@ export default function MarketDialog({
                 </div>
 
                 {/* 胶囊分段导航条 + 快捷检索栏 */}
-                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+                <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-2">
                     {/* 分段控制器 */}
                     <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-full bg-slate-100 p-0.5 scrollbar-hide">
                         {tabs.map(tab => {
@@ -193,7 +195,11 @@ export default function MarketDialog({
                             </div>
                         )
                     ) : market.tab === 'plan' ? (
-                        <MarketPlanPanel plans={market.automation?.plans || []} />
+                        <MarketPlanPanel
+                            plans={market.automation?.plans || []}
+                            residents={residents}
+                            itemNames={marketItemNames}
+                        />
                     ) : !data?.items.length ? (
                         <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
                             <Sparkles className="h-10 w-10 text-orange-300" />

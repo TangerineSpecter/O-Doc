@@ -7,3 +7,31 @@ export const marketOperationLabels: Record<string, string> = {
 };
 export const marketTime = (value?: string) => value ? new Date(value).toLocaleString('zh-CN', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '—';
 export const marketMoney = (value: string) => Number(value).toLocaleString('zh-CN', {maximumFractionDigits: 2});
+
+const unknownSkuLabels: Array<[string, string]> = [
+    ['seed.', '作物种子'],
+    ['crop.', '农作物'],
+    ['product.', '畜牧产物'],
+    ['dish.', '美食'],
+    ['elixir.', '炼金药剂'],
+    ['combat.material.', '冒险材料'],
+    ['material.', '冒险材料'],
+    ['fertilizer.', '肥料'],
+    ['animal.', '牧场动物'],
+    ['souvenir.', '旅行纪念品'],
+];
+
+export function marketSkuName(sku: string, names: Record<string, string>) {
+    if (names[sku]) return names[sku];
+    if (sku === 'feed') return '饲料';
+    return unknownSkuLabels.find(([prefix]) => sku.startsWith(prefix))?.[1] || '集市商品';
+}
+
+export const marketEquipmentSlotLabels: Record<string, string> = {
+    weapon: '武器', offhand: '副手', head: '头饰', body: '护甲', hands: '手套',
+    legs: '护腿', feet: '靴子', accessory: '吊坠', ring_1: '戒指位 1', ring_2: '戒指位 2',
+};
+
+export const marketTickStatusLabels: Record<string, string> = {
+    pending: '待处理', running: '执行中', done: '已完成', failed: '失败', skipped: '跳过',
+};
