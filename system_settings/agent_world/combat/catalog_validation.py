@@ -79,8 +79,8 @@ def validate(directory: Path = DIRECTORY, *, expected_status: str = 'released') 
 
     # Promotion gates are catalog-versioned: historical catalogs keep their
     # original level-70 third promotion while combat-1.0.10 starts it at 50.
-    promotion_level = 50 if manifest['version'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19'} else 70
-    expected_skills = 74 if manifest['version'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19'} else 73 if manifest['version'] in {'combat-1.0.11','combat-1.0.12'} else 71
+    promotion_level = 50 if manifest['version'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19', 'combat-1.0.20'} else 70
+    expected_skills = 74 if manifest['version'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19', 'combat-1.0.20'} else 73 if manifest['version'] in {'combat-1.0.11','combat-1.0.12'} else 71
     return validate_tables(tables, expected_player_skills=expected_skills,
                            expected_promotion_level=promotion_level, catalog_version=manifest['version'])
 
@@ -88,7 +88,7 @@ def validate(directory: Path = DIRECTORY, *, expected_status: str = 'released') 
 def validate_tables(tables, *, expected_player_skills: int | None = None,
                     expected_promotion_level: int = 70, catalog_version: str = ''):
     indexes = {name: {r['id']: r for r in rows} for name, rows in tables.items()}
-    modern_equipment_rules = catalog_version in {'combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19'}
+    modern_equipment_rules = catalog_version in {'combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19', 'combat-1.0.20'}
 
     def reference(table: str, field: str, target: str, optional: bool = False) -> None:
         for row in tables[table]:
@@ -311,7 +311,7 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
         require(permission_map['equip.dagger'] <= jobs_by_root['job.ranger'] and 'job.novice' not in permission_map['equip.dagger'], 'Dagger profession restriction')
         if catalog_version == 'combat-1.0.11':
             require(permission_map['equip.two_handed_sword']=={'job.swordmaster','job.berserker'}, 'Historical two-handed sword permission map')
-        elif catalog_version in {'combat-1.0.12', 'combat-1.0.13', 'combat-1.0.14', 'combat-1.0.15', 'combat-1.0.16', 'combat-1.0.17', 'combat-1.0.18', 'combat-1.0.19'}:
+        elif catalog_version in {'combat-1.0.12', 'combat-1.0.13', 'combat-1.0.14', 'combat-1.0.15', 'combat-1.0.16', 'combat-1.0.17', 'combat-1.0.18', 'combat-1.0.19', 'combat-1.0.20'}:
             for equipment in tables['equipment_templates']:
                 mastery_ids=[identity for identity in equipment.get('required_mastery','').split(';') if identity]
                 if not mastery_ids:
@@ -358,7 +358,7 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
             require(pair not in seen_resists, 'Duplicate monster resist')
             seen_resists.add(pair)
     rules = {r['id']: number(r, 'value') for r in tables['rules']}
-    if catalog_version == 'combat-1.0.19':
+    if catalog_version in {'combat-1.0.19', 'combat-1.0.20'}:
         require(rules['element_power_min'] == 0 and rules['element_power_max'] == .4, 'Element power caps')
         require(rules['element_resist_min'] == -.25 and rules['element_resist_max'] == .45, 'Element resist caps')
         require(rules['element_factor_min'] == .6 and rules['element_factor_max'] == 1.5, 'Element factor caps')

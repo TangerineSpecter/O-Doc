@@ -16,6 +16,8 @@ export default function CombatLoadoutSlots({
     onFlip,
     portraitImageUrl,
     portraitScale,
+    portraitOffsetX,
+    portraitOffsetY,
     onEditPortrait,
 }: {
     profile: CombatProfile;
@@ -24,6 +26,8 @@ export default function CombatLoadoutSlots({
     onFlip?: () => void;
     portraitImageUrl?: string;
     portraitScale: number;
+    portraitOffsetX: number;
+    portraitOffsetY: number;
     onEditPortrait: () => void;
 }) {
     const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
@@ -136,6 +140,8 @@ export default function CombatLoadoutSlots({
                     <DiabloHumanSilhouette
                         imageUrl={portraitImageUrl}
                         imageScale={portraitScale}
+                        imageOffsetX={portraitOffsetX}
+                        imageOffsetY={portraitOffsetY}
                         activeSlot={hoveredSlot}
                         archetype={heroArchetype}
                         equippedSlots={equippedSlots}

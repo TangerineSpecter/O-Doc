@@ -218,6 +218,16 @@ class Agent(models.Model):
         db_comment='装备页立绘缩放，随 Agent 配置同步'
     )
 
+    loadout_portrait_offset_x = models.FloatField(
+        default=0.0, verbose_name='冒险立绘水平偏移',
+        db_comment='装备页立绘水平位置，随 Agent 配置同步'
+    )
+
+    loadout_portrait_offset_y = models.FloatField(
+        default=0.0, verbose_name='冒险立绘垂直偏移',
+        db_comment='装备页立绘垂直位置，随 Agent 配置同步'
+    )
+
     battle_appearance = models.JSONField(
         null=True, blank=True, default=None,
         verbose_name='战斗形象',

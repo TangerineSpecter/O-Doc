@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.19",
+  "version": "combat-1.0.20",
   "status": "released",
   "engine_schema": 5,
   "files": {
@@ -20,11 +20,11 @@
       "rows": 56
     },
     "dungeon_monsters.csv": {
-      "sha256": "908bfe0aafff135d8390c62ddad53e015be7281bdd664017553abdafa4311454",
+      "sha256": "89c1793c02dd4ac45e56c0d5c41e04bb5f0cadd22880f3d8a531aca449c8ed7d",
       "rows": 22
     },
     "dungeons.csv": {
-      "sha256": "2811b3333921d92e8ae30aac87e0b66f90e352dbfad9805705fdaebaf72e028f",
+      "sha256": "dfc713fe497737abbdf0f96d8a425496fdf5cf239fcbdb4568a17f998542a26f",
       "rows": 7
     },
     "equipment_affixes.csv": {
@@ -68,7 +68,7 @@
       "rows": 53
     },
     "monsters.csv": {
-      "sha256": "ee4b582319f3ad726b5c53c62e4ca70534f5dbb30e2b11ac3b3fd8bb2d79e912",
+      "sha256": "83634dec595427e6ddf19733c92553a05460efcf7029bdecde3afbee583c0d45",
       "rows": 28
     },
     "potions.csv": {

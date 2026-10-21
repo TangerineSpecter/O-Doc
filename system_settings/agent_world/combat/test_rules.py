@@ -105,6 +105,34 @@ class RuleTests(SimpleTestCase):
         effects.status(a,{'code':'shield','group':'shield','remaining':30,'expires':3})
         self.assertEqual(a['states'][0],{'code':'shield','group':'shield','remaining':30,'expires':4})
 
+    def test_moss_cave_levels_and_drops_match_region(self):
+        c = self.catalog
+        dungeon = c.row('dungeons', 'dungeon.moss_cave')
+        for prefix in ('recommended', 'equipment', 'boss'):
+            expected = (15, 20) if prefix == 'boss' else (10, 20)
+            self.assertEqual(tuple(int(dungeon[f'{prefix}_level_{edge}']) for edge in ('min', 'max')), expected)
+        for monster_id, expected in (
+            ('monster.cave_bat', (10, 14)),
+            ('monster.cave_crystal_lizard', (12, 16)),
+            ('monster.moss_beast', (13, 17)),
+            ('monster.moss_king', (15, 20)),
+        ):
+            monster = c.row('monsters', monster_id)
+            self.assertEqual(tuple(int(monster[f'level_{edge}']) for edge in ('min', 'max')), expected)
+            if monster['rank'] != 'boss':
+                encounter = next(row for row in c.tables['dungeon_monsters'] if row['monster_id'] == monster_id)
+                self.assertEqual(tuple(int(encounter[f'level_{edge}']) for edge in ('min', 'max')), expected)
+            generated_levels = set()
+            for level in range(expected[0], expected[1] + 1):
+                for seed in range(30):
+                    rows = rewards.drops(c, monster_id, level, {'loot': 2, 'gear': 1}, random.Random(seed),
+                                         {'maze_equipment_drop_bonus_percentage': 100})
+                    gear = next(row['item'] for row in rows if row['kind'] == 'equipment')
+                    self.assertGreaterEqual(gear['level'], 10)
+                    self.assertLessEqual(gear['level'], min(level, 20))
+                    generated_levels.add(gear['level'])
+            self.assertGreater(max(generated_levels), 10)
+
     def test_equipment_drop_levels_respect_region_monster_and_template(self):
         c=self.catalog
         for dungeon in c.tables['dungeons']:
@@ -166,7 +194,7 @@ class RuleTests(SimpleTestCase):
 
     def test_element_factor_follows_channel_damage_and_stays_bounded(self):
         c = self.catalog
-        self.assertEqual(c.version, 'combat-1.0.19')
+        self.assertEqual(c.version, 'combat-1.0.20')
         defender = engine.fighter({'hp_max': 1000, 'mp_max': 10, 'physical_defense': 60}, '守方', 10)
         self.assertEqual(effects.damage(150, 'physical', 10, defender, variation=1), 100)
         defender['defending'] = True

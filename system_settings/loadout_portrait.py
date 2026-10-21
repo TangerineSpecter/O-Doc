@@ -15,19 +15,56 @@ def build_portrait_request(agent, arguments: dict, options: dict, *, owner_id: s
     if not options.get('supports_reference_images'):
         raise ValueError('请选择支持参考图的生图模型，以保留 Agent 外貌')
     override = data.pop('reference_image_id', None)
-    if override is not None:
+    style_reference = data.pop('style_reference_image_id', None)
+
+    def validate_uploaded_reference(resource_id, label):
+        if resource_id is None:
+            return
         from assets.models import Asset
-        if not isinstance(override, str) or not override or len(override) > 32:
-            raise ValueError('参考图资源 ID 无效')
-        if not owner_id or not Asset.objects.filter(pk=override, uploader=owner_id, file_type='image', is_valid=True).exists():
-            raise ValueError('参考图不存在、不是图片或不属于当前账号')
-    references = {} if override else options.get('agent_reference_images', {})
-    ids = [override] if override else list(dict.fromkeys(value for key in ('avatar', 'full_body') if (value := references.get(key))))
-    if not ids:
+
+        if not isinstance(resource_id, str) or not resource_id or len(resource_id) > 32:
+            raise ValueError(f'{label}资源 ID 无效')
+        if not owner_id or not Asset.objects.filter(
+            pk=resource_id, uploader=owner_id, file_type='image', is_valid=True,
+        ).exists():
+            raise ValueError(f'{label}不存在、不是图片或不属于当前账号')
+
+    validate_uploaded_reference(override, '角色参考图')
+    validate_uploaded_reference(style_reference, '画风参考图')
+
+    if override:
+        character_references = [(override, 'user-uploaded character identity and appearance reference')]
+    else:
+        references = options.get('agent_reference_images', {})
+        character_references = []
+        if references.get('avatar'):
+            character_references.append((references['avatar'], 'Agent avatar identity reference'))
+        if references.get('full_body') and references['full_body'] not in [value for value, _ in character_references]:
+            character_references.append((references['full_body'], 'Agent full-body appearance and clothing reference'))
+
+    if not character_references:
         raise ValueError('请上传本次参考图，或为 Agent 上传头像／全身图；Emoji 和外部地址不能作为参考图')
-    # The dedicated override is owner-checked; ignore the generic reference list.
+
+    if style_reference and style_reference in [value for value, _ in character_references]:
+        raise ValueError('角色参考图与画风参考图请使用不同图片')
+
+    max_references = max(0, int(options.get('max_reference_images') or 0))
+    if style_reference and max_references < 2:
+        raise ValueError('当前模型不能同时使用角色和画风参考图，请切换支持多图参考的模型')
+    ordered_references = list(character_references)
+    if style_reference:
+        ordered_references = [
+            ordered_references[0],
+            (style_reference, 'art style ONLY: linework, color palette, shading and rendering; ignore identity, face, hair, clothing, pose, composition and objects'),
+            *ordered_references[1:],
+        ]
+    ordered_references = ordered_references[:max_references]
+    if style_reference and not any(value == style_reference for value, _ in ordered_references):
+        raise ValueError('当前模型参考图数量不足，无法同时使用角色和画风参考图')
+
+    # The role-specific uploads are owner-checked; ignore the generic reference list.
     data.pop('reference_image_ids', None)
-    data['reference_image_ids'] = ids[:options.get('max_reference_images', 0)]
+    data['reference_image_ids'] = [value for value, _ in ordered_references]
     profile = CombatProfile.objects.filter(pk=str(agent.pk)).first()
     job_id = (profile.progression or {}).get('job', 'job.novice') if profile else 'job.novice'
     # The general role projection also includes identity/background and legacy prompts.
@@ -41,11 +78,16 @@ def build_portrait_request(agent, arguments: dict, options: dict, *, owner_id: s
         'Use an EXACTLY flat solid magenta (#FF00FF) background, including enclosed gaps, for chroma removal; '
         'do not use magenta inside the character. '
     )
+    reference_roles = '; '.join(
+        f'IMAGE {index} = {role}' for index, (_, role) in enumerate(ordered_references, start=1)
+    )
     data['prompt'] = (
         'Create ONE full-body fantasy RPG adventurer illustration for an equipment screen. '
         'Use polished hand-drawn anime game illustration, clean outlines, soft painterly shading, readable details. '
-        'The first attached reference defines character identity. Preserve face, hair color and style, eye color, '
-        'signature accessories, silhouette and body proportions. Other references supplement appearance. '
+        'Attached reference roles in the provider images[] array order: ' + reference_roles + '. '
+        'Use character references only for character identity, recognizable face, hair, eye color, outfit, accessories, '
+        'silhouette and body proportions. An image marked art style ONLY may affect linework, palette, shading and rendering; '
+        'never copy its character identity, face, hair, clothing, pose, composition or objects. '
         f'Current combat profession: {job_id}. Adapt a practical fantasy adventure outfit to this profession while '
         'preserving recognizable character design. Use a relaxed front-facing three-quarter standing pose and a '
         'modest profession-appropriate weapon. Show all hair ornaments and both feet, centered with 8 percent margin. '

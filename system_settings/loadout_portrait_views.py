@@ -13,18 +13,36 @@ from .loadout_portrait import SCENE, build_portrait_request
 
 class PortraitApplicationInput(serializers.Serializer):
     task_id = serializers.CharField(max_length=32, required=False)
+    asset_id = serializers.CharField(max_length=32, required=False)
     scale = serializers.FloatField(min_value=0.6, max_value=1.5, required=False)
+    offset_x = serializers.FloatField(min_value=-20, max_value=20, required=False)
+    offset_y = serializers.FloatField(min_value=-20, max_value=20, required=False)
 
     def validate_scale(self, value):
         if not math.isfinite(value):
             raise serializers.ValidationError('显示比例须为有限数字')
         return value
 
+    def validate_offset_x(self, value):
+        if not math.isfinite(value):
+            raise serializers.ValidationError('水平偏移须为有限数字')
+        return value
+
+    def validate_offset_y(self, value):
+        if not math.isfinite(value):
+            raise serializers.ValidationError('垂直偏移须为有限数字')
+        return value
+
     def validate(self, values):
         if not values:
-            raise serializers.ValidationError('请提供立绘任务 ID 或显示比例')
+            raise serializers.ValidationError('请提供立绘任务 ID 或显示设置')
+        if 'task_id' in values and 'asset_id' in values:
+            raise serializers.ValidationError('请只选择一种立绘来源')
         if isinstance(self.initial_data.get('scale'), bool):
             raise serializers.ValidationError('显示比例须为数字')
+        for field, label in (('offset_x', '水平偏移'), ('offset_y', '垂直偏移')):
+            if isinstance(self.initial_data.get(field), bool):
+                raise serializers.ValidationError(f'{label}须为数字')
         return values
 
 
@@ -53,19 +71,43 @@ class LoadoutPortraitActions:
                 if not task or not Asset.objects.filter(pk=task.asset_id, uploader=owner, is_valid=True, file_type='image').exists():
                     return valid_result('请选择当前 Agent 已完成的立绘结果', status=400)
                 agent.loadout_portrait = get_resource_view_url(task.asset_id)
+            elif 'asset_id' in data:
+                asset = Asset.objects.filter(
+                    pk=data['asset_id'], uploader=owner, is_valid=True, file_type='image',
+                ).first()
+                if not asset:
+                    return valid_result('请选择当前账号已上传的有效图片', status=400)
+                agent.loadout_portrait = get_resource_view_url(asset.pk)
             elif not current_id or not Asset.objects.filter(pk=current_id, uploader=owner, is_valid=True, file_type='image').exists():
-                return valid_result('请先应用一张立绘，再调整显示比例', status=400)
+                return valid_result('请先应用一张立绘，再调整显示设置', status=400)
             if 'scale' in data:
                 agent.loadout_portrait_scale = data['scale']
-            agent.save(update_fields=['loadout_portrait', 'loadout_portrait_scale', 'updated_at'])
+            if 'offset_x' in data:
+                agent.loadout_portrait_offset_x = data['offset_x']
+            if 'offset_y' in data:
+                agent.loadout_portrait_offset_y = data['offset_y']
+            agent.save(update_fields=[
+                'loadout_portrait', 'loadout_portrait_scale',
+                'loadout_portrait_offset_x', 'loadout_portrait_offset_y', 'updated_at',
+            ])
         elif request.method == 'DELETE':
             agent.loadout_portrait = ''
             agent.loadout_portrait_scale = 1.0
-            agent.save(update_fields=['loadout_portrait', 'loadout_portrait_scale', 'updated_at'])
+            agent.loadout_portrait_offset_x = 0.0
+            agent.loadout_portrait_offset_y = 0.0
+            agent.save(update_fields=[
+                'loadout_portrait', 'loadout_portrait_scale',
+                'loadout_portrait_offset_x', 'loadout_portrait_offset_y', 'updated_at',
+            ])
         asset_id = extract_resource_id_from_view_url(agent.loadout_portrait)
         if asset_id and not Asset.objects.filter(pk=asset_id, uploader=owner, is_valid=True).exists():
-            return success_result({'image_url': '', 'asset_id': '', 'scale': 1.0})
-        return success_result({'image_url': agent.loadout_portrait, 'asset_id': asset_id or '', 'scale': agent.loadout_portrait_scale})
+            return success_result({'image_url': '', 'asset_id': '', 'scale': 1.0, 'offset_x': 0.0, 'offset_y': 0.0})
+        return success_result({
+            'image_url': agent.loadout_portrait, 'asset_id': asset_id or '',
+            'scale': agent.loadout_portrait_scale,
+            'offset_x': agent.loadout_portrait_offset_x,
+            'offset_y': agent.loadout_portrait_offset_y,
+        })
 
     @action(detail=True, methods=['get'], url_path='loadout-portrait-options', permission_classes=[IsAuthenticated])
     def loadout_portrait_options(self, request, pk=None):

@@ -275,6 +275,8 @@ export default function CombatProfilePanel({
                                 profile={profile}
                                 portraitImageUrl={portraitImage.url}
                                 portraitScale={portrait.saved.scale}
+                                portraitOffsetX={portrait.saved.offsetX}
+                                portraitOffsetY={portrait.saved.offsetY}
                                 onEditPortrait={() => setPortraitOpen(true)}
                                 disabled={busy}
                                 onInspect={(item, remove, slot) => setPreview({item, remove, slot})}
@@ -320,6 +322,8 @@ export default function CombatProfilePanel({
                                 profile={profile}
                                 portraitImageUrl={portraitImage.url}
                                 portraitScale={portrait.saved.scale}
+                                portraitOffsetX={portrait.saved.offsetX}
+                                portraitOffsetY={portrait.saved.offsetY}
                                 onEditPortrait={() => setPortraitOpen(true)}
                                 disabled={busy}
                                 onInspect={(item, remove, slot) => setPreview({item, remove, slot})}

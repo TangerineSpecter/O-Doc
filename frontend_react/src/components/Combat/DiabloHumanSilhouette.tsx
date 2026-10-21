@@ -80,7 +80,7 @@ interface ConduitLineGeometry {
     ty: number;
 }
 
-function buildFallbackGeometry(archetype: LoadoutHeroArchetype): {
+function buildFallbackGeometry(archetype: LoadoutHeroArchetype, offsetX = 0, offsetY = 0): {
     width: number;
     height: number;
     lines: ConduitLineGeometry[];
@@ -96,8 +96,8 @@ function buildFallbackGeometry(archetype: LoadoutHeroArchetype): {
     const lines = ALL_SLOTS.map(slot => {
         const start = FALLBACK_SLOT_CENTERS[slot] || {sx: width / 2, sy: height / 2};
         const anchor = anchors[slot] || {nx: 0.5, ny: 0.5};
-        const tx = heroLeft + heroWidth * anchor.nx;
-        const ty = heroTop + heroHeight * anchor.ny;
+        const tx = heroLeft + heroWidth * (anchor.nx + offsetX / 100);
+        const ty = heroTop + heroHeight * (anchor.ny + offsetY / 100);
         const midX = start.sx + (tx - start.sx) * 0.55;
         return {
             slot,
@@ -123,6 +123,8 @@ function resolveLineColor(isActive: boolean, quality?: string): string {
 export function DiabloHumanSilhouette({
     imageUrl,
     imageScale = 1,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
     activeSlot,
     archetype = 'warrior',
     equippedSlots,
@@ -131,6 +133,8 @@ export function DiabloHumanSilhouette({
 }: {
     imageUrl?: string;
     imageScale?: number;
+    imageOffsetX?: number;
+    imageOffsetY?: number;
     activeSlot?: string | null;
     archetype?: LoadoutHeroArchetype;
     equippedSlots?: Map<string, PresentedLoadoutItem>;
@@ -144,14 +148,14 @@ export function DiabloHumanSilhouette({
         const stageEl = stageRef?.current;
         const heroEl = heroImgRef.current;
         if (!stageEl || !heroEl) {
-            setGeometry(buildFallbackGeometry(archetype));
+            setGeometry(buildFallbackGeometry(archetype, imageOffsetX, imageOffsetY));
             return;
         }
 
         const stageRect = stageEl.getBoundingClientRect();
         const heroRect = heroEl.getBoundingClientRect();
         if (stageRect.width <= 0 || stageRect.height <= 0 || heroRect.width <= 0 || heroRect.height <= 0) {
-            setGeometry(buildFallbackGeometry(archetype));
+            setGeometry(buildFallbackGeometry(archetype, imageOffsetX, imageOffsetY));
             return;
         }
 
@@ -185,11 +189,11 @@ export function DiabloHumanSilhouette({
             height: stageRect.height,
             lines,
         });
-    }, [archetype, stageRef, imageScale, imageUrl]);
+    }, [archetype, stageRef, imageOffsetX, imageOffsetY]);
 
     useLayoutEffect(() => {
         measureConduits();
-    }, [measureConduits]);
+    }, [measureConduits, imageScale, imageUrl]);
 
     useEffect(() => {
         const stageEl = stageRef?.current;
@@ -273,7 +277,7 @@ export function DiabloHumanSilhouette({
                 }}
             >
                 <img
-                    style={imageUrl ? {transform: `scale(${imageScale})`, transformOrigin: '50% 95.7%'} : undefined}
+                    style={imageUrl ? {transform: `translate(${imageOffsetX}%, ${imageOffsetY}%) scale(${imageScale})`, transformOrigin: '50% 95.7%'} : undefined}
                     ref={heroImgRef}
                     data-loadout-hero-img={archetype}
                     src={imageUrl || visual.image}

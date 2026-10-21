@@ -3,9 +3,9 @@ dungeon.sprout_meadow.slime,dungeon.sprout_meadow,monster.slime,1,5,45,drop.slim
 dungeon.sprout_meadow.fuzzy_ear_rabbit,dungeon.sprout_meadow,monster.fuzzy_ear_rabbit,1,7,25,drop.fuzzy_ear_rabbit,1
 dungeon.sprout_meadow.leafshell_beetle,dungeon.sprout_meadow,monster.leafshell_beetle,5,10,20,drop.leafshell_beetle,1
 dungeon.sprout_meadow.dawnfire_glowbug,dungeon.sprout_meadow,monster.dawnfire_glowbug,10,15,10,drop.dawnfire_glowbug,1
-dungeon.moss_cave.cave_bat,dungeon.moss_cave,monster.cave_bat,10,20,60,drop.cave_bat,1
-dungeon.moss_cave.cave_crystal_lizard,dungeon.moss_cave,monster.cave_crystal_lizard,10,20,35,drop.cave_crystal_lizard,1
-dungeon.moss_cave.moss_beast,dungeon.moss_cave,monster.moss_beast,8,12,5,drop.moss_beast,1
+dungeon.moss_cave.cave_bat,dungeon.moss_cave,monster.cave_bat,10,14,60,drop.cave_bat,1
+dungeon.moss_cave.cave_crystal_lizard,dungeon.moss_cave,monster.cave_crystal_lizard,12,16,35,drop.cave_crystal_lizard,1
+dungeon.moss_cave.moss_beast,dungeon.moss_cave,monster.moss_beast,13,17,5,drop.moss_beast,1
 dungeon.abandoned_mine.mine_rat,dungeon.abandoned_mine,monster.mine_rat,10,16,60,drop.mine_rat,1
 dungeon.abandoned_mine.ore_golem,dungeon.abandoned_mine,monster.ore_golem,14,22,35,drop.ore_golem,1
 dungeon.abandoned_mine.iron_guard,dungeon.abandoned_mine,monster.iron_guard,20,25,5,drop.iron_guard,1

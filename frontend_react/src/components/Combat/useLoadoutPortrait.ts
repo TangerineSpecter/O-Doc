@@ -22,7 +22,7 @@ export function usePortraitImage(assetId?: string) {
 
 /** Mounted with an actor key: switching residents cannot install another resident's response. */
 export function useLoadoutPortrait(agentId: string) {
-    const [saved, setSaved] = useState<SavedPortrait>({imageUrl: '', assetId: '', scale: 1});
+    const [saved, setSaved] = useState<SavedPortrait>({imageUrl: '', assetId: '', scale: 1, offsetX: 0, offsetY: 0});
     const [task, setTask] = useState<PortraitTask | null>(null);
     const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -72,8 +72,12 @@ export function useLoadoutPortrait(agentId: string) {
     }, []);
     return {saved, task, busy, loading, active, error,
         generate: (data: Parameters<typeof generatePortrait>[1]) => perform(async () => {const result = await generatePortrait(agentId, data); if (alive.current) setTask(result);}),
-        apply: (scale: number) => perform(async () => {if (!task || task.status !== 'succeeded') return; const result = await applyLoadoutPortrait(agentId, {taskId: task.taskId, scale}); if (alive.current) setSaved(result);}),
-        saveScale: (scale: number) => perform(async () => {const result = await applyLoadoutPortrait(agentId, {scale}); if (alive.current) setSaved(result);}),
+        apply: (source: {taskId?: string; assetId?: string}, scale: number, offsetX: number, offsetY: number) => perform(async () => {
+            if (source.taskId && (!task || task.taskId !== source.taskId || task.status !== 'succeeded')) return;
+            const result = await applyLoadoutPortrait(agentId, {...source, scale, offsetX, offsetY});
+            if (alive.current) setSaved(result);
+        }),
+        saveAdjustments: (scale: number, offsetX: number, offsetY: number) => perform(async () => {const result = await applyLoadoutPortrait(agentId, {scale, offsetX, offsetY}); if (alive.current) setSaved(result);}),
         clear: () => perform(async () => {const result = await clearLoadoutPortrait(agentId); if (alive.current) setSaved(result);}),
         cancel: () => perform(async () => {if (!task) return; const result = await cancelPortraitTask(agentId, task.taskId); if (alive.current) setTask(result);}),
     };
