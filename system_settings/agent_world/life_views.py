@@ -90,7 +90,11 @@ class LifeConfigView(APIView):
             if Agent.objects.filter(pk__in=added, archived_at__isnull=False).exists():
                 raise ValueError('不能新增归档居民参与生活，请先恢复')
             config.settings=settings
+            known_profiles=set(LifeProfile.objects.filter(owner_id=config.pk).values_list('pk',flat=True))
             ensure_profiles(config.pk,config.settings['agent_ids'])
+            # 新建居民自动加入社交参与名单，避免每次都要回社交设置手动勾选。
+            from .social_config import add_participants
+            add_participants(config.pk,[key for key in config.settings['agent_ids'] if key not in known_profiles])
             config.migrated=True;config.save()
             return self.get(request)
         except (ValueError,TypeError) as exc:

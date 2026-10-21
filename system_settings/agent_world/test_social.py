@@ -426,6 +426,31 @@ class SocialTests(TestCase):
         with self.assertRaises(ValueError): validate(self.owner, {'daily_replies': True})
         with self.assertRaises(ValueError): validate(self.owner, {'reply_mode': 'instant'})
 
+    def test_participants_default_to_all_residents(self):
+        from .social_models import SocialConfig
+        SocialConfig.objects.filter(pk=self.owner).delete()
+        response = self.client.get('/api/settings/agent-world/social/config/')
+        self.assertEqual(response.status_code, 200)
+        default = sorted([self.agent.pk, self.other.pk])
+        self.assertEqual(sorted(response.json()['data']['settings']['agentIds']), default)
+        self.assertEqual(sorted(SocialConfig.objects.get(pk=self.owner).settings['agent_ids']), default)
+
+    def test_saved_empty_participant_list_is_kept(self):
+        from .social_models import SocialConfig
+        SocialConfig.objects.filter(pk=self.owner).update(settings={**DEFAULTS, 'enabled': True, 'agent_ids': []})
+        settings = self.client.get('/api/settings/agent-world/social/config/').json()['data']['settings']
+        self.assertEqual(settings['agentIds'], [])
+
+    def test_new_life_resident_joins_social_participants(self):
+        from .social_models import SocialConfig
+        SocialConfig.objects.filter(pk=self.owner).update(settings={**DEFAULTS, 'agent_ids': [self.agent.pk]})
+        newcomer = Agent.objects.create(name='新居民')
+        response = self.client.post('/api/settings/agent-world/life/config/', {'settings': {
+            **LIFE_DEFAULTS, 'agent_ids': [self.agent.pk, self.other.pk, newcomer.pk]}}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        participants = SocialConfig.objects.get(pk=self.owner).settings['agent_ids']
+        self.assertEqual(participants, [self.agent.pk, newcomer.pk])
+
     def test_daily_quota_and_daily_only_mode(self):
         now = local_time().replace(hour=12, minute=0, second=0, microsecond=0)
         self.config.settings = {**self.config.settings, 'reply_mode': 'daily'}; self.config.save()

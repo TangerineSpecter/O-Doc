@@ -14,6 +14,38 @@ def config_for(owner):
     return SocialConfig.objects.get_or_create(pk=owner)[0]
 
 
+def resident_ids(owner):
+    """此账号仍可参与的生活居民，顺序稳定，已归档居民不参与。"""
+    from system_settings.models import Agent
+    ids = LifeProfile.objects.filter(owner_id=owner).values_list('pk', flat=True)
+    return list(Agent.objects.filter(pk__in=ids, archived_at__isnull=True).order_by('id').values_list('pk', flat=True))
+
+
+def ensure_participants(config):
+    """从未配置过参与名单时默认全部生活居民参与；用户保存过的名单原样保留。"""
+    if 'agent_ids' in config.settings:
+        return config
+    ids = resident_ids(config.pk)
+    if ids:
+        config.settings = {**config.settings, 'agent_ids': ids}
+        config.save(update_fields=['settings', 'updated_at'])
+    return config
+
+
+def add_participants(owner, ids):
+    """未配置名单时默认全选；已保存名单只自动追加新建居民。"""
+    rows = [key for key in dict.fromkeys(ids) if key]
+    if not rows:
+        return
+    config, _ = SocialConfig.objects.get_or_create(pk=owner)
+    has_saved_list = 'agent_ids' in config.settings
+    current = list(config.settings['agent_ids']) if has_saved_list else resident_ids(owner)
+    merged = list(dict.fromkeys([*current, *rows]))
+    if merged != current or not has_saved_list:
+        config.settings = {**config.settings, 'agent_ids': merged}
+        config.save(update_fields=['settings', 'updated_at'])
+
+
 def settings_for(config, actor=None):
     return {**DEFAULTS, **config.settings, **(config.overrides.get(actor, {}) if actor else {})}
 

@@ -11,7 +11,7 @@ from .farm_gate import guarded
 from .social_models import Moment, MomentComment, SocialInbox
 from .social_content import publish, comment, like, delete_moment, moment_data, comment_data
 from .social_discussion import user_actor, user_notifications
-from .social_config import config_for, settings_for, validate
+from .social_config import config_for, ensure_participants, settings_for, validate
 
 
 def identity_for(request):
@@ -27,7 +27,7 @@ class SocialView(APIView):
         owner = get_current_user_identifier(request)
         actor = user_actor(owner)
         if self.kind == 'config':
-            config = config_for(owner)
+            config = ensure_participants(config_for(owner))
             from .life_models import LifeProfile
             from system_settings.models import Agent
             ids = LifeProfile.objects.filter(owner_id=owner).values_list('pk', flat=True)
