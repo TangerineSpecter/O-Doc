@@ -167,7 +167,13 @@ def run(now=None, limit: int = 3) -> dict:
             tick.delete()
             continue
         config = LifeConfig.objects.filter(pk=tick.owner_id).first()
-        if config and tick.actor_id in (config.paused_agents or []):
+        if not config or not market_automation_enabled(config, now):
+            tick.status = 'skipped'
+            tick.reason = '市场自动化已关闭或生活配置不存在'
+            tick.save(update_fields=['status', 'reason', 'updated_at'])
+            result['skipped'] += 1
+            continue
+        if tick.actor_id in (config.paused_agents or []):
             tick.status = 'skipped'
             tick.reason = '居民已暂停自动执行'
             tick.save(update_fields=['status', 'reason', 'updated_at'])

@@ -482,6 +482,17 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         from .agent_world.action_schedule import progress
         return progress(obj)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.task_kind == 'market' and isinstance(data.get('market_config'), dict):
+            from .agent_world.life_models import LifeConfig
+            owner = (instance.market_config or {}).get('owner_id')
+            settings = LifeConfig.objects.filter(pk=owner).values_list('settings', flat=True).first() if owner else None
+            if isinstance(settings, dict):
+                data['market_config'] = {**data['market_config'],
+                                         'market_automation_v2': bool(settings.get('market_automation_v2', False))}
+        return data
+
     @farm_guarded
     @transaction.atomic
     def create(self, validated_data):
@@ -590,6 +601,14 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             except ValueError as exc:
                 raise serializers.ValidationError({'agents':str(exc)}) from exc
             cleanup()
+            # 市场自动化开关以生活配置为执行依据，任务配置只作为同一账号的编辑入口。
+            from .agent_world.life_models import LifeConfig
+            automation = task.market_config.get('market_automation_v2')
+            config = LifeConfig.objects.filter(pk=task.market_config['owner_id']).first()
+            if config is not None and type(automation) is bool \
+                    and config.settings.get('market_automation_v2', False) != automation:
+                config.settings = {**config.settings, 'market_automation_v2': automation}
+                config.save(update_fields=['settings'])
         if task.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'):
             from .agent_world.action_schedule import initialize
             initialize(task)

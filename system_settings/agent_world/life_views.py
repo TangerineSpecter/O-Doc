@@ -9,7 +9,7 @@ from utils.response_utils import success_result, valid_result
 from utils.drf_utils import get_current_user_identifier
 from .farm_gate import guarded
 from .life_models import LifeProfile, LifeGoal, LifeItem, LifeCycle
-from .life_config import config_for, validate_settings, ensure_profiles, effective_settings, DEFAULTS
+from .life_config import config_for, validate_settings, ensure_profiles, effective_settings, DEFAULTS, normalize_settings_keys
 from .life_time import storage_time,local_time
 from .life_schedule import OPEN, SHANGHAI, recover, revise, requeue, retry_block_reason, retry_failed, is_settled_exploration
 
@@ -77,9 +77,11 @@ class LifeConfigView(APIView):
             config=config_for(owner_of(request))
             raw_settings=request.data.get('settings',request.data)
             settings=validate_settings(raw_settings)
+            submitted_settings=normalize_settings_keys(raw_settings)
             for key in ('decision_model_id', 'decision_connection_id', 'decision_connection_ids',
-                        'decision_sticky_ttl_seconds', 'jev_enabled', 'jev_excluded_scenes'):
-                if key not in raw_settings:
+                        'decision_sticky_ttl_seconds', 'jev_enabled', 'jev_excluded_scenes',
+                        'market_automation_v2'):
+                if key not in submitted_settings:
                     settings[key] = config.settings.get(key, DEFAULTS[key])
             from system_settings.decision.failover import apply_saved_order
             settings = apply_saved_order(config.pk, settings, config.settings)

@@ -9,7 +9,7 @@ from django.utils import timezone
 from system_settings.models import Agent, AgentExecutionLease, WorldAction, WorldActionRuntime
 from .execution import WorldLeaseBusy, defer_when_world_busy, stamina
 from .farm_gate import guarded
-from .life_config import DEFAULTS, effective_settings, ensure_profiles, tasks_for
+from .life_config import DEFAULTS, effective_settings, ensure_profiles, market_automation_enabled, tasks_for
 from .life_models import LifeConfig, LifeItem
 from .life_schedule import execution_key, revise, stable_id, window
 from .life_time import local_time
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 @transaction.atomic
 def ensure_daily_market(config: LifeConfig, now: datetime) -> None:
     settings = {**DEFAULTS, **effective_settings(config, now)}
-    if settings.get('market_automation_v2'):
+    if market_automation_enabled(config, now):
         # 新版日规划与小时预检接管市场；旧每日机会只在功能关闭时保留。
         return
     task = next((t for t in tasks_for(config.pk) if t.enabled and t.task_kind == 'market'), None)
@@ -81,6 +81,10 @@ def execute_daily_market(config: LifeConfig, agent: Agent, item: LifeItem, sched
     from .travel_candidates import travelling_ids
 
     now = local_time()
+    if item.status in ('pending', 'deferred', 'paused') and market_automation_enabled(config, now):
+        revise(item, '市场自动化已开启，取消旧版每日市场机会', status='cancelled',
+               result={'reason': '市场自动化已接管每日市场机会'})
+        return
     recover_daily_market(item, config, now)
     if item.status not in ('pending', 'deferred') or local_time(item.scheduled_at) > now:
         return

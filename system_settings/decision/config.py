@@ -229,17 +229,28 @@ def delete_connection(owner: str, connection_id: str) -> dict:
 
 
 def market_config(value: dict, previous: dict | None = None) -> dict:
-    """Missing PATCH fields retain settings; owner is always supplied by the caller."""
+    """Retain omitted decision fields; return the automation switch only when submitted."""
     if not isinstance(value, dict):
         raise ValueError('市场配置须为对象')
-    if set(value) - {'owner_id', 'decision_enabled', 'decision_provider'}:
+    # camelCase 解析会把末尾的 V2 拆成 v_2，这里统一回写实际配置键。
+    value = {'market_automation_v2' if key == 'market_automation_v_2' else key: item
+             for key, item in value.items()}
+    if set(value) - {'owner_id', 'decision_enabled', 'decision_provider', 'market_automation_v2'}:
         raise ValueError('市场配置包含未知字段')
     result = {**(previous or {}), **value}
     enabled = result.get('decision_enabled', False)
     provider = result.get('decision_provider', PROVIDER)
+    # 自动化开关只处理本次请求明确提交的值，不能把任务镜像旧值回写到 LifeConfig。
+    automation_submitted = 'market_automation_v2' in value
+    automation = value.get('market_automation_v2')
     if type(enabled) is not bool or provider != PROVIDER:
         raise ValueError('市场决策配置无效，目前仅支持 JEV')
-    return {'decision_enabled': enabled, 'decision_provider': provider}
+    if automation_submitted and type(automation) is not bool:
+        raise ValueError('市场自动化开关无效')
+    data = {'decision_enabled': enabled, 'decision_provider': provider}
+    if automation_submitted:
+        data['market_automation_v2'] = automation
+    return data
 
 
 def selected_connection_id(owner: str | None) -> str:

@@ -10,6 +10,7 @@ import {
     Settings2,
     Play,
     BookOpen,
+    FlaskConical,
     NotebookPen,
     KeyRound,
 } from 'lucide-react';
@@ -39,6 +40,7 @@ const activityTheme: Record<
     exploration: {icon: Swords, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     memo_capture: {icon: NotebookPen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     cooking: {icon: BookOpen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
+    alchemy: {icon: FlaskConical, color: 'bg-violet-50 text-violet-600 border-violet-100'},
     investment: {
         icon: TrendingUp,
         color: 'bg-emerald-50 text-emerald-600 border-emerald-100',

@@ -11,6 +11,12 @@ DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'decision_connection_id': '', 'decision_connection_ids': [],
             'decision_sticky_ttl_seconds': 7200, 'jev_enabled': False, 'jev_excluded_scenes': [],
             'market_automation_v2': False}
+SETTINGS_KEY_ALIASES = {'market_automation_v_2': 'market_automation_v2'}
+
+
+def normalize_settings_keys(data: dict) -> dict:
+    """Normalize API-parser aliases before validating settings or checking submitted fields."""
+    return {SETTINGS_KEY_ALIASES.get(key, key): item for key, item in data.items()}
 
 
 def task_owner(task: AgentTask) -> str | None:
@@ -39,6 +45,8 @@ def task_for(owner: str, agent, kind: str, tasks: list[AgentTask] | None = None)
 def validate_settings(data: dict) -> dict:
     if not isinstance(data, dict):
         raise ValueError('生活配置必须为对象')
+    # camelCase 解析会把末尾的 V2 拆成 v_2，统一归一化后再验证。
+    data = normalize_settings_keys(data)
     value = {**DEFAULTS, **{k: v for k, v in data.items() if k in DEFAULTS}}
     if value['mode'] not in ('fixed', 'random') or value['period'] not in ('daily', 'weekly', 'monthly', 'yearly'):
         raise ValueError('无效的生活周期')
@@ -111,8 +119,8 @@ def effective_settings(config: LifeConfig, now=None) -> dict:
 
 
 def market_automation_enabled(config: LifeConfig, now=None) -> bool:
-    """灰度开关；旧配置没有该字段时按关闭处理。"""
-    return bool(effective_settings(config, now).get('market_automation_v2', False))
+    """读取即时运行开关；它不属于周期快照，旧配置按关闭处理。"""
+    return bool((config.settings or {}).get('market_automation_v2', False))
 
 
 def owns_actor(owner: str, actor: str) -> bool:

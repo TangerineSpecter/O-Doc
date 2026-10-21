@@ -475,6 +475,31 @@ class MarketTests(TestCase):
         response=self.client.patch(f'/api/settings/agent-tasks/{self.task.pk}/',{'prompt':'优先购买萝卜种子'},format='json')
         self.assertEqual(response.status_code,200)
 
+    def test_market_task_syncs_automation_switch_to_life_config(self):
+        from .life_models import LifeConfig
+        config=LifeConfig.objects.create(pk='admin',settings={})
+        response=self.client.patch(f'/api/settings/agent-tasks/{self.task.pk}/',
+                                   {'marketConfig':{'marketAutomationV2':True}},format='json')
+        self.assertEqual(response.status_code,200,response.data)
+        config.refresh_from_db()
+        self.assertTrue(config.settings['market_automation_v2'])
+        self.task.refresh_from_db()
+        self.assertTrue(self.task.market_config['market_automation_v2'])
+        import json
+        rows=json.loads(self.client.get('/api/settings/agent-tasks/').content)['data']
+        row=next(item for item in rows if item['id']==self.task.pk)
+        self.assertTrue(row['marketConfig']['marketAutomationV2'])
+        # 未提交该字段的任务保存不能把已开启的开关覆盖回关闭。
+        self.client.patch(f'/api/settings/agent-tasks/{self.task.pk}/',{'prompt':'保持不变'},format='json')
+        config.refresh_from_db()
+        self.assertTrue(config.settings['market_automation_v2'])
+        # 世界设置整体保存同样不能把该开关重置为默认关闭。
+        response=self.client.post('/api/settings/agent-world/life/config/',
+                                  {'settings':{'marketAutomationV2':True}},format='json')
+        self.assertEqual(response.status_code,200,response.data)
+        config.refresh_from_db()
+        self.assertTrue(config.settings['market_automation_v2'])
+
     def test_snapshot_complete_and_incomplete_restore(self):
         from utils.sync_manager import SyncManager, SyncError
         self.operation(self.a,self.sa,'syncbuy','buy_shop',batch_id=self.shop.pk,slot_id='0',quantity=1)

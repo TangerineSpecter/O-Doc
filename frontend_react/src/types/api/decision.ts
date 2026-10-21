@@ -36,4 +36,5 @@ export interface MarketDecisionConfig {
     ownerId?: string;
     decisionEnabled?: boolean;
     decisionProvider?: 'jev';
+    marketAutomationV2?: boolean;
 }
