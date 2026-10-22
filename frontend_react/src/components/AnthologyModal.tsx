@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot, Library, GraduationCap } from 'lucide-react';
+import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot, Library, GraduationCap, ChartNoAxesCombined } from 'lucide-react';
 import { AVAILABLE_ICONS } from '../constants/iconList';
+import type {AnthologyType} from '../types/api/anthology';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 export interface AnthologyFormData {
@@ -14,7 +15,7 @@ export interface AnthologyFormData {
     hideCoverContent?: boolean;
     hide_cover_content?: boolean;
     sort?: number;
-    type?: 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel';
+    type?: AnthologyType;
 }
 
 interface CreateAnthologyModalProps {
@@ -74,7 +75,7 @@ export default function CreateAnthologyModal({
         if (!formData.description) return;
         setIsSubmitting(true);
         try {
-            await onSubmit(formData.type === 'learning' ? {...formData, permission: 'private'} : formData);
+            await onSubmit((formData.type === 'learning' || formData.type === 'quant') ? {...formData, permission: 'private'} : formData);
             onClose();
         } finally {
             setIsSubmitting(false);
@@ -169,8 +170,8 @@ export default function CreateAnthologyModal({
                         <label className="text-sm font-semibold text-slate-700">访问权限</label>
                         <div className="grid grid-cols-2 gap-3">
                             <div
-                                onClick={() => !isSubmitting && formData.type !== 'learning' && setFormData({ ...formData, permission: 'public' })}
-                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.permission === 'public' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting || formData.type === 'learning' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                onClick={() => !isSubmitting && formData.type !== 'learning' && formData.type !== 'quant' && setFormData({ ...formData, permission: 'public' })}
+                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.permission === 'public' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting || formData.type === 'learning' || formData.type === 'quant' ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <div
                                     className={`p-2 rounded-full ${formData.permission === 'public' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
@@ -189,10 +190,11 @@ export default function CreateAnthologyModal({
                                     <Lock className="w-4 h-4" /></div>
                                 <div>
                                     <div className="text-sm font-medium text-slate-800">私密文集</div>
-                                    <div className="text-xs text-slate-500">{formData.type === 'novel' ? '仅作者可见' : '仅团队成员可见'}</div>
+                                    <div className="text-xs text-slate-500">{formData.type === 'quant' ? '仅自己可见' : formData.type === 'novel' ? '仅作者可见' : '仅团队成员可见'}</div>
                                 </div>
                             </div>
                         </div>
+                        {formData.type === 'quant' && <p className="text-xs leading-5 text-slate-500">量化研究、脚本及回测资料仅自己可见，随现有数据同步保存。</p>}
                         {formData.type === 'novel' && <p className="text-xs leading-5 text-slate-500">草稿和创作资料始终仅作者可见；发布章节后，公开小说才会进入公开列表。</p>}
                     </div>
 
@@ -201,6 +203,7 @@ export default function CreateAnthologyModal({
                         <label className="text-sm font-semibold text-slate-700">文集类型</label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {[
+                                { type: 'quant' as const, label: '量化文集', description: '因子、代码版本与回测记录 · 私密', icon: ChartNoAxesCombined },
                                 { type: 'novel' as const, label: '小说文集', description: '设定、人物、逐章创作与审稿 · 默认私密', icon: FileText },
                                 { type: 'learning' as const, label: '学习文集', description: 'Agent 老师、练习与复习 · 私密', icon: GraduationCap },
                                 { type: 'article' as const, label: '文章文集', description: '存储文章内容', icon: FileText },
@@ -208,7 +211,12 @@ export default function CreateAnthologyModal({
                                 { type: 'image' as const, label: '图片文集', description: '存储图片资源', icon: Image },
                                 { type: 'agent' as const, label: 'Agent', description: 'Agent 发帖展示', icon: Bot },
                             ]
-                                .filter((item) => !isEditing || (initialData?.type === 'novel' ? item.type === 'novel' : item.type !== 'novel') && (formData.type === 'learning' || item.type !== 'learning'))
+                                .filter((item) => {
+                                    if (!isEditing) return true;
+                                    if (initialData?.type === 'quant') return item.type === 'quant';
+                                    if (item.type === 'quant') return false;
+                                    return (initialData?.type === 'novel' ? item.type === 'novel' : item.type !== 'novel') && (formData.type === 'learning' || item.type !== 'learning');
+                                })
                                 .map((item) => {
                                     const Icon = item.icon;
                                     const isSelected = formData.type === item.type;
@@ -222,7 +230,7 @@ export default function CreateAnthologyModal({
                                                 setFormData({
                                                     ...formData,
                                                     type: item.type,
-                                                    ...(item.type === 'learning' || (item.type === 'novel' && !isSelected) ? { permission: 'private' } : {})
+                                                    ...(item.type === 'learning' || item.type === 'quant' || (item.type === 'novel' && !isSelected) ? { permission: 'private' } : {})
                                                 });
                                             }}
                                             className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${

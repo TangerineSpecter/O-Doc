@@ -205,6 +205,9 @@ def tick_cooking(scheduler):
     from datetime import timedelta
     stale = timezone.now() - timedelta(minutes=15)
     for action in WorldAction.objects.filter(snapshot__cooking=True, status='claimed', updated_at__lt=stale).select_related('record', 'agent')[:20]:
+        from .life_craft_recovery import resume
+        if resume(action, 'cooking', scheduler):
+            continue
         action.status, action.result = 'failed', {'reason': '制作中断，已提交成品与经验保留，剩余制作停止'}
         action.save(update_fields=['status', 'result', 'updated_at'])
         finish(action, scheduler)

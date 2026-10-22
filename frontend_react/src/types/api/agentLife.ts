@@ -7,6 +7,8 @@ export interface LifeSettings {
     decisionStickyTtlSeconds?: number;
     jevEnabled?: boolean; jevExcludedScenes?: string[];
     marketAutomationV2?: boolean;
+    interleavingEnabled?: boolean; interleavingCheckMinutes?: number;
+    interleavingDecisionMinutes?: number; interleavingWaitMinutes?: number;
 }
 export interface LifeConfig {settings: LifeSettings; pausedAgents: string[]; migrated: boolean; profileAgentIds?: string[]; activeAgentIds?: string[]; migrationSummary?: {convertedItems: number; runningItems: number}; activeCycle: Array<{id: string; startsAt: string; endsAt: string}>; decisionFailover?: DecisionFailoverState}
 export interface LifeProfile {id: string; preferences: string; direction: string}
@@ -42,12 +44,17 @@ export interface LifeDailyChoice {
     plan: {id: string; activity: string; reason: string; offeredActivities?: string[]; travelPlan?: LifeTravelPlan};
 }
 export interface LifeItem {
+    source?: 'schedule' | 'interleaved' | 'manual';
+    actualStartedAt?: string | null; actualEndedAt?: string | null; actualEnergyCost?: string | null;
+    activityUsage?: {requests: number; inputTokens: number | null; outputTokens: number | null; totalTokens: number | null; usageComplete: boolean} | null;
+    domainDetail?: {kind: 'exploration' | 'fishing' | 'blacksmith'; id: string} | null;
     id: string; actorId: string; originalAt: string; scheduledAt: string; activity: string; taskId: string;
     status: string; intent: string; budget: string; spent: string; recordId: string;
-    result: {reason?: string}; context?: Record<string, unknown> & {
+    result: {reason?: string; piecesMade?: number; operations?: import('./blacksmith').BlacksmithPiece[];
+        stages?: Record<string, unknown>[]}; context?: Record<string, unknown> & {
         lotteryPlan?: {roundId: string; quantity: number}; lotteryNumbers?: number[][]; lotteryAttempts?: number;
         cookingPlan?: LifeCookingPlan; alchemyPlan?: LifeAlchemyPlan; travelPlan?: LifeTravelPlan; dailyChoice?: LifeDailyChoice};
     retryAvailable?: boolean; retryBlockedReason?: string;
     revisions?: Array<{id: string; before: Record<string, unknown>; after: Record<string, unknown>; reason: string; createdAt: string}>;
 }
-export interface LifeSchedule {items: LifeItem[]; total: number; page: number}
+export interface LifeSchedule {counts?: {main: number; interleaved: number}; items: LifeItem[]; total: number; page: number}

@@ -1,12 +1,13 @@
+import {useOpenTaskAllocation} from '../../hooks/useOpenTaskAllocation';
 import {AlertCircle, Coins, Info, Loader2, Medal, RefreshCw, Sparkles, Trophy} from 'lucide-react';
 import {Select} from '../common/Select';
 import {useLottery} from '../../hooks/useLottery';
 import {DecisionProcessInfo} from '../AgentWorld/DecisionProcessInfo';
-import type {LotteryAward, LotteryConfig} from '../../types/api/lottery';
+import type {LotteryAward} from '../../types/api/lottery';
 import {LotteryHero} from './LotteryHero';
 import {LotteryTickets} from './LotteryTickets';
 import {LotteryPagination} from './LotteryUi';
-import {lotteryDate, lotteryTier} from './lotteryPresentation';
+import {lotteryTier} from './lotteryPresentation';
 import {LotteryIcon} from './LotteryIcon';
 import './lottery.css';
 
@@ -41,6 +42,7 @@ function LotteryPrizes() {
     return <section aria-label="奖项规则" className="lottery-prizes">
         {prizes.map(({tier, title, detail, Icon, tone, tag}) => (
             <div key={tier} className={`lottery-prize lottery-prize--${tone}`}>
+                <div className="lottery-prize-punch lottery-prize-punch--left" aria-hidden="true" />
                 <div className="lottery-prize-icon">
                     <Icon className="h-5 w-5" strokeWidth={1.8}/>
                 </div>
@@ -55,6 +57,7 @@ function LotteryPrizes() {
                     </p>
                     <p className="lottery-prize-detail">{detail}</p>
                 </div>
+                <div className="lottery-prize-punch lottery-prize-punch--right" aria-hidden="true" />
             </div>
         ))}
     </section>;
@@ -105,43 +108,8 @@ function LotteryWinners({awards}: {awards: LotteryAward[]}) {
     </section>;
 }
 
-function LotterySettings({
-    config,
-    saving,
-    toggle,
-}: {
-    config: LotteryConfig;
-    saving: boolean;
-    toggle: (enabled: boolean) => Promise<void>;
-}) {
-    return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h4 className="text-sm font-bold text-slate-800">
-                    大乐透购票能力 {config.enabled ? '已开启' : '未开启'}
-                </h4>
-                <p className="mt-2 text-xs leading-6 text-slate-500">
-                    居民通过日常生活日程自主购票。可在决策设置中启用数量与选号场景。停用购买不会撤销已售彩票的兑奖权。
-                </p>
-            </div>
-            <button
-                type="button"
-                disabled={saving}
-                onClick={() => void toggle(!config.enabled)}
-                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
-            >
-                {saving ? '保存中…' : config.enabled ? '停用购票' : '启用大乐透'}
-            </button>
-        </div>
-        {config.firstDrawAt && (
-            <p className="mt-4 text-xs text-slate-400">
-                首次开奖：{lotteryDate(config.firstDrawAt)}（北京时间）；以后每隔三天 20:00 开奖。
-            </p>
-        )}
-    </section>;
-}
-
-export function LotteryPanel({settingsOnly = false}: {settingsOnly?: boolean}) {
+export function LotteryPanel() {
+    const openTasks = useOpenTaskAllocation();
     const state = useLottery();
     const {data, loading, error} = state;
     const round = data?.overview.round || null;
@@ -169,7 +137,7 @@ export function LotteryPanel({settingsOnly = false}: {settingsOnly?: boolean}) {
                 <p className="lottery-brand-caption">三天一期，攒一点小期待。</p>
             </div>
 
-            {!settingsOnly && data && (
+            {data && (
                 <div className="lottery-round-select">
                     <Select
                         menuPortal={true}
@@ -206,11 +174,7 @@ export function LotteryPanel({settingsOnly = false}: {settingsOnly?: boolean}) {
             </div>
         )}
 
-        {settingsOnly && config && (
-            <LotterySettings config={config} saving={state.saving} toggle={state.toggle}/>
-        )}
-
-        {!settingsOnly && data && <>
+        {data && <>
             {!config?.enabled && (
                 <div className="lottery-notice">
                     <Info className="h-4 w-4 shrink-0 text-amber-600"/>
@@ -220,11 +184,11 @@ export function LotteryPanel({settingsOnly = false}: {settingsOnly?: boolean}) {
                     <button
                         type="button"
                         disabled={state.saving}
-                        onClick={() => void state.toggle(true)}
+                        onClick={openTasks}
                         className="lottery-notice-action"
                     >
                         <Sparkles className="h-3 w-3"/>
-                        {state.saving ? '开启中…' : '一键启用'}
+                        前往任务分配
                     </button>
                 </div>
             )}
@@ -232,7 +196,7 @@ export function LotteryPanel({settingsOnly = false}: {settingsOnly?: boolean}) {
             <LotteryHero
                 round={round}
                 config={config}
-                onEnable={() => state.toggle(true)}
+                onEnable={openTasks}
                 saving={state.saving}
             />
 

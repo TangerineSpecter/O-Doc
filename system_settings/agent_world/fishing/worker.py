@@ -28,6 +28,13 @@ def advance_one(identity: str) -> None:
             if not authorized(trip):
                 return
             if trip.status == 'preparing':
+                from ..life_models import LifeItem
+                from ..life_activities import is_interleaved
+                from datetime import datetime
+                item = LifeItem.objects.get(pk=trip.life_item_id)
+                if is_interleaved(item) and local_time(datetime.fromisoformat(item.context['interleaving']['expires_at'])) <= local_time():
+                    finish(identity, '系统说明：未出发的穿插已过期', cancelled=True)
+                    return
                 prepare_step(identity)
             elif trip.status == 'duel':
                 duel(identity)
@@ -36,7 +43,15 @@ def advance_one(identity: str) -> None:
     except StaleDecision:
         return
     except ValueError as exc:
-        defer(identity, str(exc))
+        from ..life_models import LifeItem
+        from ..life_activities import is_interleaved
+        from .decisions import DecisionUnavailable
+        trip = FishingTrip.objects.get(pk=identity)
+        item = LifeItem.objects.filter(pk=trip.life_item_id).first()
+        if trip.status == 'preparing' and item and is_interleaved(item) and not isinstance(exc, DecisionUnavailable):
+            finish(identity, '系统说明：准备条件失效，' + str(exc), cancelled=True)
+        else:
+            defer(identity, str(exc))
     except Exception:
         logger.exception('钓鱼推进失败 trip=%s', identity)
         defer(identity, '执行暂时失败，请稍后重试')

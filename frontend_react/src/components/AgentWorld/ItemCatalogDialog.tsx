@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import WorldDialog from './WorldDialog';
 import {ItemIconImage} from './ItemIconImage';
+import {RecipePortrait} from '../Cooking/RecipePortrait';
 import {BaitPortrait} from '../Fishing/BaitPortrait';
 import {FishPortrait} from '../Fishing/FishPortrait';
 import {farmItemIcon} from '../Farm/assets';
@@ -99,6 +100,7 @@ function CatalogItemThumbnail({
     className?: string;
     fallbackClassName?: string;
 }) {
+    if (item.sku.startsWith('dish.')) return <RecipePortrait recipe={{...item, iconUrl: item.iconUrl || ''}} className={className}/>;
     // 1. 用户自定义上传图标优先
     if (item.iconUrl) {
         return (

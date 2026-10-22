@@ -27,7 +27,10 @@ class SkipPublication(ValueError):
 
 
 def rule_for_context(rule: dict, mode: str | None = None) -> dict:
-    cleaned = dict(rule)
+    # Image policy stays in the saved configuration until the image workflow.
+    cleaned = {key: rule[key] for key in (
+        'category_id', 'modes', 'topics', 'news_days', 'region', 'excluded_topics',
+    ) if key in rule}
     if mode == 'topic' or ('news' not in cleaned.get('modes', [])):
         cleaned.pop('news_days', None)
     return cleaned
@@ -90,7 +93,7 @@ class Workflow:
             memory = memory_context(self.agent, query[:1200] + ' ' + str(self.state.get('extra') or '')[:300])
         else:
             memory = ''
-        role_scene = 'decision' if phase == 'select' else 'repair' if phase in ('assess', 'assessment', 'verify') else 'expression'
+        role_scene = 'decision' if phase in ('category', 'select') else 'repair' if phase in ('assess', 'assessment', 'verify') else 'expression'
         persona = role_text(self.agent, role_scene)
         if role_scene == 'expression':
             persona = build_agent_system_prompt(persona, conversation=False)
@@ -104,6 +107,60 @@ class Workflow:
             decision=role_scene != 'expression', deadline=self.deadline, seconds=PUBLISH_MODEL_DEADLINE_SECONDS,
             scene='发帖 ' + phase, check=lambda: require_active_agent(self.agent), passthrough=(SkipPublication,))
 
+    def select_category(self, categories: dict, rules: dict, recent: list) -> str:
+        """Persist one category before loading its full topic requirements."""
+        manual = self.state.get('manual_category_id', '')
+        if manual and manual not in rules:
+            raise SkipPublication('手动指定的发帖分类已失效或不在任务范围内')
+        prior = self.state.get('category_selection')
+        selection = self.state.get('selection')
+        if prior:
+            key = prior.get('category_id')
+            if key not in rules or (manual and key != manual) or (
+                    selection and selection.get('category_id') != key):
+                raise SkipPublication('已确认发帖分类已失效或与选题不一致')
+            return key
+        if selection:
+            key, source = selection.get('category_id'), 'confirmed_selection'
+        elif manual or len(rules) == 1:
+            key, source = manual or next(iter(rules)), 'fixed_category'
+        else:
+            self.checkpoint('category')
+            # Names and allowed modes identify the direction. Complete editorial
+            # requirements are loaded only after this checkpoint, never clipped.
+            candidates = [{
+                'id': key, 'name': categories[key].name, 'modes': rule['modes'],
+                **({'region': rule['region']} if rule.get('region') else {}),
+                **({'news_days': rule['news_days']} if 'news' in rule['modes'] and 'news_days' in rule else {}),
+            } for key, rule in rules.items()]
+            from system_settings.agent_availability import require_active_agent
+            from system_settings.decision.routing import choose_scene
+            from system_settings.decision.jev import DecisionUnavailable
+            require_active_agent(self.agent)
+            key = choose_scene(
+                self.state['config'].get('owner_id'), self.agent, 'publish_category',
+                {'recent_posts': recent, 'profession': self.state['profession'],
+                 'extra': self.state['extra'], 'now': timezone.now().isoformat()},
+                {row['id']: row for row in candidates}, deadline=self.deadline,
+                task=self.task, instructions='先选择本次发帖分类，不生成检索词或正文。'
+                '只从合法分类中选一个；下一步会加载所选分类的完整要求。',
+            )
+            if key not in rules:
+                raise DecisionUnavailable('自主发帖分类选择需要可用的决策连接，请启用该场景后重试；不调用普通文本模型替代')
+            require_active_agent(self.agent)
+            source = 'decision_connection'
+            self.state['category_selection'] = {
+                'category_id': key, 'source': source,
+                'reason': '系统说明：采用决策连接返回的合法分类，连接不提供文字动机。',
+            }
+        if key not in rules or (manual and key != manual):
+            raise SkipPublication('已确认发帖分类已失效或不在指定范围内')
+        self.state.setdefault('category_selection', {'category_id': key, 'source': source})
+        # Saving before topic selection makes an interrupted topic retry reuse
+        # the confirmed category, including fixed-category bounty workflows.
+        self.checkpoint('select' if not selection else self.state.get('phase', 'select'))
+        return key
+
     def run(self):
         config = self.state['config']
         categories = {c.pk: c for c in categories_for(config)}
@@ -115,15 +172,13 @@ class Workflow:
                   for row in recent[:12]]
         if not rules:
             raise SkipPublication('所有配置分类均已失效')
-        manual_category_id = self.state.get('manual_category_id', '')
-        if manual_category_id and manual_category_id not in rules:
-            raise SkipPublication('手动指定的发帖分类已失效或不在任务范围内')
-        candidate_rules = {manual_category_id: rules[manual_category_id]} if manual_category_id else rules
+        category_id = self.select_category(categories, rules, recent)
+        candidate_rules = {category_id: rules[category_id]}
         if 'selection' not in self.state:
             self.checkpoint('select')
             def validate_selection(v):
-                key = manual_category_id or v.get('category_id')
-                if key not in candidate_rules or v.get('mode') not in candidate_rules[key]['modes']:
+                key = category_id
+                if v.get('category_id', key) != key or v.get('mode') not in candidate_rules[key]['modes']:
                     raise ValueError('分类或内容方式越界')
                 for field in ('query', 'reason'):
                     if not isinstance(v.get(field), str) or not 0 < len(v[field].strip()) <= 1000:
@@ -132,15 +187,15 @@ class Workflow:
                 if not isinstance(direction, str) or len(direction) > 1000:
                     raise ValueError('表达方向无效')
                 clean_query = sanitize_search_query(v['query'].strip(), v.get('mode', 'topic'))
-                return {**{k: v[k] for k in ('category_id', 'mode', 'reason')}, 'query': clean_query, 'expression_direction': direction}
+                return {'category_id': key, **{k: v[k] for k in ('mode', 'reason')}, 'query': clean_query, 'expression_direction': direction}
             selection_instruction = (
-                '选择一个候选方向，返回 {"category_id":"ID","mode":"news/topic","query":"具体检索词","reason":"选题理由","expression_direction":"结合角色说明关注什么、为什么在意、准备从什么角度讲；尚无立场也可以"}。\n'
+                '分类已经确认，不得改选。根据该分类完整要求选择具体方向，返回 {"category_id":"已确认ID","mode":"news/topic","query":"具体检索词","reason":"选题理由","expression_direction":"结合角色说明关注什么、为什么在意、准备从什么角度讲；尚无立场也可以"}。\n'
                 '【选题与检索词要求】：\n'
                 '1. mode 可选 "news"（突发新闻解读，有时效要求）或 "topic"（专题分享/横评/评测/科普/经验与日常，完全不受时间或发布日期限制）。\n'
                 '2. query 必须是搜索引擎关键词组合（例如 "限定甜点 奶茶 新品 测评" 或 "提拉米苏 烘焙 技巧"），严禁写自然语言整句，严禁包含“近5天”、“排除某日之前”等时效约束词，搜索引擎会自动处理检索条件。不要重复近期作品。'
             )
             self.state['selection'] = self.ask(selection_instruction,
-                {'categories': [{'id': key, 'name': categories[key].name, 'description': categories[key].description, 'rule': rule_for_context(rule)} for key, rule in candidate_rules.items()],
+                {'category': {'id': category_id, 'name': categories[category_id].name, 'description': categories[category_id].description, 'rule': rule_for_context(candidate_rules[category_id])},
                  'recent_posts': recent, 'profession': self.state["profession"], 'extra': self.state['extra'], 'now': timezone.now().isoformat()}, validate_selection)
         chosen = self.state['selection']
         if chosen['category_id'] not in candidate_rules or chosen['mode'] not in candidate_rules[chosen['category_id']]['modes']:

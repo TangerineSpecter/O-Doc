@@ -69,8 +69,8 @@ import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
 import {SystemTaskProgress} from './agent/SystemTaskProgress';
 import {InvestmentTaskFields} from './agent/InvestmentTaskFields';
 import {MemoCaptureSettings} from './agent/MemoCaptureSettings';
-import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
-import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask, defaultFarmTask, defaultMarketTask, defaultInvestmentTask, defaultCookingTask, defaultAlchemyTask, defaultExplorationTask} from './agent/builtinTasks';
+import {TaskActivityGroups} from './agent/TaskActivityGroups';
+import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask, defaultFarmTask, defaultMarketTask, defaultInvestmentTask, defaultCookingTask, defaultAlchemyTask, defaultBlacksmithTask, defaultExplorationTask} from './agent/builtinTasks';
 import {TravelTaskFields} from './agent/TravelTaskFields';
 import {emptyTravelConfig, type TravelConfig} from '@/types/api/travel';
 import {travelConfigError} from '@/utils/agentTaskValidation';
@@ -81,6 +81,7 @@ import type {AgentPublishConfig} from '@/types/api/agentPublish';
 import {McpTaskScopeFields} from './agent/McpTaskScopeFields';
 
 interface AgentSettingsProps {
+    initialView?: AgentView;
     agents: AgentConfig[];
     tasks: AgentTaskConfig[];
     mcpServers: MCPServerConfig[];
@@ -189,6 +190,7 @@ const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' |
 };
 
 export const AgentSettings = ({
+                                  initialView = 'list',
                                   agents,
                                   tasks,
                                   mcpServers,
@@ -206,7 +208,7 @@ export const AgentSettings = ({
     const [battleAppearanceOverrides,setBattleAppearanceOverrides]=useState<Record<string,AgentBattleAppearance|null>>({});
     const [archiving, setArchiving] = useState(false);
     const allResidents = [...agents, ...archivedAgents];
-    const [activeView, setActiveView] = useState<AgentView>('list');
+    const [activeView, setActiveView] = useState<AgentView>(initialView);
     const {progressByTask, worldProgressByTask, refreshFailed} = useRandomTaskProgress(tasks, activeView === 'tasks');
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
@@ -368,7 +370,7 @@ export const AgentSettings = ({
         return `每 ${task.intervalMinutes || '1'} 分钟`;
     };
 
-    const isSystemTask = ['post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'].includes(taskForm.taskKind || '');
+    const isSystemTask = ['post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'blacksmith', 'exploration'].includes(taskForm.taskKind || '');
     const isInvestmentTask = taskForm.taskKind === 'investment';
     const builtinInvestmentTask = tasks.find(task => task.taskKind === 'investment') || defaultInvestmentTask;
     const isMarketTask = taskForm.taskKind === 'market';
@@ -377,6 +379,8 @@ export const AgentSettings = ({
     const builtinExplorationTask = tasks.find(task => task.taskKind === 'exploration') || defaultExplorationTask;
     const isCookingTask = taskForm.taskKind === 'cooking';
     const builtinCookingTask = tasks.find(task => task.taskKind === 'cooking') || defaultCookingTask;
+    const isBlacksmithTask = taskForm.taskKind === 'blacksmith';
+    const builtinBlacksmithTask = tasks.find(task => task.taskKind === 'blacksmith') || defaultBlacksmithTask;
     const isAlchemyTask = taskForm.taskKind === 'alchemy';
     const builtinAlchemyTask = tasks.find(task => task.taskKind === 'alchemy') || defaultAlchemyTask;
     const isFarmTask = taskForm.taskKind === 'farm';
@@ -387,7 +391,7 @@ export const AgentSettings = ({
     const builtinPublishTask = tasks.find(task => task.taskKind === 'post_publish') || defaultPostPublishTask;
     const isManualTask = taskForm.trigger === '手动执行';
     const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
-    const customTasks = tasks.filter(task => !['memo_capture', 'post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration', 'lottery', 'fishing'].includes(task.taskKind || 'custom'));
+    const customTasks = tasks.filter(task => !['memo_capture', 'post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'blacksmith', 'exploration', 'lottery', 'fishing'].includes(task.taskKind || 'custom'));
 
     const openCreateModal = () => {
         clearAvatarPreview();
@@ -675,7 +679,7 @@ export const AgentSettings = ({
 
     const [manualLifeTask, setManualLifeTask] = useState<{taskId: string; publishCategoryIds?: string[]} | null>(null);
     const runTaskNow = async (taskId: string) => {
-        const lifeTask = [builtinPostTask, builtinPublishTask, builtinTravelTask, builtinInvestmentTask, builtinMarketTask, builtinFarmTask, builtinCookingTask, builtinAlchemyTask, builtinExplorationTask].find(task => task.id === taskId);
+        const lifeTask = [builtinPostTask, builtinPublishTask, builtinTravelTask, builtinInvestmentTask, builtinMarketTask, builtinFarmTask, builtinCookingTask, builtinAlchemyTask, builtinBlacksmithTask, builtinExplorationTask].find(task => task.id === taskId);
         if (lifeTask) {
             setManualLifeTask({
                 taskId,
@@ -787,61 +791,13 @@ export const AgentSettings = ({
                 <div className="space-y-4">
                     <WorldRunnerSwitch agents={agents}/>
 
-                    {/* 系统内置活动能力分组 */}
-                    <div className="space-y-2.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    系统内置活动能力
-                                </h3>
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                                    7 项活动
-                                </span>
-                            </div>
-                            <p className="text-[11px] text-slate-400">
-                                由统一生活日程分配居民与时间，此处配置各活动能力。市场作为日常准备不占行动次数。
-                            </p>
-                        </div>
-
-                        {/* 2 列响应式网格 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <BuiltinPostTaskCard task={builtinExplorationTask} agentNames={getTaskAgentNames(builtinExplorationTask)} running={!!builtinExplorationTask.id && runningTaskId === builtinExplorationTask.id} onConfigure={() => openEditTaskModal(builtinExplorationTask)} onToggle={() => toggleTaskEnabled(builtinExplorationTask.id)} onRun={() => runTaskNow(builtinExplorationTask.id)}/>
-                            <BuiltinPostTaskCard task={builtinCookingTask} agentNames={getTaskAgentNames(builtinCookingTask)} running={!!builtinCookingTask.id && runningTaskId === builtinCookingTask.id} onConfigure={() => openEditTaskModal(builtinCookingTask)} onToggle={() => toggleTaskEnabled(builtinCookingTask.id)} onRun={() => runTaskNow(builtinCookingTask.id)}/>
-                            <BuiltinPostTaskCard task={builtinAlchemyTask} agentNames={getTaskAgentNames(builtinAlchemyTask)} running={!!builtinAlchemyTask.id && runningTaskId === builtinAlchemyTask.id} onConfigure={() => openEditTaskModal(builtinAlchemyTask)} onToggle={() => toggleTaskEnabled(builtinAlchemyTask.id)} onRun={() => runTaskNow(builtinAlchemyTask.id)}/>
-                            <BuiltinPostTaskCard task={builtinPostTask}
-                                agentNames={getTaskAgentNames(builtinPostTask)}
-                                running={!!builtinPostTask.id && runningTaskId === builtinPostTask.id}
-                                progress={worldProgressByTask[builtinPostTask.id]}
-                                onConfigure={() => openEditTaskModal(builtinPostTask)}
-                                onToggle={() => toggleTaskEnabled(builtinPostTask.id)}
-                                onRun={() => runTaskNow(builtinPostTask.id)}/>
-                            <MemoCaptureSettings models={modelOptions} task={tasks.find(task => task.taskKind === 'memo_capture')} agents={agents} progress={progressByTask[tasks.find(task => task.taskKind === 'memo_capture')?.id || '']} running={runningTaskId === tasks.find(task => task.taskKind === 'memo_capture')?.id} onSave={onSaveTask} onRun={runTaskNow}/>
-                            <BuiltinPostTaskCard task={builtinPublishTask} agentNames={getTaskAgentNames(builtinPublishTask)}
-                                running={!!builtinPublishTask.id && runningTaskId === builtinPublishTask.id}
-                                progress={worldProgressByTask[builtinPublishTask.id]}
-                                onConfigure={() => openEditTaskModal(builtinPublishTask)}
-                                onToggle={() => toggleTaskEnabled(builtinPublishTask.id)}
-                                onRun={() => runTaskNow(builtinPublishTask.id)} onPreview={() => setPreviewTask(builtinPublishTask)}/>
-                            <BuiltinPostTaskCard task={builtinTravelTask} agentNames={getTaskAgentNames(builtinTravelTask)}
-                                running={!!builtinTravelTask.id && runningTaskId === builtinTravelTask.id}
-                                progress={worldProgressByTask[builtinTravelTask.id]}
-                                onConfigure={() => openEditTaskModal(builtinTravelTask)}
-                                onToggle={() => toggleTaskEnabled(builtinTravelTask.id)}
-                                onRun={() => runTaskNow(builtinTravelTask.id)}/>
-                            <BuiltinPostTaskCard task={builtinInvestmentTask} agentNames={getTaskAgentNames(builtinInvestmentTask)}
-                                running={!!builtinInvestmentTask.id && runningTaskId === builtinInvestmentTask.id} progress={worldProgressByTask[builtinInvestmentTask.id]}
-                                onConfigure={() => openEditTaskModal(builtinInvestmentTask)} onToggle={() => toggleTaskEnabled(builtinInvestmentTask.id)}
-                                onRun={() => runTaskNow(builtinInvestmentTask.id)}/>
-                            <BuiltinPostTaskCard task={builtinMarketTask} agentNames={getTaskAgentNames(builtinMarketTask)}
-                                running={!!builtinMarketTask.id && runningTaskId === builtinMarketTask.id} progress={worldProgressByTask[builtinMarketTask.id]}
-                                onConfigure={() => openEditTaskModal(builtinMarketTask)} onToggle={() => toggleTaskEnabled(builtinMarketTask.id)}
-                                onRun={() => runTaskNow(builtinMarketTask.id)}/>
-                            <BuiltinPostTaskCard task={builtinFarmTask} agentNames={getTaskAgentNames(builtinFarmTask)}
-                                running={!!builtinFarmTask.id && runningTaskId === builtinFarmTask.id} progress={worldProgressByTask[builtinFarmTask.id]}
-                                onConfigure={() => openEditTaskModal(builtinFarmTask)} onToggle={() => toggleTaskEnabled(builtinFarmTask.id)}
-                                onRun={() => runTaskNow(builtinFarmTask.id)}/>
-                        </div>
-                    </div>
+                    <TaskActivityGroups
+                        tasks={[builtinTravelTask, builtinFarmTask, builtinInvestmentTask, builtinPublishTask, builtinPostTask,
+                            builtinCookingTask, builtinAlchemyTask, builtinBlacksmithTask, builtinExplorationTask, builtinMarketTask]}
+                        runningTaskId={runningTaskId} progress={worldProgressByTask}
+                        onConfigure={openEditTaskModal} onToggle={toggleTaskEnabled} onRun={runTaskNow} onPreview={setPreviewTask}
+                        memo={<MemoCaptureSettings models={modelOptions} task={tasks.find(task => task.taskKind === 'memo_capture')} agents={agents} progress={progressByTask[tasks.find(task => task.taskKind === 'memo_capture')?.id || '']} running={runningTaskId === tasks.find(task => task.taskKind === 'memo_capture')?.id} onSave={onSaveTask} onRun={runTaskNow}/>}
+                    />
 
                     {/* 自定义计划任务分组 */}
                     <div className="space-y-2.5 pt-1">
@@ -1113,7 +1069,7 @@ export const AgentSettings = ({
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-900">{isSystemTask ? '配置系统任务' : taskForm.id ? '编辑任务' : '新建自定义任务'}</h3>
-                                <p className="mt-1 text-xs text-slate-500">{isSystemTask ? '配置活动规则、数据来源与偏好；居民和时间由统一生活安排' : '配置 Agent 在什么时机执行什么任务，以及输出到哪里'}</p>
+                                <p className="mt-1 text-xs text-slate-500">{isSystemTask ? '配置活动规则、数据来源与偏好；参与居民沿用生活配置，按所属分组安排时间' : '配置 Agent 在什么时机执行什么任务，以及输出到哪里'}</p>
                             </div>
                             <button
                                 onClick={() => setTaskModalOpen(false)}
@@ -1126,7 +1082,7 @@ export const AgentSettings = ({
                         <div className="max-h-[72vh] space-y-5 overflow-y-auto scrollbar-hide p-6">
                             <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
                             {isSystemTask && <>
-                                <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <MarketTaskFields value={taskForm.marketConfig || {}} onChange={marketConfig => setTaskForm({...taskForm, marketConfig})}/> : isExplorationTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民准备地点、装备与药剂，规则自动推进持续战斗。手动探索可直接使用；自动安排还需在冒险面板开启本机自动探索。准备和返回转职使用居民当前模型，战斗不调用模型。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isAlchemyTask ? <p className="rounded-2xl bg-violet-50 p-4 text-sm leading-relaxed text-slate-600">使用背包里的迷宫素材炼制一次性药水，一次最多三道配方、每道五瓶；每瓶消耗一体力并获得炼金经验。药水不在商店出售，探索出发时最多携带五瓶，未用完自动返还。配方与效果在炼金图鉴查看。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields imageModels={getModelsByType('image_generation')} value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
+                                <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <MarketTaskFields value={taskForm.marketConfig || {}} onChange={marketConfig => setTaskForm({...taskForm, marketConfig})}/> : isExplorationTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民准备地点、装备与药剂，规则自动推进持续战斗。自动探索由空档活动决策触发，需开启本机自动执行、自动穿插和迷宫探索能力。准备使用有限决策，确定步骤与战斗由系统执行。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isBlacksmithTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民依次选择等级范围、部位和当前职业路线可用类型，消耗自己的迷宫材料打造装备。每件消耗2点体力，不收金币；等级在范围内随机，白/蓝/金概率为70%/25%/5%。每做完一件再决定是否继续，一次最多三件。配方与记录在世界图鉴的铁匠铺查看。</p> : isAlchemyTask ? <p className="rounded-2xl bg-violet-50 p-4 text-sm leading-relaxed text-slate-600">使用背包里的迷宫素材炼制一次性药水，一次最多三道配方、每道五瓶；每瓶消耗一体力并获得炼金经验。药水不在商店出售，探索出发时最多携带五瓶，未用完自动返还。配方与效果在炼金图鉴查看。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields imageModels={getModelsByType('image_generation')} value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
                                     onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>
                             </>}
 
@@ -1203,7 +1159,8 @@ export const AgentSettings = ({
                                 </div>
                             </div>}
 
-                            {!isExplorationTask && <TaskModelSelect value={taskForm.model} options={modelOptions} onChange={model => setTaskForm({...taskForm, model})}/>}
+                            {isBlacksmithTask && <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-600">打造选择使用“世界管理 → 决策模型”配置的决策连接；唯一合法候选由系统直接确定。</p>}
+                            {!isExplorationTask && !isBlacksmithTask && <TaskModelSelect value={taskForm.model} options={modelOptions} onChange={model => setTaskForm({...taskForm, model})}/>}
                             {!isSystemTask && taskForm.trigger === '定时任务' && <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">调度方式</label>
                                 <SettingsSelect menuPortal={true} value={taskForm.scheduleMode} options={[{value: 'fixed', label: '固定时间 / 间隔'}, {value: 'random', label: '周期随机'}]} onChange={scheduleMode => setTaskForm({...taskForm, scheduleMode})}/>

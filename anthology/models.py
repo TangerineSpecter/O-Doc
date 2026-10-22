@@ -50,6 +50,7 @@ class Anthology(models.Model):
             ('book', '图书文集'),
             ('learning', '学习文集'),
             ('novel', '小说文集'),
+            ('quant', '量化文集'),
         ],
         default='article',
         verbose_name='文集类型',

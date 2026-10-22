@@ -26,6 +26,7 @@ LOCAL_ONLY_MODEL_LABELS = frozenset({
     'system_settings.combatruntime', 'system_settings.fishingruntime', 'system_settings.tournamentruntime',
     'system_settings.agentmemorylease',
     'novel.job',
+    'quant.job',
     'learning.runtime', 'learning.devicejob', 'learning.goaljob',
     'system_settings.investmentcache',
     'system_settings.marketruntime',
@@ -107,7 +108,7 @@ def should_track(sender):
     return (
         sender._meta.app_label in {
             'article', 'anthology', 'categories', 'tags', 'assets', 'prompts', 'stats',
-            'ai_assistant', 'system_settings', 'user', 'auth', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning', 'novel',
+            'ai_assistant', 'system_settings', 'user', 'auth', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning', 'novel', 'quant',
         }
         and sender._meta.label_lower not in LOCAL_ONLY_MODEL_LABELS
         and not sender._meta.auto_created

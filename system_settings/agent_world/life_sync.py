@@ -1,13 +1,13 @@
 """完整生活快照校验；预算是计划事实，恢复不产生任何新扣款。"""
 import logging
-from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision, LifeIntegrity
+from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision, LifeIntegrity, LifeInterleavingState
 from .life_snapshot import hash_rows
 
 logger = logging.getLogger(__name__)
 
 
 def fingerprints(owner: str) -> dict[str, str]:
-    queries=[LifeConfig.objects.filter(pk=owner),LifeProfile.objects.filter(owner_id=owner),LifeGoal.objects.filter(owner_id=owner),LifeCycle.objects.filter(owner_id=owner),LifeItem.objects.filter(owner_id=owner),LifeRevision.objects.filter(item__owner_id=owner)]
+    queries=[LifeConfig.objects.filter(pk=owner),LifeProfile.objects.filter(owner_id=owner),LifeGoal.objects.filter(owner_id=owner),LifeCycle.objects.filter(owner_id=owner),LifeItem.objects.filter(owner_id=owner),LifeRevision.objects.filter(item__owner_id=owner), LifeInterleavingState.objects.filter(owner_id=owner)]
     return {q.model.__name__: hash_rows(list(q.values()), tuple(
         field.attname for field in q.model._meta.fields if field.get_internal_type() == 'DateTimeField'
     )) for q in queries}
@@ -16,7 +16,7 @@ def fingerprints(owner: str) -> dict[str, str]:
 def life_owners() -> set[str]:
     """所有拥有任意生活记录的账号；不能只看 LifeConfig，否则孤立记录无法生成摘要。"""
     owners = set(LifeConfig.objects.values_list('pk', flat=True))
-    for model in (LifeProfile, LifeGoal, LifeCycle, LifeItem):
+    for model in (LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeInterleavingState):
         owners.update(model.objects.values_list('owner_id', flat=True))
     return owners
 
@@ -103,10 +103,12 @@ def reconcile_life() -> None:
                     raise SyncError('生活累计支出与真实扣款账本不一致')
         for goal in LifeGoal.objects.filter(owner_id=owner):
             if not LifeProfile.objects.filter(pk=goal.actor_id,owner_id=owner).exists():raise SyncError('目标缺少居民生活资料')
+    from .life_interleaving_sync import validate_database
+    validate_database()
     from .life_planner import check_goals
     for profile in LifeProfile.objects.all():
         actor=Agent.objects.filter(pk=profile.pk).first()
         if actor:check_goals(profile.owner_id,actor)
     # 同步只关闭生活执行凭证；新设备仍须手动开启世界运行。
     AgentExecutionLease.objects.filter(token__startswith='life:').update(token='',until=None)
-    WorldActionRuntime.objects.filter(pk__in=['world','life-planner']).update(token='',until=None,enabled=False)
+    WorldActionRuntime.objects.filter(pk__in=['world','life-planner','life-idle-decision']).update(token='',until=None,enabled=False)

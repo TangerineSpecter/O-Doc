@@ -211,6 +211,10 @@ class MarketAutomationTests(TestCase):
         self.assertEqual(market_batch.build_actions('admin', self.a.pk, plan, timezone.now())['reprices'], [])
 
     def plan_facts(self):
+        MarketListing.objects.get_or_create(pk='plan-facts-stew', defaults={
+            'owner_id': 'admin', 'seller_id': self.b.pk, 'seller_name': 'B',
+            'item': {'name': '家常炖菜', 'source': {'sku': 'dish.stew', 'stars': 4}},
+            'initial_quantity': 2, 'remaining_quantity': 2, 'unit_price': Decimal('5.20')})
         return {
             'available': '100.00',
             'needs': [
@@ -223,7 +227,8 @@ class MarketAutomationTests(TestCase):
             ],
             'listings': [{'sku': 'dish.stew', 'name': '家常炖菜', 'count': 2,
                           'min_price': Decimal('5.20'), 'max_stars': 4,
-                          'value': Decimal('4.50')}],
+                          'value': Decimal('4.50'),
+                          'star_quotes': {4: {'count': 2, 'min_price': Decimal('5.20')}}}],
             'equipment': [{'slot': 'body', 'count': 1, 'min_price': Decimal('18.00')}],
             'shop_skus': {'seed.carrot', 'fertilizer.yield', 'feed'},
             'signature': 'sig-1',
@@ -401,6 +406,9 @@ class MarketAutomationTests(TestCase):
     def test_purchase_preserves_new_life_reservations(self):
         plan = self.plan()
         actions, goal = self.purchase_actions(plan)
+        # Keep the trip's energy commitment valid so this test reaches the money reservation check.
+        AgentTask.objects.create(name='旅行', task_kind='travel', enabled=True, agent=self.a,
+            agent_ids=[self.a.pk], travel_config={'owner_id': 'admin', 'energy_cost': 20})
         LifeItem.objects.create(pk='future-trip', owner_id='admin', actor_id=self.a.pk,
                                 original_at=self.now, scheduled_at=self.now,
                                 activity='travel', budget=Decimal('9950'))

@@ -2,6 +2,7 @@ import type {ReactNode} from 'react';
 import type {InventoryItem} from '../../types/api/travel';
 import {MaterialPortrait} from '../Combat/atlas/MaterialPortrait';
 import {PotionPortrait} from '../Combat/atlas/PotionPortrait';
+import {RecipePixelPortrait} from '../Cooking/RecipePixelPortrait';
 import {farmItemIcon} from '../Farm/assets';
 import {ItemIconImage} from './ItemIconImage';
 
@@ -28,7 +29,9 @@ export function InventoryItemIcon({item, className, fallback}: {
         ? sku
         : null;
 
-    const builtin = elixirId
+    const builtin = sku.startsWith('dish.')
+        ? <RecipePixelPortrait recipeId={sku} name={item.name} decorative className={className}/>
+        : elixirId
         ? <PotionPortrait potionId={elixirId} name={item.name} decorative className={className}/>
         : potionId
         ? <PotionPortrait potionId={potionId} name={item.name} decorative className={className}/>

@@ -1,3 +1,4 @@
+import {scheduleCounts} from './LifeSourceBadge';
 import dayjs from 'dayjs';
 import {Calendar} from 'lucide-react';
 import type {LifeItem} from '../../types/api/agentLife';
@@ -84,7 +85,7 @@ export default function LifeScheduleWeekView({
                                     </span>
                                     {dayItems.length > 0 && (
                                         <span className="text-[10px] text-slate-400">
-                                            {dayItems.length} 项日程
+                                            {scheduleCounts(dayItems)}
                                         </span>
                                     )}
                                 </div>

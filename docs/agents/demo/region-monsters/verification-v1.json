@@ -1,0 +1,403 @@
+{
+  "checks": [
+    {
+      "monster": "mine_rat",
+      "skills": [
+        "strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "ore_golem",
+      "skills": [
+        "guard"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "iron_guard",
+      "skills": [
+        "armor_break"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "mine_giant",
+      "skills": [
+        "armor_break",
+        "strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "toxic_mushroom",
+      "skills": [
+        "poison"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "mist_wolf",
+      "skills": [
+        "strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "ancient_guard",
+      "skills": [
+        "heal"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "mist_treant",
+      "skills": [
+        "poison",
+        "heal"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "ruin_skeleton",
+      "skills": [
+        "strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "water_spirit",
+      "skills": [
+        "magic_strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "ruin_knight",
+      "skills": [
+        "guard"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "tide_priest",
+      "skills": [
+        "shield",
+        "magic_strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "ash_demon",
+      "skills": [
+        "burn"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "lava_beast",
+      "skills": [
+        "strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "furnace_guard",
+      "skills": [
+        "strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "ash_lord",
+      "skills": [
+        "burn",
+        "magic_strike"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "rift_walker",
+      "skills": [
+        "evasion"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "star_golem",
+      "skills": [
+        "armor_break"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "rift_lord",
+      "skills": [
+        "curse"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    },
+    {
+      "monster": "star_overlord",
+      "skills": [
+        "curse",
+        "burn"
+      ],
+      "pause": "pass",
+      "defeat": "pass"
+    }
+  ],
+  "errors": [],
+  "apiRequests": 0,
+  "responsive": [
+    320,
+    390,
+    1440
+  ],
+  "reducedMotion": "pass",
+  "date": "2026-10-22",
+  "scope": "Independent HTML previews only; approval and application integration pending",
+  "staticChecks": [
+    "Node 22 JS syntax",
+    "runtime scripts ESLint: zero errors",
+    "Python generator syntax",
+    "HTML local references",
+    "git diff --check"
+  ],
+  "controls": {
+    "allFivePages": "pass",
+    "controls": [
+      "flip",
+      "plain",
+      "atlas",
+      "grid",
+      "layers",
+      "night",
+      "speed",
+      "continuous-demo-terminal",
+      "switch-cleans-effects",
+      "keyboard",
+      "file-url"
+    ],
+    "errors": []
+  },
+  "controlsTransport": "file://; separate HTTP suite passed for all five pages. Supplemental HTTP runs saw intermittent local socket failures before initialization.",
+  "oreGuardRevision": {
+    "status": "preview-only; pending user confirmation",
+    "checks": [
+      "shield-left and shield-right screenshots inspected",
+      "atlas-size screenshot inspected",
+      "pause screenshot stable",
+      "reset and monster switch cleanup",
+      "ruin knight original guard unchanged",
+      "Node 22 syntax and git diff --check passed"
+    ],
+    "screenshot": "ore-guard-v2.png"
+  },
+  "ironGuardArmorBreakRevision": {
+    "scope": "iron_guard armor_break preview only",
+    "checks": [
+      "eight phases inspected in both directions",
+      "real skill button and caption",
+      "paused screenshot stable",
+      "reset and switch cleanup",
+      "ESLint zero errors",
+      "45-frame animation exported"
+    ],
+    "animation": "iron-guard-armor-break-v2.gif"
+  },
+  "mineGiantSkillsRevision": {
+    "scope": "mine_giant armor_break and strike previews only; not integrated",
+    "checks": [
+      "both actual skill buttons and captions",
+      "eight phase screenshots for both directions",
+      "atlas screenshots",
+      "paused screenshot stable",
+      "reset and switch cleanup",
+      "iron guard remains separate",
+      "ESLint zero errors"
+    ],
+    "animation": "mine-giant-skills-v2.gif"
+  },
+  "toxicMushroomRevision": {
+    "scope": "toxic_mushroom drips and poison preview only; pending approval",
+    "checks": [
+      "idle and poison paused screenshots stable",
+      "eight phase screenshots in both directions",
+      "atlas screenshot inspected",
+      "actual poison button and caption",
+      "reset and monster switch cleanup",
+      "mist treant poison remains unchanged",
+      "shared hit/defeat path retained; no drips after defeat",
+      "browser no JavaScript errors",
+      "four modified JS modules ESLint zero errors"
+    ],
+    "animation": "toxic-mushroom-poison-v2.gif"
+  },
+  "mistWolfPounceRevision": {
+    "scope": "preview-only candidate mist_pounce replaces strike; production catalogue and app untouched",
+    "checks": [
+      "candidate button and explanation replace strike",
+      "four-leg articulation and bite frames inspected",
+      "eight phases both facings",
+      "atlas screenshot",
+      "paused screenshot stable",
+      "reset and switch cleanup",
+      "shared hit/defeat path",
+      "no browser JS errors",
+      "ESLint four modified JS modules"
+    ],
+    "animation": "mist-wolf-pounce-v2.gif"
+  },
+  "ancientGuardRegenRevision": {
+    "scope": "ancient_guard heal preview only; no HP/catalogue/app changes",
+    "checks": [
+      "actual regen button and description",
+      "eight phases both facings",
+      "atlas screenshot inspected",
+      "paused screenshot stable",
+      "reset and switch cleanup",
+      "shared hit and defeat retained",
+      "mist treant unchanged",
+      "four modified JS modules ESLint zero errors",
+      "browser no JS errors"
+    ],
+    "animation": "ancient-guard-regen-v2.gif"
+  },
+  "mistTreantSkillsRevision": {
+    "scope": "preview candidates root_prison/mist_domain replace poison/heal; production unchanged",
+    "checks": [
+      "two candidate buttons and captions",
+      "eight phases both facings",
+      "atlas screenshots",
+      "pause screenshots stable",
+      "reset and switch cleanup",
+      "other three forest monsters retain revised skills",
+      "shared hit/defeat path",
+      "390/320px no overflow",
+      "five modified JS modules ESLint zero errors; final root shape Node syntax passed",
+      "browser no JS errors"
+    ],
+    "animation": "mist-treant-skills-v2.gif"
+  },
+  "sunkenRuinsSkillsRevision": {
+    "scope": "five review-only candidates for four monsters; production skills unchanged",
+    "skills": {
+      "ruin_skeleton": [
+        "grave_blade"
+      ],
+      "water_spirit": [
+        "whirlpool_bolt"
+      ],
+      "ruin_knight": [
+        "oath_counter"
+      ],
+      "tide_priest": [
+        "rising_tide",
+        "tidal_verdict"
+      ]
+    },
+    "checks": [
+      "all five actual skill buttons and captions; no strike button",
+      "eight phases per skill in both directions",
+      "atlas screenshots inspected",
+      "paused screenshots stable",
+      "reset and monster switch cleanup",
+      "water spirit and priest water basic attacks",
+      "shared hit and defeat paths retained",
+      "390/320px no overflow",
+      "nine changed JS modules ESLint zero errors",
+      "browser no JS errors",
+      "final dark actor occlusion edits rechecked separately"
+    ],
+    "animations": [
+      "sunken-ruins-skills-v2.gif",
+      "tide-priest-barrier-v2.gif"
+    ]
+  },
+  "emberFortressSkillsRevision": {
+    "scope": "preview only; three new candidates; reuse existing MonsterTemplate boss pixel kernels; production unchanged",
+    "skills": {
+      "ash_demon": [
+        "cinder_breath"
+      ],
+      "lava_beast": [
+        "magma_spines"
+      ],
+      "furnace_guard": [
+        "furnace_ray"
+      ],
+      "ash_lord": [
+        "burn",
+        "magic_strike"
+      ]
+    },
+    "bossSource": "../MonsterTemplate_v1.html sections 10A.2-4",
+    "checks": [
+      "three candidate skill buttons and captions; no strike",
+      "boss burn/magic_strike and double orb basic attack",
+      "eight phases in both facings; atlas size",
+      "paused screenshots identical; reset and monster switch",
+      "shared hit and defeat bypass custom poses",
+      "390/320px no overflow",
+      "browser no JS errors",
+      "seven changed JS modules ESLint zero errors",
+      "final taper and lava trajectory visually checked in current browser",
+      "final boss pose baseline and furnace frame checked in current browser"
+    ],
+    "screenshot": "ember-fortress-skills-v2.png"
+  },
+  "mineGiantBossRevisionV3": {
+    "scope": "replace both preview skills and effects; production unchanged",
+    "candidates": [
+      "crystal_resonance",
+      "vault_collapse"
+    ],
+    "checks": [
+      "both skill buttons and full timeline captured in live browser",
+      "right-facing resonance and right-facing atlas collapse inspected",
+      "paused screenshot bytes identical",
+      "reset returns idle; switching clears scene",
+      "iron guard armor_break still present",
+      "finite pose values throughout both timelines and directions",
+      "shared hit/defeat samples identical to approved implementation",
+      "four edited JavaScript files ESLint zero errors"
+    ],
+    "animation": "mine-giant-skills-v3.gif"
+  },
+  "mistTreantRevisionV3": {
+    "scope": "preview only; organic root binding and fruit-dew healing replace v2 cage/mist effects",
+    "skills": [
+      "root_prison",
+      "royal_dew"
+    ],
+    "checks": [
+      "both animations recorded in current browser after content-hash refresh",
+      "right-facing atlas healing inspected",
+      "paused screenshot bytes identical",
+      "finite poses in both directions; no concealment fade",
+      "shared hit/defeat sample equivalence",
+      "five changed scripts ESLint zero errors"
+    ],
+    "animation": "mist-treant-skills-v3.gif"
+  }
+}

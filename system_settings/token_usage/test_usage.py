@@ -16,7 +16,7 @@ from system_settings.token_usage.capture import Capture
 from system_settings.token_usage.normalize import normalize
 from system_settings.token_usage.queries import total, record_summaries
 from system_settings.token_usage.sync import normalize_restored_usage
-from system_settings.token_usage.views import TokenUsageView
+from system_settings.token_usage.views import TokenUsageView, TokenContentRenderer
 from utils.token_usage import usage_scope, usage_context, create_completion, attributed
 
 CONFIG = {'model_name': 'fake', 'model_id': 'm', 'provider_id': 'p', 'provider_name': 'fake-provider', 'provider_type': 'OpenAi'}
@@ -33,6 +33,15 @@ def response(tool=False):
 
 
 class NormalizationTests(SimpleTestCase):
+    def test_content_renderer_preserves_model_protocol_and_business_keys(self):
+        body = {'messages': [{'role': 'assistant', 'tool_calls': [{'id': 'c1', 'function': {'name': 'lookup', 'arguments': '{"customer_id":"x"}'}}]},
+                             {'role': 'tool', 'tool_call_id': 'c1', 'content': '完成'}], 'response_format': {'type': 'json_object'}}
+        response = {'usage': {'prompt_tokens': 12}, 'custom_business_key': 'value'}
+        rendered = json.loads(TokenContentRenderer().render({'data': {'error_type': None, 'request': body, 'response': response}}))
+        self.assertEqual(rendered['data']['request'], body)
+        self.assertEqual(rendered['data']['response'], response)
+        self.assertIn('errorType', rendered['data'])
+
     def test_unknown_zero_and_details(self):
         self.assertEqual(normalize(None)['total_tokens'], None)
         self.assertEqual(normalize({'prompt_tokens': 0, 'completion_tokens': 0})['total_tokens'], 0)
@@ -49,6 +58,22 @@ class UsageTests(TestCase):
         self.record = AgentRunRecord.objects.create(task=self.task, task_name='日报', agent=self.agent)
         self.user = get_user_model().objects.create_user(username='usage-test')
         self.factory = APIRequestFactory()
+
+    def test_content_endpoint_renders_protocol_without_recasing(self):
+        row = AgentTokenUsage.objects.create(device_id='test', agent_key=self.agent.pk)
+        payload = {'available': True, 'error_type': None,
+                   'request': {'messages': [{'role': 'tool', 'tool_call_id': 'c1', 'content': '工具返回'}]},
+                   'response': {'choices': [{'message': {'tool_calls': [{'id': 'c1', 'function': {'name': 'lookup', 'arguments': '{}'}}]}}]}}
+        request = APIRequestFactory().get('/token-content/')
+        force_authenticate(request, self.user)
+        with patch('system_settings.token_usage.views.request_details.maintain'), patch('system_settings.token_usage.views.request_content', return_value=payload):
+            response = TokenUsageView.as_view(kind='content')(request, request_id=row.pk)
+            response.render()
+        data = json.loads(response.content)['data']
+        self.assertEqual(data['request'], payload['request'])
+        self.assertEqual(data['response'], payload['response'])
+        self.assertIn('errorType', data)
+        self.assertEqual(response['Cache-Control'], 'no-store')
 
     def capture(self, actor=None, value=None):
         with usage_scope(agent=actor or self.agent, task=self.task, record=self.record, purpose='task'):

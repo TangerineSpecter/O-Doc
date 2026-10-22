@@ -52,6 +52,8 @@ export interface FlowBlock {
     chars: number;
     bytes: number;
     preview: string;
+    source?: string;
+    kind?: 'instructions' | 'business' | 'history' | 'tools' | 'tool_results';
 }
 export interface FlowStep {
     id: string;

@@ -1,5 +1,6 @@
 """Feasible finite choices; arbitrary plans remain available through the text helper."""
 from decimal import Decimal
+from collections import Counter
 import hashlib
 import json
 from .market_model_context import projection
@@ -73,6 +74,12 @@ def candidates(owner: str, agent) -> list[dict]:
         add('buy_market_shop', '购买 ' + row['name'], {'batch_id': shop['id'], 'slot_id': row['id']}, maximum,
             unit_price=unit, sku=row['sku'], detail=purchase_detail(row, context))
     originals = {item.pk: item for item in inventory_items(agent.pk, owner)}
+    free_materials, free_by_sku = {}, Counter()
+    if any(item.source.get('sku', '').startswith('combat.material.') for item in originals.values()):
+        from .crafting_materials import available_pool
+        for material in available_pool(owner, agent.pk):
+            free_materials[material['inventory_id']] = material['quantity']
+            free_by_sku[material['sku']] += material['quantity']
     for row in context['inventory']:
         sku = row['source'].get('sku', '')
         item = originals[row['id']]
@@ -81,14 +88,15 @@ def candidates(owner: str, agent) -> list[dict]:
             add('sell_to_market_shop', '回收出售 ' + row['name'], {'item_id': row['id']}, row['quantity'],
                 detail=row, recovery=recovery_values(lots, row['quantity']))
         if tradable(item):
-            add('create_market_listing', '上架 ' + row['name'], {'item_id': row['id']}, row['quantity'],
+            maximum = free_materials.get(row['id'], 0) if sku.startswith('combat.material.') else row['quantity']
+            add('create_market_listing', '上架 ' + row['name'], {'item_id': row['id']}, maximum,
                 detail={**row, 'pricing': '自主定价；回收价值仅供参考，上架不等于成交'})
     supplies = context['combat_supplies']
     for row in supplies['potions']:
         unit = Decimal(row['purchase_price'])
         add('buy_combat_potion', '购买药剂 ' + row['name'], {'potion_id': row['id']}, min(20, int(cash // unit)), unit_price=unit, detail={**row, 'owned': stock_quantity(agent.pk, owner, 'combat.' + row['id'])})
     for row in supplies['materials']:
-        maximum = min(99, stock_quantity(agent.pk, owner, 'combat.' + row['id']))
+        maximum = min(99, free_by_sku['combat.' + row['id']])
         add('sell_combat_material', '出售材料 ' + row['name'], {'material_id': row['id']}, maximum,
             detail=row, recovery=recovery_values([{'quantity': maximum, 'price': row['sale_price']}], maximum) if maximum else {})
     for row in supplies['equipment']:

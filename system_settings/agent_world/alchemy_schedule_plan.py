@@ -1,8 +1,7 @@
 """Finite alchemy decisions and soft reservations; planning never consumes inventory."""
 import copy
-from collections import Counter, defaultdict
+from collections import Counter
 from decimal import Decimal
-from django.db.models import Count
 
 from .alchemy_catalog import DEFAULT_RULES, MATERIALS, rules_for, validate_rule, skill_progress
 from .alchemy_limits import MAX_RECIPES, MAX_BOTTLES
@@ -42,45 +41,8 @@ def validate_plan(plan: dict) -> dict:
 
 
 def available_pool(owner: str, actor_id: str, *, exclude_ids=()) -> list[dict]:
-    from .life_models import LifeItem
-    from .life_schedule import OPEN, execution_key
-    from .alchemy_models import AlchemyOperation
-    pool = material_pool(actor_id, owner)
-    items = LifeItem.objects.filter(owner_id=owner, actor_id=actor_id, activity='alchemy',
-        status__in=OPEN).exclude(pk__in=exclude_ids).only('id', 'context').order_by('scheduled_at', 'id')
-    plans = []
-    for item in items:
-        plan = item.context.get('alchemy_plan')
-        if not plan:
-            continue
-        try:
-            validate_plan(plan)
-        except ValueError as exc:
-            # 无法解释的预留不能静默释放，否则其他计划可能占用其材料。
-            raise ValueError(f'炼金日程 {item.pk} 的预留计划无效，请取消或重新规划该日程') from exc
-        plans.append((execution_key(item), plan))
-    completed = defaultdict(Counter)
-    if plans:
-        operations = AlchemyOperation.objects.filter(opportunity_id__in={key for key, _ in plans}).order_by().values(
-            'opportunity_id', 'recipe_id').annotate(total=Count('pk'))
-        for row in operations:
-            completed[row['opportunity_id']][row['recipe_id']] = row['total']
-    by_sku = defaultdict(list)
-    for row in pool:
-        by_sku[row['sku']].append(row)
-    for key, plan in plans:
-        done = completed[key]
-        for entry in plan['entries']:
-            count = max(0, entry['quantity'] - done[entry['recipe_id']])
-            for ingredient in entry['rule']['ingredients']:
-                needed = ingredient['quantity'] * count
-                for row in by_sku[ingredient['sku']]:
-                    used = min(needed, row['quantity'])
-                    row['quantity'] -= used
-                    needed -= used
-                    if not needed:
-                        break
-    return pool
+    from .crafting_materials import available_pool as shared_pool
+    return shared_pool(owner, actor_id, exclude_ids=exclude_ids)
 
 
 def recipe_options(rules: dict, level: int, pool: list[dict], energy, *, excluded=()) -> dict:

@@ -1,8 +1,8 @@
 import request from '../utils/request';
-import type { ArticleSummary, CreateAnthologyParams, Anthology } from '../types/api/anthology';
+import type { ArticleSummary, CreateAnthologyParams, Anthology, AnthologyType } from '../types/api/anthology';
 
 // 重新导出类型以便其他组件使用
-export type { ArticleSummary, CreateAnthologyParams, Anthology };
+export type { ArticleSummary, CreateAnthologyParams, Anthology, AnthologyType };
 
 // 创建文集接口
 export const createAnthology = (data: CreateAnthologyParams) => {
@@ -10,7 +10,7 @@ export const createAnthology = (data: CreateAnthologyParams) => {
 };
 
 // 获取文集列表接口
-export const getAnthologyList = (type?: 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel') => {
+export const getAnthologyList = (type?: AnthologyType) => {
     return request.get<any, Anthology[]>('/anthology/list', {
         params: { type }
     });

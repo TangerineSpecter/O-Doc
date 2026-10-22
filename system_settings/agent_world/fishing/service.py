@@ -160,7 +160,14 @@ def depart(identity: str) -> None:
     plan = trip.state['plan']
     now = local_time()
     stock = inventory(trip.owner_id, trip.actor_id)
-    if not plan.get('complete') or plan['minutes'] not in durations(trip.owner_id, now, trip.rules):
+    from ..life_interleaving_candidates import legal_durations
+    item = LifeItem.objects.get(pk=trip.life_item_id)
+    legal = legal_durations(item, durations(trip.owner_id, now, trip.rules), now=now)
+    if plan.get('complete') and plan['minutes'] not in legal and legal:
+        # Keep the confirmed plan replayable until prepare_step records a shorter
+        # duration choice. Clearing it would reopen already-finished bait choices.
+        return
+    if not plan.get('complete') or plan['minutes'] not in legal:
         raise ValueError('准备耗时后已无足够出钓时间')
     if plan['spot'] not in spots(trip.owner_id, trip.actor_id, now, trip.rules):
         raise ValueError('钓点或鱼饵已不可用')

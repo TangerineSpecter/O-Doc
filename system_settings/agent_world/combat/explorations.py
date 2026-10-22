@@ -169,6 +169,8 @@ def hold_for_promotion(run, profile):
 def consume(run, profile, amount, block, now):
     key = hashlib.sha256(f'combat-energy:{run.pk}:{block}'.encode()).hexdigest()
     agent = Agent.objects.get(pk=run.actor_id)
+    from ..life_commitments import require_energy
+    require_energy(run.owner_id, agent, amount, item_id=run.life_item_id, manual=not run.life_item_id, now=now)
     if stamina(agent,storage_time(now)) < amount:
         raise ValueError('体力不足')
     WorldAction.objects.create(pk=key,actor_id=run.actor_id,status='success',consumed_at=storage_time(now),energy_cost=amount,effects_done=True,
@@ -207,6 +209,10 @@ def depart(run_id, plan, now=None):
     day=now.date().isoformat()
     for budget_day,seconds in day_parts(now,duration).items():
         if profile.loot_progress.get('days',{}).get(budget_day,0)+seconds>config.daily_minutes*60:raise ValueError(f'探索时长超出当日时间额度（每日累计探索限额：{config.daily_minutes} 分钟）')
+    if run.life_item_id:
+        from ..life_interleaving_candidates import legal_durations
+        if duration not in legal_durations(item, [duration], seconds=True, now=now):
+            raise ValueError('准备后空档或体力不足以执行已选探索时长')
     if stamina(agent,storage_time(now))<energy(duration):raise ValueError('探索全程体力预留不足')
     potions=plan.get('potions',{})
     if not isinstance(potions,dict):raise ValueError('携带药剂格式无效')

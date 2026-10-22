@@ -1,3 +1,5 @@
+import {DecisionProcessInfo} from '@/components/AgentWorld/DecisionProcessInfo';
+import {hasDecisionGuide} from '@/components/AgentWorld/decisionProcessGuides';
 import type {ElementType, ReactNode} from 'react';
 import {
     MessageSquare,
@@ -13,6 +15,7 @@ import {
     FlaskConical,
     NotebookPen,
     KeyRound,
+    Hammer,
 } from 'lucide-react';
 import type {AgentTaskConfig} from '@/types/api/setting';
 
@@ -41,6 +44,7 @@ const activityTheme: Record<
     memo_capture: {icon: NotebookPen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     cooking: {icon: BookOpen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     alchemy: {icon: FlaskConical, color: 'bg-violet-50 text-violet-600 border-violet-100'},
+    blacksmith: {icon: Hammer, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     investment: {
         icon: TrendingUp,
         color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -85,8 +89,8 @@ export function BuiltinPostTaskCard({
     };
     const Icon = theme.icon;
 
-    const description = customDescription ?? (
-        task.taskKind === 'exploration' ? '自主准备装备与药剂，持续探索地牢；冒险面板可观察战斗、掉落与成长。开启该能力后，居民可将迷宫探索纳入生活日程。' : task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
+    const description = customDescription ?? (task.taskKind === 'blacksmith' ? '按等级范围、部位和职业路线选择装备，消耗迷宫素材打造；每件随机等级与品质，一次最多三件。' :
+        task.taskKind === 'exploration' ? '自主准备装备与药剂，持续探索地牢；冒险面板可观察战斗、掉落与成长。在空档由决策模型选择出发，实际执行会记入日程。' : task.taskKind === 'alchemy' ? '在空档按药水缺口选择配方，逐份复核素材与体力；炼制结果和实际消耗记录在日程中。' : task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
             ? '查询市场新闻和行业，按需分析股票，自主买卖或观望。持仓与收益可在股票投资查看。'
             : task.taskKind === 'market'
               ? '自主进入市场，购买农资与动物、出售产物或上架商品。进入消耗体力并自由交易。'
@@ -110,10 +114,14 @@ export function BuiltinPostTaskCard({
                             <Icon className="h-3.5 w-3.5" />
                         </span>
                         <h4 className="truncate text-xs font-bold text-slate-800">{task.name}</h4>
+                        {hasDecisionGuide(task.taskKind) && <DecisionProcessInfo kind={task.taskKind}/>}
                     </div>
 
                     <button
                         type="button"
+                        aria-label={`${configured ? '启用' : '配置'}${task.name}`}
+                        role={configured ? 'switch' : undefined}
+                        aria-checked={configured ? task.enabled : undefined}
                         onClick={configured ? onToggle : onConfigure}
                         disabled={toggleDisabled}
                         className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium leading-normal transition-colors disabled:opacity-40 ${

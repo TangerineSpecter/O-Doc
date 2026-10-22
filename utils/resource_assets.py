@@ -314,12 +314,20 @@ def delete_asset_physical_file(asset):
 
 
 def delete_asset_record_and_file(asset):
-    # 所有资源删除入口均保留图鉴和背包物品引用；不扩大读取权限。
-    if is_asset_used_by_inventory(asset.pk) or is_asset_used_by_catalog_item(asset.pk):
-        return False
-    delete_asset_physical_file(asset)
-    asset.delete()
-    return True
+    from django.db import transaction
+    # Recheck references and delete the locked row in one transaction. A later
+    # database failure or outer rollback must never leave a live row without its
+    # file, so physical cleanup waits for the outermost successful commit.
+    with transaction.atomic():
+        locked = type(asset).objects.select_for_update().filter(pk=asset.pk).first()
+        if locked is None:
+            return False
+        if (is_asset_used_by_inventory(locked.pk) or is_asset_used_by_catalog_item(locked.pk)
+                or is_asset_used_by_quant(locked.pk)):
+            return False
+        locked.delete()
+        transaction.on_commit(lambda target=locked: delete_asset_physical_file(target))
+        return True
 
 
 def is_asset_referenced(asset):
@@ -329,4 +337,25 @@ def is_asset_referenced(asset):
     return (asset.is_linked or is_asset_used_by_image(asset.pk)
             or is_asset_used_by_article(asset.pk) or is_asset_used_by_agent(asset.pk)
             or is_asset_used_by_prompt(asset.pk)
+            or is_asset_used_by_quant(asset.pk)
             or Book.objects.filter(Q(asset=asset) | Q(cover_asset=asset), is_valid=True).exists())
+
+
+def is_asset_used_by_quant(resource_id):
+    """Historical references survive soft deletion so research evidence remains recoverable."""
+    from quant.models import Attachment
+    return Attachment.objects.filter(asset_id=resource_id).exists()
+
+
+def get_quant_resource_usage(resource_ids=None, *, owner=None):
+    from quant.models import Attachment
+    refs = Attachment.objects.select_related('entry__anthology')
+    if owner is not None:
+        refs = refs.filter(entry__anthology__user_id=owner)
+    if resource_ids is not None:
+        refs = refs.filter(asset_id__in=resource_ids)
+    usage = {}
+    for ref in refs.order_by('created_at', 'pk'):
+        usage.setdefault(ref.asset_id, {'id': ref.entry_id, 'title': ref.entry.title,
+                                       'collId': ref.entry.anthology_id})
+    return usage

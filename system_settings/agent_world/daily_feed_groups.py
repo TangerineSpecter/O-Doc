@@ -22,13 +22,14 @@ def grouped_execution_events(events, start, end):
             continue
         category = ('farm' if identity.startswith('farm:') else 'cooking' if identity.startswith('cooking:')
                     else 'alchemy' if identity.startswith('alchemy:')
+                    else 'blacksmith' if identity.startswith('blacksmith:')
                     else 'trade' if identity.startswith('market-sale:')
                     else latest['category'] if identity.startswith('activity:') else 'market')
-        operations = [row for row in rows if row['source'] in ('farm', 'cooking', 'alchemy', 'market', 'market-seller', 'activity')]
+        operations = [row for row in rows if row['source'] in ('farm', 'cooking', 'alchemy', 'blacksmith', 'market', 'market-seller', 'activity')]
         closing = [row for row in rows if row['source'] == 'market-session']
         running = any(row.get('_execution_running') or row.get('status') == 'running' for row in rows)
         reason = (next((row.get('reason') for row in rows if row.get('reason')), '')
-                  if category in ('farm', 'cooking', 'alchemy') else (closing[-1]['detail'] if closing else ''))
+                  if category in ('farm', 'cooking', 'alchemy', 'blacksmith') else (closing[-1]['detail'] if closing else ''))
         values = [Decimal(row['amount']) for row in operations if row['amount'] is not None]
         steps = [{k: row[k] for k in ('id', 'title', 'detail', 'occurredAt', 'amount')} for row in rows]
         for step in steps:
@@ -51,10 +52,12 @@ def grouped_execution_events(events, start, end):
                 detail_text = f'{label} {len(operations)} {unit} · {products_text}' + (f' · {reason}' if reason else '')
             else:
                 detail_text = (f'{label} {len(operations)} {unit}' if operations else ('未进行美食制作' if category == 'cooking' else '未进行炼金制作')) + (f' · {reason}' if reason else '')
+        elif category == 'blacksmith':
+            detail_text = f'已打造 {len(operations)} 件装备' + (f' · {reason}' if reason else '')
         else:
             detail_text = (f'已执行 {len(operations)} 项操作' if operations else '正在浏览市场' if running else '本次未进行交易') + (f' · {reason}' if reason else '')
         result = {**latest, 'id': f'execution:{identity}:{actor}', 'source': 'execution',
-                  'category': category, 'title': {'farm': '农场经营', 'cooking': '美食制作', 'alchemy': '炼金制作', 'trade': '商品售出', 'publication': '作品发布', 'interaction': '阅读互动'}.get(category, '市场活动'),
+                  'category': category, 'title': {'farm': '农场经营', 'cooking': '美食制作', 'alchemy': '炼金制作', 'blacksmith': '铁匠铺打造', 'trade': '商品售出', 'publication': '作品发布', 'interaction': '阅读互动'}.get(category, '市场活动'),
                   'detail': detail_text,
                   'amount': str(sum(values, Decimal(0))) if values else None,
                   'reason': reason or latest.get('reason') or '',

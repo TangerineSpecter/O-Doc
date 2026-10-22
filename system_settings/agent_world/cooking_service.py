@@ -59,6 +59,8 @@ def commit_portion(actor_id: str, opportunity_id: str, index: int, recipe_id: st
     before = skill_progress(skill.experience)
     if before['level'] < snapshot['required_level']:
         raise ValueError('厨艺等级不足')
+    from .life_commitments import require_energy
+    require_energy(owner, agent, snapshot['energy_cost'], now=now)
     if stamina(agent, now) < snapshot['energy_cost']:
         raise ValueError('体力不足')
     quality = {}

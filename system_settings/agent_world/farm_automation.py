@@ -33,6 +33,15 @@ def apply_progress(state: dict, operation: dict, opportunity_id: str, result: di
                 plot['crop']['planting_origin'] = {'plan_id': pid, 'entry_id': eid, 'revision': plan['revision'], 'day': plan['day']}
 
 
+def can_spend(farm, agent, amount, now, operation):
+    from .life_commitments import require_energy, ResourceProtected
+    try:
+        require_energy(farm.owner_id, agent, amount, farm_operation=operation, now=now)
+        return True
+    except ResourceProtected:
+        return False
+
+
 def commit(farm, key, operation, task, agent_token, world_token, now, context):
     from .farm_service import commit_operation
     marker = QUEUE.set(context)
@@ -74,22 +83,28 @@ def tend_farm(farm_id: str, world_token: str, agent_token: str, task: AgentTask,
     animals = [a for a in farm.state['animals'] if a['cycle'].get('result')] if force else []
     while animals and stamina(agent, now) >= 2:
         batch = animals[:4]
+        operation = {'kind': 'collect', 'targets': [a['id'] for a in batch]}
+        if not can_spend(farm, agent, 2, now, operation):
+            break
         cycles = sorted(f"{a['id']}:{a['cycle']['number']}" for a in batch)
         key = hashlib.sha256(('farm-collect:' + ':'.join(cycles)).encode()).hexdigest()
         save(farm, now)
-        commit(farm, key, {'kind': 'collect', 'targets': [a['id'] for a in batch]},
+        commit(farm, key, operation,
                task, agent_token, world_token, now, {})
         farm.refresh_from_db(); agent.refresh_from_db(); plan = current(farm, now)
         animals = [a for a in farm.state['animals'] if a['cycle'].get('result')]
     ready = [p for p in farm.state['plots'] if p.get('crop') and p['crop']['grown'] >= p['crop']['rules']['growth_seconds']]
     while ready and stamina(agent, now) >= 2:
         batch = ready[:4]
+        operation = {'kind': 'harvest', 'targets': [p['id'] for p in batch]}
+        if not can_spend(farm, agent, 2, now, operation):
+            break
         origins = [p['crop']['planting_origin'] for p in batch if p['crop'].get('planting_origin')]
         cycles = [p['crop'].get('cycle_id', f"{p['id']}:{p['crop']['planted_at']}") for p in batch]
         key = hashlib.sha256(('farm-harvest:' + ':'.join(sorted(cycles))).encode()).hexdigest()
         # Store expiry/activation before a commit reloads the farm aggregate.
         save(farm, now)
-        commit(farm, key, {'kind': 'harvest', 'targets': [p['id'] for p in batch]}, task, agent_token, world_token, now, {'origins': origins})
+        commit(farm, key, operation, task, agent_token, world_token, now, {'origins': origins})
         farm.refresh_from_db(); agent.refresh_from_db(); plan = current(farm, now)
         ready = [p for p in farm.state['plots'] if p.get('crop') and p['crop']['grown'] >= p['crop']['rules']['growth_seconds']]
     if ready and plan and stamina(agent, now) < 2:
@@ -108,7 +123,8 @@ def tend_farm(farm_id: str, world_token: str, agent_token: str, task: AgentTask,
                     count = min(count, available)
                 needed_energy = 4 if fertilize and available else 2
                 wait = ('land' if not empty else 'seeds' if not stock_quantity(farm.pk, farm.owner_id, entry['sku']) else
-                        'fertilizer' if not count else 'stamina' if stamina(agent, now) < needed_energy else '')
+                        'fertilizer' if not count else 'stamina' if stamina(agent, now) < needed_energy or not can_spend(
+                            farm, agent, needed_energy, now, {'kind': 'plant', 'targets': empty[:count]}) else '')
                 if wait:
                     event(plan, wait, {'land': '等待地块收获腾空', 'seeds': '等待市场采购种子',
                           'fertilizer': '等待指定肥料', 'stamina': '等待体力恢复'}[wait], now, entry_id=entry['id'])

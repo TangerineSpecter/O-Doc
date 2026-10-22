@@ -23,7 +23,7 @@ from .publish_workflow import SkipPublication, Workflow, validate_draft
 from .publishing import publish_post
 
 logger = logging.getLogger(__name__)
-PHASE_LABELS = {'select': '正在自主选题', 'search': '正在搜索素材', 'verify': '正在核实来源', 'write': '正在写作', 'ready': '正在校验发布'}
+PHASE_LABELS = {'category': '正在选择发帖分类', 'select': '正在自主选题', 'search': '正在搜索素材', 'verify': '正在核实来源', 'write': '正在写作', 'ready': '正在校验发布'}
 
 
 def duplicate_source(agent, main: str) -> bool:

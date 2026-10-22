@@ -32,6 +32,7 @@ from system_settings.sync_state import (
 from system_settings.agent_world.farm_gate import guarded as farm_sync_guard
 from learning.locking import snapshot_guard as learning_sync_guard
 from novel.locking import snapshot_guard as novel_sync_guard
+from quant.locking import snapshot_guard as quant_sync_guard
 from novel.chapters import enforce_revision_retention as enforce_novel_revision_retention
 from system_settings.agent_world import travel_sync
 
@@ -96,7 +97,7 @@ class SyncManager:
     REMOTE_LOCK_TTL_SECONDS = 2 * 60 * 60
     TARGET_APPS = [
         'article', 'anthology', 'categories', 'tags',
-        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning', 'novel'
+        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning', 'novel', 'quant'
     ]
     def __init__(self, storage_client=None, remote_base_path=''):
         self.client = storage_client
@@ -209,9 +210,13 @@ class SyncManager:
 
     def validate_remote_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
+        from system_settings.agent_world.blacksmith_sync import validate_version as validate_blacksmith_version
+        validate_blacksmith_version(remote_meta)
+        if remote_meta and remote_meta.get('quant_schema_version', 0) > 1:
+            raise SyncError('量化快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>11:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>12:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 1:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
@@ -558,7 +563,7 @@ class SyncManager:
         # 封面 Asset 只服务书架时可以安全失效，避免其残留资源记录继续阻断同步。
         if missing_cover_ids:
             body_asset_ids = set(Book.objects.filter(is_valid=True).values_list('asset_id', flat=True))
-            for asset in Asset.objects.filter(id__in=set(missing_cover_ids) - body_asset_ids):
+            for asset in Asset.objects.filter(id__in=set(missing_cover_ids) - body_asset_ids).exclude(quant_references__isnull=False):
                 metadata = asset.metadata if isinstance(asset.metadata, dict) else {}
                 if metadata.get('book_cover') and not asset.linked_article_id:
                     asset.is_valid = False
@@ -571,7 +576,7 @@ class SyncManager:
         # 代表本机已不存在的附件/图片，保留有效记录只会让每次快照再次失败。
         book_body_asset_ids = self._book_body_asset_ids()
         missing_asset_ids = []
-        for asset in Asset.objects.filter(is_valid=True).exclude(id__in=book_body_asset_ids):
+        for asset in Asset.objects.filter(is_valid=True).exclude(id__in=book_body_asset_ids).exclude(quant_references__isnull=False):
             rel_path = self._normalize_rel_path(asset.file_path)
             if rel_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, rel_path)):
                 missing_asset_ids.append(asset.id)
@@ -849,6 +854,7 @@ class SyncManager:
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
+    @quant_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None, integrity='strict'):
         """把快照写回数据库。full_overwrite 用于整库覆盖。integrity=repair 时领域校验改为提示，写完后由调用方整理。"""
         from system_settings.agent_world.stamina_settings import validate_snapshot as validate_stamina
@@ -882,6 +888,9 @@ class SyncManager:
         guard('学习', lambda: validate_learning(data_list, remote_meta))
         from novel.sync import validate as validate_novel
         guard('小说', lambda: validate_novel(data_list, remote_meta))
+        # Quant source versions and attachment ownership cannot be repaired by inference.
+        from quant.sync import validate as validate_quant
+        validate_quant(data_list, remote_meta)
         from memos.sprout_sync import validate as validate_sprouts
         guard('闪念发芽', lambda: validate_sprouts(data_list, remote_meta))
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
@@ -898,6 +907,8 @@ class SyncManager:
         validate_fishing(data_list, remote_meta)
         from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy
         alchemy_source_hashes = guard('炼金', lambda: validate_alchemy(data_list, remote_meta)) or {}
+        from system_settings.agent_world.blacksmith_sync import validate_source as validate_blacksmith
+        validate_blacksmith(data_list, remote_meta)
 
         def check_owner_set(label, meta_key, model_label, message):
             expected = (remote_meta or {}).get(meta_key)
@@ -1044,12 +1055,16 @@ class SyncManager:
             guard('烹饪恢复', lambda: reconcile_cooking(source_hashes=cooking_source_hashes))
             from system_settings.agent_world.alchemy_sync import reconcile_alchemy
             guard('炼金恢复', lambda: reconcile_alchemy(source_hashes=alchemy_source_hashes))
+            from system_settings.agent_world.blacksmith_sync import reconcile as reconcile_blacksmith
+            reconcile_blacksmith()
             from memos.sprout_sync import reset_execution as reset_sprouts
             reset_sprouts()
             from learning.sync import reset_execution
             reset_execution()
             from novel.sync import reset_execution as reset_novel_execution
             reset_novel_execution()
+            from quant.sync import reset_execution as reset_quant_execution
+            reset_quant_execution()
             from system_settings.agent_world.market_sync import reconcile_market
             guard('市场', reconcile_market)
             from system_settings.agent_world.combat.sync import revoke as revoke_combat
@@ -1066,6 +1081,8 @@ class SyncManager:
             checkpoint_cooking()
             from system_settings.agent_world.alchemy_sync import checkpoint_all as checkpoint_alchemy
             checkpoint_alchemy()
+            from system_settings.agent_world.blacksmith_sync import checkpoint_all as checkpoint_blacksmith
+            checkpoint_blacksmith()
             from system_settings.agent_world.market_sync import end_restored_sessions, refresh_restored_checkpoints
             end_restored_sessions()
             refresh_restored_checkpoints()
@@ -1361,8 +1378,10 @@ class SyncManager:
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
         from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
         from system_settings.agent_world.alchemy_quality_sync import metadata as alchemy_metadata
+        from system_settings.agent_world.blacksmith_sync import metadata as blacksmith_metadata
         from learning.sync import metadata as learning_metadata
         from novel.sync import metadata as novel_metadata
+        from quant.sync import metadata as quant_metadata
         from memos.sprout_sync import metadata as sprout_metadata
         from system_settings.agent_world.memory.sync import metadata as memory_metadata
         from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
@@ -1374,10 +1393,12 @@ class SyncManager:
             **combat_metadata(data_list),
             **learning_metadata(data_list),
             **novel_metadata(data_list),
+            **quant_metadata(data_list),
             **sprout_metadata(data_list),
             **crop_metadata(data_list),
             **cooking_metadata(data_list),
             **alchemy_metadata(data_list),
+            **blacksmith_metadata(data_list),
             **memory_metadata(data_list),
             'social_schema_version': 2,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
@@ -1391,7 +1412,11 @@ class SyncManager:
 
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
-        if remote_meta and remote_meta.get('combat_schema_version',0)>11:raise SyncError('战斗快照版本过新，请升级所有设备')
+        from system_settings.agent_world.blacksmith_sync import validate_version as validate_blacksmith_version
+        validate_blacksmith_version(remote_meta)
+        if remote_meta and remote_meta.get('quant_schema_version', 0) > 1:
+            raise SyncError('量化快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>12:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 1:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
@@ -1419,6 +1444,7 @@ class SyncManager:
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
+    @quant_sync_guard
     def build_snapshot_data(self, *, compact_travel=False, allow_exploration_review_mismatch=False, relax_integrity=False):
         from system_settings.agent_world.combat.store import install as install_combat
         install_combat()
@@ -1428,6 +1454,8 @@ class SyncManager:
         checkpoint_cooking()
         from system_settings.agent_world.alchemy_sync import checkpoint_all as checkpoint_alchemy
         checkpoint_alchemy()
+        from system_settings.agent_world.blacksmith_sync import checkpoint_all as checkpoint_blacksmith
+        checkpoint_blacksmith()
         from system_settings.agent_world.social_sync import checkpoint_all as checkpoint_social
         checkpoint_social()
         from system_settings.agent_world.market_sync import normalize_legacy_dates as normalize_market_dates
@@ -1456,8 +1484,12 @@ class SyncManager:
                         allow_exploration_review_mismatch=allow_exploration_review_mismatch or relax_integrity)
         from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy, metadata as alchemy_metadata
         validate_alchemy(all_data, alchemy_metadata(all_data))
+        from system_settings.agent_world.blacksmith_sync import validate_source as validate_blacksmith, metadata as blacksmith_metadata
+        validate_blacksmith(all_data, blacksmith_metadata(all_data))
         from system_settings.agent_world.tournament_sync import validate_source as validate_tournaments
         validate_tournaments(all_data)
+        from quant.sync import validate as validate_quant
+        validate_quant(all_data)
         return self._strip_device_local_user_fields(all_data)
 
     @staticmethod
@@ -1482,6 +1514,8 @@ class SyncManager:
         validate_tournaments(data)
         from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
         validate_fishing(data)
+        from system_settings.agent_world.blacksmith_sync import validate_source as validate_blacksmith
+        validate_blacksmith(data)
         validate_life(data)
         validate_crops(data)
         validate_cooking(data, cooking_metadata(data))
@@ -1505,6 +1539,9 @@ class SyncManager:
         }
 
     @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
     def write_local_backup_zip(self, zip_path, source='local-export', runner_id=''):
         data_list = self.build_snapshot_data()
         meta = self.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list)
@@ -1552,6 +1589,9 @@ class SyncManager:
         return len(copied)
 
     @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
     def import_local_backup_zip(self, zip_path, should_abort=None):
         extract_dir = tempfile.mkdtemp(prefix='odoc-backup-')
         try:
@@ -1686,6 +1726,8 @@ class SyncManager:
             return None
         meta = self.get_remote_snapshot_meta() or {}
         self.validate_remote_snapshot_version(meta)
+        from quant.sync import validate as validate_quant
+        validate_quant(data, meta)
         generated_at = meta.get('generated_at') or timezone.now().isoformat()
         revisions, media = {}, {}
         for key, item in self._item_map(data).items():
@@ -1718,10 +1760,12 @@ class SyncManager:
         data = self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True)
         from learning.sync import validate as validate_learning
         from novel.sync import validate as validate_novel
+        from quant.sync import validate as validate_quant
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
         self._integrity_warnings = getattr(self, '_integrity_warnings', [])
         self._guard_integrity('学习', lambda: validate_learning(data, meta), relax=relax_integrity)
         self._guard_integrity('小说', lambda: validate_novel(data, meta), relax=relax_integrity)
+        validate_quant(data, meta)
         self._guard_integrity('农场', lambda: validate_crops(data, meta), relax=relax_integrity)
         from system_settings.agent_world.lottery_sync import validate_source as validate_lottery
         validate_lottery(data, meta)
@@ -1883,6 +1927,10 @@ class SyncManager:
         validate_tournaments(local_data)
         validate_tournaments(remote.get('data') or [], remote.get('meta'))
         tournament_conflicts(local_data, remote.get('data') or [])
+        from system_settings.agent_world.blacksmith_sync import validate_source as validate_blacksmith, validate_conflicts as blacksmith_conflicts
+        validate_blacksmith(local_data)
+        validate_blacksmith(remote.get('data') or [], remote.get('meta'))
+        blacksmith_conflicts(local_data, remote.get('data') or [])
         from system_settings.agent_world.fishing.sync import validate_conflicts as fishing_conflicts
         fishing_conflicts(local_data, remote.get('data') or [])
         from system_settings.agent_world.life_snapshot import validate_source, refresh_merged_integrity
@@ -1997,6 +2045,8 @@ class SyncManager:
         refresh_lottery(result, result_revisions)
         from system_settings.agent_world.tournament_sync import refresh_merged as refresh_tournaments
         refresh_tournaments(result, result_revisions)
+        from system_settings.agent_world.blacksmith_sync import refresh_merged as refresh_blacksmith
+        refresh_blacksmith(result, result_revisions)
         from system_settings.agent_world.fishing.sync import refresh_merged as refresh_fishing
         refresh_fishing(result, result_revisions)
         guard('居民记忆', lambda: validate_memories(result, memory_metadata(result)))
@@ -2331,6 +2381,9 @@ class SyncManager:
         travel_sync.prune_states()
 
     @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
     def create_local_safety_backup(self, reason, *, allow_exploration_review_mismatch=False, relax_integrity=False):
         root = os.path.join(str(settings.MEDIA_ROOT), '.sync-v2-safety')
         os.makedirs(root, exist_ok=True)
@@ -2554,6 +2607,10 @@ class SyncManager:
             )
         return snapshot, summary, ''
 
+    @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
     def _merge_while_locked(
         self, report, *, base_snapshot_id, source, runner_id, should_abort,
         relax_integrity=False, resolutions=None, resolution_default='',
@@ -2584,6 +2641,11 @@ class SyncManager:
                 resolutions=resolutions,
                 resolution_default=resolution_default,
             )
+            # Independent deletions and new references can each be valid on their
+            # source device but incompatible after a merge. Reject before touching
+            # media as well as immediately before the transactional DB restore.
+            from quant.sync import validate as validate_quant
+            validate_quant(merged_data)
             report('正在校验并恢复非图书媒体资源。', 58)
             # 此后会先覆盖媒体，再提交数据库并发布新指针；这些步骤必须作为一个
             # 不可中断的提交段完成，避免取消后留下媒体与数据库不一致的本地状态。
@@ -2597,12 +2659,16 @@ class SyncManager:
                     from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
                     from system_settings.agent_world.memory.sync import metadata as memory_metadata
                     from system_settings.agent_world.combat.sync import metadata as combat_metadata
+                    from system_settings.agent_world.blacksmith_sync import metadata as blacksmith_metadata
                     from novel.sync import metadata as novel_metadata
+                    from quant.sync import metadata as quant_metadata
                     self.apply_snapshot_data(merged_data, remote_meta={
                         **cooking_metadata(merged_data),
                         **memory_metadata(merged_data),
                         **combat_metadata(merged_data),
+                        **blacksmith_metadata(merged_data),
                         **novel_metadata(merged_data),
+                        **quant_metadata(merged_data),
                         **(travel_sync.metadata(merged_revisions) if travel_sync.enabled() or
                            (remote.get('meta') or {}).get(travel_sync.META_KEY) else {}),
                     }, full_overwrite=True, integrity='repair' if relax_integrity else 'strict')
@@ -2813,6 +2879,9 @@ class SyncManager:
         return snapshot, summary, safety_backup
 
     @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
     def force_download_v2(
         self, *, runner_id='', on_progress=None, should_abort=None, recover_owned_remote_lock=False,
     ):
@@ -2870,6 +2939,9 @@ class SyncManager:
         return {'meta': remote.get('meta') or {}, 'data': remote.get('data') or []}, summary, safety_backup
 
     @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
     def restore_v2_snapshot(self, snapshot_id, *, runner_id=''):
         from article.version_service import enforce_article_version_retention
 

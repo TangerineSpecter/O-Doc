@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { fakerZH_CN as faker } from '@faker-js/faker';
 import { articleDemoData, articleTreeData } from './articleDemoData';
-import homepageDemoData from './homepageDemoData.json';
+import homepageDemoData from './homepageDemoData.json' with {type: 'json'};
 
 // --- 1. 中文技术词库 (让数据更真实) ---
 const TECH_PREFIXES = ['深入理解', '精通', '从入门到放弃', '高并发', '企业级', '基于', '实战', '全栈开发', '30天学会'];

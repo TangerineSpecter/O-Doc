@@ -38,6 +38,7 @@ import type {TokenFilters, TokenGroup} from '../../types/api/tokenUsage';
 import {purposeNames, shanghaiDay, tokenDateRange, tokenNumber} from '../../utils/tokenUsage';
 import TokenUsageTrendChart from './TokenUsageTrendChart';
 import TokenUsageDetails from './TokenUsageDetails';
+import ExecutionObservatoryDialog from './ExecutionObservatoryDialog';
 
 function TokenUsageInfoButton() {
     const [open, setOpen] = useState(false);
@@ -199,6 +200,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
     const [page, setPage] = useState(1);
     const [refresh, setRefresh] = useState(0);
     const [focus, setFocus] = useState<{name: string; filters: TokenFilters} | null>(null);
+    const [observing, setObserving] = useState<{agentId: string; name: string; date: string} | null>(null);
 
     // 加载 Agent 配置（获取 avatar 头像）与任务配置（获取 taskKind 及对应 SVG 图标）
     const [agentMap, setAgentMap] = useState<Record<string, {avatar?: string; name: string}>>({});
@@ -251,7 +253,11 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
         setFocus(null);
     };
 
-    const inspect = (row: TokenGroup) =>
+    const inspect = (row: TokenGroup) => {
+        if (group === 'agent') {
+            setObserving({agentId: row.key, name: row.name || '系统规划', date: filters.end_date || shanghaiDay()});
+            return;
+        }
         setFocus({
             name: group === 'purpose' ? purposeNames[row.key] || row.name : row.name || '系统规划',
             filters: {
@@ -263,6 +269,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                       : {purpose: row.key, other: '1'}),
             },
         });
+    };
 
     const fieldClass =
         'min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-xs focus:border-orange-500 focus:outline-none';
@@ -679,10 +686,11 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                                         }
 
                                         return (
-                                            <div
+                                            <button type="button"
+                                                aria-label={`${group === 'agent' ? '查看当天执行观测' : '查看用量详情'}：${title}`}
                                                 key={row.key}
                                                 onClick={() => inspect(row)}
-                                                className="group relative flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/40 p-3.5 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-xs transition-all duration-150 cursor-pointer"
+                                                className="group relative flex w-full text-left flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/40 p-3.5 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-xs transition-all duration-150 cursor-pointer"
                                             >
                                                 {/* 左侧：排名 + 头像/专属图标 + 名称与标签 */}
                                                 <div className="flex items-center gap-3 min-w-0">
@@ -772,7 +780,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                                                         <ChevronRight className="h-4 w-4" />
                                                     </div>
                                                 </div>
-                                            </div>
+                                            </button>
                                         );
                                     })}
                                 </div>
@@ -804,6 +812,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                     </section>
                 )}
             </div>
+            {observing && <ExecutionObservatoryDialog agentId={observing.agentId} agentName={observing.name} avatar={agentMap[observing.agentId]?.avatar} initialDate={observing.date} onClose={() => setObserving(null)}/>}
         </WorldDialog>
     );
 }

@@ -1,0 +1,76 @@
+.recipe-details-toolbar {
+    container-type: inline-size;
+}
+
+.recipe-details-toolbar__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.recipe-details-toolbar__tab {
+    gap: 4px;
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.recipe-details-toolbar__full-label,
+.recipe-details-toolbar__edit-label {
+    display: none;
+}
+
+.recipe-details-toolbar__edit {
+    width: 32px;
+    height: 32px;
+}
+
+.recipe-details-toolbar__image-menu button[aria-haspopup='listbox'] {
+    min-height: 32px;
+    gap: 4px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: #475569;
+}
+
+.recipe-details-toolbar__image-menu button[aria-haspopup='listbox'] > span > span > span {
+    color: inherit;
+}
+
+/* The portal menu keeps its right edge aligned with the compact 64px trigger. */
+.recipe-details-toolbar__image-options {
+    width: 176px !important;
+    margin-left: -112px;
+}
+
+@container (min-width: 350px) {
+    .recipe-details-toolbar__edit {
+        width: auto;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .recipe-details-toolbar__edit-label {
+        display: inline;
+    }
+}
+
+@container (min-width: 460px) {
+    .recipe-details-toolbar__tab {
+        gap: 6px;
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .recipe-details-toolbar__full-label {
+        display: inline;
+    }
+
+    .recipe-details-toolbar__short-label {
+        display: none;
+    }
+}

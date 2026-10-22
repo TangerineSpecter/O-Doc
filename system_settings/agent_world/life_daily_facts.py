@@ -14,6 +14,7 @@ DESCRIPTIONS = {
     'farm': '进入农场领取已成熟的畜牧产物，启动当天种植队列；后续程序自动收获、播种和施肥。',
     'cooking': '使用真实已有材料制作满足厨艺等级的美食，具体菜谱另行准备。',
     'alchemy': '使用背包里的迷宫素材炼制一次性药水，具体配方与瓶数另行准备。',
+    'blacksmith': '在日程空档使用迷宫素材逐件打造装备，每件出炉后再决定是否继续，最多三件。',
     'post_publish': '根据兴趣和经历自主选题、检索并发布帖子。',
     'post_interaction': '阅读符合范围的帖子并发表评论与评分。',
 }
@@ -140,10 +141,10 @@ def task_reason(owner: str, agent, task, at, quota=None) -> str:
         return eligibility(owner, agent, at)
     if task.task_kind == 'post_publish':
         from .publish_config import eligibility
-        return eligibility(task, agent, quota=quota)
+        return eligibility(task, agent, quota=quota, preview=local_time(at) > local_time(), now=storage_time(at))
     if task.task_kind == 'post_interaction':
         from .post_interaction import candidate_posts, interaction_window_days, merged_scope
-        if stamina(agent) < 10:
+        if local_time(at) <= local_time() and stamina(agent) < 10:
             return '体力不足以互动'
         if not candidate_posts(agent, merged_scope(task.post_collection_ids, agent.post_collection_ids),
                                merged_scope(task.post_category_ids, agent.post_category_ids),
@@ -171,7 +172,8 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
     from .life_budget_choices import BudgetChoices
     from .farm_queue_decision import available_cash
     from .cooking_schedule_plan import planning_facts
-    context = selection_context(build_planning_selection_context(owner, agent, items))
+    from .life_main_context import build as main_context
+    context = main_context(owner, agent, items)
     context.pop('actor_name', None)  # The role projection already contains the name.
     day = local_time(items[0].scheduled_at).date()
     context.update(target_date=day.isoformat(), timezone='Asia/Shanghai', balance=str(agent.money))
@@ -185,18 +187,14 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
     context['today'] = [{'time': local_time(row.scheduled_at).isoformat(),
                          'activity': existing_choice(row).get('activity', row.activity),
                          'status': '意向已确认，待准备' if row.activity == 'unplanned' and existing_choice(row) else row.status,
-                         'intent': existing_choice(row).get('reason', row.intent)} for row in existing.order_by('scheduled_at')[:50]]
+                         'source': 'interleaved' if row.context.get('interleaving') else 'schedule'} for row in existing.order_by('scheduled_at')[:50]]
     farm_days = {local_time(row.scheduled_at).date().isoformat() for row in existing
                  if existing_choice(row).get('activity', row.activity) == 'farm'
                  and row.status not in ('cancelled', 'failed', 'rest')}
     context['existing_farm_days'] = sorted(farm_days)
     tasks = {task.pk: task for task in tasks_for(owner) if task.enabled}
-    cooking = planning_facts(owner, agent, exclude_ids=[i.pk for i in items]) if any(
-        row['kind'] == 'cooking' for row in context['activities']) else None
-    from .alchemy_schedule_plan import planning_facts as alchemy_facts
-    alchemy = alchemy_facts(owner, agent, exclude_ids=[i.pk for i in items]) if any(
-        row['kind'] == 'alchemy' for row in context['activities']) else None
     available = available_cash(owner, agent.pk, exclude_ids=[i.pk for i in items])
+    context['funds'] = {'total': str(agent.money), 'reserved': str(max(Decimal(0), agent.money - available)), 'available': str(available)}
     tiers = {'travel': {'quoted': True} if quotes.get('candidates') else {},
              'investment': BudgetChoices(agent.money).options('investment', cash_left=available)}
     allowed_kinds = set()
@@ -205,7 +203,7 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
     for slot in context['slots']:
         at = local_time(datetime.fromisoformat(slot['time']))
         slot['time'] = at.isoformat()
-        allowed, _ = filter_activities(context, slot, tiers, cooking, farm_days, alchemy)
+        allowed, _ = filter_activities(context, slot, tiers, None, farm_days, None)
         slot_allowed = []
         for kind in allowed:
             task = tasks[next(row['task_id'] for row in context['activities'] if row['kind'] == kind)]
@@ -221,12 +219,11 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
         context['travel'] = {key: value for key, value in quotes.items() if key in ('candidates', 'budget')}
     if 'farm' in allowed_kinds:
         context['farm'] = farm_summary(owner, agent, context['slots'])
-    if 'fishing' in allowed_kinds:
-        from .fishing.queries import summary
-        context['fishing'] = summary(owner, agent.pk)
     if 'lottery' in allowed_kinds:
         from .lottery_decision import summary
         context['lottery'] = summary(owner, agent.pk)
     if 'investment' in allowed_kinds:
         context['investment'] = investment_summary(owner, agent)
+    from .life_main_social import summaries
+    context.update(summaries(agent, [task for task in tasks.values() if task.task_kind in allowed_kinds], day))
     return context

@@ -1,0 +1,27 @@
+import { QuantButton, QuantModal } from './ui';
+import type { useQuantNavigation } from '../../hooks/useQuantNavigation';
+
+export function UnsavedDialog({ guard, error }: { guard: ReturnType<typeof useQuantNavigation>; error: string }) {
+    if (!guard.pending) return null;
+    return (
+        <QuantModal title="还有未保存的修改" close={guard.cancel} busy={guard.saving}>
+            <p className="text-sm leading-7 text-slate-600">保存后再离开，可以保留刚写下的研究说明、代码或实验资料。</p>
+            {error && (
+                <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-600">
+                    {error}
+                </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+                <QuantButton disabled={guard.saving} onClick={guard.cancel}>
+                    继续编辑
+                </QuantButton>
+                <QuantButton danger disabled={guard.saving} onClick={guard.discard}>
+                    放弃修改
+                </QuantButton>
+                <QuantButton primary disabled={guard.saving} onClick={() => void guard.saveAndContinue()}>
+                    {guard.saving ? '保存中…' : '保存并继续'}
+                </QuantButton>
+            </div>
+        </QuantModal>
+    );
+}

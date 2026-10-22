@@ -4,7 +4,7 @@ from .models import EquipmentInstance, CombatProfile
 from .profiles import idle
 from .store import current
 from .facts import append
-from ..inventory_stock import add_stock, take_stock
+from ..inventory_stock import add_stock
 
 
 def transact(owner,agent,key,operation,change_money,at):
@@ -27,7 +27,10 @@ def transact(owner,agent,key,operation,change_money,at):
     idle(profile)
     if kind=='sell_combat_material':
         row=catalog.row('materials',operation.get('material_id'))
-        take_stock(agent.pk,owner,'combat.'+row['id'],count)
+        from ..crafting_materials import available_pool
+        from ..alchemy_materials import allocate, consume
+        materials=allocate(available_pool(owner,agent.pk),[{'sku':'combat.'+row['id'],'quantity':count}])
+        consume(agent.pk,owner,materials)
         amount=Decimal(row['sale_price'])*count
         result={'name':row['name'],'quantity':count,'total':str(amount)}
     elif kind=='sell_combat_equipment':

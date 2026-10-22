@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from system_settings.models import Agent, AgentTask, AgentRunRecord, WorldAction, WorldActionRuntime
 from .life_models import LifeConfig, LifeItem
+from .life_activities import main_items, is_interleaved
 from .life_config import tasks_for
 from .life_schedule import OPEN, SHANGHAI, ensure_cycle, recover, revise, window, execution_key
 from .life_scope import life_scope, CURRENT
@@ -56,9 +57,9 @@ def finish_running(config, now):
 
 
 def due_item(config, now):
-    due = LifeItem.objects.filter(
+    due = main_items(LifeItem.objects.filter(
         owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lte=timezone.now(),
-    ).exclude(actor_id__in=config.paused_agents).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at').first()
+    )).exclude(actor_id__in=config.paused_agents).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at').first()
     if not due:
         return None
     retry = due.context.get('planning_retry_at')
@@ -136,6 +137,9 @@ def execute_item(item: LifeItem, scheduler) -> None:
     if item.activity == 'exploration':
         from .combat.explorations import energy as exploration_energy
         required_energy = exploration_energy(30 * 60)
+    elif item.activity == 'blacksmith':
+        from .blacksmith_catalog import ENERGY_COST
+        required_energy = ENERGY_COST
     elif item.activity == 'alchemy':
         from .alchemy_queries import minimum_start_energy
         from .alchemy_schedule_plan import validate_plan
@@ -167,7 +171,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
     prior_status=item.status
     try:
         from .life_budget_policy import allows_spending
-        if not queue_farm and (item.activity == 'farm' or allows_spending(item.activity)):
+        if not is_interleaved(item) and not queue_farm and (item.activity == 'farm' or allows_spending(item.activity)):
             plan_items(config,agent,[item],preserve_activities=True);item.refresh_from_db()
         task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
         if not task:
@@ -199,6 +203,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
                     from .cooking_runner import run_cooking_opportunity as run
                 elif item.activity=='alchemy':
                     from .alchemy_runner import run_alchemy_opportunity as run
+                elif item.activity=='blacksmith':
+                    from .blacksmith_runner import run_blacksmith_opportunity as run
                 elif item.activity=='farm':
                     if item.context.get('farm_plan_id'):
                         from .farm_queue_runner import run_queue_opportunity as run
@@ -218,7 +224,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
         finally:
             defer_when_world_busy.reset(marker)
         item.refresh_from_db()
-        if item.activity in ('travel','exploration'):
+        if item.activity in ('travel','exploration','blacksmith'):
             return  # 后续节点只继续本次 workflow。
         action=WorldAction.objects.filter(pk=execution_key(item)).first()
         skipped = bool(action and action.status == 'skipped')
@@ -229,7 +235,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
         else:
             status = 'completed'
         revise(item,'本次活动结束',status=status,record_id=outcome.pk if outcome else '',result={'reason':outcome.summary if outcome else '活动未能启动'})
-        check_goals(item.owner_id,agent)
+        from .life_goal_results import update as update_result_goals
+        update_result_goals(item, agent)
     except WorldLeaseBusy:
         item.refresh_from_db()
         if item.status=='running':
@@ -249,6 +256,13 @@ def tick_life(scheduler) -> None:
     # 核对业务事实不启动新行动，手动旅行结束时也必须释放预留。
     for config in configs:
         finish_running(config,local_time())
+    from .life_interleaving_recovery import expire_selections
+    expire_selections()
+    # Finishing accounting is safe even after local automatic execution is disabled.
+    from .life_interleaving_usage import complete
+    active_records = list(AgentRunRecord.objects.filter(trigger='系统穿插', status='running').values_list('pk', flat=True))
+    for item in LifeItem.objects.filter(context__interleaving__selection_record_id__in=active_records).exclude(status__in=OPEN):
+        complete(item)
     if not WorldActionRuntime.objects.filter(pk='world',enabled=True).exists():
         return
     from .lottery_service import tick as tick_lottery
@@ -276,6 +290,17 @@ def tick_life(scheduler) -> None:
                 continue
             due=due_item(config,now)
             if due:execute_item(due,scheduler)
+            from .life_interleaving import tick as tick_interleaving
+            tick_interleaving(config, scheduler)
+            from .life_goal_results import update as update_result_goals
+            completed = LifeItem.objects.filter(owner_id=config.pk, status='completed', updated_at__gte=storage_time(local_time() - timedelta(days=1))).exclude(record_id='').order_by('-updated_at')
+            for finished in completed:
+                if finished.context.get('goal_result_record') != finished.record_id:
+                    resident = Agent.objects.filter(pk=finished.actor_id).first()
+                    if resident:
+                        update_result_goals(finished, resident)
+                        if finished.context.get('goal_result_record') == finished.record_id:
+                            break
         except Exception:
             logger.exception('生活周期处理失败 owner=%s',config.pk)
 
@@ -332,7 +357,7 @@ def _plan_cycle(config, scheduler, now):
             validate_agents(config.pk, active_ids)
             for resident in Agent.objects.filter(pk__in=active_ids, archived_at__isnull=True):
                 account_for(config.pk, resident)
-    candidates = LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred']).exclude(activity='market_prepare').exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at')
+    candidates = main_items(LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred'])).exclude(activity='market_prepare').exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at')
     today = local_time(now).date().isoformat()
     pending = [entry for entry in candidates if entry.actor_id not in config.paused_agents
                and (entry.activity == 'unplanned' or (local_time(entry.scheduled_at).date().isoformat() == today

@@ -88,6 +88,11 @@ export default function AgentWorldPage() {
     const [worldManagementOpen, setWorldManagementOpen] = useState(false);
     const [query, setQuery] = useSearchParams();
     const agentManagementOpen = query.get('settings') === 'agents';
+    useEffect(() => {
+        if (agentManagementOpen && query.get('view') === 'tasks') {
+            setWorldManagementOpen(false); setMomentsOpen(false); setFishingOpen(false); setLotteryOpen(false); setTournamentOpen(false);
+        }
+    }, [agentManagementOpen, query]);
     const openAgentManagement = () => {
         const next = new URLSearchParams(query);
         next.set('settings', 'agents');
@@ -96,6 +101,7 @@ export default function AgentWorldPage() {
     const closeAgentManagement = () => {
         const next = new URLSearchParams(query);
         next.delete('settings');
+        next.delete('view');
         setQuery(next, {replace: true});
         void world.reload(true);
         setFeedRefreshToken(value => value + 1);
@@ -162,6 +168,7 @@ export default function AgentWorldPage() {
         else if (target.kind === 'exploration') {setCombatActor(event.actorId);setCombatOpen(false);setCombatExploration(target.id);}
         else if (target.kind === 'cooking') {setCatalogSection('recipes'); setCatalogOpen(true);}
         else if (target.kind === 'alchemy') {setCatalogSection('alchemy'); setCatalogOpen(true);}
+        else if (target.kind === 'blacksmith') {setCatalogSection('blacksmith'); setCatalogOpen(true);}
         else if (target.kind === 'farm') setFarmOpen(true);
         else if (target.kind === 'market') setMarketOpen(true);
         else if (target.kind === 'investment') setInvestmentOpen(true);

@@ -1,20 +1,8 @@
-import type {CropKind, FarmPlot, FarmState} from '../../../types/api/farm';
+import type {FarmPlot, FarmState} from '../../../types/api/farm';
 import type {BuildingLevel} from './buildings';
 import type {CropSprite, PlotStage} from './cropSprites';
 import {CFG, PLOT_SLOTS} from './layout';
 import type {SceneAnimal, SceneState, SceneTint} from './types';
-
-/**
- * 设计稿只有小麦、番茄、胡萝卜、南瓜四种作物精灵，游戏有 16 种。
- * 其余作物按外观相近归并：谷穗类→小麦；结果的灌木/藤蔓→番茄；根茎和地下果实→胡萝卜；圆形的地面作物→南瓜。
- * 需要独立形象时，在设计稿里补精灵后只改这张表。
- */
-export const CROP_SPRITE: Record<CropKind, CropSprite> = {
-    wheat: 'wheat', rice: 'wheat', corn: 'wheat', sunflower: 'wheat',
-    tomato: 'tomato', strawberry: 'tomato', chili: 'tomato', eggplant: 'tomato', cucumber: 'tomato', soybean: 'tomato',
-    radish: 'carrot', potato: 'carrot', onion: 'carrot', peanut: 'carrot',
-    pumpkin: 'pumpkin', cabbage: 'pumpkin',
-};
 
 /** 成长阶段沿用旧场景的阈值：满周期为可收获，达到 35% 为生长中，其余为幼苗。 */
 export function plotStage(plot: FarmPlot | undefined): PlotStage {
@@ -43,7 +31,7 @@ export function toSceneState(farm: FarmState): SceneState {
         return {
             slot, id, owned: !!plot,
             stage: plotStage(plot),
-            crop: plot?.crop ? CROP_SPRITE[plot.crop.kind] : 'wheat' as CropSprite,
+            crop: plot?.crop ? plot.crop.kind : 'wheat' as CropSprite,
             wet: !!plot && (plot.wet ?? (plot.wateredUntil > now || raining)),
         };
     });

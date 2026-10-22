@@ -20,9 +20,8 @@ INSTRUCTION = (
     '请一起安排目标日期所有slots中的日程，结合性格、兴趣、目标、当前资源和实际成果，'
     '为每个时段选择allowed_activities中的一个活动并说明自己的规划理由。职业仅供参考，不要求职业固定搭配。'
     '规划理由会展示给用户，必须用中文自然表达；不要直接写英文活动kind或程序字段名，例如用“农场”“种子库存”，不要写farm或seed_quantity。'
-    '不能新增时间点、任务或游戏能力；有可用活动时不能休息，候选为空或唯一候选farm已安排在当天另一时段时填rest。farm每天最多一次。'
+    '不能新增时间点、任务或游戏能力；次数是上限，任何时段均可填rest表示不安排。farm每天最多一次。'
     '旅行必须从travel.candidates选择destination_id；报价与预算是上限参考，不是已扣款。'
-    '探索时长由准备阶段决定，执行程序负责顺延，不能因下一日程临近而排除探索。'
     '现在只安排活动意向，不生成种植、菜谱、路线、交易和正文细节；计划不能当成实际成果。'
     '只返回 {"plans":[{"id":"时段ID","activity":"活动kind","reason":"规划理由",'
     '"destination_id":"仅旅行必填的地点ID"}]}。'
@@ -115,8 +114,6 @@ def select_day(config, agent, items: list, ask) -> None:
         choice = indexed[item.pk]
         plan = {key: choice[key] for key in ('id', 'activity', 'reason')}
         plan['offered_activities'] = next(slot['allowed_activities'] for slot in context['slots'] if slot['id'] == item.pk)
-        if plan['activity'] == 'rest':
-            plan['reason'] = '当天可执行活动已在其他时段安排，系统安排休息' if plan['offered_activities'] else '系统检查后没有可执行活动，安排休息'
         if plan['activity'] == 'lottery':
             from .lottery_service import current_round
             plan['lottery_round_id'] = current_round(config.pk).pk
@@ -194,18 +191,19 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
 
 
 def plan_days(config, agent, items: list, *, apply, ask, ask_detail) -> list[dict]:
-    if any(item.owner_id != config.pk or item.actor_id != agent.pk or item.activity == 'market_prepare' for item in items):
+    from .life_activities import main_items, is_interleaved
+    if any(is_interleaved(item) or item.owner_id != config.pk or item.actor_id != agent.pk or item.activity == 'market_prepare' for item in items):
         raise ValueError('规划时段不属于当前居民或属于独立市场机会')
     requested_days = {local_time(item.scheduled_at).date() for item in items}
     grouped = defaultdict(list)
     for day in sorted(requested_days):
         start = local_time().replace(year=day.year, month=day.month, day=day.day, hour=0, minute=0, second=0, microsecond=0)
-        candidates = list(LifeItem.objects.filter(owner_id=config.pk, actor_id=agent.pk,
+        candidates = list(main_items(LifeItem.objects.filter(owner_id=config.pk, actor_id=agent.pk,
             status__in=('pending', 'deferred'), scheduled_at__gte=storage_time(start),
-            scheduled_at__lt=storage_time(start + timedelta(days=1))).exclude(activity='market_prepare').order_by('scheduled_at', 'id'))
+            scheduled_at__lt=storage_time(start + timedelta(days=1)))).exclude(activity='market_prepare').order_by('scheduled_at', 'id'))
         prepared = prepare_targets(config, agent, candidates, False)
         for item in prepared:
-            if item.context.get('farm_plan_id') or item.context.get('execution_started') or item.record_id:
+            if any(item.context.get(key) for key in ('farm_plan_id', 'cooking_plan', 'alchemy_plan', 'travel_plan', 'execution_started')) or item.record_id:
                 continue
             if item.activity not in ('unplanned', '') and item.context.get('planned_on') == day.isoformat():
                 continue

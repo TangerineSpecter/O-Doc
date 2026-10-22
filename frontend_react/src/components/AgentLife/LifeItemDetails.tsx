@@ -1,3 +1,6 @@
+import {LifeDomainDetails} from './LifeDomainDetails';
+import {LifeSourceBadge} from './LifeSourceBadge';
+import {BlacksmithActivityDetails} from '../Blacksmith/BlacksmithHistory';
 import {useEffect, useState} from 'react';
 import {
     Clock,
@@ -19,6 +22,7 @@ import {
     RotateCw,
     Ban,
     FileEdit,
+    Hammer,
 } from 'lucide-react';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {getLifeItem, changeLifeItem} from '../../api/agentLife';
@@ -27,6 +31,8 @@ import {activityLabels, statusLabels, showsLifeBudget} from './lifeLabels';
 
 function ActivityIcon({activity, className}: {activity?: string; className?: string}) {
     switch (activity) {
+        case 'blacksmith':
+            return <Hammer className={className} />;
         case 'travel':
             return <Compass className={className} />;
         case 'farm':
@@ -108,6 +114,7 @@ export default function LifeItemDetails({
     onClose: () => void;
     onChanged: () => void;
 }) {
+    const [domainOpen, setDomainOpen] = useState(false);
     const [item, setItem] = useState<LifeItem | null>(null);
     const [reason, setReason] = useState('');
     const [error, setError] = useState('');
@@ -143,6 +150,7 @@ export default function LifeItemDetails({
 
     const statusBadge = item ? getStatusBadge(item.status) : null;
 
+    if (domainOpen && item?.domainDetail) return <LifeDomainDetails detail={item.domainDetail} recordId={item.recordId} onClose={() => setDomainOpen(false)}/>;
     return (
         <WorldDialog
             title="生活安排详情"
@@ -177,7 +185,7 @@ export default function LifeItemDetails({
                                     </div>
                                     <div>
                                         <h4 className="text-base font-bold text-slate-900 tracking-tight">
-                                            {activityLabels[item.activity] || item.activity}
+                                            {activityLabels[item.activity] || item.activity} <LifeSourceBadge item={item}/>
                                         </h4>
                                         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
                                             <Clock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -199,6 +207,13 @@ export default function LifeItemDetails({
                                 </span>
                             </div>
 
+                            <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                                <p>实际开始：{item.actualStartedAt ? new Date(item.actualStartedAt).toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'}) : '尚无记录'}</p>
+                                <p>实际结束：{item.actualEndedAt ? new Date(item.actualEndedAt).toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'}) : '尚无记录'}</p>
+                                <p>实际体力：{item.actualEnergyCost == null ? '尚无记录' : `${item.actualEnergyCost} 点`}</p>
+                            </div>
+                            {item.activityUsage && <p className="mt-2 text-xs text-slate-500">本次活动共 {item.activityUsage.requests} 次请求（含选择、准备与重试） · 实际 Token：{item.activityUsage.totalTokens ?? '未返回'}{!item.activityUsage.usageComplete && '，用量记录不完整'}</p>}
+                            {item.domainDetail && <button type="button" onClick={() => setDomainOpen(true)} className="mt-3 rounded-lg bg-orange-50 px-3 py-2 text-xs font-medium text-orange-700">查看{item.domainDetail.kind === 'blacksmith' ? '打造执行流程' : item.domainDetail.kind === 'fishing' ? '出钓过程' : '探索战报'}</button>}
                             {item.context?.lotteryPlan && <div className="mt-3 rounded-xl border border-orange-100 bg-orange-50 p-3 text-xs leading-6 text-orange-800">
                                 <p>大乐透计划：{item.context.lotteryPlan.quantity}张 · 预算{item.budget}金币</p>
                                 <p>选号进度：{(item.context.lotteryNumbers || []).reduce((n, row) => n + row.length, 0)} / {item.context.lotteryPlan.quantity * 3}个数字</p>
@@ -208,7 +223,7 @@ export default function LifeItemDetails({
                                 <div className="mt-3.5 rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-xs leading-relaxed text-slate-700">
                                     <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
                                         <Sparkles className="h-3 w-3 text-orange-500" />
-                                        <span>活动规划意图</span>
+                                        <span>{item.source === 'interleaved' ? '系统说明' : '活动规划意图'}</span>
                                     </div>
                                     <p className="font-medium text-slate-700">{item.intent}</p>
                                 </div>
@@ -245,6 +260,14 @@ export default function LifeItemDetails({
                             </div>
                         )}
 
+                        {item.activity === 'blacksmith' && Array.isArray(item.result.operations) && <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                            <h3 className="mb-3 text-sm font-semibold text-slate-800">本次打造结果</h3>
+                            <BlacksmithActivityDetails activity={{id: item.domainDetail?.id || item.id, actorId: item.actorId, actorName: '',
+                                status: item.status === 'completed' ? 'success' : item.status, createdAt: item.actualStartedAt || item.scheduledAt,
+                                updatedAt: item.actualEndedAt || item.scheduledAt, recordId: item.recordId, snapshot: {}, result: item.result,
+                                stages: item.result.stages || [], operations: item.result.operations}}/>
+                        </section>}
+
                         {item.activity === 'cooking' && item.context?.cookingPlan && (
                             <section className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
                                 <p className="text-xs font-semibold text-slate-700">已安排的美食制作</p>
@@ -258,7 +281,7 @@ export default function LifeItemDetails({
                             </section>
                         )}
 
-                        {item.result?.reason && (
+                        {item.result?.reason && !(item.activity === 'blacksmith' && Array.isArray(item.result.operations)) && (
                             <div className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs">
                                 {item.status === 'failed' ? (
                                     <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
@@ -355,7 +378,7 @@ export default function LifeItemDetails({
                         </section>
 
                         {/* 调整表单操作 */}
-                        {(['pending', 'deferred', 'paused', 'running'].includes(item.status) ||
+                        {(item.source !== 'interleaved' || item.status !== 'failed') && (['pending', 'deferred', 'paused', 'running'].includes(item.status) ||
                             (item.status === 'failed' && item.activity !== 'market_prepare') ||
                             (item.status === 'failed' && item.activity === 'market_prepare' && item.retryAvailable)) && (
                             <div className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
@@ -377,7 +400,7 @@ export default function LifeItemDetails({
                                     value={reason}
                                     onChange={(e) => setReason(e.target.value)}
                                     placeholder={
-                                        item.status === 'failed'
+                                        item.source === 'interleaved' ? '请输入取消本次穿插的原因…' : item.status === 'failed'
                                             ? item.activity === 'market_prepare'
                                                 ? '请说明重试这次市场机会的原因…'
                                                 : '请说明重试或重新规划的原因…'
@@ -398,7 +421,7 @@ export default function LifeItemDetails({
                                               : '调整操作将记录进历史流水'}
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        {item.status === 'failed' && item.activity !== 'travel' &&
+                                        {item.source !== 'interleaved' && item.status === 'failed' && item.activity !== 'travel' &&
                                             (item.activity !== 'market_prepare' || item.retryAvailable) && (
                                             <button
                                                 type="button"
@@ -412,7 +435,7 @@ export default function LifeItemDetails({
                                                 <span>重试</span>
                                             </button>
                                         )}
-                                        {!(item.status === 'failed' && item.activity === 'market_prepare') && <button
+                                        {item.source !== 'interleaved' && !(item.status === 'failed' && item.activity === 'market_prepare') && <button
                                             type="button"
                                             disabled={busy || !reason.trim() || item.status === 'running'}
                                             onClick={() => void change('replan')}

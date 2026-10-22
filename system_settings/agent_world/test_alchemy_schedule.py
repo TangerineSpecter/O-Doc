@@ -46,13 +46,11 @@ class AlchemyScheduleTests(TestCase):
             add_stock(self.agent.pk, 'admin', self.agent.name, ingredient['sku'], ingredient['quantity'] * quantity,
                       '素材', 'combat_material', '1', 'fixture')
 
-    def test_daily_preparation_reserves_single_bottle_and_releases_on_cancel(self):
-        one, two = self.item('one'), self.item('two')
-        def schedule(agent, instruction, context, **kwargs):
-            self.assertTrue(all(slot['allowed_activities'] == ['alchemy'] for slot in context['slots']))
-            return {'plans': [{'id': slot['id'], 'activity': 'alchemy', 'reason': '制作冒险补给'} for slot in context['slots']]}
-        with patch('system_settings.agent_world.life_planner.ask', side_effect=schedule), \
-                patch('system_settings.agent_world.life_choices.choose_scene', side_effect=AssertionError('唯一候选不请求模型')):
+    def test_legacy_alchemy_reservation_survives_new_main_planning_and_releases_on_cancel(self):
+        one = self.item('one', activity='alchemy', task_id=self.task.pk,
+                        context={'alchemy_plan': self.specification()})
+        two = self.item('two')
+        with patch('system_settings.agent_world.life_planner.ask', side_effect=AssertionError('炼金不进入新主日程')):
             plan_items(self.config, self.agent, [one, two])
         one.refresh_from_db(); two.refresh_from_db()
         self.assertEqual((one.activity, two.activity), ('alchemy', 'rest'))
@@ -107,8 +105,8 @@ class AlchemyScheduleTests(TestCase):
         for executed in (False, True):
             if executed:
                 self.assertEqual(self.run_saved(items[0]).status, 'success')
-            # 库存、日程和制作计数各查询一次，日程数量不会增加查询次数。
-            with self.assertNumQueries(3):
+            # 库存、日程、制作计数与当前打造预留各一次，不随日程数量增长。
+            with self.assertNumQueries(4):
                 pool = available_pool('admin', self.agent.pk)
             self.assertEqual(sum(row['quantity'] for row in pool
                                  if row['sku'] == 'combat.material.moss_cave.1'), 2)

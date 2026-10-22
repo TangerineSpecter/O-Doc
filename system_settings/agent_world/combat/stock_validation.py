@@ -22,6 +22,9 @@ def stock_changes(row: dict, balance: Counter) -> None:
             balance['combat.' + operation['potion_id']] += operation['quantity']
         elif operation['kind'] == 'sell_combat_material':
             balance['combat.' + operation['material_id']] -= operation['quantity']
+    elif kind == 'forge':
+        for material in payload['materials']:
+            balance[material['sku']] -= material['quantity']
 
 
 def expected_stock(rows: dict, actor: str, owner: str, facts: list[dict]) -> Counter:

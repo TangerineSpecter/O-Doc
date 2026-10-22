@@ -33,8 +33,17 @@ class MarketCraftabilityTests(SimpleTestCase):
                 with self.subTest(domain=domain, target_stock=target_stock,
                                   other_stock=other_stock, level=level):
                     with patch('system_settings.agent_world.market_plan_candidates._crafting_facts',
-                               return_value=facts):
+                               return_value=facts), patch(
+                            'system_settings.agent_world.market_plan_candidates.blacksmith_purchase_skus', return_value=set()):
                         self.assertEqual(craftable_after_purchase('owner', agent, sku), expected)
+
+    def test_forge_use_keeps_material_when_alchemy_is_not_craftable(self):
+        agent = SimpleNamespace(pk='buyer')
+        sku = 'combat.material.moss_cave.1'
+        with patch('system_settings.agent_world.market_plan_candidates._crafting_facts',
+                   return_value={'rules': {}, 'level': 1, 'pool': []}), patch(
+                'system_settings.agent_world.market_plan_candidates.blacksmith_purchase_skus', return_value={sku}):
+            self.assertTrue(craftable_after_purchase('owner', agent, sku))
 
 
 class MarketCraftingIntegrationTests(TestCase):

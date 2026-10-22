@@ -17,6 +17,7 @@ const decisionSceneLabels = {
     fishing_spot: '钓鱼地点选择', fishing_duration: '钓鱼时长选择', fishing_bait: '钓鱼携带鱼饵', fishing_duel: '鱼王猜拳',
     lottery_quantity: '大乐透购票数量',
     lottery_number: '大乐透逐位选号',
+    publish_category: '自主发帖分类选择',
     market: '市场选择',
     market_plan: '市场日规划选择',
     market_disposition: '市场处置标记',
@@ -24,6 +25,10 @@ const decisionSceneLabels = {
     life_budget: '生活预算选择',
     farm_queue: '农场种植队列规划',
     cooking_recipe: '美食菜谱选择',
+    blacksmith_level_band: '打造等级范围',
+    blacksmith_slot: '打造装备部位',
+    blacksmith_type: '打造装备类型',
+    blacksmith_continue: '打造后继续选择',
     alchemy_recipe: '炼金配方选择',
     alchemy_quantity: '炼金瓶数选择',
     alchemy_continue: '炼金继续制作',
@@ -156,7 +161,7 @@ export function WorldDecisionModelSettings() {
 
             <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold text-slate-700">决策优先级</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">决策连接顺序（平时用第一位，后面的成功后暂时沿用） → 普通文本决策模型 → 居民模型 → 系统默认对话模型</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">支持回退的场景：决策连接顺序 → 普通文本决策模型 → 居民模型 → 系统默认对话模型。发帖分类、大乐透等只允许决策连接的选择失败后保留阶段，不改用文本模型。</p>
             </div>
 
             <div className="mt-5 max-w-2xl space-y-2">
@@ -197,10 +202,10 @@ export function WorldDecisionModelSettings() {
                 )}
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <Checkbox checked={jevEnabled} onChange={setJevEnabled} disabled={loading || saving} label="启用结构化决策连接处理有限候选选择"/>
-                    <p className="text-xs leading-5 text-slate-500">农场种植规划一次选择整套作物、数量、施肥和采购上限，后续队列由程序推进。哪些连接加入顺序、它们的先后和沿用时间随 WebDAV 同步；本机正在沿用哪一个不同步。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。这条顺序里的连接全部失败后才使用普通文本模型。</p>
+                    <p className="text-xs leading-5 text-slate-500">农场种植依次选择组合、是否施肥和补货档位，后续队列由程序推进。连接顺序和沿用时间随 WebDAV 同步；本机正在沿用哪一个不同步。在 AI 模型接入 → 决策模型连接中新增、编辑或测试连接。全部连接失败后的回退或停止方式以各活动流程说明为准。</p>
                     {decisionConfig.error && <p role="alert" className="text-xs text-red-600">{decisionConfig.error}<button type="button" onClick={() => void decisionConfig.refresh()} className="ml-2 underline">重试</button></p>}
-                    {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">{visibleOrder.length === 0 ? '顺序是空的，有限选择会使用普通文本模型。' : `顺序第一位：${firstConnection ? (firstConnection.configured ? '连接信息完整' : '请检查 API Key 和连接同步状态') : '连接已删除或尚未从 WebDAV 同步'}`}</p>}
-                    {jevEnabled && <div className="space-y-2"><p className="text-xs font-semibold text-slate-600">排除场景（勾选后使用普通模型）</p><div className="grid gap-2 sm:grid-cols-2">
+                    {!decisionConfig.loading && !decisionConfig.error && <p className="text-xs text-slate-500">{visibleOrder.length === 0 ? '顺序为空，仅决策连接支持的选择无法执行；支持文本回退的场景沿用普通模型。' : `顺序第一位：${firstConnection ? (firstConnection.configured ? '连接信息完整' : '请检查 API Key 和连接同步状态') : '连接已删除或尚未从 WebDAV 同步'}`}</p>}
+                    {jevEnabled && <div className="space-y-2"><p className="text-xs font-semibold text-slate-600">排除场景（勾选后按业务规则回退或停止）</p><div className="grid gap-2 sm:grid-cols-2">
                         {Object.entries(decisionSceneLabels).map(([key, label]) => <Checkbox key={key} checked={excluded.includes(key)} disabled={saving} onChange={checked => setExcluded(previous => checked ? [...previous, key] : previous.filter(item => item !== key))} label={label}/>)}
                     </div></div>}
                 </div>

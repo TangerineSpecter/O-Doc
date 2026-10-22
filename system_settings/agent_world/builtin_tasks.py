@@ -10,11 +10,13 @@ COOKING_ID = 'builtin-cooking'
 COOKING_NAME = '美食制作'
 ALCHEMY_ID = 'builtin-alchemy'
 ALCHEMY_NAME = '炼金制作'
+BLACKSMITH_ID = 'builtin-blacksmith'
+BLACKSMITH_NAME = '铁匠铺打造'
 FARM_ID = 'builtin-farm'
 FARM_NAME = '农场经营'
 MARKET_ID = 'builtin-market'
 MARKET_NAME = '市场交易'
-SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration', 'fishing', 'lottery')
+SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'blacksmith', 'exploration', 'fishing', 'lottery')
 
 INVESTMENT_ID = 'builtin-investment'
 INVESTMENT_NAME = 'A 股投资'

@@ -354,10 +354,12 @@ class ImageResourceCleanupTests(TestCase):
         abs_path = os.path.join(TEST_MEDIA_ROOT, asset.file_path)
 
         request = self.factory.delete(f'/api/article/image/delete/{image.image_id}')
-        response = ImageDeleteView.as_view()(request, image.image_id)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = ImageDeleteView.as_view()(request, image.image_id)
 
-        self.assertEqual(response.data['code'], ErrorCode.SUCCESS.code)
-        self.assertFalse(Asset.objects.filter(id=asset.id).exists())
+            self.assertEqual(response.data['code'], ErrorCode.SUCCESS.code)
+            self.assertFalse(Asset.objects.filter(id=asset.id).exists())
+            self.assertTrue(os.path.exists(abs_path))
         self.assertFalse(os.path.exists(abs_path))
 
     def test_image_delete_keeps_asset_when_shared_by_another_image(self):

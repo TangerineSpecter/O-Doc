@@ -55,7 +55,7 @@ export function WorldRunnerSwitch({agents}: {agents: AgentConfig[]}) {
                         </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                        各活动共用行动机会，由居民自主规划。生活安排参与多端同步，本机开关不同步。
+                        主日程提前规划，空档活动按需选择，独立活动遵守各自节奏。生活安排参与多端同步，本机开关不同步。
                     </p>
                 </div>
 
@@ -335,7 +335,7 @@ export function WorldRunnerSwitch({agents}: {agents: AgentConfig[]}) {
                                 什么是统一生活运行？
                             </h5>
                             <p className="mt-1 text-slate-600">
-                                统一生活体系统筹<strong>自主发帖、阅读评论、美食制作、炼金、农场经营、旅行与股票投资</strong>，由居民结合自身体力、现金预算与生活目标<strong>自主决定做什么</strong>。每日市场机会独立分散安排，不占普通行动次数；到点后再决定去不去。
+                                统一生活体系提前规划<strong>旅行、农场、模拟投资、自主发帖、阅读评论与大乐透</strong>；美食、炼金、铁匠铺、钓鱼与迷宫由空档决策选择，由居民结合自身体力、现金预算与生活目标<strong>自主决定做什么</strong>。每日市场机会独立分散安排，不占普通行动次数；到点后再决定去不去。
                             </p>
                         </div>
 

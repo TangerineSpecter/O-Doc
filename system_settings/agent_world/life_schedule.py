@@ -91,7 +91,8 @@ def ensure_cycle(config, now=None):
     if (today_end-max(now,today_start)).total_seconds() < settings['min_remaining_minutes']*60:
         return None
     # 当前周期正常未来安排不是遗留；跨周期未结束 workflow 及逾期安排优先。
-    blocked = set(LifeItem.objects.filter(owner_id=config.pk, status__in=OPEN).exclude(activity='market_prepare').values_list('actor_id', flat=True))
+    from .life_activities import main_items
+    blocked = set(main_items(LifeItem.objects.filter(owner_id=config.pk, status__in=OPEN)).exclude(activity='market_prepare').values_list('actor_id', flat=True))
     ids = [a for a in settings['agent_ids'] if a not in blocked and a not in config.paused_agents]
     settings['agent_ids'] = ids
     ensure_profiles(config.pk, ids)
@@ -315,6 +316,11 @@ def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
 
 
 def requeue(item: LifeItem, reason: str) -> None:
+    from .life_activities import is_interleaved
+    if item.activity == 'blacksmith':
+        raise ValueError('打造通过原检查点接续，不能重新规划或重复补跑；可重新发起手动打造')
+    if is_interleaved(item):
+        raise ValueError('空档穿插由检查点接续，过期机会不能重新规划或补跑')
     """把安排重新变成待规划，供下一次规划消费。"""
     if is_settled_exploration(item):
         raise ValueError('迷宫探索已正常结算，不能作为失败安排重新规划')
@@ -363,6 +369,11 @@ def retry_block_reason(item: LifeItem, now=None) -> str:
 
 
 def retry_failed(item: LifeItem, reason: str) -> None:
+    from .life_activities import is_interleaved
+    if item.activity == 'blacksmith':
+        raise ValueError('打造通过原检查点接续，不能重新规划或重复补跑；可重新发起手动打造')
+    if is_interleaved(item):
+        raise ValueError('空档穿插由检查点接续，过期机会不能重新规划或补跑')
     """保留已规划活动，换新的执行键再跑一次；规划失败则重新排队。"""
     if item.status != 'failed':
         raise ValueError('只能重试失败的安排')
@@ -407,6 +418,9 @@ def recover(config, now=None, *, resume_actor=None, delay_reason=None):
             occupied.setdefault(row.actor_id,[]).append((row.pk,local_time(row.scheduled_at)))
     last = {}
     for item in rows:
+        from .life_activities import is_interleaved
+        if is_interleaved(item):
+            continue  # Idle opportunities never enter legacy catch-up or cross-day allocation.
         if item.activity == 'market_prepare':
             if not resume_actor or item.actor_id == resume_actor:
                 from .life_market import recover_daily_market

@@ -1,3 +1,4 @@
+import {LifeSourceBadge} from './LifeSourceBadge';
 import type {ElementType} from 'react';
 import {
     Compass,
@@ -177,7 +178,7 @@ export default function LifeScheduleCard({
                                 <Icon className="h-2.5 w-2.5" />
                             </span>
                             <span className="truncate text-xs font-bold text-slate-900">
-                                {activityLabels[item.activity] || item.activity}
+                                {activityLabels[item.activity] || item.activity} <LifeSourceBadge item={item}/>
                             </span>
                         </div>
 
@@ -252,7 +253,7 @@ export default function LifeScheduleCard({
                         <Icon className="h-4 w-4" />
                     </span>
                     <span className="truncate text-sm font-bold text-slate-900">
-                        {activityLabels[item.activity] || item.activity}
+                        {activityLabels[item.activity] || item.activity} <LifeSourceBadge item={item}/>
                     </span>
                 </div>
 
@@ -315,7 +316,7 @@ export default function LifeScheduleCard({
                             <Icon className="h-2.5 w-2.5" />
                         </span>
                         <span className="truncate text-xs font-bold text-slate-800">
-                            {activityLabels[item.activity] || item.activity}
+                            {activityLabels[item.activity] || item.activity} <LifeSourceBadge item={item}/>
                         </span>
                     </div>
 
@@ -375,7 +376,7 @@ export default function LifeScheduleCard({
                         <Icon className="h-3 w-3" />
                     </span>
                     <span className="truncate text-xs font-bold text-slate-800">
-                        {activityLabels[item.activity] || item.activity}
+                        {activityLabels[item.activity] || item.activity} <LifeSourceBadge item={item}/>
                     </span>
                 </div>
                 <span

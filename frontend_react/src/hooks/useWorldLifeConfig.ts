@@ -12,6 +12,11 @@ export function useWorldLifeConfig() {
     const refresh = () => setRevision(value => value + 1);
 
     useEffect(() => {
+        window.addEventListener('agent-life-config-changed', refresh);
+        return () => window.removeEventListener('agent-life-config-changed', refresh);
+    }, []);
+
+    useEffect(() => {
         let live = true;
         setLoading(true);
         Promise.all([getWorldRunner(), getLifeConfig()])
@@ -24,7 +29,7 @@ export function useWorldLifeConfig() {
     const update = async (action: () => Promise<unknown>) => {
         setLoading(true);
         setError('');
-        try {await action(); refresh(); return true;}
+        try {await action(); window.dispatchEvent(new Event('agent-life-config-changed')); return true;}
         catch (value) {setError(value instanceof Error ? value.message : '保存失败'); return false;}
         finally {setLoading(false);}
     };

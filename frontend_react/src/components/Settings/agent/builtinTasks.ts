@@ -23,12 +23,17 @@ export const defaultTravelTask: AgentTaskConfig = {
     scheduleMode: 'random', randomPeriod: 'weekly', schedule: '每周随机 · 1 次旅行机会',
 };
 
-export const defaultCookingTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'cooking', name: '美食制作'};
+export const defaultCookingTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'cooking', name: '美食制作', schedule: '由空档活动决策安排'};
 
 export const defaultAlchemyTask: AgentTaskConfig = {
     ...defaultPostInteractionTask, taskKind: 'alchemy', name: '炼金制作',
     scheduleMode: 'random', randomPeriod: 'daily', randomCount: 1,
-    schedule: '每天随机 · 1 次炼金机会',
+    schedule: '由空档活动决策安排',
+};
+
+export const defaultBlacksmithTask: AgentTaskConfig = {
+    ...defaultPostInteractionTask, taskKind: 'blacksmith', name: '铁匠铺打造',
+    schedule: '由空档活动决策安排',
 };
 
 export const defaultFarmTask: AgentTaskConfig = {

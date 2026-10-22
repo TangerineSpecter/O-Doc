@@ -80,12 +80,12 @@ def aggregate(owner: str, actor_id: str) -> list[dict]:
 
 
 def reserved_quantity(owner: str, actor_id: str, sku: str) -> int:
-    """炼金计划已软预留的材料优先保留；探索携带在出发准备时再复核。
+    """炼金计划及打造当前件已软预留的材料优先保留；探索携带在出发准备时再复核。
 
-    预留计划无法解释时向上抛出，宁可不处置也不能把已排炼金的材料卖掉。
+    预留计划无法解释时向上抛出，宁可不处置也不能把已排制作的材料卖掉。
     """
     from .alchemy_materials import material_pool
-    from .alchemy_schedule_plan import available_pool
+    from .crafting_materials import available_pool
     total = sum(row['quantity'] for row in material_pool(actor_id, owner) if row['sku'] == sku)
     free = sum(row['quantity'] for row in available_pool(owner, actor_id) if row['sku'] == sku)
     return max(0, total - free)
@@ -125,15 +125,22 @@ def listing_price(disposition: MarketDisposition, sku: str, owner: str, actor_id
 def select_rows(owner: str, actor_id: str, sku: str, quantity: int, star_order: str, *, skip: int = 0):
     """显式按星级选行；现有 split_item 是行内 FIFO，不能替代跨行星级顺序。"""
     rows = rows_for(owner, actor_id, sku)
+    free = None
+    if sku.startswith('combat.material.'):
+        from .crafting_materials import available_pool
+        free = {row['inventory_id']: row['quantity'] for row in available_pool(owner, actor_id)}
+    # Combat materials have no stars; match the NPC sale's available-lot FIFO so
+    # a combined sale/list plan skips exactly the batches that the sale will take.
     rows.sort(key=lambda row: (int((row.source or {}).get('stars') or 1),
-                               row.created_at, row.pk), reverse=star_order == 'high')
+                               row.created_at, row.pk), reverse=free is None and star_order == 'high')
     selected, remaining = [], quantity
     for row in rows:
         if remaining <= 0:
             break
-        skipped = min(skip, row.quantity)
+        available = row.quantity if free is None else free.get(row.pk, 0)
+        skipped = min(skip, available)
         skip -= skipped
-        take = min(remaining, row.quantity - skipped)
+        take = min(remaining, available - skipped)
         if take:
             selected.append((row, take))
             remaining -= take

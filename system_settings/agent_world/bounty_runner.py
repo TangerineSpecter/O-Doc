@@ -159,6 +159,8 @@ def _commit(bounty: Bounty, agent, action: WorldAction, state: dict):
     if locked.status != 'claimed' or locked.agent_id != agent.pk:
         raise ValueError('悬赏已被回收或改派')
     _, category = validate_target(locked.owner_id, locked.collection_id, locked.category_id)
+    from .life_commitments import require_energy
+    require_energy(bounty.owner_id, agent, PUBLISH_COST, bounty_id=bounty.pk)
     if stamina(agent) < PUBLISH_COST:
         raise ValueError('体力不足，悬赏发帖需要 20 点')
     draft = state['draft']

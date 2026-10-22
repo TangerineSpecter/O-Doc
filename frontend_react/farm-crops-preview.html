@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>农场作物外观对照</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f8faf7; color: #263425; font: 14px/1.5 system-ui, sans-serif; }
+        main { max-width: 1040px; margin: auto; padding: 28px 20px; }
+        h1 { margin: 0 0 6px; font-size: 24px; }
+        p { margin: 0 0 18px; color: #536151; }
+        nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 20px; }
+        button { border: 1px solid #d4ddd0; border-radius: 8px; padding: 9px 16px; background: white; color: inherit; font: inherit; cursor: pointer; }
+        button[aria-pressed="true"] { background: #35693a; border-color: #35693a; color: white; }
+        label { display: flex; align-items: center; gap: 7px; padding: 9px; }
+        #crops { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        figure { margin: 0; background: white; border: 1px solid #e1e7dd; border-radius: 12px; overflow: hidden; }
+        .bed { display: grid; place-items: center; background: #b9dc8c; padding: 12px; }
+        canvas { display: block; width: 128px; height: 144px; image-rendering: pixelated; }
+        figcaption { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+        img { width: 32px; height: 32px; image-rendering: pixelated; }
+        strong { font-size: 15px; }
+        small { color: #536151; margin-left: auto; }
+        #checks { margin-top: 16px; font-size: 12px; }
+        @media (max-width: 600px) { main { padding: 20px 16px; } #crops { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bed { padding: 4px; } canvas { width: 112px; height: 126px; } }
+    </style>
+</head>
+<body>
+<main>
+    <h1>农场作物外观对照</h1>
+    <p>16 种作物沿用农场场景中的实际画法，名称旁为对应的收获物图标。</p>
+    <nav aria-label="作物生长阶段">
+        <button data-stage="seedling" aria-pressed="false">幼苗</button>
+        <button data-stage="growing" aria-pressed="false">生长中</button>
+        <button data-stage="ripe" aria-pressed="true">已成熟</button>
+        <label><input id="wet" type="checkbox" checked />湿润土壤</label>
+    </nav>
+    <div id="crops"></div>
+    <p id="checks" role="status"></p>
+</main>
+<script type="module" src="/src/previews/farmCrops/main.ts"></script>
+</body>
+</html>

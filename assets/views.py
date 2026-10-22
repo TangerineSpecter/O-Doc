@@ -22,11 +22,13 @@ from utils.resource_assets import (
     get_article_resource_usage,
     get_image_resource_usage,
     get_prompt_resource_usage,
+    get_quant_resource_usage,
     is_asset_used_by_agent,
     is_asset_used_by_visible_author,
     is_asset_used_by_article,
     is_asset_used_by_image,
     is_asset_used_by_prompt,
+    is_asset_used_by_quant,
 )
 from utils.response_utils import success_result, error_result, valid_result
 from .models import Asset
@@ -37,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_visible_anthology_ids(request):
-    queryset = Anthology.objects.filter(is_valid=True)
+    queryset = Anthology.objects.filter(is_valid=True).exclude(type='quant')
     if request.user and request.user.is_authenticated:
         current_user_id = get_current_user_identifier(request)
         queryset = queryset.filter(Q(permission='public') | Q(user_id=current_user_id))
@@ -47,6 +49,11 @@ def get_visible_anthology_ids(request):
 
 
 def can_read_asset(request, asset):
+    # Research attachments stay private even if another domain references them.
+    # Historical quant references also protect files from deleted research.
+    if asset.source_type == 'quant' or asset.quant_references.exists():
+        return bool(request.user and request.user.is_authenticated
+                    and asset.uploader == get_current_user_identifier(request))
     if request.user and request.user.is_authenticated:
         from system_settings.agent_world.social_models import Moment
         owner = get_current_user_identifier(request)
@@ -126,6 +133,7 @@ class ResourceListView(APIView):
             prompt_linked_resource_ids = set(prompt_usage.keys())
             agent_usage = get_agent_resource_usage()
             agent_linked_resource_ids = set(agent_usage.keys())
+            quant_usage = get_quant_resource_usage(owner=current_user_id)
             book_linked_resource_ids = set()
             for asset_id, cover_asset_id in Book.objects.filter(is_valid=True).values_list('asset_id', 'cover_asset_id'):
                 book_linked_resource_ids.add(asset_id)
@@ -133,7 +141,7 @@ class ResourceListView(APIView):
                     book_linked_resource_ids.add(cover_asset_id)
             referenced_resource_ids = (
                 article_linked_resource_ids | image_linked_resource_ids |
-                prompt_linked_resource_ids | agent_linked_resource_ids | book_linked_resource_ids
+                prompt_linked_resource_ids | agent_linked_resource_ids | book_linked_resource_ids | set(quant_usage)
             )
 
             # 筛选条件
@@ -196,19 +204,21 @@ class ResourceListView(APIView):
                 source_prompt = page_prompt_usage.get(asset['id'])
                 source_agent = page_agent_usage.get(asset['id'])
                 source_book = page_book_usage.get(asset['id'])
+                source_quant = quant_usage.get(asset['id'])
                 resource_data = {
                     'id': asset['id'],
                     'name': asset['name'],
                     'type': asset['file_type'],
                     'size': asset['file_size'],
                     'date': asset['upload_time'],
-                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_prompt) or bool(source_agent) or bool(source_book),
+                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_prompt) or bool(source_agent) or bool(source_book) or bool(source_quant),
                     'fileExists': os.path.isfile(os.path.join(settings.MEDIA_ROOT, page_file_paths[asset['id']])),
                     'sourceArticle': source_article,
                     'sourceImage': source_image,
                     'sourcePrompt': source_prompt,
                     'sourceAgent': source_agent,
                     'sourceBook': source_book,
+                    'sourceQuant': source_quant,
                     'sourceType': asset['source_type']
                 }
                 resources.append(resource_data)
@@ -364,12 +374,15 @@ class ResourceDeleteView(APIView):
 
             if is_asset_used_by_prompt(asset.id):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
+            if is_asset_used_by_quant(asset.id):
+                return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             if Book.objects.filter(Q(asset=asset) | Q(cover_asset=asset), is_valid=True).exists():
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             # 执行删除 (硬删除)
-            delete_asset_record_and_file(asset)
+            if not delete_asset_record_and_file(asset):
+                return error_result(ErrorCode.RESOURCE_IS_LINKED, status=409)
 
             return success_result()
 
@@ -411,7 +424,8 @@ class ResourceDownloadView(APIView):
                 response['Content-Disposition'] = f'attachment; filename="{asset.original_name}"'
             response['Content-Length'] = asset.file_size
             response['X-Content-Type-Options'] = 'nosniff'
-            if asset.article_references.filter(role__in=['source', 'preview']).exists():
+            if (asset.source_type == 'quant' or asset.quant_references.exists()
+                    or asset.article_references.filter(role__in=['source', 'preview']).exists()):
                 response['Content-Security-Policy'] = "default-src 'none'; sandbox;"
                 response['Cache-Control'] = 'no-store'
 
@@ -434,11 +448,55 @@ class ResourceUploadView(APIView):
                 return error_result(ErrorCode.UPLOAD_RESOURCE_NOT_FOUND)
 
             uploaded_file = request.FILES['file']
-
-            # 文件大小限制 (50MB)
-            max_size = 50 * 1024 * 1024
-            if uploaded_file.size > max_size:
+            if uploaded_file.size > 50 * 1024 * 1024:
                 return error_result(ErrorCode.UPLOAD_RESOURCE_MORE_THAN_MAX_SIZE)
+            if request.data.get('source_type') == 'quant':
+                if not request.user.is_authenticated:
+                    return valid_result('请登录后上传量化研究附件', status=401)
+                from pathlib import Path
+                extension = Path(uploaded_file.name).suffix.lower()
+                allowed = {'.py', '.pine', '.mq4', '.mqh', '.mq5', '.ipynb', '.txt', '.md', '.json',
+                           '.csv', '.tsv', '.yaml', '.yml', '.pdf', '.html', '.htm', '.zip', '.png', '.jpg', '.jpeg', '.gif', '.webp'}
+                if extension not in allowed:
+                    return valid_result('暂不支持此量化附件类型，请使用脚本、文档、图片或 ZIP 文件', status=400)
+                # A source file is data, never an executable upload. Image bytes must
+                # match their declared purpose before exposing inline preview.
+                if extension in {'.png', '.jpg', '.jpeg', '.gif', '.webp'}:
+                    from PIL import Image as PILImage
+                    try:
+                        with PILImage.open(uploaded_file) as picture:
+                            picture.verify()
+                    except Exception:
+                        return valid_result('图片文件内容无效', status=400)
+                    finally:
+                        uploaded_file.seek(0)
+                if extension == '.zip':
+                    import zipfile
+                    if not zipfile.is_zipfile(uploaded_file):
+                        uploaded_file.seek(0)
+                        return valid_result('ZIP 文件内容无效', status=400)
+                    uploaded_file.seek(0)
+                elif extension == '.pdf':
+                    signature = uploaded_file.read(5)
+                    uploaded_file.seek(0)
+                    if signature != b'%PDF-':
+                        return valid_result('PDF 文件内容无效', status=400)
+                elif extension not in {'.png', '.jpg', '.jpeg', '.gif', '.webp'}:
+                    sample = uploaded_file.read(65536)
+                    uploaded_file.seek(0)
+                    valid_text = False
+                    encodings = ('utf-16',) if sample.startswith((b'\xff\xfe', b'\xfe\xff')) else ('utf-8-sig', 'gb18030')
+                    for encoding in encodings:
+                        try:
+                            import codecs
+                            decoded = codecs.getincrementaldecoder(encoding)().decode(sample, final=False)
+                            valid_text = '\x00' not in decoded
+                            if valid_text:
+                                break
+                        except UnicodeError:
+                            continue
+                    if not valid_text:
+                        return valid_result('脚本或文档不是可读取的文本，请以 ZIP 附件保存原件', status=400)
 
             # 生成唯一文件名
             import uuid
@@ -503,7 +561,7 @@ class ResourceUploadView(APIView):
                 file_type = 'video'
             elif file_extension in ['.zip', '.rar', '.7z', '.tar', '.gz']:
                 file_type = 'archive'
-            elif file_extension in ['.py', '.js', '.html', '.css', '.java', '.cpp']:
+            elif file_extension in ['.py', '.js', '.html', '.css', '.java', '.cpp', '.pine', '.mq4', '.mqh', '.mq5', '.ipynb']:
                 file_type = 'code'
             else:
                 file_type = 'other'

@@ -136,6 +136,9 @@ def tick_alchemy(scheduler):
     from datetime import timedelta
     stale = timezone.now() - timedelta(minutes=15)
     for action in WorldAction.objects.filter(snapshot__alchemy=True, status='claimed', updated_at__lt=stale).select_related('record', 'agent')[:20]:
+        from .life_craft_recovery import resume
+        if resume(action, 'alchemy', scheduler):
+            continue
         action.status, action.result = 'failed', {'reason': '炼金中断，已提交药水与经验保留，剩余制作停止'}
         action.save(update_fields=['status', 'result', 'updated_at'])
         finish(action, scheduler)

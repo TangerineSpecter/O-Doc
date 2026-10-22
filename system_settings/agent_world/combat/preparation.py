@@ -27,10 +27,14 @@ def context(run: Exploration) -> dict:
     full = profile_view(run.owner_id,agent)
     loadout = full.get('loadout') or {}
     equipped_ids = set(loadout.values())
+    from .equipment_market import preparation_intents
+    decided_ids = set(preparation_intents(agent.pk, run.owner_id))
     equipment = []
     for row in full.get('equipment', []):
         snapshot = row.get('snapshot') or {}
         if row.get('sold') or ((row.get('bound') or row.get('locked')) and row.get('id') not in equipped_ids):
+            continue
+        if row.get('id') in decided_ids and row.get('id') not in equipped_ids:
             continue
         equipment.append({
             'id': row.get('id'), 'slot': snapshot.get('slot'), 'name': snapshot.get('name'),
@@ -156,6 +160,12 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
     from system_settings.agent_availability import require_active_agent
     agent=require_active_agent(run.actor_id)
     item=LifeItem.objects.filter(pk=run.life_item_id).first()
+    from ..life_activities import is_interleaved
+    if item and is_interleaved(item):
+        from datetime import datetime
+        from ..life_time import local_time
+        if local_time(datetime.fromisoformat(item.context['interleaving']['expires_at'])) <= local_time():
+            return finish(run.pk, 'interrupted', '系统说明：未出发的穿插已过期')
     scope=life_scope(item,build_execution_context(run.owner_id,agent,item)) if item else nullcontext()
     manual_potion_scope=manual_combat_potion_scope(run.owner_id,agent.pk) if not item else nullcontext()
     session=None
@@ -170,13 +180,16 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                     current_run = Exploration.objects.filter(pk=run_id, status='preparing').first()
                     if not current_run or not CombatRuntime.objects.filter(pk=run_id, authorized=True).exists():
                         raise ValueError('准备期间探索已取消')
-                if jev_enabled(run.owner_id, 'combat_preparation'):
+                from ..life_activities import is_interleaved
+                if (item and is_interleaved(item)) or jev_enabled(run.owner_id, 'combat_preparation'):
                     from .preparation_decision import build_plan
                     plan, preparation_decisions = build_plan(run, agent, check=check_preparation)
                 else:
                     with usage_scope(agent=agent,purpose='exploration_prepare'):
                         plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。探索本身不需要生活预算；药剂是可选补给，只能使用purchase_funds中的未预留真实余额。若余额不足，减少或放弃采购，并按现有库存决定携带，不要因此放弃探索。装备部位可用 weapon、offhand、head、body、hands、feet、accessory、ring_1、ring_2；accessory 是吊坠位，戒指分别使用 ring_1 和 ring_2。双手武器占用副手，不能同时填写 offhand。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。考虑职业精通、全程体力和推荐等级。',context(run))
                 plan=fit_potion_plan(run,agent,validate(run,plan))
+                from ..life_interleaving_preparation import fit_supply_energy
+                plan = fit_supply_energy(run, agent, plan)
                 if preparation_decisions is None:
                     from .food import choose as choose_food
                     food, record = choose_food(run, agent, plan['duration_seconds'], structured=False, planner=planner, check=check_preparation)
@@ -191,6 +204,8 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                     locked.revision+=1;locked.save()
                     from .facts import append
                     append(CombatProfile.objects.get(pk=run.actor_id),run.pk+':plan','plan',{'plan':plan},locked)
+            from ..life_interleaving_preparation import resize_exploration
+            plan = resize_exploration(run, agent, plan)
             with farm_gate(),transaction.atomic():
                 locked=Exploration.objects.select_for_update().get(pk=run_id)
                 if locked.status!='preparing' or not CombatRuntime.objects.filter(pk=run_id,authorized=True).exists():return locked
@@ -228,8 +243,20 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                             break
                         completed_purchases[sid]=n
                 close_session(session,'探索补给采购完成');session=None
+            from ..life_interleaving_preparation import resize_exploration
+            plan = resize_exploration(run, agent, plan)
             return depart(run.pk,plan)
     except Exception as exc:
+        from system_settings.decision.jev import DecisionUnavailable
+        from ..life_activities import is_interleaved
+        if item and is_interleaved(item) and isinstance(exc, (DecisionUnavailable, TimeoutError)):
+            from datetime import timedelta
+            from ..life_time import local_time
+            with farm_gate(), transaction.atomic():
+                locked = Exploration.objects.select_for_update().get(pk=run.pk)
+                locked.snapshot['preparation_retry_at'] = (local_time() + timedelta(minutes=5)).isoformat()
+                locked.save()
+            return locked
         finish(run.pk,'failed','准备失败：'+str(exc)[:400])
         raise
     finally:

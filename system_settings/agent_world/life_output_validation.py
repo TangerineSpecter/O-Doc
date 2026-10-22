@@ -8,6 +8,9 @@ def validate_life_output(value, instruction, context):
     slots = context.get('slots', [])
     ids = {row['id'] for row in slots}
     if 'activities' in context:
+        if context.get('input_version') == 2 and context.get('daily_planning'):
+            from .life_main_validation import repair_conflicts
+            value = repair_conflicts(value, context)
         rows = indexed_rows(value.get('plans'), ids, '活动选择')
         allowed = {row['kind'] for row in context['activities']}
         farm_days = set(context.get('existing_farm_days', []))
@@ -23,6 +26,8 @@ def validate_life_output(value, instruction, context):
         for identity, row in rows.items():
             slot = next(slot for slot in slots if slot['id'] == identity)
             slot_allowed = slot.get('allowed_activities', list(allowed))
+            if context.get('input_version') == 2:
+                slot_allowed = [*slot_allowed, 'rest']
             if context.get('daily_planning') and selected_farms.get(slot['time'][:10], identity) != identity:
                 slot_allowed = [kind for kind in slot_allowed if kind != 'farm']
             if context.get('daily_planning') and not slot_allowed:

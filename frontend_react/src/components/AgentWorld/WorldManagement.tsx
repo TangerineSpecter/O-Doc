@@ -1,3 +1,4 @@
+import {useOpenTaskAllocation} from '../../hooks/useOpenTaskAllocation';
 import {useWorldCatalogToggle} from '../../hooks/useWorldCatalogToggle';
 import { useEffect, useRef, useState } from 'react';
 import { Globe, Loader2 } from 'lucide-react';
@@ -12,13 +13,10 @@ import { WorldProfessionModal } from './WorldProfessionModal';
 import { WorldIncomeTab } from './WorldIncomeTab';
 
 import {MarketSettings} from '../Market/MarketSettings';
-import SocialSettingsDialog from './SocialSettingsDialog';
 import {WorldDecisionModelSettings} from './WorldDecisionModelSettings';
 import {WorldAdventureSettings} from './WorldAdventureSettings';
 import {WorldStaminaSettings} from './WorldStaminaSettings';
-import {LotteryPanel} from '../Lottery/LotteryPanel';
-import {FishingSettings} from '../Fishing/FishingPanel';
-type WorldTab = 'fishing' | 'lottery' | 'stamina' | 'categories' | 'professions' | 'income' | 'market' | 'adventure' | 'social' | 'decision-model';
+type WorldTab = 'stamina' | 'categories' | 'professions' | 'income' | 'market' | 'adventure' | 'decision-model';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -26,7 +24,7 @@ export function WorldManagement() {
     const catalogToggle = useWorldCatalogToggle(state.reload);
 
     const [tab, setTab] = useState<WorldTab>('categories');
-    const [socialSettingsOpen, setSocialSettingsOpen] = useState(false);
+    const openTasks = useOpenTaskAllocation();
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -140,8 +138,6 @@ export function WorldManagement() {
                     </div>
                     {/* 胶囊分段控制器：纯粹导航控件，移动端自适应全宽横向平滑滚动，PC端靠右紧凑排列 */}
                     <div className="flex min-w-0 w-full overflow-x-auto scrollbar-hide rounded-lg bg-slate-100 p-0.5 sm:w-auto sm:shrink-0">
-                        <button type="button" onClick={() => setTab('fishing')} className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium ${tab === 'fishing' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>钓鱼</button>
-                        <button type="button" onClick={() => setTab('lottery')} className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${tab === 'lottery' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>大乐透</button>
                         <button
                             type="button"
                             onClick={() => setTab('decision-model')}
@@ -150,15 +146,6 @@ export function WorldManagement() {
                             }`}
                         >
                             决策模型
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setTab('social')}
-                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${
-                                tab === 'social' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            社交关系
                         </button>
                         <button
                             type="button"
@@ -219,6 +206,11 @@ export function WorldManagement() {
                 </div>
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-500">
+                <p>活动开关、空档节奏及社交设置已集中到任务分配。</p>
+                <button type="button" onClick={openTasks} className="rounded-lg bg-orange-500 px-3 py-2 font-medium text-white">前往任务分配</button>
+            </div>
+
             {/* 错误提示条 */}
             {state.error && (
                 <div
@@ -265,12 +257,8 @@ export function WorldManagement() {
                         />
                     )}
 
-                    {tab === 'social' && <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div><h3 className="text-sm font-bold text-slate-800">居民的社交习惯</h3><p className="mt-2 text-xs text-slate-400">管理参与居民、自动社交节奏和可选配图。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setSocialSettingsOpen(true)} className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white">社交设置</button></div></div>}
                     {tab === 'decision-model' && <WorldDecisionModelSettings/>}
-                    {socialSettingsOpen && <SocialSettingsDialog onClose={() => setSocialSettingsOpen(false)}/>}
                     {tab === 'market' && <MarketSettings/>}
-                    {tab === 'fishing' && <FishingSettings/>}
-                    {tab === 'lottery' && <LotteryPanel settingsOnly/>}
                     {tab === 'stamina' && <WorldStaminaSettings/>}
                     {tab === 'adventure' && <WorldAdventureSettings/>}
                     {tab === 'income' && (

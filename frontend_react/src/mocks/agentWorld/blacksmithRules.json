@@ -1,0 +1,1698 @@
+[
+  {
+    "id": "1-10:weapon",
+    "bandId": "1-10",
+    "bandLabel": "Lv.1～10",
+    "levelMin": 1,
+    "levelMax": 10,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sprout_meadow.beetle",
+        "name": "叶壳碎片",
+        "price": "1.20",
+        "quantity": 24
+      },
+      {
+        "sku": "combat.material.sprout_meadow.rabbit",
+        "name": "绒耳兔毛",
+        "price": "1.04",
+        "quantity": 8
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "1-10:offhand",
+    "bandId": "1-10",
+    "bandLabel": "Lv.1～10",
+    "levelMin": 1,
+    "levelMax": 10,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sprout_meadow.beetle",
+        "name": "叶壳碎片",
+        "price": "1.20",
+        "quantity": 20
+      },
+      {
+        "sku": "combat.material.moss_cave.1",
+        "name": "黏液",
+        "price": "1.04",
+        "quantity": 15
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "1-10:head",
+    "bandId": "1-10",
+    "bandLabel": "Lv.1～10",
+    "levelMin": 1,
+    "levelMax": 10,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sprout_meadow.rabbit",
+        "name": "绒耳兔毛",
+        "price": "1.04",
+        "quantity": 21
+      },
+      {
+        "sku": "combat.material.moss_cave.1",
+        "name": "黏液",
+        "price": "1.04",
+        "quantity": 14
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "1-10:body",
+    "bandId": "1-10",
+    "bandLabel": "Lv.1～10",
+    "levelMin": 1,
+    "levelMax": 10,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sprout_meadow.beetle",
+        "name": "叶壳碎片",
+        "price": "1.20",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.sprout_meadow.rabbit",
+        "name": "绒耳兔毛",
+        "price": "1.04",
+        "quantity": 18
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "1-10:hands",
+    "bandId": "1-10",
+    "bandLabel": "Lv.1～10",
+    "levelMin": 1,
+    "levelMax": 10,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sprout_meadow.rabbit",
+        "name": "绒耳兔毛",
+        "price": "1.04",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.moss_cave.1",
+        "name": "黏液",
+        "price": "1.04",
+        "quantity": 7
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "1-10:feet",
+    "bandId": "1-10",
+    "bandLabel": "Lv.1～10",
+    "levelMin": 1,
+    "levelMax": 10,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sprout_meadow.beetle",
+        "name": "叶壳碎片",
+        "price": "1.20",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.sprout_meadow.rabbit",
+        "name": "绒耳兔毛",
+        "price": "1.04",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "1-10:accessory",
+    "bandId": "1-10",
+    "bandLabel": "Lv.1～10",
+    "levelMin": 1,
+    "levelMax": 10,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sprout_meadow.beetle",
+        "name": "叶壳碎片",
+        "price": "1.20",
+        "quantity": 7
+      },
+      {
+        "sku": "combat.material.moss_cave.1",
+        "name": "黏液",
+        "price": "1.04",
+        "quantity": 28
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "10-20:weapon",
+    "bandId": "10-20",
+    "bandLabel": "Lv.10～20",
+    "levelMin": 10,
+    "levelMax": 20,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.moss_cave.crystal_lizard",
+        "name": "晶蜥鳞",
+        "price": "1.40",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.moss_cave.2",
+        "name": "蝠翼",
+        "price": "1.12",
+        "quantity": 10
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "10-20:offhand",
+    "bandId": "10-20",
+    "bandLabel": "Lv.10～20",
+    "levelMin": 10,
+    "levelMax": 20,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.moss_cave.crystal_lizard",
+        "name": "晶蜥鳞",
+        "price": "1.40",
+        "quantity": 20
+      },
+      {
+        "sku": "combat.material.sprout_meadow.glowbug",
+        "name": "晨光粉尘",
+        "price": "1.40",
+        "quantity": 15
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "10-20:head",
+    "bandId": "10-20",
+    "bandLabel": "Lv.10～20",
+    "levelMin": 10,
+    "levelMax": 20,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.moss_cave.2",
+        "name": "蝠翼",
+        "price": "1.12",
+        "quantity": 24
+      },
+      {
+        "sku": "combat.material.sprout_meadow.glowbug",
+        "name": "晨光粉尘",
+        "price": "1.40",
+        "quantity": 16
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "10-20:body",
+    "bandId": "10-20",
+    "bandLabel": "Lv.10～20",
+    "levelMin": 10,
+    "levelMax": 20,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.moss_cave.crystal_lizard",
+        "name": "晶蜥鳞",
+        "price": "1.40",
+        "quantity": 16
+      },
+      {
+        "sku": "combat.material.moss_cave.2",
+        "name": "蝠翼",
+        "price": "1.12",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "10-20:hands",
+    "bandId": "10-20",
+    "bandLabel": "Lv.10～20",
+    "levelMin": 10,
+    "levelMax": 20,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.moss_cave.2",
+        "name": "蝠翼",
+        "price": "1.12",
+        "quantity": 32
+      },
+      {
+        "sku": "combat.material.sprout_meadow.glowbug",
+        "name": "晨光粉尘",
+        "price": "1.40",
+        "quantity": 8
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "10-20:feet",
+    "bandId": "10-20",
+    "bandLabel": "Lv.10～20",
+    "levelMin": 10,
+    "levelMax": 20,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.moss_cave.crystal_lizard",
+        "name": "晶蜥鳞",
+        "price": "1.40",
+        "quantity": 14
+      },
+      {
+        "sku": "combat.material.moss_cave.2",
+        "name": "蝠翼",
+        "price": "1.12",
+        "quantity": 28
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "10-20:accessory",
+    "bandId": "10-20",
+    "bandLabel": "Lv.10～20",
+    "levelMin": 10,
+    "levelMax": 20,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.moss_cave.crystal_lizard",
+        "name": "晶蜥鳞",
+        "price": "1.40",
+        "quantity": 7
+      },
+      {
+        "sku": "combat.material.sprout_meadow.glowbug",
+        "name": "晨光粉尘",
+        "price": "1.40",
+        "quantity": 28
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "20-30:weapon",
+    "bandId": "20-30",
+    "bandLabel": "Lv.20～30",
+    "levelMin": 20,
+    "levelMax": 30,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.abandoned_mine.2",
+        "name": "铁矿",
+        "price": "1.56",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.mist_forest.1",
+        "name": "孢子",
+        "price": "1.80",
+        "quantity": 10
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "20-30:offhand",
+    "bandId": "20-30",
+    "bandLabel": "Lv.20～30",
+    "levelMin": 20,
+    "levelMax": 30,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.abandoned_mine.2",
+        "name": "铁矿",
+        "price": "1.56",
+        "quantity": 20
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 15
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "20-30:head",
+    "bandId": "20-30",
+    "bandLabel": "Lv.20～30",
+    "levelMin": 20,
+    "levelMax": 30,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.mist_forest.1",
+        "name": "孢子",
+        "price": "1.80",
+        "quantity": 18
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 12
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "20-30:body",
+    "bandId": "20-30",
+    "bandLabel": "Lv.20～30",
+    "levelMin": 20,
+    "levelMax": 30,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.abandoned_mine.2",
+        "name": "铁矿",
+        "price": "1.56",
+        "quantity": 16
+      },
+      {
+        "sku": "combat.material.mist_forest.1",
+        "name": "孢子",
+        "price": "1.80",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "20-30:hands",
+    "bandId": "20-30",
+    "bandLabel": "Lv.20～30",
+    "levelMin": 20,
+    "levelMax": 30,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.mist_forest.1",
+        "name": "孢子",
+        "price": "1.80",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 7
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "20-30:feet",
+    "bandId": "20-30",
+    "bandLabel": "Lv.20～30",
+    "levelMin": 20,
+    "levelMax": 30,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.abandoned_mine.2",
+        "name": "铁矿",
+        "price": "1.56",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.mist_forest.1",
+        "name": "孢子",
+        "price": "1.80",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "20-30:accessory",
+    "bandId": "20-30",
+    "bandLabel": "Lv.20～30",
+    "levelMin": 20,
+    "levelMax": 30,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.abandoned_mine.2",
+        "name": "铁矿",
+        "price": "1.56",
+        "quantity": 6
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "30-40:weapon",
+    "bandId": "30-40",
+    "bandLabel": "Lv.30～40",
+    "levelMin": 30,
+    "levelMax": 40,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 24
+      },
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 8
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "30-40:offhand",
+    "bandId": "30-40",
+    "bandLabel": "Lv.30～40",
+    "levelMin": 30,
+    "levelMax": 40,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 20
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 15
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "30-40:head",
+    "bandId": "30-40",
+    "bandLabel": "Lv.30～40",
+    "levelMin": 30,
+    "levelMax": 40,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 18
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 12
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "30-40:body",
+    "bandId": "30-40",
+    "bandLabel": "Lv.30～40",
+    "levelMin": 30,
+    "levelMax": 40,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 18
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "30-40:hands",
+    "bandId": "30-40",
+    "bandLabel": "Lv.30～40",
+    "levelMin": 30,
+    "levelMax": 40,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 24
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 6
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "30-40:feet",
+    "bandId": "30-40",
+    "bandLabel": "Lv.30～40",
+    "levelMin": 30,
+    "levelMax": 40,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 10
+      },
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 20
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "30-40:accessory",
+    "bandId": "30-40",
+    "bandLabel": "Lv.30～40",
+    "levelMin": 30,
+    "levelMax": 40,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 7
+      },
+      {
+        "sku": "combat.material.mist_forest.2",
+        "name": "狼牙",
+        "price": "1.96",
+        "quantity": 28
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "40-50:weapon",
+    "bandId": "40-50",
+    "bandLabel": "Lv.40～50",
+    "levelMin": 40,
+    "levelMax": 50,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 24
+      },
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 8
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "40-50:offhand",
+    "bandId": "40-50",
+    "bandLabel": "Lv.40～50",
+    "levelMin": 40,
+    "levelMax": 50,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 20
+      },
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 15
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "40-50:head",
+    "bandId": "40-50",
+    "bandLabel": "Lv.40～50",
+    "levelMin": 40,
+    "levelMax": 50,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 21
+      },
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 14
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "40-50:body",
+    "bandId": "40-50",
+    "bandLabel": "Lv.40～50",
+    "levelMin": 40,
+    "levelMax": 50,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 18
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "40-50:hands",
+    "bandId": "40-50",
+    "bandLabel": "Lv.40～50",
+    "levelMin": 40,
+    "levelMax": 50,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 7
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "40-50:feet",
+    "bandId": "40-50",
+    "bandLabel": "Lv.40～50",
+    "levelMin": 40,
+    "levelMax": 50,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.sunken_ruins.2",
+        "name": "水灵精华",
+        "price": "2.44",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "40-50:accessory",
+    "bandId": "40-50",
+    "bandLabel": "Lv.40～50",
+    "levelMin": 40,
+    "levelMax": 50,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 7
+      },
+      {
+        "sku": "combat.material.sunken_ruins.1",
+        "name": "骨片",
+        "price": "2.20",
+        "quantity": 28
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "50-60:weapon",
+    "bandId": "50-60",
+    "bandLabel": "Lv.50～60",
+    "levelMin": 50,
+    "levelMax": 60,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 24
+      },
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 8
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "50-60:offhand",
+    "bandId": "50-60",
+    "bandLabel": "Lv.50～60",
+    "levelMin": 50,
+    "levelMax": 60,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.sunken_ruins.3",
+        "name": "遗迹碎晶",
+        "price": "2.80",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "50-60:head",
+    "bandId": "50-60",
+    "bandLabel": "Lv.50～60",
+    "levelMin": 50,
+    "levelMax": 60,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.sunken_ruins.3",
+        "name": "遗迹碎晶",
+        "price": "2.80",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "50-60:body",
+    "bandId": "50-60",
+    "bandLabel": "Lv.50～60",
+    "levelMin": 50,
+    "levelMax": 60,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 16
+      },
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "50-60:hands",
+    "bandId": "50-60",
+    "bandLabel": "Lv.50～60",
+    "levelMin": 50,
+    "levelMax": 60,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 32
+      },
+      {
+        "sku": "combat.material.sunken_ruins.3",
+        "name": "遗迹碎晶",
+        "price": "2.80",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "50-60:feet",
+    "bandId": "50-60",
+    "bandLabel": "Lv.50～60",
+    "levelMin": 50,
+    "levelMax": 60,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.ember_fortress.1",
+        "name": "灰烬粉",
+        "price": "2.80",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "50-60:accessory",
+    "bandId": "50-60",
+    "bandLabel": "Lv.50～60",
+    "levelMin": 50,
+    "levelMax": 60,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 27
+      },
+      {
+        "sku": "combat.material.sunken_ruins.3",
+        "name": "遗迹碎晶",
+        "price": "2.80",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "60-70:weapon",
+    "bandId": "60-70",
+    "bandLabel": "Lv.60～70",
+    "levelMin": 60,
+    "levelMax": 70,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 40
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "60-70:offhand",
+    "bandId": "60-70",
+    "bandLabel": "Lv.60～70",
+    "levelMin": 60,
+    "levelMax": 70,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 32
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "60-70:head",
+    "bandId": "60-70",
+    "bandLabel": "Lv.60～70",
+    "levelMin": 60,
+    "levelMax": 70,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "60-70:body",
+    "bandId": "60-70",
+    "bandLabel": "Lv.60～70",
+    "levelMin": 60,
+    "levelMax": 70,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 40
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "60-70:hands",
+    "bandId": "60-70",
+    "bandLabel": "Lv.60～70",
+    "levelMin": 60,
+    "levelMax": 70,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 32
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "60-70:feet",
+    "bandId": "60-70",
+    "bandLabel": "Lv.60～70",
+    "levelMin": 60,
+    "levelMax": 70,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 36
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "60-70:accessory",
+    "bandId": "60-70",
+    "bandLabel": "Lv.60～70",
+    "levelMin": 60,
+    "levelMax": 70,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.ember_fortress.2",
+        "name": "熔岩碎片",
+        "price": "3.08",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "70-80:weapon",
+    "bandId": "70-80",
+    "bandLabel": "Lv.70～80",
+    "levelMin": 70,
+    "levelMax": 80,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 32
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "70-80:offhand",
+    "bandId": "70-80",
+    "bandLabel": "Lv.70～80",
+    "levelMin": 70,
+    "levelMax": 80,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "70-80:head",
+    "bandId": "70-80",
+    "bandLabel": "Lv.70～80",
+    "levelMin": 70,
+    "levelMax": 80,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "70-80:body",
+    "bandId": "70-80",
+    "bandLabel": "Lv.70～80",
+    "levelMin": 70,
+    "levelMax": 80,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 30
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "70-80:hands",
+    "bandId": "70-80",
+    "bandLabel": "Lv.70～80",
+    "levelMin": 70,
+    "levelMax": 80,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "70-80:feet",
+    "bandId": "70-80",
+    "bandLabel": "Lv.70～80",
+    "levelMin": 70,
+    "levelMax": 80,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 30
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "70-80:accessory",
+    "bandId": "70-80",
+    "bandLabel": "Lv.70～80",
+    "levelMin": 70,
+    "levelMax": 80,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.ember_fortress.3",
+        "name": "火焰核心",
+        "price": "3.52",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "80-90:weapon",
+    "bandId": "80-90",
+    "bandLabel": "Lv.80～90",
+    "levelMin": 80,
+    "levelMax": 90,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 24
+      },
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 8
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "80-90:offhand",
+    "bandId": "80-90",
+    "bandLabel": "Lv.80～90",
+    "levelMin": 80,
+    "levelMax": 90,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 28
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "80-90:head",
+    "bandId": "80-90",
+    "bandLabel": "Lv.80～90",
+    "levelMin": 80,
+    "levelMax": 90,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "80-90:body",
+    "bandId": "80-90",
+    "bandLabel": "Lv.80～90",
+    "levelMin": 80,
+    "levelMax": 90,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 16
+      },
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "80-90:hands",
+    "bandId": "80-90",
+    "bandLabel": "Lv.80～90",
+    "levelMin": 80,
+    "levelMax": 90,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 32
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "80-90:feet",
+    "bandId": "80-90",
+    "bandLabel": "Lv.80～90",
+    "levelMin": 80,
+    "levelMax": 90,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 12
+      },
+      {
+        "sku": "combat.material.star_rift.1",
+        "name": "裂隙粉尘",
+        "price": "3.80",
+        "quantity": 24
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "80-90:accessory",
+    "bandId": "80-90",
+    "bandLabel": "Lv.80～90",
+    "levelMin": 80,
+    "levelMax": 90,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 27
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "90-99:weapon",
+    "bandId": "90-99",
+    "bandLabel": "Lv.90～99",
+    "levelMin": 90,
+    "levelMax": 99,
+    "slot": "weapon",
+    "slotName": "武器",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 32
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "90-99:offhand",
+    "bandId": "90-99",
+    "bandLabel": "Lv.90～99",
+    "levelMin": 90,
+    "levelMax": 99,
+    "slot": "offhand",
+    "slotName": "副手",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 32
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "90-99:head",
+    "bandId": "90-99",
+    "bandLabel": "Lv.90～99",
+    "levelMin": 90,
+    "levelMax": 99,
+    "slot": "head",
+    "slotName": "头部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 30
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "90-99:body",
+    "bandId": "90-99",
+    "bandLabel": "Lv.90～99",
+    "levelMin": 90,
+    "levelMax": 99,
+    "slot": "body",
+    "slotName": "身体",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 40
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "90-99:hands",
+    "bandId": "90-99",
+    "bandLabel": "Lv.90～99",
+    "levelMin": 90,
+    "levelMax": 99,
+    "slot": "hands",
+    "slotName": "手部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 32
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "90-99:feet",
+    "bandId": "90-99",
+    "bandLabel": "Lv.90～99",
+    "levelMin": 90,
+    "levelMax": 99,
+    "slot": "feet",
+    "slotName": "脚部",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 36
+      }
+    ],
+    "energyCost": 2
+  },
+  {
+    "id": "90-99:accessory",
+    "bandId": "90-99",
+    "bandLabel": "Lv.90～99",
+    "levelMin": 90,
+    "levelMax": 99,
+    "slot": "accessory",
+    "slotName": "饰品",
+    "version": 1,
+    "ingredients": [
+      {
+        "sku": "combat.material.star_rift.2",
+        "name": "星蚀结晶",
+        "price": "4.28",
+        "quantity": 29
+      },
+      {
+        "sku": "combat.material.star_rift.3",
+        "name": "领主残核",
+        "price": "4.60",
+        "quantity": 2
+      }
+    ],
+    "energyCost": 2
+  }
+]

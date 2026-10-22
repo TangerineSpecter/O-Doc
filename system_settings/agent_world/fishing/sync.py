@@ -133,7 +133,19 @@ def _validate(data, meta, check_digest):
                     if choice not in rules['spots'] or 'spot' in plan: fail('钓点选择无效')
                     plan['spot'] = choice
                 elif value['key'] == 'minutes':
-                    if int(choice) not in rules['durations'] or 'minutes' in plan: fail('出钓时长无效')
+                    if int(choice) not in rules['durations']: fail('出钓时长无效')
+                    if 'minutes' in plan:
+                        legal = value.get('legal_minutes')
+                        if (not plan.get('complete') or type(value.get('previous_minutes')) is not int
+                                or value['previous_minutes'] != plan['minutes']
+                                or not isinstance(legal, list) or not legal
+                                or len(legal) != len(set(legal))
+                                or any(type(minutes) is not int or minutes not in rules['durations']
+                                       or minutes >= plan['minutes'] for minutes in legal)
+                                or int(choice) not in legal):
+                            fail('已确认出钓只能在剩余合法时长内缩短')
+                    elif 'previous_minutes' in value or 'legal_minutes' in value:
+                        fail('首次出钓时长不能伪造缩时依据')
                     plan['minutes'] = int(choice)
                 elif value['key'] == 'bait':
                     if plan.get('complete'): fail('鱼饵选择已经结束')

@@ -176,6 +176,9 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
         from system_settings.agent_availability import require_active_agent
         require_active_agent(agent)
         action = value['action']
+        from .life_commitments import require_energy
+        if action not in ('rest', 'skip'):
+            require_energy(op.owner_id, agent, ENERGY_COST)
         if action != 'skip' and stamina(agent) < ENERGY_COST: raise ValueError('体力不足')
         from .life_config import effective_settings
         left, right = window(effective_settings(life), local_time().date())

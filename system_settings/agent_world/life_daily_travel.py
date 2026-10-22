@@ -1,6 +1,6 @@
 """Travel quotes for daily planning; no text-model budget fallback or purchases."""
 import time
-from decimal import Decimal, ROUND_CEILING
+from decimal import Decimal
 
 from django.utils import timezone
 
@@ -8,19 +8,7 @@ from .life_budget import money
 from .travel_models import TravelDestination
 
 
-def covering_tier(price: Decimal) -> Decimal:
-    if price <= 500:
-        return Decimal(500)
-    return Decimal(500) + ((price - 500) / 1000).to_integral_value(rounding=ROUND_CEILING) * 1000
-
-
-def budget_options(maximum: Decimal, available: Decimal) -> dict:
-    ceiling = covering_tier(maximum)
-    amounts = {min(Decimal(500) + index * 1000, available)
-               for index in range(int((ceiling - 500) / 1000) + 1)}
-    return {'skip': {'label': '不去', 'budget': '0'}, **{
-        f'cap_{amount}': {'label': f'旅行预算上限 {amount} 世界币', 'budget': str(amount)}
-        for amount in sorted(amounts) if amount > 0}}
+from .life_travel_tiers import covering_tier, budget_options, select_budget
 
 
 def prepare(owner: str, agent, available: Decimal, preferences: str) -> dict:
@@ -32,23 +20,20 @@ def prepare(owner: str, agent, available: Decimal, preferences: str) -> dict:
     maximum = TravelDestination.objects.filter(enabled=True, price__lte=available).order_by('-price').values_list('price', flat=True).first()
     if maximum is None:
         return {'candidates': []}
-    choices = budget_options(maximum, available)
     minimum = TravelDestination.objects.filter(enabled=True).order_by('price').values_list('price', flat=True).first()
-    choices = {key: value for key, value in choices.items()
-               if key == 'skip' or money(value['budget']) >= minimum}
-    selected = choose_scene(owner, agent, 'life_budget',
-                            {'activity': 'travel', 'balance': str(agent.money),
-                             'budget_ceiling': str(available), 'preferences': preferences}, choices,
-                            deadline=time.monotonic() + 180)
-    if selected == 'skip':
+    deadline = time.monotonic() + 180
+    def select(choices):
+        return choose_scene(owner, agent, 'life_budget',
+            {'activity': 'travel', 'balance': str(agent.money), 'budget_ceiling': str(available),
+             'maximum_trip_price': str(maximum), 'preferences': preferences}, choices, deadline=deadline)
+    selected, quote_ceiling = select_budget(maximum, available, minimum, select)
+    if selected == 'skip' or not quote_ceiling:
         return {'candidates': []}
-    if selected is not None and selected not in choices:
-        selected = None
-    cap = money(choices[selected]['budget']) if selected else available
+    cap = money(selected) if selected is not None else quote_ceiling
     task = next((task for task in tasks_for(owner)
                  if task.enabled and task.task_kind == 'travel'), None)
     return {'candidates': candidates(agent, (task.travel_config or {}).get('recent_cities', 3) if task else 3, budget=cap, limit=3),
-            'budget': str(cap) if selected else None,
+            'budget': str(cap) if selected is not None else None,
             'available': str(available), 'quoted_at': timezone.now().isoformat()}
 
 

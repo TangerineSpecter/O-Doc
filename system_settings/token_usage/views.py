@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from djangorestframework_camel_case.render import CamelCaseJSONRenderer
 from utils.response_utils import success_result, valid_result
 from . import details as request_details
 from .content import request_content
@@ -17,9 +18,17 @@ REQUEST_FIELDS = ('id', 'agent_key', 'agent_name', 'task_key', 'task_name', 'rec
                   'usage_complete', 'started_at', 'ended_at', 'model_type')
 
 
+class TokenContentRenderer(CamelCaseJSONRenderer):
+    # 正文必须保持模型协议原样，例如 tool_calls、tool_call_id 及用户业务字段。
+    json_underscoreize = {**CamelCaseJSONRenderer.json_underscoreize, 'ignore_fields': ('request', 'response')}
+
+
 class TokenUsageView(APIView):
     permission_classes = [IsAuthenticated]
     kind = 'summary'
+
+    def get_renderers(self):
+        return [TokenContentRenderer()] if self.kind == 'content' else super().get_renderers()
 
     def get(self, request, request_id=None):
         try:

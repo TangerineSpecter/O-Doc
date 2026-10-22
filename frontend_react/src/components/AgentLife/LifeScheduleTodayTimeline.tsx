@@ -1,3 +1,4 @@
+import {LifeSourceBadge, scheduleCounts} from './LifeSourceBadge';
 import {useEffect, useMemo, useState, type ElementType} from 'react';
 import {
     Activity,
@@ -15,6 +16,7 @@ import {
     Coffee,
     Compass,
     FlaskConical,
+    Hammer,
     MessageSquare,
     Moon,
     PlayCircle,
@@ -56,6 +58,11 @@ const activityMetaConfig: Record<
         dotColor: string;
     }
 > = {
+    blacksmith: {
+        label: '铁匠铺打造', icon: Hammer,
+        badgeColor: 'bg-orange-50 text-orange-700 border-orange-200/80',
+        accentBar: 'bg-orange-500', dotColor: 'bg-orange-500',
+    },
     travel: {
         label: '旅行',
         icon: Compass,
@@ -486,6 +493,7 @@ export default function LifeScheduleTodayTimeline({
                             </span>
                         </div>
 
+                        <span className="text-[11px] text-slate-500">{scheduleCounts(sortedItems)}</span>
                         {/* 达成情况 */}
                         <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white px-2.5 py-1 text-xs text-slate-600 shadow-2xs">
                             <span>达成</span>
@@ -976,7 +984,7 @@ function CompactGridCard({
                         className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap ${actMeta.badgeColor}`}
                     >
                         <ActIcon className="h-2.5 w-2.5 shrink-0" />
-                        <span>{intentTitle}</span>
+                        <span>{intentTitle} <LifeSourceBadge item={item}/></span>
                     </span>
 
                     {/* 状态徽标 */}

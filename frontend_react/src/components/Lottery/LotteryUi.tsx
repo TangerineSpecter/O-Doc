@@ -3,10 +3,18 @@ import {ChevronLeft, ChevronRight} from 'lucide-react';
 
 export function LotteryBalls({values, winning = []}: {values: number[]; winning?: number[]}) {
     return <div className="lottery-balls" aria-label={`号码 ${values.join('、')}`}>
-        {values.map((value, index) => <span key={index}
-            className={`lottery-ball ${winning.includes(value) ? 'lottery-ball--matched' : ''}`}>
-            {String(value).padStart(2, '0')}
-        </span>)}
+        {values.map((value, index) => {
+            const isMatched = winning.includes(value);
+            return (
+                <span
+                    key={index}
+                    className={`lottery-ball ${isMatched ? 'lottery-ball--matched' : ''}`}
+                    title={isMatched ? `命中号码 ${String(value).padStart(2, '0')}` : `号码 ${String(value).padStart(2, '0')}`}
+                >
+                    {String(value).padStart(2, '0')}
+                </span>
+            );
+        })}
     </div>;
 }
 

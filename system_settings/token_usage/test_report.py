@@ -129,11 +129,15 @@ class TokenReportTests(TestCase):
         self.assertEqual(value['by_task'], [])
 
     def test_invalid_filters_and_authentication(self):
-        for params in ({'start_date': 'invalid'}, {'purpose': 'invalid'},
+        for params in ({'start_date': 'invalid'}, {'purpose': 'invalid-purpose'},
                        {'start_date': '2026-10-11', 'end_date': '2026-10-10'}):
             with self.subTest(params=params):
                 self.assertEqual(self.api(params).status_code, 400)
         self.assertIn(self.api(authenticated=False).status_code, (401, 403))
+
+    def test_well_formed_unused_purpose_matches_empty_report(self):
+        # 用途允许历史扩展值，合法但没有记录的值应为空，而不是参数错误。
+        self.assertEqual(self.report({'all': '1', 'purpose': 'unused_purpose'})['summary']['request_count'], 0)
 
     def save_content(self, row, status=None):
         details.write({'id': row.pk, 'started_at': row.started_at.isoformat(),

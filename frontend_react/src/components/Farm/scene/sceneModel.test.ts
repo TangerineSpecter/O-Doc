@@ -3,9 +3,8 @@ import test from 'node:test';
 
 import {cropKinds} from '../../../types/api/farm.ts';
 import type {FarmPlot, FarmState} from '../../../types/api/farm.ts';
-import {CROP_SPRITE, dayPeriod, plotStage, toSceneState} from './sceneModel.ts';
+import {dayPeriod, plotStage, toSceneState} from './sceneModel.ts';
 
-const SPRITES = ['wheat', 'tomato', 'carrot', 'pumpkin'];
 const rules = {name: '作物', growthSeconds: 100, seedPrice: 1, yield: 1, salePrice: 1};
 const plot = (id: string, grown?: number, extra: Partial<FarmPlot> = {}): FarmPlot => ({
     id, wateredUntil: 0, crop: grown === undefined ? null : {kind: 'tomato', grown, checkedAt: 0, plantedAt: 0, rules}, ...extra,
@@ -16,9 +15,24 @@ const farm = (patch: Partial<FarmState['state']> = {}, top: Partial<FarmState> =
     state: {plots: [], buildings: {}, animals: [], ...patch}, ...top,
 }) as FarmState;
 
-test('every crop kind maps to one of the four design sprites', () => {
-    for (const kind of cropKinds) assert.ok(SPRITES.includes(CROP_SPRITE[kind]), kind);
-    assert.deepEqual(Object.keys(CROP_SPRITE).sort(), [...cropKinds].sort());
+test('every crop keeps its identity at each growth stage', () => {
+    for (const [grown, stage] of [[0, 'seedling'], [35, 'growing'], [100, 'ripe']] as const) {
+        const scene = toSceneState(farm({plots: cropKinds.map((kind, slot) => ({
+            id: String(slot), wateredUntil: 0,
+            crop: {kind, grown, checkedAt: 0, plantedAt: 0, rules},
+        }))}));
+        assert.deepEqual(scene.plots.map(p => p.crop), [...cropKinds]);
+        for (const p of scene.plots) assert.equal(p.stage, stage, `${p.crop}: ${stage}`);
+    }
+});
+
+test('scene plots follow their ids when the response is unordered', () => {
+    const plots = cropKinds.map((kind, slot) => ({
+        id: String(slot), wateredUntil: 0,
+        crop: {kind, grown: 100, checkedAt: 0, plantedAt: 0, rules},
+    }));
+    const scene = toSceneState(farm({plots: plots.reverse()}));
+    assert.deepEqual(scene.plots.map(p => [p.id, p.crop]), cropKinds.map((kind, slot) => [String(slot), kind]));
 });
 
 test('plot stage follows the growth thresholds', () => {

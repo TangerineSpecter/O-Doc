@@ -42,6 +42,7 @@ interface LayoutProps {
 
 export default function Layout({ children, onNavigate }: LayoutProps) {
     const location = useLocation();
+    const isQuantWorkspace = location.pathname.startsWith('/quant/');
     const isReadingMode = isReadingDetailPage(location.pathname);
     const isArticleReadingMode = isReadingMode && location.pathname.startsWith('/article/');
     const isNavVisible = useScrollDirection({ enabled: isReadingMode });
@@ -149,7 +150,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
     return (
         <AuthProvider value={{ userInfo, isAuthenticated }}>
-        <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900">
+        <div className={`${isQuantWorkspace ? 'min-h-0' : 'min-h-screen'} bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900`}>
 
             <AIChatWindow
                 isOpen={isChatOpen}

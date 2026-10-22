@@ -1,3 +1,4 @@
+import {useSearchParams} from 'react-router-dom';
 import {useSettings} from '../../hooks/useSettings';
 import {AgentSettings} from '../Settings/AgentSettings';
 import WorldDialog from './WorldDialog';
@@ -5,6 +6,7 @@ import WorldOrbitLoader from './WorldOrbitLoader';
 
 export default function AgentManagementDialog({onClose}: {onClose: () => void}) {
     const settings = useSettings();
+    const [query] = useSearchParams();
 
     return (
         <WorldDialog title="Agent 管理" onClose={onClose} size="wide">
@@ -15,6 +17,7 @@ export default function AgentManagementDialog({onClose}: {onClose: () => void}) 
                 </div>
             ) : (
                 <AgentSettings
+                    initialView={query.get('view') === 'tasks' ? 'tasks' : 'list'}
                     agents={settings.agents}
                     tasks={settings.agentTasks}
                     mcpServers={settings.mcpServers}

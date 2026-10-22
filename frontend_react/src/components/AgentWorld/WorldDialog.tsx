@@ -17,6 +17,7 @@ export interface WorldDialogProps {
     /** Keep the dialog behavior but show the child card without another visible modal shell. */
     bare?: boolean;
     manageFocus?: boolean;
+    closeDisabled?: boolean;
 }
 
 function WorldDialogFrame({
@@ -29,6 +30,7 @@ function WorldDialogFrame({
     fixedHeight,
     bare = false,
     manageFocus = true,
+    closeDisabled = false,
 }: WorldDialogProps) {
     const [isClosing, setIsClosing] = useState(false);
     const isClosingRef = useRef(false);
@@ -52,7 +54,7 @@ function WorldDialogFrame({
     }
 
     const closeDialog = useCallback((dismissedByEscape = false) => {
-        if (isClosingRef.current) return;
+        if (closeDisabled || isClosingRef.current) return;
         isClosingRef.current = true;
         dismissedByEscapeRef.current = dismissedByEscape;
         restoreFocusOnCloseRef.current = true;
@@ -61,7 +63,7 @@ function WorldDialogFrame({
         closeTimerRef.current = setTimeout(() => {
             onClose();
         }, 160);
-    }, [onClose]);
+    }, [closeDisabled, onClose]);
 
     useEffect(() => {
         return () => {
@@ -121,6 +123,7 @@ function WorldDialogFrame({
         <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-end justify-center p-3 sm:items-center sm:p-5">
             <button
                 type="button"
+                disabled={closeDisabled}
                 aria-label="关闭"
                 className={`absolute inset-0 bg-slate-950/40 transition-opacity ${
                     isClosing ? 'world-dialog-overlay-exit' : 'world-dialog-overlay-enter'
@@ -139,6 +142,7 @@ function WorldDialogFrame({
                     <button
                         ref={closeButtonRef}
                         type="button"
+                        disabled={closeDisabled}
                         onClick={() => closeDialog()}
                         aria-label="关闭面板"
                         className="absolute right-2 top-2 z-10 rounded-full border border-slate-200 bg-white/95 p-1.5 text-slate-500 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-800 active:scale-95"
@@ -157,6 +161,7 @@ function WorldDialogFrame({
                         <button
                             ref={closeButtonRef}
                             type="button"
+                            disabled={closeDisabled}
                             onClick={() => closeDialog()}
                             aria-label="关闭面板"
                             className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95"

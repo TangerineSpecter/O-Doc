@@ -23,7 +23,7 @@ from .life_budget_policy import remaining_reservation
 from .life_models import LifeItem
 from .life_schedule import OPEN
 from .life_time import local_time, storage_time
-from .market_plan_candidates import (MAX_QUESTIONS, equipment_rows, listing_rows,
+from .market_plan_candidates import (MAX_QUESTIONS, equipment_rows, listing_rows, listing_quote, listing_star_options,
                                      money, need_rows, price_options, quantity_options)
 from .market_plan_models import MarketGoal, MarketPlan, plan_id, stable_key
 from .market_shop import shop_payload
@@ -223,7 +223,7 @@ def _need_state(row: dict, available: str) -> dict:
 
 
 def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict], Decimal, str, str]:
-    """按“种子 → 肥料 → 挂牌 → 装备”顺序提问；额度用完后按缺口默认值收官。"""
+    """种子→肥料→鱼饵→挂牌星级→该星级报价→装备；至多八次有限提问。"""
     available = Decimal(facts['available'])
     answers = dict((plan.context or {}).get('answers') or {})
     questions = MAX_QUESTIONS
@@ -260,8 +260,10 @@ def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict
             return int(meta[selected]['quantity'])
         return int(row['missing']) if reason == 'exhausted' else 0
 
-    def price(key: str, state: dict, base, instructions: str) -> Decimal:
+    def price(key: str, state: dict, base, instructions: str, *, budget=None) -> Decimal:
         choices, meta = price_options(base)
+        if budget is not None:
+            choices = {key: label for key, label in choices.items() if money(meta[key]['price']) <= budget}
         selected, _ = ask(key, state, choices, instructions)
         return money(meta[selected]['price']) if selected in meta else Decimal(0)
 
@@ -292,16 +294,35 @@ def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict
                           'reason': row['effect'], 'name': row['name']})
 
     for row in facts['listings'][:LISTING_QUESTIONS]:
-        state = {'sku': row['sku'], 'name': row['name'], 'count': row['count'],
-                 'min_price': str(money(row['min_price'])), 'max_stars': row['max_stars'],
-                 'available_budget': facts['available']}
-        ceiling = price('listing:' + row['sku'], state, row['min_price'],
-                        '决定是否按价格上限求购居民挂牌；上架收入尚未到账，不能计入预算。')
+        remaining = max(Decimal(0), available - committed())
+        star_key = 'listing-stars:' + row['sku']
+        choices = listing_star_options(row, remaining)
+        if answers.get(star_key) and answers[star_key] not in choices:
+            continue  # A confirmed quality disappearing cannot silently lower the requirement.
+        selected, _ = ask(star_key,
+            {'sku': row['sku'], 'name': row['name'], 'quantity': 1, 'available_budget': str(remaining)},
+            choices, '先选择本次求购的最低星级；每档仅提供满足该星级的真实数量和最低报价，之后再单独定价格上限。')
+        if selected not in choices:
+            continue
+        if (plan.context or {}).get('answers', {}).get(star_key) != selected:
+            # A sole legal quality is still a confirmed prerequisite for pricing.
+            plan.context = {**(plan.context or {}), 'answers': {
+                **((plan.context or {}).get('answers') or {}), star_key: selected}}
+            plan.save(update_fields=['context', 'updated_at'])
+        stars = choices[selected]['min_stars']
+        quote = listing_quote(owner, agent.pk, row['sku'], stars)
+        if not quote or quote['min_price'] > remaining:
+            continue
+        state = {'sku': row['sku'], 'name': row['name'], 'count': quote['count'], 'quantity': 1,
+                 'min_price': str(quote['min_price']), 'min_stars': stars, 'available_budget': str(remaining)}
+        ceiling = price(f'listing:{row["sku"]}:stars:{stars}', state, quote['min_price'],
+                        '已确认最低星级；只根据满足该要求的真实报价选择价格上限，也可不追价。上架收入未到账，不能计入预算。',
+                        budget=remaining)
         if ceiling > 0:
             goals.append({'kind': 'listing', 'sku': row['sku'], 'slot': '', 'quantity': 1,
-                          'min_stars': max(1, int(row['max_stars'])),
+                          'min_stars': stars,
                           'max_unit_price': str(ceiling),
-                          'reason': f"挂牌最低{row['min_price']}，按{row['max_stars']}星上限求购",
+                          'reason': f"求购至少{stars}星一件，符合星级的真实最低价{quote['min_price']}",
                           'name': row['name']})
 
     for row in facts['equipment'][:EQUIPMENT_QUESTIONS]:

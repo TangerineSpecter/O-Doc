@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useToast } from '../components/common/ToastProvider';
 import {
     Anthology,
+    AnthologyType,
     createAnthology,
     CreateAnthologyParams,
     deleteAnthology,
@@ -24,7 +25,7 @@ export const useCollections = () => {
     const [sortType, setSortType] = useState('default');
 
     // 1. 获取数据
-    const fetchCollections = useCallback(async (type?: 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel') => {
+    const fetchCollections = useCallback(async (type?: AnthologyType) => {
         setLoading(true);
         try {
             const data: Anthology[] = await getAnthologyList(type);

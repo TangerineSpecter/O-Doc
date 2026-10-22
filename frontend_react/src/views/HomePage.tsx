@@ -7,6 +7,7 @@ import { useCollections } from '../hooks/useCollections'; // 引入新 Hook
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useAuth } from '../contexts/AuthContext';
+import type {AnthologyType} from '../types/api/anthology';
 import HomeStatusBar from '../components/Home/HomeStatusBar';
 
 interface HomePageProps {
@@ -41,9 +42,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
     // Filter by type (Header dropdown)
     const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
-    const [selectedType, setSelectedType] = useState<'all' | 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel'>('all');
+    const [selectedType, setSelectedType] = useState<'all' | AnthologyType>('all');
 
-    const handleTypeSelect = (type: 'all' | 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel') => {
+    const handleTypeSelect = (type: 'all' | AnthologyType) => {
         setSelectedType(type);
         fetchCollections(type === 'all' ? undefined : type);
         setIsTypeFilterOpen(false);
@@ -96,7 +97,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             await updateCollection(editingCollection.collId!, data);
         } else {
             const created = await addCollection(data);
-            if (data.type === 'novel') onNavigate('novel', {collId: created.collId});
+            if (data.type === 'novel' || data.type === 'quant') onNavigate(data.type, {collId: created.collId});
         }
     };
 
@@ -143,7 +144,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                     title="确认删除文集?"
                     description={
                         <span>
-                            确定要删除该文集吗？此操作<strong className="text-red-600">无法恢复</strong>，且该文集下的所有文章也将被一并移除。
+                            确定要删除该文集吗？此操作<strong className="text-red-600">无法恢复</strong>，且文集内的研究条目、文档等内容也将被一并移除。
                         </span>
                     }
                     confirmText="确认删除"
@@ -169,7 +170,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                             setIsFilterOpen(false);
                                         }}
                                     >
-                                        {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : selectedType === 'book' ? '图书文集' : selectedType === 'novel' ? '小说文集' : selectedType === 'learning' ? '学习文集' : 'Agent'} ({filteredDisplayCollections.length})
+                                        {selectedType === 'quant' ? '量化文集' : selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : selectedType === 'book' ? '图书文集' : selectedType === 'novel' ? '小说文集' : selectedType === 'learning' ? '学习文集' : 'Agent'} ({filteredDisplayCollections.length})
                                         <ChevronDown className={`w-4 h-4 transition-transform ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
@@ -191,6 +192,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                                 {selectedType === 'image' && <Check className="w-4 h-4 text-orange-500" />}
                                             </button>
                                             <button onClick={() => handleTypeSelect('learning')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">学习文集{selectedType === 'learning' && <Check className="w-4 h-4 text-orange-500" />}</button>
+                                            <button onClick={() => handleTypeSelect('quant')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">量化文集{selectedType === 'quant' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('novel')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">小说文集{selectedType === 'novel' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('book')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">图书文集{selectedType === 'book' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('agent')}

@@ -270,6 +270,8 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
     setting = SystemSetting.objects.filter(key='system_mcp_config').first()
     if setting and not (setting.value or {}).get('enabled', True):
         raise ValueError('系统 MCP 已关闭')
+    from .life_commitments import require_energy
+    require_energy(task.farm_config['owner_id'], agent, 2, farm_operation=operation, now=now)
     if stamina(agent, now) < 2:
         raise ValueError('体力不足')
     if operation.get('kind') in ('buy_supply', 'buy_animal', 'sell'):

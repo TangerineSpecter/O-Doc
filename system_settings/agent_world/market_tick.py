@@ -137,7 +137,8 @@ def _summary(actions: dict) -> dict:
     return {'dispositions': len(actions.get('dispositions', [])),
             'goals': len(actions.get('goals', [])),
             'reprices': len(actions.get('reprices', [])),
-            'withdraws': len(actions.get('withdraws', []))}
+            'withdraws': len(actions.get('withdraws', [])),
+            'equipment': len(actions.get('equipment', []))}
 
 
 def run(now=None, limit: int = 3) -> dict:
@@ -197,14 +198,14 @@ def run(now=None, limit: int = 3) -> dict:
             plan.refresh_from_db()
             actions = build_actions(tick.owner_id, tick.actor_id, plan, now, agent=agent)
             actions['goals'].extend(_equipment_actions(tick.owner_id, agent, plan, now))
-            if not any(actions.get(key) for key in ('dispositions', 'goals', 'reprices', 'withdraws')):
+            if not any(actions.get(key) for key in ('dispositions', 'goals', 'reprices', 'withdraws', 'equipment')):
                 tick.status = 'skipped'
                 tick.reason = '本轮没有可执行的买卖'
-                tick.hits = _summary(actions)
+                tick.hits = {**(tick.hits or {}), **_summary(actions)}
                 tick.save(update_fields=['status', 'reason', 'hits', 'updated_at'])
                 result['skipped'] += 1
                 continue
-            tick.hits = {**_summary(actions), 'stamina_cost': 5}
+            tick.hits = {**(tick.hits or {}), **_summary(actions), 'stamina_cost': 5}
             outcome = execute(tick.owner_id, agent, plan, tick, actions, now)
             tick.session_id = outcome.get('session_id', '')
             tick.status = 'done' if outcome.get('ok') else 'failed'

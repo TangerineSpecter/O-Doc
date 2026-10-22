@@ -431,7 +431,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'memo_config', 'cooking_config', 'alchemy_config', 'lottery_config', 'fishing_config', 'exploration_config', 'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'investment_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'memo_config', 'cooking_config', 'alchemy_config', 'blacksmith_config', 'lottery_config', 'fishing_config', 'exploration_config', 'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'investment_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'mcp_tool_scope',
             'agent',
             'agent_name',
@@ -471,13 +471,13 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def get_random_progress(self, obj):
-        if obj.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'):
+        if obj.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'blacksmith', 'exploration'):
             return None
         from .agent_random_schedule import progress
         return progress(obj)
 
     def get_world_progress(self, obj):
-        if obj.task_kind not in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'):
+        if obj.task_kind not in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'blacksmith', 'exploration'):
             return None
         from .agent_world.action_schedule import progress
         return progress(obj)
@@ -511,10 +511,10 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             MemoCaptureAuthorization.objects.update_or_create(pk=task.pk, defaults={'enabled': enabled})
             self.initialize_task(task)
             return task
-        if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID, FARM_ID, MARKET_ID, INVESTMENT_ID, COOKING_ID, ALCHEMY_ID, EXPLORATION_ID
+        if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'blacksmith', 'exploration'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID, FARM_ID, MARKET_ID, INVESTMENT_ID, COOKING_ID, ALCHEMY_ID, BLACKSMITH_ID, EXPLORATION_ID
             kind = validated_data['task_kind']
-            builtin_id = {'post_publish': POST_PUBLISH_ID, 'post_interaction': POST_INTERACTION_ID, 'travel': TRAVEL_ID, 'farm': FARM_ID, 'market': MARKET_ID, 'investment': INVESTMENT_ID, 'cooking': COOKING_ID, 'alchemy': ALCHEMY_ID, 'exploration': EXPLORATION_ID}[kind]
+            builtin_id = {'post_publish': POST_PUBLISH_ID, 'post_interaction': POST_INTERACTION_ID, 'travel': TRAVEL_ID, 'farm': FARM_ID, 'market': MARKET_ID, 'investment': INVESTMENT_ID, 'cooking': COOKING_ID, 'alchemy': ALCHEMY_ID, 'blacksmith': BLACKSMITH_ID, 'exploration': EXPLORATION_ID}[kind]
             # 兼容此前保存的配置；首次保存采用固定标识，重复提交不创建第二个入口。
             candidates = AgentTask.objects.select_for_update().filter(task_kind=kind)
             if kind == 'exploration':
@@ -532,6 +532,11 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 owner = validated_data['alchemy_config']['owner_id']
                 builtin_id = 'builtin-alchemy:' + hashlib.sha256(owner.encode()).hexdigest()[:24]
                 candidates = candidates.filter(alchemy_config__owner_id=owner)
+            if kind == 'blacksmith':
+                import hashlib
+                owner = validated_data['blacksmith_config']['owner_id']
+                builtin_id = 'builtin-smith:' + hashlib.sha256(owner.encode()).hexdigest()[:24]
+                candidates = candidates.filter(blacksmith_config__owner_id=owner)
             if kind == 'investment':
                 import hashlib
                 owner = validated_data['investment_config']['owner_id']
@@ -549,6 +554,8 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 if not created:
                     task = super().update(task, validated_data)
             else:
+                if kind == 'blacksmith' and 'enabled' not in self.initial_data:
+                    validated_data.pop('enabled', None)
                 task = super().update(task, validated_data)
         else:
             task = super().create(validated_data)
@@ -583,6 +590,13 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                     validate_actor(task.alchemy_config['owner_id'], actor)
             except ValueError as exc:
                 raise serializers.ValidationError({'agents': str(exc)}) from exc
+        if task.task_kind == 'blacksmith':
+            from .agent_world.blacksmith_candidates import validate_actor
+            try:
+                for actor in task.agent_ids or ([task.agent_id] if task.agent_id else []):
+                    validate_actor(task.blacksmith_config['owner_id'], actor)
+            except ValueError as exc:
+                raise serializers.ValidationError({'agents': str(exc)}) from exc
         if task.task_kind == 'investment':
             from .agent_world.investment_service import validate_agents, account_for
             from .agent_world.investment_sync import checkpoint
@@ -609,7 +623,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                     and config.settings.get('market_automation_v2', False) != automation:
                 config.settings = {**config.settings, 'market_automation_v2': automation}
                 config.save(update_fields=['settings'])
-        if task.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'):
+        if task.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'blacksmith', 'exploration'):
             from .agent_world.action_schedule import initialize
             initialize(task)
             if task.task_kind == 'farm':
@@ -688,11 +702,13 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 attrs['mcp_tool_scope'] = {}
         elif attrs.get('mcp_tool_scope') is not None:
             raise serializers.ValidationError({'mcp_tool_scope': '只有自定义任务可以配置 MCP 工具范围'})
-        if kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME, FARM_NAME, MARKET_NAME, INVESTMENT_NAME, COOKING_NAME, ALCHEMY_NAME, EXPLORATION_NAME
-            attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME, 'farm': FARM_NAME, 'market': MARKET_NAME, 'investment': INVESTMENT_NAME, 'cooking': COOKING_NAME, 'alchemy': ALCHEMY_NAME, 'exploration': EXPLORATION_NAME}[kind]
+        if kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'blacksmith', 'exploration'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME, FARM_NAME, MARKET_NAME, INVESTMENT_NAME, COOKING_NAME, ALCHEMY_NAME, BLACKSMITH_NAME, EXPLORATION_NAME
+            attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME, 'farm': FARM_NAME, 'market': MARKET_NAME, 'investment': INVESTMENT_NAME, 'cooking': COOKING_NAME, 'alchemy': ALCHEMY_NAME, 'blacksmith': BLACKSMITH_NAME, 'exploration': EXPLORATION_NAME}[kind]
             if self.instance is None:
                 attrs.setdefault('enabled', False)
+                if kind == 'blacksmith' and 'enabled' not in self.initial_data:
+                    attrs['enabled'] = False
             attrs.update(execution_mode='serial', random_allocations={}, followup_enabled=False, followup_agent=None)
             if attrs.get('trigger', getattr(self.instance, 'trigger', '定时任务')) not in ('定时任务', '手动执行'):
                 raise serializers.ValidationError({'trigger': '系统任务仅支持自动调度或手动执行'})
@@ -752,6 +768,14 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             if not owner or (previous.get('owner_id') and previous['owner_id'] != owner):
                 raise serializers.ValidationError({'alchemy_config': '炼金任务需要有效所属账号'})
             attrs['alchemy_config'] = {'owner_id': owner}
+        if kind == 'blacksmith':
+            from utils.drf_utils import get_current_user_identifier
+            request = self.context.get('request')
+            previous = getattr(self.instance, 'blacksmith_config', {})
+            owner = get_current_user_identifier(request) if request else previous.get('owner_id')
+            if not owner or (previous.get('owner_id') and previous['owner_id'] != owner):
+                raise serializers.ValidationError({'blacksmith_config': '打造任务需要有效所属账号'})
+            attrs['blacksmith_config'] = {'owner_id': owner}
         if kind == 'farm':
             from utils.drf_utils import get_current_user_identifier
             request = self.context.get('request')

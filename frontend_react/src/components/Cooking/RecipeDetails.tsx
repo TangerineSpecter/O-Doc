@@ -1,9 +1,6 @@
 import {RecipeQualityPreview} from './RecipeQualityPreview';
 import {useRef, useState, useEffect, useMemo} from 'react';
 import {
-    ChefHat,
-    ImagePlus,
-    Pencil,
     Upload,
     Coins,
     Sparkles,
@@ -13,16 +10,15 @@ import {
     Info,
     Check,
     AlertCircle,
-    BookOpen,
-    Clock,
 } from 'lucide-react';
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
+import {RecipePortrait} from './RecipePortrait';
 import {farmItemIcon} from '../Farm/assets';
-import {uploadItemIcon} from '../../api/itemIcons';
-import {setCatalogItemIcon} from '../../api/itemCatalog';
+import {useRecipeImage} from '../../hooks/useRecipeImage';
 import type {CookingRecipe, CookingHistory} from '../../types/api/cooking';
 import {recipeStateConfigs} from './recipePresentation';
 import {RecipeHistoryView} from './RecipeHistoryView';
+import {RecipeDetailsToolbar} from './RecipeDetailsToolbar';
 import {recipeStarPrices, recipeStarTiers} from './recipePricing';
 import RecipeAdventureEffects from './RecipeAdventureEffects';
 
@@ -49,14 +45,13 @@ export function RecipeDetails({
 }: RecipeDetailsProps) {
     const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
     const [isDragging, setIsDragging] = useState(false);
-    const [uploadingImage, setUploadingImage] = useState(false);
-    const [uploadError, setUploadError] = useState('');
+    const image = useRecipeImage(recipe, onRecipeReload);
+    const uploadingImage = image.busy;
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 当切换选中的食谱时，自动切回配方档案
     useEffect(() => {
         setActiveTab('details');
-        setUploadError('');
     }, [recipe.id]);
 
     const stateConfig = recipeStateConfigs[recipe.state] || recipeStateConfigs.unselected;
@@ -68,16 +63,8 @@ export function RecipeDetails({
 
     // 处理图片本地直接上传并绑定 SKU
     const handleFileUpload = async (file: File) => {
-        setUploadingImage(true);
-        setUploadError('');
-        try {
-            const uploaded = await uploadItemIcon(file, recipe.name);
-            await setCatalogItemIcon(recipe.sku, uploaded.id);
-            onRecipeReload?.();
-        } catch (err) {
-            setUploadError(err instanceof Error ? err.message : '设置图片失败，请重试');
-        } finally {
-            setUploadingImage(false);
+        try {await image.upload(file);}
+        finally {
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
@@ -94,6 +81,7 @@ export function RecipeDetails({
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                disabled={image.busy}
                 className="hidden"
                 onChange={e => {
                     const file = e.target.files?.[0];
@@ -102,69 +90,17 @@ export function RecipeDetails({
             />
 
             {/* 顶部页签切换栏 */}
-            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                <div className="flex shrink-0 gap-1 whitespace-nowrap rounded-xl bg-slate-100 p-1 border border-slate-200/60">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('details')}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all ${
-                            activeTab === 'details'
-                                ? 'bg-white text-orange-600 shadow-2xs'
-                                : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                    >
-                        <BookOpen className="h-3.5 w-3.5" />
-                        <span>配方与收益</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('history')}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all ${
-                            activeTab === 'history'
-                                ? 'bg-white text-orange-600 shadow-2xs'
-                                : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                    >
-                        <Clock className="h-3.5 w-3.5" />
-                        <span>制作记录</span>
-                        {historyTotal > 0 && (
-                            <span
-                                className={`rounded-full px-1.5 py-0.2 text-[10px] font-semibold leading-none ${
-                                    activeTab === 'history'
-                                        ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-slate-200 text-slate-600'
-                                }`}
-                            >
-                                {historyTotal}
-                            </span>
-                        )}
-                    </button>
-                </div>
-
-                {/* 快捷操作按钮组 */}
-                {activeTab === 'details' && (
-                    <div className="flex items-center gap-1.5">
-                        <button
-                            type="button"
-                            onClick={onOpenImagePicker}
-                            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
-                            title="从图标库中选择或管理物品图片"
-                        >
-                            <ImagePlus className="h-3.5 w-3.5 text-orange-500" />
-                            <span>选择图片</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={onOpenRuleEditor}
-                            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
-                            title="自定义食材用量、等级限制与售价收益"
-                        >
-                            <Pencil className="h-3.5 w-3.5 text-orange-500" />
-                            <span>编辑规则</span>
-                        </button>
-                    </div>
-                )}
-            </div>
+            <RecipeDetailsToolbar
+                key={recipe.id}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                historyTotal={historyTotal}
+                hasCustomImage={Boolean(recipe.iconAssetId)}
+                imageBusy={image.busy}
+                onOpenImagePicker={onOpenImagePicker}
+                onRemoveImage={() => void image.remove()}
+                onOpenRuleEditor={onOpenRuleEditor}
+            />
 
             {/* 内容区 */}
             {activeTab === 'history' ? (
@@ -177,9 +113,9 @@ export function RecipeDetails({
             ) : (
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-hide space-y-3.5">
                     {/* 上传报错提示 */}
-                    {uploadError && (
+                    {image.error && (
                         <div role="alert" className="rounded-xl bg-red-50 p-2 text-xs text-red-600 border border-red-100">
-                            {uploadError}
+                            {image.error}
                         </div>
                     )}
 
@@ -192,6 +128,7 @@ export function RecipeDetails({
                                 role="button"
                                 tabIndex={0}
                                 aria-label="点击或拖入更换菜品图片"
+                                aria-disabled={image.busy}
                                 onClick={() => !uploadingImage && fileInputRef.current?.click()}
                                 onKeyDown={e => {
                                     if ((e.key === 'Enter' || e.key === ' ') && !uploadingImage) {
@@ -228,11 +165,9 @@ export function RecipeDetails({
                                         : 'border-amber-200/60 bg-white shadow-2xs hover:border-orange-300 hover:shadow-xs'
                                 }`}
                             >
-                                <ItemIconImage
-                                    src={recipe.iconUrl}
-                                    alt={recipe.name}
+                                <RecipePortrait
+                                    recipe={recipe}
                                     className="h-full w-full object-cover rounded-2xl"
-                                    fallback={<ChefHat className="h-9 w-9 text-orange-300" />}
                                 />
 
                                 {/* 悬停快捷更换浮层 */}

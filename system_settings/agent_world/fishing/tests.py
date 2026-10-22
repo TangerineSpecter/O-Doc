@@ -154,6 +154,61 @@ class FishingTests(TestCase):
         self.assertNotIn('worm',rounds[1][2]);self.assertNotIn('quantity', [r[0] for r in seen])
         self.assertEqual(stock_quantity(self.agent.pk,'admin','bait.worm'),0)
 
+    def test_shorter_duration_preserves_confirmed_baits_and_sync_facts(self):
+        for offset, (bait, quantity) in enumerate((('dough', 6), ('corn', 7), ('minnow', 4))):
+            with patch('django.utils.timezone.now', return_value=NOW - timedelta(hours=3 - offset)):
+                self.buy(bait, quantity, offset + 1)
+        config = LifeConfig.objects.get(pk='admin')
+        config.settings = {**config.settings, 'active_end': '12:00'}
+        config.save()
+        for index, baits in enumerate((['worm', 'dough', 'corn'], ['worm'])):
+            with self.subTest(baits=baits):
+                trip = self.trip(f'shrink-{index}')
+                def select(owner, agent, scene, state, choices, **kwargs):
+                    if scene == 'fishing_duration': return '120'
+                    if scene == 'fishing_bait':
+                        return next((bait for bait in baits if bait in choices), 'stop')
+                    return 'pond'
+                with patch('system_settings.agent_world.fishing.decisions.choose_scene', side_effect=select):
+                    for _ in range(5 if len(baits) == 3 else 4): prepare_step(trip.pk)
+                trip.refresh_from_db()
+                self.assertTrue(trip.state['plan']['complete'])
+                self.assertEqual(trip.state['plan']['baits'], baits)
+                checkpoint_all(); validate_source(database_data())
+
+                with patch('django.utils.timezone.now', return_value=NOW + timedelta(minutes=70)), \
+                     patch('system_settings.agent_world.fishing.decisions.choose_scene', return_value='30') as choice:
+                    prepare_step(trip.pk)
+                    trip.refresh_from_db()
+                    self.assertEqual(trip.state['plan'], {'spot': 'pond', 'minutes': 30, 'baits': baits, 'complete': True})
+                    self.assertEqual(choice.call_count, 1)
+                    self.assertEqual(choice.call_args.args[2], 'fishing_duration')
+                    self.assertEqual(set(choice.call_args.args[4]), {'30'})
+                    self.assertEqual(stock_quantity(self.agent.pk, 'admin', 'bait.worm'), 12)
+                    checkpoint_all(); validate_source(database_data())
+                    self.assert_shortening_facts_reject_invalid_changes(trip)
+                    prepare_step(trip.pk)
+                trip.refresh_from_db()
+                self.assertEqual(trip.status, 'active')
+                self.assertEqual(trip.state['plan']['baits'], baits)
+                self.assertEqual(stock_quantity(self.agent.pk, 'admin', 'bait.minnow'), 4)
+                self.assertEqual(FishingEvent.objects.filter(trip=trip, kind='choice', data__key='bait').count(),
+                                 3 if len(baits) == 3 else 2)
+                checkpoint_all(); validate_source(database_data())
+                finish(trip.pk, '缩时回归结束')
+
+    def assert_shortening_facts_reject_invalid_changes(self, trip):
+        source = database_data()
+        for key, value in (('value', '60'), ('value', '120'), ('value', '180'),
+                           ('previous_minutes', 60), ('legal_minutes', [30, 120])):
+            with self.subTest(field=key, invalid=value):
+                data = copy.deepcopy(source)
+                event = next(row for row in data if row['model'] == 'system_settings.fishingevent'
+                             and row['fields']['trip'] == trip.pk
+                             and row['fields']['data'].get('previous_minutes') == 120)
+                event['fields']['data'][key] = value
+                with self.assertRaises(SyncError): validate_source(data, check_digest=False)
+
     def test_empty_consumption_repeat_guard_and_return_idempotent(self):
         trip=self.prepared();self.cast_at(trip)
         self.assertEqual(trip.state['casts'],1)
@@ -297,7 +352,7 @@ class FishingTests(TestCase):
             self.assertEqual(stock_quantity(self.agent.pk,'admin','fish.crucian'),1)
             self.assertEqual(FishingTrip.objects.get(pk=trip.pk).state['casts'],1)
 
-    def test_day_planning_and_execution_start_fishing(self):
+    def test_new_day_excludes_fishing_but_legacy_plan_still_executes(self):
         from ..life_planner import plan_items
         from ..life_runner import execute_item
         item=LifeItem.objects.create(pk='daily',owner_id='admin',actor_id=self.agent.pk,
@@ -305,11 +360,14 @@ class FishingTests(TestCase):
         config=LifeConfig.objects.get(pk='admin')
         self.session.status='closed';self.session.save()
         AgentExecutionLease.objects.filter(agent=self.agent).update(token='',until=None)
-        def propose(agent,instruction,context,**kwargs):
-            self.assertEqual(context['fishing']['level'],1)
-            self.assertIn('fishing',context['slots'][0]['allowed_activities'])
-            return {'plans':[{'id':item.pk,'activity':'fishing','reason':'去池塘放松'}]}
-        with patch('system_settings.agent_world.life_planner.ask',side_effect=propose):plan_items(config,self.agent,[item])
+        with patch('system_settings.agent_world.life_planner.ask') as ask:
+            plan_items(config,self.agent,[item])
+            ask.assert_not_called()
+        item.refresh_from_db()
+        self.assertEqual(item.activity, 'rest')
+        item.activity, item.status, item.task_id = 'fishing', 'pending', self.task.pk
+        item.context = {'planned_on': NOW.date().isoformat()}
+        item.save()
         self.session.status='closed';self.session.save()
         AgentExecutionLease.objects.filter(agent=self.agent).update(token='',until=None)
         item.refresh_from_db();execute_item(item,None)

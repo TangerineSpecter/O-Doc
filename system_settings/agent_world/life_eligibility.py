@@ -20,6 +20,8 @@ def filter_activities(context: dict, slot: dict, budgets: dict, cooking: dict | 
             reason = '没有材料、厨艺等级和体力均满足的菜谱'
         elif kind == 'alchemy' and not alchemy_options(alchemy):
             reason = '没有素材、炼金等级和体力均满足的配方'
+        elif kind == 'blacksmith':
+            reason = '打造在日程空档逐件决策，不占主日程次数'
         if reason:
             reasons[kind] = reason
         else:

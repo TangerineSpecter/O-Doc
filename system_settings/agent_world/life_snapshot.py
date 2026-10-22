@@ -6,7 +6,7 @@ from django.core import serializers
 from django.core.serializers.json import DjangoJSONEncoder
 from utils.sync_datetime import normalize_datetime_fraction
 
-MODELS = ('LifeConfig', 'LifeProfile', 'LifeGoal', 'LifeCycle', 'LifeItem', 'LifeRevision')
+MODELS = ('LifeConfig', 'LifeProfile', 'LifeGoal', 'LifeCycle', 'LifeItem', 'LifeRevision', 'LifeInterleavingState')
 LABELS = {'system_settings.' + name.lower(): name for name in MODELS}
 INTEGRITY = 'system_settings.lifeintegrity'
 
@@ -54,8 +54,14 @@ def snapshot_hashes(data: list[dict], *, normalize=True) -> dict[str, dict[str, 
 
 def validate_source(data: list[dict]) -> dict[str, dict[str, str]]:
     from utils.sync_manager import SyncError
-    expected = {row['pk']: row['fields']['hashes'] for row in data if row['model'] == INTEGRITY}
+    expected = {row['pk']: dict(row['fields']['hashes']) for row in data if row['model'] == INTEGRITY}
+    from .life_interleaving_sync import validate_snapshot
+    validate_snapshot(data)
     normalized = snapshot_hashes(data)
+    # Legacy snapshots have no checkpoint rows or hash; only an empty table may be added.
+    for owner, hashes in expected.items():
+        if 'LifeInterleavingState' not in hashes and normalized.get(owner, {}).get('LifeInterleavingState') == hash_rows([], ()):
+            hashes['LifeInterleavingState'] = hash_rows([], ())
     if expected != normalized:
         raw = snapshot_hashes(data, normalize=False)
         if set(expected) != set(normalized):
@@ -83,6 +89,8 @@ def refresh_merged_integrity(data: list[dict], revisions: dict) -> None:
     """仅在两个来源均通过完整性检查后调用；业务关联仍由恢复事务验证。"""
     from django.utils import timezone
     from utils.sync_manager import canonical_hash, get_device_id
+    from .life_interleaving_sync import validate_snapshot
+    validate_snapshot(data)
     hashes = snapshot_hashes(data)
     checkpoints = {row['pk']: row for row in data if row['model'] == INTEGRITY}
     for owner, fingerprint in hashes.items():

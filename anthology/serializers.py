@@ -49,6 +49,15 @@ class AnthologySerializer(serializers.ModelSerializer):
         if not title or len(title) > limit:
             raise serializers.ValidationError(f'文集名称不能为空且不能超过{limit}字')
         attrs['title'] = title
+        if self.instance and kind != self.instance.type and 'quant' in (kind, self.instance.type):
+            raise serializers.ValidationError('量化文集不能与其他类型互相转换')
+        if kind == 'quant':
+            request = self.context.get('request')
+            if not request or not request.user.is_authenticated:
+                raise serializers.ValidationError('请登录后创建量化文集')
+            if self.instance and attrs.get('permission') == 'public':
+                raise serializers.ValidationError('量化文集仅限本人私密使用')
+            attrs['permission'] = 'private'
         if self.instance and kind != self.instance.type and 'novel' in (kind, self.instance.type):
             raise serializers.ValidationError('小说文集不能与其他类型互相转换')
         if kind == 'novel':

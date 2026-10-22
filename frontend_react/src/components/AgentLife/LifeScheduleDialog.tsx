@@ -337,7 +337,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                         </div>
                                     ) : (
                                         <span className="text-slate-500">
-                                            共 <strong className="font-semibold text-slate-700">{schedule.data.total}</strong> 项安排
+                                            主日程 <strong className="font-semibold text-slate-700">{schedule.data.counts?.main ?? schedule.data.items.filter(i => i.source !== 'interleaved').length}</strong> · 穿插 {schedule.data.counts?.interleaved ?? schedule.data.items.filter(i => i.source === 'interleaved').length}
                                         </span>
                                     )}
                                 </div>

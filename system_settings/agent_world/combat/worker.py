@@ -71,7 +71,12 @@ def advance():
         recover_expired_rests()
         for row in Exploration.objects.filter(status='active',next_tick_at__lte=storage_time(local_time())).values('id','revision'):
             tick(row['id'],row['revision'])
-        for identity in Exploration.objects.filter(status='preparing',id__in=CombatRuntime.objects.filter(authorized=True).values('id')).values_list('id',flat=True):
+        for pending in Exploration.objects.filter(status='preparing',id__in=CombatRuntime.objects.filter(authorized=True).values('id')):
+            from datetime import datetime
+            retry = pending.snapshot.get('preparation_retry_at')
+            if retry and local_time(datetime.fromisoformat(retry)) > local_time():
+                continue
+            identity = pending.pk
             existing=_preparations.get(identity)
             if existing and existing.is_alive():continue
             worker=threading.Thread(target=prepare_one,args=(identity,),name='combat-prepare',daemon=True)

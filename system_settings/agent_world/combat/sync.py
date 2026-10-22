@@ -21,7 +21,7 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>11:
+    if meta and meta.get('combat_schema_version',0)>12:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     from .history_snapshot import normalize_source, compact_source, aggregate_frame, verify_chain
     if meta is None or meta.get('combat_schema_version', 0) < 8:
@@ -121,6 +121,18 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                         expected_gear[identity], expected_rules[identity] = value['snapshot'], value['rules']
                 except (KeyError, TypeError, ValueError) as exc:
                     raise SyncError('战斗成长或装备固化结果缺失') from exc
+            elif kind == 'forge':
+                from ..blacksmith_sync import validate_equipment_fact
+                validate_equipment_fact(rows, row)
+                identity = payload['equipment_id']
+                value = payload.get('equipment_after', {}).get(identity)
+                if identity in expected_gear or not value:
+                    raise SyncError('打造装备缺少唯一固化来源')
+                operation = rows[('system_settings.blacksmithoperation', payload['operation_id'])]
+                if operation['snapshot']['job'] != progression['job']:
+                    raise SyncError('打造职业与当时成长事实不一致')
+                validate_gear(value['snapshot'], value['rules'])
+                expected_gear[identity], expected_rules[identity] = value['snapshot'], value['rules']
             elif kind == 'tournament_reward':
                 from ..tournament_sync import validate_equipment_fact
                 validate_equipment_fact(rows, row)
@@ -347,6 +359,6 @@ def metadata(data=None):
         checkpoints = {row['fields']['actor_id']: str(row['pk']) for row in sorted(data, key=lambda row: row['fields'].get('sequence', 0))
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
-    # 11: tournament equipment provenance must not be imported by older readers.
-    return {'combat_schema_version':11,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+    # 12: forge receipts establish equipment provenance and consume maze materials.
+    return {'combat_schema_version':12,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

@@ -429,19 +429,18 @@ class LifeTests(TestCase):
         self.assertEqual(item.budget, Decimal('1000'))
         self.assertTrue(any('10%' in row.reason.replace('％', '%') for row in item.revisions.all()))
 
-    def test_new_life_plan_rejects_voluntary_rest(self):
+    def test_new_life_plan_allows_voluntary_rest(self):
         from .life_planner import plan_items
         item = self.item()
         AgentTask.objects.create(name='阅读', agent=self.agents[0], task_kind='post_interaction', enabled=True,
                                  world_state={'owner_id': 'admin'})
         with patch('system_settings.agent_world.life_planner.ask', return_value={
                 'plans': [{'id': item.pk, 'activity': 'rest', 'reason': '想休息'}]}):
-            with self.assertRaisesMessage(ValueError, '活动或选择原因无效'):
-                plan_items(self.config, self.agents[0], [item])
+            plan_items(self.config, self.agents[0], [item])
         item.refresh_from_db()
-        self.assertEqual(item.activity, 'unplanned')
+        self.assertEqual(item.activity, 'rest')
         self.assertEqual(item.budget, Decimal('0'))
-        self.assertFalse(item.revisions.exists())
+        self.assertTrue(item.revisions.exists())
 
     def test_planning_failure_keeps_model_reason_on_schedule(self):
         from .life_runner import tick_life
@@ -561,6 +560,38 @@ class LifeTests(TestCase):
         self.assertEqual(executed.record_id, 'rec-kept')
         self.assertEqual(market.status, 'failed')
         self.assertEqual(market.activity, 'market_prepare')
+
+    def test_replan_failed_skips_interleaved_and_blacksmith(self):
+        idle = self.item('idle-failed', activity='cooking', status='failed', attempts=2,
+                         context={'interleaving': {'version': 1, 'opportunity_id': 'idle-failed',
+                                  'expires_at': (NOW + timedelta(hours=1)).isoformat()}},
+                         result={'reason': '准备后活动已停用'})
+        smith = self.item('smith-failed', activity='blacksmith', status='failed', attempts=1,
+                          context={'manual': True}, result={'reason': '原检查点保留'})
+        saved = {row.pk: (row.status, row.context, row.result, row.attempts) for row in (idle, smith)}
+        user = User.objects.create_user('admin', is_superuser=True)
+        client = APIClient(); client.force_authenticate(user)
+        for index, actor in enumerate(('', self.ids[0])):
+            with self.subTest(actor=actor), patch('django.utils.timezone.now', return_value=NOW):
+                normal = self.item(f'normal-failed-{index}', status='failed')
+                payload = {'action': 'replan_failed', 'reason': '仅补做普通失败日程',
+                           'start': '2026-09-29', 'end': '2026-10-06'}
+                if actor:
+                    payload['actorId'] = actor
+                response = client.post('/api/settings/agent-world/life/schedule/', payload, format='json')
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data['data']['count'], 1)
+                normal.refresh_from_db()
+                self.assertIn(normal.status, ('pending', 'deferred'))
+                self.assertEqual(normal.activity, 'unplanned')
+                for row in (idle, smith):
+                    row.refresh_from_db()
+                    self.assertEqual((row.status, row.context, row.result, row.attempts), saved[row.pk])
+                    self.assertFalse(row.revisions.exists())
+        for row in (idle, smith):
+            response = client.post('/api/settings/agent-world/life/schedule/' + row.pk + '/',
+                                   {'action': 'replan', 'reason': '仍不可单独重排'}, format='json')
+            self.assertEqual(response.status_code, 400, response.data)
 
     def test_requeue_advances_overdue_slots_in_original_order(self):
         early=self.item('early',status='failed',scheduled_at=NOW.replace(hour=4))

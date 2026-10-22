@@ -184,37 +184,36 @@ function blocksFromText(rawText: string, fallbackLabel: string, idPrefix: string
     return headings.length ? headings : splitByParagraph(text, idPrefix, fallbackLabel);
 }
 
-function messagesOf(request: unknown): {role: string; content: string}[] {
-    const container = asRecord(request);
-    const nested = asRecord(container?.json);
-    const list = Array.isArray(container?.messages) ? container.messages : Array.isArray(nested?.messages) ? nested.messages : null;
-    if (!list) return [];
-    return list.map((item, index) => {
-        const record = asRecord(item) ?? {};
-        const content = record.content;
-        return {
-            role: typeof record.role === 'string' ? record.role : `消息 ${index + 1}`,
-            content:
-                typeof content === 'string'
-                    ? content
-                    : content === undefined || content === null
-                      ? ''
-                      : JSON.stringify(content, null, 2) ?? '',
-        };
-    });
-}
-
 export function inputBlocksFromRequest(request: unknown): FlowBlock[] {
-    const messages = messagesOf(request);
-    if (messages.length) {
-        return messages.flatMap((message, index) =>
-            blocksFromText(message.content, ROLE_LABELS[message.role] ?? message.role, `m${index}`)
-        );
+    const outer = asRecord(request);
+    const container = asRecord(outer?.json) ?? outer;
+    const messages = Array.isArray(container?.messages) ? container.messages : null;
+    if (messages) {
+        const blocks: FlowBlock[] = messages.flatMap((item, index) => {
+            const message = asRecord(item) ?? {};
+            const role = typeof message.role === 'string' ? message.role : 'user';
+            const label = ROLE_LABELS[role] ?? role;
+            const kind: FlowBlock['kind'] = role === 'tool' ? 'tool_results'
+                : role === 'assistant' ? 'history'
+                : role === 'system' || role === 'developer' ? 'instructions' : 'business';
+            const source = `messages[${index}] · ${role}${message.tool_call_id ? ` · ${message.tool_call_id}` : ''}`;
+            const parts = blocksFromText(stringifyValue(message.content), label, `m${index}`);
+            if (message.tool_calls) parts.push(makeBlock(`m${index}-calls`, '工具调用参数与 ID', stringifyValue(message.tool_calls)));
+            if (message.function_call) parts.push(makeBlock(`m${index}-function`, '函数调用', stringifyValue(message.function_call)));
+            return parts.map(block => ({...block, kind, source: `${source} / ${block.label}`}));
+        });
+        for (const key of ['tools', 'functions', 'response_format']) {
+            if (container?.[key] !== undefined) blocks.push({
+                ...makeBlock(`req-${key}`, key === 'response_format' ? '输出格式约束' : '工具定义 / Schema', stringifyValue(container[key])),
+                kind: key === 'response_format' ? 'instructions' : 'tools', source: `request.${key}`,
+            });
+        }
+        return blocks;
     }
     if (request === undefined || request === null) return [];
-    const record = asRecord(request);
-    if (record && Object.keys(record).length) return blocksFromJson(record, 'req', '请求参数');
-    return [makeBlock('req', '请求参数', typeof request === 'string' ? request : JSON.stringify(request, null, 2) ?? '')];
+    if (container && Object.keys(container).length) return blocksFromJson(container, 'req', '请求参数')
+        .map(block => ({...block, kind: 'business', source: `request / ${block.label}`}));
+    return [makeBlock('req', '请求参数', stringifyValue(request))];
 }
 
 interface OutputParts {
@@ -288,7 +287,9 @@ export function outputFromResponse(response: unknown): {blocks: FlowBlock[]; sum
     if (parts.payload !== undefined) blocks.push(...blocksFromJson(parts.payload, 'out', parts.label));
     else if (parts.text) blocks.push(makeBlock('out-text', parts.label, parts.text));
     if (parts.toolNames.length) {
-        blocks.push(makeBlock('out-tools', '工具调用', parts.toolNames.map(name => `· ${name}`).join('\n')));
+        const record = asRecord(response);
+        const message = firstChoiceMessage(asRecord(record?.json) ?? record);
+        blocks.push(makeBlock('out-tools', '工具调用', stringifyValue(message?.tool_calls) || parts.toolNames.join('、')));
     }
     if (!blocks.length) blocks.push(makeBlock('out-empty', '输出', '（本次没有输出内容）'));
     return {blocks, summary: outputSummaryOf(parts)};

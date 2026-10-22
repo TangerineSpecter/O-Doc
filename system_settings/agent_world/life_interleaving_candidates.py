@@ -1,0 +1,123 @@
+"""Admission queries remain server-side. Only summaries cross the model boundary."""
+from datetime import timedelta
+from decimal import Decimal
+from .life_time import local_time, storage_time
+from .life_activities import INTERLEAVED_ACTIVITIES, main_items
+from .life_models import LifeItem
+from .life_schedule import OPEN, window
+from .life_config import config_for, effective_settings, DEFAULTS, task_for
+from .life_commitments import capacity
+
+
+def available_window(owner, actor, now=None, *, exclude_item=None):
+    now = local_time(now)
+    settings = {**DEFAULTS, **effective_settings(config_for(owner), now)}
+    left, right = window(settings, now.date())
+    if now < left or now >= right:
+        return 0
+    rows = main_items(LifeItem.objects.filter(owner_id=owner, actor_id=actor, status__in=OPEN)).exclude(pk=exclude_item or '')
+    next_item = rows.order_by('scheduled_at').first()
+    if next_item:
+        right = min(right, local_time(next_item.scheduled_at))
+    return max(0, int((right - now).total_seconds()) - settings['min_gap_minutes'] * 60)
+
+
+def legal_durations(item, durations, *, seconds=False, now=None):
+    from .life_activities import is_interleaved
+    if not item or not is_interleaved(item):
+        return list(durations)
+    from system_settings.models import Agent
+    agent = Agent.objects.get(pk=item.actor_id)
+    now = local_time(now)
+    window_seconds = available_window(item.owner_id, agent.pk, now, exclude_item=item.pk)
+    budget = capacity(item.owner_id, agent, now, exclude_item=item.pk)['energy']
+    if seconds:
+        from .combat.explorations import energy
+        return [n for n in durations if n <= window_seconds and energy(n) <= budget]
+    from .fishing.catalog import current
+    rules = current(item.owner_id)
+    return [n for n in durations if n * 60 <= window_seconds and ((n + 4) // 5) * rules['energy_cost'] <= budget]
+
+
+def build(config, agent, now=None, *, item=None):
+    now = local_time(now)
+    gap = available_window(config.pk, agent.pk, now, exclude_item=item.pk if item else None)
+    resource = capacity(config.pk, agent, now, exclude_item=item.pk if item else None)
+    if not gap or not resource['energy'] or not resource['projection']['safe']:
+        return {}, resource, gap
+    result = {}
+    for kind in INTERLEAVED_ACTIVITIES:
+        task = task_for(config.pk, agent, kind)
+        if not task:
+            continue
+        if kind in ('cooking', 'alchemy'):
+            if kind == 'cooking':
+                from .cooking_schedule_plan import planning_facts, recipe_options
+            else:
+                from .alchemy_schedule_plan import planning_facts, recipe_options
+            facts = planning_facts(config.pk, agent, exclude_ids=[item.pk] if item else [])
+            options = recipe_options(facts['rules'], facts['level'], facts['pool'], resource['energy'])
+            if options:
+                from .inventory_stock import inventory_items
+                prefix = 'dish.' if kind == 'cooking' else 'elixir.'
+                stock = sum(row.quantity for row in inventory_items(agent.pk, config.pk).filter(source__sku__startswith=prefix))
+                result[kind] = {'craftable_recipes': len(options), 'level': facts['level'],
+                                'finished_stock': stock, 'energy_allowance': resource['energy']}
+        elif kind == 'blacksmith':
+            from .blacksmith_candidates import planning_facts, recipe_options
+            facts = planning_facts(config.pk, agent, exclude_ids=[item.pk] if item else [])
+            options = recipe_options(facts['rules'], facts['catalog'], facts['profile'], facts['pool'], resource['energy'])
+            if options:
+                result[kind] = {'craftable_recipes': len(options),
+                    'level_bands': sorted({row['band_id'] for row in options.values()}),
+                    'energy_allowance': resource['energy'], 'max_pieces': 3}
+        elif kind == 'fishing':
+            from .fishing.service import eligibility, durations, inventory
+            from .fishing.catalog import current
+            rules = current(config.pk)
+            times = [n for n in durations(config.pk, now, rules)
+                     if n * 60 <= gap and ((n + 4) // 5) * rules['energy_cost'] <= resource['energy']]
+            if times and not eligibility(config.pk, agent, now):
+                result[kind] = {'durations_minutes': times, 'bait_quantity': sum(inventory(config.pk, agent.pk).values())}
+        else:
+            from .combat.models import CombatProfile, CombatConfig
+            from .combat.explorations import energy
+            from .combat.store import current
+            from .combat.attributes import promotion_options
+            profile = CombatProfile.objects.filter(pk=agent.pk, owner_id=config.pk).first()
+            if not profile:
+                continue  # Do not initialize a resident's combat state during precheck.
+            catalog = current(profile.catalog_id)
+            if promotion_options(catalog, profile.progression) or (profile.rest_until and local_time(profile.rest_until) > now):
+                continue
+            if not any(r.get('enabled') == '1' and int(r['recommended_level_min']) <= profile.progression['level'] for r in catalog.tables['dungeons']):
+                continue
+            cfg = CombatConfig.objects.filter(pk=config.pk).first()
+            quota = (cfg.daily_minutes if cfg else 120) * 60 - profile.loot_progress.get('days', {}).get(now.date().isoformat(), 0)
+            times = [n for n in (1800, 3600, 7200) if n <= gap and n <= quota and energy(n) <= resource['energy']]
+            if times:
+                result[kind] = {'durations_minutes': [n // 60 for n in times], 'remaining_minutes': quota // 60}
+    return result, resource, gap
+
+
+def selection_input(config, agent, summaries, resource, gap, now):
+    from django.db.models import Count
+    from .life_models import LifeProfile, LifeGoal
+    profile = LifeProfile.objects.filter(pk=agent.pk, owner_id=config.pk).first()
+    counts = dict(LifeItem.objects.filter(owner_id=config.pk, actor_id=agent.pk,
+        activity__in=INTERLEAVED_ACTIVITIES, status='completed',
+        scheduled_at__gte=storage_time(now - timedelta(days=7))).values('activity').annotate(total=Count('pk')).values_list('activity', 'total'))
+    from .inventory_stock import inventory_items
+    needs = []
+    for goal in LifeGoal.objects.filter(owner_id=config.pk, actor_id=agent.pk, status='active'):
+        condition = goal.condition
+        sku = condition.get('sku', '')
+        if condition.get('kind') == 'inventory' and sku.startswith(('dish.', 'elixir.', 'bait.')):
+            owned = sum(inventory_items(agent.pk, config.pk).filter(source__sku=sku).values_list('quantity', flat=True))
+            needs.append({'sku': sku, 'missing_quantity': max(0, int(condition.get('quantity', 1)) - owned)})
+        elif condition.get('kind') == 'subjective' and condition.get('activity') in summaries:
+            needs.append({'activity': condition['activity'], 'goal': goal.title})
+    return {'time': now.isoformat(), 'gap_seconds': gap, 'energy_allowance': resource['energy'],
+            'preferences': profile.preferences if profile else '', 'needs': needs,
+            'personality': (agent.role_profile or {}).get('personality', ''),
+            'recent_completed_7_days': counts, 'activities': summaries}

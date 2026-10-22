@@ -203,7 +203,8 @@ export interface AgentTaskConfig {
     memoConfig?: {ownerId: string};
     model?: string | null;
     investmentConfig?: import('./investment').InvestmentConfig;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'alchemy' | 'lottery' | 'fishing' | 'exploration' | 'memo_capture';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'alchemy' | 'blacksmith' | 'lottery' | 'fishing' | 'exploration' | 'memo_capture';
+    blacksmithConfig?: {ownerId: string};
     publishConfig?: import('./agentPublish').AgentPublishConfig;
     fishingConfig?: {ownerId: string};
     lotteryConfig?: {ownerId: string};

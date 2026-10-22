@@ -4,7 +4,7 @@ import {Bell, RefreshCw, Settings, PenLine} from 'lucide-react';
 import WorldDialog from './WorldDialog';
 import MomentComposerDialog from './MomentComposerDialog';
 import MomentCard from './MomentCard';
-import SocialSettingsDialog from './SocialSettingsDialog';
+import {useOpenTaskAllocation} from '../../hooks/useOpenTaskAllocation';
 import MomentsInboxDialog from './MomentsInboxDialog';
 import {useMoments} from '../../hooks/useMoments';
 import {getSocialConfiguration, readSocialNotification} from '../../api/social';
@@ -14,7 +14,7 @@ import {Select} from '../common/Select';
 export default function MomentsDialog({onClose, initialMomentId}: {onClose: () => void; initialMomentId?: string}) {
     const [filter, setFilter] = useState('all');
     const [actor, setActor] = useState('me');
-    const [settings, setSettings] = useState(false);
+    const openTasks = useOpenTaskAllocation();
     const [composing, setComposing] = useState(false);
     const [inboxOpen, setInboxOpen] = useState(false);
     const [focused, setFocused] = useState(initialMomentId || '');
@@ -73,11 +73,11 @@ export default function MomentsDialog({onClose, initialMomentId}: {onClose: () =
                         </button>
                         <button
                             type="button"
-                            onClick={() => setSettings(v => !v)}
+                            onClick={openTasks}
                             className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                         >
                             <Settings className="h-4 w-4 shrink-0"/>
-                            <span className="hidden sm:inline">社交设置</span>
+                            <span className="hidden sm:inline">任务分配</span>
                         </button>
                     </div>
                 </div>
@@ -169,7 +169,6 @@ export default function MomentsDialog({onClose, initialMomentId}: {onClose: () =
             </div>
         </WorldDialog>
         {composing && <MomentComposerDialog onClose={() => setComposing(false)} onPublished={() => void state.reload()}/>}
-        {settings && <SocialSettingsDialog onClose={() => setSettings(false)} onSaved={() => void state.reload()}/>}
         {inboxOpen && (
             <MomentsInboxDialog
                 notifications={state.notifications}

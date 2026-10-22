@@ -2,7 +2,7 @@ import {ExecutionFeedSteps} from './ExecutionFeedSteps';
 import {ExplorationFeedSettlement} from './ExplorationFeedSettlement';
 import {parseSettlementReport} from '../Combat/observationRecords';
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
-import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, FlaskConical, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
+import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, FlaskConical, Hammer, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
 import {useEffect, useMemo, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
@@ -23,6 +23,7 @@ const tabs = [
     {value: 'exploration', label: '探索', icon: Activity},
     {value: 'cooking', label: '烹饪', icon: Sparkles},
     {value: 'alchemy', label: '炼金', icon: FlaskConical},
+    {value: 'blacksmith', label: '打造', icon: Hammer},
     {value: 'farm', label: '农场', icon: Sprout},
     {value: 'market', label: '市场', icon: Store},
     {value: 'trade', label: '交易', icon: Package},
@@ -39,6 +40,7 @@ const categoryStyles: Record<DailyFeedCategory, {badge: string; active: string}>
     fishing: {badge: 'bg-teal-50 text-teal-700', active: 'bg-teal-50 text-teal-700'},
     exploration: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
     cooking: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
+    blacksmith: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
     alchemy: {badge: 'bg-purple-50 text-purple-700', active: 'bg-purple-50 text-purple-700'},
     farm: {badge: 'bg-lime-50 text-lime-700', active: 'bg-lime-50 text-lime-700'},
     market: {badge: 'bg-emerald-50 text-emerald-700', active: 'bg-emerald-50 text-emerald-700'},
@@ -105,6 +107,7 @@ function getEventActionLabel(target?: DailyFeedEvent['target']): string | null {
         exploration: '观察探索',
         cooking: '查看食谱',
         alchemy: '查看药水',
+        blacksmith: '查看打造',
         farm: '打开农场',
         market: '打开市场',
         investment: '打开投资',

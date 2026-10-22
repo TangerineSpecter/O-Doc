@@ -12,8 +12,8 @@ from .equipment_market import pending_preparation_actions
 from .explorations import request
 from .facts import append
 from .models import CombatFact, EquipmentInstance
-from .preparation import prepare
-from .preparation_decision import _decide_old_equipment, decided_for_sale_or_listing
+from .preparation import prepare, context
+from .preparation_decision import _decide_old_equipment, decided_for_sale_or_listing, _process_equipment
 from .profiles import ensure, equip
 from .store import install
 from .sync import validate_source
@@ -31,6 +31,30 @@ class PreparationEquipmentTests(TestCase):
         self.agent = Agent.objects.create(name='A', model=model, money=1000)
         self.profile = ensure('admin', self.agent)
         self.starter = EquipmentInstance.objects.get(pk=self.profile.loadout['weapon'])
+
+    def test_sale_and_listing_marks_skip_next_structured_and_text_preparation(self):
+        marked = []
+        for action in ('sell', 'list'):
+            item = EquipmentInstance.objects.create(pk='marked-' + action, owner_id='admin',
+                actor_id=self.agent.pk, catalog_id=self.catalog.version,
+                template_id=self.starter.template_id, snapshot=self.starter.snapshot)
+            marked.append(item.pk)
+            append(self.profile, 'intent-' + action, 'gear_prepare',
+                   {'equipment_id': item.pk, 'action': action, 'decision_source': 'decision_model'})
+        fresh = EquipmentInstance.objects.create(pk='unmarked', owner_id='admin', actor_id=self.agent.pk,
+            catalog_id=self.catalog.version, template_id=self.starter.template_id, snapshot=self.starter.snapshot)
+        run = request('admin', self.agent, 'skip-decided-gear', {})
+        shown = {row['id'] for row in context(run)['adventure']['equipment']}
+        self.assertTrue(shown.isdisjoint(marked))
+        self.assertIn(self.starter.pk, shown)  # The current loadout is still comparison evidence.
+        self.assertIn(fresh.pk, shown)
+        with patch('system_settings.agent_world.combat.preparation_decision._choice',
+                   return_value=('sell', {'choice': 'sell', 'source': 'decision_model'})) as choose:
+            _process_equipment(run, self.agent, self.profile, self.catalog, {}, lambda: None, {})
+        self.assertEqual([call.args[2] for call in choose.call_args_list], ['equipment:' + fresh.pk])
+        with patch('system_settings.agent_world.combat.preparation_decision._choice') as choose:
+            _process_equipment(run, self.agent, self.profile, self.catalog, {}, lambda: None, {})
+        choose.assert_not_called()
 
     def test_two_replacements_in_one_preparation_keep_distinct_disposition_facts(self):
         for identity, offset in [('candidate-a', 2), ('candidate-b', 1)]:

@@ -31,7 +31,7 @@ def append(profile, key, kind, payload, run=None):
             event.get('kind') == 'kill' for event in payload.get('events', []))):
         from copy import deepcopy
         payload['progression_after'] = deepcopy(profile.progression)
-    equipment_ids = ([payload['equipment_id']] if kind in ('initialize', 'tournament_reward') else list(payload.get('loadout', {}).values())
+    equipment_ids = ([payload['equipment_id']] if kind in ('initialize', 'tournament_reward', 'forge') else list(payload.get('loadout', {}).values())
                      if kind in ('promote', 'reselect') else [reward['equipment_id'] for event in payload.get('events', [])
                          if event.get('kind') == 'kill' for reward in event.get('rewards', []) if reward.get('kind') == 'equipment']
                      if kind == 'round' else [])

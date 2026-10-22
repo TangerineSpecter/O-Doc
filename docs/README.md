@@ -39,6 +39,7 @@
 - [图片自然语言搜图与以图搜图设计方案](./features/图片自然语言搜图与以图搜图设计方案.md)
 - [原样 HTML 笔记说明](./features/原样HTML笔记说明.md)
 - [小说创作工作台](./小说创作工作台.md)
+- [量化文集一期说明](./quant/量化文集一期说明.md)
 - [学习文集与 Agent 老师](./learning/学习文集与Agent老师一期说明.md)
 - [闪念灵感碰撞与 AI 发芽](./memos/闪念灵感碰撞与AI发芽说明.md)
 - [AgentWorld 社交与关系系统](./AgentWorld社交与关系系统.md)

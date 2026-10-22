@@ -6,12 +6,15 @@ class SystemSettingsConfig(AppConfig):
     name = 'system_settings'
 
     def ready(self):
+        from .agent_world import life_interleaving_events  # noqa: F401
         from .agent_world.market_sync import register_market_signals
         register_market_signals()
         from .agent_world.cooking_sync import register_signals
         register_signals()
         from .agent_world.alchemy_sync import register_signals as register_alchemy_signals
         register_alchemy_signals()
+        from .agent_world.blacksmith_sync import register_signals as register_blacksmith_signals
+        register_blacksmith_signals()
         from . import sync_signals  # noqa: F401
         from . import agent_history  # noqa: F401
         from .agent_world import history  # noqa: F401

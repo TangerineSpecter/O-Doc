@@ -9,6 +9,7 @@ from utils.response_utils import success_result, valid_result
 from utils.drf_utils import get_current_user_identifier
 from .farm_gate import guarded
 from .life_models import LifeProfile, LifeGoal, LifeItem, LifeCycle
+from .life_activities import main_items
 from .life_config import config_for, validate_settings, ensure_profiles, effective_settings, DEFAULTS, normalize_settings_keys
 from .life_time import storage_time,local_time
 from .life_schedule import OPEN, SHANGHAI, recover, revise, requeue, retry_block_reason, retry_failed, is_settled_exploration
@@ -37,7 +38,7 @@ def settled_exploration_item_ids(items):
     return {item_id for item_id, record_id in matching_runs if candidates[item_id] == record_id}
 
 
-def item_data(item, detail=False, settled_exploration_ids=None):
+def item_data(item, detail=False, settled_exploration_ids=None, facts=None):
     status = item.status
     if status == 'failed' and item.activity == 'exploration':
         is_settled = (item.pk in settled_exploration_ids) if settled_exploration_ids is not None else is_settled_exploration(item)
@@ -45,11 +46,15 @@ def item_data(item, detail=False, settled_exploration_ids=None):
             status = 'completed'
     value={field:getattr(item,field) for field in ('id','owner_id','actor_id','original_at','scheduled_at','activity','task_id','intent','budget','spent','record_id','result','attempts')}
     value['status']=status
+    from .life_facts import actuals
+    value.update(facts if facts is not None else actuals(item))
     from .life_budget_policy import effective_budget
     value['budget']=effective_budget(item)
     value['original_at']=local_time(item.original_at).isoformat()
     value['scheduled_at']=local_time(item.scheduled_at).isoformat()
     if detail:
+        from .life_interleaving_usage import summary as usage_summary
+        value['activity_usage'] = usage_summary(item)
         value['context']=item.context
         value['revisions']=list(item.revisions.order_by('created_at').values('id','before','after','reason','created_at'))
         if status == 'failed' and item.activity == 'market_prepare':
@@ -80,7 +85,8 @@ class LifeConfigView(APIView):
             submitted_settings=normalize_settings_keys(raw_settings)
             for key in ('decision_model_id', 'decision_connection_id', 'decision_connection_ids',
                         'decision_sticky_ttl_seconds', 'jev_enabled', 'jev_excluded_scenes',
-                        'market_automation_v2'):
+                        'market_automation_v2', 'interleaving_enabled', 'interleaving_check_minutes',
+                        'interleaving_decision_minutes', 'interleaving_wait_minutes'):
                 if key not in submitted_settings:
                     settings[key] = config.settings.get(key, DEFAULTS[key])
             from system_settings.decision.failover import apply_saved_order
@@ -220,17 +226,23 @@ class LifeScheduleView(APIView):
             if page<1:raise ValueError('页码无效')
             view=request.query_params.get('view','list')
             if view not in ('week','list'):raise ValueError('日程视图无效')
+            from .life_activities import main_items
+            counts = {'interleaved': qs.filter(context__interleaving__version=1).count(),
+                      'main': main_items(qs).exclude(activity__in=('market', 'market_prepare')).count()}
+            from .life_facts import batch_actuals
             ordered=qs.order_by('scheduled_at','id')
             if view=='week':
                 if end-start>timedelta(days=7):raise ValueError('周日程查询范围不能超过7天')
                 # 日历必须以完整日期范围分组，不能把分页缺失误呈现为当天无安排。
                 rows=list(ordered)
                 settled_ids=settled_exploration_item_ids(rows)
-                items=[item_data(i,settled_exploration_ids=settled_ids) for i in rows]
-                return success_result({'total':len(items),'items':items,'page':1})
+                facts = batch_actuals(rows)
+                items=[item_data(i,settled_exploration_ids=settled_ids, facts=facts[i.pk]) for i in rows]
+                return success_result({'total':len(items),'items':items,'page':1,'counts':counts})
             rows=list(ordered[(page-1)*100:page*100])
             settled_ids=settled_exploration_item_ids(rows)
-            return success_result({'total':qs.count(),'items':[item_data(i,settled_exploration_ids=settled_ids) for i in rows],'page':page})
+            facts = batch_actuals(rows)
+            return success_result({'total':qs.count(),'items':[item_data(i,settled_exploration_ids=settled_ids,facts=facts[i.pk]) for i in rows],'page':page,'counts':counts})
         except ValueError as exc:return valid_result(str(exc),status=400)
 
     @guarded
@@ -258,9 +270,10 @@ class LifeScheduleView(APIView):
                 if start.tzinfo is None:start=start.replace(tzinfo=SHANGHAI)
                 if end.tzinfo is None:end=end.replace(tzinfo=SHANGHAI)
                 if not timedelta(0)<end-start<=timedelta(days=366):raise ValueError('查询范围须为1至366天')
-                query=LifeItem.objects.select_for_update().filter(
+                query=main_items(LifeItem.objects.select_for_update().filter(
                     owner_id=owner,status='failed',record_id='',
-                    scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end)).exclude(activity='market_prepare')
+                    scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end))
+                ).exclude(activity__in=('market_prepare', 'blacksmith'))
                 if actor:query=query.filter(actor_id=actor)
                 rows=list(query)
                 residents=[]

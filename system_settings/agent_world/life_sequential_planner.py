@@ -30,7 +30,10 @@ def prepare_targets(config, agent, items: list, preserve: bool) -> list:
                 day = local_time(item.scheduled_at).date().isoformat()
                 if item.context.get('planned_on') == day:
                     continue
-                if item.context.get('farm_plan_id') or item.context.get('lottery_plan') or item.record_id or item.context.get('execution_started'):
+                from .life_activities import INTERLEAVED_ACTIVITIES
+                if (item.activity in INTERLEAVED_ACTIVITIES
+                        or any(item.context.get(key) for key in ('farm_plan_id', 'lottery_plan', 'cooking_plan', 'alchemy_plan', 'travel_plan', 'execution_started'))
+                        or item.record_id):
                     revise(item, '保留已固化领域计划，更新当日复核标记',
                            context={**item.context, 'planned_on': day})
                     continue

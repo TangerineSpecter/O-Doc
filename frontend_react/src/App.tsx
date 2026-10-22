@@ -8,6 +8,7 @@ import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
 import ImageAnthologyPage from './views/ImageAnthologyPage';
 import BookAnthologyPage from './views/BookAnthologyPage';
+const QuantPage = lazy(() => import('./views/QuantPage'));
 const NovelPage = lazy(() => import('./views/NovelPage'));
 const LearningPage = lazy(() => import('./views/LearningPage'));
 const BookAnalysisPage = lazy(() => import('./views/BookAnalysisPage'));
@@ -80,6 +81,9 @@ function HomeRoute() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'quant') {
+            const {collId, entryId} = params as {collId: string; entryId?: string};
+            navigate(entryId ? `/quant/${encodeURIComponent(collId)}/entries/${encodeURIComponent(entryId)}` : `/quant/${encodeURIComponent(collId)}`);
         } else if (viewName === 'image') {
             navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'novel') {
@@ -134,6 +138,9 @@ function ArticleRoute() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'quant') {
+            const {collId, entryId} = params as {collId: string; entryId?: string};
+            navigate(entryId ? `/quant/${encodeURIComponent(collId)}/entries/${encodeURIComponent(entryId)}` : `/quant/${encodeURIComponent(collId)}`);
         } else if (viewName === 'image') {
             navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'login') { // 新增
@@ -169,6 +176,9 @@ function ImageAnthologyRoute() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'quant') {
+            const {collId, entryId} = params as {collId: string; entryId?: string};
+            navigate(entryId ? `/quant/${encodeURIComponent(collId)}/entries/${encodeURIComponent(entryId)}` : `/quant/${encodeURIComponent(collId)}`);
         } else if (viewName === 'image') {
             navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'login') {
@@ -202,6 +212,9 @@ function AppWithRouter() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'quant') {
+            const {collId, entryId} = params as {collId: string; entryId?: string};
+            navigate(entryId ? `/quant/${encodeURIComponent(collId)}/entries/${encodeURIComponent(entryId)}` : `/quant/${encodeURIComponent(collId)}`);
         } else if (viewName === 'image') {
             navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'login') { // 新增：处理登录跳转
@@ -251,6 +264,8 @@ function AppWithRouter() {
             }/>
             <Route path="/novel/:collId" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage/></Suspense>}/>
             <Route path="/novel/:collId/read" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage readerOnly/></Suspense>}/>
+            <Route path="/quant/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开量化研究…</div>}><QuantPage/></Suspense></Layout></RequireAuth>}/>
+            <Route path="/quant/:collId/entries/:entryId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开量化研究…</div>}><QuantPage/></Suspense></Layout></RequireAuth>}/>
             <Route path="/learning/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开学习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/learning/:collId/exercises/:exerciseId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开练习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/books/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><BookAnthologyRoute/></Layout></RequireAuth>}/>

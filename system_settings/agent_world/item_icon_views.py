@@ -114,7 +114,8 @@ class ItemIconDetailView(APIView):
                 return valid_result('图标不存在', status=404)
             if is_asset_referenced(asset):
                 return valid_result('图标正在被物品使用，请先解除关联', status=409)
-            delete_asset_record_and_file(asset)
+            if not delete_asset_record_and_file(asset):
+                return valid_result('图标正在被物品使用，请先解除关联', status=409)
             return success_result()
 
 

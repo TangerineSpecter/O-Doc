@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>迷雾林地 · 四只区域魔物的像素演武场</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2387a569' d='M6 26V14h5V9h7V5h9v10h-5v7H11v4z'/%3E%3Cpath fill='%23dbe8bb' d='M10 23h4v-5h5v-5h5v-3h-7v5h-7z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./sprout-meadow/studio.css?v=3">
+  <link rel="stylesheet" href="./moss-cave/studio.css?v=3">
+  <link rel="stylesheet" href="./region-monsters/studio.css">
+  <script defer src="./region-monsters/mist_forest.js?v=e17bbbd3b0"></script>
+  <script defer src="./region-monsters/toxic-mushroom.js?v=171aed331e"></script>
+  <script defer src="./region-monsters/characters.js?v=9d47894b4d"></script>
+  <script defer src="./sprout-meadow/renderer.js?v=442e29e626"></script>
+  <script defer src="./region-monsters/iron-guard-break.js?v=525d7b3f65"></script>
+  <script defer src="./region-monsters/mine-giant-skills.js?v=0e9904c0df"></script>
+  <script defer src="./region-monsters/mist-wolf-pounce.js?v=7bfe68accc"></script>
+  <script defer src="./region-monsters/ancient-guard-regen.js?v=c238be4367"></script>
+  <script defer src="./region-monsters/mist-treant-skills.js?v=9a888db2b8"></script>
+  <script defer src="./region-monsters/ruins-pixels.js?v=4e84fad333"></script>
+  <script defer src="./region-monsters/treant-roots.js?v=b7b53a8601"></script>
+  <script defer src="./region-monsters/treant-dew.js?v=21172de4cb"></script>
+  <script defer src="./region-monsters/mine-giant-boss-effects.js?v=0345da8b09"></script>
+  <script defer src="./region-monsters/ruins-motion.js?v=c8076b1508"></script>
+  <script defer src="./region-monsters/ruins-actors.js?v=f44ef3f4c3"></script>
+  <script defer src="./region-monsters/ruins-dark-effects.js?v=3ab838723d"></script>
+  <script defer src="./region-monsters/ruins-water-effects.js?v=aca707ca53"></script>
+  <script defer src="./region-monsters/ash-lord-template-pixels.js?v=ddbc12d812"></script>
+  <script defer src="./region-monsters/ember-motion.js?v=da173ee75a"></script>
+  <script defer src="./region-monsters/ember-effects.js?v=4861674ac1"></script>
+  <script defer src="./region-monsters/ash-lord-template.js?v=d157fe4f94"></script>
+  <script defer src="./region-monsters/skills.js?v=9058612fe7"></script>
+  <script defer src="./region-monsters/scene.js?v=5010bc90e6"></script>
+  <script defer src="./sprout-meadow/motion.js?v=2f0a76a5c8"></script>
+  <script defer src="./region-monsters/motion.js?v=87ae3fd612"></script>
+  <script defer src="./sprout-meadow/pixel-shatter.js?v=8f7d5d47ee"></script>
+  <script defer src="./sprout-meadow/effects.js?v=04a5156d25"></script>
+  <script defer src="./region-monsters/effects.js?v=82da44b62b"></script>
+  <script defer src="./region-monsters/studio.js?v=9873bd9767"></script>
+</head>
+<body>
+  <main class="studio"><nav class="region-nav" aria-label="区域预览"><a href="./SproutMeadow_v1.html">新芽草甸</a><a href="./MossCave_v1.html">苔石洞窟</a><a href="./AbandonedMine_v1.html">废弃矿坑</a><a href="./MistForest_v1.html" aria-current="page">迷雾林地</a><a href="./SunkenRuins_v1.html">沉没遗迹</a><a href="./EmberFortress_v1.html">灰烬堡垒</a><a href="./StarRift_v1.html">星蚀裂隙</a></nav>
+    <header class="page-heading">
+      <div><p class="eyebrow"><span></span> FIELD NOTES / 04 · MONSTER STUDY</p><h1>迷雾林地<span>的林间秘影</span></h1><p class="intro">雾气掠过树根，林间的住民正悄悄苏醒。</p></div>
+      <div class="edition">像素魔物演武场 <b>VOL. 01</b><span>形象与动作设计预览 · 待确认</span></div>
+    </header>
+
+    <nav class="monster-tabs" aria-label="选择魔物"><button class="monster-tab" data-monster="toxic_mushroom" aria-pressed="true"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>毒蘑菇</b><small>01 / TOXIC MUSHROOM</small></span><i>20–27</i></button>
+<button class="monster-tab" data-monster="mist_wolf" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>迷雾狼</b><small>02 / MIST WOLF</small></span><i>24–32</i></button>
+<button class="monster-tab" data-monster="ancient_guard" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>古树守卫</b><small>03 / ANCIENT GUARD</small></span><i>30–35</i></button>
+<button class="monster-tab" data-monster="mist_treant" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>迷雾树王</b><small>04 / MIST TREANT</small></span><i>32–35</i></button></nav>
+
+    <div class="workspace">
+      <section class="scene-card" aria-label="魔物动画预览">
+        <div class="scene-heading"><span class="location"><span class="location-dot"></span> 迷雾林地 <small>MIST FOREST</small></span><span class="weather">薄雾 · 叶声</span></div>
+        <div class="stage" id="stage">
+          <canvas id="arena" width="960" height="540" role="img" aria-label="迷雾林地中待机的毒蘑菇，可点击互动"></canvas>
+          <div class="stage-top"><span class="rank-pill"><b id="rank-name">普通魔物</b> <span id="level">Lv.20–27</span></span><span class="status-pill"><i></i><span id="status" role="status">待机 · 轻轻呼吸</span></span></div>
+          <div class="stage-bottom"><span id="interaction-tip">轻触小家伙，看看它的反应</span><span class="pixel-label">320 × 180 <b>PIXEL</b></span></div>
+          <div class="inspection-legend" id="layer-legend" hidden><b>材质分层</b><span>描边 / 主体 / 高光 / 动作部件</span><div><i></i><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="scene-footer"><div class="health"><span>演示生命</span><div class="health-track"><i id="health-fill"></i></div><b id="health-value">100%</b></div><span class="frame-info"><i></i><span id="fps">60</span> FPS</span></div>
+      </section>
+
+      <aside class="controls-card" aria-label="动作与播放控制">
+        <div class="control-title"><span>动作演示</span><small>01 — 05</small></div>
+        <p class="skill-note" id="skill-note">目录已有技能的视觉预览，选择按钮播放。</p>
+        <div class="actions">
+          <button class="action" data-action="idle" aria-pressed="true"><span class="action-number">01</span><span><b>待机</b><small id="hint-idle">双翼起伏，耳尖轻摆</small></span><kbd>1</kbd></button>
+          <button class="action" data-action="move" aria-pressed="false"><span class="action-number">02</span><span><b>移动</b><small id="hint-move">振翅前行，悬浮升降</small></span><kbd>2</kbd></button>
+          <button class="action" data-action="attack" aria-pressed="false"><span class="action-number">03</span><span><b>普通攻击</b><small id="hint-attack">收势蓄力，俯冲扑咬</small></span><kbd>3</kbd></button>
+          <button class="action" data-action="hit" aria-pressed="false"><span class="action-number">04</span><span><b>受击</b><small id="hint-hit">闪白、回震与恢复 · 共用版</small></span><kbd>4</kbd></button>
+          <button class="action" data-action="defeat" aria-pressed="false"><span class="action-number">05</span><span><b>倒下 · 粉碎</b><small id="hint-defeat">闪白震裂，炸成像素碎片</small></span><kbd>5</kbd></button>
+        </div>
+        <div id="skills" class="skill-actions" aria-label="技能视觉预览（含待确认候选）"></div>
+        <p id="skill-caption" class="skill-caption">选择技能查看动作过程；演示不参与战斗结算。</p>
+        <button class="demo-button" id="demo" aria-pressed="false"><span>▷</span> 连续演示 <small>含当前魔物技能预览</small></button>
+        <div class="playback"><button id="pause" aria-pressed="false" aria-label="暂停动画">Ⅱ 暂停</button><button id="reset">↺ 重置</button></div>
+        <div class="speed-row"><span>播放速度</span><div class="segmented" aria-label="播放速度"><button data-speed="0.25" aria-pressed="false">¼×</button><button data-speed="0.5" aria-pressed="false">½×</button><button data-speed="1" aria-pressed="true">1×</button><button data-speed="1.5" aria-pressed="false">1½×</button></div></div>
+        <p class="keyboard-hint">1–5 切换动作 · 空格暂停 · R 重置</p>
+      </aside>
+    </div>
+
+    <section class="specimen-card" aria-labelledby="monster-name">
+      <div class="specimen-title"><span class="specimen-index" id="monster-index">Nº 01</span><div><h2 id="monster-name">毒蘑菇 <span>TOXIC MUSHROOM</span></h2><p id="monster-description">紫色菌盖 · 奶白菌柄。菌盖轻摇，菌柄呼吸；短腿蹦跳，菌盖回弹。攻击时收拢菌盖，弹出孢子。</p></div></div>
+      <div class="traits"><div><small>体态 / 材质</small><b id="monster-material">紫色菌盖 · 奶白菌柄</b></div><div><small>攻击方式</small><b id="monster-attack">收拢菌盖，弹出孢子</b></div><div><small>元素 / 定位</small><b id="monster-role">土 · 普通魔物</b></div></div>
+    </section>
+
+    <footer class="inspector"><div class="tools"><button id="flip" aria-pressed="true">⇄ 朝向：左</button><button id="background" aria-pressed="false">▧ 素色舞台</button><button id="atlas" aria-pressed="false">⊡ 图鉴尺寸</button><button id="grid" aria-pressed="false">▦ 像素网格</button><button id="layers" aria-pressed="false">◈ 材质分层</button><button id="night" aria-pressed="false">☾ 环境暗光</button><button id="sound" aria-pressed="false">♪ 音效</button></div><p>形象与动作预览 · 待确认 · 演示不参与战斗结算</p></footer>
+    <noscript>请启用 JavaScript 以查看像素魔物与动画。</noscript>
+  </main>
+</body>
+</html>

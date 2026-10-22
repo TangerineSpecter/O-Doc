@@ -22,7 +22,7 @@ from .models import WorldLedger
 from .travel_models import TravelJourney
 
 
-CATEGORIES = {'fishing', 'exploration', 'publication', 'interaction', 'travel', 'farm', 'cooking', 'alchemy', 'market', 'trade', 'investment', 'finance', 'record'}
+CATEGORIES = {'fishing', 'exploration', 'publication', 'interaction', 'travel', 'farm', 'cooking', 'alchemy', 'blacksmith', 'market', 'trade', 'investment', 'finance', 'record'}
 MARKET_LABELS = {
     'buy_shop': '商店购买', 'sell': '商店回收', 'list': '居民上架',
     'buy_listing': '购买居民商品', 'reprice': '调整挂牌价格', 'withdraw': '撤回挂牌',
@@ -137,6 +137,9 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
     if category in ('all', 'alchemy'):
         from .alchemy_models import AlchemyOperation
         collect(AlchemyOperation.objects.filter(owner_id=owner), 'created_at')
+    if category in ('all', 'blacksmith'):
+        from .blacksmith_models import BlacksmithOperation
+        collect(BlacksmithOperation.objects.filter(owner_id=owner), 'created_at')
     if category in ('all', 'farm'):
         collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at', 'farm_id')
         for farm in AgentFarm.objects.filter(owner_id=owner):
@@ -534,6 +537,20 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         if row.opportunity_id:
             events[-1]['_execution_failed'] = alchemy_actions.get(row.opportunity_id) == 'failed'
             events[-1]['_execution_running'] = alchemy_actions.get(row.opportunity_id) == 'claimed'
+    from .blacksmith_models import BlacksmithOperation
+    forged = BlacksmithOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
+    forging_actions = dict(WorldAction.objects.filter(pk__in=forged.values_list('opportunity_id', flat=True)).values_list('pk', 'status'))
+    for row in forged:
+        item = (row.result or {}).get('item', {})
+        quality = {'white': '白装', 'blue': '蓝装', 'gold': '金装'}.get(item.get('quality'), '')
+        detail = f"{item.get('name', row.recipe_id)} · Lv.{item.get('level', '')} {quality}"
+        events.append(_event('blacksmith', 'blacksmith', row.pk, row.created_at, row.actor_id,
+            names.get(row.actor_id, row.actor_name), '打造装备', detail,
+            target={'kind': 'blacksmith', 'id': row.opportunity_id}))
+        events[-1]['reason'] = row.reason
+        events[-1]['_execution_group'] = 'blacksmith:' + row.opportunity_id
+        events[-1]['_execution_failed'] = forging_actions.get(row.opportunity_id) == 'failed'
+        events[-1]['_execution_running'] = forging_actions.get(row.opportunity_id) == 'claimed'
     day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
     opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
     farm_actions = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))

@@ -82,7 +82,7 @@ def invalid_reason(session, now=None):
         task = AgentTask.objects.filter(pk=session.task_id).first()
         if not task or (session.mode != 'manual' and not task.enabled) or not life_allowed(task,session.actor_id):
             return '市场任务已停止或居民已解绑'
-    if session.mode == 'automatic' and not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
+    if session.mode in ('automatic', 'batch') and not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
         return '本机自动执行已关闭'
     if session.call_count >= MAX_CALLS: return '市场会话达到二十次工具调用上限'
     return None
@@ -114,13 +114,16 @@ def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='m
         raise ValueError('居民已有市场会话')
     if task and ((mode != 'manual' and not task.enabled) or not life_allowed(task,agent.pk)):
         raise ValueError('市场任务已停止或居民已解绑')
-    if mode == 'automatic' and not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
+    if mode in ('automatic', 'batch') and not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
         raise ValueError('本机自动执行已关闭')
     from .market_shop import config_for
     config_for(owner)
     agent = Agent.objects.select_for_update().get(pk=agent.pk)
     from system_settings.agent_availability import require_active_agent
     require_active_agent(agent)
+    from .life_commitments import require_energy
+    from .life_scope import manual_combat_potion_owner
+    require_energy(owner, agent, COST, manual=mode == 'manual' or manual_combat_potion_owner(agent.pk) is not None, now=now)
     if stamina(agent, now) < COST: raise ValueError('体力不足')
     lease, _ = AgentExecutionLease.objects.get_or_create(agent=agent)
     if lease.until and lease.until > now: raise ValueError('居民正在执行其他任务')

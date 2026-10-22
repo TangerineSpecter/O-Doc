@@ -22,7 +22,7 @@ export default function RunTokenUsage({id, usage, chain, taskName, startedAt}: {
                     {exporting ? '导出中…' : '导出明细'}
                 </button>
                 <button type="button" onClick={() => setFlowOpen(true)}
-                    title="按步骤查看每次模型请求的输入分段与输出（字数/字节数）"
+                    title="查看执行时间轴、模型输入输出与相邻请求差异"
                     className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 rounded-lg border border-orange-200 px-2.5 py-1 text-xs font-medium text-orange-600 hover:bg-orange-50 focus-visible:outline-orange-500">
                     <Network className="h-3.5 w-3.5 shrink-0"/>
                     执行流程

@@ -13,7 +13,7 @@ from .market_no_buy import filter_candidates
 from .market_shop import shop_payload
 
 MAX_OPTIONS = 10
-MAX_QUESTIONS = 6
+MAX_QUESTIONS = 8
 CRAFTING_SIMULATION_ENERGY = Decimal('1000000')
 GOAL_SLOTS = ('weapon', 'offhand', 'head', 'body', 'hands', 'legs', 'feet',
               'accessory', 'ring_1', 'ring_2')
@@ -140,7 +140,7 @@ def crafting_input_domain(sku: str) -> str:
 
 def craftable_after_purchase(owner: str, agent, sku: str, quantity: int = 1, *,
                              facts_cache: dict | None = None) -> bool:
-    """仅允许能增加当前可制作产出的食材或炼金材料进入购买候选。"""
+    """仅允许能增加美食、炼金或打造产出的原料进入购买候选。"""
     domain = crafting_input_domain(sku)
     if not domain:
         return True
@@ -188,11 +188,12 @@ def crafting_demand_facts(owner: str, seller_id: str, sku: str) -> dict | None:
     return {
         'status': 'partial' if unknown_count else 'complete',
         'domain': domain,
+        'crafting_domains': ['alchemy', 'blacksmith'] if domain == 'alchemy' else [domain],
         'resident_count_excluding_self': len(residents),
         'demand_resident_count': None if unknown_count else demand_count,
         'known_demand_resident_count': demand_count,
         'unknown_resident_count': unknown_count,
-        'demand_basis': '当前等级、配方和可用库存下（不以可恢复体力为门槛），购买1件该SKU会增加至少一种配方的可制作数量',
+        'demand_basis': '当前等级、职业路线、配方和可用库存下（不以可恢复体力为门槛），购买1件该SKU会增加至少一种制作配方的可制作数量',
     }
 
 
@@ -231,26 +232,78 @@ def craftable_purchase_skus(owner: str, agent, quantities: dict[str, int], *,
                    and recipe[output_limit_key] > before.get(recipe_id, {}).get(output_limit_key, 0)
                    for recipe_id, recipe in after.items()):
                 allowed.add(sku)
+    material_quantities = {sku: quantity for sku, quantity in quantities.items()
+                           if sku.startswith('combat.material.') and type(quantity) is int and quantity > 0}
+    if material_quantities:
+        allowed.update(blacksmith_purchase_skus(owner, agent, material_quantities, cache=cache, strict=strict))
     return allowed
+
+
+def blacksmith_purchase_skus(owner: str, agent, quantities: dict[str, int], *, cache=None, strict=False) -> set[str]:
+    """A material may be useful for either alchemy or the resident's forging route."""
+    from collections import Counter
+    from .blacksmith_candidates import recipe_options, read_catalog
+    from .blacksmith_catalog import rules_for
+    from .combat.models import CombatProfile
+    from .crafting_materials import available_pool
+    from .alchemy_queries import validate_actor
+    cache = cache if cache is not None else {}
+    key = (owner, agent.pk, 'blacksmith')
+    try:
+        if key not in cache:
+            validate_actor(owner, agent.pk)
+            profile = CombatProfile.objects.filter(pk=agent.pk, owner_id=owner).first()
+            cache[key] = ({'profile': profile, 'catalog': read_catalog(profile),
+                           'rules': rules_for(owner), 'pool': available_pool(owner, agent.pk)} if profile else None)
+        facts = cache[key]
+        if facts is None:
+            return set()
+        pool, profile, catalog, rules = (facts[field] for field in ('pool', 'profile', 'catalog', 'rules'))
+        counts = Counter()
+        for row in pool:
+            counts[row['sku']] += row['quantity']
+        result = set()
+        for sku, quantity in quantities.items():
+            after = recipe_options(rules, catalog, profile, [*pool, {'sku': sku, 'quantity': quantity}],
+                                   CRAFTING_SIMULATION_ENERGY)
+            for rule in after.values():
+                if not any(row['sku'] == sku for row in rule['ingredients']):
+                    continue
+                before_count = min(counts[row['sku']] // row['quantity'] for row in rule['ingredients'])
+                after_count = min((counts[row['sku']] + (quantity if row['sku'] == sku else 0)) // row['quantity']
+                                  for row in rule['ingredients'])
+                if after_count > before_count:
+                    result.add(sku)
+                    break
+        return result
+    except (KeyError, TypeError, ValueError):
+        if strict:
+            raise
+        logger.exception('市场打造用途校验失败 actor=%s', agent.pk)
+        return set()
 
 
 def listing_rows(owner: str, actor_id: str, limit: int = 2, agent=None) -> list[dict]:
     """按 sku 聚合居民挂牌，先过滤无法加工增产的原料，再排高星与性价比。"""
     best = {}
-    for row in MarketListing.objects.filter(owner_id=owner, status='active').exclude(seller_id=actor_id):
+    for row in MarketListing.objects.filter(owner_id=owner, status='active', remaining_quantity__gt=0).exclude(seller_id=actor_id):
         item = row.item or {}
         source = item.get('source') or {}
         sku = source.get('sku') or ''
-        if not sku:
+        stars = _listing_stars(source)
+        if not sku or stars is None or row.unit_price <= 0:
             continue
         entry = best.setdefault(sku, {'sku': sku, 'name': item.get('name', sku), 'count': 0,
                                       'min_price': row.unit_price,
-                                      'max_stars': int(source.get('stars') or 1),
-                                      'value': money(item.get('value'))})
+                                      'max_stars': stars,
+                                      'value': money(item.get('value')), 'star_quotes': {}})
         entry['count'] += row.remaining_quantity
         entry['min_price'] = min(entry['min_price'], row.unit_price)
-        entry['max_stars'] = max(entry['max_stars'], int(source.get('stars') or 1))
+        entry['max_stars'] = max(entry['max_stars'], stars)
         entry['value'] = max(entry['value'], money(item.get('value')))
+        quote = entry['star_quotes'].setdefault(stars, {'count': 0, 'min_price': row.unit_price})
+        quote['count'] += row.remaining_quantity
+        quote['min_price'] = min(quote['min_price'], row.unit_price)
 
     def rank(entry):
         value = entry['value']
@@ -273,6 +326,47 @@ def listing_rows(owner: str, actor_id: str, limit: int = 2, agent=None) -> list[
                 continue
         candidates.append(entry)
     return sorted(candidates, key=rank)[:limit]
+
+
+def _listing_stars(source: dict) -> int | None:
+    value = source.get('stars')
+    if value is None or value == '':
+        value = 1
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return None
+    try:
+        stars = int(value)
+    except (TypeError, ValueError):
+        return None
+    return stars if 1 <= stars <= 5 else None
+
+
+def listing_star_options(row: dict, available) -> dict:
+    """Only actual, affordable star thresholds; never multiply stars and prices."""
+    quotes = row.get('star_quotes') or {}
+    result = {}
+    for stars in sorted(quotes):
+        eligible = [quote for level, quote in quotes.items() if level >= stars]
+        minimum = min(money(quote['min_price']) for quote in eligible)
+        if minimum <= money(available):
+            result[str(stars)] = {'min_stars': stars,
+                'count': sum(quote['count'] for quote in eligible), 'min_price': str(minimum)}
+    return result
+
+
+def listing_quote(owner: str, actor_id: str, sku: str, min_stars: int) -> dict | None:
+    """Refresh only the selected SKU and threshold after the quality decision."""
+    count, minimum = 0, None
+    rows = MarketListing.objects.filter(owner_id=owner, status='active', remaining_quantity__gt=0,
+        item__source__sku=sku).exclude(seller_id=actor_id).values(
+            'unit_price', 'remaining_quantity', 'item__source__stars')
+    for row in rows:
+        stars = _listing_stars({'stars': row['item__source__stars']})
+        if stars is None or stars < min_stars or row['unit_price'] <= 0:
+            continue
+        count += row['remaining_quantity']
+        minimum = min(minimum, row['unit_price']) if minimum is not None else row['unit_price']
+    return {'count': count, 'min_price': money(minimum)} if count else None
 
 
 def equipment_rows(owner: str, actor_id: str, limit: int = 2) -> list[dict]:

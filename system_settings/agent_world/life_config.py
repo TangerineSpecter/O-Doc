@@ -4,13 +4,15 @@ from system_settings.models import AIModel, Agent, AgentTask
 from .life_time import storage_time
 from .life_models import LifeConfig, LifeProfile, LifeCycle
 
-KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration', 'lottery', 'fishing')
+KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'blacksmith', 'exploration', 'lottery', 'fishing')
 DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'interval_minutes': 60, 'active_start': '00:00', 'active_end': '24:00',
             'min_gap_minutes': 15, 'min_remaining_minutes': 240, 'decision_model_id': '',
             'decision_connection_id': '', 'decision_connection_ids': [],
             'decision_sticky_ttl_seconds': 7200, 'jev_enabled': False, 'jev_excluded_scenes': [],
-            'market_automation_v2': False}
+            'market_automation_v2': False, 'interleaving_enabled': False,
+            'interleaving_check_minutes': 5, 'interleaving_decision_minutes': 30,
+            'interleaving_wait_minutes': 60}
 SETTINGS_KEY_ALIASES = {'market_automation_v_2': 'market_automation_v2'}
 
 
@@ -50,7 +52,7 @@ def validate_settings(data: dict) -> dict:
     value = {**DEFAULTS, **{k: v for k, v in data.items() if k in DEFAULTS}}
     if value['mode'] not in ('fixed', 'random') or value['period'] not in ('daily', 'weekly', 'monthly', 'yearly'):
         raise ValueError('无效的生活周期')
-    for key, upper in (('count', 10000), ('interval_minutes', 10080), ('min_gap_minutes', 1440), ('min_remaining_minutes', 1440)):
+    for key, upper in (('interleaving_check_minutes', 1440), ('interleaving_decision_minutes', 10080), ('interleaving_wait_minutes', 10080), ('count', 10000), ('interval_minutes', 10080), ('min_gap_minutes', 1440), ('min_remaining_minutes', 1440)):
         if type(value[key]) is not int or not 1 <= value[key] <= upper:
             raise ValueError(f'{key} 超出允许范围')
     def minutes(text):
@@ -86,6 +88,8 @@ def validate_settings(data: dict) -> dict:
     from system_settings.decision.routing import SCENES
     if type(value['jev_enabled']) is not bool:
         raise ValueError('结构化决策开关无效')
+    if type(value['interleaving_enabled']) is not bool:
+        raise ValueError('空档穿插开关无效')
     if type(value['market_automation_v2']) is not bool:
         raise ValueError('市场自动化开关无效')
     excluded = value['jev_excluded_scenes']

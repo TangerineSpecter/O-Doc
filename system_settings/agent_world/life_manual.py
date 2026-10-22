@@ -18,11 +18,16 @@ def run_manual_life(task, actor, owner, scheduler, *, publish_category_id=''):
     context={'manual':True}
     if task.task_kind=='post_publish' and publish_category_id:
         context['publish_category_id']=publish_category_id
-    item=LifeItem.objects.create(pk=stable_id('manual',task.pk,actor,now.isoformat()),owner_id=owner,actor_id=actor,original_at=now,scheduled_at=now,activity=task.task_kind,task_id=task.pk,status='running',intent='用户手动执行',budget=budget,context=context)
+    item = None
+    if task.task_kind == 'blacksmith':
+        from .blacksmith_runner import pending_manual_item
+        item = pending_manual_item(task, actor, owner)
+    if item is None:
+        item=LifeItem.objects.create(pk=stable_id('manual',task.pk,actor,now.isoformat()),owner_id=owner,actor_id=actor,original_at=now,scheduled_at=now,activity=task.task_kind,task_id=task.pk,status='running',intent='用户手动执行',budget=budget,context=context)
     try:
         with life_scope(item,build_execution_context(owner,agent,item)):
             record=scheduler._run_task(task,trigger='手动执行')
-        if task.task_kind not in ('travel','exploration'):
+        if task.task_kind not in ('travel','exploration','blacksmith'):
             item.refresh_from_db()
             from .life_planner import check_goals
             check_goals(owner,agent)

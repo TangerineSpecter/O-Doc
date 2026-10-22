@@ -180,7 +180,7 @@ def quota_reason(task, agent, config: dict, quota=None) -> str:
     return ''
 
 
-def eligibility(task, agent, *, config=None, preview=False, quota=None) -> str:
+def eligibility(task, agent, *, config=None, preview=False, quota=None, now=None) -> str:
     config = config or task.publish_config
     from .life_scope import allowed
     if not allowed(task,agent.pk):
@@ -206,7 +206,7 @@ def eligibility(task, agent, *, config=None, preview=False, quota=None) -> str:
             return reason
     if not preview and stamina(agent) < PUBLISH_COST:
         return '体力不足，发帖需要20点'
-    now = timezone.now()
+    now = now or timezone.now()
     if own_posts(agent).filter(created_at__gt=now-timedelta(hours=config.get('cooldown_hours', 6))).exists():
         return '发帖冷却尚未结束'
     if config.get('unread_enabled'):

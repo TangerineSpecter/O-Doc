@@ -1,6 +1,7 @@
+import {useOpenTaskAllocation} from '../../hooks/useOpenTaskAllocation';
 import {useEffect, useState} from 'react';
 import {AlertCircle, BookOpen, Fish, RefreshCw, Users, Waves} from 'lucide-react';
-import {useFishing, useFishingConfig} from '../../hooks/useFishing';
+import {useFishing} from '../../hooks/useFishing';
 import {DecisionProcessInfo} from '../AgentWorld/DecisionProcessInfo';
 import {FishingTripCard} from './FishingTripCard';
 import {FishingTripDetails} from './FishingTripDetails';
@@ -9,13 +10,9 @@ import {FishPortrait} from './FishPortrait';
 import {FishingScene} from './FishingScene';
 import './fishingAtlas.css';
 
-export function FishingSettings() {
-    const {enabled, loading, busy, error, toggle} = useFishingConfig();
-    return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-4"><div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Fish className="h-4 w-4 text-teal-600"/>居民钓鱼<DecisionProcessInfo kind="fishing"/></h3><p className="mt-2 text-xs leading-6 text-slate-500">由生活日程安排出钓，决策连接选择钓点、时长及最多三种鱼饵。居民沿用统一生活参与范围。</p></div><button type="button" role="switch" aria-checked={enabled} aria-label="启用居民钓鱼" disabled={loading || busy} onClick={() => void toggle()} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${enabled ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500'}`}>{loading ? '读取中' : busy ? '保存中' : enabled ? '已启用' : '未启用'}</button></div><p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-6 text-slate-500">普通钓竿默认装备。鱼饵需要居民先在市场购买，商店每小时随机供应一种，不限数量。每五分钟消耗一份鱼饵和两点体力。关闭能力会结束当前出钓并退回剩余鱼饵。</p>{error && <p role="alert" className="mt-3 text-xs text-red-600">{error}</p>}</section>;
-}
-
 export function FishingPanel({initialTripId = ''}: {initialTripId?: string}) {
     const state = useFishing(true, initialTripId);
+    const openTasks = useOpenTaskAllocation();
     const [now, setNow] = useState(Date.now);
     useEffect(() => {const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer);}, []);
     const {data} = state;
@@ -29,7 +26,7 @@ export function FishingPanel({initialTripId = ''}: {initialTripId?: string}) {
         {state.error && <div role="alert" className="flex shrink-0 items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600"><AlertCircle className="h-3.5 w-3.5 shrink-0"/><span className="flex-1">{state.error}</span><button type="button" className="font-medium" onClick={state.reload}>重试</button></div>}
         {state.loading && !data && <p role="status" className="py-12 text-center text-sm text-slate-400">正在读取水边见闻…</p>}
         {state.selected ? <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">{state.detail ? <FishingTripDetails trip={state.detail} loading={state.loading} onBack={() => state.choose('')} onPage={state.setEventPage}/> : <div className="py-8 text-center text-xs text-slate-400">{state.error ? '过程读取失败' : '正在读取出钓过程…'}<button type="button" className="ml-3 text-teal-700" onClick={() => state.choose('')}>返回列表</button></div>}</div> : data && <>
-            {!data.enabled && <p className="shrink-0 rounded-xl border border-amber-100 bg-amber-50 p-2.5 text-[11px] text-amber-700">钓鱼尚未启用，可在世界管理 → 钓鱼中开启。</p>}
+            {!data.enabled && <p className="shrink-0 rounded-xl border border-amber-100 bg-amber-50 p-2.5 text-[11px] text-amber-700">钓鱼尚未启用，可在任务分配 → 空档活动中开启。<button type="button" onClick={openTasks} className="ml-2 font-medium underline">前往任务分配</button></p>}
             <div className="grid min-h-0 flex-1 auto-rows-max gap-4 overflow-y-auto scrollbar-hide lg:auto-rows-auto lg:grid-cols-[244px_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[264px_minmax(0,1fr)]">
                 <section aria-label="居民钓鱼成长" className="order-2 flex min-h-0 flex-col lg:order-1">
                     <div className="mb-2 flex shrink-0 items-center gap-1.5"><Users className="h-3.5 w-3.5 text-teal-600"/><h3 className="text-xs font-bold text-slate-700">钓手档案</h3><span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] text-slate-400">{data.residents.length}</span></div>

@@ -1,5 +1,5 @@
-import {ChefHat, Coins, Check, AlertCircle} from 'lucide-react';
-import {ItemIconImage} from '../AgentWorld/ItemIconImage';
+import {Coins, Check, AlertCircle} from 'lucide-react';
+import {RecipePortrait} from './RecipePortrait';
 import type {CookingRecipe} from '../../types/api/cooking';
 import {recipeStateConfigs} from './recipePresentation';
 
@@ -40,11 +40,9 @@ export function RecipeCard({recipe, isSelected, onClick}: RecipeCardProps) {
                         : 'border-amber-100/70 bg-gradient-to-br from-amber-50/70 via-orange-50/30 to-amber-50/20'
                 }`}
             >
-                <ItemIconImage
-                    src={recipe.iconUrl}
-                    alt={recipe.name}
+                <RecipePortrait
+                    recipe={recipe}
                     className="h-full w-full object-cover rounded-lg"
-                    fallback={<ChefHat className="h-6 w-6 text-orange-300" />}
                 />
             </div>
 

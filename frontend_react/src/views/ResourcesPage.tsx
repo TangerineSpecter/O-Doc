@@ -574,6 +574,10 @@ export default function ResourcesPage() {
                                             <ImageIcon className="w-3 h-3 shrink-0" />
                                             <span className="truncate">{previewFile.sourceImage.title}</span>
                                         </button>
+                                    ) : previewFile.sourceQuant ? (
+                                        <button className="flex items-center gap-1 text-orange-600 truncate" onClick={() => navigate(`/quant/${previewFile.sourceQuant!.collId}/entries/${previewFile.sourceQuant!.id}`)}>
+                                            <FileCode className="w-3 h-3 shrink-0"/><span className="truncate">量化研究 · {previewFile.sourceQuant.title}</span>
+                                        </button>
                                     ) : previewFile.sourceBook ? (
                                         <span className="text-slate-600 truncate">书架 · {previewFile.sourceBook.title}</span>
                                     ) : previewFile.sourcePrompt ? (
@@ -899,6 +903,10 @@ export default function ResourcesPage() {
                                                     className="truncate group-hover/source:text-orange-600 group-hover/source:underline cursor-pointer transition-colors"
                                                     title={file.sourceImage.title}>{file.sourceImage.title}</span>
                                             </div>
+                                        ) : file.sourceQuant ? (
+                                            <button className="mt-1.5 pt-1.5 border-t border-slate-50 flex items-center gap-1 text-[10px] text-orange-600 truncate" onClick={(event) => {event.stopPropagation(); navigate(`/quant/${file.sourceQuant!.collId}/entries/${file.sourceQuant!.id}`);}}>
+                                                <FileCode className="w-3 h-3 shrink-0"/><span className="truncate">量化研究 · {file.sourceQuant.title}</span>
+                                            </button>
                                         ) : file.sourceBook ? (
                                             <div className="mt-1.5 pt-1.5 border-t border-slate-50 flex items-center gap-1 text-[10px] text-slate-400">
                                                 <BookOpen className="w-3 h-3 text-slate-300 shrink-0"/>

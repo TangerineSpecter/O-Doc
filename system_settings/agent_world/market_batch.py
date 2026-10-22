@@ -203,6 +203,16 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
                     result['done'].append(operation)
                 except Exception as exc:  # noqa: BLE001
                     result['failed'].append({'operation': operation, 'reason': str(exc)[:300]})
+        if actions.get('equipment'):
+            from .market_preparation_equipment import execute_actions
+            try:
+                equipment = execute_actions(owner, agent, session, plan, actions['equipment'], trade, now)
+                result['done'].extend(equipment['done'])
+                result['failed'].extend(equipment['failed'])
+                result['skipped'].extend(equipment['skipped'])
+                result['equipment_messages'] = equipment['messages']
+            except Exception as exc:  # noqa: BLE001 - 保留已成交事实及尚未执行意向
+                result['failed'].append({'operation': {'kind': 'preparation_equipment'}, 'reason': str(exc)[:300]})
         for operation in actions.get('goals', []):
             goal_id = operation.get('_goal', '')
             operation = {key: value for key, value in operation.items() if key != '_goal'}
@@ -226,7 +236,9 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
 def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None, agent=None) -> dict:
     """根据策略与目标生成可执行动作；不做模型调用。"""
     now = now or timezone.now()
-    actions = {'dispositions': [], 'goals': [], 'reprices': [], 'withdraws': []}
+    from .market_preparation_equipment import pending_actions
+    actions = {'dispositions': [], 'goals': [], 'reprices': [], 'withdraws': [],
+               'equipment': pending_actions(owner, agent_id)}
     from .market_plan_models import MarketDisposition
     for disposition in MarketDisposition.objects.filter(owner_id=owner, actor_id=agent_id, status='active'):
         state = surplus_plan(owner, agent_id, disposition.sku)

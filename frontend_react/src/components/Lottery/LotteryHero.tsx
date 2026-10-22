@@ -108,7 +108,7 @@ export function LotteryHero({round, config, onEnable, saving = false}: LotteryHe
                                 className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-orange-600 active:scale-95 disabled:opacity-50"
                             >
                                 <Sparkles className="h-3.5 w-3.5"/>
-                                {saving ? '正在启用…' : '立即启用大乐透'}
+                                {saving ? '处理中…' : '前往任务分配'}
                             </button>
                         )}
                     </>
@@ -191,7 +191,10 @@ export function LotteryHero({round, config, onEnable, saving = false}: LotteryHe
                 <div className="lottery-countdown" aria-label="开奖倒计时">
                     {countdown.map(({value, unit}) => (
                         <div key={unit} className="lottery-countdown-part">
-                            <span>{String(value).padStart(2, '0')}</span>
+                            <div className="lottery-flip-card">
+                                <span className="lottery-flip-num">{String(value).padStart(2, '0')}</span>
+                                <i className="lottery-flip-seam" aria-hidden="true"/>
+                            </div>
                             <small>{unit}</small>
                         </div>
                     ))}

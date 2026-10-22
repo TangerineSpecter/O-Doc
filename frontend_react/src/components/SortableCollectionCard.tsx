@@ -1,6 +1,7 @@
 import React from 'react';
 import {
     Bot,
+    ChartNoAxesCombined,
     ChevronDown,
     Database,
     Edit,
@@ -67,9 +68,10 @@ export const SortableCollectionCard = ({
     const isBookCollection = item.type === 'book';
     const isImageCollection = item.type === 'image';
     const isLearningCollection = item.type === 'learning';
+    const isQuantCollection = item.type === 'quant';
     const isNovelCollection = item.type === 'novel';
-    const navigateTarget = isNovelCollection ? 'novel' : isLearningCollection ? 'learning' : isAgentCollection ? 'article' : isImageCollection ? 'image' : isBookCollection ? 'book' : 'article';
-    const countTitle = isNovelCollection ? `${item.count} 章` : isLearningCollection ? `${item.count} 份已完成练习` : isAgentCollection ? `${item.count} 条帖子` : isImageCollection ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
+    const navigateTarget = isQuantCollection ? 'quant' : isNovelCollection ? 'novel' : isLearningCollection ? 'learning' : isAgentCollection ? 'article' : isImageCollection ? 'image' : isBookCollection ? 'book' : 'article';
+    const countTitle = isQuantCollection ? `${item.count} 条研究` : isNovelCollection ? `${item.count} 章` : isLearningCollection ? `${item.count} 份已完成练习` : isAgentCollection ? `${item.count} 条帖子` : isImageCollection ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
     const bookPreviews = isBookCollection ? (item.articles || []).slice(0, 12) : [];
     const imagePreviews = isImageCollection ? (item.articles || []).slice(0, 12) : [];
     const renderAgentAvatar = (avatar?: string, name?: string) => {
@@ -249,6 +251,12 @@ export const SortableCollectionCard = ({
                             <Smile className="w-4 h-4 text-slate-300" />
                         </div>
                         <span className="text-[10px]">(^_^) 嘻嘻，啥也看不到嗷～</span>
+                    </button>
+                ) : isQuantCollection ? (
+                    <button onClick={() => onNavigate('quant', {collId: item.collId})} className="h-full w-full rounded-xl p-3 text-left hover:bg-orange-50 whitespace-nowrap shrink-0">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-orange-600"><ChartNoAxesCombined className="h-3.5 w-3.5 shrink-0"/>量化文集</p>
+                        <p className="mt-2 text-sm text-slate-600">{item.count} 条研究 · 代码与回测归档</p>
+                        <p className="mt-1 text-xs text-slate-400">{item.updatedAt ? `最近更新 ${new Date(item.updatedAt).toLocaleDateString('zh-CN')}` : '从一条因子逻辑开始积累 →'}</p>
                     </button>
                 ) : isNovelCollection ? (
                     <button onClick={() => onNavigate('novel', {collId: item.collId})} className="h-full w-full rounded-xl p-4 text-left hover:bg-orange-50"><p className="text-xs font-semibold text-orange-600">小说文集</p><p className="mt-2 text-sm text-slate-600">{item.canManage ? `${item.count} 章 · 采用 ${item.adoptedCount || 0} · 发布 ${item.publishedCount || 0}` : `${item.count} 章 · 开始阅读 →`}</p><p className="mt-2 text-xs text-slate-400 line-clamp-2">{item.articles.map(a => a.title).join(' · ')}</p></button>

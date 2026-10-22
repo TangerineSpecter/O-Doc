@@ -1,0 +1,943 @@
+/* ==========================================================================
+   武道大会 · 晋级之路 (Tournament Tree Bracket) 现代武道竞技风格
+   遵从小橘文档 UI 设计规范：温暖橘色主调、清爽 Slate 质感、精致阴影与平滑贝塞尔导流
+   ========================================================================== */
+
+.tournament-arena {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.05);
+    color: #334155;
+}
+
+/* 顶部标题与工具栏 */
+.tournament-arena-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+}
+
+.tournament-arena-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tournament-arena-title-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border: 1px solid #fed7aa;
+    color: #ea580c;
+}
+
+.tournament-arena-header h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+}
+
+.tournament-subtitle {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.tournament-arena-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #475569;
+    white-space: nowrap;
+}
+
+/* 状态药丸徽章 */
+.tournament-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+.tournament-status-badge.is-live {
+    background: #fff7ed;
+    color: #c2410c;
+    border-color: #ffedd5;
+}
+
+.tournament-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #64748b;
+}
+
+.tournament-status-badge.is-live .tournament-live-dot {
+    background: #ea580c;
+    box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.2);
+    animation: tournament-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes tournament-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* 选手追踪选择器 */
+.tournament-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    font-size: 12px;
+    color: #334155;
+    transition: all 0.2s;
+}
+
+.tournament-picker:hover {
+    border-color: #fb923c;
+    box-shadow: 0 2px 8px -2px rgba(249, 115, 22, 0.12);
+}
+
+.tournament-picker-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.tournament-picker select {
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 500;
+    color: #0f172a;
+    outline: none;
+    cursor: pointer;
+    padding-right: 4px;
+}
+
+/* 操作按钮 */
+.tournament-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    color: #334155;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease-out;
+}
+
+.tournament-action-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.tournament-action-btn.is-active {
+    background: #fff7ed;
+    border-color: #fdba74;
+    color: #c2410c;
+    font-weight: 600;
+}
+
+/* 画布滚动容器 */
+.tournament-tree-scroll {
+    overflow-x: auto;
+    position: relative;
+    padding: 20px 24px;
+    background:
+        radial-gradient(ellipse 600px 300px at 50% 50%, rgba(254, 243, 199, 0.25) 0%, transparent 70%),
+        radial-gradient(#e2e8f0 1px, transparent 1px);
+    background-size: 100% 100%, 24px 24px;
+    cursor: grab;
+    user-select: none;
+    transition: padding 0.2s ease;
+}
+
+.tournament-tree-scroll:active {
+    cursor: grabbing;
+}
+
+/* 一屏整屏全览模式：消除横向滚动条，内容完美自适应 */
+.tournament-tree-scroll.is-fit {
+    overflow-x: hidden;
+    cursor: default;
+    padding: 16px 12px;
+}
+
+.tournament-tree-canvas {
+    position: relative;
+    margin: 0 auto;
+    transition: width 0.15s ease-out;
+}
+
+/* SVG 连线系统 */
+.tournament-tree-lines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.tournament-connector-bg {
+    fill: none;
+    stroke: #e2e8f0;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    transition: stroke 0.2s ease;
+}
+
+.tournament-connector-winner {
+    fill: none;
+    stroke: #fbbf24;
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.75;
+    transition: all 0.2s ease;
+}
+
+.tournament-connector-highlight {
+    fill: none;
+    stroke: #ea580c;
+    stroke-width: 2.8;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 6px rgba(234, 88, 12, 0.45));
+    opacity: 1;
+    transition: all 0.2s ease;
+}
+
+/* 轮次里程碑徽章 */
+.tournament-round-heading {
+    position: absolute;
+    top: 14px;
+    transform: translateX(-50%);
+    text-align: center;
+    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+}
+
+.tournament-round-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.tournament-round-pill-number {
+    font-size: 10px;
+    font-weight: 700;
+    color: #ea580c;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.tournament-round-pill-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.tournament-round-guide-dot {
+    width: 3px;
+    height: 12px;
+    background: linear-gradient(180deg, #cbd5e1 0%, transparent 100%);
+    margin-top: 4px;
+    border-radius: 2px;
+}
+
+/* 中央冠军殿堂 (Champion Sanctum) */
+.tournament-champion {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 12px 18px;
+    border-radius: 20px;
+    background: radial-gradient(circle at 50% 40%, #fffbf5 0%, #ffffff 75%);
+    border: 1px solid #fde68a;
+    box-shadow:
+        0 10px 30px -6px rgba(245, 158, 11, 0.18),
+        0 0 0 1px rgba(251, 191, 36, 0.15);
+    z-index: 10;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    cursor: pointer;
+}
+
+.tournament-champion:hover {
+    transform: translateX(-50%) translateY(-2px);
+    box-shadow:
+        0 14px 36px -6px rgba(245, 158, 11, 0.28),
+        0 0 0 1px rgba(251, 191, 36, 0.3);
+}
+
+.tournament-champion-halo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.2) 0%, rgba(249, 115, 22, 0.05) 50%, transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+    filter: blur(12px);
+    z-index: -1;
+}
+
+.tournament-champion-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #fcd34d;
+    font-size: 11px;
+    font-weight: 700;
+    color: #92400e;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 3px rgba(180, 83, 9, 0.1);
+}
+
+.tournament-trophy-wrap {
+    position: relative;
+    margin: 6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tournament-trophy {
+    width: 92px;
+    height: 104px;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 12px rgba(217, 119, 6, 0.28));
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tournament-champion:hover .tournament-trophy {
+    transform: scale(1.06);
+}
+
+.tournament-champion-name {
+    display: block;
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 18px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #b45309 0%, #ea580c 50%, #92400e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.01em;
+}
+
+.tournament-champion-subtitle {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+/* 决赛卡片上方标签 */
+.tournament-final-label {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+    border: 1px solid #fdba74;
+    font-size: 11px;
+    font-weight: 700;
+    color: #c2410c;
+    box-shadow: 0 2px 6px -1px rgba(234, 88, 12, 0.12);
+    z-index: 5;
+    pointer-events: none;
+}
+
+/* 节点容器 */
+.tournament-node {
+    position: absolute;
+    height: 60px;
+    z-index: 2;
+}
+
+/* 对决卡片 (Match Duel Card) */
+.tournament-duel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 60px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.05);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tournament-duel:disabled {
+    cursor: default;
+}
+
+.tournament-duel:not(:disabled):hover {
+    border-color: #fb923c;
+    box-shadow: 0 6px 16px -3px rgba(234, 88, 12, 0.18);
+    transform: translateY(-1.5px);
+}
+
+.tournament-duel:focus-visible {
+    outline: 2px solid #ea580c;
+    outline-offset: 2px;
+}
+
+/* 决赛特别版卡片 */
+.tournament-duel.is-final {
+    border: 2px solid #f59e0b;
+    box-shadow:
+        0 6px 20px -2px rgba(245, 158, 11, 0.22),
+        0 0 0 1px rgba(251, 191, 36, 0.2);
+    background: linear-gradient(180deg, #ffffff 0%, #fffdfa 100%);
+}
+
+.tournament-duel.is-final:not(:disabled):hover {
+    border-color: #ea580c;
+    box-shadow:
+        0 8px 24px -2px rgba(234, 88, 12, 0.3),
+        0 0 0 1px rgba(234, 88, 12, 0.25);
+}
+
+/* 选手条目 */
+.tournament-contender {
+    flex: 1;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 9px;
+    font-size: 12px;
+    color: #475569;
+    background: #ffffff;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.tournament-contender + .tournament-contender {
+    border-top: 1px solid #f1f5f9;
+}
+
+/* 微型首字头像徽标 */
+.tournament-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    flex-shrink: 0;
+    border: 1px solid #e2e8f0;
+}
+
+.tournament-contender-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 500;
+    color: #334155;
+}
+
+/* 胜者高亮 */
+.tournament-contender.is-winner {
+    background: linear-gradient(90deg, rgba(254, 243, 199, 0.6) 0%, rgba(255, 237, 213, 0.3) 60%, transparent 100%);
+}
+
+.tournament-contender.is-winner .tournament-avatar {
+    background: linear-gradient(135deg, #fbbf24 0%, #ea580c 100%);
+    color: #ffffff;
+    border-color: #f59e0b;
+    box-shadow: 0 1px 3px rgba(234, 88, 12, 0.2);
+}
+
+.tournament-contender.is-winner .tournament-contender-name {
+    color: #78350f;
+    font-weight: 700;
+}
+
+.tournament-contender.is-winner svg {
+    color: #d97706;
+    fill: #f59e0b;
+    flex-shrink: 0;
+}
+
+/* 悬停活跃高亮 */
+.tournament-contender.is-active {
+    background: #ffedd5 !important;
+}
+
+.tournament-contender.is-active .tournament-contender-name {
+    color: #9a3412 !important;
+}
+
+/* 败者与轮空样式 */
+.tournament-contender.is-loser {
+    opacity: 0.65;
+}
+
+.tournament-contender.is-bye {
+    font-style: italic;
+    color: #94a3b8;
+}
+
+.tournament-contender-mark {
+    font-size: 11px;
+    color: #cbd5e1;
+    flex-shrink: 0;
+}
+
+.tournament-bye-tag {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 500;
+    font-style: normal;
+}
+
+/* 底部图例栏 */
+.tournament-arena-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 24px;
+    border-top: 1px solid #f1f5f9;
+    background: #fafafa;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.tournament-arena-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.tournament-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tournament-legend-line {
+    display: inline-block;
+    width: 18px;
+    height: 2.5px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #f59e0b, #ea580c);
+    box-shadow: 0 0 4px rgba(234, 88, 12, 0.4);
+}
+
+.tournament-legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #e2e8f0;
+}
+
+/* 季军赛卡片 */
+.tournament-bronze-bar {
+    padding: 10px 24px;
+    background: linear-gradient(90deg, #fffbeb 0%, #fff7ed 100%);
+    border-top: 1px dashed #fed7aa;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.tournament-bronze-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(180, 83, 9, 0.08);
+    transition: all 0.15s;
+}
+
+.tournament-bronze-btn:hover {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #78350f;
+    box-shadow: 0 3px 8px -1px rgba(180, 83, 9, 0.18);
+}
+
+.tournament-bronze-desc {
+    font-size: 11px;
+    color: #b45309;
+}
+
+.tournament-empty {
+    position: absolute;
+    bottom: 30px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   赛程与轮次列表部分 (Tournament Schedule / List)
+   ========================================================================== */
+.tournament-workspace {
+    background: #f8fafc;
+    border-radius: 20px;
+    padding: 10px;
+    border: 1px solid #f1f5f9;
+}
+
+.tournament-workspace-toolbar {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 12px 10px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.tournament-view-toggle {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 9999px;
+    background: #e2e8f0;
+}
+
+.tournament-view-toggle button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748b;
+    transition: all 0.15s;
+}
+
+.tournament-view-toggle button[aria-pressed=true] {
+    background: #ffffff;
+    color: #c2410c;
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.tournament-schedule {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 12px;
+}
+
+.tournament-round-nav {
+    padding: 12px 6px;
+}
+
+.tournament-round-nav h3 {
+    margin: 0 12px 12px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tournament-round-nav button {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    text-align: left;
+    font-size: 13px;
+    color: #475569;
+    margin-bottom: 3px;
+    transition: all 0.15s;
+}
+
+.tournament-round-nav button:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.tournament-round-nav button span {
+    white-space: nowrap;
+    font-size: 11px;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+.tournament-round-nav button[aria-pressed=true] {
+    background: #ffffff;
+    font-weight: 700;
+    color: #c2410c;
+    box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.05);
+    border-left: 3px solid #ea580c;
+}
+
+.tournament-round-nav button[aria-pressed=true] span {
+    color: #ea580c;
+}
+
+.tournament-list {
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #ffffff;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.tournament-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    background: #fafafa;
+}
+
+.tournament-list-header h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
+    color: #0f172a;
+}
+
+.tournament-list-header p {
+    font-size: 12px;
+    color: #64748b;
+    margin: 4px 0 0;
+}
+
+.tournament-list-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    white-space: nowrap;
+}
+
+.tournament-match-rows {
+    max-height: 520px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+}
+
+.tournament-match-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    text-align: left;
+    min-height: 72px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+    background: #ffffff;
+    transition: background-color 0.15s;
+}
+
+.tournament-match-row:nth-child(odd) {
+    border-right: 1px solid #f1f5f9;
+}
+
+.tournament-match-row:not(:disabled):hover {
+    background: #f8fafc;
+}
+
+.tournament-match-row:focus-visible {
+    outline: 2px solid #ea580c;
+    outline-offset: -3px;
+}
+
+.tournament-match-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #64748b;
+}
+
+.tournament-match-pair {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    min-width: 0;
+}
+
+.tournament-match-person {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    max-width: 44%;
+}
+
+.tournament-match-person > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tournament-match-person.is-winner {
+    color: #9a3412;
+    font-weight: 700;
+}
+
+.tournament-match-person svg {
+    flex-shrink: 0;
+    color: #f59e0b;
+    fill: #f59e0b;
+}
+
+.tournament-match-versus {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.tournament-match-result {
+    display: block;
+    margin-top: 5px;
+    font-size: 11px;
+    color: #64748b;
+}
+
+.tournament-preliminary {
+    margin-top: 10px;
+    padding: 12px 18px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    color: #475569;
+    font-size: 12px;
+}
+
+.tournament-preliminary summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+    .tournament-match-rows {
+        grid-template-columns: 1fr;
+    }
+    .tournament-match-row:nth-child(odd) {
+        border-right: 0;
+    }
+    .tournament-schedule {
+        grid-template-columns: 170px minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .tournament-arena-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+    }
+    .tournament-arena-actions {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    .tournament-tree-scroll {
+        padding: 12px 10px;
+    }
+    .tournament-arena-footer {
+        padding: 12px 16px;
+    }
+}

@@ -81,3 +81,55 @@ test('tournament 80-participant bracket data structure and rules', () => {
         }
     }
 });
+
+
+test('advancement layout preserves actual identities and keeps branches on their side', async () => {
+    const {layoutTournamentTree, CARD_HEIGHT} = await import('./tournamentTreeLayout');
+    for (const limit of [32, 64]) {
+        const rounds = currentTournament.rounds.filter(r => r.phase !== 'preliminary' && r.entrantCount <= limit);
+        const {nodes, edges, height} = layoutTournamentTree(rounds);
+        assert.equal(nodes.length, rounds.reduce((sum, r) => sum + r.matches.filter(m => m.kind === 'main').length, 0));
+        for (const {source, target, actorId} of edges) {
+            assert.ok([target.match.leftId, target.match.rightId].includes(actorId));
+            assert.equal(source.match.result.winnerId, actorId);
+            if (target.side !== 'center') assert.equal(source.side, target.side);
+        }
+        for (const node of nodes) {
+            assert.ok(node.y >= 0 && node.y + CARD_HEIGHT <= height);
+            for (const other of nodes) {
+                if (other !== node && other.round === node.round && other.side === node.side) {
+                    assert.ok(Math.abs(other.y - node.y) >= CARD_HEIGHT);
+                }
+            }
+        }
+    }
+    assert.equal(layoutTournamentTree([]).nodes.length, 0);
+});
+
+test('automatic tree layout keeps cards separate and only fits when there is enough room', async () => {
+    const {layoutTournamentTree} = await import('./tournamentTreeLayout');
+    for (const limit of [32, 64]) {
+        const rounds = currentTournament.rounds.filter(r => r.phase !== 'preliminary' && r.entrantCount <= limit);
+        for (const targetWidth of [800, 860, 1000, 1140, 1440]) {
+            const layout = layoutTournamentTree(rounds, {targetWidth, fitMode: 'fit'});
+            const {nodes, cardWidth, cardHeight, finalWidth} = layout;
+            if (layout.isFit) {
+                assert.ok(layout.width <= targetWidth);
+                assert.ok(layout.stepX >= cardWidth + 16);
+            }
+            for (const [index, node] of nodes.entries()) {
+                const nodeWidth = node.side === 'center' ? finalWidth : cardWidth;
+                for (const other of nodes.slice(index + 1)) {
+                    const otherWidth = other.side === 'center' ? finalWidth : cardWidth;
+                    const overlapX = Math.min(node.x + nodeWidth, other.x + otherWidth) - Math.max(node.x, other.x);
+                    const overlapY = Math.min(node.y + cardHeight, other.y + cardHeight) - Math.max(node.y, other.y);
+                    assert.ok(overlapX <= 0 || overlapY <= 0,
+                        `${limit} entrants at ${targetWidth}px: ${node.match.id} overlaps ${other.match.id}`);
+                }
+            }
+        }
+        assert.equal(layoutTournamentTree(rounds, {targetWidth: 860}).isFit, false);
+        assert.equal(layoutTournamentTree(rounds, {targetWidth: 1440}).isFit, true);
+        assert.equal(layoutTournamentTree(rounds, {targetWidth: 1440, fitMode: 'expanded'}).isFit, false);
+    }
+});

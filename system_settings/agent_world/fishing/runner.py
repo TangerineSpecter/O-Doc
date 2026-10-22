@@ -65,6 +65,12 @@ def cast(identity: str, *, now=None, rng=None) -> None:
         finish(identity, '鱼饵用尽或当前时间没有适用鱼种')
         return
     agent = Agent.objects.select_for_update().get(pk=trip.actor_id)
+    from ..life_commitments import require_energy, ResourceProtected
+    try:
+        require_energy(trip.owner_id, agent, trip.rules['energy_cost'], item_id=trip.life_item_id, now=at)
+    except ResourceProtected:
+        finish(trip.pk, '系统说明：本次垂钓结束，为后续日程保留体力')
+        return
     if stamina(agent, storage_time(at)) < trip.rules['energy_cost']:
         finish(identity, '体力不足，结束垂钓')
         return
@@ -150,7 +156,11 @@ def defer(identity: str, message: str) -> None:
         return
     count = trip.state.get('failures', 0) + 1
     trip.state.update(failures=count, error=message[:300])
-    if count >= 3:
+    from ..life_models import LifeItem
+    from ..life_activities import is_interleaved
+    item = LifeItem.objects.filter(pk=trip.life_item_id).first()
+    idle = item and is_interleaved(item)
+    if count >= 3 and not idle:
         trip.status = 'paused'
-    trip.next_tick_at = local_time() + timedelta(minutes=1 if count == 1 else 5)
+    trip.next_tick_at = local_time() + timedelta(minutes=min(60, 5 * 2 ** min(count - 1, 4)) if idle else 1 if count == 1 else 5)
     trip.save()

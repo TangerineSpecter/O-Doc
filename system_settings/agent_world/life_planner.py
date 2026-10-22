@@ -279,15 +279,4 @@ def _plan_items(config, agent, items: list[LifeItem], *, preserve_activities: bo
     else:
         from .life_daily_planner import plan_days
         selected = plan_days(config, agent, items, apply=apply_plan, ask=ask, ask_detail=ask_detail)
-    if any(row['activity'] != 'rest' for row in selected) and not preserve_activities:
-        goals = list(LifeGoal.objects.filter(owner_id=config.pk, actor_id=agent.pk, status='active')
-                     .values('id', 'title', 'condition', 'progress')[:20])
-        if goals:
-            from system_settings.models import AgentRunRecord
-            experiences = list(AgentRunRecord.objects.filter(agent_id=agent.pk).order_by('-created_at')
-                               .values('id', 'task_name', 'status', 'summary')[:8])
-            response = ask(agent, '只更新已提供的生活目标，不安排活动。返回 {"goal_updates":[]}；'
-                           '完成目标须引用真实evidence_record_id；允许放弃失效目标并说明原因。',
-                           {'goals': goals, 'recent_experiences': experiences})
-            apply_plan(config.pk, agent, [], {'plans': [], 'goal_updates': response.get('goal_updates', [])})
     check_goals(config.pk,agent)

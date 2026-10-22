@@ -24,6 +24,7 @@ class Asset(models.Model):
         ('prompt', '提示词效果'),
         ('item_icon', '物品图标'),
         ('agent_art', 'Agent 战斗形象'),
+        ('quant', '量化研究'),
         ('other', '其他'),
     ]
 

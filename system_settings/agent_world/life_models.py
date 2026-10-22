@@ -100,3 +100,16 @@ class LifeIntegrity(models.Model):
     id = models.CharField(primary_key=True, max_length=40)
     hashes = models.JSONField(default=dict)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class LifeInterleavingState(LifeTimedModel):
+    """One synchronized checkpoint per resident; execution permission stays local."""
+    id = models.CharField(primary_key=True, max_length=40)  # actor
+    owner_id = models.CharField(max_length=40, db_index=True)
+    phase = models.CharField(max_length=16, default='idle')
+    next_check_at = models.DateTimeField(default=timezone.now, db_index=True)
+    next_decision_at = models.DateTimeField(default=timezone.now)
+    last_decision_at = models.DateTimeField(null=True)
+    item = models.ForeignKey(LifeItem, null=True, on_delete=models.PROTECT)
+    checkpoint = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)

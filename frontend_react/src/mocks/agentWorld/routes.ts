@@ -1,9 +1,14 @@
-import {residents, professions, activities, graph, feed, lifeConfig, lifeItems, goals, ledger, now, day, at} from './residents';
+import type {AgentTaskConfig} from '../../types/api/setting';
+import type {LotteryConfig} from '../../types/api/lottery';
+import {blacksmithActivities, blacksmithFacts, blacksmithLifeItems, resolveBlacksmithRoute, runMockBlacksmith} from './blacksmith';
+import {observationRoute, observationRequests, observationMetrics, observationFacts, addBlacksmithObservation} from './tokenUsage';
+import {residents, professions, activities, graph, feed, lifeConfig, lifeItems, goals, ledger, day, at} from './residents';
 import {farms, farmRules, farmHistory, inventory, cooking, alchemy, itemCatalog, shop, listings, transactions, sessions, marketPlans} from './production';
 import {combatCatalog, combatProfiles, exploration, journey, fishingCatalog, fishingOverview, fishingTrip, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
-import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, tokenSummary, tokenRequests, worldPosts} from './social';
+import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, worldPosts} from './social';
 import type {LifeItem} from '../../types/api/agentLife';
 import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentReports} from './tournament';
+import {resolveItemIconRoute} from './itemIcons';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -16,8 +21,12 @@ const page = <T,>(items: T[], url: URL) => {
 const actor = (url: URL) => url.searchParams.get('actor_id') || url.searchParams.get('actorId') || url.searchParams.get('agentId') || url.searchParams.get('agent') || url.searchParams.get('seller_id') || '';
 const forActor = <T extends {actorId?: string; agentId?: string}>(rows: T[], url: URL) => rows.filter(r => !actor(url) || (r.actorId || r.agentId) === actor(url));
 const resource = new Map<string, unknown>();
+lifeItems.push(...blacksmithLifeItems);
 for (const item of lifeItems) {
-    item.context = {dailyChoice: {time: at(7), plan: {id: `choice-${item.id}`, activity: item.activity, reason: '结合当前体力、库存和生活偏好安排今天的行动。', offeredActivities: ['farm', 'cooking', 'alchemy', 'exploration', 'travel']}}};
+    if (item.source === 'interleaved') item.activityUsage = {requests: 4, inputTokens: 860, outputTokens: 32, totalTokens: 892, usageComplete: true};
+    if (item.activity === 'fishing') item.domainDetail = {kind: 'fishing', id: fishingTrip.id};
+    if (item.activity === 'exploration') item.domainDetail = {kind: 'exploration', id: exploration.id};
+    item.context = {...item.context, dailyChoice: {time: at(7), plan: {id: `choice-${item.id}`, activity: item.activity, reason: '结合当前体力、库存和生活偏好安排今天的行动。', offeredActivities: ['farm', 'cooking', 'alchemy', 'blacksmith', 'exploration', 'travel']}}};
     if (item.activity === 'cooking') {
         const recipe = cooking.recipes[4];
         item.context.cookingPlan = {version: 1, entries: [{recipeId: recipe.id, quantity: 3, ingredientStrategy: 'low_stars_first', rule: recipe}], materials: recipe.ingredients};
@@ -32,10 +41,11 @@ for (const item of lifeItems) {
 const categories = [{id: 'local-category', name: '生活观察', description: '记录居民生活与探索', sort: 1, enabled: true, workflowKind: 'general'},
     {id: 'local-travel-category', name: '旅行手记', description: '旅行中的见闻', sort: 2, enabled: true, workflowKind: 'travel'}];
 const providers = [{id: 'local-provider', name: '本地样例（不发起模型请求）', type: 'OpenAi', baseUrl: '', apiKey: '', models: [{id: 'local-model', name: '本地样例模型', type: 'chat'}]}];
-const tasks = ['farm', 'market', 'cooking', 'alchemy', 'exploration', 'travel', 'fishing', 'lottery', 'publish'].map(activity => ({id: `local-task-${activity}`,
-    name: `${activity} · 本地样例`, agent: residents[0].id, agentName: residents[0].name, agents: residents.map(r => r.id), agentNames: residents.map(r => r.name),
+const activityNames: Record<string, string> = {farm: '农场经营', market: '市场交易', cooking: '美食制作', alchemy: '炼金制作', blacksmith: '铁匠铺打造', exploration: '迷宫探索', travel: '旅行', fishing: '居民钓鱼', lottery: '大乐透', publish: '自主发帖', post_interaction: '阅读评论', investment: '模拟投资'};
+const tasks: AgentTaskConfig[] = (['farm', 'market', 'cooking', 'alchemy', 'blacksmith', 'exploration', 'travel', 'fishing', 'lottery', 'publish', 'post_interaction', 'investment'] as const).map(activity => ({id: `local-task-${activity}`,
+    name: activityNames[activity], agent: residents[0].id, agentName: residents[0].name, agents: residents.map(r => r.id), agentNames: residents.map(r => r.name),
     taskKind: activity === 'publish' ? 'post_publish' : activity, executionMode: 'serial', trigger: 'scheduled', schedule: '每日', scheduleType: 'daily', scheduleMode: 'fixed', scheduleTime: '10:00', scheduleWeekday: '1', scheduleMonthDay: '1', intervalMinutes: 60,
-    enabled: true, prompt: '本地样例任务，不调用模型', notifyEnabled: false, notifyPlatform: 'none', notifyWebhookUrl: '', followupEnabled: false, followupAgent: null, followupAction: 'none', followupPrompt: '',
+    enabled: activity !== 'blacksmith', prompt: '本地样例任务，不调用模型', notifyEnabled: false, notifyPlatform: 'feishu', notifyWebhookUrl: '', followupEnabled: false, followupAgent: null, followupAction: 'review', followupPrompt: '',
     travelConfig: {collectionId: 'local-world', categoryId: 'local-category', searchServerId: '', nodeMinutes: 1, recentCities: 3, energyCost: 20, photoEnabled: false}}));
 const run = {id: 'local-run', task: tasks[0].id, taskName: '农场经营', agent: residents[0].id, agentName: residents[0].name,
     trigger: 'scheduled', status: 'success', startedAt: at(10), duration: '18s', summary: '已收获草莓、完成补种并更新市场规划。',
@@ -72,14 +82,18 @@ function schedule(url: URL) {
     const end = url.searchParams.get('end')?.slice(0, 10) || day;
     let rows = forActor(lifeItems, url).filter(i => !url.searchParams.get('status') || i.status === url.searchParams.get('status'));
     if (!(start <= day && day <= end)) rows = rows.map(i => ({...i, scheduledAt: `${start}${i.scheduledAt.slice(10)}`, originalAt: `${start}${i.originalAt.slice(10)}`}));
-    const result = page(rows, url);
+    const result = {...page(rows, url), counts: {main: list(rows).filter(i => i.source !== 'interleaved' && !['market', 'market_prepare'].includes(i.activity)).length, interleaved: list(rows).filter(i => i.source === 'interleaved').length}};
     return url.searchParams.get('view') === 'week' ? {...result, items: list(rows), total: list(rows).length} : result;
 }
 
 export async function resolveLocalRoute(request: Request): Promise<unknown> {
     const url = new URL(request.url), path = url.pathname;
+    const iconResult = await resolveItemIconRoute(request.clone(), emptyScenario());
+    if (iconResult !== undefined) return iconResult;
+    const blacksmithResult = await resolveBlacksmithRoute(request.clone(), emptyScenario());
+    if (blacksmithResult !== undefined) return blacksmithResult;
     if (request.method === 'GET' && path.startsWith(`${base}/tournaments/`)) {
-        if (path === `${base}/tournaments/current/`) return {...tournamentOverview, event: emptyScenario() ? null : tournamentOverview.event};
+        if (path === `${base}/tournaments/current/`) return {...tournamentOverview, autoEnabled: (resource.get('/api/settings/agent-tasks/world_runner/') as {enabled: boolean} | undefined)?.enabled ?? false, event: emptyScenario() ? null : tournamentOverview.event};
         if (path === `${base}/tournaments/`) return page(tournamentHistory, url);
         const route = path.slice(`${base}/tournaments/`.length).split('/').filter(Boolean).map(decodeURIComponent);
         const event = tournamentEvents.find(row => row.id === route[0]);
@@ -91,6 +105,12 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     }
     const writing = !['GET', 'HEAD'].includes(request.method);
     const body: Record<string, unknown> = writing && request.headers.get('content-type')?.includes('json') ? await request.json() as Record<string, unknown> : {};
+    if (path === `${base}/lottery/current/`) return {...lottery, config: (resource.get(`${base}/lottery/config/`) as LotteryConfig | undefined) ?? lottery.config};
+    if (path === '/api/settings/agent-tasks/') {
+        if (!writing) return list(tasks);
+        const row = {...tasks[0], ...body, id: `local-task-${String(body.taskKind || Date.now())}`} as AgentTaskConfig;
+        tasks.push(row); return row;
+    }
     if (path === '/api/settings/agents/') {
         if (writing) {const row = {...residents[0], ...body, id: String(body.id || `local-resident-${residents.length + 1}`)}; residents.push(row); return row;}
         return list(residents.filter(r => url.searchParams.get('status') === 'all' || (url.searchParams.get('status') === 'archived' ? r.archived : !r.archived)));
@@ -115,10 +135,10 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === '/api/settings/agent-activities/') return {items: list(activities.filter(r => !actor(url) || r.agent.id === actor(url))), nextCursor: null, hasMore: false};
     if (path === '/api/settings/agent-relations/') return emptyScenario() ? {nodes: [], edges: []} : graph;
     if (path === `${base}/daily-feed/`) {
-        const rows = list(feed), category = url.searchParams.get('category') || 'all';
+        const rows = list([...feed, ...observationFacts, ...blacksmithFacts]).filter(r => !url.searchParams.get('date') || new Date(r.occurredAt).toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'}) === url.searchParams.get('date')), category = url.searchParams.get('category') || 'all';
         const selected = forActor(rows, url).filter(r => category === 'all' || r.category === category);
         const offset = Number(url.searchParams.get('cursor')) || 0, size = Number(url.searchParams.get('page_size')) || 20;
-        return {date: day, items: selected.slice(offset, offset + size), total: selected.length, allTotal: rows.length,
+        return {date: url.searchParams.get('date') || day, items: selected.slice(offset, offset + size), total: selected.length, allTotal: rows.length,
             hasMore: offset + size < selected.length, nextCursor: offset + size < selected.length ? String(offset + size) : null,
             counts: Object.fromEntries([...new Set(rows.map(r => r.category))].map(c => [c, rows.filter(r => r.category === c).length])),
             actorCounts: Object.fromEntries(residents.map(r => [r.id, rows.filter(f => f.actorId === r.id).length]))};
@@ -126,8 +146,6 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === `${base}/ledger/`) return list(forActor(ledger, url));
     if (path === `${base}/inventory/`) return list(forActor(inventory, url));
     if (path === `${base}/item-catalog/`) return list(itemCatalog);
-    if (path === `${base}/item-icons/`) {const result = page(itemCatalog.filter(i => i.iconUrl).map(i => ({id: i.sku, name: i.name, url: i.iconUrl, size: 2048, width: 64, height: 64, usageCount: 1, recommended: true, fileExists: true})), url); return {...result, list: result.items};}
-    if (path.includes('/item-catalog/') && path.endsWith('/icon/')) return {sku: path.split('/').slice(-3)[0], iconAssetId: body.assetId, updatedCount: 1};
     if (path === `${base}/inventory/manage/`) {const result = page(forActor(inventory, url), url); return {...result, list: result.items, agents: residents};}
     if (path.includes('/farm-catalog/crops/')) {const kind = path.split('/').slice(-2)[0] as keyof typeof farmRules.crops; if (writing) Object.assign(farmRules.crops[kind], body); return farmRules.crops[kind];}
     if (path === `${base}/life/goals/`) return url.searchParams.has('options') ? {destinations: [journey.snapshot.selected], items: itemCatalog} : list(forActor(goals, url));
@@ -177,10 +195,10 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     }
     if (path === `${base}/social/discussions/`) return {items: list([theatre]), nextCursor: null};
     if (path.startsWith(`${base}/social/discussions/`)) return writing ? {event: theatre} : theatre;
-    if (path === `${base}/fishing/`) return {...fishingOverview, ...page(fishingOverview.items, url), residents: list(fishingOverview.residents)};
+    if (path === `${base}/fishing/`) return {...fishingOverview, enabled: (resource.get(`${base}/fishing/config/`) as {enabled: boolean} | undefined)?.enabled ?? fishingOverview.enabled, ...page(fishingOverview.items, url), residents: list(fishingOverview.residents)};
     if (path.includes('/fishing/trips/')) return fishingTrip;
     if (path === `${base}/lottery/rounds/`) return page([lotteryRound, previousRound], url);
-    if (path.includes('/lottery/rounds/')) return path.endsWith('/tickets/') ? page(tickets, url) : {...lottery, round: path.includes(previousRound.id) ? previousRound : lotteryRound};
+    if (path.includes('/lottery/rounds/')) return path.endsWith('/tickets/') ? page(tickets, url) : {...lottery, config: (resource.get(`${base}/lottery/config/`) as LotteryConfig | undefined) ?? lottery.config, round: path.includes(previousRound.id) ? previousRound : lotteryRound};
     if (path.startsWith(`${base}/investment/`)) {
         if (path.endsWith('/accounts/')) return list(residents.map(r => ({id: r.id, name: r.name, positionCount: 2})));
         if (path.endsWith('/overview/')) return {...investmentOverview(actor(url)), ...(emptyScenario() ? {positions: page([], url), positionCount: 0, marketValue: '0', unrealizedProfit: '0'} : {})};
@@ -192,19 +210,20 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === `${base}/analytics/`) return {...analytics, startDate: url.searchParams.get('start_date') || analytics.startDate, endDate: url.searchParams.get('end_date') || day, actorId: actor(url),
         ...(emptyScenario() ? {daily: [], categories: [], peers: [], comparison: [], combatComparison: [], residents: []} : {})};
     if (path === `${base}/analytics/ledger/`) {const result = page(forActor(analyticsLedger, url), url); return {...result, nextPage: result.hasMore ? result.page + 1 : null};}
-    if (path.startsWith(`${base}/token-usage/`)) {
-        if (path.endsWith('/summary/')) return tokenSummary;
-        if (path.endsWith('/breakdown/')) return {...page(residents.map(r => ({...metrics, key: r.id, name: r.name, lastAt: now.toISOString()})), url), unassigned: null};
-        if (path.endsWith('/requests/')) return {items: list(tokenRequests.filter(r => !actor(url) || r.agentKey === actor(url))), hasMore: false, nextCursor: null};
-        if (path.endsWith('/content/')) return {available: true, request: {messages: [{role: 'user', content: '请规划今日农场行动。'}]}, response: {content: '先收获，再补种。'}};
-    }
+    if (path.startsWith(`${base}/token-usage/`)) return observationRoute(url, emptyScenario());
     if (path === `${base}/bounties/options/`) return {collections: [{id: 'local-world', title: '居民生活手记'}], categories, residents, searchReady: true, inviteDelayMinutes: 5, claimHours: 24};
     if (path === `${base}/bounties/`) {if (writing) {const row = {...bounties[0], ...body, id: `local-bounty-${Date.now()}`, status: 'open' as const}; bounties.unshift(row); return {id: row.id, status: row.status, inviteAt: at(12)};}
         return page(bounties.filter(b => !url.searchParams.get('status') || url.searchParams.get('status')!.split(',').includes(b.status)), url);}
     if (path.startsWith(`${base}/bounties/`)) {const row = bounties.find(b => b.id === path.split('/').slice(-2)[0]) || bounties[0];
         if (body.action === 'cancel') row.status = 'cancelled'; if (body.action === 'review') row.status = body.approve ? 'accepted' : 'claimed'; return row;}
     if (path === '/api/settings/agent-run-records/') return {...page([run], url), results: list([run]), nextCursor: null};
-    if (path.startsWith('/api/settings/agent-run-records/')) return run;
+    if (path.startsWith('/api/settings/agent-run-records/')) {
+        const blacksmith = blacksmithActivities.find(row => path.includes(encodeURIComponent(row.recordId)) || path.includes(row.recordId));
+        if (blacksmith) return {...run, id: blacksmith.recordId, task: 'local-task-blacksmith', taskName: '铁匠铺打造', agent: blacksmith.actorId, agentName: blacksmith.actorName, status: blacksmith.status, startedAt: blacksmith.createdAt, summary: String(blacksmith.result.reason), output: JSON.stringify(blacksmith.result), steps: blacksmith.stages.map(stage => ({time: blacksmith.createdAt, title: String(stage.scene), detail: String(stage.label || stage.choice), status: 'success'})), tokenUsage: {...observationMetrics(observationRequests.filter(row => row.recordKey === blacksmith.recordId)), agents: []}};
+    }
+    if (path.startsWith('/api/settings/agent-run-records/')) {const id = decodeURIComponent(path.split('/').slice(-2)[0]); const rows = observationRequests.filter(r => r.recordKey === id); return {...run, id, taskName: rows[0]?.taskName || run.taskName, agent: rows[0]?.agentKey || run.agent, agentName: rows[0]?.agentName || run.agentName, startedAt: rows[0]?.startedAt || run.startedAt, tokenUsage: {...observationMetrics(rows), agents: []}};}
+    if (path === '/api/settings/agent-tasks/local-task-blacksmith/run_now/') {const activity = runMockBlacksmith(String(body.actorId || body.actor_id || residents[0].id)); if (!activity) return Response.json({code: 400, msg: '没有可执行的打造配方', data: null}, {status: 400}); addBlacksmithObservation(activity); const life = blacksmithLifeItems.find(row => row.recordId === activity.recordId); if (life) lifeItems.unshift(life); return {...run, id: activity.recordId, taskName: '铁匠铺打造', summary: activity.result.reason};}
+    if (path.startsWith('/api/settings/agent-tasks/') && writing && !path.endsWith('/run_now/') && path !== '/api/settings/agent-tasks/world_runner/') {const id = path.split('/').filter(Boolean).slice(-1)[0]; const task = tasks.find(row => row.id === id); if (task) {Object.assign(task, body); return task;}}
     if (path.endsWith('/run_now/')) return run;
     if (path === '/api/anthology/list' && url.searchParams.get('type') === 'agent') return list([{collId: 'local-world', title: '居民生活手记', type: 'agent', count: 4, iconId: 'bot', description: '居民创作与旅行记录', permission: 'public', isTop: true, articles: worldPosts}]);
     if (path === '/api/article/list' && (url.searchParams.get('collId') === 'local-world' || url.searchParams.get('type') === 'agent')) return list(worldPosts);

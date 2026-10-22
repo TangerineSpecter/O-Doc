@@ -197,6 +197,11 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         count = quantity(operation.get('quantity'))
         if kind == 'sell' and not item.source.get('sku','').startswith(('crop.','product.','dish.','fish.')):
             raise ValueError('商店仅回收农作物、畜产品、美食及鱼类')
+        if item.source.get('sku', '').startswith('combat.material.'):
+            from .crafting_materials import available_pool
+            free = {row['inventory_id']: row['quantity'] for row in available_pool(owner, agent.pk)}
+            if count > free.get(item.pk, 0):
+                raise ValueError('材料已被炼金或打造预留，可挂牌数量不足')
         payload = split_item(item, count)
         result.update(name=payload['name'], quantity=count, stars=payload['source'].get('stars'))
         if payload['source'].get('sku', '').startswith('fish.'):

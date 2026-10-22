@@ -40,6 +40,13 @@ def _choice(run, agent, question_id, state, choices, fallback, instructions, *, 
     if len(choices) == 1:
         selected = next(iter(choices))
         return selected, {'choice': selected, 'source': 'single_candidate', 'confidence': 1.0}
+    from ..life_models import LifeItem
+    from ..life_activities import is_interleaved
+    item = LifeItem.objects.filter(pk=run.life_item_id).first()
+    if item and is_interleaved(item):
+        from ..life_interleaving_choices import checkpoint_choice
+        selected = checkpoint_choice(item, agent, question_id, scene, state, choices)
+        return selected, {'choice': selected, 'source': 'decision_model', 'confidence': None}
     from system_settings.decision.routing import choose_scene
     try:
         result = choose_scene(
@@ -304,7 +311,11 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
     if constraints.get('duration_seconds') is not None:
         duration_candidates = [(seconds, label) for seconds, label in duration_candidates
                                if seconds == constraints['duration_seconds']]
-    duration_choices = {str(seconds): label for seconds, label in duration_candidates}
+    from ..life_models import LifeItem
+    from ..life_interleaving_candidates import legal_durations
+    item = LifeItem.objects.filter(pk=run.life_item_id).first()
+    legal = legal_durations(item, [seconds for seconds, _ in duration_candidates], seconds=True)
+    duration_choices = {str(seconds): label for seconds, label in duration_candidates if seconds in legal}
     duration_fallback = next(iter(duration_choices), None)
     duration, record = _choice(
         run, agent, 'duration_seconds',

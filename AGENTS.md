@@ -35,7 +35,7 @@
 - Agent 世界业务说明从 `docs/agents/README.md` 按领域查找，不要把规划文档当作现行规则。
 - 魔物形象、预览页与战斗动画修改前，先读 `docs/agents/Agent魔物形象与战斗动画设计规范.md`。沿用已确认的软泥怪 PixiJS 风格；每只魔物先做独立预览并经用户确认，再接入图鉴；同一出没地复用背景，技能特效与战斗结算分离。
 - 农场种子、作物及饲料素材修改前，先读 `docs/agents/Agent农场物品与素材规范.md`。种子必须使用统一纸袋及对应作物标签，不得恢复为共用旧袋子图标。
-- **业务流程说明与提示同步**：当修改美食制作、炼金制作、迷宫探索等业务流程逻辑（包括准入条件、制作/准备流程、多轮回路上限、分支判定、结算规则等）时，必须同步更新前端流程指引配置 `frontend_react/src/components/AgentWorld/decisionProcessGuides.ts` 及说明弹窗 `DecisionProcessInfo.tsx`，确保界面中的 `(i)` 提示与最新实现时刻一致。
+- **业务流程说明与提示同步**：当修改美食制作、炼金制作、迷宫探索等业务流程逻辑（包括准入条件、制作/准备流程、多轮回路上限、分支判定、结算规则等）时，必须同步更新前端流程指引配置 `frontend_react/src/components/AgentWorld/decisionProcessGuides.ts` 及说明弹窗 `DecisionProcessInfo.tsx`，同时维护 `decisionGuides/` 中对应领域数据及 `DecisionProcessSteps.tsx`。每次模型决策单列一步，写清输入、合法候选、条件跳过、循环上限、结算和失败恢复；不得把多次决策合成一项或以规划代替当前行为，确保界面中的 `(i)` 提示与最新实现时刻一致。
 
 # 前端开发红线
 

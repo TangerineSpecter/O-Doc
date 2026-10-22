@@ -49,10 +49,12 @@ export const graph: AgentRelationGraph = {nodes: residents.map((r, i) => ({id: r
         sourceScore: 70 + i, targetScore: 65 + i, sourceName: residents[0].name, targetName: r.name}))};
 export const lifeConfig: LifeConfig = {settings: {agentIds: residents.map(r => r.id), mode: 'fixed', period: 'daily', count: 8,
     intervalMinutes: 60, activeStart: '08:00', activeEnd: '23:00', minGapMinutes: 30, minRemainingMinutes: 10,
-    decisionModelId: 'local-model', decisionConnectionIds: ['local-decision'], marketAutomationV2: true},
+    decisionModelId: 'local-model', decisionConnectionIds: ['local-decision'], marketAutomationV2: true, interleavingEnabled: false, interleavingCheckMinutes: 5, interleavingDecisionMinutes: 30, interleavingWaitMinutes: 60},
     pausedAgents: [], migrated: true, activeAgentIds: residents.map(r => r.id), profileAgentIds: residents.map(r => r.id),
     activeCycle: [{id: 'local-cycle', startsAt: at(0), endsAt: at(0, 1)}]};
 export const lifeItems: LifeItem[] = residents.flatMap((r, index) => ['farm', 'cooking', 'market', 'exploration', 'travel', 'alchemy', 'fishing', 'lottery', 'post_publish'].map((activity, i) => ({
+    source: ['cooking', 'alchemy', 'fishing', 'exploration'].includes(activity) ? 'interleaved' as const : 'schedule' as const,
+    actualStartedAt: i % 5 < 2 ? at(8 + i) : null, actualEndedAt: i % 5 === 0 ? at(9 + i) : null, actualEnergyCost: i % 5 < 2 ? '4' : null,
     id: `local-life-${index}-${i}`, actorId: r.id, originalAt: at(8 + i), scheduledAt: at(8 + i), activity, taskId: `local-task-${activity}`,
     status: ['completed', 'running', 'pending', 'failed', 'cancelled'][i % 5], intent: `本地样例：${r.name}的${activity}计划，检查不同状态的展示`,
     budget: String(100 + i * 10), spent: i % 5 === 0 ? '48.00' : '0.00', recordId: 'local-run',

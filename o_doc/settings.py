@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     'book_analysis.apps.BookAnalysisConfig',
     'learning.apps.LearningConfig',
     'novel.apps.NovelConfig',
+    'quant.apps.QuantConfig',
 ]
 
 # DRF全局配置

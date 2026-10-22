@@ -61,12 +61,24 @@ export function LotteryTickets({
                 {tickets.items.map(ticket => {
                     const tierLabel = getTierLabel(ticket.matches);
                     const isWinner = Boolean(tierLabel);
+                    const serialCode = ticket.id.replace(/[^a-zA-Z0-9]/g, '').slice(-5).toUpperCase() || '7A9B2';
 
                     return <article
                         key={ticket.id}
                         className={`lottery-ticket ${isWinner ? 'lottery-ticket--winner' : ''}`}
                     >
                         <div className="lottery-ticket-content">
+                            {/* 票头防伪流水行 */}
+                            <div className="lottery-ticket-header">
+                                <span className="lottery-ticket-tag">
+                                    <Sparkles className="h-3 w-3 text-amber-500" />
+                                    居民幸运乐透 · 官方彩票
+                                </span>
+                                <span className="lottery-ticket-sn">
+                                    № {String(round?.sequence || 1).padStart(3, '0')}-{serialCode}
+                                </span>
+                            </div>
+
                             <div className="lottery-ticket-owner">
                                 <span
                                     className={`lottery-resident lottery-resident--${residentTone(ticket.actorId)}`}
@@ -95,18 +107,25 @@ export function LotteryTickets({
                             <div className="lottery-ticket-footer">
                                 <span>{lotteryDate(ticket.createdAt)}</span>
                                 {ticket.matches === null ? (
-                                    <span><Check className="h-3 w-3 text-emerald-600"/>已出票</span>
+                                    <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+                                        <Check className="h-3 w-3 text-emerald-600"/>已出票
+                                    </span>
                                 ) : (
                                     <span>命中 {ticket.matches} 个数字</span>
                                 )}
                             </div>
                         </div>
 
+                        {/* 穿孔撕票线与存根副券 */}
                         <div className="lottery-ticket-stub" aria-label={`票价 ${round?.rules.ticketPrice || '5'} 金币`}>
-                            <Ticket className="h-3.5 w-3.5 text-amber-600"/>
-                            <strong>{lotteryMoney(round?.rules.ticketPrice || '5')}</strong>
-                            <span>金币</span>
-                            <i className="lottery-barcode" aria-hidden="true"/>
+                            <div className="lottery-stub-top">
+                                <Ticket className="h-3.5 w-3.5 text-amber-600"/>
+                                <strong>{lotteryMoney(round?.rules.ticketPrice || '5')}</strong>
+                                <span>金币</span>
+                            </div>
+                            <div className="lottery-stub-bottom">
+                                <i className="lottery-barcode" aria-hidden="true"/>
+                            </div>
                         </div>
                     </article>;
                 })}

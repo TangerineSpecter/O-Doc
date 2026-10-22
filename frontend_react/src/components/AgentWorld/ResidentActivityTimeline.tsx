@@ -1,9 +1,10 @@
-import {Activity, BookOpenText, CalendarDays, CircleDollarSign, FlaskConical, MapPin, MessageSquare, Package, Sprout, Store, TrendingUp} from 'lucide-react';
+import {Activity, BookOpenText, CalendarDays, CircleDollarSign, FlaskConical, Hammer, MapPin, MessageSquare, Package, Sprout, Store, TrendingUp} from 'lucide-react';
 import type {DailyFeedEvent} from '../../types/api/dailyFeed';
 import {groupResidentActivities, residentActivitySummary} from '../../utils/residentActivity';
 import {socialTime} from '../../utils/socialTime';
 
 const categories = {
+    blacksmith: {label: '打造', icon: Hammer, color: 'text-orange-700 bg-orange-50 border-orange-200'},
     fishing: {label: '钓鱼', icon: Activity, color: 'text-teal-700 bg-teal-50 border-teal-200'},
     publication: {label: '创作', icon: BookOpenText, color: 'text-amber-600 bg-amber-50 border-amber-200'},
     interaction: {label: '互动', icon: MessageSquare, color: 'text-orange-600 bg-orange-50 border-orange-200'},
