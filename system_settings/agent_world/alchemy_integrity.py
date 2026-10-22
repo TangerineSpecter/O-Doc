@@ -31,6 +31,10 @@ def fingerprints(owner: str) -> dict:
     result = {'catalog': hash_rows(list(AlchemyCatalog.objects.filter(pk=owner).values('id', 'rules', 'item_icons')))}
     for model in ASSETS:
         result[model.__name__] = hash_rows(list(model.objects.filter(owner_id=owner).order_by('pk').values()), dates_for(model))
+    from .tournament_models import TournamentReward
+    awards = list(TournamentReward.objects.filter(owner_id=owner, place=3, status='granted').order_by('pk').values())
+    if awards:
+        result['tournament_awards'] = hash_rows(awards, dates_for(TournamentReward))
     plans = list(WorldAction.objects.filter(snapshot__alchemy=True, snapshot__owner_id=owner,
         snapshot__plan__0__rule__quality_rules__version=1).order_by('pk').values('id', 'actor_id', 'snapshot'))
     if plans:
@@ -68,6 +72,13 @@ def source_integrity(data: list[dict]) -> dict[str, dict]:
                                    for row in values[AlchemyCatalog] if row['id'] == owner], ())}
             for model in ASSETS:
                 groups[model.__name__] = ([row for row in values[model] if row['owner_id'] == owner], dates_for(model))
+            from .tournament_models import TournamentReward
+            awards = [{'id': str(row['pk']), **{field.attname: row['fields'][field.name]
+                       for field in TournamentReward._meta.fields if not field.primary_key}}
+                      for row in data if row['model'] == 'system_settings.tournamentreward'
+                      and row['fields']['owner_id'] == owner and row['fields']['place'] == 3 and row['fields']['status'] == 'granted']
+            if awards:
+                groups['tournament_awards'] = (sorted(awards, key=lambda row: row['id']), dates_for(TournamentReward))
             plans = [{key: row[key] for key in ('id', 'actor_id', 'snapshot')} for row in values[WorldAction]
                      if row['snapshot'].get('alchemy') and row['snapshot'].get('owner_id') == owner
                      and row['snapshot'].get('plan') and row['snapshot']['plan'][0]['rule'].get('quality_rules', {}).get('version') == 1]

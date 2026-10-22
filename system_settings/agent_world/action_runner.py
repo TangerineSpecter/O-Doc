@@ -274,6 +274,8 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
 
 
 def tick(scheduler):
+    from .tournament_runner import tick as tick_tournaments
+    tick_tournaments()
     from .market_sessions import cleanup
     cleanup(restart=True)
     # 入库处置标记独立于市场会话；任务至少静置一分钟再跑，避免每次 tick 都调模型。

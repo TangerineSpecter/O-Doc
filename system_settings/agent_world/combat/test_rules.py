@@ -194,7 +194,7 @@ class RuleTests(SimpleTestCase):
 
     def test_element_factor_follows_channel_damage_and_stays_bounded(self):
         c = self.catalog
-        self.assertEqual(c.version, 'combat-1.0.20')
+        self.assertEqual(c.version, 'combat-1.0.21')
         defender = engine.fighter({'hp_max': 1000, 'mp_max': 10, 'physical_defense': 60}, '守方', 10)
         self.assertEqual(effects.damage(150, 'physical', 10, defender, variation=1), 100)
         defender['defending'] = True
@@ -293,3 +293,15 @@ class RuleTests(SimpleTestCase):
         old = attributes.monster(legacy, legacy.row('monsters', 'monster.ash_lord'), 65)
         self.assertEqual(old['element'], '')
         self.assertEqual(old['fire_resist'], 0)
+
+    def test_crystal_lizard_skill_is_single_earth_hit_without_status(self):
+        c = self.catalog
+        rows = [r for r in c.tables['monster_actions'] if r['monster_id'] == 'monster.cave_crystal_lizard']
+        self.assertEqual({r['action_kind']: float(r['weight']) for r in rows}, {'attack': 80, 'skill': 20})
+        level, skill_effects = c.skill('skill.monster.crystal', 1)
+        self.assertEqual(float(level['cooldown_rounds']), 4)
+        self.assertEqual(len(skill_effects), 1)
+        effect = skill_effects[0]
+        self.assertEqual((effect['code'], effect['stat'], effect['damage_type'], effect['element'], effect['target']),
+                         ('damage', 'physical_attack', 'physical', 'earth', 'enemy'))
+        self.assertEqual((float(effect['value']), int(effect['hits'])), (1.35, 1))

@@ -25,6 +25,7 @@ SCENES = {'fishing_spot': '钓鱼地点选择', 'fishing_duration': '钓鱼时�
           'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}
 # Usage purpose per scene. Exploration preparation shares one purpose on both paths: the
 # structured questions here and the single text plan recorded by preparation.prepare.
+SCENES['tournament_reward_slot'] = '武道大会奖励部位'
 SCENE_PURPOSES = {'social_action': 'social', 'combat_preparation': 'exploration_prepare'}
 logger = logging.getLogger(__name__)
 # Each provider owns this window, including its one format repair.

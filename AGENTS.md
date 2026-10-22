@@ -39,6 +39,7 @@
 
 # 前端开发红线
 
+- **Local mock 必须同步维护：** 新增功能或调整前端调用的接口时，同步维护 `frontend_react/src/mocks/` 的路由和类型化样例，覆盖列表、详情及关联弹窗；使用纯 local 模式验证样例、空数据、加载中和接口错误场景，确认不再出现“尚未提供本地样例”的 501，且请求不会落到真实后端。真实后端验收不能替代 local mock 验收，具体遵循 `docs/代码规范文档.md`。
 - **禁止原生下拉框：** 全系统不得直接使用 HTML `<select>`。所有表单、筛选、设置面板和弹窗下拉框统一使用 `frontend_react/src/components/common/Select.tsx`；模态弹窗（Modal）中显式配置 `menuPortal={true}`，避免菜单被滚动区域截断。
 - **禁止自由改变文本域大小：** 所有 `<textarea>` 使用 `resize: none`，不显示原生拉伸滑块。
 - **隐藏内部滚动条：** 弹窗、内部卡片和多列看板滚动区域使用 `scrollbar-hide` 或 `no-scrollbar`，保留滚轮和触屏滚动；复杂看板使用列内或局部独立滚动，避免外层滚动顶出操作条。

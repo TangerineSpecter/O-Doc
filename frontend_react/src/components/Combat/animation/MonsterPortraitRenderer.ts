@@ -1,16 +1,14 @@
+import {CaveMonsterActor} from './cavePixels/CaveMonsterActor';
+import {caveProfiles,isCaveMonsterId,cavePortraitFrame,caveSize} from './cavePixels/caveTypes';
+import type {CaveMonsterId,CaveMotion} from './cavePixels/caveTypes';
+import {caveDurations} from './cavePixels/caveMotion';
 import {Application, Graphics} from 'pixi.js';
-import {CaveBatActor} from './CaveBatActor';
-import {sampleCaveBatPose} from './caveBatMotion';
-import {MossBeastActor} from './MossBeastActor';
-import {sampleMossBeastPose} from './mossBeastMotion';
-import {MossKingActor} from './MossKingActor';
-import {sampleMossKingPose} from './mossKingMotion';
 import {MeadowMonsterActor} from './meadowPixels/MeadowMonsterActor';
-import {isMeadowMonsterId, meadowProfiles} from './meadowPixels/meadowTypes';
+import {meadowProfiles} from './meadowPixels/meadowTypes';
 import type {MeadowMonsterId} from './meadowPixels/meadowTypes';
 import {meadowPortraitFrame} from '../art/meadowPortraitFrame';
 
-export type AnimatedMonsterId = MeadowMonsterId | 'monster.cave_bat' | 'monster.moss_beast' | 'monster.moss_king';
+export type AnimatedMonsterId = MeadowMonsterId | CaveMonsterId;
 
 const frames: Record<AnimatedMonsterId, {
     width: number; height: number; ground: number; plainScale: number; habitatScale: number;
@@ -20,15 +18,16 @@ const frames: Record<AnimatedMonsterId, {
     'monster.fuzzy_ear_rabbit': meadowPortraitFrame,
     'monster.leafshell_beetle': meadowPortraitFrame,
     'monster.dawnfire_glowbug': meadowPortraitFrame,
-    'monster.cave_bat': {width: 380, height: 280, ground: 250 / 280, plainScale: 1, habitatScale: 1.05, shadowX: 88, shadowY: 12},
-    'monster.moss_beast': {width: 370, height: 290, ground: 260 / 290, plainScale: 1, habitatScale: 1.06, shadowX: 144, shadowY: 18},
-    'monster.moss_king': {width: 490, height: 350, ground: 320 / 350, plainScale: 1, habitatScale: .96, shadowX: 157, shadowY: 18},
+    'monster.cave_bat': cavePortraitFrame,
+    'monster.cave_crystal_lizard': cavePortraitFrame,
+    'monster.moss_beast': cavePortraitFrame,
+    'monster.moss_king': cavePortraitFrame,
 };
 
 /** Transparent actor; habitat framing shares the preview's camera and scale. */
 export class MonsterPortraitRenderer {
     private readonly app = new Application();
-    private actor: MeadowMonsterActor | CaveBatActor | MossBeastActor | MossKingActor | null = null;
+    private actor: CaveMonsterActor | MeadowMonsterActor | null = null;
     private shadow: Graphics | null = null;
     private readonly resizeObserver = new ResizeObserver(() => this.resize());
     private readonly visibilityObserver = new IntersectionObserver(entries => {
@@ -40,6 +39,8 @@ export class MonsterPortraitRenderer {
     private initialized = false;
     private disposed = false;
     private time = 0;
+    private action: CaveMotion = 'idle';
+    private actionStart = 0;
 
     constructor(private readonly host: HTMLElement, private readonly inHabitat: boolean,
                 private readonly monsterId: AnimatedMonsterId) {}
@@ -47,21 +48,19 @@ export class MonsterPortraitRenderer {
     async init() {
         await this.app.init({
             width: Math.max(1, this.host.clientWidth), height: Math.max(1, this.host.clientHeight),
-            antialias: !isMeadowMonsterId(this.monsterId), backgroundAlpha: 0, autoDensity: true,
+            antialias: false, backgroundAlpha: 0, autoDensity: true,
             resolution: Math.min(devicePixelRatio || 1, 2), preference: 'webgl', autoStart: false,
         });
         this.initialized = true;
         if (this.disposed) { this.app.destroy(true, {children: true}); return; }
         const frame = frames[this.monsterId];
-        this.actor = isMeadowMonsterId(this.monsterId) ? new MeadowMonsterActor(meadowProfiles[this.monsterId])
-            : this.monsterId === 'monster.cave_bat' ? new CaveBatActor()
-            : this.monsterId === 'monster.moss_beast' ? new MossBeastActor()
-                : new MossKingActor();
+        this.actor = isCaveMonsterId(this.monsterId) ? new CaveMonsterActor(caveProfiles[this.monsterId])
+            : new MeadowMonsterActor(meadowProfiles[this.monsterId]);
         this.shadow = new Graphics().ellipse(0, 8, frame.shadowX, frame.shadowY).fill({color: 0x356663, alpha: .16});
         this.app.stage.addChild(this.shadow, this.actor);
         this.app.canvas.setAttribute('aria-hidden', 'true');
         this.app.canvas.style.cssText = 'display:block;width:100%;height:100%;pointer-events:none';
-        if (isMeadowMonsterId(this.monsterId)) this.app.canvas.style.imageRendering = 'pixelated';
+        this.app.canvas.style.imageRendering = 'pixelated';
         this.host.appendChild(this.app.canvas);
         this.app.ticker.add(ticker => {
             this.time += Math.min(ticker.deltaMS / 1000, .05);
@@ -84,22 +83,24 @@ export class MonsterPortraitRenderer {
         this.actor.scale.set(this.inHabitat
             ? Math.min(width / 640, height / 420) * frame.habitatScale
             : Math.min(width / frame.width, height / frame.height) * frame.plainScale);
+        if (isCaveMonsterId(this.monsterId)) this.actor.scale.set(this.actor.scale.x * caveSize(caveProfiles[this.monsterId].key));
         this.shadow?.position.copyFrom(this.actor.position);
         this.shadow?.scale.copyFrom(this.actor.scale);
         this.drawIdle();
         this.app.render();
     }
 
+    play(action: CaveMotion) {
+        this.action = action; this.actionStart = this.time;
+        this.drawIdle(); if(this.initialized && !this.disposed)this.app.render();
+    }
+
     private drawIdle() {
-        if (this.actor instanceof CaveBatActor) {
-            const pose = sampleCaveBatPose('idle', this.time, 1);
-            this.actor.update(pose, this.time, 1);
-            this.shadow?.scale.set(this.actor.scale.x * (1 - pose.lift / 260), this.actor.scale.y);
-            if (this.shadow) this.shadow.alpha = 1 - pose.lift / 180;
-        } else if (this.actor instanceof MossBeastActor) {
-            this.actor.update(sampleMossBeastPose('idle', this.time, 1), this.time, 1);
-        } else if (this.actor instanceof MossKingActor) {
-            this.actor.update(sampleMossKingPose('idle', this.time, -1), this.time, -1);
+        if (this.actor instanceof CaveMonsterActor) {
+            const age=this.time-this.actionStart;
+            if(age>=caveDurations[this.action])this.action='idle';
+            this.actor.sample(this.action,age,this.time,this.action==='defeat'?age:undefined);
+            if(this.shadow)this.shadow.visible=!(this.action==='defeat'&&age>=.26);
         } else if (this.actor instanceof MeadowMonsterActor) {
             this.actor.sample('idle', this.time, this.time, undefined);
         }

@@ -23,7 +23,7 @@ LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
 LOCAL_ONLY_MODEL_LABELS = frozenset({
     'memos.sproutjob',
     'memos.memocaptureauthorization',
-    'system_settings.combatruntime', 'system_settings.fishingruntime',
+    'system_settings.combatruntime', 'system_settings.fishingruntime', 'system_settings.tournamentruntime',
     'system_settings.agentmemorylease',
     'novel.job',
     'learning.runtime', 'learning.devicejob', 'learning.goaljob',

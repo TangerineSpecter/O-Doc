@@ -6,7 +6,7 @@
 
 ## 角色与接入状态
 
-2026-10-22 洞窟 PNG 更新：用户确认将洞穴蝙蝠、苔石兽（重做第二版）、苔冠巨兽接入图鉴。列表与详情统一使用 `frontend_react/src/assets/combat/monster-cave-bat-v1.png`、`monster-moss-beast-v2.png`、`monster-moss-king-v1.png`，在 `art/monsterPixelArt.ts` 注册为 `approved`。三只详情当前显示静态 PNG，不再播放旧矢量待机；旧独立动作预览保留，不能视为新 PNG 已有动作。洞穴晶蜥继续使用已有 PNG。本次仅替换前端内置图鉴资源，无持久字段及同步变更。
+2026-10-22 洞窟 PNG 更新：用户确认将洞穴蝙蝠、苔石兽（重做第二版）、苔冠巨兽接入图鉴。列表与详情统一使用 `frontend_react/src/assets/combat/monster-cave-bat-v1.png`、`monster-moss-beast-v2.png`、`monster-moss-king-v1.png`，在 `art/monsterPixelArt.ts` 注册为 `approved`。最初三只详情显示静态 PNG；同日后续确认第四版洞窟预览，四只均已接入新版像素待机、基础动作和技能，见下表及文末。本次仅替换前端内置图鉴资源，无持久字段及同步变更。
 
 | 魔物 ID | 名称 | 预览入口 | 形象与基础动作 | 图鉴 | 技能特效 | 正式战斗动画 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -14,10 +14,10 @@
 | `monster.fuzzy_ear_rabbit` | 绒耳兔 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.fuzzy_ear_rabbit` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
 | `monster.leafshell_beetle` | 叶壳甲虫 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.leafshell_beetle` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
 | `monster.dawnfire_glowbug` | 晨光萤 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.dawnfire_glowbug` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
-| `monster.cave_crystal_lizard` | 洞穴晶蜥 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_crystal_lizard` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
-| `monster.cave_bat` | 洞穴蝙蝠 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_bat` | 新 PNG 已确认；新动作待制作 | 新 PNG 静态图已接入 | 旧矢量“闪身”示意保留 | 待接入 |
-| `monster.moss_beast` | 苔石兽 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.moss_beast` | 新 PNG 第二版已确认；新动作待制作 | 新 PNG 静态图已接入 | 旧矢量“护体”示意保留 | 待接入 |
-| `monster.moss_king` | 苔冠巨兽 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.moss_king` | 新 PNG 石鹿已确认；新动作待制作 | 新 PNG 静态图已接入 | 旧矢量“重击”“护体”示意保留 | 待接入 |
+| `monster.cave_crystal_lizard` | 洞穴晶蜥 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_crystal_lizard` | 五个基础动作已确认 | 静态回退与动态详情已接入 | 晶棘突袭已接入 | 已接入探索观察及确认击败粉碎 |
+| `monster.cave_bat` | 洞穴蝙蝠 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_bat` | 像素形象与五个基础动作已确认 | 静态回退与动态详情已接入 | 闪身已接入 | 已接入探索观察及确认击败粉碎 |
+| `monster.moss_beast` | 苔石兽 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.moss_beast` | 像素形象与五个基础动作已确认 | 静态回退与动态详情已接入 | 护体已接入 | 已接入探索观察及确认击败粉碎 |
+| `monster.moss_king` | 苔冠巨兽 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.moss_king` | 像素形象与五个基础动作已确认 | 静态回退与动态详情已接入 | 重击 / 护体已接入 | 已接入探索观察及确认击败粉碎 |
 
 ## 新芽草甸像素动作（2026-10-22，已接入探索观察与图鉴）
 
@@ -229,3 +229,7 @@
 - 图鉴列表缓存同源静态图，动态详情与分层预览复用同源 PixiJS 绘制；实际图鉴已展示新版炎术师。列表缩略图继续采用静态图，不为每张卡片分配 WebGL 场景。
 - 展示记录：[战士系](./assets/combat/profession-auras-warrior-v2.png)、[法师系](./assets/combat/profession-auras-mage-v2.png)、[游侠系](./assets/combat/profession-auras-ranger-v2.png)、[牧师系](./assets/combat/profession-auras-priest-v2.png)、[完整总览](./assets/combat/profession-auras-overview-v2.png)、[图鉴同步](./assets/combat/profession-auras-atlas-v2.png)。逐职业造型与运动表见[设计说明](./Agent职业氛围设计说明.md)。
 - 按用户要求未运行测试、类型检查、lint 或构建；本轮仅审视真实预览与保存展示画面。无持久字段、目录数值或同步变更。
+
+## 苔石洞窟确认版接入（2026-10-22）
+
+`MossCave_v1.html` 第四版经用户确认后接入正式图鉴及探索观察，四只按稳定 ID 使用 `animation/cavePixels/`。Boss 独立 256 像素采样，另三只 128 像素；静态回退是 `assets/combat/atlas-{cave-bat,cave-crystal-lizard,moss-beast,moss-king}-idle.png`。图鉴详情与其他怪物一致，只展示待机动画，不显示动作演示按钮；冒险复用同一 Actor、采样和原色粉碎。原 PNG 与旧独立预览保留，不作为正式入口的动态形象。晶棘突袭已纳入 `combat-1.0.21`，不再是待定技能。运行时资源不依赖 docs 目录。

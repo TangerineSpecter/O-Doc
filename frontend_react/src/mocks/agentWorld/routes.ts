@@ -3,6 +3,7 @@ import {farms, farmRules, farmHistory, inventory, cooking, alchemy, itemCatalog,
 import {combatCatalog, combatProfiles, exploration, journey, fishingCatalog, fishingOverview, fishingTrip, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
 import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, tokenSummary, tokenRequests, worldPosts} from './social';
 import type {LifeItem} from '../../types/api/agentLife';
+import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentReports} from './tournament';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -77,6 +78,17 @@ function schedule(url: URL) {
 
 export async function resolveLocalRoute(request: Request): Promise<unknown> {
     const url = new URL(request.url), path = url.pathname;
+    if (request.method === 'GET' && path.startsWith(`${base}/tournaments/`)) {
+        if (path === `${base}/tournaments/current/`) return {...tournamentOverview, event: emptyScenario() ? null : tournamentOverview.event};
+        if (path === `${base}/tournaments/`) return page(tournamentHistory, url);
+        const route = path.slice(`${base}/tournaments/`.length).split('/').filter(Boolean).map(decodeURIComponent);
+        const event = tournamentEvents.find(row => row.id === route[0]);
+        if (event && route.length === 1) return event;
+        if (event && route.length === 3 && route[1] === 'matches' && event.rounds.some(row => row.matches.some(match => match.id === route[2]))) {
+            return tournamentReports.get(route[2]);
+        }
+        return undefined;
+    }
     const writing = !['GET', 'HEAD'].includes(request.method);
     const body: Record<string, unknown> = writing && request.headers.get('content-type')?.includes('json') ? await request.json() as Record<string, unknown> : {};
     if (path === '/api/settings/agents/') {

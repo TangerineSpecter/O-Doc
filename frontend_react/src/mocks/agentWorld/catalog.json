@@ -743,7 +743,7 @@
     "star_rift": "星蚀裂隙"
   },
   "combat": {
-    "version": "combat-1.0.20",
+    "version": "combat-1.0.21",
     "tables": {
       "affixSlots": [
         {
@@ -25119,7 +25119,7 @@
           "monsterId": "monster.cave_crystal_lizard",
           "actionKind": "attack",
           "skillId": "",
-          "weight": "100",
+          "weight": "80",
           "condition": "always"
         },
         {
@@ -25520,6 +25520,14 @@
           "actionKind": "skill",
           "skillId": "skill.monster.burn",
           "weight": "25.0",
+          "condition": "always"
+        },
+        {
+          "id": "monster.cave_crystal_lizard.crystal",
+          "monsterId": "monster.cave_crystal_lizard",
+          "actionKind": "skill",
+          "skillId": "skill.monster.crystal",
+          "weight": "20",
           "condition": "always"
         }
       ],
@@ -32904,6 +32912,20 @@
           "hits": "1",
           "chance": "1",
           "element": ""
+        },
+        {
+          "id": "skill.monster.crystal.r1.e1",
+          "skillLevelId": "skill.monster.crystal.r1",
+          "code": "damage",
+          "stat": "physical_attack",
+          "value": "1.35",
+          "duration": "0",
+          "target": "enemy",
+          "damageType": "physical",
+          "group": "",
+          "hits": "1",
+          "chance": "1",
+          "element": "earth"
         }
       ],
       "skillLevels": [
@@ -35690,6 +35712,18 @@
           "cooldownRounds": "0",
           "description": "战斗中每 15 秒恢复最大生命与最大法力各 3%",
           "enabled": "1"
+        },
+        {
+          "id": "skill.monster.crystal.r1",
+          "skillId": "skill.monster.crystal",
+          "rank": "1",
+          "requiredLevel": "1",
+          "costBase": "4",
+          "costPerLevel": "0.5",
+          "costRankFactor": "1",
+          "cooldownRounds": "4",
+          "description": "1.35 倍物攻·土属性单体攻击",
+          "enabled": "1"
         }
       ],
       "skills": [
@@ -36363,6 +36397,14 @@
           "professionId": "job.priest",
           "learnLevel": "20",
           "kind": "passive",
+          "enabled": "1"
+        },
+        {
+          "id": "skill.monster.crystal",
+          "name": "晶棘突袭",
+          "professionId": "",
+          "learnLevel": "1",
+          "kind": "monster",
           "enabled": "1"
         }
       ],

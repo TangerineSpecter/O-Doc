@@ -1180,7 +1180,7 @@
         "dungeonId": "dungeon.moss_cave",
         "monsterId": "monster.cave_bat",
         "levelMin": "10",
-        "levelMax": "20",
+        "levelMax": "14",
         "encounterWeight": "60",
         "dropTableId": "drop.cave_bat",
         "enabled": "1"
@@ -1189,8 +1189,8 @@
         "id": "dungeon.moss_cave.cave_crystal_lizard",
         "dungeonId": "dungeon.moss_cave",
         "monsterId": "monster.cave_crystal_lizard",
-        "levelMin": "10",
-        "levelMax": "20",
+        "levelMin": "12",
+        "levelMax": "16",
         "encounterWeight": "35",
         "dropTableId": "drop.cave_crystal_lizard",
         "enabled": "1"
@@ -1199,8 +1199,8 @@
         "id": "dungeon.moss_cave.moss_beast",
         "dungeonId": "dungeon.moss_cave",
         "monsterId": "monster.moss_beast",
-        "levelMin": "8",
-        "levelMax": "12",
+        "levelMin": "13",
+        "levelMax": "17",
         "encounterWeight": "5",
         "dropTableId": "drop.moss_beast",
         "enabled": "1"
@@ -1378,14 +1378,14 @@
         "recommendedLevelMin": "10",
         "recommendedLevelMax": "20",
         "bossId": "monster.moss_king",
-        "bossLevelMin": "10",
-        "bossLevelMax": "12",
+        "bossLevelMin": "15",
+        "bossLevelMax": "20",
         "bossStartKills": "12",
         "bossProbabilityStep": "0.01",
         "bossProbabilityCap": "0.25",
         "enabled": "1",
-        "equipmentLevelMin": "1",
-        "equipmentLevelMax": "10"
+        "equipmentLevelMin": "10",
+        "equipmentLevelMax": "20"
       },
       {
         "id": "dungeon.abandoned_mine",
@@ -20810,7 +20810,7 @@
         "monsterId": "monster.cave_crystal_lizard",
         "actionKind": "attack",
         "skillId": "",
-        "weight": "100",
+        "weight": "80",
         "condition": "always"
       },
       {
@@ -21212,6 +21212,14 @@
         "skillId": "skill.monster.burn",
         "weight": "25.0",
         "condition": "always"
+      },
+      {
+        "id": "monster.cave_crystal_lizard.crystal",
+        "monsterId": "monster.cave_crystal_lizard",
+        "actionKind": "skill",
+        "skillId": "skill.monster.crystal",
+        "weight": "20",
+        "condition": "always"
       }
     ],
     "monsterProfiles": [
@@ -21462,39 +21470,43 @@
         "rank": "normal",
         "profile": "cave_bat",
         "levelMin": "10",
-        "levelMax": "20",
+        "levelMax": "14",
         "enabled": "1",
-        "attackMultiplier": "1"
+        "attackMultiplier": "1",
+        "element": "wind"
       },
       {
         "id": "monster.cave_crystal_lizard",
         "name": "洞穴晶蜥",
         "rank": "normal",
         "profile": "plain",
-        "levelMin": "10",
-        "levelMax": "20",
+        "levelMin": "12",
+        "levelMax": "16",
         "enabled": "1",
-        "attackMultiplier": "1"
+        "attackMultiplier": "1",
+        "element": "earth"
       },
       {
         "id": "monster.moss_beast",
         "name": "苔石兽",
         "rank": "elite",
         "profile": "armored",
-        "levelMin": "8",
-        "levelMax": "12",
+        "levelMin": "13",
+        "levelMax": "17",
         "enabled": "1",
-        "attackMultiplier": "1"
+        "attackMultiplier": "1",
+        "element": "earth"
       },
       {
         "id": "monster.moss_king",
         "name": "苔冠巨兽",
         "rank": "boss",
         "profile": "armored",
-        "levelMin": "10",
-        "levelMax": "12",
+        "levelMin": "15",
+        "levelMax": "20",
         "enabled": "1",
-        "attackMultiplier": "1.3"
+        "attackMultiplier": "1.3",
+        "element": "earth"
       },
       {
         "id": "monster.mine_rat",
@@ -27075,6 +27087,20 @@
         "group": "",
         "hits": "1",
         "chance": "1"
+      },
+      {
+        "id": "skill.monster.crystal.r1.e1",
+        "skillLevelId": "skill.monster.crystal.r1",
+        "code": "damage",
+        "stat": "physical_attack",
+        "value": "1.35",
+        "duration": "0",
+        "target": "enemy",
+        "damageType": "physical",
+        "group": "",
+        "hits": "1",
+        "chance": "1",
+        "element": "earth"
       }
     ],
     "skillLevels": [
@@ -29861,6 +29887,18 @@
         "cooldownRounds": "0",
         "description": "战斗中每 15 秒恢复最大生命与最大法力各 3%",
         "enabled": "1"
+      },
+      {
+        "id": "skill.monster.crystal.r1",
+        "skillId": "skill.monster.crystal",
+        "rank": "1",
+        "requiredLevel": "1",
+        "costBase": "4",
+        "costPerLevel": "0.5",
+        "costRankFactor": "1",
+        "cooldownRounds": "4",
+        "description": "1.35 倍物攻·土属性单体攻击",
+        "enabled": "1"
       }
     ],
     "skills": [
@@ -30534,6 +30572,14 @@
         "professionId": "job.priest",
         "learnLevel": "20",
         "kind": "passive",
+        "enabled": "1"
+      },
+      {
+        "id": "skill.monster.crystal",
+        "name": "晶棘突袭",
+        "professionId": "",
+        "learnLevel": "1",
+        "kind": "monster",
         "enabled": "1"
       }
     ],

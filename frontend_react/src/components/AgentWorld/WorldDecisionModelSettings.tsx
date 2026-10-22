@@ -13,6 +13,7 @@ import {DecisionFailoverEditor} from './DecisionFailoverEditor';
 import {DEFAULT_STICKY_TTL_SECONDS, stickyTtlValue} from './decisionFailover';
 
 const decisionSceneLabels = {
+    tournament_reward_slot: '武道大会奖励部位',
     fishing_spot: '钓鱼地点选择', fishing_duration: '钓鱼时长选择', fishing_bait: '钓鱼携带鱼饵', fishing_duel: '鱼王猜拳',
     lottery_quantity: '大乐透购票数量',
     lottery_number: '大乐透逐位选号',

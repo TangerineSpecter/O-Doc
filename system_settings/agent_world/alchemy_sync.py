@@ -31,7 +31,8 @@ def changed(sender, instance, **kwargs):
 
 def register_signals():
     from system_settings.models import WorldAction
-    for model in (AlchemyCatalog, AlchemySkill, AlchemyOperation, AgentInventoryItem, MarketListing, MarketTransaction, WorldAction):
+    from .tournament_models import TournamentReward
+    for model in (AlchemyCatalog, AlchemySkill, AlchemyOperation, AgentInventoryItem, MarketListing, MarketTransaction, WorldAction, TournamentReward):
         for signal in (post_save, post_delete):
             signal.connect(changed, sender=model, weak=False, dispatch_uid=f'alchemy:{model.__name__}:{signal}')
 

@@ -1,3 +1,5 @@
+import {isCaveMonsterId} from '../animation/cavePixels/caveTypes';
+import {StaticCavePortrait} from './StaticCavePortrait';
 import {lazy, Suspense} from 'react';
 import slimeImage from '../../../assets/combat/slime.svg';
 import caveBatImage from '../../../assets/combat/cave-bat.svg';
@@ -50,6 +52,7 @@ export function MonsterPortrait({
         style={{imageRendering: 'pixelated'}} /> : still;
     const meadowStill = isMeadowMonsterId(monsterId)
         ? <StaticMeadowPortrait monsterId={monsterId} inHabitat={Boolean(habitat)} /> : null;
+    const caveStill=isCaveMonsterId(monsterId)?<StaticCavePortrait monsterId={monsterId} inHabitat={Boolean(habitat)}/>:null;
     return <div
         className={`relative flex items-center justify-center overflow-hidden ${className}`}
         data-habitat-id={habitat?.dungeonId}
@@ -59,7 +62,9 @@ export function MonsterPortrait({
     >
         {habitat && <img src={habitat.image} alt="" className="pointer-events-none absolute left-0 top-0 w-full object-cover object-top"
             style={{height: `${100 * .79 / habitat.feetRatio}%`, imageRendering: 'pixelated'}} />}
-        {isMeadowMonsterId(monsterId)
+        {isCaveMonsterId(monsterId)
+            ? animated ? <Suspense fallback={caveStill}><AnimatedMonsterPortrait key={`${monsterId}:${Boolean(habitat)}`} monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={caveStill}/></Suspense> : caveStill
+            : isMeadowMonsterId(monsterId)
             ? animated ? <Suspense fallback={meadowStill}><AnimatedMonsterPortrait key={`${monsterId}:${Boolean(habitat)}`} monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={meadowStill} /></Suspense> : meadowStill
             : pixelArt ? pixelStill
             : monsterId === 'monster.slime' || isBat || isMossBeast || isMossKing

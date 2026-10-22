@@ -19,11 +19,13 @@ import {
 import WorldDialog from './WorldDialog';
 import {decisionProcessGuides} from './decisionProcessGuides';
 import type {DecisionGuideKind} from './decisionProcessGuides';
+import {LotteryIcon} from '../Lottery/LotteryIcon';
 
 // 场景主题配置
 const SCENE_THEME = {
+    tournament: {icon: Ticket, name: '武道大会', accentBg: 'bg-orange-500/10 text-orange-600', badge: 'bg-orange-50 text-orange-700 border-orange-200'},
     fishing: {icon: Fish, name: '居民钓鱼', accentBg: 'bg-teal-500/10 text-teal-600', badge: 'bg-teal-50 text-teal-700 border-teal-200'},
-    lottery: {icon: Ticket, name: '居民大乐透', accentBg: 'bg-orange-500/10 text-orange-600', badge: 'bg-orange-50 text-orange-700 border-orange-200'},
+    lottery: {icon: LotteryIcon, name: '居民大乐透', accentBg: 'bg-orange-500/10 text-orange-600', badge: 'bg-orange-50 text-orange-700 border-orange-200'},
     cooking: {
         icon: UtensilsCrossed,
         name: '料理工坊',
@@ -109,6 +111,14 @@ export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
 
     // 辅助函数：根据步骤序号和业务类型获取流向标注
     const getFlowConnector = (index: number) => {
+        if (kind === 'tournament') {
+            return [
+                {dir: 'down', text: '名单与对阵确定，按日期推进'},
+                {dir: 'to-right', text: '决出冠亚军，生成可选部位'},
+                {dir: 'to-left', text: '提交部位或采用代码随机兜底'},
+                {dir: 'finish', text: '保存奖励事实并同步'},
+            ][index] || null;
+        }
         if (kind === 'fishing') {
             return [
                 {dir: 'to-right', text: '合法钓点与已有鱼饵交给决策连接'},

@@ -1,7 +1,7 @@
 import WorldDialogSuspense from '../components/AgentWorld/WorldDialogSuspense';
 import {lazy, useCallback, useEffect, useState} from 'react';
 import WorldOrbitLoader from '../components/AgentWorld/WorldOrbitLoader';
-import {Activity, ArrowLeft, BarChart3, Bot, BookOpenText, CalendarDays, ClipboardList, Fish, MessageCircle, MessagesSquare, Settings, Sprout, Store, TrendingUp, Ticket} from 'lucide-react';
+import {Activity, ArrowLeft, BarChart3, Bot, BookOpenText, CalendarDays, ClipboardList, Fish, MessageCircle, MessagesSquare, Settings, Sprout, Store, TrendingUp, Ticket, Trophy} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import DailyFeedTimeline from '../components/AgentWorld/DailyFeedTimeline';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
@@ -23,6 +23,7 @@ const TokenUsageDialog = lazy(() => import('../components/TokenUsage/TokenUsageD
 const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDialog');
 const preloadMarket = () => import('../components/Market/MarketDialog');
 const preloadFarm = () => import('../components/Farm/FarmDialog');
+const TournamentPanel = lazy(() => import('../components/Tournament/TournamentPanel'));
 const CombatDialog = lazy(() => import('../components/Combat/CombatDialog'));
 const CombatObservation = lazy(() => import('../components/Combat/CombatObservation'));
 const preloadCatalog = () => import('../components/AgentWorld/WorldCatalogDialog');
@@ -75,6 +76,7 @@ export default function AgentWorldPage() {
     const [fishingTripId, setFishingTripId] = useState('');
     const [fishingOpen, setFishingOpen] = useState(false);
     const [lotteryOpen, setLotteryOpen] = useState(false);
+    const [tournamentOpen, setTournamentOpen] = useState(false);
     const [bountyOpen, setBountyOpen] = useState(false);
     const [combatOpen,setCombatOpen] = useState(false);
     const [combatActor,setCombatActor] = useState('');
@@ -222,6 +224,7 @@ export default function AgentWorldPage() {
                     <button type="button" onClick={() => setInvestmentOpen(true)} onMouseEnter={preloadInvestment} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-semibold text-orange-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-100 hover:shadow-xs active:scale-95"><TrendingUp className="h-3.5 w-3.5 shrink-0"/>股票投资</button>
                     <button type="button" onClick={() => {setFishingTripId(''); setFishingOpen(true);}} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 transition-colors hover:bg-teal-100"><Fish className="h-3.5 w-3.5" aria-hidden="true"/>钓鱼</button>
                     <button type="button" onClick={() => setLotteryOpen(true)} onMouseEnter={preloadLottery} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-100"><Ticket className="h-3.5 w-3.5"/>大乐透</button>
+                    <button type="button" onClick={() => setTournamentOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100"><Trophy className="h-3.5 w-3.5"/>武道大会</button>
                     <button type="button" onClick={() => setLifeOpen(true)} onMouseEnter={preloadLifeSchedule} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs transition-all duration-150 hover:border-blue-300 hover:bg-blue-100 hover:shadow-xs active:scale-95"><CalendarDays className="h-3.5 w-3.5 shrink-0"/>生活日程</button>
                     <button
                         type="button"
@@ -351,6 +354,7 @@ export default function AgentWorldPage() {
             {worksOpen && <WorldDialogSuspense title="世界作品" onClose={closeWorks} size="extra-wide" fallback={<WorldOrbitLoader title="正在检索世界作品" subtitle="读取文集文章 · 汇总创作记录"/>}><WorldWorksDialog onClose={closeWorks}/></WorldDialogSuspense>}
             {fishingOpen && <WorldDialogSuspense title="居民钓鱼" onClose={() => setFishingOpen(false)} size="wide" fallback={<WorldOrbitLoader title="正在读取水边见闻"/>}><FishingPanel initialTripId={fishingTripId}/></WorldDialogSuspense>}
             {lotteryOpen && <WorldDialogSuspense title="居民大乐透" onClose={() => setLotteryOpen(false)} size="wide" fallback={<WorldOrbitLoader title="正在读取本期彩票" subtitle="查看奖池 · 开奖与中奖记录"/>}><LotteryPanel/></WorldDialogSuspense>}
+            {tournamentOpen && <WorldDialogSuspense title="武道大会" onClose={() => setTournamentOpen(false)} size="extra-wide" fallback={<WorldOrbitLoader title="正在读取大会赛程"/>}><TournamentPanel/></WorldDialogSuspense>}
             {bountyOpen && <WorldDialogSuspense title="悬赏看板" description="发布调研发帖任务，居民自行接单，验收通过后发放世界币。" onClose={() => setBountyOpen(false)} size="wide" fallback={<WorldOrbitLoader title="正在读取悬赏看板" subtitle="加载居民征询顺序 · 校验交付记录"/>}><BountyBoard/></WorldDialogSuspense>}
             {momentDetailId && <WorldDialogSuspense title="朋友圈动态" size="compact" onClose={() => setMomentDetailId(null)} fallback={<WorldOrbitLoader title="正在读取动态" subtitle="加载朋友圈内容与讨论"/>}><MomentDetailDialog momentId={momentDetailId} onClose={() => setMomentDetailId(null)}/></WorldDialogSuspense>}
             {combatOpen && !combatExploration && <WorldDialogSuspense title="冒险与战斗" onClose={closeCombat} size="extra-wide" fallback={<WorldOrbitLoader title="正在打开冒险档案"/>}><CombatDialog residents={world.summary?.agents || []} initialAgentId={combatActor || world.agentId} onObserve={(id,actorId) => {setCombatActor(actorId);setCombatExploration(id);}} onClose={closeCombat}/></WorldDialogSuspense>}

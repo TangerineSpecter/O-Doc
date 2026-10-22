@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>苔石洞窟 · 四只洞窟魔物的像素演武场</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2387a569' d='M6 26V14h5V9h7V5h9v10h-5v7H11v4z'/%3E%3Cpath fill='%23dbe8bb' d='M10 23h4v-5h5v-5h5v-3h-7v5h-7z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./sprout-meadow/studio.css?v=3">
+  <link rel="stylesheet" href="./moss-cave/studio.css?v=3">
+  <script defer src="./moss-cave/monsters.js?v=3r1"></script>
+  <script defer src="./moss-cave/sprite-data.js?v=3"></script>
+  <script defer src="./moss-cave/characters.js?v=4"></script>
+  <script defer src="./moss-cave/king-detail-data.js?v=4"></script>
+  <script defer src="./moss-cave/king-detail.js?v=4"></script>
+  <script defer src="./sprout-meadow/renderer.js?v=3"></script>
+  <script defer src="./moss-cave/skill-drawing.js?v=3"></script>
+  <script defer src="./moss-cave/scene.js?v=4"></script>
+  <script defer src="./sprout-meadow/motion.js?v=3"></script>
+  <script defer src="./moss-cave/motion.js?v=3r1"></script>
+  <script defer src="./sprout-meadow/pixel-shatter.js?v=3"></script>
+  <script defer src="./sprout-meadow/effects.js?v=3"></script>
+  <script defer src="./moss-cave/effects.js?v=3"></script>
+  <script defer src="./moss-cave/studio.js?v=4"></script>
+</head>
+<body>
+  <main class="studio">
+    <header class="page-heading">
+      <div><p class="eyebrow"><span></span> FIELD NOTES / 02 · MONSTER STUDY</p><h1>苔石洞窟<span>的幽光住民</span></h1><p class="intro">石缝透着微光，洞窟深处传来了轻轻的脚步声。</p></div>
+      <div class="edition">像素魔物演武场 <b>VOL. 04</b><span>形象与动作设计预览 · 待确认</span></div>
+    </header>
+
+    <nav class="monster-tabs" aria-label="选择魔物">
+      <button class="monster-tab" data-monster="bat" aria-pressed="true"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>洞穴蝙蝠</b><small>01 / CAVE BAT</small></span><i>10–14</i></button>
+      <button class="monster-tab" data-monster="lizard" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>洞穴晶蜥</b><small>02 / CRYSTAL</small></span><i>12–16</i></button>
+      <button class="monster-tab" data-monster="beast" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>苔石兽</b><small>03 / MOSS BEAST</small></span><i>13–17</i></button>
+      <button class="monster-tab" data-monster="king" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>苔冠巨兽</b><small>04 / MOSS KING</small></span><i>15–20</i></button>
+    </nav>
+
+    <div class="workspace">
+      <section class="scene-card" aria-label="魔物动画预览">
+        <div class="scene-heading"><span class="location"><span class="location-dot"></span> 苔石洞窟 <small>MOSS CAVE</small></span><span class="weather">微凉 · 滴水</span></div>
+        <div class="stage" id="stage">
+          <canvas id="arena" width="960" height="540" role="img" aria-label="苔石洞窟中待机的洞穴蝙蝠，可点击互动"></canvas>
+          <div class="stage-top"><span class="rank-pill"><b id="rank-name">普通魔物</b> <span id="level">Lv.10–14</span></span><span class="status-pill"><i></i><span id="status" role="status">待机 · 轻轻呼吸</span></span></div>
+          <div class="stage-bottom"><span id="interaction-tip">轻触小家伙，看看它的反应</span><span class="pixel-label">320 × 180 <b>PIXEL</b></span></div>
+          <div class="inspection-legend" id="layer-legend" hidden><b>材质分层</b><span>描边 / 主体 / 高光 / 动作部件</span><div><i></i><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="scene-footer"><div class="health"><span>演示生命</span><div class="health-track"><i id="health-fill"></i></div><b id="health-value">100%</b></div><span class="frame-info"><i></i><span id="fps">60</span> FPS</span></div>
+      </section>
+
+      <aside class="controls-card" aria-label="动作与播放控制">
+        <div class="control-title"><span>动作演示</span><small>01 — 05</small></div>
+        <p class="skill-note" id="skill-note">当前技能：闪身。技能表现仅作视觉预览。</p>
+        <div class="actions">
+          <button class="action" data-action="idle" aria-pressed="true"><span class="action-number">01</span><span><b>待机</b><small id="hint-idle">双翼起伏，耳尖轻摆</small></span><kbd>1</kbd></button>
+          <button class="action" data-action="move" aria-pressed="false"><span class="action-number">02</span><span><b>移动</b><small id="hint-move">振翅前行，悬浮升降</small></span><kbd>2</kbd></button>
+          <button class="action" data-action="attack" aria-pressed="false"><span class="action-number">03</span><span><b>普通攻击</b><small id="hint-attack">收势蓄力，俯冲扑咬</small></span><kbd>3</kbd></button>
+          <button class="action" data-action="hit" aria-pressed="false"><span class="action-number">04</span><span><b>受击</b><small id="hint-hit">闪白、回震与恢复 · 共用版</small></span><kbd>4</kbd></button>
+          <button class="action" data-action="defeat" aria-pressed="false"><span class="action-number">05</span><span><b>倒下 · 粉碎</b><small id="hint-defeat">闪白震裂，炸成像素碎片</small></span><kbd>5</kbd></button>
+        </div>
+        <div id="skills" class="skill-actions" aria-label="已确认技能演示"></div>
+        <p id="skill-caption" class="skill-caption">选择技能查看动作过程；演示不参与战斗结算。</p>
+        <button class="demo-button" id="demo" aria-pressed="false"><span>▷</span> 连续演示 <small>含当前魔物技能预览</small></button>
+        <div class="playback"><button id="pause" aria-pressed="false" aria-label="暂停动画">Ⅱ 暂停</button><button id="reset">↺ 重置</button></div>
+        <div class="speed-row"><span>播放速度</span><div class="segmented" aria-label="播放速度"><button data-speed="0.25" aria-pressed="false">¼×</button><button data-speed="0.5" aria-pressed="false">½×</button><button data-speed="1" aria-pressed="true">1×</button><button data-speed="1.5" aria-pressed="false">1½×</button></div></div>
+        <p class="keyboard-hint">1–5 切换动作 · 空格暂停 · R 重置</p>
+      </aside>
+    </div>
+
+    <section class="specimen-card" aria-labelledby="monster-name">
+      <div class="specimen-title"><span class="specimen-index" id="monster-index">Nº 01</span><div><h2 id="monster-name">洞穴蝙蝠 <span>CAVE BAT</span></h2><p id="monster-description">大耳朵捕捉着洞窟里的回声，双翼从肩部轻轻振动。</p></div></div>
+      <div class="traits"><div><small>体态 / 材质</small><b id="monster-material">绒紫身体 · 粉色耳膜</b></div><div><small>攻击方式</small><b id="monster-attack">物理普攻 · 俯冲扑咬</b></div><div><small>元素 / 定位</small><b id="monster-role">风 · 普通型</b></div></div>
+    </section>
+
+    <footer class="inspector"><div class="tools"><button id="flip" aria-pressed="true">⇄ 朝向：左</button><button id="background" aria-pressed="false">▧ 素色舞台</button><button id="atlas" aria-pressed="false">⊡ 图鉴尺寸</button><button id="grid" aria-pressed="false">▦ 像素网格</button><button id="layers" aria-pressed="false">◈ 材质分层</button><button id="night" aria-pressed="false">☾ 洞窟暗光</button><button id="sound" aria-pressed="false">♪ 音效</button></div><p>沿用新芽草甸第六版 · 独立 HTML 预览，确认后再接入 · 演示生命与动作不参与战斗结算</p></footer>
+    <noscript>请启用 JavaScript 以查看像素魔物与动画。</noscript>
+  </main>
+</body>
+</html>

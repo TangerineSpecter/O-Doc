@@ -5,7 +5,7 @@ monster.leafshell_beetle.attack,monster.leafshell_beetle,attack,,100,always
 monster.dawnfire_glowbug.attack,monster.dawnfire_glowbug,attack,,100,always
 monster.cave_bat.attack,monster.cave_bat,attack,,80,always
 monster.cave_bat.evasion,monster.cave_bat,skill,skill.monster.evasion,20.0,always
-monster.cave_crystal_lizard.attack,monster.cave_crystal_lizard,attack,,100,always
+monster.cave_crystal_lizard.attack,monster.cave_crystal_lizard,attack,,80,always
 monster.moss_beast.attack,monster.moss_beast,attack,,65,always
 monster.moss_beast.guard,monster.moss_beast,skill,skill.monster.guard,35.0,not_active
 monster.moss_king.attack,monster.moss_king,attack,,50,always
@@ -56,3 +56,4 @@ monster.rift_lord.curse,monster.rift_lord,skill,skill.monster.curse,35.0,always
 monster.star_overlord.attack,monster.star_overlord,attack,,50,always
 monster.star_overlord.curse,monster.star_overlord,skill,skill.monster.curse,25.0,always
 monster.star_overlord.burn,monster.star_overlord,skill,skill.monster.burn,25.0,always
+monster.cave_crystal_lizard.crystal,monster.cave_crystal_lizard,skill,skill.monster.crystal,20,always

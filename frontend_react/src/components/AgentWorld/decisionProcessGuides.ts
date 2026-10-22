@@ -1,4 +1,4 @@
-export type DecisionGuideKind = 'exploration' | 'cooking' | 'alchemy' | 'lottery' | 'fishing';
+export type DecisionGuideKind = 'exploration' | 'cooking' | 'alchemy' | 'lottery' | 'fishing' | 'tournament';
 
 export interface DecisionFlowStep {
     title: string;
@@ -31,6 +31,21 @@ export interface DecisionProcessGuide {
 }
 
 export const decisionProcessGuides: Record<DecisionGuideKind, DecisionProcessGuide> = {
+    tournament: {
+        title: '武道大会 · 抽签与领奖', subtitle: '每周争锋 · 每日一轮', theme: 'orange',
+        introduction: '已有战斗档案的未归档居民自动参加。系统负责对战和随机生成奖品，决策模型只选择冠亚军奖励部位。',
+        steps: [
+            {role: '系统判断', title: '周日 14:00 锁定名单', detail: '不足两人不开赛；超过64人当天连续预选。奇数轮空，优先照顾累计轮空次数较少的选手。'},
+            {role: '系统执行', title: '每天 14:00 自动对战', detail: '周一开始每天一轮，人数少时提前结束。每场读取当前职业、等级、技能和装备，独立满血满蓝，禁止消耗品，不影响探索。四强败者争季军，三人晋级两人时唯一败者直接获季军。'},
+            {role: '模型选择', title: '冠亚军选择奖励部位', detail: '先在获奖者当前等级±5级内随机奖品等级，边界1～99；模型只看到当前部位与金蓝白品质或空槽。只能选择该等级有模板的部位；模型不可用时代码随机选。'},
+            {role: '系统执行', title: '随机生成并入库', detail: '冠军金装、亚军蓝装，类型与词条随机，不过滤职业或精通；季军独立随机三瓶1～5级配方药水，全部一星，允许重复。奖品可出售交易，恢复不重复生成或发放。'},
+        ],
+        notes: [
+            {title: '实时参赛配置', detail: '不锁定报名装备，每场直接读取开赛时配置。升级换装影响之后的比赛。200回合未分胜负按生命比例判定，同分进入50回合禁止回血加赛，仍同分随机判胜。'},
+            {title: '停机与同步', detail: '跟随本机世界自动运行开关。恢复补完已创建赛事，不补造历史周赛。完整赛程、战报和奖品同步；同一世界只在一台设备执行。'},
+            {title: '退出与空缺', detail: '锁定后新增居民下周参加；归档或删除视为弃权。两人没有季军，不足两人不发奖，空缺名次不补发。'},
+        ],
+    },
     fishing: {
         title: '居民钓鱼 · 出钓与鱼王', subtitle: '先备饵，再等一次咬钩', theme: 'emerald',
         introduction: '日程安排钓鱼意向，钓鱼领域只使用决策连接；系统负责库存、持续抛竿、概率及收获结算。',

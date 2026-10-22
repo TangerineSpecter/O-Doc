@@ -406,3 +406,4 @@ skill.player.034.r2.e3,skill.player.034.r2,passive_element,light_power,0.045,0,s
 skill.player.034.r2.e4,skill.player.034.r2,passive_element,light_resist,0.09,0,self,,,1,1,
 skill.player.034.r3.e3,skill.player.034.r3,passive_element,light_power,0.06,0,self,,,1,1,
 skill.player.034.r3.e4,skill.player.034.r3,passive_element,light_resist,0.12,0,self,,,1,1,
+skill.monster.crystal.r1.e1,skill.monster.crystal.r1,damage,physical_attack,1.35,0,enemy,physical,,1,1,earth

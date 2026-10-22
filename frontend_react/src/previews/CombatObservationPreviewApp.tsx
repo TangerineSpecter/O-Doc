@@ -9,7 +9,7 @@ import type {CombatSnapshot} from '../types/api/combat';
 type PreviewBackgroundId=BattleBackgroundId;
 const previewBackgrounds=Object.values(battleBackgroundArt);
 const encounters:Record<PreviewBackgroundId,{id:string;name:string}[]>={
-    'dungeon.moss_cave':[{id:'monster.moss_beast',name:'苔石兽'},{id:'monster.cave_bat',name:'洞穴蝙蝠'},{id:'monster.moss_king',name:'苔冠巨兽'},{id:'monster.slime',name:'软泥怪'}],
+    'dungeon.moss_cave':[{id:'monster.moss_beast',name:'苔石兽'},{id:'monster.cave_bat',name:'洞穴蝙蝠'},{id:'monster.moss_king',name:'苔冠巨兽'},{id:'monster.cave_crystal_lizard',name:'洞穴晶蜥'}],
     'dungeon.abandoned_mine':[{id:'monster.ore_golem',name:'矿石傀儡'},{id:'monster.iron_guard',name:'铁甲矿卫'}],
     'dungeon.mist_forest':[{id:'monster.mist_wolf',name:'迷雾狼'},{id:'monster.mist_treant',name:'迷雾树王'}],
     'dungeon.sunken_ruins':[{id:'monster.water_spirit',name:'幽水灵'},{id:'monster.tide_priest',name:'潮汐祭司'}],

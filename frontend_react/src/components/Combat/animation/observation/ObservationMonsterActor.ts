@@ -1,3 +1,6 @@
+import {CaveMonsterActor} from '../cavePixels/CaveMonsterActor';
+import {caveProfiles,isCaveMonsterId} from '../cavePixels/caveTypes';
+import type {CaveSkill} from '../cavePixels/caveTypes';
 import {Container,Sprite,Texture} from 'pixi.js';
 import slime from '../../../../assets/combat/slime.svg';
 import bat from '../../../../assets/combat/cave-bat.svg';
@@ -26,11 +29,16 @@ export class ObservationMonsterActor extends Container {
     private readonly still?:Sprite;
     private readonly stillTexture?:Texture;
     private readonly fragments?:PixelDefeatEffect;
+    private readonly cave?:CaveMonsterActor;
     private readonly meadow?:MeadowMonsterActor;
     private readonly artwork:Container;
     readonly airborne:boolean;
     private constructor(readonly monsterId:string,art?:Awaited<ReturnType<typeof loadDefeatArtwork>>) {
         super();
+        if(isCaveMonsterId(monsterId)) {
+            this.cave=new CaveMonsterActor(caveProfiles[monsterId]);this.artwork=this.cave;
+            this.airborne=this.cave.profile.airborne;this.addChild(this.artwork);return;
+        }
         const profile=meadowProfiles[monsterId];
         if(profile){
             this.meadow=new MeadowMonsterActor(profile);this.artwork=this.meadow;
@@ -57,7 +65,7 @@ export class ObservationMonsterActor extends Container {
         this.addChild(this.artwork,this.fragments);
     }
     static async load(id:string) {
-        if(meadowProfiles[id])return new ObservationMonsterActor(id);
+        if(meadowProfiles[id]||isCaveMonsterId(id))return new ObservationMonsterActor(id);
         const src=builtins[id]??getMonsterPixelArt(id);
         return src?new ObservationMonsterActor(id,await loadDefeatArtwork(src)):null;
     }
@@ -67,7 +75,8 @@ export class ObservationMonsterActor extends Container {
         else if(this.live instanceof MossBeastActor)this.live.update(sampleMossBeastPose(motion,time,-1),ambient,-1);
         else if(this.live instanceof MossKingActor)this.live.update(sampleMossKingPose(motion,time,-1),ambient,-1);
     }
-    sample(motion:Motion,time:number,ambient:number,hitAge:number|undefined,defeatAge:number|undefined) {
+    sample(motion:Motion,time:number,ambient:number,hitAge:number|undefined,defeatAge:number|undefined,skill?:CaveSkill) {
+        if(this.cave){this.cave.sample(motion==='attack'&&skill?skill:motion,time,ambient,defeatAge);return;}
         if(this.meadow){this.meadow.sample(motion,time,ambient,defeatAge);return;}
         this.artwork.visible=defeatAge===undefined;this.fragments?.sample(defeatAge??-1);
         this.tint=hitAge!==undefined&&hitAge>=0&&hitAge<.13?0xff9f92:0xffffff;
@@ -78,10 +87,11 @@ export class ObservationMonsterActor extends Container {
             this.still.rotation=motion==='attack'?-Math.sin(Math.PI*Math.min(1,time/1.1))*.035:0;
         }
     }
+    get caveProfile(){return this.cave?.profile;}
     get pixelProfile(){return this.meadow?.profile;}
-    get keepsDebris(){return Boolean(this.meadow);}
-    get defeatDuration(){return this.meadow?4:1.4;}
-    get shake(){return (this.meadow?.shake??0)*185/116;}
+    get keepsDebris(){return Boolean(this.meadow||this.cave);}
+    get defeatDuration(){return this.meadow||this.cave?4:1.4;}
+    get shake(){return (this.meadow?.shake??this.cave?.shake??0)*185/116;}
     get ranged(){return this.meadow?.profile.ranged??['monster.water_spirit','monster.tide_priest','monster.ash_demon','monster.rift_walker','monster.star_overlord'].includes(this.monsterId);}
     override destroy() {
         if(this.destroyed)return;
