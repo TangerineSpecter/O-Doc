@@ -5,12 +5,15 @@ export interface CombatCatalog {version: string; tables: Record<string, CombatRo
 export interface EquipmentSnapshot {templateId: string; name: string; slot: string; element?: string; equipmentType?: string; grip?: string; level: number; quality: string; value: string; stats: Record<string, number>; affixes: {id: string; stat: string; value: number}[]}
 export interface EquipmentWearRules {version: number; slot: string; equipmentType: string; grip: string; jobLevels: Record<string, number>}
 export interface CombatEquipment {id: string; templateId?:string; displayType?: string; snapshot: EquipmentSnapshot; rules?: EquipmentWearRules; bound: boolean; locked: boolean; marketListed?: boolean; marketListingId?: string | null; value: string}
+export interface CombatResourceRecovery {amount: number; nextAt: string | null; fullAt: string | null}
+export interface CombatRecovery {serverNow: string; nextAt: string | null; hp: CombatResourceRecovery; mp: CombatResourceRecovery}
 export interface CombatProfile {
     discoveries: {encountered: string[]; defeated: string[]; equipment: string[]}; initialized: boolean; actorId: string; progression: {level: number; experience: number; job: string; stats: Record<string, number>; skills: Record<string, number>};
     attributes: Record<string, number | string>; hp: number; mp: number; loadout: Record<string, string>; equipment: CombatEquipment[];
     skills: (CombatRow & {rank: number; effects: CombatRow[]; parameters: CombatRow})[];
     potions: (CombatRow & {owned: number})[]; materials: (CombatRow & {owned: number})[]; activeExplorationId: string | null; promotionOptions: CombatRow[]; promotionBusy: boolean;
     reselectOptions: CombatRow[]; reselectBlocked: string; restUntil: string | null;
+    recovery?: CombatRecovery | null;
 }
 export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; skills?: Record<string, number>; rank?: string; states: {code: string; name: string; remaining?: number}[]}
 /** Derived from existing exploration state, never persisted as animation data. */

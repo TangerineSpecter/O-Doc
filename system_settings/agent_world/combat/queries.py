@@ -86,8 +86,14 @@ def profile_view(owner,agent):
     promotion_run=run or (Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,ended_at__isnull=False).order_by('-ended_at').first() if options else None)
     promotion_runtime=CombatRuntime.objects.filter(pk=promotion_run.pk).first() if promotion_run else None
     promotion_busy=bool(promotion_runtime and (promotion_runtime.promotion_pending or promotion_runtime.requests.get('promotion_allowed')))
-    return {'initialized':bool(profile),'actor_id':agent.pk,'progression':progression,'attributes':derived,'hp':profile.hp if profile else derived['hp_max'],
-        'mp':profile.mp if profile else derived['mp_max'],'loadout':profile.loadout if profile else {},'equipment':equipment_items,'skills':skills,
+    resources = {'hp': profile.hp if profile else derived['hp_max'],
+                 'mp': profile.mp if profile else derived['mp_max'], 'recovery': None}
+    if profile and not run:
+        from .idle_recovery import project
+        resources = project(profile.hp, profile.mp, int(derived['hp_max']), int(derived['mp_max']),
+                            profile.recovered_at, profile.rest_until)
+    return {'initialized':bool(profile),'actor_id':agent.pk,'progression':progression,'attributes':derived, **resources,
+        'loadout':profile.loadout if profile else {},'equipment':equipment_items,'skills':skills,
         'potions':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['potions']],
         'materials':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['materials']],
         'active_exploration_id':run.pk if run else None,'promotion_options':options,'promotion_busy':promotion_busy,

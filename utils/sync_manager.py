@@ -849,6 +849,8 @@ class SyncManager:
     @learning_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None, integrity='strict'):
         """把快照写回数据库。full_overwrite 用于整库覆盖。integrity=repair 时领域校验改为提示，写完后由调用方整理。"""
+        from system_settings.agent_world.stamina_settings import validate_snapshot as validate_stamina
+        validate_stamina(data_list)
         from system_settings.agent_world.combat.history_snapshot import normalize_source, compact_source
         if remote_meta is None or remote_meta.get('combat_schema_version', 0) < 8:
             data_list = compact_source(normalize_source(data_list))
@@ -1815,6 +1817,9 @@ class SyncManager:
         """
         self._integrity_warnings = []
         from copy import deepcopy
+        from system_settings.agent_world.stamina_settings import validate_snapshot as validate_stamina
+        validate_stamina(local_data)
+        validate_stamina(remote.get('data') or [])
         from system_settings.agent_world.combat.history_snapshot import normalize_source, compact_source
         remote = deepcopy(remote)
         if (remote.get('meta') or {}).get('combat_schema_version', 0) < 8:

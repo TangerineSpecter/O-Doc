@@ -86,7 +86,7 @@ export function StaminaBar({
     return (
         <span
             className={`inline-flex shrink-0 items-center rounded-full border leading-none transition-colors select-none ${sizeConfig.container} ${theme.container} ${className}`}
-            title={`体力：${formattedCurrent} / ${max} (${percent}%)\n满额 100 点，每小时自动恢复 5 点`}
+            title={`体力：${formattedCurrent} / ${max} (${percent}%)\n满额 100 点，恢复速度见世界管理 → 体力设置`}
             role="progressbar"
             aria-label={`体力 ${formattedCurrent}/${max}`}
             aria-valuenow={clamped}

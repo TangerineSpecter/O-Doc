@@ -122,3 +122,11 @@ flowchart TD
 入口：`system_settings/loadout_portrait.py`（提示词、透明图处理）、`loadout_portrait_views.py`（授权任务与应用接口）、`frontend_react/src/api/loadoutPortrait.ts`、`components/Combat/useLoadoutPortrait.ts`、`LoadoutPortraitDialog.tsx`、`usePortraitReference.ts`、`CombatLoadoutSlots.tsx`。真实提供商生成质量及多设备 WebDAV 往返需单独验收。
 
 战斗形象编辑器的生成背景选项独立生效：选择“透明 PNG”时，支持原生透明的 Grsai GPT-image 型号（与上述立绘能力名单一致）同时发送 `background: transparent` 参数和透明背景提示词；其他模型仅通过提示词请求透明。选择纯色背景时继续要求品红底，不发送透明参数。背景选择随生成任务请求保存，属于任务恢复元数据，不新增 Agent 同步字段；编辑器保留返回图片的透明通道。
+
+### 闲置生命与法力恢复展示（2026-10-22）
+
+- 非探索期间按完整 5 分钟块恢复：HP 每块恢复上限 5%，MP 每块恢复上限 10%，向下取整且至少 1 点，不超过上限。倒地先休整 30 分钟；期间不回血，MP 正常恢复，到期 HP 恢复至上限 20%，再开始普通回血。
+- 档案接口依据既有 `hp`、`mp`、`recovered_at` 和 `rest_until` 计算当前展示值；普通闲置读取不写数据库、不重置恢复基准，实际出发仍使用既有恢复结算。准备中、探索中、暂停及结算中不计算闲置恢复。
+- HP / MP 条下显示下次恢复倒计时、每次恢复点数及预计回满时间；休整时显示休整剩余时间和结束恢复至 20%。预计时间按当前上限与持续闲置计算，再次探索或调整装备后重新计算。
+- 页面仅在下一恢复节点请求档案，倒计时在本地更新；隐藏页面暂停请求，回到页面后补齐到期刷新，失败时退避重试，满血满蓝后停止恢复请求。探索期间继续沿用原有战斗状态刷新。
+- `recovery` 是 API 临时派生信息，无新增持久字段或同步字段；设备仍通过现有恢复基准重建显示。实现：`combat/idle_recovery.py`、`queries.py`、`useCombat.ts`、`CombatRecoveryHint.tsx`。本轮验证边界见交付说明。

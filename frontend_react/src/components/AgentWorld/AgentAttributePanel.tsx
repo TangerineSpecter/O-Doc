@@ -214,7 +214,7 @@ function AttributeRow({
                     {/* 体力 */}
                     <div
                         className="col-span-2 rounded-xl border border-lime-100/90 bg-lime-50/40 p-2"
-                        title="每小时恢复 5 点，成功评论并打分消耗 10 点"
+                        title="自然恢复速度在世界管理的体力设置中配置，成功评论并打分消耗 10 点"
                     >
                         <div className="flex items-center justify-between">
                             <span className="flex items-center gap-1 text-[11px] font-medium text-slate-600">

@@ -1,0 +1,32 @@
+import {useRef} from 'react';
+import {ArrowLeft,ArrowRight,ChevronRight,Flame,Leaf,Pause,Play,RotateCcw,ShieldCheck,Sparkles,Swords,Target} from 'lucide-react';
+import {getOutfit,getProfession,getWeapon,professions} from './catalog';
+import {LoadoutPanel} from './LoadoutPanel';
+import {clamp} from './pose';
+import {useBattle} from './useBattle';
+
+export function BattleApp(){
+    const host=useRef<HTMLDivElement>(null),{art,error,snapshot:s,command,retry}=useBattle(host);
+    const profession=getProfession(s.loadout.profession),activeProfession=getProfession(s.action.kind==='idle'?s.loadout.profession:s.action.profession),busy=s.action.kind!=='idle',progress=busy?clamp(s.action.age/s.action.duration):0;
+    const phaseIndex=s.action.kind==='skill'?activeProfession.phases.indexOf(s.phase):-1;
+    return <div className="sb-page" data-profession={s.loadout.profession}>
+        <nav className="sb-topbar"><a href="/world-studio-preview.html" className="sb-brand"><span><Leaf size={18}/></span><strong>Agent 世界</strong></a><ChevronRight size={12}/><span>精灵战斗试验室</span><div><span className="sb-preview-label"><i/>独立战斗演示</span><a href="/world-studio-preview.html"><ArrowLeft size={12}/>世界工坊</a></div></nav>
+        <main className="sb-main"><header className="sb-heading"><div><p className="sb-eyebrow">SPRITE COMBAT LAB / 02</p><h1>星火与天剑<span>✦</span></h1><p>可莉的精灵战斗试验场。换一件装备，再来一场漂亮的试炼。</p></div><div className="sb-heading-meta"><span><ShieldCheck size={13}/>横版 2D · 精灵角色</span><small>职业 / 服装 / 武器独立组合</small></div></header>
+            <div className="sb-layout"><div className="sb-center"><div className="sb-profession-switch" aria-label="选择职业">{professions.map(p=><button type="button" key={p.id} className={s.loadout.profession===p.id?'active':''} aria-pressed={s.loadout.profession===p.id} onClick={()=>command({type:'profession',id:p.id})}><span>{p.id==='pyromancer'?<Flame size={19}/>:<Swords size={19}/>}</span><div><strong>{p.name}</strong><small>{p.english}</small></div><span className="sb-profession-passive">{p.passive}</span>{s.loadout.profession===p.id&&<span className="sb-profession-dot"/>}</button>)}</div>
+                    <section className="sb-arena-card sb-card"><div className="sb-arena-top"><span><Target size={13}/>星月学院 · 试炼回廊</span><span><i/>{s.paused?'时间已暂停':'试炼进行中'}</span></div>
+                        <div className="sb-stage"><div className="sb-canvas-host" ref={host}/>{!art&&<div className="sb-loading"><Sparkles size={30}/><h2>{error||'正在点亮星月回廊…'}</h2>{error?<button type="button" onClick={retry}>重试</button>:<p>可莉正在整理装备</p>}</div>}
+                            {art&&<><div className="sb-stage-hud"><div><span className="sb-location-mark">TRIAL 001</span><strong>{s.action.kind==='idle'?'夜色正好，试试新招式。':s.action.kind==='skill'?activeProfession.skill:'普通攻击'}</strong><small>{s.action.kind==='idle'?`${getOutfit(s.loadout.outfit).name} / ${getWeapon(s.loadout.weapon).shortName}`:s.phase}</small></div><div className="sb-dummy-hud"><div><span><Target size={11}/>试炼木桩</span><small>{s.breakAt!==null?'修复中':`${s.hp.toLocaleString()} / ${s.maxHp.toLocaleString()}`}</small></div><span className="sb-hp-track"><i style={{width:`${s.hp/s.maxHp*100}%`}}/></span><small>累计伤害 <b>{s.damage.toLocaleString()}</b><span>·</span>{s.hits} 次命中</small></div></div>
+                                {s.action.kind==='skill'&&s.action.age<1.05&&<div className="sb-skill-cutin" key={`${s.action.profession}-${Math.floor(s.time-s.action.age)}`}><span>奥义展开</span><strong>{activeProfession.skill}</strong><small>{s.action.profession==='pyromancer'?'把星星，变成盛开的花火。':'开匣，二十四剑。天剑，裁决。'}</small></div>}
+                                <div className="sb-stage-bottom"><span>SPACE 暂停<span>·</span>点击画面释放技能</span><span>角色与技能均为独立演示素材</span></div></>}
+                        </div>
+                        <div className="sb-controls"><div><button type="button" className="sb-attack-button" disabled={!art||busy||s.breakAt!==null} onClick={()=>command({type:'attack'})}><Swords size={16}/><span>普通攻击</span><kbd>1</kbd></button><button type="button" className="sb-skill-button" disabled={!art||busy||s.breakAt!==null} onClick={()=>command({type:'skill'})}>{s.loadout.profession==='pyromancer'?<Flame size={17}/>:<Swords size={17}/>}<span>{profession.skill}</span><kbd>2</kbd></button></div><div><button type="button" className={`sb-auto${s.automatic?' active':''}`} aria-pressed={s.automatic} onClick={()=>command({type:'automatic'})}><span><i/></span>自动试演</button><span className="sb-controls-divider"/><button type="button" className="sb-icon-button sb-speed" aria-label={`播放速度 ${s.speed} 倍`} onClick={()=>command({type:'speed'})}>{s.speed}×</button><button type="button" className="sb-icon-button" aria-label={s.paused?'继续战斗':'暂停战斗'} onClick={()=>command({type:'pause'})}>{s.paused?<Play size={16}/>:<Pause size={16}/>}</button><button type="button" className="sb-icon-button" aria-label="重置木桩与统计" onClick={()=>command({type:'reset'})}><RotateCcw size={15}/></button></div></div>
+                        <div className="sb-timeline"><span>{busy?'正在施放':'准备就绪'}</span><div><i style={{width:`${progress*100}%`}}/></div><span>{busy?`${s.action.age.toFixed(1)}s / ${s.action.duration.toFixed(1)}s`:'等待指令'}</span></div>
+                    </section>
+                    <div className="sb-below"><section className="sb-passive-card sb-card"><div className="sb-panel-heading"><span>{s.loadout.profession==='pyromancer'?<Flame size={14}/>:<Swords size={14}/>}职业特性 · {profession.passive}</span><small>独立职业氛围</small></div><p>{profession.description}</p><div className="sb-phase-steps">{activeProfession.phases.map((phase,i)=><span key={phase} className={i===phaseIndex?'active':''}><i>{i+1}</i>{phase}{i<3&&<ArrowRight size={10}/>}</span>)}</div></section><section className="sb-journal sb-card"><div className="sb-panel-heading"><span><Sparkles size={13}/>命中记录</span><small>演示伤害</small></div><div>{s.events.length?s.events.slice(0,3).map(e=><p key={e.id}><time>{e.at.toFixed(1)}s</time><span>{e.label}</span><strong style={{color:e.critical?'#c38e49':undefined}}>−{e.damage}</strong></p>):<div className="sb-empty-record">准备好了，先向木桩打个招呼。</div>}</div></section></div>
+                </div>
+                {art?<LoadoutPanel art={art} snapshot={s} command={command}/>:<aside className="sb-card sb-equipment-loading">正在装入精灵与装备…</aside>}
+            </div>
+            <footer className="sb-footer"><span><Leaf size={12}/>世界工坊预览已保留，战斗演示独立制作。</span><span>视觉与演示数值，不修改正式角色和战斗规则。</span></footer>
+        </main>
+    </div>;
+}

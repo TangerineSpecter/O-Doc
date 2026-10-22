@@ -14,7 +14,6 @@ from system_settings.models import WorldAction
 
 ENERGY_MAX = Decimal('100')
 INTERACTION_COST = Decimal('10')
-RECOVERY_PER_HOUR = Decimal('5')
 # 生活调度在占用失败时要保留原安排。手动执行仍走忙碌跳过。
 defer_when_world_busy = ContextVar('defer_when_world_busy', default=False)
 agent_tokens = ContextVar('agent_execution_tokens', default=None)
@@ -27,12 +26,14 @@ class WorldLeaseBusy(Exception):
 def stamina(agent, now=None) -> Decimal:
     """从唯一消费事件计算，换设备后不把可变余额当作结算依据。"""
     now = now or timezone.now()
+    from .stamina_settings import history, recovered_between
+    recovery_history = history()
     energy, previous = ENERGY_MAX, agent.created_at
     for action in WorldAction.objects.filter(actor_id=agent.pk, status='success', consumed_at__lte=now).order_by('consumed_at', 'pk'):
-        elapsed = max(0, (action.consumed_at - previous).total_seconds())
-        energy = max(Decimal('0'), min(ENERGY_MAX, energy + Decimal(str(elapsed)) * RECOVERY_PER_HOUR / 3600) - action.energy_cost)
+        recovered = recovered_between(previous, action.consumed_at, recovery_history)
+        energy = max(Decimal('0'), min(ENERGY_MAX, energy + recovered) - action.energy_cost)
         previous = max(previous, action.consumed_at)
-    return min(ENERGY_MAX, energy + Decimal(str(max(0, (now - previous).total_seconds()))) * RECOVERY_PER_HOUR / 3600)
+    return min(ENERGY_MAX, energy + recovered_between(previous, now, recovery_history))
 
 
 @contextmanager

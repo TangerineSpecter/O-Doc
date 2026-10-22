@@ -184,6 +184,9 @@ export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
                                     <p className="mt-1 text-xs text-slate-700 leading-relaxed font-medium">
                                         {guide.introduction}
                                     </p>
+                                    {kind === 'exploration' && <p className="mt-1 text-[11px] leading-relaxed text-emerald-700">
+                                        冒险页可查看 HP / MP 下次恢复倒计时及预计回满时间；满血满蓝后停止恢复刷新。
+                                    </p>}
                                 </div>
                             </div>
 

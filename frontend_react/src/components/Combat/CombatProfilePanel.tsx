@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import type {CombatEquipment, CombatCatalog, CombatProfile, CombatSnapshot} from '../../types/api/combat';
 import EquipmentPreview from './EquipmentPreview';
+import CombatRecoveryHint from './CombatRecoveryHint';
 import ExplorationPreparation from './ExplorationPreparation';
 import CombatLoadoutSlots from './CombatLoadoutSlots';
 import LoadoutPortraitDialog from './LoadoutPortraitDialog';
@@ -196,6 +197,7 @@ export default function CombatProfilePanel({
                                     style={{width: `${hpPercent}%`}}
                                 />
                             </div>
+                            {profile.recovery && <CombatRecoveryHint timing={profile.recovery.hp} serverNow={profile.recovery.serverNow} resting={Boolean(profile.restUntil)}/>}
                         </div>
 
                         {/* MP 魔力 */}
@@ -215,6 +217,7 @@ export default function CombatProfilePanel({
                                     style={{width: `${mpPercent}%`}}
                                 />
                             </div>
+                            {profile.recovery && <CombatRecoveryHint timing={profile.recovery.mp} serverNow={profile.recovery.serverNow}/>}
                         </div>
 
                         {/* EXP 历练经验 */}

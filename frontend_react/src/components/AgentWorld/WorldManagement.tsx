@@ -15,7 +15,8 @@ import {MarketSettings} from '../Market/MarketSettings';
 import SocialSettingsDialog from './SocialSettingsDialog';
 import {WorldDecisionModelSettings} from './WorldDecisionModelSettings';
 import {WorldAdventureSettings} from './WorldAdventureSettings';
-type WorldTab = 'categories' | 'professions' | 'income' | 'market' | 'adventure' | 'social' | 'decision-model';
+import {WorldStaminaSettings} from './WorldStaminaSettings';
+type WorldTab = 'stamina' | 'categories' | 'professions' | 'income' | 'market' | 'adventure' | 'social' | 'decision-model';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -197,6 +198,10 @@ export function WorldManagement() {
                         >
                             市场管理
                         </button>
+                        <button type="button" onClick={() => setTab('stamina')}
+                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${tab === 'stamina' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            体力设置
+                        </button>
                         <button
                             type="button"
                             onClick={() => setTab('adventure')}
@@ -260,6 +265,7 @@ export function WorldManagement() {
                     {tab === 'decision-model' && <WorldDecisionModelSettings/>}
                     {socialSettingsOpen && <SocialSettingsDialog onClose={() => setSocialSettingsOpen(false)}/>}
                     {tab === 'market' && <MarketSettings/>}
+                    {tab === 'stamina' && <WorldStaminaSettings/>}
                     {tab === 'adventure' && <WorldAdventureSettings/>}
                     {tab === 'income' && (
                         <WorldIncomeTab

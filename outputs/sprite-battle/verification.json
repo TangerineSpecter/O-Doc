@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "default spark knight Klee + pyromancer + moon staff",
+    "staff projectile impact and full pause",
+    "actual blue outfit and independent inferno staff swap",
+    "pyromancer four-leaf explosion hits only on visual impact",
+    "profession selection preserves clothing and weapon",
+    "24 curved flying swords followed by judgment blade, 25 impact events",
+    "katana uses dash and slash rather than staff projectile",
+    "390px responsive layout without overflow",
+    "single HTML runs via file URL with zero external HTTP requests; both skills and 25 blade hits verified"
+  ],
+  "errors": [],
+  "failedRequests": [],
+  "offlineStandalone": {
+    "errors": [],
+    "failedRequests": [],
+    "externalHttpRequests": []
+  },
+  "skillRecording": "/Users/zhouliangjun/Desktop/web_code/O-Doc/outputs/sprite-battle/recordings/skill/page@d64e437533090fca3fb869e23d3e0f70.webm"
+}

@@ -1,5 +1,6 @@
 """Owner-driven level-one profession re-selection keeps level and replays growth."""
 import random
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -104,12 +105,14 @@ class JobReselectTests(TestCase):
         self.assert_preview_matches_reselection(CombatProfile.objects.get(pk=self.agent.pk), unequipped=[])
 
     def assert_preview_matches_reselection(self, profile, *, unequipped):
-        before = profile_view('admin', self.agent)
-        fact_count = CombatFact.objects.count()
-        gear_count = EquipmentInstance.objects.count()
-        preview = profiles.preview_reselect(profile, 'job.mage')
-        self.assertEqual(preview['unequipped'], unequipped)
-        self.assertEqual(profile_view('admin', self.agent), before)
+        # Recovery projections contain server time; compare both reads at one instant.
+        with patch('system_settings.agent_world.life_time.timezone.now', return_value=storage_time(local_time())):
+            before = profile_view('admin', self.agent)
+            fact_count = CombatFact.objects.count()
+            gear_count = EquipmentInstance.objects.count()
+            preview = profiles.preview_reselect(profile, 'job.mage')
+            self.assertEqual(preview['unequipped'], unequipped)
+            self.assertEqual(profile_view('admin', self.agent), before)
         self.assertEqual(CombatFact.objects.count(), fact_count)
         self.assertEqual(EquipmentInstance.objects.count(), gear_count)
         changed = profiles.reselect('admin', self.agent, 'preview-reselect-mage', 'job.mage')

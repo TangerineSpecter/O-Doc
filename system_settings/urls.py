@@ -59,7 +59,10 @@ from .agent_world.combat.views import CombatView
 
 from .agent_world.publish_media_views import PostPhotoView
 
+from .agent_world.stamina_views import StaminaSettingsView
+
 urlpatterns = [
+    path('agent-world/stamina/config/', StaminaSettingsView.as_view()),
     path('decision-models/', DecisionConfigView.as_view()),
     path('decision-models/test/', DecisionTestView.as_view()),
     path('decision-models/connections/', DecisionConnectionCollectionView.as_view()),

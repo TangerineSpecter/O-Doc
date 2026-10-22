@@ -110,13 +110,22 @@ export function useCombat(actorId: string) {
         return () => {active = false;controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange', visibility);};
     }, [actorId, refreshCombatState]);
 
-    const restUntil = data?.actor === actorId ? data.profile?.restUntil : null;
+    const idleProfile = data?.actor === actorId && !refreshCombatState ? data.profile : null;
+    const recoveryDeadline = idleProfile?.recovery?.nextAt || idleProfile?.restUntil;
+    const recoveryServerNow = idleProfile?.recovery?.serverNow;
     useEffect(() => {
-        if (!actorId || !restUntil) return;
-        let active = true;
+        if (!actorId || !recoveryDeadline) return;
+        let active = true, pending = false;
+        let timer: number;
+        let retryDelay = 30000;
         const controller = new AbortController();
-        const deadline = Date.parse(restUntil);
+        // Use server elapsed time so a skewed device clock cannot create a request loop.
+        const receivedAt = Date.now();
+        const deadline = receivedAt + Math.max(0, Date.parse(recoveryDeadline) - Date.parse(recoveryServerNow || new Date(receivedAt).toISOString()));
         const refresh = async () => {
+            if (!active || pending || document.hidden) return;
+            pending = true;
+            window.clearTimeout(timer);
             try {
                 const profile = await getCombatProfile(actorId, controller.signal);
                 if (!active || currentActorRef.current !== actorId) return;
@@ -128,10 +137,14 @@ export function useCombat(actorId: string) {
                 setError('');
             } catch (e) {
                 if (active && !controller.signal.aborted && currentActorRef.current === actorId)
-                    setError(e instanceof Error ? e.message : '休息状态刷新失败');
-            }
+                    setError(e instanceof Error ? e.message : '恢复状态刷新失败');
+                if (active && !controller.signal.aborted) {
+                    timer = window.setTimeout(() => {void refresh();}, retryDelay);
+                    retryDelay = Math.min(300000, retryDelay * 2);
+                }
+            } finally {pending = false;}
         };
-        const timer = window.setTimeout(() => {void refresh();}, Math.max(0, deadline - Date.now() + 250));
+        timer = window.setTimeout(() => {void refresh();}, Math.max(1000, deadline - Date.now() + 250));
         const visibility = () => {
             if (!document.hidden && Date.now() >= deadline) void refresh();
         };
@@ -142,7 +155,7 @@ export function useCombat(actorId: string) {
             window.clearTimeout(timer);
             document.removeEventListener('visibilitychange', visibility);
         };
-    }, [actorId, restUntil]);
+    }, [actorId, recoveryDeadline, recoveryServerNow]);
 
     return {
         data: data?.actor === actorId ? data : null,
