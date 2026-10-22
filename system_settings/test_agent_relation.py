@@ -141,6 +141,30 @@ class AgentRelationFlowTests(TestCase):
         self.assertEqual(node['alchemy']['level'], 2)
         self.assertEqual(node['alchemy']['progress'], 100 / 300)
 
+    def test_graph_exposes_fishing_progress_without_creating_profiles(self):
+        from system_settings.agent_world.fishing.models import FishingProfile, FishingConfig
+        FishingProfile.objects.create(pk=self.author.pk, owner_id='owner', experience=150)
+        graph = relation_graph('owner')
+        nodes = {node['id']: node for node in graph['nodes']}
+        self.assertEqual(nodes[self.author.pk]['fishing'], {
+            'level': 2, 'experience': 150, 'level_experience': 50,
+            'next_level_experience': 225, 'progress': .4,
+        })
+        self.assertEqual(nodes[self.reader.pk]['fishing'], {
+            'level': 1, 'experience': 0, 'level_experience': 0,
+            'next_level_experience': 100, 'progress': 0,
+        })
+        self.assertEqual(FishingProfile.objects.count(), 1)
+        self.assertFalse(FishingConfig.objects.exists())
+
+    def test_graph_fishing_progress_is_scoped_to_owner(self):
+        from system_settings.agent_world.fishing.models import FishingProfile
+        FishingProfile.objects.create(pk=self.author.pk, owner_id='other', experience=150)
+        node = next(item for item in relation_graph('owner')['nodes'] if item['id'] == self.author.pk)
+        self.assertEqual(node['fishing']['experience'], 0)
+        node = next(item for item in relation_graph('other')['nodes'] if item['id'] == self.author.pk)
+        self.assertEqual(node['fishing']['experience'], 150)
+
     def test_old_posts_do_not_raise_creativity(self):
         self.article.created_at = timezone.now() - timedelta(days=40)
         self.article.save(update_fields=['created_at'])

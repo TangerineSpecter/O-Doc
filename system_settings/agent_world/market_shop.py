@@ -85,6 +85,8 @@ def supply_quotes(owner: str, batch_id: str) -> list[dict]:
             'price': str(actual), 'price_delta': actual - rule['base_price'],
             'min_price': rule['base_price'] - rule['fluctuation'],
             'max_price': rule['base_price'] + rule['fluctuation'], 'version': 1})
+    from .fishing.market import bait_quote
+    result.append(bait_quote(owner, batch_id, seed))
     return result
 
 
@@ -92,4 +94,4 @@ def effective_fertilizers(owner: str, now=None) -> dict:
     """Configuration changes start with the next hourly batch, including effects."""
     from .farm_quality import FERTILIZERS
     return {row['sku'].split('.')[1]: {key: row[key] for key in FERTILIZERS[row['sku'].split('.')[1]]}
-            for row in current_batch(owner, now).supplies}
+            for row in current_batch(owner, now).supplies if row['kind'] == 'fertilizer'}

@@ -30,6 +30,8 @@ class SystemSettingsConfig(AppConfig):
         start_world_worker()
         from .agent_world.combat.worker import start as start_combat_worker
         start_combat_worker()
+        from .agent_world.fishing.worker import start as start_fishing_worker
+        start_fishing_worker()
         start_builtin_skill_sync()
         start_agent_task_scheduler()
         start_agent_memory_scheduler()

@@ -54,7 +54,7 @@ def change_money(agent, amount, key, at, *, operation_kind=None, ledger_kind='ma
 def tradable(item):
     sku = item.source.get('sku', '')
     return item.kind == 'souvenir' or sku.startswith(
-        ('crop.', 'product.', 'dish.', 'elixir.', 'combat.material.'))
+        ('crop.', 'product.', 'dish.', 'elixir.', 'combat.material.', 'fish.'))
 
 
 def check_session(session, at):
@@ -184,7 +184,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             farm.revision += 1; farm.updated_at = at
             farm.save(update_fields=['state','revision','updated_at'])
         else:
-            stock = add_stock(agent.pk, owner, agent.name, item['sku'], count, item['name'], 'farm_seed' if item['kind']=='seed' else 'farm_supply', Decimal(item['price']), key)
+            stock = add_stock(agent.pk, owner, agent.name, item['sku'], count, item['name'], 'fishing_bait' if item['kind']=='bait' else 'farm_seed' if item['kind']=='seed' else 'farm_supply', Decimal(item['price']), key)
             result['item_id'] = stock.pk
         if slot_id not in constant_ids: item['remaining_quantity'] -= count
         batch.slots, batch.purchase_keys = slots, [*batch.purchase_keys, key]
@@ -195,10 +195,12 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         item = AgentInventoryItem.objects.select_for_update().filter(pk=operation.get('item_id'), actor_id=agent.pk, owner_id=owner).first()
         if not item or not tradable(item): raise ValueError('物品不存在或不可交易')
         count = quantity(operation.get('quantity'))
-        if kind == 'sell' and not item.source.get('sku','').startswith(('crop.','product.','dish.')):
-            raise ValueError('商店仅回收农作物、畜产品及美食')
+        if kind == 'sell' and not item.source.get('sku','').startswith(('crop.','product.','dish.','fish.')):
+            raise ValueError('商店仅回收农作物、畜产品、美食及鱼类')
         payload = split_item(item, count)
         result.update(name=payload['name'], quantity=count, stars=payload['source'].get('stars'))
+        if payload['source'].get('sku', '').startswith('fish.'):
+            result['fishing_sku'] = payload['source']['sku']
         if kind == 'sell':
             lots = payload['source'].get('lots')
             amount = sum((Decimal(l['price'])*l['quantity'] for l in lots), Decimal(0)) if lots else Decimal(payload['value'])*count
@@ -266,6 +268,8 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             listing.save()
         result.update(listing_id=listing.pk, version=listing.version, unit_price=str(listing.unit_price))
     else: raise ValueError('未知市场操作')
+    from .fishing.market import annotate_trade
+    annotate_trade(owner, operation, result)
     result['deltas'] = deltas
     result['balance'] = str(agent.money)
     MarketTransaction.objects.create(pk=key, owner_id=owner, session=session, actor_id=agent.pk, actor_name=agent.name,

@@ -6,6 +6,8 @@ import mossKingImage from '../../../assets/combat/moss-king.svg';
 import {getMonsterVisual} from './atlasIcons';
 import {getMonsterPixelArt} from '../art/monsterPixelArt';
 import type {MonsterHabitat} from './monsterHabitats';
+import {isMeadowMonsterId} from '../animation/meadowPixels/meadowTypes';
+import {StaticMeadowPortrait} from './StaticMeadowPortrait';
 
 const AnimatedMonsterPortrait = lazy(() => import('../animation/AnimatedMonsterPortrait'));
 
@@ -44,6 +46,10 @@ export function MonsterPortrait({
             ? 'absolute left-1/2 top-[8.4%] h-[73.2%] w-[61.28%] -translate-x-1/2' : framing;
     const still = <img src={isMossKing ? mossKingImage : isMossBeast ? mossBeastImage : isBat ? caveBatImage : slimeImage}
         alt="" className={`${actorFraming} object-contain`} />;
+    const pixelStill = pixelArt ? <img src={pixelArt} alt="" className={`${framing} object-contain p-[6%]`}
+        style={{imageRendering: 'pixelated'}} /> : still;
+    const meadowStill = isMeadowMonsterId(monsterId)
+        ? <StaticMeadowPortrait monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={pixelStill} /> : null;
     return <div
         className={`relative flex items-center justify-center overflow-hidden ${className}`}
         data-habitat-id={habitat?.dungeonId}
@@ -52,8 +58,9 @@ export function MonsterPortrait({
         aria-label={decorative ? undefined : `${name || monsterId}形象`}
     >
         {habitat && <img src={habitat.image} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />}
-        {pixelArt ? <img src={pixelArt} alt="" className={`${framing} object-contain p-[6%]`}
-            style={{imageRendering: 'pixelated'}} />
+        {isMeadowMonsterId(monsterId)
+            ? animated ? <Suspense fallback={meadowStill}><AnimatedMonsterPortrait key={`${monsterId}:${Boolean(habitat)}`} monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={meadowStill} /></Suspense> : meadowStill
+            : pixelArt ? pixelStill
             : monsterId === 'monster.slime' || isBat || isMossBeast || isMossKing
             ? animated ? <Suspense fallback={still}><AnimatedMonsterPortrait key={`${monsterId}:${Boolean(habitat)}`} monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={still} /></Suspense> : still
             : <div className={`flex items-center justify-center ${framing}`}><Icon className={`${fallbackClassName} ${visual.color}`} /></div>}

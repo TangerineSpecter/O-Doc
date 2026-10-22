@@ -6,6 +6,8 @@ from decimal import Decimal
 from .life_time import local_time, storage_time
 
 DESCRIPTIONS = {
+    'fishing': '使用背包鱼饵出钓；决策连接选择钓点、时长及最多三种鱼饵，后台持续垂钓至返回。',
+    'lottery': '购买本期大乐透；稍后由决策模型选择张数及逐位选号。',
     'exploration': '探索迷宫；准备阶段再确定地点、策略和时长，执行程序负责后续日程顺延。',
     'travel': '从本次地点报价中选择旅行目的地；旅行途中其他活动需等待返程。',
     'investment': '按最新可用行情管理模拟股票持仓；具体交易在执行时决定。',
@@ -130,6 +132,12 @@ def task_reason(owner: str, agent, task, at, quota=None) -> str:
     from .life_scope import allowed
     if not allowed(task, agent.pk):
         return '任务未向当前居民开放'
+    if task.task_kind == 'fishing':
+        from .fishing.service import eligibility
+        return eligibility(owner, agent, at)
+    if task.task_kind == 'lottery':
+        from .lottery_decision import eligibility
+        return eligibility(owner, agent, at)
     if task.task_kind == 'post_publish':
         from .publish_config import eligibility
         return eligibility(task, agent, quota=quota)
@@ -213,6 +221,12 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
         context['travel'] = {key: value for key, value in quotes.items() if key in ('candidates', 'budget')}
     if 'farm' in allowed_kinds:
         context['farm'] = farm_summary(owner, agent, context['slots'])
+    if 'fishing' in allowed_kinds:
+        from .fishing.queries import summary
+        context['fishing'] = summary(owner, agent.pk)
+    if 'lottery' in allowed_kinds:
+        from .lottery_decision import summary
+        context['lottery'] = summary(owner, agent.pk)
     if 'investment' in allowed_kinds:
         context['investment'] = investment_summary(owner, agent)
     return context

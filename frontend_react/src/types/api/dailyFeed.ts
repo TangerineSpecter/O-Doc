@@ -1,4 +1,4 @@
-export type DailyFeedCategory = 'all' | 'publication' | 'interaction' | 'travel' | 'exploration' | 'farm' | 'cooking' | 'market' | 'trade' | 'investment' | 'finance' | 'record';
+export type DailyFeedCategory = 'all' | 'fishing' | 'publication' | 'interaction' | 'travel' | 'exploration' | 'farm' | 'cooking' | 'alchemy' | 'market' | 'trade' | 'investment' | 'finance' | 'record';
 
 export interface DailyFeedEvent {
     rating?: number | null;

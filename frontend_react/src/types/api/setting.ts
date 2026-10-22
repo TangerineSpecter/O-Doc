@@ -203,8 +203,10 @@ export interface AgentTaskConfig {
     memoConfig?: {ownerId: string};
     model?: string | null;
     investmentConfig?: import('./investment').InvestmentConfig;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'alchemy' | 'exploration' | 'memo_capture';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'alchemy' | 'lottery' | 'fishing' | 'exploration' | 'memo_capture';
     publishConfig?: import('./agentPublish').AgentPublishConfig;
+    fishingConfig?: {ownerId: string};
+    lotteryConfig?: {ownerId: string};
     explorationConfig?: {ownerId: string};
     travelConfig?: import('./travel').TravelConfig;
     postCollectionIds?: string[];
@@ -329,6 +331,7 @@ export interface AgentRelationNode {
     stamina?: string;
     cooking?: import('./cooking').CookingSkill;
     alchemy?: import('./cooking').CookingSkill;
+    fishing?: import('./cooking').CookingSkill;
     planting?: import('./farm').PlantingSkill;
     creativity: number;
     postCount: number;

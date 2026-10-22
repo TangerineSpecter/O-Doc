@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>新芽草甸 · 四只小魔物的像素演武场</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2387a569' d='M6 26V14h5V9h7V5h9v10h-5v7H11v4z'/%3E%3Cpath fill='%23dbe8bb' d='M10 23h4v-5h5v-5h5v-3h-7v5h-7z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./sprout-meadow/studio.css">
+  <script defer src="./sprout-meadow/monsters.js"></script>
+  <script defer src="./sprout-meadow/sprite-data.js"></script>
+  <script defer src="./sprout-meadow/template-slime.js"></script>
+  <script defer src="./sprout-meadow/characters.js"></script>
+  <script defer src="./sprout-meadow/renderer.js"></script>
+  <script defer src="./sprout-meadow/motion.js"></script>
+  <script defer src="./sprout-meadow/pixel-shatter.js"></script>
+  <script defer src="./sprout-meadow/effects.js"></script>
+  <script defer src="./sprout-meadow/studio.js"></script>
+</head>
+<body>
+  <main class="studio">
+    <header class="page-heading">
+      <div><p class="eyebrow"><span></span> FIELD NOTES / 01 · MONSTER STUDY</p><h1>新芽草甸<span>的小小住民</span></h1><p class="intro">露水还没散，草丛里已经热闹起来了。</p></div>
+      <div class="edition">像素魔物演武场 <b>VOL. 06</b><span>形象与动作设计预览 · 待确认</span></div>
+    </header>
+
+    <nav class="monster-tabs" aria-label="选择魔物">
+      <button class="monster-tab" data-monster="slime" aria-pressed="true"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>软泥怪</b><small>01 / DEWDROP</small></span><i>1–5</i></button>
+      <button class="monster-tab" data-monster="rabbit" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>绒耳兔</b><small>02 / FUZZY EAR</small></span><i>1–7</i></button>
+      <button class="monster-tab" data-monster="beetle" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>叶壳甲虫</b><small>03 / LEAFSHELL</small></span><i>5–10</i></button>
+      <button class="monster-tab" data-monster="glowbug" aria-pressed="false"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>晨光萤</b><small>04 / DAWNFIRE</small></span><i>10–15</i></button>
+    </nav>
+
+    <div class="workspace">
+      <section class="scene-card" aria-label="魔物动画预览">
+        <div class="scene-heading"><span class="location"><span class="location-dot"></span> 新芽草甸 <small>SPROUT MEADOW</small></span><span class="weather">晴 · 微风</span></div>
+        <div class="stage" id="stage">
+          <canvas id="arena" width="960" height="540" role="img" aria-label="新芽草甸中待机的软泥怪，可点击互动"></canvas>
+          <div class="stage-top"><span class="rank-pill">普通魔物 <span id="level">Lv.1–5</span></span><span class="status-pill"><i></i><span id="status" role="status">待机 · 轻轻呼吸</span></span></div>
+          <div class="stage-bottom"><span id="interaction-tip">轻触小家伙，看看它的反应</span><span class="pixel-label">320 × 180 <b>PIXEL</b></span></div>
+          <div class="inspection-legend" id="layer-legend" hidden><b>材质分层</b><span>描边 / 体积 / 高光 / 五官</span><div><i></i><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="scene-footer"><div class="health"><span>演示生命</span><div class="health-track"><i id="health-fill"></i></div><b id="health-value">100%</b></div><span class="frame-info"><i></i><span id="fps">60</span> FPS</span></div>
+      </section>
+
+      <aside class="controls-card" aria-label="动作与播放控制">
+        <div class="control-title"><span>动作演示</span><small>01 — 05</small></div>
+        <p class="skill-note">当前技能：仅普通攻击，暂无额外主动技能。</p>
+        <div class="actions">
+          <button class="action" data-action="idle" aria-pressed="true"><span class="action-number">01</span><span><b>待机</b><small id="hint-idle">呼吸、摇晃与气泡上浮</small></span><kbd>1</kbd></button>
+          <button class="action" data-action="move" aria-pressed="false"><span class="action-number">02</span><span><b>移动</b><small id="hint-move">弹跳前进，落地回弹</small></span><kbd>2</kbd></button>
+          <button class="action" data-action="attack" aria-pressed="false"><span class="action-number">03</span><span><b>普通攻击</b><small id="hint-attack">蓄力跃击，溅起水滴</small></span><kbd>3</kbd></button>
+          <button class="action" data-action="hit" aria-pressed="false"><span class="action-number">04</span><span><b>受击</b><small id="hint-hit">闪白、后退与弹性震荡</small></span><kbd>4</kbd></button>
+          <button class="action" data-action="defeat" aria-pressed="false"><span class="action-number">05</span><span><b>倒下 · 粉碎</b><small id="hint-defeat">闪白震裂，炸成像素碎片</small></span><kbd>5</kbd></button>
+        </div>
+        <button class="demo-button" id="demo" aria-pressed="false"><span>▷</span> 连续演示 <small>完整播放五个动作</small></button>
+        <div class="playback"><button id="pause" aria-pressed="false" aria-label="暂停动画">Ⅱ 暂停</button><button id="reset">↺ 重置</button></div>
+        <div class="speed-row"><span>播放速度</span><div class="segmented" aria-label="播放速度"><button data-speed="0.25" aria-pressed="false">¼×</button><button data-speed="0.5" aria-pressed="false">½×</button><button data-speed="1" aria-pressed="true">1×</button><button data-speed="1.5" aria-pressed="false">1½×</button></div></div>
+        <p class="keyboard-hint">1–5 切换动作 · 空格暂停 · R 重置</p>
+      </aside>
+    </div>
+
+    <section class="specimen-card" aria-labelledby="monster-name">
+      <div class="specimen-title"><span class="specimen-index" id="monster-index">Nº 01</span><div><h2 id="monster-name">软泥怪 <span>DEWDROP SLIME</span></h2><p id="monster-description">一团亮晶晶的水蓝色果冻。晨光沿着身体滑过，小气泡慢慢上浮，连呼吸都带着细碎闪光。</p></div></div>
+      <div class="traits"><div><small>体态 / 材质</small><b id="monster-material">水滴轮廓 · 晶亮水蓝果冻</b></div><div><small>攻击方式</small><b id="monster-attack">物理普攻 · 弹跳撞击</b></div><div><small>元素 / 定位</small><b id="monster-role">水 · 普通型</b></div></div>
+    </section>
+
+    <footer class="inspector"><div class="tools"><button id="flip" aria-pressed="false">⇄ 朝向：右</button><button id="background" aria-pressed="false">▧ 素色舞台</button><button id="atlas" aria-pressed="false">⊡ 图鉴尺寸</button><button id="grid" aria-pressed="false">▦ 像素网格</button><button id="layers" aria-pressed="false">◈ 材质分层</button><button id="dither" aria-pressed="false">▨ 像素抖动</button><button id="night" aria-pressed="false">☾ 夜色</button><button id="sound" aria-pressed="false">♪ 音效</button></div><p>参考 MonsterTemplate_v1 · 独立视觉演示，动作不参与战斗结算</p></footer>
+    <noscript>请启用 JavaScript 以查看像素魔物与动画。</noscript>
+  </main>
+</body>
+</html>

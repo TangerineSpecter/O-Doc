@@ -121,7 +121,7 @@ type AgentView = 'list' | 'tasks';
 type AgentTaskForm = {
     marketConfig?: import('../../types/api/decision').MarketDecisionConfig;
     model: string;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'alchemy' | 'exploration' | 'memo_capture';
+    taskKind?: AgentTaskConfig['taskKind'];
     mcpToolScope: import('@/types/api/setting').AgentTaskMcpToolScope;
     investmentConfig?: import('../../types/api/investment').InvestmentConfig;
     publishConfig?: AgentPublishConfig;
@@ -387,7 +387,7 @@ export const AgentSettings = ({
     const builtinPublishTask = tasks.find(task => task.taskKind === 'post_publish') || defaultPostPublishTask;
     const isManualTask = taskForm.trigger === '手动执行';
     const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
-    const customTasks = tasks.filter(task => !['memo_capture', 'post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration'].includes(task.taskKind || 'custom'));
+    const customTasks = tasks.filter(task => !['memo_capture', 'post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration', 'lottery', 'fishing'].includes(task.taskKind || 'custom'));
 
     const openCreateModal = () => {
         clearAvatarPreview();

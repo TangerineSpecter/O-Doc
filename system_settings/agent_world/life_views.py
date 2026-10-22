@@ -281,6 +281,13 @@ class LifeScheduleView(APIView):
                 if action!='cancel':
                     raise ValueError('活动正在执行；仅在执行锁释放后可取消遗留工作流')
                 from .combat.models import Exploration
+                from .fishing.models import FishingTrip
+                from .fishing.service import finish as finish_fishing
+                fishing = FishingTrip.objects.filter(life_item_id=item.pk, ended_at__isnull=True).first()
+                if fishing:
+                    finish_fishing(fishing.pk, '日程人工取消：' + reason[:300], cancelled=True)
+                    item.refresh_from_db()
+                    return success_result(item_data(item, True))
                 from .combat.explorations import finish as finish_exploration
                 exploration=Exploration.objects.filter(life_item_id=item.pk,status__in=['preparing','active','paused']).first()
                 if exploration:

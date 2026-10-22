@@ -48,7 +48,7 @@ export default function CombatBattleStage({snapshot,disconnected=false,fit=false
             </div>
             {!ready&&!error&&<p role="status" className="absolute inset-0 flex items-center justify-center text-xs text-slate-500">加载战斗画面…</p>}
             {error&&<p role="status" className="absolute inset-x-4 top-1/2 rounded-xl bg-white/90 px-3 py-2 text-xs text-slate-600">画面暂未加载，仍可查看数值和战报。</p>}
-            {!visual.hasEnemy&&ready&&phase!=='击败 · 碎片消散'&&<span className="pointer-events-none absolute right-[15%] top-[45%] rounded-full bg-white/75 px-3 py-1.5 text-xs text-slate-500">{snapshot.status==='active'?'等待遭遇':'探索已停止'}</span>}
+            {!visual.hasEnemy&&ready&&!phase.startsWith('击败 ·')&&<span className="pointer-events-none absolute right-[15%] top-[45%] rounded-full bg-white/75 px-3 py-1.5 text-xs text-slate-500">{snapshot.status==='active'?'等待遭遇':'探索已停止'}</span>}
             <div className="absolute inset-x-3 bottom-3 hidden grid-cols-2 gap-[12%] sm:grid sm:inset-x-4">{hud}</div>
         </div>
         <div className="grid grid-cols-2 gap-2 p-2 sm:hidden">{hud}</div>

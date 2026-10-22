@@ -14,7 +14,7 @@ FARM_ID = 'builtin-farm'
 FARM_NAME = '农场经营'
 MARKET_ID = 'builtin-market'
 MARKET_NAME = '市场交易'
-SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration')
+SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'alchemy', 'exploration', 'fishing', 'lottery')
 
 INVESTMENT_ID = 'builtin-investment'
 INVESTMENT_NAME = 'A 股投资'

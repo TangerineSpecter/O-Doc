@@ -2,7 +2,7 @@ import {ExecutionFeedSteps} from './ExecutionFeedSteps';
 import {ExplorationFeedSettlement} from './ExplorationFeedSettlement';
 import {parseSettlementReport} from '../Combat/observationRecords';
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
-import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
+import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, FlaskConical, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
 import {useEffect, useMemo, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
@@ -19,8 +19,10 @@ const tabs = [
     {value: 'publication', label: '作品', icon: BookOpenText},
     {value: 'interaction', label: '互动', icon: MessageCircle},
     {value: 'travel', label: '旅行', icon: MapPin},
+    {value: 'fishing', label: '钓鱼', icon: Activity},
     {value: 'exploration', label: '探索', icon: Activity},
     {value: 'cooking', label: '烹饪', icon: Sparkles},
+    {value: 'alchemy', label: '炼金', icon: FlaskConical},
     {value: 'farm', label: '农场', icon: Sprout},
     {value: 'market', label: '市场', icon: Store},
     {value: 'trade', label: '交易', icon: Package},
@@ -34,8 +36,10 @@ const categoryStyles: Record<DailyFeedCategory, {badge: string; active: string}>
     publication: {badge: 'bg-amber-50 text-amber-700', active: 'bg-amber-50 text-amber-700'},
     interaction: {badge: 'bg-violet-50 text-violet-700', active: 'bg-violet-50 text-violet-700'},
     travel: {badge: 'bg-sky-50 text-sky-700', active: 'bg-sky-50 text-sky-700'},
+    fishing: {badge: 'bg-teal-50 text-teal-700', active: 'bg-teal-50 text-teal-700'},
     exploration: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
     cooking: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
+    alchemy: {badge: 'bg-purple-50 text-purple-700', active: 'bg-purple-50 text-purple-700'},
     farm: {badge: 'bg-lime-50 text-lime-700', active: 'bg-lime-50 text-lime-700'},
     market: {badge: 'bg-emerald-50 text-emerald-700', active: 'bg-emerald-50 text-emerald-700'},
     trade: {badge: 'bg-teal-50 text-teal-700', active: 'bg-teal-50 text-teal-700'},
@@ -97,8 +101,10 @@ function renderHighlightedTitle(title: string) {
 function getEventActionLabel(target?: DailyFeedEvent['target']): string | null {
     if (!target) return null;
     const kindLabels: Record<string, string> = {
+        fishing: '查看出钓',
         exploration: '观察探索',
         cooking: '查看食谱',
+        alchemy: '查看药水',
         farm: '打开农场',
         market: '打开市场',
         investment: '打开投资',
@@ -120,7 +126,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
     const customBadge = getInteractionBadge(event);
     const badgeLabel = customBadge ? customBadge.label : (badge?.label || event.category);
     const BadgeIcon = customBadge ? customBadge.icon : (badge?.icon || Activity);
-    const badgeClass = customBadge ? customBadge.className : categoryStyles[event.category].badge;
+    const badgeClass = customBadge ? customBadge.className : (categoryStyles[event.category]?.badge ?? categoryStyles.record.badge);
     const amount = event.amount;
     const expense = amount?.startsWith('-') || false;
     const actionLabel = getEventActionLabel(event.target);

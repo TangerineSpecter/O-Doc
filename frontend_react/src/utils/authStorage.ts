@@ -1,7 +1,11 @@
-const TOKEN_KEY = 'token';
-const TOKEN_EXPIRES_AT_KEY = 'tokenExpiresAt';
-const REMEMBER_ME_KEY = 'rememberMe';
-const REMEMBERED_ACCOUNT_KEY = 'rememberedAccount';
+import {localMode} from '../config/development';
+
+// Demo login must never overwrite or clear the real development login.
+const prefix = localMode ? 'odoc:local:' : '';
+const TOKEN_KEY = `${prefix}token`;
+const TOKEN_EXPIRES_AT_KEY = `${prefix}tokenExpiresAt`;
+const REMEMBER_ME_KEY = `${prefix}rememberMe`;
+const REMEMBERED_ACCOUNT_KEY = `${prefix}rememberedAccount`;
 const STANDARD_LOGIN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const saveRememberedAccount = (account: string) => {

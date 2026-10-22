@@ -70,7 +70,8 @@ def execution_lease(model, lookup: dict, *, token_prefix='', promotion_run_id: s
                 pk=promotion_run_id, status='paused', phase__in=['promotion', 'promotion_failed', 'interrupted'],
             ).exists():
                 explorations = explorations.exclude(pk=promotion_run_id)
-            occupied = explorations.exists()
+            from .fishing.models import FishingTrip
+            occupied = explorations.exists() or FishingTrip.objects.filter(actor_id=row.agent_id, ended_at__isnull=True).exists()
         acquired = 0 if occupied else model.objects.filter(pk=row.pk).filter(
             Q(until__isnull=True) | Q(until__lte=timezone.now()),
         ).update(token=token, until=timezone.now() + timedelta(minutes=10))

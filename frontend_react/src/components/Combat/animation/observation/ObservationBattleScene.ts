@@ -10,6 +10,7 @@ import {AtlasSkillRenderer} from '../skillPreview/AtlasSkillRenderer';
 import type {AtlasSkillProfile} from '../skillPreview/atlasSkillProfiles';
 import {drawPlayerMagicBolt} from '../playerRouteEffects';
 import {ObservationMonsterActor} from './ObservationMonsterActor';
+import {drawMeadowAttack} from '../meadowPixels/meadowAttack';
 import {chooseObservationAttack,clampObservation as clamp,observationRecoil,observationSwing} from './observationPresentation';
 import type {ObservationVisual} from './observationPresentation';
 
@@ -143,14 +144,18 @@ export class ObservationBattleScene {
     }
     private advance() {
         if(this.defeatStarted!==undefined){
-            if(this.ambient-this.defeatStarted>1.4){this.defeatStarted=undefined;this.monster?.destroy();this.monster=undefined;this.monsterKey='';void this.replaceMonster();}
+            const nextKey=this.visual.hasEnemy&&this.visual.monsterId?`${this.visual.encounterId}:${this.visual.monsterId}`:'';
+            const canReplace=!this.monster?.keepsDebris||(nextKey&&nextKey!==this.monsterKey);
+            if(this.ambient-this.defeatStarted>(this.monster?.defeatDuration??1.4)&&canReplace){
+                this.defeatStarted=undefined;this.monster?.destroy();this.monster=undefined;this.monsterKey='';void this.replaceMonster();
+            }
             return;
         }
         if(!this.visual.fighting||!this.monster)return;
         if(!this.turn&&this.ambient>=this.nextTurnAt){
             const skill=this.nextSide==='player'?chooseObservationAttack(this.visual):undefined;
-            this.turn={side:this.nextSide,skill,start:this.ambient,duration:skill?.duration??1.7,impact:skill?.impact??.65,
-                damage:6+Math.floor(Math.random()*13),ranged:!skill&&['monster.water_spirit','monster.tide_priest','monster.ash_demon','monster.rift_walker','monster.star_overlord'].includes(this.visual.monsterId),hit:false};
+            this.turn={side:this.nextSide,skill,start:this.ambient,duration:skill?.duration??1.7,impact:skill?.impact??(this.monster.pixelProfile?.ranged ? .9 : .65),
+                damage:6+Math.floor(Math.random()*13),ranged:!skill&&this.monster.ranged,hit:false};
             this.nextSide=this.nextSide==='player'?'enemy':'player';
         }
         const turn=this.turn;if(!turn)return;
@@ -177,13 +182,16 @@ export class ObservationBattleScene {
         this.hero.setWeaponSwing(skill?observationSwing(skill,age):0);
         this.hero.tint=heroHit!==undefined&&heroHit<.13?0xffa597:0xffffff;
         this.hero.alpha=this.visual.playerAlive?1:.6;this.heroShadow.x=hx;this.enemyShadow.x=ex;
-        this.enemyShadow.visible=Boolean(this.monster);this.enemyShadow.alpha=defeatAge===undefined?1:1-clamp(defeatAge/1.1);
+        this.enemyShadow.visible=Boolean(this.monster)&&!(this.monster?.keepsDebris&&defeatAge!==undefined&&defeatAge>=.26);
+        this.enemyShadow.alpha=defeatAge===undefined?1:1-clamp(defeatAge/1.1);
         this.aura.rear.position.set(hx-336*.36,-680*.36);this.aura.rear.scale.set(8*.36);
         this.aura.ground.position.set(hx-336*.36,-96*.36);this.aura.ground.scale.set(8*.36);
         this.aura.draw(getProfessionAura(this.visual.jobId),this.ambient,this.visual.hasPlayer,this.visual.hasPlayer);
-        const motion=enemyHit!==undefined&&enemyHit<.45?'hit':turn?.side==='enemy'?'attack':'idle';
+        const motion=enemyHit!==undefined&&enemyHit<(this.monster?.pixelProfile ? .85 : .45)?'hit':turn?.side==='enemy'?'attack':'idle';
         const motionTime=motion==='hit'?enemyHit!:motion==='attack'?age:this.ambient;
         if(this.monster){this.monster.position.set(ex,0);this.monster.sample(motion,motionTime,this.ambient,enemyHit,defeatAge);}
+        const shake=this.monster?.shake??0;
+        this.world.pivot.set(Math.round(Math.sin(this.ambient*113)*shake*.225),Math.round(Math.cos(this.ambient*97)*shake*.225));
         this.bolt.clear();this.enemyEffect.clear();
         if(skill&&this.monster&&defeatAge===undefined){
             const emitter=this.hero.getEmissionPoint(this.world);
@@ -191,12 +199,15 @@ export class ObservationBattleScene {
             if(skill.shape==='bolt')drawPlayerMagicBolt(this.bolt,age,anchors);
             this.effects.draw(skill,age,anchors);
         } else this.effects.clear();
-        if(turn?.side==='enemy'&&this.monster&&defeatAge===undefined)this.drawEnemyAttack(age,turn.ranged,ex,hx);
+        if(turn?.side==='enemy'&&this.monster&&defeatAge===undefined){
+            if(this.monster.pixelProfile)drawMeadowAttack(this.enemyEffect,this.monster.pixelProfile,age,ex,hx);
+            else this.drawEnemyAttack(age,turn.ranged,ex,hx);
+        }
         const floatAge=this.floating?this.ambient-this.floating.start:Infinity;
         this.damage.visible=floatAge<.9;
         if(this.floating&&floatAge<.9){this.damage.text=this.floating.text;this.damage.tint=this.floating.color;
             this.damage.position.set(this.floating.target==='player'?hx:ex,-155-floatAge*40);this.damage.alpha=1-clamp((floatAge-.4)/.5);}
-        const phase=defeatAge!==undefined?'击败 · 碎片消散':!this.visual.hasPlayer?'准备出发':!this.visual.hasEnemy?(this.visual.searching?'寻找下一只魔物':'休整')
+        const phase=defeatAge!==undefined?(this.monster?.keepsDebris?'击败 · 像素粉碎':'击败 · 碎片消散'):!this.visual.hasPlayer?'准备出发':!this.visual.hasEnemy?(this.visual.searching?'寻找下一只魔物':'休整')
             :!this.monster?(this.pendingKey?'加载魔物形象':'形象尚未登记'):!this.visual.fighting?'休整':turn?.side==='enemy'?'魔物攻击':skill?.name??'待机';
         if(phase!==this.phase){this.phase=phase;this.onPhase(phase);}
     }

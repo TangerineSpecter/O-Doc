@@ -13,6 +13,8 @@ import {
     SlidersHorizontal,
     Sparkles,
     UtensilsCrossed,
+    Ticket,
+    Fish,
 } from 'lucide-react';
 import WorldDialog from './WorldDialog';
 import {decisionProcessGuides} from './decisionProcessGuides';
@@ -20,6 +22,8 @@ import type {DecisionGuideKind} from './decisionProcessGuides';
 
 // 场景主题配置
 const SCENE_THEME = {
+    fishing: {icon: Fish, name: '居民钓鱼', accentBg: 'bg-teal-500/10 text-teal-600', badge: 'bg-teal-50 text-teal-700 border-teal-200'},
+    lottery: {icon: Ticket, name: '居民大乐透', accentBg: 'bg-orange-500/10 text-orange-600', badge: 'bg-orange-50 text-orange-700 border-orange-200'},
     cooking: {
         icon: UtensilsCrossed,
         name: '料理工坊',
@@ -105,6 +109,23 @@ export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
 
     // 辅助函数：根据步骤序号和业务类型获取流向标注
     const getFlowConnector = (index: number) => {
+        if (kind === 'fishing') {
+            return [
+                {dir: 'to-right', text: '合法钓点与已有鱼饵交给决策连接'},
+                {dir: 'to-left', text: '完成地点、时长及最多三轮鱼饵选择'},
+                {dir: 'to-right', text: '恢复保留原抛竿间隔，遇见鱼王才请求出拳决策'},
+                {dir: 'to-left', text: '累计三胜捕获，三败逃脱'},
+                {dir: 'finish', text: '返还剩余鱼饵，保存成长与图鉴'},
+            ][index] || null;
+        }
+        if (kind === 'lottery') {
+            return [
+                {dir: 'to-right', text: '合法数量候选交给决策模型'},
+                {dir: 'down', text: '按张数固定预留票款，通用预算调整不可单改'},
+                {dir: 'to-left', text: '完成逐张选号，交给系统复核'},
+                {dir: 'finish', text: '扣款出票，期次故障独立重试'},
+            ][index] || null;
+        }
         if (hasLoop) {
             switch (index) {
                 case 0:
@@ -217,7 +238,7 @@ export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
                                             <span className="text-[10px] text-amber-700 font-normal">性格·偏好·策略</span>
                                         </div>
                                         <p className="text-[10px] text-amber-700/80 truncate">
-                                            结合居民性格偏好挑选目标、份数配比与战术风格
+                                            {kind === 'fishing' ? '决策连接选择钓点、时长、携带鱼饵及鱼王出拳' : '结合居民性格偏好挑选目标、份数配比与战术风格'}
                                         </p>
                                     </div>
                                 </div>

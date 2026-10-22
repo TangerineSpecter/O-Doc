@@ -22,6 +22,13 @@ def finish_running(config, now):
     from .travel_models import TravelJourney
     for item in LifeItem.objects.filter(owner_id=config.pk,status='running'):
         key=execution_key(item)
+        if item.activity == 'fishing':
+            from .fishing.models import FishingTrip
+            run = FishingTrip.objects.filter(life_item_id=item.pk).first()
+            if run:
+                if run.ended_at:
+                    revise(item, '出钓已结束', status='cancelled' if run.status == 'cancelled' else 'completed', record_id=run.record_id, result={'reason': run.state.get('reason', ''), 'fishing_trip_id': run.pk})
+                continue
         if item.activity=='exploration':
             from .combat.models import Exploration
             from .combat.explorations import execution_completed
@@ -99,9 +106,22 @@ def execute_item(item: LifeItem, scheduler) -> None:
             revise(item,'条件已失效且无法重新规划',status='failed',result={'reason':str(exc)[:500]});return
         if item.status not in ('pending','deferred'):
             return
+        if item.activity in ('unplanned', '') and item.status == 'deferred' and item.context.get('lottery_target'):
+            return
         if item.activity in ('unplanned', ''):
             revise(item,'重新规划未生成活动意向',status='failed',
                    result={'reason':'规划器未生成新的活动意向，请检查规划条件后重试'});return
+    if item.activity == 'fishing':
+        from .fishing.service import request
+        try:
+            request(item)
+        except ValueError as exc:
+            revise(item, '出钓准备未能启动', status='failed', result={'reason': str(exc)})
+        return
+    if item.activity == 'lottery':
+        from .lottery_runner import execute
+        execute(item, agent)
+        return
     if item.activity=='rest':
         revise(item,'居民选择休息',status='rest',result={'reason':item.intent});check_goals(item.owner_id,agent);return
     task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
@@ -231,6 +251,11 @@ def tick_life(scheduler) -> None:
         finish_running(config,local_time())
     if not WorldActionRuntime.objects.filter(pk='world',enabled=True).exists():
         return
+    from .lottery_service import tick as tick_lottery
+    try:
+        tick_lottery()
+    except Exception:
+        logger.exception('大乐透维护失败，本轮居民生活继续执行')
     for config in configs:
         now=local_time()
         try:
@@ -256,6 +281,15 @@ def tick_life(scheduler) -> None:
 
 
 def _plan_cycle(config, scheduler, now):
+    from .lottery_models import LotteryConfig
+    from .lottery_service import ensure_task
+    from .fishing.models import FishingConfig
+    from .fishing.service import task_for as fishing_task
+    if FishingConfig.objects.filter(pk=config.pk).exists() and config.settings.get('agent_ids'):
+        fishing_task(config.pk)
+    lottery_config = LotteryConfig.objects.filter(pk=config.pk).first()
+    if lottery_config:
+        ensure_task(lottery_config)
     from .travel_models import TravelRuntime, TravelJourney
     running = LifeItem.objects.filter(owner_id=config.pk, status='running', activity='travel').exclude(actor_id__in=config.paused_agents)
     for pending in running:

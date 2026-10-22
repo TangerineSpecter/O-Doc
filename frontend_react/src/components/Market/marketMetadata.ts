@@ -21,6 +21,18 @@ export interface SkuKnowledge {
 }
 
 export function getSupplyKnowledge(supply: MarketSupply): SkuKnowledge {
+    if (supply.kind === 'bait') return {
+        sku: supply.sku, name: supply.name, category: 'other', categoryLabel: '钓鱼鱼饵', categoryColor: 'teal',
+        badgeBg: 'bg-teal-50 border-teal-200 text-teal-700', badgeText: '每小时换种',
+        summary: '出钓时携带使用，每次抛竿消耗一份；空竿、垃圾和脱钩也会消耗。',
+        operatingFacts: [
+            {kind: 'dose', label: '每竿消耗', value: '1 份鱼饵'},
+            {kind: 'timing', label: '携带时机', value: '出钓准备时选择'},
+            {kind: 'rule', label: '供应规则', value: '无限供应，不占商品格额度'},
+            {kind: 'quote', label: '供应刷新', value: '每小时整点随机供应一种'},
+        ],
+        tips: '无限供应，不占商品格额度。适用鱼种：' + (supply.suitableFish?.join('、') || '以钓鱼图鉴为准'),
+    };
     if (supply.kind !== 'fertilizer') return getSkuKnowledge(supply.sku, supply.name);
     const quality = supply.sku === 'fertilizer.quality';
     const effect = quality ? supply.qualityBonus : supply.yieldPercentage;

@@ -276,6 +276,8 @@ def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
         context.pop('alchemy_plan', None)
         context.pop('daily_choice', None)
         context.pop('travel_plan', None)
+        for key in ('lottery_plan', 'lottery_target', 'lottery_numbers', 'lottery_attempts'):
+            context.pop(key, None)
         # 重新排队后必须允许规划器再次处理该时段。
         context.pop('execution_started', None)
     elif item.activity == 'cooking' and context.get('cooking_plan'):
@@ -416,6 +418,9 @@ def recover(config, now=None, *, resume_actor=None, delay_reason=None):
             continue
         if resume_actor and item.actor_id != resume_actor:
             continue
+        if (not resume_actor and item.status != 'paused' and item.context.get('lottery_target')
+                and item.context.get('lottery_attempts', 0)):
+            continue  # 彩票有自己的5/15分钟退避；普通遗留顺延不能覆盖已确认的购票意向。
         if item.status == 'running':
             continue  # 执行器根据已提交事实恢复，不能当作未启动活动重排。
         if local_time(item.scheduled_at) >= now-timedelta(seconds=90) and item.status != 'paused':

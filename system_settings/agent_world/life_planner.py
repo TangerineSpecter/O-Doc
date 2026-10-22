@@ -172,6 +172,19 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
                    'goals': list(LifeGoal.objects.filter(owner_id=owner, actor_id=agent.pk,
                                                         status='active').values('id', 'title', 'progress')[:20]),
                    'needs_market': needs_market}
+        if activity == 'lottery':
+            from .lottery_service import validate_plan, maximum, check_open
+            from .lottery_models import LotteryRound
+            from .lottery_rules import PRICE
+            specification = copy.deepcopy(validate_plan(detail.get('lottery_plan')))
+            lottery_round = LotteryRound.objects.select_for_update().get(pk=specification['round_id'])
+            check_open(owner, lottery_round, item.scheduled_at)
+            if budget != PRICE * specification['quantity'] or maximum(owner, agent.pk, lottery_round, agent.money - reserve, item.pk) < specification['quantity']:
+                raise ValueError('大乐透购票计划超出金额或本期额度')
+            context['lottery_plan'] = specification
+        else:
+            for name in ('lottery_plan', 'lottery_target', 'lottery_numbers', 'lottery_attempts'):
+                context.pop(name, None)
         if activity == 'cooking' and detail.get('cooking_plan'):
             from .cooking_schedule_plan import validate_plan, ensure_materials, available_pool
             specification = copy.deepcopy(validate_plan(detail['cooking_plan']))

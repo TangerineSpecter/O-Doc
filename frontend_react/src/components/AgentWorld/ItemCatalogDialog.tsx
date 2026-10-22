@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import WorldDialog from './WorldDialog';
 import {ItemIconImage} from './ItemIconImage';
+import {BaitPortrait} from '../Fishing/BaitPortrait';
+import {FishPortrait} from '../Fishing/FishPortrait';
 import {farmItemIcon} from '../Farm/assets';
 import {PotionPortrait} from '../Combat/atlas/PotionPortrait';
 import {MaterialPortrait} from '../Combat/atlas/MaterialPortrait';
@@ -108,6 +110,9 @@ function CatalogItemThumbnail({
             />
         );
     }
+
+    if (item.sku.startsWith('bait.')) return <BaitPortrait baitId={item.sku} className={className}/>;
+    if (item.sku.startsWith('fish.')) return <FishPortrait fishId={item.sku.slice(5)} name={item.name} decorative className={className}/>;
 
     // 2. 战斗药剂（内置精美像素画）
     const potionId = resolveBuiltinPotionId(item.sku || '', item.name || '');

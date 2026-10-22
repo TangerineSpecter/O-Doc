@@ -270,6 +270,14 @@ def relation_graph(owner_id=None, include_departed=False):
     if owner_id is not None:
         alchemy_skills = alchemy_skills.filter(owner_id=owner_id)
     alchemy_experience = dict(alchemy_skills.values_list('pk', 'experience'))
+    from .agent_world.fishing.models import FishingProfile
+    from .agent_world.fishing.rules import skill_progress as fishing_progress
+    from .agent_world.fishing.catalog import current as fishing_rules
+    fishing_profiles = FishingProfile.objects.all()
+    if owner_id is not None:
+        fishing_profiles = fishing_profiles.filter(owner_id=owner_id)
+    fishing_experience = dict(fishing_profiles.values_list('pk', 'experience'))
+    fishing_maximum = fishing_rules(owner_id)['max_level']
     from .agent_world.farm_models import AgentFarm
     from .agent_world.farm_quality import skill_progress as planting_progress
     farms = AgentFarm.objects.all()
@@ -311,6 +319,7 @@ def relation_graph(owner_id=None, include_departed=False):
             'stamina': format(stamina(agent), '.1f'),
             'cooking': skill_progress(cooking_experience.get(agent.id, 0)),
             'alchemy': alchemy_progress(alchemy_experience.get(agent.id, 0)),
+            'fishing': fishing_progress(fishing_experience.get(agent.id, 0), fishing_maximum),
             'planting': planting_progress(planting_experience.get(agent.id, 0)),
             'profession_name': agent.profession.name if agent.profession else '',
             'combat_profession_name': c_info['name'] if c_info else '新手',

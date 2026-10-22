@@ -431,7 +431,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'memo_config', 'cooking_config', 'alchemy_config', 'exploration_config', 'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'investment_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'memo_config', 'cooking_config', 'alchemy_config', 'lottery_config', 'fishing_config', 'exploration_config', 'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'investment_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'mcp_tool_scope',
             'agent',
             'agent_name',
@@ -677,6 +677,10 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
 
     def validate(self, attrs):
         kind = attrs.get('task_kind', getattr(self.instance, 'task_kind', 'custom'))
+        if kind == 'fishing':
+            raise serializers.ValidationError('钓鱼能力请通过世界管理中的钓鱼设置修改')
+        if kind == 'lottery':
+            raise serializers.ValidationError('大乐透能力请通过世界管理中的大乐透设置修改')
         if self.instance and kind != self.instance.task_kind:
             raise serializers.ValidationError({'task_kind': '已有任务不能改变类型，请新建任务'})
         if kind == 'custom':

@@ -3,7 +3,7 @@ import copy
 
 
 def visible_supply(quote: dict) -> dict:
-    return {key: quote[key] for key in ('id', 'sku', 'name', 'kind', 'price', 'quality_bonus', 'yield_percentage', 'version') if key in quote}
+    return {key: quote[key] for key in ('id', 'sku', 'name', 'kind', 'price', 'quality_bonus', 'yield_percentage', 'version', 'suitable_fish') if key in quote}
 
 
 def visible_farm_state(state: dict) -> dict:

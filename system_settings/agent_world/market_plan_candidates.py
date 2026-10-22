@@ -125,6 +125,8 @@ def need_rows(owner: str, agent, now=None) -> list[dict]:
                      'owned': stock_quantity(agent.pk, owner, sku),
                      'unit_price': price, 'unit': '袋',
                      'effect': _fertilizer_effect(rule)})
+    from .fishing.market import needs as fishing_needs
+    rows.extend(fishing_needs(owner, agent, shop['supplies']))
     return rows
 
 

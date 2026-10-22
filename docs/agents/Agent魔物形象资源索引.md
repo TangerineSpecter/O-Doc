@@ -2,18 +2,37 @@
 
 制作规范见[魔物形象与战斗动画设计规范](./Agent魔物形象与战斗动画设计规范.md)。新增角色在此登记资源与确认状态；验收记录写在对应角色小节中。路径相对仓库根目录。
 
+**后续共用效果约定（2026-10-22）：受击和倒下统一使用当前新芽草甸像素版，不再为其他魔物另做设计或重复确认。** 受击采用现有短暂闪白、回震与恢复；倒下采用闪白裂纹后原色像素炸开、弹跳落地并保留碎片。后续只适配体型、原色、锚点和朝向，新增形象/待机/移动/攻击及已有技能仍按需制作。复用入口与规则见[设计规范第 4 节](./Agent魔物形象与战斗动画设计规范.md#4-基础动作规范)。下文旧角色的独立受击/倒下记录仅作历史说明，不表示本次已批量替换旧角色代码。
+
 ## 角色与接入状态
 
 | 魔物 ID | 名称 | 预览入口 | 形象与基础动作 | 图鉴 | 技能特效 | 正式战斗动画 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `monster.slime` | 软泥怪 | `frontend_react/slime-preview.html` | 已确认；五个基础动作 | 已接入 | 仅有预览落地波纹、水滴样例；通用技能特效待设计 | 待接入 |
-| `monster.fuzzy_ear_rabbit` | 绒耳兔 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.fuzzy_ear_rabbit` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
-| `monster.leafshell_beetle` | 叶壳甲虫 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.leafshell_beetle` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
-| `monster.dawnfire_glowbug` | 晨光萤 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.dawnfire_glowbug` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
+| `monster.slime` | 软泥怪 | `docs/agents/demo/SproutMeadow_v1.html?monster=slime` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
+| `monster.fuzzy_ear_rabbit` | 绒耳兔 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.fuzzy_ear_rabbit` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
+| `monster.leafshell_beetle` | 叶壳甲虫 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.leafshell_beetle` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
+| `monster.dawnfire_glowbug` | 晨光萤 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.dawnfire_glowbug` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
 | `monster.cave_crystal_lizard` | 洞穴晶蜥 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_crystal_lizard` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
 | `monster.cave_bat` | 洞穴蝙蝠 | `frontend_react/cave-bat-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“闪身”动作与残影示意；正式效果待接入 | 待接入 |
 | `monster.moss_beast` | 苔石兽 | `frontend_react/moss-beast-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“护体”动作与多边形护盾示意；正式效果待接入 | 待接入 |
 | `monster.moss_king` | 苔冠巨兽 | `frontend_react/moss-king-preview.html` | 已确认石鹿首领；五个基础动作 | 已接入 | 已有“重击”飞石与“护体”晶石护罩示意；正式效果待接入 | 待接入 |
+
+## 新芽草甸像素动作（2026-10-22，已接入探索观察与图鉴）
+
+用户指定参考 `demo/MonsterTemplate_v1.html`，新增独立 [新芽草甸演武场](./demo/SproutMeadow_v1.html)。第六版已获用户确认并按要求接入探索观察，形象沿用第五版：采用模板灰烬领主同类的完整 128×128 索引像素精灵，使用项目现有绒耳兔、叶壳甲虫、晨光萤精细原图保留毛发、叶脉、甲片、翅膜与分节结构，64 色调色板保留材质层次。软泥怪保留模板水滴轮廓与变形动作、第四版圆眼睛；恢复鲜亮水蓝色、亮白弧面高光、青色透光边缘与上浮气泡，增加缓慢闪亮的四角星芒和底部细光带，表达晶亮果冻质感。独立舞台保持 320×180，提供 `idle / move / attack / hit / defeat` 五个动作。随后同步替换四只的图鉴列表静态帧与详情待机动画，图鉴和探索观察复用相同像素绘制。
+
+- 独立审阅参数：`?monster=slime`、`?monster=rabbit`、`?monster=beetle`、`?monster=glowbug`。
+- 当前四只静态对照：[第五版预览](./demo/sprout-meadow/preview-v5.png)；[软泥怪光泽调整前后](./demo/sprout-meadow/slime-v5-comparison.png)。此前静态图保留作迭代记录。
+- 绒耳兔分别驱动左右垂耳和绒尾；甲虫分别驱动触角与足部；晨光萤分别驱动翅膜、触角与腹部流光。部位按原图像素遮罩采样，待机保持原生尺寸并关闭插值，避免缩放模糊材质。四只都使用普通攻击，不新增技能或战斗规则。
+- 角色配置、角色绘制、舞台绘制、动作采样、粒子特效、页面控制与样式分别保存在 `demo/sprout-meadow/{monsters,characters,renderer,motion,effects,studio}.js` 和 `studio.css`；软泥材质位于 `template-slime.js`。`sprite-data.js` 保存三只完整精灵，可运行 `.venv/bin/python docs/agents/demo/sprout-meadow/build-sprites.py` 从原图重新编码。缩略图与动画使用同一绘制源，四只共用演示草甸背景。
+- 支持暂停、重置、连续演示、0.25–1.5 倍速、左右朝向、图鉴尺寸、素色舞台、夜色、网格、材质分层及可选音效；数字 1–5 切动作，空格暂停，R 重置。倒下保持终态，连续演示结束后也不自动复活。
+- 第六版按用户要求直接移植模板的击败粉碎流程：0.26 秒闪白、裂纹与震颤后，完整角色立刻消失，按 2 像素步长取原图颜色炸成 2–3 像素碎块；沿用模板径向初速度、260 重力、0.6 阻力、2–3 次弹跳及 0.5 秒地面冲击环，碎片落地后保留。独立实现位于 `pixel-shatter.js`，图鉴尺寸同比缩放，暂停同时停止碎片与震屏，切换或重置清空。废除摊平、伏地、淡出和残留水滩；四只共用这一效果。[四只击败粉碎动画](./demo/sprout-meadow/defeat-v6.gif)
+- 当前 `monster_actions.csv` 中四只均只配置普通攻击，没有额外主动技能，预览明确展示这一点。软泥怪、绒耳兔、叶壳甲虫的撞击与晨光萤的光弹是普攻视觉表现，不另造技能 ID。角色显示尺寸由场景缩放决定，原始精灵与动作可复用，图鉴尺寸开关用于检查缩小后的辨识度。
+- HTML 可直接双击打开，无外部依赖或构建步骤；也可在仓库根目录运行 `.venv/bin/python -m http.server 43139 --bind 127.0.0.1 --directory docs/agents/demo` 后访问 `/SproutMeadow_v1.html`。
+- 探索观察代码在 `frontend_react/src/components/Combat/animation/meadowPixels/`，由 `ObservationMonsterActor` 按四只稳定 ID 装配；索引精灵与 demo 由同一 `build-sprites.py` 生成。甲虫、晨光萤原图向左，不再盲目镜像，绒耳兔按原图向右进行翻转。攻击与受击延续本地演示，快照确认击败才播放粉碎，碎片保留到下一遭遇。接入边界与验证见 [探索观察接入说明](./Agent探索观察战斗画面接入说明.md)。
+- 图鉴同步四只新版：`MonsterPortrait` 优先选择像素角色；列表通过 `StaticMeadowPortrait` / `meadowStillArt` 缓存同源静态帧，不为每张卡片分配 WebGL；详情由 `MonsterPortraitRenderer` 复用 `MeadowMonsterActor` 播放待机，按 160×160 安全构图保留耳朵和翅膀。动画与静态帧共用 `meadowBodyDrawing`，减少动态效果或画面离屏时停止 ticker，动画加载失败保留静态帧。其他魔物、背景和图鉴信息保持原规则。
+- 图鉴验证：四张卡片的缓存图片与共用绘制输出一致，四只详情均播放待机；切换后仅保留一张动态画布；减少动态效果时画面稳定；WebGL 不可用时仍显示新版静态帧；390px 无横向溢出。类型检查、两项既有像素回归和生产构建通过；相关 ESLint 无错误，`MonsterAtlasView` 保留 14 项原有 Hook 依赖警告。截图：[新版软泥怪与列表](./assets/combat/atlas-meadow-pixels-v1.png)、[绒耳兔详情](./assets/combat/atlas-meadow-rabbit-v1.png)。
+- 独立预览生命百分比和特效只用于演示；正式场景 HP/MP 与结果继续取快照。没有新增持久字段或同步实体，不涉及 WebDAV；正式场景复用已确认的新芽草甸背景，demo 背景不替换正式背景。
 
 ## 剩余 20 只像素首版
 
@@ -27,7 +46,9 @@
 | --- | --- | --- | --- |
 | `dungeon.moss_cave` | 苔石洞窟 | `frontend_react/src/assets/combat/moss-cave.svg` | 已确认；预览与图鉴共用 |
 
-## 软泥怪
+## 软泥怪原版预览与历史验收
+
+以下为原矢量版本保留入口。2026-10-22 起正式图鉴与探索观察改用上节的新像素版本；旧预览与 SVG 保留作历史参考和加载兜底。
 
 - 角色绘制：`frontend_react/src/components/Combat/animation/SlimeActor.ts`。
 - 动作采样：`frontend_react/src/components/Combat/animation/slimeMotion.ts`。

@@ -212,6 +212,7 @@ class SyncManager:
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('combat_schema_version',0)>10:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
             raise SyncError('炼金快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
@@ -888,6 +889,10 @@ class SyncManager:
         cooking_source_hashes = guard('烹饪', lambda: validate_dishes(data_list, remote_meta)) or {}
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
         guard('战斗', lambda: validate_combat(data_list, remote_meta))
+        from system_settings.agent_world.lottery_sync import validate_source as validate_lottery
+        validate_lottery(data_list, remote_meta)
+        from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
+        validate_fishing(data_list, remote_meta)
         from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy
         alchemy_source_hashes = guard('炼金', lambda: validate_alchemy(data_list, remote_meta)) or {}
 
@@ -1063,6 +1068,10 @@ class SyncManager:
             refresh_restored_checkpoints()
             from system_settings.agent_world.settlement import reconcile_awards
             guard('结算', reconcile_awards)
+            from system_settings.agent_world.lottery_sync import reconcile as reconcile_lottery
+            reconcile_lottery()
+            from system_settings.agent_world.fishing.sync import reconcile as reconcile_fishing
+            reconcile_fishing()
             from system_settings.agent_world.life_sync import reconcile_life
             guard('生活恢复', reconcile_life)
             from system_settings.agent_world.social_sync import reconcile_social
@@ -1351,7 +1360,10 @@ class SyncManager:
         from memos.sprout_sync import metadata as sprout_metadata
         from system_settings.agent_world.memory.sync import metadata as memory_metadata
         from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
+        from system_settings.agent_world.lottery_sync import metadata as lottery_metadata
+        from system_settings.agent_world.fishing.sync import metadata as fishing_metadata
         return {
+            **lottery_metadata(data_list), **fishing_metadata(data_list),
             **combat_metadata(data_list),
             **learning_metadata(data_list),
             **novel_metadata(data_list),
@@ -1373,6 +1385,7 @@ class SyncManager:
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('combat_schema_version',0)>10:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
             raise SyncError('炼金快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
@@ -1413,6 +1426,10 @@ class SyncManager:
         from system_settings.agent_world.investment_sync import normalize_legacy_dates as normalize_investment_dates
         normalize_market_dates()
         normalize_investment_dates()
+        from system_settings.agent_world.lottery_sync import checkpoint_all as checkpoint_lottery
+        checkpoint_lottery()
+        from system_settings.agent_world.fishing.sync import checkpoint_all as checkpoint_fishing
+        checkpoint_fishing()
         all_data = []
         sparse_cities = compact_travel and travel_sync.enabled()
         for model in self._iter_target_models():
@@ -1447,6 +1464,10 @@ class SyncManager:
         )
         from system_settings.agent_archive_sync import validate_names
 
+        from system_settings.agent_world.lottery_sync import validate_source as validate_lottery
+        validate_lottery(data)
+        from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
+        validate_fishing(data)
         validate_life(data)
         validate_crops(data)
         validate_cooking(data, cooking_metadata(data))
@@ -1688,6 +1709,10 @@ class SyncManager:
         self._guard_integrity('学习', lambda: validate_learning(data, meta), relax=relax_integrity)
         self._guard_integrity('小说', lambda: validate_novel(data, meta), relax=relax_integrity)
         self._guard_integrity('农场', lambda: validate_crops(data, meta), relax=relax_integrity)
+        from system_settings.agent_world.lottery_sync import validate_source as validate_lottery
+        validate_lottery(data, meta)
+        from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
+        validate_fishing(data, meta)
         revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True)
         self._guard_integrity('旅行目录', lambda: travel_sync.validate_revisions(meta, revisions), relax=relax_integrity)
         return {
@@ -1830,6 +1855,16 @@ class SyncManager:
 
         guard('旅行目录', lambda: travel_sync.validate(remote.get('meta')))
         guard('旅行目录', lambda: travel_sync.validate((base or {}).get('meta')))
+        from system_settings.agent_world.lottery_sync import validate_source as validate_lottery, validate_conflicts as lottery_conflicts, refresh_merged as refresh_lottery
+        validate_lottery(local_data)
+        from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
+        validate_fishing(local_data)
+        validate_lottery(remote.get('data') or [], remote.get('meta'))
+        from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
+        validate_fishing(remote.get('data') or [], remote.get('meta'))
+        lottery_conflicts(local_data, remote.get('data') or [])
+        from system_settings.agent_world.fishing.sync import validate_conflicts as fishing_conflicts
+        fishing_conflicts(local_data, remote.get('data') or [])
         from system_settings.agent_world.life_snapshot import validate_source, refresh_merged_integrity
         guard('生活', lambda: validate_source(local_data))
         guard('生活', lambda: validate_source(remote.get('data') or []))
@@ -1939,6 +1974,9 @@ class SyncManager:
                 self._integrity_warnings.append(f'居民记忆合并：{exc}')
         else:
             merge_aggregates(result, result_revisions, local_data, remote.get('data') or [], local_revisions, remote_revisions)
+        refresh_lottery(result, result_revisions)
+        from system_settings.agent_world.fishing.sync import refresh_merged as refresh_fishing
+        refresh_fishing(result, result_revisions)
         guard('居民记忆', lambda: validate_memories(result, memory_metadata(result)))
         guard('生活摘要', lambda: refresh_merged_integrity(result, result_revisions))
         from system_settings.agent_archive_sync import validate_names

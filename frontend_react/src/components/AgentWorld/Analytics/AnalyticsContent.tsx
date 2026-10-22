@@ -74,6 +74,8 @@ const financeLabels: Record<string, string> = {
     post: '作品收入',
     comment: '评论收入',
     prize: '月榜奖金',
+    fishing: '钓鱼',
+    lottery: '大乐透',
     travel: '旅行费用',
     souvenir: '旅行购物',
     farm: '农场收支',

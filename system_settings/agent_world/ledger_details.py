@@ -16,6 +16,11 @@ def ledger_details(entries, owner=None):
     for entry in entries:
         snapshot = entry.snapshot if isinstance(entry.snapshot, dict) else {}
         fallback = next((str(snapshot[key]) for key in ('postTitle', 'post_title', 'title', 'description', 'reason', 'memo', 'code') if snapshot.get(key)), '')
+        if entry.kind == 'lottery':
+            kind = snapshot.get('lottery_kind')
+            tier = snapshot.get('tier')
+            label = '购票' if kind == 'purchase' else {1: '一等奖奖池奖金', 2: '二等奖系统固定奖励', 3: '三等奖系统固定奖励'}.get(tier, '奖金')
+            fallback = f'大乐透第{snapshot.get("sequence", "")}期 · {label}'
         row = transactions.get(snapshot.get('market_transaction_id'))
         if row:
             result = row.result if isinstance(row.result, dict) else {}

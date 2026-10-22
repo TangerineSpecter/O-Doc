@@ -12,6 +12,7 @@ export const marketMoney = (value: string) => Number(value).toLocaleString('zh-C
 
 export function marketListingCategory(item: MarketItem) {
     const sku = item.source?.sku || '';
+    if (sku.startsWith('fish.')) return {label: item.kind === 'fish_king' ? '鱼王' : '鱼类', className: 'bg-teal-50 border-teal-200 text-teal-700'};
     if (item.kind === 'combat_material' || item.source?.kind === 'combat_material' || sku.startsWith('combat.material.')) {
         return {label: '冒险材料', className: 'bg-sky-50 border-sky-200 text-sky-700'};
     }
@@ -35,6 +36,7 @@ export function marketListingCategory(item: MarketItem) {
 
 const unknownSkuLabels: Array<[string, string]> = [
     ['seed.', '作物种子'],
+    ['fish.', '鱼类'], ['bait.', '鱼饵'],
     ['crop.', '农作物'],
     ['product.', '畜牧产物'],
     ['dish.', '美食'],

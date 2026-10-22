@@ -1,4 +1,4 @@
-export interface MarketSupply {id: string; sku: string; name: string; kind: 'feed' | 'fertilizer'; price: string; qualityBonus?: number; yieldPercentage?: number; version?: number}
+export interface MarketSupply {id: string; sku: string; name: string; kind: 'feed' | 'fertilizer' | 'bait'; suitableFish?: string[]; price: string; qualityBonus?: number; yieldPercentage?: number; version?: number}
 export interface MarketPage<T> {items: T[]; total: number; page: number}
 export interface MarketSlot {id: string; sku: string; name: string; kind: 'seed' | 'animal'; price: string; initialQuantity: number; remainingQuantity: number}
 export interface MarketShop {supplies?: MarketSupply[]; id: string; startsAt: string; expiresAt: string; serverTime: string; slots: MarketSlot[]; feed: {sku: string; name: string; price: string}}

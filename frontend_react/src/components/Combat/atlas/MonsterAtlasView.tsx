@@ -7,6 +7,7 @@ import {RankTag, AtlasStatusBadge} from './RankBadge';
 import {getMonsterHabitat} from './monsterHabitats';
 import {getMonsterVisual} from './atlasIcons';
 import {getMonsterPixelArt} from '../art/monsterPixelArt';
+import {isMeadowMonsterId} from '../animation/meadowPixels/meadowTypes';
 import {elementNotes, elementOrder, statLabels} from '../presentation';
 import {ElementBadge, ElementResistCard} from '../ElementBadge';
 import {equipmentDropCandidates} from './equipmentDropCandidates';
@@ -61,7 +62,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
     }, [monsters, rankFilter, search]);
 
     const selected = visibleMonsters.find(m => m.id === selectedId) || visibleMonsters[0] || null;
-    const selectedPixelArt = selected && getMonsterPixelArt(selected.id, includeDraftArt);
+    const selectedPixelArt = selected && (isMeadowMonsterId(selected.id) || getMonsterPixelArt(selected.id, includeDraftArt));
 
     // 选中的怪物数据
     const selectedDetails = useMemo(() => {

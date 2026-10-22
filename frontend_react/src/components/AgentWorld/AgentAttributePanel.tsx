@@ -11,6 +11,7 @@ import {
     Activity,
     ChefHat,
     FileText,
+    Fish,
     FlaskConical,
     MessageSquare,
     Package,
@@ -105,7 +106,7 @@ function AttributeRow({
                     </div>
                 </div>
 
-                {/* 居民生活技能与核心指标：种植、创作力、厨艺、炼金、体力 双列紧凑并排 */}
+                {/* 居民生活技能与核心指标：种植、创作力、厨艺、炼金、钓鱼、体力 双列紧凑并排 */}
                 <div className="mt-3 grid grid-cols-2 gap-2">
                     {/* 种植技能 */}
                     <div className="rounded-xl border border-lime-100 bg-lime-50/40 p-2">
@@ -211,9 +212,37 @@ function AttributeRow({
                         </div>
                     </div>
 
+                    {/* 钓鱼技能 */}
+                    <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-2">
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
+                                <Fish className="h-3 w-3 text-teal-600" />
+                                钓鱼
+                                <LevelPlate level={node.fishing?.level || 1} variant="emerald" size="xs" />
+                            </span>
+                            <span className="text-xs font-bold tabular-nums text-slate-700">
+                                {node.fishing?.experience || 0}
+                                <span className="ml-0.5 text-[10px] font-normal text-slate-400">经验</span>
+                            </span>
+                        </div>
+                        <div
+                            className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-teal-100"
+                            role="progressbar"
+                            aria-label={`${node.name}的钓鱼经验进度`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round((node.fishing?.progress || 0) * 100)}
+                        >
+                            <div
+                                className="h-full rounded-full bg-teal-500 transition-all duration-300"
+                                style={{width: `${Math.max(0, Math.min(100, (node.fishing?.progress || 0) * 100))}%`}}
+                            />
+                        </div>
+                    </div>
+
                     {/* 体力 */}
                     <div
-                        className="col-span-2 rounded-xl border border-lime-100/90 bg-lime-50/40 p-2"
+                        className="rounded-xl border border-lime-100/90 bg-lime-50/40 p-2"
                         title="自然恢复速度在世界管理的体力设置中配置，成功评论并打分消耗 10 点"
                     >
                         <div className="flex items-center justify-between">

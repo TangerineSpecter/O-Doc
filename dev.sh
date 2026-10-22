@@ -1,8 +1,18 @@
 #!/bin/bash
 
+# Support the documented `sh dev.sh` invocation on shells such as dash.
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+
 set -e
 
 cd "$(dirname "$0")"
+
+case "${1:-}" in
+    ''|local) ;;
+    *) echo "用法: sh dev.sh [local]" >&2; exit 1 ;;
+esac
 
 echo "🍊 正在启动 O-Doc 开发环境..."
 
@@ -233,6 +243,25 @@ stop_existing_dev_servers() {
     stop_listener_on_port "$BACKEND_PORT" "后端"
     stop_listener_on_port "$FRONTEND_PORT" "前端"
 }
+
+# local 只运行前端，必须在后端检查、端口清理和数据库初始化之前分流。
+if [ "${1:-}" = "local" ]; then
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "❌ npm 未安装，请先使用 nvm use 切换到 Node.js 22。" >&2
+        exit 1
+    fi
+    resolve_frontend_port
+    stop_listener_on_port "$FRONTEND_PORT" "前端"
+    if [ ! -d "frontend_react/node_modules" ]; then
+        (cd frontend_react && npm ci)
+    fi
+    echo "🧪 local 模式: 前端 Mock 数据，自动演示登录，不启动后端或数据库。"
+    echo "   前端: http://localhost:${FRONTEND_PORT}/agent-world"
+    echo "   修改只保留在浏览器内存中，刷新恢复样例；Ctrl+C 停止服务。"
+    cd frontend_react
+    export VITE_ENABLE_MOCKS=true VITE_LOCAL_MODE=true
+    exec npm run dev -- --port "$FRONTEND_PORT" --strictPort
+fi
 
 # 检查依赖
 if ! command -v python &> /dev/null; then

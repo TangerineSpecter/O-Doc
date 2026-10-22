@@ -150,11 +150,17 @@ cd frontend_react && npm ci && cd ..
 
 如需固定前端端口，可执行 `ODOC_DEV_FRONTEND_PORT=5173 ./dev.sh`。
 
-前端 Mock 数据默认关闭，会通过 Vite 代理访问真实后端接口。如需启用 Mock 演示数据，可执行：
+调试前端样式、Agent 世界卡片和历史详情时，可以使用独立的 local 模式：
 
 ```bash
-VITE_ENABLE_MOCKS=true ./dev.sh
+sh dev.sh local
 ```
+
+打开 `http://localhost:43127/agent-world` 即可看到样例数据，自动使用独立的演示登录态。local 只启动前端，不需要 Python、Docker、数据库或模型服务；未覆盖的 API 会明确报出样例缺口，不会转发真实后端。
+
+样例涵盖居民与关系、每日动态、生活日程与目标、农牧场、背包、市场规划/交易、食谱与炼金、探索结算、旅行、朋友圈/小剧场、投资、钓鱼、大乐透、悬赏、统计和世界管理。顶部调试条可切换样例、空数据、慢加载和接口错误；刷新即可重置内存中的模拟操作。
+
+普通 `sh dev.sh` 仍启动真实前后端，Mock 默认关闭。旧的 `VITE_ENABLE_MOCKS=true ./dev.sh` 保留为混合联调方式，未定义的 Mock 请求仍会访问真实后端。
 
 更完整的开发、构建和部署流程请查看 [部署与更新指南](docs/部署与更新指南.md)。
 

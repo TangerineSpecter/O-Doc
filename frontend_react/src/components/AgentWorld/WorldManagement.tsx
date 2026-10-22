@@ -16,7 +16,9 @@ import SocialSettingsDialog from './SocialSettingsDialog';
 import {WorldDecisionModelSettings} from './WorldDecisionModelSettings';
 import {WorldAdventureSettings} from './WorldAdventureSettings';
 import {WorldStaminaSettings} from './WorldStaminaSettings';
-type WorldTab = 'stamina' | 'categories' | 'professions' | 'income' | 'market' | 'adventure' | 'social' | 'decision-model';
+import {LotteryPanel} from '../Lottery/LotteryPanel';
+import {FishingSettings} from '../Fishing/FishingPanel';
+type WorldTab = 'fishing' | 'lottery' | 'stamina' | 'categories' | 'professions' | 'income' | 'market' | 'adventure' | 'social' | 'decision-model';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -138,6 +140,8 @@ export function WorldManagement() {
                     </div>
                     {/* 胶囊分段控制器：纯粹导航控件，移动端自适应全宽横向平滑滚动，PC端靠右紧凑排列 */}
                     <div className="flex min-w-0 w-full overflow-x-auto scrollbar-hide rounded-lg bg-slate-100 p-0.5 sm:w-auto sm:shrink-0">
+                        <button type="button" onClick={() => setTab('fishing')} className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium ${tab === 'fishing' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>钓鱼</button>
+                        <button type="button" onClick={() => setTab('lottery')} className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${tab === 'lottery' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>大乐透</button>
                         <button
                             type="button"
                             onClick={() => setTab('decision-model')}
@@ -265,6 +269,8 @@ export function WorldManagement() {
                     {tab === 'decision-model' && <WorldDecisionModelSettings/>}
                     {socialSettingsOpen && <SocialSettingsDialog onClose={() => setSocialSettingsOpen(false)}/>}
                     {tab === 'market' && <MarketSettings/>}
+                    {tab === 'fishing' && <FishingSettings/>}
+                    {tab === 'lottery' && <LotteryPanel settingsOnly/>}
                     {tab === 'stamina' && <WorldStaminaSettings/>}
                     {tab === 'adventure' && <WorldAdventureSettings/>}
                     {tab === 'income' && (

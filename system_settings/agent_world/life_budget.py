@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from system_settings.models import Agent
 from .life_budget_policy import (UNBUDGETED_PURCHASE_ACTIVITIES, allows_spending,
-                                 remaining_reservation, validate_activity_budget)
+                                 remaining_reservation, validate_budget_adjustment)
 from .life_models import LifeItem
 from .life_schedule import OPEN, revise
 from .life_scope import (CURRENT, check_item_authorization,
@@ -39,7 +39,7 @@ def future_allocations(rows: list[LifeItem], allocations: list[dict], reason: st
         amount=money(entry.get('budget'))
         if amount<available[entry['id']].spent:
             raise ValueError('预算不能小于已发生支出')
-        validate_activity_budget(available[entry['id']].activity, amount, available[entry['id']].spent)
+        validate_budget_adjustment(available[entry['id']], amount)
         changes[entry['id']]=amount
     return changes
 
@@ -113,7 +113,7 @@ def adjust_budget(owner: str, actor: str, allocations: list[dict], reason: str) 
         amount = money(entry.get('budget'))
         if amount < rows[identity].spent:
             raise ValueError('预算不能小于已发生支出')
-        validate_activity_budget(rows[identity].activity, amount, rows[identity].spent)
+        validate_budget_adjustment(rows[identity], amount)
         changes[identity] = amount
     reserved = sum((remaining_reservation(r, changes.get(k)) for k,r in rows.items()), Decimal(0))
     if reserved > agent.money:
@@ -123,7 +123,7 @@ def adjust_budget(owner: str, actor: str, allocations: list[dict], reason: str) 
     return {'status':'updated','reason':reason,'reserved':str(reserved)}
 
 
-BUDGET_TOOL = {'type':'function','function':{'name':'adjust_life_budget','description':'超出预计费用时说明原因，重新分配本人尚未结束安排的总预算；不可小于已支出。',
+BUDGET_TOOL = {'type':'function','function':{'name':'adjust_life_budget','description':'超出预计费用时说明原因，重新分配本人尚未结束安排的总预算；不可小于已支出，已确认张数的大乐透预算不能单独更改。',
     'parameters':{'type':'object','properties':{'reason':{'type':'string'},'allocations':{'type':'array','items':{'type':'object','properties':{'id':{'type':'string'},'budget':{'type':'string'}},'required':['id','budget'],'additionalProperties':False}}},'required':['reason','allocations'],'additionalProperties':False}}}
 
 

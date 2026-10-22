@@ -1,20 +1,25 @@
 import {Application, Graphics} from 'pixi.js';
-import {SlimeActor} from './SlimeActor';
-import {sampleSlimePose} from './slimeMotion';
 import {CaveBatActor} from './CaveBatActor';
 import {sampleCaveBatPose} from './caveBatMotion';
 import {MossBeastActor} from './MossBeastActor';
 import {sampleMossBeastPose} from './mossBeastMotion';
 import {MossKingActor} from './MossKingActor';
 import {sampleMossKingPose} from './mossKingMotion';
+import {MeadowMonsterActor} from './meadowPixels/MeadowMonsterActor';
+import {isMeadowMonsterId, meadowProfiles} from './meadowPixels/meadowTypes';
+import type {MeadowMonsterId} from './meadowPixels/meadowTypes';
+import {meadowPortraitFrame} from '../art/meadowStillArt';
 
-export type AnimatedMonsterId = 'monster.slime' | 'monster.cave_bat' | 'monster.moss_beast' | 'monster.moss_king';
+export type AnimatedMonsterId = MeadowMonsterId | 'monster.cave_bat' | 'monster.moss_beast' | 'monster.moss_king';
 
 const frames: Record<AnimatedMonsterId, {
     width: number; height: number; ground: number; plainScale: number; habitatScale: number;
     shadowX: number; shadowY: number;
 }> = {
-    'monster.slime': {width: 256, height: 224, ground: .86, plainScale: .94, habitatScale: 1.15, shadowX: 107, shadowY: 19},
+    'monster.slime': meadowPortraitFrame,
+    'monster.fuzzy_ear_rabbit': meadowPortraitFrame,
+    'monster.leafshell_beetle': meadowPortraitFrame,
+    'monster.dawnfire_glowbug': meadowPortraitFrame,
     'monster.cave_bat': {width: 380, height: 280, ground: 250 / 280, plainScale: 1, habitatScale: 1.05, shadowX: 88, shadowY: 12},
     'monster.moss_beast': {width: 370, height: 290, ground: 260 / 290, plainScale: 1, habitatScale: 1.06, shadowX: 144, shadowY: 18},
     'monster.moss_king': {width: 490, height: 350, ground: 320 / 350, plainScale: 1, habitatScale: .96, shadowX: 157, shadowY: 18},
@@ -23,7 +28,7 @@ const frames: Record<AnimatedMonsterId, {
 /** Transparent actor; habitat framing shares the preview's camera and scale. */
 export class MonsterPortraitRenderer {
     private readonly app = new Application();
-    private actor: SlimeActor | CaveBatActor | MossBeastActor | MossKingActor | null = null;
+    private actor: MeadowMonsterActor | CaveBatActor | MossBeastActor | MossKingActor | null = null;
     private shadow: Graphics | null = null;
     private readonly resizeObserver = new ResizeObserver(() => this.resize());
     private readonly visibilityObserver = new IntersectionObserver(entries => {
@@ -42,19 +47,21 @@ export class MonsterPortraitRenderer {
     async init() {
         await this.app.init({
             width: Math.max(1, this.host.clientWidth), height: Math.max(1, this.host.clientHeight),
-            antialias: true, backgroundAlpha: 0, autoDensity: true,
+            antialias: !isMeadowMonsterId(this.monsterId), backgroundAlpha: 0, autoDensity: true,
             resolution: Math.min(devicePixelRatio || 1, 2), preference: 'webgl', autoStart: false,
         });
         this.initialized = true;
         if (this.disposed) { this.app.destroy(true, {children: true}); return; }
         const frame = frames[this.monsterId];
-        this.actor = this.monsterId === 'monster.cave_bat' ? new CaveBatActor()
+        this.actor = isMeadowMonsterId(this.monsterId) ? new MeadowMonsterActor(meadowProfiles[this.monsterId])
+            : this.monsterId === 'monster.cave_bat' ? new CaveBatActor()
             : this.monsterId === 'monster.moss_beast' ? new MossBeastActor()
-                : this.monsterId === 'monster.moss_king' ? new MossKingActor() : new SlimeActor();
+                : new MossKingActor();
         this.shadow = new Graphics().ellipse(0, 8, frame.shadowX, frame.shadowY).fill({color: 0x356663, alpha: .16});
         this.app.stage.addChild(this.shadow, this.actor);
         this.app.canvas.setAttribute('aria-hidden', 'true');
         this.app.canvas.style.cssText = 'display:block;width:100%;height:100%;pointer-events:none';
+        if (isMeadowMonsterId(this.monsterId)) this.app.canvas.style.imageRendering = 'pixelated';
         this.host.appendChild(this.app.canvas);
         this.app.ticker.add(ticker => {
             this.time += Math.min(ticker.deltaMS / 1000, .05);
@@ -93,7 +100,9 @@ export class MonsterPortraitRenderer {
             this.actor.update(sampleMossBeastPose('idle', this.time, 1), this.time, 1);
         } else if (this.actor instanceof MossKingActor) {
             this.actor.update(sampleMossKingPose('idle', this.time, -1), this.time, -1);
-        } else this.actor?.update(sampleSlimePose('idle', this.time, 1), this.time, 1);
+        } else if (this.actor instanceof MeadowMonsterActor) {
+            this.actor.sample('idle', this.time, this.time, undefined);
+        }
     }
 
     private syncPlayback = () => {

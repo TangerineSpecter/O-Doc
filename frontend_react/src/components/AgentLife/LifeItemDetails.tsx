@@ -199,6 +199,11 @@ export default function LifeItemDetails({
                                 </span>
                             </div>
 
+                            {item.context?.lotteryPlan && <div className="mt-3 rounded-xl border border-orange-100 bg-orange-50 p-3 text-xs leading-6 text-orange-800">
+                                <p>大乐透计划：{item.context.lotteryPlan.quantity}张 · 预算{item.budget}金币</p>
+                                <p>选号进度：{(item.context.lotteryNumbers || []).reduce((n, row) => n + row.length, 0)} / {item.context.lotteryPlan.quantity * 3}个数字</p>
+                                <p>{item.context.lotteryNumbers?.map(row => row.join('、')).join('；') || '尚未开始选号'}</p>
+                            </div>}
                             {item.intent ? (
                                 <div className="mt-3.5 rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-xs leading-relaxed text-slate-700">
                                     <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">

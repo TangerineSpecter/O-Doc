@@ -284,6 +284,13 @@ def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict
                           'min_stars': 1, 'max_unit_price': str(money(row['unit_price'])),
                           'reason': f"种植缺口{row['missing']}{row['unit']}", 'name': row['name']})
 
+    for row in [r for r in facts['needs'] if r['kind'] == 'bait'][:1]:
+        count = quantity(row, '决定是否补充鱼饵；按可用预算和背包库存准备，十二份仅为一次出钓参考，不是限购。')
+        if count > 0:
+            goals.append({'kind': 'shop', 'sku': row['sku'], 'slot': '', 'quantity': count,
+                          'min_stars': 1, 'max_unit_price': str(money(row['unit_price'])),
+                          'reason': row['effect'], 'name': row['name']})
+
     for row in facts['listings'][:LISTING_QUESTIONS]:
         state = {'sku': row['sku'], 'name': row['name'], 'count': row['count'],
                  'min_price': str(money(row['min_price'])), 'max_stars': row['max_stars'],

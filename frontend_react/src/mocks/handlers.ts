@@ -451,7 +451,7 @@ export const handlers = [
   }),
 
   // 新增：24. 获取文集详情
-  http.get('/anthology/detail/:collId', ({ params }) => {
+  http.get('/api/anthology/detail/:collId', ({ params }) => {
     const { collId } = params;
     return HttpResponse.json({
       code: 200,

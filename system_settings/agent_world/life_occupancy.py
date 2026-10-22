@@ -15,7 +15,9 @@ def occupied(item) -> bool:
     from .combat.schedule import occupied_ids
     from .travel_candidates import travelling_ids
     from .market_models import MarketSession
-    return (item.actor_id in occupied_ids() or item.actor_id in travelling_ids()
+    from .fishing.models import FishingTrip
+    return (FishingTrip.objects.filter(actor_id=item.actor_id, ended_at__isnull=True).exclude(life_item_id=item.pk).exists()
+            or item.actor_id in occupied_ids() or item.actor_id in travelling_ids()
             or AgentExecutionLease.objects.filter(agent_id=item.actor_id, until__gt=timezone.now()).exists()
             or LifeItem.objects.filter(actor_id=item.actor_id, status='running').exclude(pk=item.pk).exists()
             or MarketSession.objects.filter(actor_id=item.actor_id, status='active').exists())

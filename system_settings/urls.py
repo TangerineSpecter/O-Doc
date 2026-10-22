@@ -151,3 +151,24 @@ urlpatterns = [
     path('agent-relations/', AgentRelationView.as_view(), name='agent-relations'),
     path('', include(router.urls)),
 ]
+
+from .agent_world.lottery_views import LotteryConfigView, LotteryView
+urlpatterns += [
+    path('agent-world/lottery/config/', LotteryConfigView.as_view()),
+    path('agent-world/lottery/current/', LotteryView.as_view()),
+    path('agent-world/lottery/rounds/', LotteryView.as_view(), {'section': 'rounds'}),
+    path('agent-world/lottery/rounds/<str:round_id>/', LotteryView.as_view()),
+    path('agent-world/lottery/rounds/<str:round_id>/tickets/', LotteryView.as_view(), {'section': 'tickets'}),
+    path('agent-world/lottery/tickets/', LotteryView.as_view(), {'section': 'tickets'}),
+]
+
+from .agent_world.fishing.views import FishingView
+urlpatterns += [
+    path('agent-world/fishing/', FishingView.as_view()),
+    path('agent-world/fishing/config/', FishingView.as_view(section='config')),
+    path('agent-world/fishing/catalog/', FishingView.as_view(section='catalog')),
+    path('agent-world/fishing/agents/<str:identity>/', FishingView.as_view(section='profile')),
+    path('agent-world/fishing/trips/<str:identity>/', FishingView.as_view()),
+    path('agent-world/fishing/trips/<str:identity>/recall/', FishingView.as_view(section='recall')),
+    path('agent-world/fishing/trips/<str:identity>/retry/', FishingView.as_view(section='retry')),
+]

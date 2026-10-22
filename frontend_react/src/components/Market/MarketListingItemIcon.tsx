@@ -4,6 +4,8 @@ import {EquipmentPortrait} from '../Combat/atlas/EquipmentPortrait';
 import {MaterialPortrait} from '../Combat/atlas/MaterialPortrait';
 import {farmItemIcon} from '../Farm/assets';
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
+import {BaitPortrait} from '../Fishing/BaitPortrait';
+import {FishPortrait} from '../Fishing/FishPortrait';
 
 export function MarketListingItemIcon({item, className, fallback}: {
     item: MarketItem;
@@ -18,7 +20,11 @@ export function MarketListingItemIcon({item, className, fallback}: {
     const isCombatEquipment = item.kind === 'combat_equipment' || item.source?.kind === 'combat_equipment';
     const equipmentId = item.source?.equipmentId || '';
     const snapshot = item.equipmentSnapshot;
-    const builtinIcon = isCombatMaterial && materialId
+    const builtinIcon = sku.startsWith('bait.')
+        ? <BaitPortrait baitId={sku} className={className}/>
+        : sku.startsWith('fish.')
+        ? <FishPortrait fishId={sku.slice(5)} name={item.name} decorative className={className}/>
+        : isCombatMaterial && materialId
         ? <MaterialPortrait materialId={materialId} name={item.name} decorative className={className}/>
         : isCombatEquipment && equipmentId
             ? <EquipmentPortrait

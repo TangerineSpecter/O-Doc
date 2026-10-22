@@ -11,7 +11,8 @@ from utils.completion_options import thinking_options
 from utils.ai_observer import check_ai_control, emit_ai_event
 from system_settings.models import AIModel, SystemSetting
 
-SCENES = {'market': '市场选择', 'market_disposition': '市场处置标记', 'market_equipment': '装备购买判断',
+SCENES = {'fishing_spot': '钓鱼地点选择', 'fishing_duration': '钓鱼时长选择',
+          'fishing_bait': '钓鱼携带鱼饵', 'fishing_duel': '鱼王猜拳', 'lottery_quantity': '大乐透购票数量', 'lottery_number': '大乐透逐位选号', 'market': '市场选择', 'market_disposition': '市场处置标记', 'market_equipment': '装备购买判断',
           'market_plan': '市场日规划选择',
           'life_activity': '生活活动选择', 'life_budget': '生活预算选择',
           'farm_queue': '农场种植队列规划',

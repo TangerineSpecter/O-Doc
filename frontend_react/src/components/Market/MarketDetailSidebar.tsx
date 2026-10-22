@@ -3,6 +3,7 @@ import {Clock, Coins, Sparkles, Building2, TrendingUp, Info, User, ArrowRight, S
 import type {MarketSlot, MarketListing, MarketTransaction, MarketSupply} from '../../types/api/market';
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
+import {BaitPortrait} from '../Fishing/BaitPortrait';
 import {getSkuKnowledge, getSupplyKnowledge} from './marketMetadata';
 import {marketListingCategory, marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
 import {MarketListingItemIcon} from './MarketListingItemIcon';
@@ -34,6 +35,7 @@ export function MarketDetailSidebar({
         const price = supply?.price || (isFeed ? feedPrice || '5' : shopSlot?.price || '0');
         const knowledge = supply ? getSupplyKnowledge(supply) : getSkuKnowledge(sku, name);
         const iconSrc = farmItemIcon(sku);
+        const isBait = supply?.kind === 'bait' || sku.startsWith('bait.');
 
         return (
             <div className="flex h-full flex-col gap-4 overflow-y-auto scrollbar-hide text-xs">
@@ -43,12 +45,12 @@ export function MarketDetailSidebar({
                     
                     <div className="flex items-start gap-3.5">
                         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-orange-200/80 bg-white p-2 shadow-xs ring-4 ring-orange-100/50">
-                            <ItemIconImage
+                            {isBait ? <BaitPortrait baitId={sku} className="h-12 w-12"/> : <ItemIconImage
                                 src={iconSrc}
                                 alt={name}
                                 className="h-10 w-10 transition-transform duration-200 hover:scale-110"
                                 fallback={<Sparkles className="h-8 w-8 text-orange-400" />}
-                            />
+                            />}
                             {(supply || isFeed) && (
                                 <span className="absolute -bottom-1 -right-1 rounded-full bg-amber-500 px-1 py-0.2 text-[9px] font-bold text-white shadow-xs">
                                     常驻
@@ -84,7 +86,7 @@ export function MarketDetailSidebar({
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                     <div className="flex items-center gap-1.5 font-bold text-slate-800 text-xs pb-2.5 border-b border-slate-100">
                         <TrendingUp className="h-3.5 w-3.5 text-orange-500" />
-                        <span>生态经营档案</span>
+                        <span>{isBait ? '钓鱼补给档案' : '生态经营档案'}</span>
                     </div>
 
                     <div className="mt-3 space-y-2.5">
@@ -163,7 +165,7 @@ export function MarketDetailSidebar({
                     </div>
 
                     <div className="mt-3.5 rounded-xl bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-500 border border-slate-100">
-                        <span className="font-semibold text-slate-700">💡 农务建议：</span>
+                        <span className="font-semibold text-slate-700">💡 {isBait ? '用饵建议' : '农务建议'}：</span>
                         {knowledge.tips}
                     </div>
                 </div>

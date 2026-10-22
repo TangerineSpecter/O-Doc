@@ -30,7 +30,7 @@ def prepare_targets(config, agent, items: list, preserve: bool) -> list:
                 day = local_time(item.scheduled_at).date().isoformat()
                 if item.context.get('planned_on') == day:
                     continue
-                if item.context.get('farm_plan_id') or item.record_id or item.context.get('execution_started'):
+                if item.context.get('farm_plan_id') or item.context.get('lottery_plan') or item.record_id or item.context.get('execution_started'):
                     revise(item, '保留已固化领域计划，更新当日复核标记',
                            context={**item.context, 'planned_on': day})
                     continue

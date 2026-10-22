@@ -51,8 +51,9 @@ def validate_checkpoint(value: dict, item_id: str) -> None:
 
 def saved_choice(item) -> dict | None:
     checkpoint = item.context.get('daily_choice')
-    if (isinstance(checkpoint, dict) and checkpoint.get('time') == local_time(item.scheduled_at).isoformat()
-            and isinstance(checkpoint.get('plan'), dict)):
+    if (isinstance(checkpoint, dict) and isinstance(checkpoint.get('plan'), dict)
+            and (checkpoint.get('time') == local_time(item.scheduled_at).isoformat()
+                 or (checkpoint['plan'].get('activity') == 'lottery' and item.context.get('lottery_target')))):
         validate_checkpoint(checkpoint, item.pk)
         return copy.deepcopy(checkpoint['plan'])
     return None
@@ -116,6 +117,9 @@ def select_day(config, agent, items: list, ask) -> None:
         plan['offered_activities'] = next(slot['allowed_activities'] for slot in context['slots'] if slot['id'] == item.pk)
         if plan['activity'] == 'rest':
             plan['reason'] = '当天可执行活动已在其他时段安排，系统安排休息' if plan['offered_activities'] else '系统检查后没有可执行活动，安排休息'
+        if plan['activity'] == 'lottery':
+            from .lottery_service import current_round
+            plan['lottery_round_id'] = current_round(config.pk).pk
         if plan['activity'] == 'travel':
             plan['travel_plan'] = selected_plan(quotes, choice['destination_id'])
         plans.append(plan)
@@ -137,7 +141,12 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
     if reason:
         raise ValueError(reason + '，请重新规划日程')
     cash = available_cash(config.pk, agent.pk, exclude_ids=[item.pk])
-    if activity == 'travel':
+    if activity == 'lottery':
+        from .lottery_decision import prepare
+        from .lottery_rules import PRICE
+        plan['lottery_plan'] = prepare(item, agent)
+        plan['budget'] = str(PRICE * plan['lottery_plan']['quantity'])
+    elif activity == 'travel':
         recheck(choice['travel_plan'], cash)
         plan['budget'] = str(item.spent + Decimal(choice['travel_plan']['budget']))
     elif activity == 'investment':
@@ -214,7 +223,14 @@ def plan_days(config, agent, items: list, *, apply, ask, ask_detail) -> list[dic
             if choice is None or item.status not in ('pending', 'deferred'):
                 raise ValueError('日程已变化，请重新规划')
             version = item.updated_at.isoformat()
-            plan = prepare_detail(config, agent, item, choice, budget_state)
+            from .lottery_decision import LotteryDecisionUnavailable, defer
+            try:
+                plan = prepare_detail(config, agent, item, choice, budget_state)
+            except LotteryDecisionUnavailable as exc:
+                defer(item, exc)
+                continue
+            if choice['activity'] == 'lottery':
+                version = item.updated_at.isoformat()
             apply(config.pk, agent, [item], {'plans': [plan], '_automatic_rest': plan['activity'] == 'rest',
                                            '_expected_versions': {item.pk: version}})
             if option := plan.pop('_budget_option', None):

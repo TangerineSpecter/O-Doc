@@ -1,0 +1,87 @@
+.fishing-atlas-header {
+    background: linear-gradient(105deg, #f0f6f1, #fafbf7 55%, #fff);
+    border-color: #dce8df;
+}
+.fishing-atlas-detail {
+    --atlas-ink: #17675e;
+    --atlas-tint: #f0f6f0;
+    --atlas-line: #d8e6dc;
+}
+.fishing-atlas-detail[data-king="true"] {
+    --atlas-ink: #99651f;
+    --atlas-tint: #fbf5e8;
+    --atlas-line: #eadfc3;
+}
+.fishing-atlas-hero {
+    background-color: var(--atlas-tint);
+    background-image: radial-gradient(#839b8522 .7px, transparent .7px);
+    background-size: 8px 8px;
+    border-bottom: 1px solid var(--atlas-line);
+}
+.fishing-atlas-plate {
+    position: relative;
+    isolation: isolate;
+    background: #ffffffb3;
+    border: 1px solid var(--atlas-line, #d8e6dc);
+    box-shadow: 0 1px 0 #fff inset;
+}
+.fishing-atlas-plate::before,
+.fishing-atlas-plate::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    border: 1px solid var(--atlas-line, #d8e6dc);
+    border-radius: 50%;
+    inset: 22% 7%;
+    transform: scaleY(.55) translateY(15%);
+}
+.fishing-atlas-plate::after {
+    inset: 12% 15%;
+    transform: scaleY(.65);
+    opacity: .55;
+}
+.fishing-atlas-species {
+    box-shadow: 0 1px 2px #1d433409;
+}
+.fishing-atlas-species[aria-pressed="true"] {
+    background: linear-gradient(105deg, #e8f2ec, #f7faf5);
+    border-color: #4e8a76;
+    box-shadow: 0 2px 7px #1d433412;
+}
+.fishing-atlas-species[aria-pressed="true"]::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    bottom: 12px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: #337b68;
+}
+.fishing-atlas-species[aria-pressed="true"] .fishing-atlas-species-name {
+    color: #17675e;
+}
+.fishing-atlas-bait {
+    box-shadow: 0 1px 0 #fff inset;
+}
+.fishing-atlas-bait[data-preferred="true"] {
+    background: #f0f6ef;
+    border-color: #c4d9c7;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .fishing-atlas-species:hover .fishing-atlas-species-portrait {
+        transform: translateY(-1px);
+    }
+}
+.fishing-resident-card,
+.fishing-trip-card {
+    box-shadow: 0 1px 3px #1d433409;
+}
+.fishing-resident-card {
+    background: linear-gradient(120deg, #fff 70%, #f6f9f2);
+}
+.fishing-bank-empty {
+    background-color: #f3f7f1;
+    background-image: radial-gradient(#64897318 .7px, transparent .7px);
+    background-size: 8px 8px;
+}

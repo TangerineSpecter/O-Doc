@@ -1,5 +1,5 @@
 import {lazy, Suspense, useState} from 'react';
-import {ChefHat, Compass, FlaskConical, Package} from 'lucide-react';
+import {ChefHat, Compass, FlaskConical, Package, Fish} from 'lucide-react';
 import WorldDialog from './WorldDialog';
 import WorldOrbitLoader from './WorldOrbitLoader';
 
@@ -7,11 +7,13 @@ const Items = lazy(() => import('./ItemCatalogDialog').then(module => ({default:
 const Recipes = lazy(() => import('../Cooking/CookingDialog').then(module => ({default:module.CookingCatalogContent})));
 const Adventure = lazy(() => import('../Combat/AdventureCatalog'));
 const Alchemy = lazy(() => import('../Alchemy/AlchemyCatalogContent').then(module => ({default: module.AlchemyCatalogContent})));
-export type WorldCatalogSection = 'items' | 'recipes' | 'alchemy' | 'adventure';
+const Fishing = lazy(() => import('../Fishing/FishingCatalog').then(m => ({default: m.FishingCatalog})));
+export type WorldCatalogSection = 'items' | 'recipes' | 'alchemy' | 'adventure' | 'fishing';
 const sections = [
     {id: 'items', label: '物品图鉴', icon: Package},
     {id: 'recipes', label: '美食食谱', icon: ChefHat},
     {id: 'alchemy', label: '炼金图鉴', icon: FlaskConical},
+    {id: 'fishing', label: '钓鱼图鉴', icon: Fish},
     {id: 'adventure', label: '冒险资料', icon: Compass},
 ] as const;
 
@@ -30,7 +32,7 @@ export default function WorldCatalogDialog({onClose, residents, initialAgentId =
             <div
                 role="tablist"
                 aria-label="世界图鉴分类"
-                className="flex shrink-0 items-center gap-4 sm:gap-6 border-b border-slate-200/80 pb-px"
+                className="flex shrink-0 items-center gap-4 sm:gap-6 overflow-x-auto scrollbar-hide border-b border-slate-200/80 pb-px"
             >
                 {sections.map(tab => {
                     const Icon = tab.icon;
@@ -67,7 +69,7 @@ export default function WorldCatalogDialog({onClose, residents, initialAgentId =
             <div className="relative min-h-0 flex-1">
                 {visited.map(id => <section key={id} aria-label={`${sections.find(tab => tab.id === id)?.label}图鉴内容`} aria-hidden={section !== id} inert={section !== id} style={{contentVisibility: section === id ? 'visible' : 'hidden'}} className={`absolute inset-0 flex min-h-0 flex-col ${section === id ? '' : 'pointer-events-none'}`}>
                     <Suspense fallback={<WorldOrbitLoader title="正在翻开图鉴"/>}>
-                        {id === 'items' ? <Items active={section === id}/> : id === 'recipes' ? <Recipes residents={residents} initialAgentId={initialAgentId} active={section === id}/> : id === 'alchemy' ? <Alchemy residents={residents} initialAgentId={initialAgentId} active={section === id}/> : <Adventure residents={residents} initialAgentId={initialAgentId} active={section === id}/>}
+                        {id === 'items' ? <Items active={section === id}/> : id === 'recipes' ? <Recipes residents={residents} initialAgentId={initialAgentId} active={section === id}/> : id === 'alchemy' ? <Alchemy residents={residents} initialAgentId={initialAgentId} active={section === id}/> : id === 'fishing' ? <Fishing residents={residents} initialAgentId={initialAgentId} active={section === id}/> : <Adventure residents={residents} initialAgentId={initialAgentId} active={section === id}/>}
                     </Suspense>
                 </section>)}
             </div>

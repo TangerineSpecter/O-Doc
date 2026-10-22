@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 
 from article.access import get_visible_anthology_queryset
 from system_settings.models import Agent, AgentActivity, AgentRunRecord, AgentTask, WorldAction
@@ -22,7 +22,7 @@ from .models import WorldLedger
 from .travel_models import TravelJourney
 
 
-CATEGORIES = {'exploration', 'publication', 'interaction', 'travel', 'farm', 'cooking', 'alchemy', 'market', 'trade', 'investment', 'finance', 'record'}
+CATEGORIES = {'fishing', 'exploration', 'publication', 'interaction', 'travel', 'farm', 'cooking', 'alchemy', 'market', 'trade', 'investment', 'finance', 'record'}
 MARKET_LABELS = {
     'buy_shop': '商店购买', 'sell': '商店回收', 'list': '居民上架',
     'buy_listing': '购买居民商品', 'reprice': '调整挂牌价格', 'withdraw': '撤回挂牌',
@@ -125,6 +125,9 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
         collect(records.filter(status__in=('success', 'failed')), 'updated_at', 'agent_id')
         collect(LifeItem.objects.filter(owner_id=owner, status__in=('rest', 'failed', 'cancelled')), 'updated_at')
         collect(LifeRevision.objects.filter(item__owner_id=owner), 'created_at', 'item__actor_id')
+    if category in ('all', 'fishing'):
+        from .fishing.models import FishingTrip
+        collect(FishingTrip.objects.filter(owner_id=owner), 'updated_at')
     if category in ('all','exploration'):
         from .combat.models import Exploration
         collect(Exploration.objects.filter(owner_id=owner), 'updated_at')
@@ -426,6 +429,22 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                                 if isinstance(run, dict) and run.get('agent') == row.agent_id), '')
             event['outputPreview'] = preview
         events.append(event)
+    from .fishing.models import FishingTrip, FishingEvent
+    fishing_rows = FishingTrip.objects.filter(owner_id=owner, updated_at__gte=start, updated_at__lt=end)
+    if actor_id:
+        fishing_rows = fishing_rows.filter(actor_id=actor_id)
+    fishing_rows = fishing_rows.prefetch_related(Prefetch('events',
+        queryset=FishingEvent.objects.filter(data__catch__isnull=False).only('trip_id', 'data'),
+        to_attr='caught_events'))
+    for trip in fishing_rows:
+        caught = [e.data['catch'] for e in trip.caught_events]
+        detail = '、'.join(c['name'] for c in caught) or '尚无收获'
+        detail += f" · 抛竿{trip.state.get('casts',0)}次"
+        if trip.state.get('reason'):
+            detail += ' · ' + trip.state['reason']
+        events.append(_event('fishing', 'fishing', trip.pk, trip.updated_at, trip.actor_id,
+            trip.actor_name, '出钓归来' if trip.ended_at else '正在钓鱼', detail,
+            status='success' if trip.ended_at else 'running', target={'kind':'fishing', 'id':trip.pk}))
     from .combat.models import Exploration
     from .combat.explorations import EXECUTION_COMPLETED, execution_completed
     settled_exploration_records = set(Exploration.objects.filter(
@@ -700,6 +719,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         ledger_label = (('农场收入' if row.amount > 0 else '农场支出') if row.kind == 'farm' else
                         ('市场收入' if row.amount > 0 else '市场支出') if row.kind == 'market' else
                         LEDGER_LABELS.get(row.kind, '收入' if row.amount > 0 else '支出'))
+        if row.kind == 'lottery':
+            ledger_label = '大乐透购票' if row.amount < 0 else '大乐透中奖'
         entry = _event('finance', 'ledger', row.pk, row.created_at, row.agent_id,
                        row.agent_name or names.get(row.agent_id),
                        ledger_label,
