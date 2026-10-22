@@ -16,7 +16,7 @@ export interface BattleBackgroundArt {
     feetRatio:number;
 }
 
-/** Battle background review assets are independent of approved atlas habitats. */
+/** Shared habitat assets for observation and the atlas; only approved art is shown in the atlas. */
 export const battleBackgroundArt={
     'dungeon.sprout_meadow':{id:'dungeon.sprout_meadow',name:'新芽草甸',src:sproutMeadowPixel,
         status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},

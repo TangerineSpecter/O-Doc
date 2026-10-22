@@ -5,7 +5,7 @@
 ## 当前资源与入口
 
 - 素材：`frontend_react/src/assets/combat/battle-moss-cave-pixel-v2.png`，内置 imagegen 生成，独立 PNG；没有覆盖原先确认的 `moss-cave.svg`。
-- 地图登记：`Combat/art/battleBackgroundArt.ts`，六张已由用户确认，状态均为 `approved`；正式图鉴的出没地背景注册保持原样。
+- 地图登记：`Combat/art/battleBackgroundArt.ts`，六张已由用户确认，状态均为 `approved`；2026-10-22 正式图鉴按目录出没地复用同一注册表的已确认背景。
 - 展示：`monster-defeat-preview.html`，默认软泥怪、法师与废弃矿坑，同场停在 0.5 秒站立画面。支持六张地图和简洁舞台切换、站位对照与击败重播。切换怪物保留选中的背景。
 - 展示截图：`docs/agents/assets/combat/moss-cave-pixel-v2-in-scene.png`。
 - 完整生成提示词：`docs/agents/assets/combat/moss-cave-pixel-v2-generation.json`。
@@ -28,7 +28,7 @@
 
 五张素材独立保存于 `frontend_react/src/assets/combat/`，完整提示词及原始生成路径保存于 `docs/agents/assets/combat/battle-backgrounds-pixel-v2-generation.json`。统一以 160×94 最近邻采样呈现。人物脚底始终固定在演示画面高度 79%；裂隙原图石台有可见底面，登记原图站位比例 0.69，纵向调整背景让脚底落在石台上表面，其余图为 0.79。地图切换仅替换背景纹理，不重置动画进度；所有纹理由场景统一释放。
 
-用户确认后，六张已按所在地图接入正式 `CombatObservation` 的本地动作展示。图鉴出没地与战斗结算保持原样，接入边界详见 `Agent探索观察战斗画面接入说明.md`。
+用户确认后，六张已按所在地图接入正式 `CombatObservation` 的本地动作展示。2026-10-22 图鉴背景也复用同一已确认资源注册表；出没地目录关系与战斗结算保持原样，接入边界详见 `Agent探索观察战斗画面接入说明.md`。
 
 五张同场截图保存在 `docs/agents/assets/combat/`：`battle-mine-v2-in-scene.png`、`battle-forest-v2-in-scene.png`、`battle-ruins-v2-in-scene.png`、`battle-fortress-v2-in-scene.png`、`battle-rift-v2-in-scene.png`。
 

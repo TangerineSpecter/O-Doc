@@ -284,17 +284,32 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
 
                                 {/* 出没地场景与怪物形象 */}
                                 <div className={selectedDetails.habitat ? 'w-full' : selectedPixelArt ? 'my-2 flex h-56 w-full items-center justify-center' : 'my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm'}>
-                                    <MonsterPortrait key={selected.id} monsterId={selected.id} name={selected.name} rank={selected.rank} includeDraftArt={includeDraftArt} animated habitat={selectedDetails.habitat} className={selectedDetails.habitat ? 'aspect-[32/21] w-full' : 'h-full w-full'} fallbackClassName={selectedDetails.habitat ? 'h-16 w-16' : undefined} />
+                                    <MonsterPortrait key={selected.id} monsterId={selected.id} name={selected.name} rank={selected.rank} includeDraftArt={includeDraftArt} animated habitat={selectedDetails.habitat} className={selectedDetails.habitat ? 'aspect-[32/25] w-full' : 'h-full w-full'} fallbackClassName={selectedDetails.habitat ? 'h-16 w-16' : undefined} />
                                 </div>
 
-                                <div className={selectedDetails.habitat ? 'w-full px-3 pb-4 pt-1' : ''}>
-                                    <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>
-                                    {selectedDetails.dungeonNames.length > 0 && (
-                                        <p className="mt-1 text-xs text-slate-500">
-                                            出没地：{selectedDetails.dungeonNames.join('、')}
-                                        </p>
-                                    )}
-                                </div>
+                                {selectedDetails.habitat ? (
+                                    <>
+                                        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 top-[48%] bg-gradient-to-t from-[#172e24]/65 to-transparent" />
+                                        <div className="absolute inset-x-6 bottom-5 text-left text-white">
+                                            {selectedDetails.dungeonNames.length > 0 && (
+                                                <p className="flex items-start gap-1.5 text-[10px] leading-relaxed tracking-[0.12em] text-[#edf0d6]">
+                                                    <span aria-hidden="true" className="mt-1 h-[5px] w-[5px] shrink-0 rotate-45 bg-[#f3c472]" />
+                                                    <span><span className="sr-only">出没地：</span>{selectedDetails.dungeonNames.join('、')}</span>
+                                                </p>
+                                            )}
+                                            <h3 className="mt-1.5 text-[25px] font-bold leading-tight tracking-[0.07em] [text-shadow:0_1px_4px_#172e2455]">{selected.name}</h3>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>
+                                        {selectedDetails.dungeonNames.length > 0 && (
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                出没地：{selectedDetails.dungeonNames.join('、')}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-2">

@@ -6,6 +6,7 @@ import {FishingTripCard} from './FishingTripCard';
 import {FishingTripDetails} from './FishingTripDetails';
 import {FishingResidentCard} from './FishingResidentCard';
 import {FishPortrait} from './FishPortrait';
+import {FishingScene} from './FishingScene';
 import './fishingAtlas.css';
 
 export function FishingSettings() {
@@ -30,12 +31,13 @@ export function FishingPanel({initialTripId = ''}: {initialTripId?: string}) {
         {state.selected ? <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">{state.detail ? <FishingTripDetails trip={state.detail} loading={state.loading} onBack={() => state.choose('')} onPage={state.setEventPage}/> : <div className="py-8 text-center text-xs text-slate-400">{state.error ? '过程读取失败' : '正在读取出钓过程…'}<button type="button" className="ml-3 text-teal-700" onClick={() => state.choose('')}>返回列表</button></div>}</div> : data && <>
             {!data.enabled && <p className="shrink-0 rounded-xl border border-amber-100 bg-amber-50 p-2.5 text-[11px] text-amber-700">钓鱼尚未启用，可在世界管理 → 钓鱼中开启。</p>}
             <div className="grid min-h-0 flex-1 auto-rows-max gap-4 overflow-y-auto scrollbar-hide lg:auto-rows-auto lg:grid-cols-[244px_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[264px_minmax(0,1fr)]">
-                <section aria-label="居民钓鱼成长" className="flex min-h-0 flex-col">
+                <section aria-label="居民钓鱼成长" className="order-2 flex min-h-0 flex-col lg:order-1">
                     <div className="mb-2 flex shrink-0 items-center gap-1.5"><Users className="h-3.5 w-3.5 text-teal-600"/><h3 className="text-xs font-bold text-slate-700">钓手档案</h3><span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] text-slate-400">{data.residents.length}</span></div>
                     <div className="grid min-h-0 gap-1.5 scrollbar-hide sm:grid-cols-2 lg:block lg:space-y-1.5 lg:overflow-y-auto lg:pr-0.5">{data.residents.map(resident => <FishingResidentCard key={resident.id} resident={resident} trip={data.active.find(trip => trip.actorId === resident.id)}/>)}</div>
                     {!data.residents.length && <p className="rounded-xl border border-dashed border-slate-200 p-4 text-[11px] leading-5 text-slate-400">还没有参与钓鱼的居民，参与范围沿用统一生活配置。</p>}
                 </section>
-                <div className="min-h-0 space-y-4 scrollbar-hide lg:overflow-y-auto lg:pr-0.5">
+                <div className="order-1 min-h-0 space-y-4 scrollbar-hide lg:order-2 lg:overflow-y-auto lg:pr-0.5">
+                    <FishingScene trips={data.active} enabled={data.enabled}/>
                     <section aria-label="当前出钓">
                         <div className="mb-2 flex items-center gap-1.5"><Waves className="h-3.5 w-3.5 text-teal-600"/><h3 className="text-xs font-bold text-slate-700">当前出钓</h3><span className="rounded-md bg-teal-50 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-teal-700">{data.active.length}</span><span className="ml-auto text-[9px] text-slate-400">由生活日程安排</span></div>
                         {data.active.length ? <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))]">{data.active.map(trip => <FishingTripCard key={trip.id} trip={trip} now={now} busy={state.busy} onSelect={() => state.choose(trip.id)} onAction={kind => void state.action(trip.id, kind)}/>)}</div> : <div className="fishing-bank-empty flex items-center gap-3 rounded-2xl border border-teal-900/10 p-3">

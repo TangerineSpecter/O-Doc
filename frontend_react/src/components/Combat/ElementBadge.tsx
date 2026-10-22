@@ -253,7 +253,7 @@ export function ElementResistCard({
                     {formatRatio(value)}
                 </span>
                 {isWeakness ? (
-                    <span className="text-[10px] text-rose-500 leading-none font-sans font-bold">受创增幅</span>
+                    <span className="whitespace-nowrap text-[10px] text-rose-500 leading-none font-sans font-bold">增幅</span>
                 ) : isResist ? (
                     <span className="text-[10px] text-slate-400 leading-none font-sans">减伤</span>
                 ) : (

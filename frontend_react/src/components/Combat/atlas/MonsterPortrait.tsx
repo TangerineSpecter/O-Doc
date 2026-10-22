@@ -49,7 +49,7 @@ export function MonsterPortrait({
     const pixelStill = pixelArt ? <img src={pixelArt} alt="" className={`${framing} object-contain p-[6%]`}
         style={{imageRendering: 'pixelated'}} /> : still;
     const meadowStill = isMeadowMonsterId(monsterId)
-        ? <StaticMeadowPortrait monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={pixelStill} /> : null;
+        ? <StaticMeadowPortrait monsterId={monsterId} inHabitat={Boolean(habitat)} /> : null;
     return <div
         className={`relative flex items-center justify-center overflow-hidden ${className}`}
         data-habitat-id={habitat?.dungeonId}
@@ -57,7 +57,8 @@ export function MonsterPortrait({
         aria-hidden={decorative || undefined}
         aria-label={decorative ? undefined : `${name || monsterId}形象`}
     >
-        {habitat && <img src={habitat.image} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />}
+        {habitat && <img src={habitat.image} alt="" className="pointer-events-none absolute left-0 top-0 w-full object-cover object-top"
+            style={{height: `${100 * .79 / habitat.feetRatio}%`, imageRendering: 'pixelated'}} />}
         {isMeadowMonsterId(monsterId)
             ? animated ? <Suspense fallback={meadowStill}><AnimatedMonsterPortrait key={`${monsterId}:${Boolean(habitat)}`} monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={meadowStill} /></Suspense> : meadowStill
             : pixelArt ? pixelStill

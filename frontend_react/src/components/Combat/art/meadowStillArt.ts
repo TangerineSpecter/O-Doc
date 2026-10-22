@@ -4,10 +4,6 @@ import {sampleMeadowPose} from '../animation/meadowPixels/meadowMotion';
 import {meadowProfiles} from '../animation/meadowPixels/meadowTypes';
 import type {MeadowMonsterId} from '../animation/meadowPixels/meadowTypes';
 
-export const meadowPortraitFrame = {
-    width: 160, height: 160, ground: 140 / 160, plainScale: 1, habitatScale: 2.2,
-    shadowX: 43, shadowY: 6,
-};
 const portraits = new Map<MeadowMonsterId, string>();
 
 /** Atlas cards cache one bitmap per monster, without allocating a ticker or WebGL context. */

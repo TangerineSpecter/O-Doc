@@ -6,6 +6,8 @@
 
 ## 角色与接入状态
 
+2026-10-22 洞窟 PNG 更新：用户确认将洞穴蝙蝠、苔石兽（重做第二版）、苔冠巨兽接入图鉴。列表与详情统一使用 `frontend_react/src/assets/combat/monster-cave-bat-v1.png`、`monster-moss-beast-v2.png`、`monster-moss-king-v1.png`，在 `art/monsterPixelArt.ts` 注册为 `approved`。三只详情当前显示静态 PNG，不再播放旧矢量待机；旧独立动作预览保留，不能视为新 PNG 已有动作。洞穴晶蜥继续使用已有 PNG。本次仅替换前端内置图鉴资源，无持久字段及同步变更。
+
 | 魔物 ID | 名称 | 预览入口 | 形象与基础动作 | 图鉴 | 技能特效 | 正式战斗动画 |
 | --- | --- | --- | --- | --- | --- | --- |
 | `monster.slime` | 软泥怪 | `docs/agents/demo/SproutMeadow_v1.html?monster=slime` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
@@ -13,9 +15,9 @@
 | `monster.leafshell_beetle` | 叶壳甲虫 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.leafshell_beetle` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
 | `monster.dawnfire_glowbug` | 晨光萤 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.dawnfire_glowbug` | 新像素版已确认；五个基础动作 | 新版静态帧与待机动画已接入 | 无额外主动技能 | 已接入探索观察演示及确认击败粉碎 |
 | `monster.cave_crystal_lizard` | 洞穴晶蜥 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_crystal_lizard` | 静态像素形象已接入 | 已接入 | 无 | 动作未制作 |
-| `monster.cave_bat` | 洞穴蝙蝠 | `frontend_react/cave-bat-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“闪身”动作与残影示意；正式效果待接入 | 待接入 |
-| `monster.moss_beast` | 苔石兽 | `frontend_react/moss-beast-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“护体”动作与多边形护盾示意；正式效果待接入 | 待接入 |
-| `monster.moss_king` | 苔冠巨兽 | `frontend_react/moss-king-preview.html` | 已确认石鹿首领；五个基础动作 | 已接入 | 已有“重击”飞石与“护体”晶石护罩示意；正式效果待接入 | 待接入 |
+| `monster.cave_bat` | 洞穴蝙蝠 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.cave_bat` | 新 PNG 已确认；新动作待制作 | 新 PNG 静态图已接入 | 旧矢量“闪身”示意保留 | 待接入 |
+| `monster.moss_beast` | 苔石兽 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.moss_beast` | 新 PNG 第二版已确认；新动作待制作 | 新 PNG 静态图已接入 | 旧矢量“护体”示意保留 | 待接入 |
+| `monster.moss_king` | 苔冠巨兽 | `frontend_react/combat-atlas-preview.html?tab=monsters&monster=monster.moss_king` | 新 PNG 石鹿已确认；新动作待制作 | 新 PNG 静态图已接入 | 旧矢量“重击”“护体”示意保留 | 待接入 |
 
 ## 新芽草甸像素动作（2026-10-22，已接入探索观察与图鉴）
 
@@ -30,7 +32,10 @@
 - 当前 `monster_actions.csv` 中四只均只配置普通攻击，没有额外主动技能，预览明确展示这一点。软泥怪、绒耳兔、叶壳甲虫的撞击与晨光萤的光弹是普攻视觉表现，不另造技能 ID。角色显示尺寸由场景缩放决定，原始精灵与动作可复用，图鉴尺寸开关用于检查缩小后的辨识度。
 - HTML 可直接双击打开，无外部依赖或构建步骤；也可在仓库根目录运行 `.venv/bin/python -m http.server 43139 --bind 127.0.0.1 --directory docs/agents/demo` 后访问 `/SproutMeadow_v1.html`。
 - 探索观察代码在 `frontend_react/src/components/Combat/animation/meadowPixels/`，由 `ObservationMonsterActor` 按四只稳定 ID 装配；索引精灵与 demo 由同一 `build-sprites.py` 生成。甲虫、晨光萤原图向左，不再盲目镜像，绒耳兔按原图向右进行翻转。攻击与受击延续本地演示，快照确认击败才播放粉碎，碎片保留到下一遭遇。接入边界与验证见 [探索观察接入说明](./Agent探索观察战斗画面接入说明.md)。
-- 图鉴同步四只新版：`MonsterPortrait` 优先选择像素角色；列表通过 `StaticMeadowPortrait` / `meadowStillArt` 缓存同源静态帧，不为每张卡片分配 WebGL；详情由 `MonsterPortraitRenderer` 复用 `MeadowMonsterActor` 播放待机，按 160×160 安全构图保留耳朵和翅膀。动画与静态帧共用 `meadowBodyDrawing`，减少动态效果或画面离屏时停止 ticker，动画加载失败保留静态帧。其他魔物、背景和图鉴信息保持原规则。
+- 图鉴同步四只新版：`MonsterPortrait` 优先选择像素角色；列表通过 `StaticMeadowPortrait` 直接使用 `assets/combat/atlas-*-idle.png` 内置静态帧（由 `meadowStillArt.getMeadowStill` 导出），不为每张卡片分配 WebGL，也不在异步加载期间回退旧 SVG 或旧版 PNG；详情由 `MonsterPortraitRenderer` 复用 `MeadowMonsterActor` 播放待机，按 160×160 安全构图保留耳朵和翅膀。动画与静态帧共用 `meadowBodyDrawing`，减少动态效果或画面离屏时停止 ticker，动画加载失败保留静态帧。其他魔物形象和图鉴信息保持原规则。
+- 2026-10-22 修复首帧闪动：四只的列表、详情加载中与 WebGL 失败回退均使用同一新版内置 PNG；更新像素绘制后应重新导出这四张静态帧。图鉴右侧按目录出没地复用 `battleBackgroundArt` 中七个已确认的像素背景，普通魔物、精英及首领共用地点映射；多出没地取目录顺序中首个已登记场景，星蚀裂隙沿用站位比例修正。无新增持久字段或同步数据。
+- 草甸图鉴构图调整：右侧四只角色的场景缩放由 2.2 调整为 1.55（缩小约 30%），同比收缩阴影并保留脚底锚点，让兔耳、触角与顶部标签留出空间。静态首帧与动画共用 `art/meadowPortraitFrame.ts`，保持切换时构图一致；列表缩略图、战斗场景与背景素材不变。
+- 本次首帧/背景验证：连续切换四只 12 次，DOM 变更观测未发现旧版形象；七个区域（含首领）背景加载正确；模拟动画初始化失败仍显示新版静态 PNG；390px 无横向溢出。类型检查、相关 ESLint 与差异空白检查通过。使用本地 fixture 图鉴预览验证，未操作真实居民探索记录。
 - 图鉴验证：四张卡片的缓存图片与共用绘制输出一致，四只详情均播放待机；切换后仅保留一张动态画布；减少动态效果时画面稳定；WebGL 不可用时仍显示新版静态帧；390px 无横向溢出。类型检查、两项既有像素回归和生产构建通过；相关 ESLint 无错误，`MonsterAtlasView` 保留 14 项原有 Hook 依赖警告。截图：[新版软泥怪与列表](./assets/combat/atlas-meadow-pixels-v1.png)、[绒耳兔详情](./assets/combat/atlas-meadow-rabbit-v1.png)。
 - 独立预览生命百分比和特效只用于演示；正式场景 HP/MP 与结果继续取快照。没有新增持久字段或同步实体，不涉及 WebDAV；正式场景复用已确认的新芽草甸背景，demo 背景不替换正式背景。
 

@@ -8,7 +8,7 @@ import {sampleMossKingPose} from './mossKingMotion';
 import {MeadowMonsterActor} from './meadowPixels/MeadowMonsterActor';
 import {isMeadowMonsterId, meadowProfiles} from './meadowPixels/meadowTypes';
 import type {MeadowMonsterId} from './meadowPixels/meadowTypes';
-import {meadowPortraitFrame} from '../art/meadowStillArt';
+import {meadowPortraitFrame} from '../art/meadowPortraitFrame';
 
 export type AnimatedMonsterId = MeadowMonsterId | 'monster.cave_bat' | 'monster.moss_beast' | 'monster.moss_king';
 

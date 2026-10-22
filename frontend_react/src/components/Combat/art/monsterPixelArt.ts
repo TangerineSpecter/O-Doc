@@ -22,6 +22,9 @@ import fuzzyEarRabbit from '../../../assets/combat/monster-fuzzy-ear-rabbit-v1.p
 import leafshellBeetle from '../../../assets/combat/monster-leafshell-beetle-v1.png';
 import dawnfireGlowbug from '../../../assets/combat/monster-dawnfire-glowbug-v1.png';
 import caveCrystalLizard from '../../../assets/combat/monster-cave-crystal-lizard-v1.png';
+import caveBat from '../../../assets/combat/monster-cave-bat-v1.png';
+import mossBeast from '../../../assets/combat/monster-moss-beast-v2.png';
+import mossKing from '../../../assets/combat/monster-moss-king-v1.png';
 
 interface MonsterPixelArt {
     src: string;
@@ -54,6 +57,9 @@ export const monsterPixelArt: Readonly<Record<string, MonsterPixelArt>> = {
     'monster.leafshell_beetle': {src: leafshellBeetle, status: 'approved'},
     'monster.dawnfire_glowbug': {src: dawnfireGlowbug, status: 'approved'},
     'monster.cave_crystal_lizard': {src: caveCrystalLizard, status: 'approved'},
+    'monster.cave_bat': {src: caveBat, status: 'approved'},
+    'monster.moss_beast': {src: mossBeast, status: 'approved'},
+    'monster.moss_king': {src: mossKing, status: 'approved'},
 };
 
 export function getMonsterPixelArt(monsterId: string, includeDrafts = false): string | undefined {
