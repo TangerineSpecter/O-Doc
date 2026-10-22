@@ -1,0 +1,36 @@
+import {useRef} from 'react';
+import {ArrowLeft, ArrowRight, Box, Check, ChevronRight, Download, Film, Grid2X2, House, LampDesk, Leaf, Maximize2, MousePointer2, Pause, Play, Plus, Redo2, ScanLine, Trees, Undo2, Upload, X} from 'lucide-react';
+import {AssetLibrary, PixelPreview} from './AssetLibrary';
+import {ObjectInspector} from './ObjectInspector';
+import {parseDocument} from './placement';
+import {SpriteLab} from './SpriteLab';
+import {getTemplate, roomNames} from './templates';
+import {useStudio} from './useStudio';
+
+export function WorldStudioApp() {
+    const host=useRef<HTMLDivElement>(null),importInput=useRef<HTMLInputElement>(null),studio=useStudio(host);
+    const exportLayout=()=>{
+        const blob=new Blob([JSON.stringify(studio.document,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='三叶营地-布局.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);studio.setNotice('布局已导出，可在本预览中重新导入');
+    };
+    return <div className="studio-page">
+        <header className="studio-topbar"><a href="/camp-world-preview.html" className="studio-brand"><span><Leaf size={18}/></span><strong>Agent 世界</strong></a><ChevronRight size={13}/><span>世界工坊</span><div className="studio-topbar-right"><span className="studio-local-badge"><i/>可操作模板预览</span><a href="/camp-world-preview.html"><ArrowLeft size={13}/>返回营地</a></div></header>
+        <main className="studio-main"><div className="studio-page-heading"><div><p className="studio-eyebrow">WORLD WORKSHOP / 01</p><h1>给小世界，添一点新东西<span>✳</span></h1><p>从一盏灯、一张椅子，到他们每天生活的地方。</p></div><div className="studio-heading-actions"><button type="button" className="studio-outline-button" onClick={()=>importInput.current?.click()}><Upload size={14}/>导入布局</button><button type="button" className="studio-primary-button" onClick={exportLayout}><Download size={14}/>导出布局</button><input hidden ref={importInput} type="file" accept="application/json,.json" onChange={async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;try{if(file.size>100000)throw new Error('布局文件过大');studio.importDocument(parseDocument(await file.text()));}catch(error){studio.setNotice(error instanceof Error?error.message:'导入失败');}}}/></div></div>
+            <div className="studio-workspace-nav"><div className="studio-tab-group" role="tablist" aria-label="工坊模式"><button type="button" role="tab" aria-selected={studio.tab==='scene'} className={studio.tab==='scene'?'active':''} onClick={()=>studio.setTab('scene')}><Box size={15}/>场景编排</button><button type="button" role="tab" aria-selected={studio.tab==='sprite'} className={studio.tab==='sprite'?'active':''} onClick={()=>studio.setTab('sprite')}><Film size={15}/>角色动画</button></div><span className="studio-workspace-hint"><Check size={12}/>横版正视图<span>·</span>32 px 网格</span></div>
+            {!studio.art?<div className="studio-loading"><Leaf size={28}/><h2>{studio.error||'正在打开世界工坊…'}</h2>{studio.error&&<button type="button" onClick={studio.retry} className="studio-primary-button">重试</button>}</div>:studio.tab==='sprite'?<SpriteLab art={studio.art}/>:<div className="studio-layout">
+                <AssetLibrary studio={studio} art={studio.art}/>
+                <div className="studio-center">
+                    <section className="studio-card studio-scene-card"><div className="studio-scene-toolbar"><div className="studio-room-tabs">{(['camp','room'] as const).map(id=><button type="button" key={id} onClick={()=>studio.switchRoom(id)} className={studio.room===id?'active':''}>{id==='camp'?<Trees size={14}/>:<House size={14}/>}<span>{roomNames[id]}</span></button>)}</div><div className="studio-edit-tools"><button type="button" className="studio-icon-button" disabled={!studio.canUndo} aria-label="撤销" onClick={studio.undo}><Undo2 size={15}/></button><button type="button" className="studio-icon-button" disabled={!studio.canRedo} aria-label="重做" onClick={studio.redo}><Redo2 size={15}/></button><span/><button type="button" className={`studio-icon-button${studio.grid?' active':''}`} aria-label="显示网格" aria-pressed={studio.grid} onClick={()=>studio.setGrid(!studio.grid)}><Grid2X2 size={15}/></button><button type="button" className={`studio-icon-button${studio.collisions?' active':''}`} aria-label="显示碰撞和交互点" aria-pressed={studio.collisions} onClick={()=>studio.setCollisions(!studio.collisions)}><ScanLine size={15}/></button></div></div>
+                        <div className={`studio-scene-stage${studio.brush?' is-placing':''}`}><div className="studio-scene-host" ref={host}/><span className="studio-scene-mode"><span/>{studio.room==='camp'?'林间黄昏':'温暖小屋'}<i/>横版 2D</span><span className="studio-stage-label">{studio.room==='camp'?'TRIFOIL CAMPSITE':'A ROOM OF THEIR OWN'}</span>{studio.brush&&<div className="studio-brush-banner"><Plus size={13}/>点击空位，放置{getTemplate(studio.brush).name}<button type="button" aria-label="取消放置" onClick={()=>studio.setBrush(null)}><X size={12}/></button></div>}</div>
+                        <div className="studio-stage-footer"><div className="studio-grid-legend"><span><i className="display"/>显示占格</span><span><i className="collision"/>底座碰撞</span><span><i className="interaction"/>互动点</span></div><span><Maximize2 size={11}/>40 × 12 格</span></div>
+                        <div className="studio-resident-bar"><span><i className={studio.running?'running':''}/>{studio.running?'居民自由活动中':'居民已暂停'}</span><div>{(['klee','anya'] as const).map(id=><span className="studio-mini-resident" key={id}><PixelPreview source={studio.art!.characters[id].idle}/>{id==='klee'?'可莉':'阿尼亚'}</span>)}</div><button type="button" onClick={()=>studio.setRunning(!studio.running)}>{studio.running?<Pause size={12}/>:<Play size={12}/>}<span>{studio.running?'暂停':'继续'}</span></button></div>
+                    </section>
+                    <section className="studio-card studio-scene-objects"><div className="studio-panel-heading"><span>场景里的小物件<small>{studio.items.length} 件</small></span><span className="studio-live-label">修改即时预览</span></div><div className="studio-object-strip">{studio.items.map(item=><button type="button" key={item.id} className={studio.selected===item.id?'active':''} onClick={()=>{studio.setSelected(item.id);studio.setBrush(null);}}><PixelPreview source={studio.art!.objects[item.templateId]}/><span>{item.name}<small>X {item.col} · Y 0</small></span>{studio.selected===item.id&&<Check size={12}/>}</button>)}</div></section>
+                    <div className="studio-workflow"><span className="studio-step-number">01</span><span>选一个模板</span><ArrowRight size={12}/><span className="studio-step-number">02</span><span>放进场景</span><ArrowRight size={12}/><span className="studio-step-number">03</span><span>让 Agent 来互动</span><LampDesk size={17}/></div>
+                </div>
+                <ObjectInspector studio={studio}/>
+            </div>}
+            <footer className="studio-footer"><span><MousePointer2 size={12}/>选模板后点击放置 · 拖动调整 · Esc 退出放置</span><span>本页为本地演示；布局可导出，尚未写入系统后台。</span></footer>
+        </main>
+        {studio.notice&&<div className="studio-toast" role="status"><Check size={15}/>{studio.notice}<button type="button" aria-label="关闭提示" onClick={()=>studio.setNotice('')}><X size={13}/></button></div>}
+    </div>;
+}

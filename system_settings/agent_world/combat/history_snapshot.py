@@ -3,6 +3,7 @@ from collections import Counter
 from copy import deepcopy
 
 from .store import digest
+from .stock_validation import expected_stock
 
 PREFIX = 'system_settings.'
 PROFILE, GEAR, RUN, FACT, CHAIN, CATALOG, ENCOUNTER = [PREFIX + name for name in
@@ -51,26 +52,6 @@ def inventory_balance(rows: dict, actor: str, owner: str) -> dict:
     return dict(sorted((key, value) for key, value in balance.items() if value))
 
 
-def stock_changes(row: dict, balance: Counter) -> None:
-    payload, kind = row['payload'], row['kind']
-    if kind == 'depart':
-        balance.subtract({'combat.' + key: count for key, count in payload['plan'].get('potions', {}).items()})
-    elif kind == 'terminal':
-        balance.update({'combat.' + key: count for key, count in payload['returned'].items()})
-    elif kind == 'round':
-        for event in payload.get('events', []):
-            if event['kind'] == 'kill':
-                for reward in event['rewards']:
-                    if reward['kind'] != 'equipment':
-                        balance['combat.' + reward['item']['id']] += reward['quantity']
-    elif kind == 'trade':
-        operation = payload['arguments']
-        if operation['kind'] == 'buy_potion':
-            balance['combat.' + operation['potion_id']] += operation['quantity']
-        elif operation['kind'] == 'sell_combat_material':
-            balance['combat.' + operation['material_id']] -= operation['quantity']
-
-
 def frozen_run(snapshot: dict, catalog) -> dict:
     plan, progress = snapshot.get('plan') or {}, snapshot.get('progression') or {}
     def label(table, identity):
@@ -107,9 +88,7 @@ def normalize_source(data: list[dict]) -> list[dict]:
             verify_chain(ordered, chain, actor, profile['owner_id'])
             if digest(aggregate_frame(rows, actor, frozen=False)) != chain['frame']:
                 raise ValueError('历史状态指纹不一致，不能固化')
-            stock = Counter()
-            for row in ordered:
-                stock_changes(row, stock)
+            stock = expected_stock(rows, actor, profile['owner_id'], ordered)
             actual = inventory_balance(rows, actor, profile['owner_id'])
             if {key: value for key, value in stock.items() if value} != actual:
                 raise ValueError('战斗库存与历史消费事实不一致，不能固化')

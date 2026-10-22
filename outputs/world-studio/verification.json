@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "pause freezes residents",
+    "drag snaps and undo/redo restores coordinates",
+    "overlapping placement rejected",
+    "place, clone, remove and undo",
+    "collision and lighting switches",
+    "layout JSON download and import round-trip",
+    "interior uses independent layout coordinates",
+    "Anya frame preview, pause and 8 aligned slices",
+    "animation frame advances",
+    "local sprite import and configurable grid slicing",
+    "390px scene and sprite layouts without overflow",
+    "Agent reaches unlit lamp and turns on the real scene light"
+  ],
+  "errors": [],
+  "failedRequests": []
+}

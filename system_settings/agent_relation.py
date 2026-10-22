@@ -247,6 +247,8 @@ def relation_graph(owner_id=None, include_departed=False):
     if not include_departed:
         agents_query = agents_query.filter(archived_at__isnull=True)
     agents = list(agents_query)
+    from .agent_world.life_queries import next_activity_times
+    next_times = next_activity_times(owner_id, [agent.pk for agent in agents if not agent.archived])
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
     running_ids = set(AgentActivity.objects.filter(status='running').exclude(agent_id=None).values_list('agent_id', flat=True))
     from .agent_world.combat.queries import resident_presence
@@ -319,6 +321,7 @@ def relation_graph(owner_id=None, include_departed=False):
             'active_days': snapshot.active_days if snapshot else 0,
             'status': exploring[agent.id]['status'] if agent.id in exploring else 'running' if agent.id in running_ids else 'idle',
             'current_action': exploring.get(agent.id,{}).get('current_action',''),
+            'next_activity_at': next_times.get(agent.id),
         })
     from .agent_world.social_graph import graph_edges
     edges = graph_edges(owner_id, nodes, include_departed=include_departed)

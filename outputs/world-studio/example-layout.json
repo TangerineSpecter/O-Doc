@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "scenes": {
+    "camp": [
+      {
+        "id": "camp-0",
+        "templateId": "cabin",
+        "col": 2,
+        "name": "三叶小屋",
+        "solid": false,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "camp-1",
+        "templateId": "picnic",
+        "col": 10,
+        "name": "午后茶桌",
+        "solid": false,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "camp-2",
+        "templateId": "bench",
+        "col": 15,
+        "name": "原木长椅",
+        "solid": false,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "camp-3",
+        "templateId": "fire",
+        "col": 22,
+        "name": "篝火堆",
+        "solid": true,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "camp-4",
+        "templateId": "lamp",
+        "col": 28,
+        "name": "萤火路灯",
+        "solid": true,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "camp-5",
+        "templateId": "tree",
+        "col": 32,
+        "name": "许愿橡树",
+        "solid": false,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "placed-1792640356204-2",
+        "templateId": "lamp",
+        "col": 25,
+        "name": "萤火路灯",
+        "solid": true,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "copy-1792640356554-6",
+        "templateId": "lamp",
+        "col": 30,
+        "name": "萤火路灯",
+        "solid": false,
+        "flipped": false,
+        "lit": false
+      }
+    ],
+    "room": [
+      {
+        "id": "room-0",
+        "templateId": "picnic",
+        "col": 8,
+        "name": "午后茶桌",
+        "solid": false,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "room-1",
+        "templateId": "bench",
+        "col": 21,
+        "name": "原木长椅",
+        "solid": false,
+        "flipped": false,
+        "lit": true
+      },
+      {
+        "id": "room-2",
+        "templateId": "lamp",
+        "col": 32,
+        "name": "萤火路灯",
+        "solid": true,
+        "flipped": false,
+        "lit": true
+      }
+    ]
+  }
+}

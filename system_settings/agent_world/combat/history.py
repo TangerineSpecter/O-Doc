@@ -16,12 +16,18 @@ def freeze_legacy() -> None:
         return
     actors = [profile.pk for profile in pending]
     from ..travel_models import AgentInventoryItem
-    models = (CombatCatalog, CombatProfile, CombatFact, CombatIntegrity, EquipmentInstance, Exploration, CombatEncounter, AgentInventoryItem)
+    from ..market_models import MarketListing, MarketTransaction
+    from ..alchemy_models import AlchemyOperation
+    owners = {profile.owner_id for profile in pending}
+    models = (CombatCatalog, CombatProfile, CombatFact, CombatIntegrity, EquipmentInstance, Exploration,
+              CombatEncounter, AgentInventoryItem, MarketListing, MarketTransaction, AlchemyOperation)
     values = []
     for model in models:
         query = model.objects.all()
         if model == CombatCatalog:
             pass
+        elif model == MarketListing:
+            query = query.filter(owner_id__in=owners)
         elif model in (CombatProfile, CombatIntegrity):
             query = query.filter(pk__in=actors)
         else:

@@ -25,6 +25,7 @@ import {AgentHoldingsDialog} from './AgentHoldingsDialog';
 import ProfessionBadge from './ProfessionBadge';
 import CombatProfessionBadge from './CombatProfessionBadge';
 import LevelPlate from './LevelPlate';
+import {nextActivityLabel} from '../../utils/nextActivity';
 
 interface AgentAttributePanelProps {
     graph: AgentRelationGraph | null;
@@ -56,6 +57,8 @@ function AttributeRow({
 }) {
     const stamina = node.stamina == null ? null : Number(node.stamina);
     const energy = stamina != null && Number.isFinite(stamina) ? Math.max(0, Math.min(100, stamina)) : null;
+    const nextActivity = nextActivityLabel(node.nextActivityAt);
+    const statusLabel = node.currentAction || (node.status === 'running' ? '正在活动' : '休息中');
 
     return (
         <div
@@ -83,15 +86,21 @@ function AttributeRow({
                                 onClick={onOpenCombat}
                             />
                         </div>
-                        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[11px] text-slate-500">
                             <span
-                                className={`h-1.5 w-1.5 rounded-full ${
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                                     node.status === 'running'
                                         ? 'bg-lime-500 ring-2 ring-lime-200/60'
                                         : 'bg-slate-300'
                                 }`}
                             />
-                            <span>{node.currentAction || (node.status === 'running' ? '正在活动' : '休息中')}</span>
+                            <span className="min-w-0 truncate" title={statusLabel}>{statusLabel}</span>
+                            {nextActivity && (
+                                <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-slate-400" title={nextActivity.title}>
+                                    <span aria-hidden="true">·</span>
+                                    <span className="tabular-nums">{nextActivity.text}</span>
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>

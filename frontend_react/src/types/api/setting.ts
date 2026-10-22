@@ -315,6 +315,7 @@ export interface AgentActivityListResult {
 export interface AgentRelationNode {
     archived?: boolean;
     currentAction?: string;
+    nextActivityAt?: string | null;
     departed?: boolean;
     kind?: 'agent' | 'user';
     inventoryCount?: number;

@@ -1,3 +1,4 @@
+import errno
 import logging
 import stat
 from base64 import decodebytes
@@ -144,13 +145,12 @@ class SftpClient:
         try:
             self._connect().stat(self._normalize_remote_path(remote_path))
             return True
-        except FileNotFoundError:
-            return False
-        except IOError:
-            return False
         except Exception as e:
+            if isinstance(e, FileNotFoundError) or getattr(e, 'errno', None) == errno.ENOENT:
+                return False
             logger.warning('SFTP existence check failed: path=%s, reason=%s', remote_path, e)
-            return False
+            self._close()
+            raise OSError(f'无法检查 SFTP 路径：{remote_path}，请检查连接与访问权限') from e
 
     def ensure_directory(self, remote_dir):
         if not remote_dir or remote_dir in ('/', '.'):
@@ -166,13 +166,15 @@ class SftpClient:
                 attr = sftp.stat(current_path)
                 if not stat.S_ISDIR(attr.st_mode):
                     raise OSError(f'{current_path} exists and is not a directory')
-            except FileNotFoundError:
-                sftp.mkdir(current_path)
-            except IOError:
+            except OSError as exc:
+                if not (isinstance(exc, FileNotFoundError) or exc.errno == errno.ENOENT):
+                    raise
                 try:
                     sftp.mkdir(current_path)
-                except IOError as e:
-                    logger.warning('SFTP directory creation failed: path=%s, reason=%s', current_path, e)
+                except OSError:
+                    # Another device may have created the shared directory meanwhile.
+                    if not stat.S_ISDIR(sftp.stat(current_path).st_mode):
+                        raise
 
     def try_create_directory(self, remote_dir):
         try:
@@ -205,18 +207,22 @@ class SftpClient:
             with sftp.open(self._normalize_remote_path(remote_path), 'rb') as remote_file:
                 return remote_file.read().decode('utf-8')
         except Exception as e:
+            if isinstance(e, FileNotFoundError) or getattr(e, 'errno', None) == errno.ENOENT:
+                return None
             logger.exception('SFTP content read failed: path=%s', remote_path)
-            return None
+            self._close()
+            raise OSError(f'无法读取 SFTP 文件：{remote_path}，请检查连接与访问权限') from e
 
     def list_directory(self, remote_dir):
         try:
             entries = self._connect().listdir(self._normalize_remote_path(remote_dir))
             return [name for name in entries if name not in ('.', '..')]
-        except (FileNotFoundError, IOError):
-            # 远端目录尚未创建（例如新备份目录尚未生成 snapshots），属于正常情况
-            return []
         except Exception as e:
+            if isinstance(e, FileNotFoundError) or getattr(e, 'errno', None) == errno.ENOENT:
+                # A missing snapshots directory is normal on the first upload.
+                return []
             logger.exception('SFTP directory listing failed: path=%s', remote_dir)
+            self._close()
             return None
 
     def is_directory(self, remote_path):

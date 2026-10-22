@@ -87,7 +87,6 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                 validate_gear(expected_gear[identity], expected_rules[identity])
             if any(not key.startswith('combat.') or type(value) is not int or value < 0 for key, value in baseline['stock'].items()):
                 raise ValueError('固化库存无效')
-            stock = Counter(baseline['stock'])
         except (ValueError, KeyError, TypeError, IndexError) as exc:
             raise SyncError('战斗固化检查点缺失或无效') from exc
         if (CATALOG, profile['catalog_id']) not in rows:
@@ -122,9 +121,6 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                         expected_gear[identity], expected_rules[identity] = value['snapshot'], value['rules']
                 except (KeyError, TypeError, ValueError) as exc:
                     raise SyncError('战斗成长或装备固化结果缺失') from exc
-            elif kind=='depart':
-                stock.subtract({'combat.'+sid:n for sid,n in payload['plan'].get('potions',{}).items()})
-            elif kind=='terminal':stock.update({'combat.'+sid:n for sid,n in payload['returned'].items()})
             elif kind=='round':
                 for event in payload['events']:
                     if event['kind']!='kill':continue
@@ -138,14 +134,11 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                                 raise SyncError('掉落装备缺少唯一固化来源')
                             validate_gear(value['snapshot'], value['rules'])
                             expected_gear[identity], expected_rules[identity] = value['snapshot'], value['rules']
-                        else:stock['combat.'+reward['item']['id']]+=reward['quantity']
             elif kind=='trade':
                 trade=rows.get((MARKET_TRADE,payload['transaction_id']))
                 if not trade or trade['actor_id']!=actor or trade['owner_id']!=profile['owner_id'] or trade['operation']!=payload['arguments'] or trade['result']!=payload['result']:raise SyncError('战斗交易缺少真实成交来源')
                 op=trade['operation']
-                if op['kind']=='buy_potion':stock['combat.'+op['potion_id']]+=op['quantity']
-                elif op['kind']=='sell_combat_material':stock['combat.'+op['material_id']]-=op['quantity']
-                elif op['kind']=='list_combat_equipment':
+                if op['kind']=='list_combat_equipment':
                     listing=rows.get((LISTING,payload['result'].get('listing_id')))
                     equipment_id=op.get('equipment_id')
                     judged=any((fact.get('payload') or {}).get('equipment_id')==equipment_id
@@ -215,6 +208,8 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             if m==LABEL+'agentinventoryitem' and item['actor_id']==actor and item['source'].get('sku','').startswith('combat.'):
                 if item['owner_id']!=profile['owner_id']:raise SyncError('战斗库存归属不一致')
                 actual[item['source']['sku']]+=item['quantity']
+        from .stock_validation import expected_stock
+        stock = expected_stock(rows, actor, profile['owner_id'], ordered)
         if {k:v for k,v in stock.items() if v}!={k:v for k,v in actual.items() if v}:raise SyncError('战斗库存与消费、掉落事实不一致')
         frame = aggregate_frame(rows, actor, frozen=True)
         if digest(frame)!=chain['frame']:raise SyncError('战斗快照包含独立合并的装备、成长或探索状态')
