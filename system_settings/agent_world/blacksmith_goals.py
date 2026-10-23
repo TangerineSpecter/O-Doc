@@ -1,6 +1,7 @@
 """Durable forge intentions and live material progress."""
 import hashlib
 from collections import Counter
+from collections.abc import Iterable
 
 from django.db import transaction
 
@@ -11,14 +12,19 @@ from .blacksmith_candidates import read_catalog, template_options
 MAX_GOALS = 3
 
 
-def eligible(owner: str, actor_id: str) -> dict:
+def eligible(owner: str, actor_id: str, *, recipe_ids: Iterable[str] | None = None) -> dict:
     from .combat.models import CombatProfile
     profile = CombatProfile.objects.filter(pk=actor_id, owner_id=owner).first()
     if not profile:
         return {}
     catalog = read_catalog(profile)
     result = {}
-    for identity, rule in rules_for(owner).items():
+    rules = rules_for(owner)
+    identities = rules if recipe_ids is None else dict.fromkeys(recipe_ids)
+    for identity in identities:
+        rule = rules.get(identity)
+        if rule is None:
+            continue
         try:
             validate_rule(rule)
         except ValueError:
@@ -29,12 +35,13 @@ def eligible(owner: str, actor_id: str) -> dict:
     return result
 
 
-def active(owner: str, actor_id: str, *, invalidate: bool = False) -> list[BlacksmithGoal]:
-    rows = list(BlacksmithGoal.objects.filter(owner_id=owner, actor_id=actor_id, status='active')
+def _active_rows(owner: str, actor_id: str) -> list[BlacksmithGoal]:
+    return list(BlacksmithGoal.objects.filter(owner_id=owner, actor_id=actor_id, status='active')
                 .order_by('created_at', 'id'))
-    if not rows:
-        return []
-    choices = eligible(owner, actor_id)
+
+
+def _valid_goals(owner: str, actor_id: str, rows: list[BlacksmithGoal], choices: dict,
+                 *, invalidate: bool = False) -> list[BlacksmithGoal]:
     result = []
     for goal in rows:
         option = choices.get(goal.recipe_id)
@@ -52,9 +59,25 @@ def active(owner: str, actor_id: str, *, invalidate: bool = False) -> list[Black
     return result
 
 
+def active(owner: str, actor_id: str, *, invalidate: bool = False,
+           choices: dict | None = None) -> list[BlacksmithGoal]:
+    rows = _active_rows(owner, actor_id)
+    if not rows:
+        return []
+    if choices is None:
+        choices = eligible(owner, actor_id, recipe_ids=(goal.recipe_id for goal in rows))
+    return _valid_goals(owner, actor_id, rows, choices, invalidate=invalidate)
+
+
 def requirements(owner: str, actor_id: str) -> Counter:
     needed = Counter()
-    goals = active(owner, actor_id)
+    rows = _active_rows(owner, actor_id)
+    if not rows:
+        return needed
+    # This path runs per SKU during market disposal. Only live goal recipes
+    # need validation; retain one set of rules for validation and quantities.
+    choices = eligible(owner, actor_id, recipe_ids=(goal.recipe_id for goal in rows))
+    goals = _valid_goals(owner, actor_id, rows, choices)
     if not goals:
         return needed
     from system_settings.models import WorldAction
@@ -62,19 +85,19 @@ def requirements(owner: str, actor_id: str) -> Counter:
                   WorldAction.objects.filter(actor_id=actor_id, status='claimed',
                       snapshot__blacksmith=True, snapshot__owner_id=owner,
                       snapshot__version=2, snapshot__phase='commit').only('snapshot')}
-    rules = rules_for(owner)
     for goal in goals:
         if goal.pk in committing:
             continue  # The frozen single-piece reservation already owns these lots.
-        needed.update({row['sku']: row['quantity'] for row in rules[goal.recipe_id]['ingredients']})
+        needed.update({row['sku']: row['quantity']
+                       for row in choices[goal.recipe_id]['rule']['ingredients']})
     return needed
 
 
 def summary(owner: str, actor_id: str) -> dict:
     from .crafting_materials import available_pool
     from .blacksmith_catalog import material_definitions
-    all_goals = active(owner, actor_id)
     choices = eligible(owner, actor_id)
+    all_goals = active(owner, actor_id, choices=choices)
     stock = Counter()
     for row in available_pool(owner, actor_id):
         stock[row['sku']] += row['quantity']
@@ -118,10 +141,11 @@ def register(owner: str, actor_id: str, recipe_id: str, template_id: str, identi
                 owner, actor_id, recipe_id, template_id):
             raise ValueError('打造目标请求键已用于其他目标')
         return existing
-    current = active(owner, actor_id, invalidate=True)
+    choices = eligible(owner, actor_id)
+    current = active(owner, actor_id, invalidate=True, choices=choices)
     if len(current) >= MAX_GOALS:
         raise ValueError('最多同时登记三个打造目标')
-    option = eligible(owner, actor_id).get(recipe_id)
+    option = choices.get(recipe_id)
     if not option or template_id not in {row['template_id'] for row in option['types']}:
         raise ValueError('目标配方或装备类型已不属于当前职业路线')
     goal, created = BlacksmithGoal.objects.get_or_create(pk=key, defaults={

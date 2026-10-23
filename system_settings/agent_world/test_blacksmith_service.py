@@ -458,6 +458,49 @@ class BlacksmithServiceTests(TestCase):
         catalog.save(update_fields=['rules', 'version', 'updated_at'])
         self.assertEqual(summary('admin', self.agent.pk)['goals'][0]['ingredients'][0]['missing'], 5)
 
+    def test_goal_requirements_validate_only_distinct_goal_recipes_once(self):
+        from . import blacksmith_goals as goals
+        template = template_options(self.catalog, self.profile, self.rule)[0]
+        for identity in ('same-recipe-one', 'same-recipe-two'):
+            goals.register('admin', self.agent.pk, self.rule['id'], template['template_id'], identity)
+        other = DEFAULT_RULES['1-10:head']
+        kind = template_options(self.catalog, self.profile, other)[0]
+        goals.register('admin', self.agent.pk, other['id'], kind['template_id'], 'other-recipe')
+        expected = Counter()
+        for rule in (self.rule, self.rule, other):
+            expected.update({part['sku']: part['quantity'] for part in rule['ingredients']})
+        with patch.object(goals, 'template_options', wraps=goals.template_options) as types, \
+             patch.object(goals, 'read_catalog', wraps=goals.read_catalog) as catalog, \
+             patch.object(goals, 'rules_for', wraps=goals.rules_for) as rules:
+            self.assertEqual(goals.requirements('admin', self.agent.pk), expected)
+        self.assertEqual(types.call_count, 2)
+        self.assertEqual({call.args[2]['id'] for call in types.call_args_list}, {self.rule['id'], other['id']})
+        catalog.assert_called_once()
+        rules.assert_called_once()
+
+    def test_goal_requirements_skip_catalog_work_without_active_goals(self):
+        from . import blacksmith_goals as goals
+        with patch.object(goals, 'eligible', side_effect=AssertionError('无目标时不计算合法类型')):
+            self.assertEqual(goals.requirements('admin', self.agent.pk), Counter())
+
+    def test_goal_summary_reuses_one_eligibility_result_for_filtering_and_display(self):
+        from . import blacksmith_goals as goals
+        kind = template_options(self.catalog, self.profile, self.rule)[0]
+        goal = goals.register('admin', self.agent.pk, self.rule['id'], kind['template_id'], 'summary-snapshot')
+        choices = goals.eligible('admin', self.agent.pk)
+        with patch.object(goals, 'eligible', side_effect=[choices, {}]) as eligibility:
+            state = goals.summary('admin', self.agent.pk)
+        eligibility.assert_called_once()
+        self.assertEqual([row['id'] for row in state['goals']], [goal.pk])
+        self.assertEqual(state['goals'][0]['ingredients'][0]['required'], self.rule['ingredients'][0]['quantity'])
+        with patch.object(goals, 'eligible', side_effect=[{}, choices]) as eligibility:
+            state = goals.summary('admin', self.agent.pk)
+        eligibility.assert_called_once()
+        self.assertEqual(state['goals'], [])
+        self.assertEqual(state['invalid_goals'][0]['id'], goal.pk)
+        goal.refresh_from_db()
+        self.assertEqual(goal.status, 'active', '只读投影不能写入同步状态')
+
     def test_visit_can_register_zero_without_craftable_materials(self):
         from .blacksmith_runner import run_blacksmith_opportunity
         from .blacksmith_goals import summary

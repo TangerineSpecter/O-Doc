@@ -396,7 +396,10 @@
       "paused screenshot bytes identical",
       "finite poses in both directions; no concealment fade",
       "shared hit/defeat sample equivalence",
-      "five changed scripts ESLint zero errors"
+      "five changed scripts ESLint zero errors",
+      "reset returns idle after frame update",
+      "switching to ancient guard retains its independent heal skill",
+      "root effect inspected at atlas size"
     ],
     "animation": "mist-treant-skills-v3.gif"
   }

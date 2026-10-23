@@ -302,26 +302,25 @@ fi
 
 git diff --cached --check
 
-COMMIT_CREATED=false
 if git diff --cached --quiet; then
     info "没有需要提交的文件，跳过创建空提交。"
 else
     git commit -m "chore: release $TAG"
-    COMMIT_CREATED=true
 fi
 
 TARGET_COMMIT="$(git rev-parse HEAD)"
 
-if [[ "$LOCAL_TAG_EXISTS" == true ]]; then
+if [[ "$LOCAL_TAG_EXISTS" == true ]] && [[ "$(git rev-parse "$TAG^{commit}")" == "$TARGET_COMMIT" ]]; then
+    info "本地标签 $TAG 已经指向当前提交，复用已有标签。"
+elif [[ "$LOCAL_TAG_EXISTS" == true ]]; then
     git tag -fa "$TAG" -m "Release $TAG" "$TARGET_COMMIT"
 else
     git tag -a "$TAG" -m "Release $TAG" "$TARGET_COMMIT"
 fi
 
-if [[ "$COMMIT_CREATED" == true ]]; then
-    git push "$REMOTE" "HEAD:$BRANCH"
-else
-    info "本次没有新的代码提交，跳过分支 push。"
+# 上次发布可能已创建提交但推送失败；每次都补推分支，已同步时 Git 会自行跳过。
+if ! git push "$REMOTE" "HEAD:refs/heads/$BRANCH"; then
+    fail "分支推送失败，尚未推送标签。修复网络或权限后，可使用相同版本号重试。"
 fi
 
 if [[ "$REMOTE_TAG_EXISTS" == true ]]; then

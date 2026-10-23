@@ -9,8 +9,6 @@ import {
     FlaskConical,
     Hammer,
     Loader2,
-    Minus,
-    Plus,
     RefreshCw,
     Save,
     ShieldCheck,
@@ -20,6 +18,7 @@ import {
 import {useWorldLifeConfig} from '../../hooks/useWorldLifeConfig';
 import {useToast} from '../common/ToastProvider';
 import type {LifeSettings} from '../../types/api/agentLife';
+import TimingStepper from './TimingStepper';
 
 interface TimingItem {
     key: keyof Pick<LifeSettings, 'interleavingCheckMinutes' | 'interleavingDecisionMinutes' | 'interleavingWaitMinutes'>;
@@ -69,83 +68,6 @@ const ACTIVITIES = [
     {label: '迷宫探索', icon: Compass, iconColor: 'text-emerald-500', bg: 'bg-emerald-50/70 border-emerald-100 text-emerald-900'},
     {label: '休整待命', icon: Coffee, iconColor: 'text-slate-500', bg: 'bg-slate-50 border-slate-200/70 text-slate-700'},
 ];
-
-function TimingStepper({
-    label,
-    value,
-    min,
-    max,
-    step = 1,
-    disabled = false,
-    onChange,
-}: {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step?: number;
-    disabled?: boolean;
-    onChange: (next: number) => void;
-}) {
-    const adjust = (delta: number) => {
-        const next = Math.max(min, Math.min(max, (Number(value) || min) + delta));
-        onChange(next);
-    };
-
-    return (
-        <div
-            className={`flex items-stretch overflow-hidden rounded-xl border bg-white transition-all ${
-                disabled
-                    ? 'border-slate-200/60 bg-slate-50/60 opacity-60'
-                    : 'border-slate-200 focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20'
-            }`}
-        >
-            <input
-                type="number"
-                min={min}
-                max={max}
-                value={value}
-                disabled={disabled}
-                aria-label={label}
-                onChange={e => {
-                    const raw = e.target.value;
-                    if (raw === '') {
-                        onChange(min);
-                        return;
-                    }
-                    const val = Number(raw);
-                    if (!Number.isNaN(val)) {
-                        onChange(Math.max(min, Math.min(max, val)));
-                    }
-                }}
-                className="w-full min-w-0 appearance-none bg-transparent px-3 py-2 text-sm font-semibold tabular-nums text-slate-800 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            />
-            <span className="flex items-center px-1.5 text-xs text-slate-400 select-none">
-                分钟
-            </span>
-            <div className="flex shrink-0 border-l border-slate-100">
-                <button
-                    type="button"
-                    aria-label={`减少${label}`}
-                    disabled={disabled || value <= min}
-                    onClick={() => adjust(-step)}
-                    className="flex w-7 items-center justify-center text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600 active:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                    <Minus className="h-3.5 w-3.5" />
-                </button>
-                <button
-                    type="button"
-                    aria-label={`增加${label}`}
-                    disabled={disabled || value >= max}
-                    onClick={() => adjust(step)}
-                    className="flex w-7 items-center justify-center border-l border-slate-100 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600 active:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                    <Plus className="h-3.5 w-3.5" />
-                </button>
-            </div>
-        </div>
-    );
-}
 
 export function WorldInterleavingSettings({onClose}: {onClose?: () => void} = {}) {
     const state = useWorldLifeConfig();
