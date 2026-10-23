@@ -7,7 +7,7 @@ from decimal import Decimal
 from django.core import serializers
 from utils.sync_datetime import normalize_datetime_fraction
 from .lottery_models import LotteryConfig, LotteryRound, LotteryTicket, LotteryIntegrity
-from .lottery_rules import RULES, PRICE, numbers, settlement
+from .lottery_rules import known_rules, numbers, price, settlement
 from .life_time import local_time
 
 PREFIX = 'system_settings.'
@@ -25,7 +25,7 @@ def metadata(data=None):
         owners = set(LotteryConfig.objects.values_list('pk', flat=True))
     else:
         owners = {str(row['pk']) for row in data if row['model'] == PREFIX + 'lotteryconfig'}
-    return {'lottery_schema_version': 1, 'lottery_owners': sorted(owners)}
+    return {'lottery_schema_version': 2, 'lottery_owners': sorted(owners)}
 
 
 def date(value):
@@ -61,7 +61,7 @@ def validate_source(data, meta=None, *, check_digest=True):
 
 def _validate(data, meta, *, check_digest):
     version = (meta or {}).get('lottery_schema_version', 0)
-    if type(version) is not int or not 0 <= version <= 1:
+    if type(version) is not int or not 0 <= version <= 2:
         fail('快照版本过新，请升级所有设备')
     configs, rounds, tickets, checks, ledger, lives = {}, {}, {}, {}, {}, {}
     seen = set()
@@ -115,9 +115,10 @@ def _validate(data, meta, *, check_digest):
         first = rows[0][1]
         entry = ledger.get(key)
         plan = lives[first['life_item_id']]['context']['lottery_plan']
+        ticket_price = price(rounds[str(first['round'])]['rules'])
         if (not entry or entry['kind'] != 'lottery' or entry['agent_id'] != first['actor_id']
-                or Decimal(entry['amount']) != -PRICE * len(rows) or plan['quantity'] != len(rows)
-                or Decimal(lives[first['life_item_id']]['spent']) != PRICE * len(rows)
+                or Decimal(entry['amount']) != -ticket_price * len(rows) or plan['quantity'] != len(rows)
+                or Decimal(lives[first['life_item_id']]['spent']) != ticket_price * len(rows)
                 or lives[first['life_item_id']]['status'] != 'completed'
                 or entry['snapshot'].get('owner_id') != first['owner_id']
                 or entry['snapshot'].get('round_id') != str(first['round'])
@@ -132,7 +133,7 @@ def _validate(data, meta, *, check_digest):
             fail('缺少首期期次')
         carry = Decimal(0)
         for index, (key, row) in enumerate(chain, 1):
-            if type(row['sequence']) is not int or row['sequence'] != index or key != f'lottery:{owner}:{index}' or row['rules'] != RULES:
+            if type(row['sequence']) is not int or row['sequence'] != index or key != f'lottery:{owner}:{index}' or not known_rules(row['rules']):
                 fail('期次链或规则不一致')
             draw_at = date(configs[owner]['first_draw_at']) + timedelta(days=3 * (index - 1))
             if date(row['draws_at']) != draw_at or date(row['closes_at']) != draw_at - timedelta(minutes=5):
@@ -144,7 +145,7 @@ def _validate(data, meta, *, check_digest):
                 if row['settled_at'] is None or date(row['settled_at']) < draw_at:
                     fail('开奖时间无效')
                 result = row['result']
-                expected = settlement(by_round[key], result['winning_numbers'], carry)
+                expected = settlement(by_round[key], result['winning_numbers'], carry, row['rules'])
                 if result != expected:
                     fail('中奖奖金或奖池结转不一致')
                 carry = Decimal(expected['carry_out'])
@@ -177,10 +178,11 @@ def _validate(data, meta, *, check_digest):
         row = rounds.get(plan['round_id'])
         if not row or row['owner_id'] != life['owner_id'] or life['activity'] != 'lottery':
             fail('购票计划期次或活动无效')
-        if Decimal(life['budget']) != PRICE * plan['quantity']:
+        ticket_price = price(row['rules'])
+        if Decimal(life['budget']) != ticket_price * plan['quantity']:
             fail('购票预留金额与张数不一致')
         spent = Decimal(life['spent'])
-        if spent not in (Decimal(0), PRICE * plan['quantity']):
+        if spent not in (Decimal(0), ticket_price * plan['quantity']):
             fail('购票安排发生部分扣款')
         if life['status'] == 'completed' and life_id not in ticket_life_ids:
             fail('已完成购票安排缺少彩票')

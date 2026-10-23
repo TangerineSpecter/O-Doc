@@ -3,27 +3,27 @@ import {AlertCircle, Coins, Info, Loader2, Medal, RefreshCw, Sparkles, Trophy} f
 import {Select} from '../common/Select';
 import {useLottery} from '../../hooks/useLottery';
 import {DecisionProcessInfo} from '../AgentWorld/DecisionProcessInfo';
-import type {LotteryAward} from '../../types/api/lottery';
+import type {LotteryAward, LotteryRules} from '../../types/api/lottery';
 import {LotteryHero} from './LotteryHero';
 import {LotteryTickets} from './LotteryTickets';
 import {LotteryPagination} from './LotteryUi';
-import {lotteryTier} from './lotteryPresentation';
+import {lotteryMoney, lotteryTier} from './lotteryPresentation';
 import {LotteryIcon} from './LotteryIcon';
 import './lottery.css';
 
-function LotteryPrizes() {
+function LotteryPrizes({rules}: {rules: LotteryRules}) {
     const prizes = [
         {
             tier: '一等奖',
             title: '共享累积奖池',
-            detail: '全中 3 个数字；所有一等奖票平分整个奖池（含 100 金币起步补贴），无人中奖全额滚存结转',
+            detail: `全中 3 个数字；所有一等奖票平分整个奖池（含 ${lotteryMoney(rules.subsidy)} 金币起步补贴），无人中奖全额滚存结转`,
             Icon: Trophy,
             tone: 'gold',
             tag: '奖池全额平分',
         },
         {
             tier: '二等奖',
-            title: '50',
+            title: lotteryMoney(rules.secondPrize),
             detail: '命中任意 2 个数字；系统固定奖励，每人每期至多领一次，不扣一等奖奖池',
             Icon: Medal,
             tone: 'sage',
@@ -31,7 +31,7 @@ function LotteryPrizes() {
         },
         {
             tier: '三等奖',
-            title: '20',
+            title: lotteryMoney(rules.thirdPrize),
             detail: '命中任意 1 个数字；系统固定奖励，每人每期至多领一次，不同彩票可跨档领奖',
             Icon: Sparkles,
             tone: 'rose',
@@ -207,7 +207,7 @@ export function LotteryPanel() {
                 label="期次"
             />
 
-            <LotteryPrizes/>
+            <LotteryPrizes rules={round?.rules || data.overview.config.rules}/>
 
             {round?.status === 'settled' && (
                 <LotteryWinners awards={round.result.awards || []}/>
@@ -223,7 +223,7 @@ export function LotteryPanel() {
             <footer className="lottery-fine-print">
                 <Coins className="h-3.5 w-3.5 shrink-0 text-amber-500"/>
                 <p>
-                    每张 5 金币，每人每期最多 10 张；相同组合可重复购买。二、三等奖由系统额外发放，不扣一等奖奖池，不同彩票可跨档领奖。
+                    每张 {lotteryMoney((round?.rules || data.overview.config.rules).ticketPrice)} 金币，每人每期最多 10 张；相同组合可重复购买。二、三等奖由系统额外发放，不扣一等奖奖池，不同彩票可跨档领奖。
                 </p>
             </footer>
         </>}

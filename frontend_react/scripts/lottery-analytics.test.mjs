@@ -22,11 +22,11 @@ test('lottery counts distinguish shared rounds, repeated winning tickets and act
     assert.equal(overview.tickets, residents.reduce((sum, row) => sum + row.tickets, 0));
     assert.equal(overview.secondTickets, 8);
     assert.equal(overview.secondAwards, 4);
-    assert.equal(overview.secondPrize, '200.00');
-    assert.equal(overview.prizes, '460.00');
-    assert.equal(overview.expense, '100.00');
-    assert.equal(overview.net, '360.00');
-    assert.equal(overview.maxPrize, '180.00');
+    assert.equal(overview.secondPrize, '2000.00');
+    assert.equal(overview.prizes, '5450.00');
+    assert.equal(overview.expense, '1000.00');
+    assert.equal(overview.net, '4450.00');
+    assert.equal(overview.maxPrize, '1150.00');
     assert.equal(overview.winRate, 81.3);
 });
 test('resident and date filters, empty, loading and errors are handled locally', async () => {

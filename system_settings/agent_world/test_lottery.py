@@ -12,7 +12,7 @@ from .life_models import LifeConfig, LifeProfile, LifeItem
 from .life_config import DEFAULTS
 from .life_time import SHANGHAI, local_time
 from .lottery_models import LotteryConfig, LotteryRound, LotteryTicket
-from .lottery_rules import numbers, settlement
+from .lottery_rules import RULES, RULES_V1, known_rules, numbers, price, settlement
 from .lottery_service import configure, current_round, purchase, draw, maximum, tick
 from .lottery_decision import prepare, pick_numbers, LotteryDecisionUnavailable, defer
 from .lottery_sync import checkpoint_all, database_data, validate_source, validate_conflicts, refresh_merged
@@ -38,19 +38,29 @@ class LotteryRulesTests(SimpleTestCase):
             ('a', [1, 2, 4]), ('a', [1, 2, 4]), ('a', [1, 5, 6]), ('a', [1, 5, 6])]]
         result = settlement(tickets, [1, 2, 3], Decimal(860))
         awards = {(a['actor_id'], a['tier']): Decimal(a['amount']) for a in result['awards']}
-        self.assertEqual(awards, {('a', 1): 500, ('b', 1): 250, ('c', 1): 250, ('a', 2): 50, ('a', 3): 20})
+        self.assertEqual(awards, {('a', 1): 1130, ('b', 1): 565, ('c', 1): 565, ('a', 2): 500, ('a', 3): 200})
         self.assertEqual(Decimal(result['carry_out']), 0)
 
     def test_empty_no_subsidy_and_no_jackpot_full_carry(self):
         self.assertEqual(Decimal(settlement([], [1, 2, 3], Decimal(123))['carry_out']), 123)
         result = settlement([{'actor_id': 'a', 'actor_name': 'a', 'numbers': [1, 2, 4]}], [1, 2, 3], Decimal(1000))
-        self.assertEqual(Decimal(result['carry_out']), 1105)
-        self.assertEqual(result['awards'][0]['amount'], '50.00')
+        self.assertEqual(Decimal(result['carry_out']), 2050)
+        self.assertEqual(result['awards'][0]['amount'], '500.00')
 
     def test_rounding_remainder_is_carried(self):
         result = settlement([{'actor_id': a, 'actor_name': a, 'numbers': [1, 2, 3]} for a in 'abc'], [1, 2, 3], Decimal(0))
-        self.assertEqual([a['amount'] for a in result['awards']], ['38.33'] * 3)
+        self.assertEqual([a['amount'] for a in result['awards']], ['383.33'] * 3)
         self.assertEqual(Decimal(result['carry_out']), Decimal('.01'))
+
+    def test_frozen_rule_versions_keep_historical_amounts(self):
+        self.assertEqual((price(RULES), price(RULES_V1)), (Decimal('50.00'), Decimal('5.00')))
+        result = settlement([{'actor_id': 'a', 'actor_name': 'a', 'numbers': [1, 2, 4]}],
+                            [1, 2, 3], Decimal(0), RULES_V1)
+        self.assertEqual((result['sales'], result['subsidy'], result['awards'][0]['amount']),
+                         ('5.00', '100.00', '50.00'))
+        self.assertTrue(known_rules(RULES) and known_rules(RULES_V1))
+        self.assertFalse(known_rules({**RULES, 'ticket_price': '5.00'}))
+        self.assertFalse(known_rules(None))
 
 
 @override_settings(USE_TZ=True)
@@ -75,7 +85,7 @@ class LotteryTests(TestCase):
     def item(self, key='plan', quantity=1, selected=None, actor=None):
         agent = actor or self.agent
         return LifeItem.objects.create(pk=key, owner_id='admin', actor_id=agent.pk, activity='lottery',
-            task_id=self.task.pk, original_at=NOW, scheduled_at=NOW, budget=quantity * 5,
+            task_id=self.task.pk, original_at=NOW, scheduled_at=NOW, budget=quantity * 50,
             context={'lottery_plan': {'round_id': self.round.pk, 'quantity': quantity},
                      'lottery_numbers': selected or [], 'planned_on': NOW.date().isoformat()})
 
@@ -96,8 +106,8 @@ class LotteryTests(TestCase):
         purchase(item.pk, [[1, 2, 3]] * 2)
         purchase(item.pk, [[1, 2, 3]] * 2)
         self.agent.refresh_from_db(); item.refresh_from_db()
-        self.assertEqual(self.agent.money, 190)
-        self.assertEqual(item.spent, 10)
+        self.assertEqual(self.agent.money, 100)
+        self.assertEqual(item.spent, 100)
         self.assertEqual(item.status, 'completed')
         self.assertEqual(LotteryTicket.objects.count(), 2)
         self.assertEqual(WorldLedger.objects.filter(kind='lottery').count(), 1)
@@ -135,7 +145,7 @@ class LotteryTests(TestCase):
                 with self.assertRaisesMessage(ValueError, '大乐透'):
                     future_allocations([market, item], allocations, '规划后续预算')
                 item.refresh_from_db(); market.refresh_from_db()
-                self.assertEqual(item.budget, 10)
+                self.assertEqual(item.budget, 100)
                 self.assertEqual(item.context, original_context)
                 self.assertEqual(market.budget, 50)
         checkpoint_all(); validate_source(database_data())
@@ -147,12 +157,12 @@ class LotteryTests(TestCase):
         item = self.item(quantity=2)
         market = LifeItem.objects.create(pk='market-budget', owner_id='admin', actor_id=self.agent.pk,
             activity='market_prepare', original_at=NOW, scheduled_at=NOW, budget=50)
-        allocations = [{'id': item.pk, 'budget': '10'}, {'id': market.pk, 'budget': '40'}]
+        allocations = [{'id': item.pk, 'budget': '100'}, {'id': market.pk, 'budget': '40'}]
         self.assertEqual(future_allocations([item, market], allocations, '减少市场预留'),
-                         {item.pk: Decimal(10), market.pk: Decimal(40)})
+                         {item.pk: Decimal(100), market.pk: Decimal(40)})
         adjust_budget('admin', self.agent.pk, allocations, '减少市场预留')
         item.refresh_from_db(); market.refresh_from_db()
-        self.assertEqual(item.budget, 10)
+        self.assertEqual(item.budget, 100)
         self.assertEqual(market.budget, 40)
         checkpoint_all(); validate_source(database_data())
 
@@ -165,11 +175,26 @@ class LotteryTests(TestCase):
     def test_draw_replay_and_balance(self):
         purchase(self.item(quantity=2).pk, [[1, 2, 3], [1, 2, 4]])
         result = self.settle()
-        self.assertEqual(Decimal(result.result['pool']), 110)
-        self.agent.refresh_from_db(); self.assertEqual(self.agent.money, 350)
+        self.assertEqual(Decimal(result.result['pool']), 1100)
+        self.agent.refresh_from_db(); self.assertEqual(self.agent.money, 1700)
         with patch('django.utils.timezone.now', return_value=self.round.draws_at): draw(self.round.pk)
         self.assertEqual(WorldLedger.objects.filter(kind='lottery').count(), 3)
         self.assertEqual(LotteryRound.objects.count(), 2)
+
+    def test_legacy_round_keeps_frozen_rules_for_price_and_settlement(self):
+        LotteryRound.objects.filter(pk=self.round.pk).update(rules=RULES_V1)
+        self.round.refresh_from_db()
+        item = LifeItem.objects.create(pk='legacy', owner_id='admin', actor_id=self.agent.pk, activity='lottery',
+            task_id=self.task.pk, original_at=NOW, scheduled_at=NOW, budget=5,
+            context={'lottery_plan': {'round_id': self.round.pk, 'quantity': 1},
+                     'lottery_numbers': [], 'planned_on': NOW.date().isoformat()})
+        purchase(item.pk, [[1, 2, 3]])
+        item.refresh_from_db(); self.agent.refresh_from_db()
+        self.assertEqual((item.spent, self.agent.money), (5, 195))
+        result = self.settle()
+        self.assertEqual((Decimal(result.result['pool']), result.result['awards'][0]['amount']), (105, '105.00'))
+        self.agent.refresh_from_db(); self.assertEqual(self.agent.money, 300)
+        checkpoint_all(); validate_source(database_data())
 
     def test_paused_world_does_not_draw_and_disabling_keeps_sold_rights(self):
         purchase(self.item().pk, [[1, 2, 3]])
@@ -205,7 +230,7 @@ class LotteryTests(TestCase):
         self.assertEqual(self.round.status, 'open')
         self.assertEqual(other_round.status, 'settled')
         self.assertEqual(expired.status, 'cancelled')
-        self.assertEqual(self.agent.money, 195)
+        self.assertEqual(self.agent.money, 150)
         self.assertFalse(WorldLedger.objects.filter(kind='lottery', amount__gt=0).exists())
         self.assertFalse(LotteryRound.objects.filter(owner_id='admin', sequence=2).exists())
         self.assertTrue(LotteryRound.objects.filter(owner_id=other.pk, sequence=2, status='open').exists())
@@ -247,6 +272,8 @@ class LotteryTests(TestCase):
         self.assertEqual(choose.call_count, 1)
 
     def test_quantity_candidates_and_no_zero(self):
+        self.agent.money = 2000
+        self.agent.save(update_fields=['money'])
         self.item('other', 7)
         item = self.item('quantity'); item.activity = 'unplanned'; item.context = {}; item.save()
         with patch('system_settings.agent_world.lottery_decision.enabled', return_value=True), \
@@ -258,7 +285,7 @@ class LotteryTests(TestCase):
         item = self.item(quantity=10)
         for i in range(3): defer(item, LotteryDecisionUnavailable('不可用'))
         item.refresh_from_db(); self.assertEqual(item.status, 'failed')
-        self.assertEqual(maximum('admin', self.agent.pk, self.round, Decimal(200)), 10)
+        self.assertEqual(maximum('admin', self.agent.pk, self.round, Decimal(200)), 4)
 
     def test_snapshot_roundtrip_and_missing_ledger_rejected(self):
         purchase(self.item().pk, [[1, 2, 3]])
@@ -313,7 +340,7 @@ class LotteryTests(TestCase):
         self.assertEqual(ask.call_count, 1)
         item.refresh_from_db()
         self.assertEqual(item.context['lottery_plan']['quantity'], 2)
-        self.assertEqual(item.budget, 10)
+        self.assertEqual(item.budget, 100)
         with patch('system_settings.agent_world.lottery_decision.enabled', return_value=True), \
              patch('system_settings.agent_world.lottery_decision.choose_scene', side_effect=['1', '2', '3'] * 2):
             execute_item(item, None)
@@ -360,7 +387,7 @@ class LotteryTests(TestCase):
             manager = SyncManager()
             data = manager.build_snapshot_data()
             meta = manager.build_snapshot_meta(data_list=data)
-            self.assertEqual(meta['lottery_schema_version'], 1)
+            self.assertEqual(meta['lottery_schema_version'], 2)
             validate_source(data, meta)
             manager.apply_snapshot_data(data, meta)
             self.assertFalse(WorldActionRuntime.objects.get(pk='world').enabled)

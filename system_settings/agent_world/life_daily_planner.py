@@ -140,9 +140,11 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
     cash = available_cash(config.pk, agent.pk, exclude_ids=[item.pk])
     if activity == 'lottery':
         from .lottery_decision import prepare
-        from .lottery_rules import PRICE
+        from .lottery_models import LotteryRound
+        from .lottery_rules import price
         plan['lottery_plan'] = prepare(item, agent)
-        plan['budget'] = str(PRICE * plan['lottery_plan']['quantity'])
+        lottery_round = LotteryRound.objects.get(pk=plan['lottery_plan']['round_id'])
+        plan['budget'] = str(price(lottery_round.rules) * plan['lottery_plan']['quantity'])
     elif activity == 'travel':
         recheck(choice['travel_plan'], cash)
         plan['budget'] = str(item.spent + Decimal(choice['travel_plan']['budget']))

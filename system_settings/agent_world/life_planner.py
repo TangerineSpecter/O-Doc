@@ -132,11 +132,11 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         if activity == 'lottery':
             from .lottery_service import validate_plan, maximum, check_open
             from .lottery_models import LotteryRound
-            from .lottery_rules import PRICE
+            from .lottery_rules import price
             specification = copy.deepcopy(validate_plan(detail.get('lottery_plan')))
             lottery_round = LotteryRound.objects.select_for_update().get(pk=specification['round_id'])
             check_open(owner, lottery_round, item.scheduled_at)
-            if budget != PRICE * specification['quantity'] or maximum(owner, agent.pk, lottery_round, agent.money - reserve, item.pk) < specification['quantity']:
+            if budget != price(lottery_round.rules) * specification['quantity'] or maximum(owner, agent.pk, lottery_round, agent.money - reserve, item.pk) < specification['quantity']:
                 raise ValueError('大乐透购票计划超出金额或本期额度')
             context['lottery_plan'] = specification
         else:

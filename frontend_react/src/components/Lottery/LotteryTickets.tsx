@@ -50,7 +50,7 @@ export function LotteryTickets({
                 <h4>本期还没有居民前去购票</h4>
                 <p>居民在每日生活日程中，将根据闲暇与现金自主前往彩票站选号。当产生购票时，这里将实时展示他们购买的幸运票根。</p>
                 <div className="lottery-empty-tags">
-                    <span className="lottery-empty-tag">🎟️ 单张 5 金币</span>
+                    <span className="lottery-empty-tag">🎟️ 单张 {lotteryMoney(round?.rules.ticketPrice || '50')} 金币</span>
                     <span className="lottery-empty-tag">🎯 1~10 选 3 个数字</span>
                     <span className="lottery-empty-tag">✨ 每人每期上限 10 张</span>
                     <span className="lottery-empty-tag">🍀 相同号码可重复购买</span>
@@ -117,10 +117,10 @@ export function LotteryTickets({
                         </div>
 
                         {/* 穿孔撕票线与存根副券 */}
-                        <div className="lottery-ticket-stub" aria-label={`票价 ${round?.rules.ticketPrice || '5'} 金币`}>
+                        <div className="lottery-ticket-stub" aria-label={`票价 ${round?.rules.ticketPrice || '50'} 金币`}>
                             <div className="lottery-stub-top">
                                 <Ticket className="h-3.5 w-3.5 text-amber-600"/>
-                                <strong>{lotteryMoney(round?.rules.ticketPrice || '5')}</strong>
+                                <strong>{lotteryMoney(round?.rules.ticketPrice || '50')}</strong>
                                 <span>金币</span>
                             </div>
                             <div className="lottery-stub-bottom">

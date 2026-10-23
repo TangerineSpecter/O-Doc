@@ -2,9 +2,21 @@
 from collections import Counter
 from decimal import Decimal, ROUND_DOWN
 
-RULES = {'version': 1, 'ticket_price': '5.00', 'ticket_limit': 10,
-         'subsidy': '100.00', 'second_prize': '50.00', 'third_prize': '20.00'}
+# 每期期次冻结一份规则；历史期次继续按其冻结值售票、派奖和同步校验。
+RULES_V1 = {'version': 1, 'ticket_price': '5.00', 'ticket_limit': 10,
+            'subsidy': '100.00', 'second_prize': '50.00', 'third_prize': '20.00'}
+RULES = {'version': 2, 'ticket_price': '50.00', 'ticket_limit': 10,
+         'subsidy': '1000.00', 'second_prize': '500.00', 'third_prize': '200.00'}
+RULE_VERSIONS = {rules['version']: rules for rules in (RULES_V1, RULES)}
 PRICE = Decimal(RULES['ticket_price'])
+
+
+def known_rules(value: object) -> bool:
+    return isinstance(value, dict) and RULE_VERSIONS.get(value.get('version')) == value
+
+
+def price(rules: dict | None = None) -> Decimal:
+    return Decimal((rules or RULES)['ticket_price'])
 
 
 def numbers(value: object) -> list[int]:
@@ -14,7 +26,8 @@ def numbers(value: object) -> list[int]:
     return sorted(value)
 
 
-def settlement(tickets: list[dict], winning: list[int], carry: Decimal) -> dict:
+def settlement(tickets: list[dict], winning: list[int], carry: Decimal, rules: dict | None = None) -> dict:
+    rules = rules or RULES
     winning_set = set(numbers(winning))
     first, second, third, names = Counter(), set(), set(), {}
     for ticket in tickets:
@@ -27,8 +40,8 @@ def settlement(tickets: list[dict], winning: list[int], carry: Decimal) -> dict:
             second.add(actor)
         elif matches == 1:
             third.add(actor)
-    sales = PRICE * len(tickets)
-    subsidy = Decimal(RULES['subsidy']) if tickets else Decimal(0)
+    sales = price(rules) * len(tickets)
+    subsidy = Decimal(rules['subsidy']) if tickets else Decimal(0)
     pool = carry + sales + subsidy
     awards = []
     paid = Decimal(0)
@@ -38,7 +51,7 @@ def settlement(tickets: list[dict], winning: list[int], carry: Decimal) -> dict:
         paid += amount
         awards.append({'actor_id': actor, 'actor_name': names[actor], 'tier': 1,
                        'winning_tickets': count, 'amount': str(amount)})
-    for tier, actors, amount in ((2, second, RULES['second_prize']), (3, third, RULES['third_prize'])):
+    for tier, actors, amount in ((2, second, rules['second_prize']), (3, third, rules['third_prize'])):
         awards.extend({'actor_id': actor, 'actor_name': names[actor], 'tier': tier,
                        'winning_tickets': 0, 'amount': amount} for actor in sorted(actors))
     return {'winning_numbers': sorted(winning_set), 'ticket_count': len(tickets),

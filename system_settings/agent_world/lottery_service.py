@@ -13,7 +13,7 @@ from .life_models import LifeItem
 from .life_schedule import OPEN, execution_key, stable_id, revise
 from .life_time import local_time, storage_time, SHANGHAI
 from .lottery_models import LotteryConfig, LotteryRound, LotteryTicket
-from .lottery_rules import PRICE, RULES, numbers, settlement
+from .lottery_rules import RULES, numbers, price, settlement
 from .models import WorldLedger
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ def reserved_tickets(owner: str, actor: str, round_id: str, exclude_id='') -> in
 
 def maximum(owner: str, actor: str, row, cash: Decimal, exclude_id='') -> int:
     bought = LotteryTicket.objects.filter(round=row, actor_id=actor).count()
-    return max(0, min(10 - bought - reserved_tickets(owner, actor, row.pk, exclude_id), int(cash // PRICE)))
+    return max(0, min(10 - bought - reserved_tickets(owner, actor, row.pk, exclude_id), int(cash // price(row.rules))))
 
 
 def carry_in(row: LotteryRound) -> Decimal:
@@ -95,7 +95,7 @@ def carry_in(row: LotteryRound) -> Decimal:
 
 
 def pool(row: LotteryRound) -> Decimal:
-    return carry_in(row) + PRICE * row.tickets.count() + Decimal(RULES['subsidy'])
+    return carry_in(row) + price(row.rules) * row.tickets.count() + Decimal(row.rules['subsidy'])
 
 
 def check_open(owner: str, row: LotteryRound | None, at: datetime | None = None) -> None:
@@ -133,7 +133,7 @@ def purchase(item_id: str, selected: list[list[int]]) -> list[LotteryTicket]:
     if not isinstance(selected, list) or len(selected) != plan['quantity']:
         raise ValueError('选号尚未全部完成')
     selected = [numbers(value) for value in selected]
-    amount = PRICE * len(selected)
+    amount = price(row.rules) * len(selected)
     if maximum(item.owner_id, agent.pk, row, agent.money, item.pk) < len(selected):
         raise ValueError('本期十张限额或真实余额已变化')
     ensure_opening(agent)
@@ -173,7 +173,7 @@ def draw(round_id: str) -> LotteryRound:
     if row.sequence > 1 and (not previous or previous.status != 'settled'):
         raise ValueError('上一期尚未结算')
     result = settlement(list(row.tickets.values('actor_id', 'actor_name', 'numbers')),
-                        secrets.SystemRandom().sample(range(1, 11), 3), carry_in(row))
+                        secrets.SystemRandom().sample(range(1, 11), 3), carry_in(row), row.rules)
     now = storage_time(local_time())
     for award in result['awards']:
         actor = Agent.objects.select_for_update().filter(pk=award['actor_id']).first()

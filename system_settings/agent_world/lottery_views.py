@@ -7,7 +7,7 @@ from utils.response_utils import success_result, valid_result
 from .life_views import owner_of
 from .life_time import local_time
 from .lottery_models import LotteryConfig, LotteryRound, LotteryTicket
-from .lottery_rules import RULES
+from .lottery_rules import RULES, price
 from .lottery_service import configure, current_round, carry_in
 
 
@@ -20,7 +20,8 @@ def round_data(row):
     count = getattr(row, 'ticket_total', None)
     if count is None:
         count = row.tickets.count()
-    pool_amount = row.result['pool'] if row.status == 'settled' else str(carry_in(row) + Decimal(RULES['ticket_price']) * count + Decimal(RULES['subsidy']))
+    pool_amount = (row.result['pool'] if row.status == 'settled'
+                   else str(carry_in(row) + price(row.rules) * count + Decimal(row.rules['subsidy'])))
     return {'id': row.pk, 'sequence': row.sequence, 'status': row.status,
             'opens_at': local_time(row.opens_at).isoformat(), 'closes_at': local_time(row.closes_at).isoformat(),
             'draws_at': local_time(row.draws_at).isoformat(), 'rules': row.rules,

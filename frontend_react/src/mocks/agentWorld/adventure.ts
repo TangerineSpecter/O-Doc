@@ -43,12 +43,12 @@ export const fishingTrip: FishingDetail = {id: 'local-fishing', actorId: residen
 export const fishingOverview: FishingOverview = {enabled: true, active: [], items: [fishingTrip], total: 1, page: 1,
     residents: residents.map(r => ({id: r.id, name: r.name, ...fishingGrowth,
         baits: [{id: 'worm', name: '蚯蚓', quantity: 20}], spots: Object.entries(catalog.fishing.spots).map(([id, row]) => ({id, ...row})), recentCatches: ['鲫鱼', '鲤鱼']}))};
-const lotteryRules = {version: 1, ticketPrice: '5', ticketLimit: 10, subsidy: '100', secondPrize: '50', thirdPrize: '20'};
+const lotteryRules = {version: 2, ticketPrice: '50', ticketLimit: 10, subsidy: '1000', secondPrize: '500', thirdPrize: '200'};
 export const lotteryRound: LotteryRound = {id: 'local-lottery', sequence: 12, status: 'open', opensAt: at(0, -1), closesAt: at(20, 1), drawsAt: at(20, 1),
-    rules: lotteryRules, pool: '1560', ticketCount: 112, result: {}, settledAt: null};
+    rules: lotteryRules, pool: '6600', ticketCount: 112, result: {}, settledAt: null};
 export const previousRound: LotteryRound = {...lotteryRound, id: 'local-lottery-previous', sequence: 11, status: 'settled', drawsAt: at(20, -2), settledAt: at(20, -2),
-    result: {winningNumbers: [3, 7, 9], ticketCount: 80, sales: '400', subsidy: '100', carryIn: '900', pool: '1400', carryOut: '0',
-        awards: [{actorId: residents[0].id, actorName: residents[0].name, tier: 2, winningTickets: 1, amount: '50'}]}};
+    result: {winningNumbers: [3, 7, 9], ticketCount: 80, sales: '4000', subsidy: '1000', carryIn: '9000', pool: '14000', carryOut: '0',
+        awards: [{actorId: residents[0].id, actorName: residents[0].name, tier: 2, winningTickets: 1, amount: '500'}]}};
 export const lottery: LotteryOverview = {config: {enabled: true, firstDrawAt: at(20, 1), rules: lotteryRules}, round: lotteryRound};
 export const tickets: LotteryTicket[] = residents.map((r, i) => ({id: `local-ticket-${i}`, actorId: r.id, actorName: r.name, numbers: [1 + i, 7, 9], createdAt: at(10), matches: null}));
 export const positions: InvestmentPosition[] = ['样例科技', '样例农业'].map((name, i) => ({code: `local.${i}`, name, quantity: 100, availableQuantity: 100,

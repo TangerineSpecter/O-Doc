@@ -23,9 +23,9 @@ export function lotteryAnalyticsMock(url: URL, isEmpty: boolean): ResidentAnalyt
         Object.assign(row, {purchases: 2, tickets: 5, rounds: 2, settledTickets: 4, pendingTickets: 1,
             winningTickets: first ? 4 : 3, firstTickets: first ? 1 : 0, secondTickets: 2, thirdTickets: 1,
             unwonTickets: first ? 0 : 1, winningRounds: 1, winRate: first ? 100 : 75,
-            expense: '25.00', prizes: first ? '250.00' : '70.00', net: first ? '225.00' : '45.00',
-            maxPrize: first ? '180.00' : '50.00', firstAwards: first ? 1 : 0, secondAwards: 1, thirdAwards: 1,
-            firstPrize: first ? '180.00' : '0.00', secondPrize: '50.00', thirdPrize: '20.00'});
+            expense: '250.00', prizes: first ? '1850.00' : '1200.00', net: first ? '1600.00' : '950.00',
+            maxPrize: first ? '1150.00' : '500.00', firstAwards: first ? 1 : 0, secondAwards: 1, thirdAwards: 1,
+            firstPrize: first ? '1150.00' : '0.00', secondPrize: '500.00', thirdPrize: '200.00'});
         return row;
     });
     rows.sort((a, b) => cents(a.net) > cents(b.net) ? -1 : cents(a.net) < cents(b.net) ? 1 : b.winningTickets - a.winningTickets || a.id.localeCompare(b.id));

@@ -74,13 +74,13 @@ export function LotteryHero({round, config, onEnable, saving = false}: LotteryHe
                     <span className="lottery-guide-feature-icon"><Ticket className="h-4 w-4"/></span>
                     <div className="lottery-guide-feature-content">
                         <h4>居民自主购票</h4>
-                        <p>单张 5 金币，每人每期最多 10 张，相同号码可重复加倍购买。</p>
+                        <p>单张 {lotteryMoney(config?.rules.ticketPrice || '50')} 金币，每人每期最多 10 张，相同号码可重复加倍购买。</p>
                     </div>
                 </div>
                 <div className="lottery-guide-feature">
                     <span className="lottery-guide-feature-icon"><Coins className="h-4 w-4"/></span>
                     <div className="lottery-guide-feature-content">
-                        <h4>100 金币起步补贴</h4>
+                        <h4>{lotteryMoney(config?.rules.subsidy || '1000')} 金币起步补贴</h4>
                         <p>每期实际有购票即注资金币补贴，若无人中一等奖全额滚存下期。</p>
                     </div>
                 </div>
@@ -164,7 +164,7 @@ export function LotteryHero({round, config, onEnable, saving = false}: LotteryHe
                 <span className="lottery-jackpot-unit">金币</span>
             </div>
             <p className="lottery-jackpot-caption">
-                {settled ? '每一张中奖票，都有一份好运。' : '奖池持续累积，包含 100 金币本期补贴预估。'}
+                {settled ? '每一张中奖票，都有一份好运。' : `奖池持续累积，包含 ${lotteryMoney(round.rules.subsidy)} 金币本期补贴预估。`}
             </p>
 
             <div className="lottery-jackpot-meta">

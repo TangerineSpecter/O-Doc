@@ -10,7 +10,7 @@ from .life_models import LifeItem
 from .life_schedule import revise
 from .life_time import local_time
 from .lottery_models import LotteryRound
-from .lottery_rules import PRICE, numbers
+from .lottery_rules import numbers, price
 from .lottery_service import current_round, check_open, maximum, pool, reserved_tickets, validate_plan
 
 
@@ -44,14 +44,14 @@ def summary(owner, actor):
         return None
     return {'pool': str(pool(row)), 'held': row.tickets.filter(actor_id=actor).count(),
             'pending': reserved_tickets(owner, actor, row.pk), 'limit': 10,
-            'price': '5', 'draws_at': local_time(row.draws_at).isoformat()}
+            'price': str(price(row.rules)), 'draws_at': local_time(row.draws_at).isoformat()}
 
 
 def state(item, agent, row, selected=None):
     return {'personality': (agent.role_profile or {}).get('personality', ''),
             'instructions': agent.prompt or '', 'held_numbers': list(row.tickets.filter(actor_id=agent.pk).values_list('numbers', flat=True)),
             'selected_numbers': selected or [], 'draws_at': local_time(row.draws_at).isoformat(),
-            'pool': str(pool(row)), 'price': '5', 'budget': str(item.budget)}
+            'pool': str(pool(row)), 'price': str(price(row.rules)), 'budget': str(item.budget)}
 
 
 def choose(item, agent, scene, context, candidates):
