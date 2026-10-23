@@ -26,10 +26,6 @@ export function isUserArticleTemplate(template: Pick<ArticleTemplate, 'id' | 'so
     return template.source === 'user' || template.id.startsWith(USER_ARTICLE_TEMPLATE_ID_PREFIX);
 }
 
-export function isBlankArticleTemplate(template: ArticleTemplate): boolean {
-    return template.content.trim() === '';
-}
-
 export function suggestUserArticleTemplateName(title: string): string {
     const trimmed = title.trim();
     if (!trimmed || trimmed === '未命名文档') return '我的模板';
@@ -106,10 +102,6 @@ export function listArticleTemplates(userTemplates: ArticleTemplate[] = []): Art
     const builtins = ARTICLE_TEMPLATES.map(template => ({...template, source: 'builtin' as const}));
     const users = parseUserArticleTemplates(serializeUserArticleTemplates(userTemplates));
     return [...builtins, ...users];
-}
-
-export function getArticleTemplate(id: string, userTemplates: ArticleTemplate[] = []): ArticleTemplate | undefined {
-    return listArticleTemplates(userTemplates).find(template => template.id === id);
 }
 
 export function loadUserArticleTemplates(): ArticleTemplate[] {

@@ -1,5 +1,4 @@
 """Read-only FIFO allocation and exact consumption of maze materials."""
-import copy
 from decimal import Decimal
 from django.db import transaction
 from .inventory_stock import inventory_items
@@ -54,7 +53,3 @@ def consume(actor_id: str, owner: str, materials: list[dict]) -> Decimal:
         else:
             row.delete()
     return amount
-
-
-def copy_pool(pool: list[dict]) -> list[dict]:
-    return copy.deepcopy(pool)

@@ -441,15 +441,31 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     fishing_rows = fishing_rows.prefetch_related(Prefetch('events',
         queryset=FishingEvent.objects.filter(data__catch__isnull=False).only('trip_id', 'data'),
         to_attr='caught_events'))
+    from .fishing.service import authorized_trip_ids
+    fishing_rows = list(fishing_rows)
+    authorized_ids = authorized_trip_ids(
+        [trip for trip in fishing_rows if not trip.ended_at and trip.status != 'paused'], owner,
+    )
     for trip in fishing_rows:
         caught = [e.data['catch'] for e in trip.caught_events]
         detail = '、'.join(c['name'] for c in caught) or '尚无收获'
         detail += f" · 抛竿{trip.state.get('casts',0)}次"
         if trip.state.get('reason'):
             detail += ' · ' + trip.state['reason']
+        title, status = '出钓归来', 'success'
+        if not trip.ended_at:
+            if trip.status == 'paused' or trip.pk not in authorized_ids:
+                title, status = '出钓已暂停', 'paused'
+                detail += ' · 请到钓鱼面板检查本机运行开关，并继续出钓'
+            elif trip.state.get('error'):
+                title, status = '出钓等待重试', 'paused'
+            else:
+                title, status = ('正在准备出钓' if trip.status == 'preparing' else '鱼王对决' if trip.status == 'duel' else '正在钓鱼'), 'running'
+            if trip.state.get('error'):
+                detail += ' · ' + trip.state['error']
         events.append(_event('fishing', 'fishing', trip.pk, trip.updated_at, trip.actor_id,
-            trip.actor_name, '出钓归来' if trip.ended_at else '正在钓鱼', detail,
-            status='success' if trip.ended_at else 'running', target={'kind':'fishing', 'id':trip.pk}))
+            trip.actor_name, title, detail,
+            status=status, target={'kind':'fishing', 'id':trip.pk}))
     from .combat.models import Exploration
     from .combat.explorations import EXECUTION_COMPLETED, execution_completed
     settled_exploration_records = set(Exploration.objects.filter(

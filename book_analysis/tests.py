@@ -306,7 +306,7 @@ class BookAnalysisTests(APITestCase):
 
     def test_biography_quotes_are_in_sync_scope_not_local_cache(self):
         from system_settings.sync_state import should_track
-        targets = set(SyncManager()._iter_target_models())
+        targets = set(SyncManager().models.iter_target_models())
         self.assertIn(BiographyQuote, targets)
         self.assertTrue(should_track(BiographyQuote))
         self.assertNotIn(SourceCache, targets)

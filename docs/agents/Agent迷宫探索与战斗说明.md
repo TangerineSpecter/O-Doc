@@ -99,7 +99,7 @@ flowchart TD
 
 目录按版本、哈希和引用校验后安装，同版本不能覆盖不同内容。未结束探索固定出发时目录；已结束探索和已有装备以固化快照独立保存，原目录编号只作来源说明。发布新包不回写既有属性或已结算结果。最新及运行中需要的目录、档案、装备、回合和奖励事实纳入同步；租约、本机执行许可与自动开关由本机管理。其他设备恢复业务数据不等于获得原设备的执行许可。
 
-数据库迁移、实际部署、真实模型和多设备接续需要分别确认。带版本的旧验收记录不证明当前包已重新完成全部验收，详见[同步说明](../数据同步逻辑说明.md)和[一期验收记录](./Agent战斗探索一期实施与验收记录.md)。
+数据库迁移、实际部署、真实模型和多设备接续需要分别确认。带版本的旧验收记录不证明当前包已重新完成全部验收，详见[同步说明](../数据同步逻辑说明.md)和[一期验收记录](../archive/agents/Agent战斗探索一期实施与验收记录.md)。
 
 ## 按任务继续阅读
 
@@ -110,7 +110,7 @@ flowchart TD
 | 纯战斗、技能、成长与掉落 | `combat/engine.py`、`effects.py`、`attributes.py`、`profiles.py`、`rewards.py`及[生产包说明](../../system_settings/agent_world/combat/data/README.md)；图鉴候选展示见 `frontend_react/src/components/Combat/atlas/equipmentDropCandidates.ts` |
 | 请求和界面状态 | `system_settings/urls.py`、`combat/views.py`、`frontend_react/src/api/combat.ts` 及 `components/Combat/`；出发准备决策指引与 `(i)` 说明见 `frontend_react/src/components/AgentWorld/decisionProcessGuides.ts`（准备流程变动时须同步更新） |
 | 观察画面和动画 | [探索观察接入说明](./Agent探索观察战斗画面接入说明.md)、[魔物与动画规范](./Agent魔物形象与战斗动画设计规范.md) |
-| 设计依据与历史版本 | [系统规划](./Agent迷宫探索与战斗系统规划.md)、[实施与验收记录](./Agent战斗探索一期实施与验收记录.md) |
+| 设计依据与历史版本 | [系统规划](./Agent迷宫探索与战斗系统规划.md)、[实施与验收记录](../archive/agents/Agent战斗探索一期实施与验收记录.md) |
 
 表中 `combat/` 后端路径均相对 `system_settings/agent_world/`。真实接口前缀为 `/api/settings/agent-world/combat/`，由 `catalog/`、`config/`、`agents/<id>/`、居民历史、探索快照和遭遇列表构成；写操作与幂等键以实际 View 和前端 API 契约为准。
 

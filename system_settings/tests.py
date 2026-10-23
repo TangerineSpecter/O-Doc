@@ -56,6 +56,8 @@ from utils.remote_storage import (
     validate_sync_config,
 )
 from utils.sftp_client import SftpClient
+from utils.sync_merge import revision_winner
+from utils.sync_media import SnapshotMedia
 from utils.sync_manager import OverwriteConfirmationRequired, SyncChoicesRequired, SyncError, SyncManager
 from utils.webdav import WebDavClient
 from user.models import UserProfile
@@ -195,12 +197,12 @@ class SyncManagerTests(TestCase):
         with patch.object(manager, 'merge_v2_data', side_effect=AssertionError('manual upload must not merge')):
             snapshot, summary, _ = manager.sync_v2(manual_upload=True, base_snapshot_id='old-path-base')
             self.assertTrue(summary['initial_upload'])
-            first_pointer = client.files[manager.v2_current_file]
+            first_pointer = client.files[manager.remote.v2_current_file]
             memo.content = 'replacement'
             memo.save()
             with self.assertRaises(OverwriteConfirmationRequired):
                 manager.sync_v2(manual_upload=True)
-            self.assertEqual(client.files[manager.v2_current_file], first_pointer)
+            self.assertEqual(client.files[manager.remote.v2_current_file], first_pointer)
             replaced, summary, _ = manager.sync_v2(manual_upload=True, force_overwrite=True)
         self.assertFalse(summary['initial_upload'])
         self.assertNotEqual(replaced['meta']['snapshot_id'], snapshot['meta']['snapshot_id'])
@@ -228,14 +230,14 @@ class SyncManagerTests(TestCase):
 
         def concurrent_upload(*args, **kwargs):
             backup = create_backup(*args, **kwargs)
-            client.files[manager.v2_current_file] = b'another completed upload'
+            client.files[manager.remote.v2_current_file] = b'another completed upload'
             return backup
 
         with patch.object(manager, 'create_local_safety_backup', side_effect=concurrent_upload):
             with self.assertRaises(OverwriteConfirmationRequired):
                 manager.sync_v2(manual_upload=True)
-        self.assertEqual(client.files[manager.v2_current_file], b'another completed upload')
-        self.assertNotIn(f'{manager.v2_dir}/.sync-lock', client.directories)
+        self.assertEqual(client.files[manager.remote.v2_current_file], b'another completed upload')
+        self.assertNotIn(f'{manager.remote.v2_dir}/.sync-lock', client.directories)
 
     def test_manual_upload_does_not_treat_unreadable_directory_as_empty(self):
         client = MemoryStorageClient()
@@ -323,7 +325,7 @@ class SyncManagerTests(TestCase):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
         local = {'hash': 'local', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'device-a', 'deleted': False}
         remote = {'hash': 'remote', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'device-z', 'deleted': False}
-        self.assertEqual(manager._revision_winner(local, remote), remote)
+        self.assertEqual(revision_winner(local, remote), remote)
 
     def test_v2_uses_username_as_cross_device_user_identity(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
@@ -344,39 +346,39 @@ class SyncManagerTests(TestCase):
         client = MemoryStorageClient()
         first = SyncManager(client, '/o-doc-sync/')
         second = SyncManager(client, '/o-doc-sync/')
-        with first._remote_sync_lock('first'):
+        with first.remote.lock('first'):
             with self.assertRaises(SyncError):
-                with second._remote_sync_lock('second'):
+                with second.remote.lock('second'):
                     pass
 
     def test_v2_recovers_explicitly_abandoned_lock_owned_by_this_device(self):
         client = MemoryStorageClient()
         manager = SyncManager(client, '/o-doc-sync/')
-        lock_dir = f'{manager.v2_dir}/.sync-lock'
+        lock_dir = f'{manager.remote.v2_dir}/.sync-lock'
         client.ensure_directory(lock_dir)
-        manager._write_remote_json({
+        manager.remote.write_json({
             'runner_id': 'manual:abandoned',
             'device_id': get_device_id(),
             'started_at': timezone.now().isoformat(),
         }, f'{lock_dir}/lock.json')
 
-        with manager._remote_sync_lock('manual:recovered', recover_owned_lock=True):
+        with manager.remote.lock('manual:recovered', recover_owned_lock=True):
             self.assertIn(lock_dir, client.directories)
 
     def test_v2_recovery_requires_the_abandoned_runner_to_match(self):
         client = MemoryStorageClient()
         manager = SyncManager(client, '/backup')
-        lock_dir = f'{manager.v2_dir}/.sync-lock'
+        lock_dir = f'{manager.remote.v2_dir}/.sync-lock'
         client.ensure_directory(lock_dir)
-        manager._write_remote_json({
+        manager.remote.write_json({
             'runner_id': 'active-runner', 'device_id': get_device_id(),
             'started_at': timezone.now().isoformat(),
         }, f'{lock_dir}/lock.json')
         with self.assertRaises(SyncError):
-            with manager._remote_sync_lock('new-runner', recover_owned_lock='different-abandoned-runner'):
+            with manager.remote.lock('new-runner', recover_owned_lock='different-abandoned-runner'):
                 self.fail('must not replace a different runner')
         self.assertIn(lock_dir, client.directories)
-        with manager._remote_sync_lock('new-runner', recover_owned_lock='active-runner'):
+        with manager.remote.lock('new-runner', recover_owned_lock='active-runner'):
             self.assertIn(lock_dir, client.directories)
         self.assertNotIn(lock_dir, client.directories)
 
@@ -387,7 +389,7 @@ class SyncManagerTests(TestCase):
             manager.publish_v2_snapshot(source='test', data_list=[], revisions={})
         history = manager.list_v2_history()
         self.assertEqual(len(history), 10)
-        pointer = json.loads(client.get_file_content(manager.v2_current_file))
+        pointer = json.loads(client.get_file_content(manager.remote.v2_current_file))
         self.assertIn(pointer['snapshot_id'], {item['snapshot_id'] for item in history})
 
     def _publish_aligned_snapshot(self):
@@ -448,7 +450,7 @@ class SyncManagerTests(TestCase):
             with open(sentinel, 'rb') as stream:
                 self.assertEqual(stream.read(), b'outside media')
         for path, content in legacy_bytes.items():
-            if path.startswith(f'{manager.v2_snapshots_dir}/{legacy_id}/'):
+            if path.startswith(f'{manager.remote.v2_snapshots_dir}/{legacy_id}/'):
                 self.assertEqual(client.files[path], content)
 
     def test_v2_history_restore_rejects_missing_crop_stars_before_media(self):
@@ -461,18 +463,18 @@ class SyncManagerTests(TestCase):
         )
         client, manager, snapshot = self._publish_aligned_snapshot()
         snapshot_id = snapshot['meta']['snapshot_id']
-        data_path = manager._snapshot_path(snapshot_id, 'data_index.json')
+        data_path = manager.remote.snapshot_path(snapshot_id, 'data_index.json')
         broken = json.loads(client.get_file_content(data_path))
         next(row for row in broken if row['model'] == 'system_settings.agentinventoryitem')['fields']['source'].pop('stars')
-        manager._write_remote_json(broken, data_path)
-        pointer = client.files[manager.v2_current_file]
-        with patch.object(manager, '_restore_v2_media') as restore_media:
+        manager.remote.write_json(broken, data_path)
+        pointer = client.files[manager.remote.v2_current_file]
+        with patch.object(manager.media, 'restore_v2_media') as restore_media:
             with self.assertRaisesMessage(SyncError, '农作物库存星级无效或缺失'):
                 manager.restore_v2_snapshot(snapshot_id, runner_id='test-restore')
             restore_media.assert_not_called()
         item.refresh_from_db()
         self.assertEqual(item.source['stars'], 5)
-        self.assertEqual(client.files[manager.v2_current_file], pointer)
+        self.assertEqual(client.files[manager.remote.v2_current_file], pointer)
 
     def test_aligned_unchanged_sync_skips_export_and_publish(self):
         user = User.objects.create_user(username='aligned-user', password='password')
@@ -502,7 +504,7 @@ class SyncManagerTests(TestCase):
         self.assertTrue(summary['unchanged'])
         self.assertEqual(safety_backup, '')
         self.assertEqual(result['meta']['snapshot_id'], snapshot_id)
-        pointer = json.loads(client.get_file_content(manager.v2_current_file))
+        pointer = json.loads(client.get_file_content(manager.remote.v2_current_file))
         self.assertEqual(pointer['snapshot_id'], snapshot_id)
         self.assertFalse(SyncEntityState.objects.filter(model_label__contains=':').exists())
         self.assertTrue(SyncEntityState.objects.filter(model_label='auth.user', object_pk=f'username:{user.username}').exists())
@@ -522,7 +524,7 @@ class SyncManagerTests(TestCase):
         self.assertEqual(safety_backup, '')
         self.assertNotEqual(result['meta']['snapshot_id'], snapshot_id)
         self.assertTrue(Memo.objects.filter(memo_id=memo.memo_id).exists())
-        remote_data = client.get_file_content(manager._snapshot_path(result['meta']['snapshot_id'], 'data_index.json'))
+        remote_data = client.get_file_content(manager.remote.snapshot_path(result['meta']['snapshot_id'], 'data_index.json'))
         self.assertIn('memo_fast_sync', remote_data)
 
     def test_newer_revision_timestamp_with_same_content_skips_publish(self):
@@ -538,7 +540,7 @@ class SyncManagerTests(TestCase):
 
         self.assertTrue(summary['unchanged'])
         self.assertEqual(safety_backup, '')
-        pointer = json.loads(client.get_file_content(manager.v2_current_file))
+        pointer = json.loads(client.get_file_content(manager.remote.v2_current_file))
         self.assertEqual(pointer['snapshot_id'], snapshot_id)
         self.assertEqual(result['meta']['snapshot_id'], snapshot_id)
 
@@ -564,7 +566,7 @@ class SyncManagerTests(TestCase):
         self.assertFalse(summary['unchanged'])
         self.assertEqual(safety_backup, '')
         self.assertNotEqual(result['meta']['snapshot_id'], snapshot_id)
-        remote_data = client.get_file_content(manager._snapshot_path(result['meta']['snapshot_id'], 'data_index.json'))
+        remote_data = client.get_file_content(manager.remote.snapshot_path(result['meta']['snapshot_id'], 'data_index.json'))
         self.assertIn('"read_count":1', remote_data.replace(' ', ''))
 
     def test_safety_backup_keeps_three_zips_beside_the_hash_index(self):
@@ -624,7 +626,7 @@ class SyncManagerTests(TestCase):
         self.assertEqual(set(snapshot['media']), set(files))
         for rel_path, content in files.items():
             digest = snapshot['media'][rel_path]['hash']
-            self.assertEqual(client.files[f'{manager.v2_blobs_dir}/{digest}'], content)
+            self.assertEqual(client.files[f'{manager.remote.v2_blobs_dir}/{digest}'], content)
 
     def test_snapshot_includes_memos_but_excludes_local_email_and_nickname(self):
         user = User.objects.create_user(username='snapshot-user', email='local@example.com', password='password')
@@ -681,39 +683,30 @@ class SyncManagerTests(TestCase):
 
         snapshot = manager.publish_v2_snapshot(source='test', data_list=[], revisions={})
         os.remove(avatar_path)
-        manager._restore_v2_media(snapshot['media'])
+        manager.media.restore_v2_media(snapshot['media'])
 
         with open(avatar_path, 'rb') as file_obj:
             self.assertEqual(file_obj.read(), b'avatar-content')
 
-    def test_validate_upload_state_reports_missing_asset_file(self):
-        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
-        with patch.object(
-            SyncManager,
-            '_collect_asset_relative_paths',
-            return_value=(['image/ok.png'], ['image/missing.png'])
+    def test_v2_snapshot_version_compatibility(self):
+        for remote_version, compatible in (
+            ('1.5.2', True),
+            ('1.5.0', True),
+            ('1.4.9', True),
+            ('1.5.3', False),
+            ('1.6.0', False),
+            ('2.0.0', False),
+            ('1.3.9', False),
+            ('0.9.14', False),
+            ('unknown', False),
         ):
-            issues = manager.validate_upload_state()
+            with self.subTest(remote_version=remote_version):
+                self.assertEqual(
+                    SyncManager._is_snapshot_version_compatible(remote_version, '1.5.2'),
+                    compatible,
+                )
 
-        self.assertEqual(len(issues), 1)
-        self.assertIn('image/missing.png', issues[0])
-
-    def test_v2_snapshot_version_compatibility_0_9_to_1_0(self):
-        # 0.9.x 到 1.0.x 属于连续的小版本升级与跨主版本发布，应允许新版读取旧版快照以完成升级后首次同步
-        self.assertTrue(SyncManager._is_snapshot_version_compatible('0.9.13', '1.0.2'))
-        self.assertTrue(SyncManager._is_snapshot_version_compatible('0.9.14', '1.0.0'))
-        # 远端比本机更高版本时，禁止同步
-        self.assertFalse(SyncManager._is_snapshot_version_compatible('1.0.2', '0.9.13'))
-        # 跨越多个大版本或过旧版本（如 0.8 到 1.0）应拒绝
-        self.assertFalse(SyncManager._is_snapshot_version_compatible('0.8.2', '1.0.2'))
-
-    def test_sync_data_download_raises_when_snapshot_missing(self):
-        manager = SyncManager(FakeWebDavClient(content=None), '/o-doc-sync/')
-
-        with self.assertRaises(SyncError):
-            manager.sync_data_download()
-
-    def test_sync_data_download_reuses_local_builtin_skill(self):
+    def test_apply_snapshot_reuses_local_builtin_skill(self):
         now = timezone.now()
         local_skill = Skill.objects.create(
             id='skill_local_builtin',
@@ -735,16 +728,16 @@ class SyncManagerTests(TestCase):
         remote_agent.created_at = now
         remote_agent.updated_at = now
         snapshot = serializers.serialize('json', [remote_agent, remote_skill])
-        manager = SyncManager(FakeWebDavClient(content=snapshot), '/o-doc-sync/')
+        manager = SyncManager()
 
-        manager.sync_data_download()
+        manager.apply_snapshot_data(json.loads(snapshot))
 
         self.assertEqual(Skill.objects.count(), 1)
         local_skill.refresh_from_db()
         self.assertEqual(local_skill.name, '文章润色')
         self.assertEqual(Agent.objects.get(pk='agent_remote').skills, ['skill_local_builtin'])
 
-    def test_sync_data_download_reuses_local_user_profile_without_overwriting_nickname(self):
+    def test_apply_snapshot_reuses_local_user_profile_without_overwriting_nickname(self):
         now = timezone.now()
         local_user = User.objects.create_user(username='admin', password='local-password')
         local_profile = UserProfile.objects.create(
@@ -761,16 +754,16 @@ class SyncManagerTests(TestCase):
         remote_profile.created_at = now
         remote_profile.updated_at = now
         snapshot = serializers.serialize('json', [remote_profile])
-        manager = SyncManager(FakeWebDavClient(content=snapshot), '/o-doc-sync/')
+        manager = SyncManager()
 
-        manager.sync_data_download()
+        manager.apply_snapshot_data(json.loads(snapshot))
 
         self.assertEqual(UserProfile.objects.count(), 1)
         local_profile.refresh_from_db()
         self.assertEqual(local_profile.user_id, local_user.id)
         self.assertEqual(local_profile.nickname, '本地管理员')
 
-    def test_sync_data_download_restores_users_without_replacing_local_admin_password(self):
+    def test_apply_snapshot_restores_users_without_replacing_local_admin_password(self):
         now = timezone.now()
         local_admin = User.objects.create_superuser(username='admin', email='local-admin@example.com', password='local-password')
         local_admin_password = local_admin.password
@@ -796,9 +789,9 @@ class SyncManagerTests(TestCase):
         for item in snapshot_data:
             if item['model'] == 'auth.user' and item['fields']['username'] == 'alice':
                 item['fields']['groups'] = [3]
-        manager = SyncManager(FakeWebDavClient(content=json.dumps(snapshot_data)), '/o-doc-sync/')
+        manager = SyncManager()
 
-        manager.sync_data_download()
+        manager.apply_snapshot_data(snapshot_data)
 
         local_admin.refresh_from_db()
         self.assertEqual(local_admin.password, local_admin_password)
@@ -827,58 +820,6 @@ class SyncManagerTests(TestCase):
             file_hash=asset_id,
             source_type='other',
         )
-
-    def test_sync_assets_upload_skips_already_backed_up_book(self):
-        anthology = Anthology.objects.create(coll_id='coll_books', title='书架', type='book')
-        client = FakeWebDavClient()
-        manager = SyncManager(client, '/o-doc-sync/')
-        with tempfile.TemporaryDirectory() as media_root:
-            with self.settings(MEDIA_ROOT=media_root):
-                backed = self._create_book_asset('asset_backed', 'books/backed.pdf', media_root)
-                fresh = self._create_book_asset('asset_fresh', 'books/fresh.pdf', media_root)
-                Book.objects.create(
-                    book_id='book_backed', anthology=anthology, asset=backed,
-                    title='已备份', book_format='pdf',
-                    remote_available=True, remote_hash='asset_backed',
-                )
-                Book.objects.create(
-                    book_id='book_fresh', anthology=anthology, asset=fresh,
-                    title='新书', book_format='pdf',
-                )
-                list(manager.sync_assets_upload_stream())
-
-        uploaded_remotes = [remote for _local, remote in client.uploaded]
-        self.assertTrue(any(path.endswith('books/fresh.pdf') for path in uploaded_remotes))
-        self.assertFalse(any(path.endswith('books/backed.pdf') for path in uploaded_remotes))
-
-    def test_sync_assets_download_does_not_restore_released_book_body(self):
-        anthology = Anthology.objects.create(coll_id='coll_books', title='书架', type='book')
-        asset = Asset.objects.create(
-            id='asset_released',
-            name='released.pdf',
-            original_name='released.pdf',
-            file_type='document',
-            file_size=4,
-            file_path='books/released.pdf',
-            file_extension='.pdf',
-            mime_type='application/pdf',
-            file_hash='asset_released',
-            source_type='other',
-        )
-        Book.objects.create(
-            book_id='book_released', anthology=anthology, asset=asset,
-            title='已释放', book_format='pdf',
-            local_state='local', remote_available=True, remote_hash='asset_released',
-        )
-        client = FakeWebDavClient()
-        manager = SyncManager(client, '/o-doc-sync/')
-        with tempfile.TemporaryDirectory() as media_root:
-            with self.settings(MEDIA_ROOT=media_root):
-                downloaded = manager.sync_assets_download()
-
-        self.assertEqual(downloaded, 0)
-        self.assertEqual(client.downloaded, [])
-        self.assertEqual(Book.objects.get(book_id='book_released').local_state, 'cloud_only')
 
     def test_reconcile_missing_book_media_keeps_book_and_drops_missing_cover(self):
         anthology = Anthology.objects.create(coll_id='coll_missing_book', title='书架', type='book')
@@ -937,7 +878,7 @@ class SyncManagerTests(TestCase):
         self.assertTrue(asset.is_valid)
 
     def test_v2_snapshot_book_paths_are_excluded_from_bulk_download(self):
-        paths = SyncManager._book_body_paths_from_snapshot([
+        paths = SnapshotMedia.book_body_paths_from_snapshot([
             {'model': 'assets.asset', 'pk': 'body', 'fields': {'file_path': 'books/a.pdf'}},
             {'model': 'assets.asset', 'pk': 'cover', 'fields': {'file_path': 'book_covers/a.png'}},
             {'model': 'anthology.book', 'pk': 'book_a', 'fields': {'asset': 'body', 'is_valid': True}},
@@ -955,55 +896,41 @@ class SyncManagerTests(TestCase):
         asset.refresh_from_db()
         self.assertTrue(asset.is_valid)
 
-    def test_sync_assets_download_includes_user_avatar(self):
-        user = User.objects.create_user(username='admin', password='password')
-        UserProfile.objects.create(user=user, userid='admin', avatar='/media/avatars/admin.png')
-        client = FakeWebDavClient()
-        manager = SyncManager(client, '/o-doc-sync/')
-
-        with tempfile.TemporaryDirectory() as media_root:
-            with self.settings(MEDIA_ROOT=media_root):
-                downloaded_count = manager.sync_assets_download()
-
-        self.assertEqual(downloaded_count, 1)
-        self.assertEqual(client.downloaded, [('/o-doc-sync/media/avatars/admin.png', f'{media_root}/avatars/admin.png')])
-
     def test_media_relative_path_rejects_parent_directory(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
         with tempfile.TemporaryDirectory() as media_root:
             with self.settings(MEDIA_ROOT=media_root):
-                path = manager._get_media_relative_path('/media/avatars/../../outside.png')
+                path = manager.media.get_media_relative_path('/media/avatars/../../outside.png')
 
         self.assertEqual(path, '')
 
-    def test_write_snapshot_meta_includes_current_app_version(self):
-        client = FakeWebDavClient()
-        manager = SyncManager(client, '/o-doc-sync/')
+    def test_build_snapshot_meta_includes_current_app_version(self):
+        manager = SyncManager()
 
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.7.0'):
-            meta = manager.write_snapshot_meta(source='manual', runner_id='test-runner')
+        with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.2'):
+            meta = manager.build_snapshot_meta(source='manual', runner_id='test-runner')
 
-        self.assertEqual(meta['app_version'], '0.7.0')
+        self.assertEqual(meta['app_version'], '1.5.2')
 
     def test_validate_remote_snapshot_version_allows_previous_minor_snapshot(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
 
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
-            manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.7.1'})
+        with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.2'):
+            manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '1.4.1'})
 
     def test_validate_remote_snapshot_version_rejects_newer_remote_snapshot(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
 
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
+        with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.2'):
             with self.assertRaisesMessage(SyncError, '请先升级本机后再同步'):
-                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.9.0'})
+                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '1.6.0'})
 
     def test_validate_remote_snapshot_version_rejects_newer_patch_snapshot(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
 
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
+        with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.2'):
             with self.assertRaisesMessage(SyncError, '请先升级本机后再同步'):
-                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.8.2'})
+                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '1.5.3'})
 
     def test_validate_remote_snapshot_version_rejects_missing_version(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
@@ -1013,11 +940,11 @@ class SyncManagerTests(TestCase):
 
     def test_stale_cleanup_deletes_book_before_protected_asset(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
-        cleanup_models = manager._models_for_stale_cleanup()
+        cleanup_models = manager.restorer._models_for_stale_cleanup()
 
         self.assertLess(cleanup_models.index(Book), cleanup_models.index(Asset))
 
-    def test_sync_data_download_removes_stale_book_and_asset(self):
+    def test_apply_snapshot_removes_stale_book_and_asset(self):
         anthology = Anthology.objects.create(coll_id='coll_keep', title='书架', type='book')
         stale_asset = Asset.objects.create(
             id='asset_stale_book',
@@ -1039,18 +966,15 @@ class SyncManagerTests(TestCase):
             book_format='pdf',
             is_valid=False,
         )
-        manager = SyncManager(
-            FakeWebDavClient(content=serializers.serialize('json', [anthology])),
-            '/o-doc-sync/',
-        )
+        manager = SyncManager()
 
-        manager.sync_data_download()
+        manager.apply_snapshot_data(json.loads(serializers.serialize('json', [anthology])))
 
         self.assertFalse(Book.objects.filter(book_id='book_stale').exists())
         self.assertFalse(Asset.objects.filter(id='asset_stale_book').exists())
         self.assertTrue(Anthology.objects.filter(coll_id='coll_keep').exists())
 
-    def test_sync_data_download_keeps_local_fields_missing_from_old_snapshot(self):
+    def test_apply_snapshot_keeps_local_fields_missing_from_old_snapshot(self):
         anthology = Anthology.objects.create(coll_id='coll_photos', title='相册', type='image')
         image = Image.objects.create(
             image_id='img_grouped',
@@ -1064,12 +988,9 @@ class SyncManagerTests(TestCase):
         snapshot_item['fields'].pop('photo_group_id', None)
         snapshot_item['fields'].pop('group_index', None)
         snapshot_item['fields']['title'] = '远端旧标题'
-        manager = SyncManager(
-            FakeWebDavClient(content=json.dumps([snapshot_item])),
-            '/o-doc-sync/',
-        )
+        manager = SyncManager()
 
-        manager.sync_data_download()
+        manager.apply_snapshot_data([snapshot_item])
 
         image.refresh_from_db()
         self.assertEqual(image.title, '远端旧标题')
@@ -1098,13 +1019,13 @@ class SyncManagerTests(TestCase):
             title='新书',
             book_format='pdf',
         )
-        manager = SyncManager(
-            FakeWebDavClient(content=serializers.serialize('json', [anthology])),
-            '/o-doc-sync/',
-        )
+        manager = SyncManager()
 
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
-            manager.sync_data_download(remote_meta={'app_version': '0.8.1'})
+        with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.2'):
+            manager.apply_snapshot_data(
+                json.loads(serializers.serialize('json', [anthology])),
+                remote_meta={'app_version': '1.4.1'},
+            )
 
         self.assertTrue(Book.objects.filter(book_id='book_new').exists())
         self.assertTrue(Anthology.objects.filter(coll_id='coll_new_books').exists())
@@ -1139,7 +1060,7 @@ class SyncManagerTests(TestCase):
         manager = SyncManager()
         with tempfile.TemporaryDirectory() as temp_dir:
             zip_path = os.path.join(temp_dir, 'backup.zip')
-            with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.0'):
+            with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.0'):
                 manager.write_local_backup_zip(zip_path)
             with zipfile.ZipFile(zip_path) as archive:
                 names = set(archive.namelist())
@@ -1160,7 +1081,7 @@ class SyncManagerTests(TestCase):
             image.photo_group_id = 'group_after'
             image.save(update_fields=['photo_group_id'])
 
-            with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
+            with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.3'):
                 manager.import_local_backup_zip(zip_path)
 
             self.assertFalse(Anthology.objects.filter(coll_id='coll_new').exists())
@@ -1173,9 +1094,9 @@ class SyncManagerTests(TestCase):
                 archive.writestr('data_index.json', '[]')
                 archive.writestr('snapshot_meta.json', json.dumps({
                     'snapshot_id': 'n',
-                    'app_version': '1.0.0',
+                    'app_version': '1.5.4',
                 }))
-            with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
+            with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.3'):
                 with self.assertRaisesMessage(SyncError, '请先升级本机后再导入'):
                     manager.import_local_backup_zip(newer)
 
@@ -1190,21 +1111,8 @@ class SyncManagerTests(TestCase):
             key='system_memos_push_config',
             value={'enabled': True},
         )
-        class CapturingClient(FakeWebDavClient):
-            def __init__(self):
-                super().__init__()
-                self.exported = []
-
-            def upload_file(self, local_path, remote_path):
-                if remote_path.endswith('data_index.json'):
-                    with open(local_path, 'r', encoding='utf-8') as file_obj:
-                        self.exported.append(json.load(file_obj))
-                return super().upload_file(local_path, remote_path)
-
-        client = CapturingClient()
-        manager = SyncManager(client, '/o-doc-sync/')
-        list(manager.sync_data_upload_stream())
-        exported = client.exported[-1]
+        manager = SyncManager()
+        exported = manager.build_snapshot_data()
         exported_keys = {
             item['pk'] for item in exported
             if item['model'] == 'system_settings.systemsetting'
@@ -1221,8 +1129,7 @@ class SyncManagerTests(TestCase):
                 'description': 'old',
             },
         }]
-        restore_manager = SyncManager(FakeWebDavClient(content=json.dumps(snapshot)), '/o-doc-sync/')
-        restore_manager.sync_data_download()
+        manager.apply_snapshot_data(snapshot)
 
         saved = SystemSetting.objects.get(key='system_webdav_config').value
         self.assertEqual(saved.get('protocol'), 'sftp')
@@ -1378,7 +1285,7 @@ class RemoteStorageFactoryTests(TestCase):
                 'password': 'secret',
                 'remotePath': '/custom-path/',
             })
-        self.assertEqual(manager.base_path, '/custom-path')
+        self.assertEqual(manager.remote.base_path, '/custom-path')
 
 
 class FtpClientTests(TestCase):
@@ -2130,7 +2037,7 @@ class SystemConfigViewSetTests(TestCase):
             manager = viewset._get_sync_manager()
 
         self.assertIsNotNone(manager)
-        self.assertEqual(manager.base_path, '/custom-path')
+        self.assertEqual(manager.remote.base_path, '/custom-path')
 
     def test_get_sync_manager_uses_ftp_protocol(self):
         SystemSetting.objects.create(
@@ -2150,7 +2057,7 @@ class SystemConfigViewSetTests(TestCase):
             manager = viewset._get_sync_manager()
 
         self.assertIsNotNone(manager)
-        self.assertEqual(manager.base_path, '/custom-path')
+        self.assertEqual(manager.remote.base_path, '/custom-path')
 
     def test_save_webdav_config_resets_snapshot_when_destination_changes(self):
         SystemSetting.objects.create(
@@ -2579,8 +2486,8 @@ class SystemConfigViewSetTests(TestCase):
         )
 
         class FakeManager:
-            def validate_upload_state(self):
-                raise AssertionError('validate_upload_state should not run while locked')
+            def sync_v2(self, **kwargs):
+                raise AssertionError('sync_v2 should not run while locked')
 
         with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
             response = view(request)
@@ -2619,7 +2526,7 @@ class PullBeforePushDecisionTests(TestCase):
         ))
 
     def test_skips_when_remote_app_version_is_older(self):
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
+        with patch.object(SyncManager, 'get_current_app_version', return_value='1.5.3'):
             self.assertFalse(should_pull_remote_before_push(
                 {
                     'last_synced_snapshot_id': 'local-snapshot',
@@ -2628,7 +2535,7 @@ class PullBeforePushDecisionTests(TestCase):
                 {
                     'snapshot_id': 'remote-new',
                     'generated_at': '2026-08-17T12:00:00Z',
-                    'app_version': '0.8.1',
+                    'app_version': '1.5.0',
                 },
             ))
 

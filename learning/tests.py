@@ -285,8 +285,8 @@ class LearningTests(TestCase):
         with self.assertRaises(SyncError):
             validate(broken)
         validate([], {})
-        self.assertNotIn(Runtime, list(SyncManager()._iter_target_models()))
-        self.assertNotIn(DeviceJob, list(SyncManager()._iter_target_models()))
+        self.assertNotIn(Runtime, list(SyncManager().models.iter_target_models()))
+        self.assertNotIn(DeviceJob, list(SyncManager().models.iter_target_models()))
 
     def test_restored_requests_never_replay(self):
         req, _ = reserve_exercise(self.course, 'restore1')
@@ -608,7 +608,7 @@ class GoalSetupTests(TestCase):
         proposal.refresh_from_db(); self.assertEqual(proposal.status, 'failed')
         proposal = self.prepare(supplement='读懂英文技术文档', requestKey='goal-sync-test')
         manager = SyncManager()
-        self.assertNotIn(GoalJob, list(manager._iter_target_models()))
+        self.assertNotIn(GoalJob, list(manager.models.iter_target_models()))
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
         self.assertEqual(meta['learning_schema_version'], 4)

@@ -11,7 +11,7 @@ from ..life_time import local_time
 from ..market_inventory import split_item, deliver
 from ..inventory_stock import stock_rows
 from .models import FishingConfig, FishingProfile, FishingTrip, FishingEvent, FishingRuntime
-from .catalog import install
+from .catalog import install, upgrade_config
 from .rules import level_for, bait_facts
 
 OPEN = ('preparing', 'active', 'duel', 'paused')
@@ -42,6 +42,7 @@ def configure(owner: str, enabled: bool):
     if type(enabled) is not bool:
         raise ValueError('启用状态须为布尔值')
     row, _ = FishingConfig.objects.get_or_create(pk=owner, defaults={'catalog': install()})
+    upgrade_config(row)
     row.enabled = enabled
     row.save()
     from ..life_config import config_for
@@ -124,6 +125,7 @@ def request(item: LifeItem) -> FishingTrip:
     if occupied(item):
         raise ValueError('居民正忙于其他活动')
     from .catalog import current
+    upgrade_config(FishingConfig.objects.select_for_update().get(pk=item.owner_id))
     rules = current(item.owner_id)
     profile, _ = FishingProfile.objects.get_or_create(pk=agent.pk, defaults={'owner_id': item.owner_id})
     if profile.owner_id != item.owner_id:
@@ -148,6 +150,40 @@ def authorized(trip: FishingTrip) -> bool:
         and WorldActionRuntime.objects.filter(pk='world', enabled=True).exists()
         and trip.actor_id not in config_for(trip.owner_id).paused_agents
         and LifeItem.objects.filter(pk=trip.life_item_id, status='running').exists())
+
+
+def authorized_trip_ids(trips, owner: str) -> set[str]:
+    """Batch the same six authorization checks for an account's read-only feed.
+
+    Execution still uses authorized() at each transaction boundary so it reads
+    current permissions rather than reusing a feed snapshot.
+    """
+    from system_settings.models import WorldActionRuntime
+    from ..life_config import config_for
+
+    trips = [trip for trip in trips if trip.owner_id == owner]
+    if not trips:
+        return set()
+    runtime_ids = set(FishingRuntime.objects.filter(
+        pk__in=[trip.pk for trip in trips], authorized=True,
+    ).values_list('pk', flat=True))
+    if not runtime_ids:
+        return set()
+    candidates = [trip for trip in trips if trip.pk in runtime_ids]
+    actors = set(Agent.objects.filter(
+        pk__in={trip.actor_id for trip in candidates}, archived_at__isnull=True,
+    ).values_list('pk', flat=True))
+    if not actors or not FishingConfig.objects.filter(pk=owner, enabled=True).exists():
+        return set()
+    if not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
+        return set()
+    paused = config_for(owner).paused_agents
+    running_items = set(LifeItem.objects.filter(
+        pk__in={trip.life_item_id for trip in candidates}, status='running',
+    ).values_list('pk', flat=True))
+    return {trip.pk for trip in candidates
+            if trip.actor_id in actors and trip.actor_id not in paused
+            and trip.life_item_id in running_items}
 
 
 @guarded

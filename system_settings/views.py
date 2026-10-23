@@ -207,53 +207,6 @@ class SystemConfigViewSet(viewsets.ViewSet):
         })
         return payload
 
-    @staticmethod
-    def _sync_from_remote(manager, runtime_state, remote_meta, runner_id, trigger):
-        if remote_meta and remote_meta.get('snapshot_id'):
-            remote_snapshot_id = remote_meta['snapshot_id']
-            last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
-            if remote_snapshot_id != last_synced_snapshot_id:
-                yield SystemConfigViewSet._sync_event(
-                    "processing",
-                    "检测到远端快照已更新，先拉取远端数据再继续同步。"
-                )
-
-        yield SystemConfigViewSet._sync_event("init", "开始从云端拉取快照...")
-
-        if not runner_owns_sync(runner_id):
-            raise SyncError('同步已取消')
-        data_count = manager.sync_data_download(
-            remote_meta=remote_meta,
-            should_abort=lambda: not runner_owns_sync(runner_id),
-        )
-        yield SystemConfigViewSet._sync_event(
-            "processing",
-            f"数据快照已恢复，共对齐 {data_count} 条记录"
-        )
-
-        file_count = manager.sync_assets_download(
-            should_abort=lambda: not runner_owns_sync(runner_id),
-        )
-        yield SystemConfigViewSet._sync_event(
-            "processing",
-            f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件"
-        )
-
-        snapshot_id = (remote_meta or {}).get('snapshot_id')
-        if snapshot_id and runner_owns_sync(runner_id):
-            now = timezone.now().isoformat()
-            patch = {
-                'trigger': trigger,
-                'runner_id': runner_id,
-                'last_pulled_snapshot_id': snapshot_id,
-                'last_synced_snapshot_id': snapshot_id,
-                'last_pull_at': now,
-                'last_error': '',
-            }
-            if trigger != 'manual-preflight':
-                patch['status'] = 'success'
-            update_runtime_state(**patch)
-
     @action(detail=False, methods=['get'])
     def get_ai_config(self, request):
         # 获取 AI 配置，如果没有则返回默认空结构

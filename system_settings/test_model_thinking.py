@@ -179,9 +179,9 @@ class ModelThinkingTests(TestCase):
         from utils.sync_manager import SyncManager
         from system_settings.sync_state import should_track
         self.assertTrue(should_track(AIModel))
-        manager = SyncManager.__new__(SyncManager)
-        self.assertIn(AIModel, list(manager._iter_target_models()))
-        rows = json.loads(serializers.serialize('json', manager._queryset_for_export(AIModel)))
+        manager = SyncManager()
+        self.assertIn(AIModel, list(manager.models.iter_target_models()))
+        rows = json.loads(serializers.serialize('json', manager.models.queryset_for_export(AIModel)))
         for _ in range(2):
             next(serializers.deserialize('json', json.dumps(rows))).save()
         self.model.refresh_from_db()

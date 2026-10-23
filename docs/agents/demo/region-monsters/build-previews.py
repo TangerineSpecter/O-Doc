@@ -40,6 +40,7 @@ RUINS_SKILLS = {
  'ruin_knight': {'oath_counter':'亡誓反斩'},
  'tide_priest': {'rising_tide':'逆潮结界','tidal_verdict':'唤潮裁决'},
 }
+RIFT_SKILLS = {'rift_walker':{'rift_cross':'双刃裂步'},'star_golem':{'orbital_collapse':'星环崩解'},'rift_lord':{'void_loom':'裂界织刃'},'star_overlord':{'eclipse_breath':'星蚀龙息','astral_wings':'星翼裁决'}}
 EMBER_SKILLS = {'ash_demon':{'cinder_breath':'烬火吐息'},'lava_beast':{'magma_spines':'熔脊喷发'},'furnace_guard':{'furnace_ray':'炉芯放射'}}
 REGIONS = [
  ('abandoned_mine','AbandonedMine','废弃矿坑','的矿脉守望者','碎石滚过旧轨道，矿晶在黑暗中静静发亮。','尘埃 · 矿晶','#a37842', ['mine_rat','ore_golem','iron_guard','mine_giant']),
@@ -81,6 +82,8 @@ def build():
     skills=['root_prison','royal_dew'];config['labels'].update(root_prison='盘根囚笼',royal_dew='灵果甘霖')
    if key in RUINS_SKILLS:
     skills=list(RUINS_SKILLS[key]);config['labels'].update(RUINS_SKILLS[key])
+   if key in RIFT_SKILLS:
+    skills=list(RIFT_SKILLS[key]);config['labels'].update(RIFT_SKILLS[key])
    if key in EMBER_SKILLS:
     skills=list(EMBER_SKILLS[key]);config['labels'].update(EMBER_SKILLS[key])
    rank={'normal':'普通魔物','elite':'精英魔物','boss':'区域首领'}[m['rank']]
@@ -97,12 +100,14 @@ def build():
     config['monsters'][key]['skillNote']='候选技能：'+' / '.join(RUINS_SKILLS[key].values())+'。按形象和属性重做，正式数值及附加规则待确认。'
    if key in EMBER_SKILLS:
     config['monsters'][key]['skillNote']='候选技能：'+' / '.join(EMBER_SKILLS[key].values())+'。按形象及火属性重做，正式数值及规则待确认。'
+   if key in RIFT_SKILLS:
+    config['monsters'][key]['skillNote']='候选技能：'+' / '.join(RIFT_SKILLS[key].values())+'。按形象与'+('风' if key=='rift_walker' else '暗')+'属性重做，正式伤害、段数及附加规则待确认。'
    if key=='ash_lord':
     config['monsters'][key]['skillNote']='复用 MonsterTemplate_v1.html：双发暗焰法球 / 炎灼火柱 / 六魂晶灵击。仅适配区域舞台与播放控制。'
    sprites[key]=encode(key,m['rank']=='boss')
   (HERE/(region+'.js')).write_text('/* Generated review-only snapshot; no runtime catalogue writes. */\nwindow.RegionPreview = '+json.dumps(config,ensure_ascii=False,separators=(',',':'))+';\nwindow.MeadowMonsters=window.RegionPreview.monsters;\nwindow.MeadowSpriteData='+json.dumps(sprites,separators=(',',':'))+';\n')
   html=re.sub(r'  <script defer.*?</script>\n','',template)
-  scripts=[f'region-monsters/{region}.js','region-monsters/toxic-mushroom.js','region-monsters/characters.js','sprout-meadow/renderer.js','region-monsters/iron-guard-break.js','region-monsters/mine-giant-skills.js','region-monsters/mist-wolf-pounce.js','region-monsters/ancient-guard-regen.js','region-monsters/mist-treant-skills.js','region-monsters/ruins-pixels.js','region-monsters/treant-roots.js','region-monsters/treant-dew.js','region-monsters/mine-giant-boss-effects.js','region-monsters/ruins-motion.js','region-monsters/ruins-actors.js','region-monsters/ruins-dark-effects.js','region-monsters/ruins-water-effects.js','region-monsters/ash-lord-template-pixels.js','region-monsters/ember-motion.js','region-monsters/ember-effects.js','region-monsters/ash-lord-template.js','region-monsters/skills.js','region-monsters/scene.js','sprout-meadow/motion.js','region-monsters/motion.js','sprout-meadow/pixel-shatter.js','sprout-meadow/effects.js','region-monsters/effects.js','region-monsters/studio.js']
+  scripts=[f'region-monsters/{region}.js','region-monsters/toxic-mushroom.js','region-monsters/characters.js','sprout-meadow/renderer.js','region-monsters/iron-guard-break.js','region-monsters/mine-giant-skills.js','region-monsters/mist-wolf-pounce.js','region-monsters/ancient-guard-regen.js','region-monsters/mist-treant-skills.js','region-monsters/ruins-pixels.js','region-monsters/treant-roots.js','region-monsters/treant-dew.js','region-monsters/mine-giant-boss-effects.js','region-monsters/ruins-motion.js','region-monsters/ruins-connected.js','region-monsters/ruins-actors.js','region-monsters/ruins-dark-effects.js','region-monsters/ruins-water-effects.js','region-monsters/ash-lord-template-pixels.js','region-monsters/ember-motion.js','region-monsters/ember-effects.js','region-monsters/ash-lord-template.js','region-monsters/rift-motion.js','region-monsters/rift-effects.js','region-monsters/rift-boss-effects.js','region-monsters/skills.js','region-monsters/scene.js','sprout-meadow/motion.js','region-monsters/motion.js','sprout-meadow/pixel-shatter.js','sprout-meadow/effects.js','region-monsters/effects.js','region-monsters/studio.js']
   html=html.replace('</head>','  <link rel="stylesheet" href="./region-monsters/studio.css">\n'+''.join(f'  <script defer src="./{s}?v={hashlib.sha256((HERE.parent/s).read_bytes()).hexdigest()[:10]}"></script>\n' for s in scripts)+'</head>')
   tabs='\n'.join(f'<button class="monster-tab" data-monster="{key}" aria-pressed="{str(i==0).lower()}"><canvas width="64" height="64" aria-hidden="true"></canvas><span><b>{config["monsters"][key]["name"]}</b><small>{i+1:02} / {key.replace("_"," ").upper()}</small></span><i>{config["monsters"][key]["level"]}</i></button>' for i,key in enumerate(keys))
   html=re.sub(r'(<nav class="monster-tabs"[^>]*>).*?(</nav>)',lambda m:m[1]+tabs+m[2],html,flags=re.S)

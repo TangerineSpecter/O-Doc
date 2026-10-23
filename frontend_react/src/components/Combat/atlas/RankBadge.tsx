@@ -84,52 +84,6 @@ const ELITE_PALETTE = {
 
 const ELITE_LAYERS = parsePixelMap(ELITE_STAR_MAP, ELITE_PALETTE);
 
-// ✔ 完成探险印记：16x16 像素翡翠对勾（饱满粗笔触，高光阴影双层轮廓）
-const DEFEATED_MAP = `
-. . . . . . . . . . . . . . . .
-. . . . . . . . . . . . . . . .
-. . . . . . . . . . . . # # . .
-. . . . . . . . . . . # W # . .
-. . . . . . . . . . # L G # . .
-. . . . . . . . . # L G # . . .
-. . . . . . . . # L G D # . . .
-. . . . . . . # L G D # . . . .
-. . . . . . # L G D # . . . . .
-. # # . . # L G D # . . . . . .
-# W L # # L G D # . . . . . . .
-# L G G G G D # . . . . . . . .
-. # D G G D # . . . . . . . . .
-. . # # # # . . . . . . . . . .
-. . . . . . . . . . . . . . . .
-. . . . . . . . . . . . . . . .
-`;
-
-const DEFEATED_PALETTE = {
-    '#': '#064E3B', // 深墨绿外轮廓
-    'W': '#FFFFFF', // 锐利高光
-    'L': '#A7F3D0', // 亮薄荷绿
-    'G': '#10B981', // 翡翠翠绿
-    'D': '#047857', // 阴影翡翠绿
-};
-
-const DEFEATED_LAYERS = parsePixelMap(DEFEATED_MAP, DEFEATED_PALETTE);
-
-// 迷你像素对勾印（复合在已击败 Boss/精英 角标上的 6x6 像素戳）
-const MINI_CHECK_MAP = `
-. . . . . #
-. . . . # W
-. . . # G #
-# . # G # .
-# W G # . .
-. # # . . .
-`;
-
-const MINI_CHECK_LAYERS = parsePixelMap(MINI_CHECK_MAP, {
-    '#': '#064E3B',
-    'W': '#FFFFFF',
-    'G': '#10B981',
-});
-
 export interface RankIconProps extends React.SVGProps<SVGSVGElement> {
     className?: string;
 }
@@ -172,70 +126,7 @@ export function EliteStarIcon({className = 'w-4 h-4', ...props}: RankIconProps) 
     );
 }
 
-/**
- * 纯正像素翡翠探索完成戳图标 (Pixel Defeated Check)
- */
-export function DefeatedCheckIcon({className = 'w-4 h-4', ...props}: RankIconProps) {
-    return (
-        <svg
-            viewBox="0 0 16 16"
-            aria-hidden="true"
-            shapeRendering="crispEdges"
-            className={`shrink-0 ${className}`}
-            {...props}
-        >
-            {DEFEATED_LAYERS.map((layer, i) => (
-                <path key={i} d={layer.d} fill={layer.color} />
-            ))}
-        </svg>
-    );
-}
-
-/**
- * 迷你像素对勾印 (6x6 像素)
- */
-export function MiniPixelCheckIcon({className = 'w-2 h-2', ...props}: RankIconProps) {
-    return (
-        <svg
-            viewBox="0 0 6 6"
-            aria-hidden="true"
-            shapeRendering="crispEdges"
-            className={`shrink-0 ${className}`}
-            {...props}
-        >
-            {MINI_CHECK_LAYERS.map((layer, i) => (
-                <path key={i} d={layer.d} fill={layer.color} />
-            ))}
-        </svg>
-    );
-}
-
 export type MonsterRank = 'normal' | 'elite' | 'boss';
-
-/**
- * 像素完成 / 已击败印记（无厚重底盘，悬浮在卡片右上角）
- */
-export function DefeatedBadge({
-    title = '已击败',
-    size = 'sm',
-    className = '',
-}: {
-    title?: string;
-    size?: 'sm' | 'md';
-    className?: string;
-}) {
-    const sizeClasses = size === 'sm' ? 'w-[18px] h-[18px]' : 'w-5 h-5';
-
-    return (
-        <div
-            className={`relative flex shrink-0 items-center justify-center filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)] transition-transform duration-100 hover:scale-115 select-none ${sizeClasses} ${className}`}
-            title={title}
-            aria-label={title}
-        >
-            <DefeatedCheckIcon className="h-full w-full" />
-        </div>
-    );
-}
 
 /**
  * 像素精英魔物徽标（无厚重底盘，纯正复古像素紫晶星）
@@ -245,7 +136,6 @@ export function EliteBadge({
     size = 'sm',
     className = '',
 }: {
-    isDefeated?: boolean;
     title?: string;
     size?: 'sm' | 'md';
     className?: string;
@@ -274,7 +164,6 @@ export function BossBadge({
     size = 'sm',
     className = '',
 }: {
-    isDefeated?: boolean;
     isBossOnly?: boolean;
     title?: string;
     size?: 'sm' | 'md';
@@ -298,7 +187,6 @@ export function BossBadge({
 export interface RankBadgeProps {
     rank?: MonsterRank | string;
     isBossOnly?: boolean;
-    isDefeated?: boolean;
     title?: string;
     className?: string;
     size?: 'sm' | 'md';
@@ -352,7 +240,6 @@ export function AtlasStatusBadge({
 }: {
     rank?: MonsterRank | string;
     isBossOnly?: boolean;
-    isDefeated?: boolean;
     size?: 'sm' | 'md';
     className?: string;
 }) {
@@ -410,5 +297,3 @@ export function RankTag({rank = 'normal', children, className = ''}: RankTagProp
         </span>
     );
 }
-
-

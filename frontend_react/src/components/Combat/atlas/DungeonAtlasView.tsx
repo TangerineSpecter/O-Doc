@@ -146,7 +146,6 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
                                 return (
                                     <AtlasGridCard
                                         key={dungeon.id}
-                                        id={dungeon.id}
                                         name={dungeon.name || dungeon.id}
                                         title={`${dungeon.name} · 推荐 Lv.${dungeon.recommendedLevelMin}–${dungeon.recommendedLevelMax}`}
                                         selected={isSelected}

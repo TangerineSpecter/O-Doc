@@ -83,12 +83,6 @@ def get_builtin_system_mcp_scope(mcp_server):
     return BUILTIN_SYSTEM_MCP_SCOPES.get(getattr(mcp_server, 'name', ''))
 
 
-def is_builtin_memo_mcp(mcp_server):
-    return (
-        get_builtin_system_mcp_scope(mcp_server) == 'memos'
-    )
-
-
 def fetch_builtin_system_mcp_tools(scope):
     from system_mcp.views import get_system_mcp_tools_for_scope
 
@@ -96,10 +90,6 @@ def fetch_builtin_system_mcp_tools(scope):
         return [], f"未知系统 MCP 范围：{scope}"
 
     return format_mcp_tools(get_system_mcp_tools_for_scope(scope)), None
-
-
-def fetch_builtin_memo_tools():
-    return fetch_builtin_system_mcp_tools('memos')
 
 
 def call_builtin_system_mcp_tool(scope, tool_name, arguments=None, agent=None):
@@ -112,10 +102,6 @@ def call_builtin_system_mcp_tool(scope, tool_name, arguments=None, agent=None):
         return view._call_tool(tool_name, arguments or {}), None
     except Exception as exc:
         return None, str(exc)
-
-
-def call_builtin_memo_tool(tool_name, arguments=None):
-    return call_builtin_system_mcp_tool('memos', tool_name, arguments or {})
 
 
 def extract_json_from_sse_body(body_text):

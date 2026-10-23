@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {SCENE_H, SCENE_W} from './layout.ts';
-import {RAIN_LAYERS, loopMs, streakPixels, tilesFor, type RainLayerSpec} from './rainPattern.ts';
+import {RAIN_LAYERS, streakPixels, tilesFor, type RainLayerSpec} from './rainPattern.ts';
 
 test('every layer yields one streak per grid cell, inside the tile and without duplicates', () => {
     for (const spec of RAIN_LAYERS) {
@@ -36,12 +36,6 @@ test('far layer is slower than the near layer and the whole scene stays dense bu
     const tiles = (SCENE_W * SCENE_H) / (far.tileW * far.tileH);
     const streaks = RAIN_LAYERS.reduce((n, s) => n + s.cols * s.rows, 0) * tiles;
     assert.ok(streaks >= 80 && streaks <= 160, `streaks=${streaks}`);
-});
-
-test('loop durations are tile size over speed', () => {
-    const {fall, drift} = loopMs({...RAIN_LAYERS[1], tileW: 120, tileH: 60, fall: 30, drift: 10});
-    assert.equal(fall, 2000);
-    assert.equal(drift, 12000);
 });
 
 test('tilesFor adds one tile of slack beyond the scene', () => {

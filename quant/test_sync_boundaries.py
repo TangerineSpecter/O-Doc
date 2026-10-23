@@ -27,7 +27,7 @@ class QuantSyncBoundaryTests(TestCase):
         override.enable()
         self.addCleanup(override.disable)
         self.assertEqual(Path(settings.MEDIA_ROOT).resolve(), self.media_root)
-        self.manager = SyncManager.__new__(SyncManager)
+        self.manager = SyncManager()
 
     def asset(self, identity, *, metadata=None):
         relative = f'code/{identity}.py'
@@ -95,10 +95,10 @@ class QuantSyncBoundaryTests(TestCase):
             with ExitStack() as stack:
                 stubs = {'get_v2_current': remote, 'build_snapshot_data': [], '_build_revision_manifest': {},
                     'merge_v2_data': ([], {}, {}), 'apply_snapshot_data': 0, '_apply_v2_revisions': None,
-                    'reconcile_missing_book_media': {}, '_book_body_paths_from_snapshot': set()}
+                    'reconcile_missing_book_media': {}}
                 for name, result in stubs.items():
                     stack.enter_context(patch.object(self.manager, name, return_value=result))
-                stack.enter_context(patch.object(self.manager, '_restore_v2_media', side_effect=restore_media))
+                stack.enter_context(patch.object(self.manager.media, 'restore_v2_media', side_effect=restore_media))
                 stack.enter_context(patch.object(self.manager, 'publish_v2_snapshot', side_effect=publish))
                 stack.enter_context(patch('article.version_service.enforce_article_version_retention'))
                 stack.enter_context(patch('utils.sync_manager.enforce_novel_revision_retention'))
@@ -113,13 +113,13 @@ class QuantSyncBoundaryTests(TestCase):
         self.assertEqual(list(self.media_root.rglob('*')), [])
 
     def test_legacy_snapshot_rejects_broken_quant_reference_before_media_restore(self):
-        self.manager.data_file = 'isolated-legacy-data.json'
+        self.manager.remote.data_file = 'isolated-legacy-data.json'
         invalid = [{'model': 'quant.entry', 'pk': 'orphan-entry', 'fields': {
             'anthology': 'missing-private-collection', 'title': '来源缺失', 'kind': 'factor',
             'content': '', 'tags': [], 'source_url': '', 'is_valid': True}}]
-        with patch.object(self.manager, '_read_remote_json', return_value=invalid), \
+        with patch.object(self.manager.remote, 'read_json', return_value=invalid), \
                 patch.object(self.manager, 'get_remote_snapshot_meta', return_value={'app_version': '1.4.22'}), \
-                patch.object(self.manager, '_restore_v2_media') as restore_media:
+                patch.object(self.manager.media, 'restore_v2_media') as restore_media:
             with self.assertRaises(SyncError):
                 self.manager._get_legacy_snapshot()
             restore_media.assert_not_called()
@@ -135,7 +135,7 @@ class QuantSyncBoundaryTests(TestCase):
                      'merge_v2_data': (invalid, {}, {})}
             for name, result in stubs.items():
                 stack.enter_context(patch.object(self.manager, name, return_value=result))
-            restore = stack.enter_context(patch.object(self.manager, '_restore_v2_media'))
+            restore = stack.enter_context(patch.object(self.manager.media, 'restore_v2_media'))
             apply = stack.enter_context(patch.object(self.manager, 'apply_snapshot_data'))
             with self.assertRaises(SyncError):
                 self.manager._merge_while_locked(lambda *_args: None, base_snapshot_id='', source='test',

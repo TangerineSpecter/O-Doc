@@ -125,16 +125,6 @@ class ArticleRagScheduler:
         finally:
             self._run_lock.release()
 
-    def run_manual(self, notification_user=None):
-        if not self._run_lock.acquire(blocking=False):
-            return False
-
-        try:
-            self._run(trigger='manual', notification_user=notification_user or 'admin')
-            return True
-        finally:
-            self._run_lock.release()
-
     def run_manual_async(self, notification_user=None):
         if not self._run_lock.acquire(blocking=False):
             return False

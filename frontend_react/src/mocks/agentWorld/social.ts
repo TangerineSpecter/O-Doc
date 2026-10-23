@@ -2,7 +2,7 @@ import {residents, ledger, now, at, day} from './residents';
 import type {Moment, MomentComment, SocialTheatreEvent, SocialConfiguration} from '../../types/api/social';
 import type {Bounty} from '../../types/api/bounty';
 import type {ResidentAnalytics} from '../../types/api/residentAnalytics';
-import type {TokenMetrics, TokenSummary, TokenRequest} from '../../types/api/tokenUsage';
+import type {TokenMetrics} from '../../types/api/tokenUsage';
 
 export const moments: Moment[] = residents.flatMap((r, i) => [0, 1].map(n => ({id: `local-moment-${i * 2 + n}`, actorId: r.id,
     identity: {name: r.name, avatar: ''}, content: ['今天收获了第一批三星草莓！准备做一份草莓布丁，送给一起照料农场的朋友。', '在苔石洞窟找到了新的炼金材料，下一次想试试更深入的路线。'][n],
@@ -48,12 +48,6 @@ export const analytics: ResidentAnalytics = {startDate: at(0, -6).slice(0, 10), 
 };
 export const metrics: TokenMetrics = {inputTokens: 18000, outputTokens: 6400, totalTokens: 24400, requestCount: 12, incompleteCount: 0, executionCount: 8,
     largeModelTokens: 18000, decisionModelTokens: 6400, averageTokens: 2033, collected: true};
-export const tokenSummary: TokenSummary = {...metrics, days: analytics.daily.map(d => ({...metrics, day: d.date})),
-    agents: residents.map(r => ({agentKey: r.id, name: r.name})), tasks: [{taskKey: 'local-task-farm', name: '农场经营'}]};
-export const tokenRequests: TokenRequest[] = residents.map((r, i) => ({id: `local-token-${i}`, agentKey: r.id, agentName: r.name,
-    taskKey: 'local-task-farm', taskName: '农场经营', recordKey: 'local-run', purpose: 'farm', phase: 'decision', modelName: '本地样例模型', modelType: 'decision_model',
-    providerName: '本地样例', attempt: 1, status: 'success', usageComplete: true, startedAt: at(10), endedAt: at(10),
-    inputTokens: 1500, outputTokens: 530, totalTokens: 2030, cachedTokens: 0, reasoningTokens: 0}));
 export const analyticsLedger = ledger.map(r => ({...r, detail: r.detail || '', snapshot: r.snapshot || null}));
 export const worldPosts = residents.map((r, i) => ({id: i + 1, articleId: `local-post-${i}`, collId: 'local-world', title: ['今天的收获与明天的计划', '农场日记：从一粒种子开始', '苔石洞窟的观察笔记', '给朋友准备一份草莓布丁'][i],
     content: '## 生活观察\n\n今天完成了计划中的行动，和朋友分享了新的发现。\n\n### 今日收获\n\n- 记录行动过程\n- 整理经验与收获\n- 为明天留下新的期待',

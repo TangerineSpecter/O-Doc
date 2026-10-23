@@ -230,10 +230,10 @@ class FailoverBehaviorTests(TestCase):
         self.assertEqual(self._scene(), 'rest')
         self.assertTrue(SystemSetting.objects.filter(pk=STICKY_KEY).exists())
         self.assertFalse(SyncEntityState.objects.filter(object_pk=STICKY_KEY).exists())
-        manager = SyncManager.__new__(SyncManager)
-        self.assertFalse(manager._queryset_for_export(SystemSetting).filter(pk=STICKY_KEY).exists())
+        manager = SyncManager()
+        self.assertFalse(manager.models.queryset_for_export(SystemSetting).filter(pk=STICKY_KEY).exists())
         remote = [{'model': 'system_settings.systemsetting', 'pk': STICKY_KEY, 'fields': {'value': {'owner': {}}}}]
-        self.assertEqual(manager._drop_local_only_settings(remote), [])
+        self.assertEqual(manager.models.drop_local_only_settings(remote), [])
 
 
 class FailoverSettingsTests(TestCase):

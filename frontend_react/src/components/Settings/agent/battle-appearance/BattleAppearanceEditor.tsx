@@ -61,7 +61,7 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
     const fileInput=useRef<HTMLInputElement>(null);const referenceInput=useRef<HTMLInputElement>(null);
     const stageCanvas=useRef<HTMLCanvasElement>(null);const frameCanvas=useRef<HTMLCanvasElement>(null);
     const sourceFileRef=useRef<File|null>(null);
-    const sourcePixelsRef=useRef<PixelImage|null>(null);const baseCutoutRef=useRef<PixelImage|null>(null);
+    const sourcePixelsRef=useRef<PixelImage|null>(null);
     const urls=useRef(new Set<string>());const drawing=useRef(false);const lastPoint=useRef<{x:number;y:number}|null>(null);const drawingStroke=useRef<BrushStroke|null>(null);
     const dragFrame=useRef<{x:number;y:number;originX:number;originY:number}|null>(null);
     const generationSubmission=useRef(false);
@@ -117,7 +117,7 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
             else toastRef.current.success(`已移除边缘纯色背景（${result.removed.toLocaleString()} 个像素）`);
         }
         sourceFileRef.current=file;
-        sourcePixelsRef.current=original;baseCutoutRef.current=cutout;
+        sourcePixelsRef.current=original;
         setRestoreDefaultPending(false);
         setSourcePixels(original);setBaseCutout(cutout);setPixels(cutout);setSourceFile(assetId?null:file);setSourceAssetId(assetId);setSourceName(file.name);
         const bounds=restored?.transform.crop||alphaBounds(cutout);
@@ -151,7 +151,7 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
                     const decoded=await decodeFile(file);const cutDecoded=await decodeFile(makeFile(cutoutBlob,'battle-cutout.png'));
                     const original:PixelImage={width:decoded.canvas.width,height:decoded.canvas.height,data:decoded.pixels.data};
                     const cut:PixelImage={width:cutDecoded.canvas.width,height:cutDecoded.canvas.height,data:cutDecoded.pixels.data};
-                    sourceFileRef.current=file;sourcePixelsRef.current=original;baseCutoutRef.current=cut;
+                    sourceFileRef.current=file;sourcePixelsRef.current=original;
                     setSourceFile(null);setSourceAssetId(saved.sourceAssetId);setSourceName(file.name);setSourcePixels(original);setBaseCutout(cut);setPixels(cut);
                     const savedTransform=saved.transform||{x:0,y:0,scale:1};setTransform({...savedTransform});
                     setCrop(savedTransform.crop||alphaBounds(cut));
@@ -233,7 +233,7 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
     const removeBackground=()=>{
         if(!sourcePixels)return;
         const result=removeFlatBackground(sourcePixels,tolerance);const bounds=alphaBounds(result.image);
-        baseCutoutRef.current=result.image;setBaseCutout(result.image);setPixels(result.image);setBrushStrokes([]);setRedoStrokes([]);setCrop(bounds);
+        setBaseCutout(result.image);setPixels(result.image);setBrushStrokes([]);setRedoStrokes([]);setCrop(bounds);
         if(bounds)setTransform(autoCharacterTransform(bounds));
         toast.success(result.alreadyTransparent?'图片已有透明背景，已保留透明像素':`已抠除边缘背景，容差 ${tolerance}`);
     };
@@ -348,7 +348,7 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
 
     const restoreDefault=()=>{
         if(saving||initializing)return;
-        sourceFileRef.current=null;sourcePixelsRef.current=null;baseCutoutRef.current=null;
+        sourceFileRef.current=null;sourcePixelsRef.current=null;
         setRestoreDefaultPending(true);setSourcePixels(null);setBaseCutout(null);setPixels(null);setCrop(null);setSelection(null);
         setSourceFile(null);setSourceAssetId('');setSourceName('');setTransform({x:0,y:0,scale:1});
         setCharacterUrl('');setLegacyHeadUrl('');setBrushStrokes([]);setRedoStrokes([]);

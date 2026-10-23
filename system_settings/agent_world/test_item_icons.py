@@ -13,6 +13,7 @@ from assets.models import Asset
 from assets.serializers import AssetSerializer
 from system_settings.sync_state import LOCAL_ONLY_MODEL_LABELS, suspend_tracking
 from utils.resource_assets import delete_asset_record_and_file
+from utils.sync_media import SnapshotMedia
 from utils.sync_manager import SyncManager
 from .item_icon_images import compress_icon, MAX_BYTES
 from .item_icons import bind_icon, normalize_item_name, upload_icon
@@ -154,7 +155,7 @@ class ItemIconTests(TestCase):
     def test_snapshot_roundtrip_stable_ids_and_metadata(self):
         icon, _ = upload_icon(image_file(), 'icon-owner', '徽章')
         bind_icon(self.item.pk, 'icon-owner', icon.pk)
-        labels = {model._meta.label_lower for model in SyncManager()._iter_target_models()}
+        labels = {model._meta.label_lower for model in SyncManager().models.iter_target_models()}
         self.assertIn('assets.asset', labels)
         self.assertIn('system_settings.agentinventoryitem', labels)
         self.assertNotIn('system_settings.agentinventoryitem', LOCAL_ONLY_MODEL_LABELS)
@@ -170,14 +171,22 @@ class ItemIconTests(TestCase):
         self.assertEqual(restored_icon.source_type, 'item_icon')
         self.assertIn('枫叶徽章', restored_icon.metadata['confirmed_names'])
         self.assertTrue((Path(self.media.name)/restored_icon.file_path).exists())
-        paths, missing = SyncManager()._collect_asset_relative_paths()
+        paths, missing = SyncManager().media.collect_asset_relative_paths()
         self.assertIn(restored_icon.file_path, paths)
         self.assertEqual(missing, [])
-        self.assertEqual(SyncManager._hash_file(str(Path(self.media.name)/restored_icon.file_path)), restored_icon.file_hash)
+        self.assertEqual(SnapshotMedia.hash_file(str(Path(self.media.name)/restored_icon.file_path)), restored_icon.file_hash)
 
     def test_name_normalization_is_conservative(self):
         self.assertEqual(normalize_item_name('  枫叶  徽章 （虚拟商品） '), '枫叶 徽章')
         self.assertNotEqual(normalize_item_name('枫叶纪念徽章'), normalize_item_name('枫叶徽章'))
+
+    def test_unreferenced_uploaded_icon_keeps_resource_read_isolation(self):
+        icon, _ = upload_icon(image_file(), 'icon-owner', '尚未关联的图标')
+        self.assertEqual(self.client.get(f'/api/resource/view/{icon.pk}').status_code, 200)
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.get(f'/api/resource/view/{icon.pk}').status_code, 404)
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(f'/api/resource/view/{icon.pk}').status_code, 404)
 
     def test_generic_delete_list_read_and_upload_protection(self):
         icon, _ = upload_icon(image_file(), 'icon-owner', '徽章')
@@ -194,7 +203,11 @@ class ItemIconTests(TestCase):
         self.assertEqual(self.client.post('/api/resource/create', {'sourceType':'item_icon'}, format='json').status_code, 400)
         self.assertEqual(len(list(Path(self.media.name).rglob('*.webp'))), 1)
         self.client.force_authenticate(self.other)
-        self.assertEqual(self.client.get(f'/api/resource/view/{icon.pk}').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/resource/view/{icon.pk}').status_code, 200)
+        self.assertEqual(self.client.get(self.root+'item-icons/').json()['data']['total'], 0)
+        self.assertEqual(self.client.patch(self.root+f'item-icons/{icon.pk}/', {'name': '越权改名'}, format='json').status_code, 404)
+        self.assertEqual(self.client.delete(self.root+f'item-icons/{icon.pk}/').status_code, 404)
+        self.assertEqual(self.client.patch(self.root+f'inventory/{self.item.pk}/icon/', {'assetId': None}, format='json').status_code, 404)
         self.client.force_authenticate(user=None)
         self.assertIn(self.client.get(self.root+'item-icons/').status_code, [401, 403])
 

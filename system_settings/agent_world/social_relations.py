@@ -2,7 +2,6 @@
 import math
 from datetime import datetime
 from django.db import transaction
-from django.utils import timezone
 from .life_schedule import stable_id
 from .life_time import local_time
 from .social_models import SocialRelation, SocialEvent
@@ -78,17 +77,3 @@ def apply_event(owner, actor, peer, source, appraisal=None, identity=None):
             'rule_effect': {'affinity': delta, 'familiarity': familiarity},
             'actor_identity': {'name': actor_row.name, 'avatar': actor_row.avatar},
             'counterpart_identity': row.counterpart_identity})
-
-
-@transaction.atomic
-def rebuild_relations(owner):
-    """按已持久化的事件结果重建，避免再次调用模型解释历史。"""
-    for event in SocialEvent.objects.filter(owner_id=owner).order_by('created_at', 'pk'):
-        result = event.after
-        SocialRelation.objects.update_or_create(pk=stable_id(owner, event.actor_id, event.counterpart_id), defaults={
-            'owner_id': owner, 'actor_id': event.actor_id, 'counterpart_id': event.counterpart_id,
-            'affinity': result['affinity'], 'familiarity': result['familiarity'], 'band': result['band'],
-            'emotion': result.get('emotion', {}), 'reason': result.get('reason', event.reason),
-            'counterpart_identity': result.get('counterpart_identity', {})})
-    from .social_relation_replay import rebuild_deleted_relations
-    rebuild_deleted_relations(owner)

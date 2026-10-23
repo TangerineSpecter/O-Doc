@@ -36,8 +36,5 @@ export function streakPixels(spec: RainLayerSpec): [number, number][] {
     return out;
 }
 
-/** 图案在垂直和水平方向各走完一块所需的毫秒数；两个方向分开循环，合成斜向下落。 */
-export const loopMs = (spec: RainLayerSpec) => ({fall: spec.tileH / spec.fall * 1000, drift: spec.tileW / spec.drift * 1000});
-
 /** 覆盖 sceneSize 逻辑像素的画面并允许平移一整块图案所需的平铺块数。 */
 export const tilesFor = (sceneSize: number, tileSize: number) => Math.ceil(sceneSize / tileSize) + 1;

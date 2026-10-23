@@ -1,4 +1,4 @@
-import type {CombatAction, CombatEvent, CombatRow} from '../../types/api/combat';
+import type {CombatEvent, CombatRow} from '../../types/api/combat';
 export const elementOrder = ['water', 'fire', 'earth', 'wind', 'light', 'dark'] as const;
 export const elementLabels: Record<string, string> = {water: '水', fire: '火', earth: '土', wind: '风', light: '光', dark: '暗'};
 export const elementStatLabels: Record<string, string> = Object.fromEntries(elementOrder.flatMap(element => {
@@ -47,12 +47,6 @@ export function appendCombatEvents(previous: CombatEvent[], incoming: CombatEven
     const records = new Map(previous.map(row => [row.id, row]));
     for (const row of incoming) records.set(row.id, row);
     return [...records.values()].sort((a, b) => a.sequence - b.sequence);
-}
-export function actionText(action: CombatAction) {
-    if (action.kind === 'kill') return `击败 ${action.monster?.name || '怪物'}，经验 +${action.experience || 0}`;
-    if (action.kind === 'encounter') return `遭遇 ${action.name}`;
-    const elementNote = action.element && elementLabels[action.element] ? `（${elementLabels[action.element]}）` : '';
-    return `${action.actor || ''} · ${action.action || action.kind}${action.hit === false ? '（未命中）' : action.damage != null ? ` → ${action.target || ''} ${action.critical ? '暴击 ' : ''}${action.damage} 伤害${elementNote}${action.absorbed ? `，护盾吸收 ${action.absorbed}` : ''}` : action.healing != null || action.restored != null ? ` +${action.healing ?? action.restored}` : ''}`;
 }
 export const elapsed = (seconds: number) => `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
 

@@ -357,26 +357,6 @@ class RagClient:
         return scored_links
 
     @classmethod
-    def search(cls, query, n_results=3):
-        """检索相关片段 (仅返回文本)"""
-        # 1. 生成查询向量
-        model = cls.get_embedding_model()
-        signature = cls.embedding_model_signature(model) if model else ''
-        query_embeddings = cls.create_embeddings([query], model=model)
-        if not query_embeddings:
-            return []
-
-        # 2. 获取集合 (修复 AttributeError)
-        collection = cls.get_collection(model_signature=signature)
-
-        results = collection.query(
-            query_embeddings=query_embeddings,
-            n_results=n_results
-        )
-
-        return results['documents'][0] if results['documents'] else []
-
-    @classmethod
     def search_with_sources(cls, query_text, n_results=4, coll_id=None):
         """
         检索并返回 (文档内容列表, 来源元数据列表)

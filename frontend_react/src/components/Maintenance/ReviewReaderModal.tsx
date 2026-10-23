@@ -265,7 +265,6 @@ export default function ReviewReaderModal({
                             author={article.author}
                             authorName={article.authorName}
                             attachments={article.attachments}
-                            updatedAt={article.updatedAt}
                             lastRagSyncedAt={article.lastRagSyncedAt}
                             isRagSynced={article.isRagSynced}
                             mindMap={article.mindMap}

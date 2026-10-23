@@ -12,8 +12,6 @@ export const alchemyStateConfigs: Record<AlchemyRecipeState, {label: string; bad
     unselected: {label: '请选择居民', badgeClass: 'bg-slate-50 text-slate-400 border-slate-200', dotClass: 'bg-slate-300'},
 };
 
-export const starLabels = ['一星', '二星', '三星', '四星', '五星'];
-
 /** Star tiers use violet → teal, keeping gold reserved for potion values. */
 export const starTierClass = [
     'border-slate-200 bg-slate-50 text-slate-600',
@@ -22,11 +20,3 @@ export const starTierClass = [
     'border-teal-200 bg-teal-50 text-teal-700',
     'border-amber-300 bg-amber-50 text-amber-700',
 ];
-
-export function percent(value: number) {
-    return `${Math.round(value * 1000) / 10}%`;
-}
-
-export function effectValue(effects: Record<string, number>, key: string) {
-    return effects[key] ?? 0;
-}

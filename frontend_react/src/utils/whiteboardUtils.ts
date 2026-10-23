@@ -54,13 +54,6 @@ export const screenToWorld = (screenX: number, screenY: number, viewOffset: { x:
     };
 };
 
-export const worldToScreen = (worldX: number, worldY: number, viewOffset: { x: number, y: number }, scale: number) => {
-    return {
-        x: worldX * scale + viewOffset.x,
-        y: worldY * scale + viewOffset.y
-    };
-};
-
 export const getEdgeLabelPoint = (
     start: { x: number; y: number },
     end: { x: number; y: number },

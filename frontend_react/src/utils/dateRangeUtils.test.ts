@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import dayjs from 'dayjs';
 import {
     calculateTotalDays,
-    dateRangeToTimestamps,
     formatDisplayRange,
     normalizeDateRange,
     PRESETS,
@@ -68,19 +67,4 @@ test('PRESETS generate accurate day spans and boundaries for last 7, 30, and 90 
 
     const last90 = PRESETS.find(p => p.key === 'last90')!.getRange(ref);
     assert.equal(calculateTotalDays(last90.startDate, last90.endDate), 90);
-});
-
-test('dateRangeToTimestamps converts date strings to exact full-day start and end timestamps', () => {
-    const range = { startDate: '2026-09-24', endDate: '2026-09-30' };
-    const { since, until } = dateRangeToTimestamps(range);
-
-    assert.ok(since !== undefined && until !== undefined);
-    assert.equal(since, dayjs('2026-09-24 00:00:00').unix());
-    assert.equal(until, dayjs('2026-09-30 23:59:59').unix());
-    assert.ok(since < until);
-
-    // Empty range returns undefined
-    const empty = dateRangeToTimestamps(null);
-    assert.equal(empty.since, undefined);
-    assert.equal(empty.until, undefined);
 });

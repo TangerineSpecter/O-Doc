@@ -4,7 +4,6 @@ import copy
 import json
 from decimal import Decimal
 from django.db import transaction
-from utils.ai_service import AIService
 from .life_budget_policy import remaining_reservation, validate_activity_budget
 from .life_models import LifeItem, LifeGoal
 from .life_schedule import OPEN, revise
@@ -12,56 +11,6 @@ from .life_config import tasks_for
 from .life_budget import money, future_allocations
 from .farm_gate import guarded
 from .life_time import local_time
-
-
-import re
-
-
-def parse_life_proposal(raw: str) -> dict:
-    if not raw or not isinstance(raw, str):
-        raise ValueError('生活规划返回内容为空')
-    cleaned = AIService.strip_thinking(raw).strip()
-    if not cleaned:
-        raise ValueError('生活规划未返回有效正文')
-
-    if cleaned.startswith('{') and cleaned.endswith('}'):
-        try:
-            val = json.loads(cleaned)
-            if isinstance(val, dict):
-                return val
-        except Exception:
-            pass
-
-    fence_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', cleaned, re.IGNORECASE)
-    if fence_match:
-        fenced = fence_match.group(1).strip()
-        try:
-            val = json.loads(fenced)
-            if isinstance(val, dict):
-                return val
-        except Exception:
-            pass
-        s = fenced.find('{')
-        e = fenced.rfind('}')
-        if s != -1 and e > s:
-            try:
-                val = json.loads(fenced[s:e + 1])
-                if isinstance(val, dict):
-                    return val
-            except Exception:
-                pass
-
-    s = cleaned.find('{')
-    e = cleaned.rfind('}')
-    if s != -1 and e > s:
-        try:
-            val = json.loads(cleaned[s:e + 1])
-            if isinstance(val, dict):
-                return val
-        except Exception as exc:
-            raise ValueError(f'生活规划 JSON 内容格式无效：{exc}') from exc
-
-    raise ValueError('生活规划未返回合法的 JSON 对象')
 
 
 from system_settings.agent_availability import require_active_agent
@@ -83,7 +32,7 @@ def ask(agent, instruction: str, context: dict, *, include_profile: bool = True,
     prompt = system_text + '\n' + instruction + '\n' + json.dumps(model_context, ensure_ascii=False, default=str)
     from .life_output_validation import validate_life_output
     return complete_json(agent, prompt, lambda value: validate_life_output(value, instruction, model_context), decision=True, scene='整日日程规划' if context.get('daily_planning') else '生活规划',
-                         check=lambda: require_active_agent(agent), deadline=context.get('_request_deadline'))
+                         check=lambda: require_active_agent(agent))
 
 
 def ask_detail(agent, instruction: str, context: dict) -> dict:
@@ -274,8 +223,7 @@ def _plan_items(config, agent, items: list[LifeItem], *, preserve_activities: bo
         items = [item for item in items if needs_replanning(config.pk, agent, item)]
     if preserve_activities:
         from .life_sequential_planner import plan_slots
-        selected = plan_slots(config, agent, items, apply=apply_plan, ask=ask, ask_detail=ask_detail,
-                              preserve_activities=True)
+        selected = plan_slots(config, agent, items, apply=apply_plan)
     else:
         from .life_daily_planner import plan_days
         selected = plan_days(config, agent, items, apply=apply_plan, ask=ask, ask_detail=ask_detail)

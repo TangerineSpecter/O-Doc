@@ -5,9 +5,7 @@ export interface PixelImage {
 }
 
 export interface CropRect {x: number; y: number; width: number; height: number}
-export interface HeadTransform {x: number; y: number; scale: number; neckAnchor?: {x: number; y: number}; hairLayer?: 'front' | 'behind'}
 export interface CharacterTransform {x: number; y: number; scale: number}
-export const HEAD_ART_FRAME = {width: 374, height: 528, neck: {x: 187, y: 310}};
 export const BATTLE_CHARACTER_MIN_SCALE = 0.01;
 export const BATTLE_CHARACTER_MAX_SCALE = 4;
 export const BATTLE_CHARACTER_FRAME = {width: 374, height: 528};
@@ -36,14 +34,6 @@ export function renderCharacterFrame(sourceCanvas: HTMLCanvasElement, crop: Crop
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(sourceCanvas, crop.x, crop.y, crop.width, crop.height, placement.x, placement.y, placement.width, placement.height);
     return {canvas, clipped: placement.clipped};
-}
-
-export function autoHeadTransform(bounds: CropRect, neckAnchor?: {x: number; y: number}, hairLayer: HeadTransform['hairLayer'] = 'front'): HeadTransform {
-    const anchor = neckAnchor || {x: bounds.x + Math.floor((bounds.width - 1) / 2), y: bounds.y + bounds.height - 1};
-    const above = Math.max(1, anchor.y - bounds.y);
-    const below = Math.max(1, bounds.y + bounds.height - anchor.y);
-    const scale = Math.max(.1, Math.min(4, 374 / bounds.width * .88, 310 / above * .96, 218 / below * .96));
-    return {x: 0, y: 0, scale, neckAnchor: anchor, hairLayer};
 }
 
 const colorDistance = (data: Uint8ClampedArray, offset: number, color: [number, number, number]) =>
@@ -156,30 +146,4 @@ export function applyBrushStroke(image: PixelImage, original: PixelImage, points
         }
     }
     return {...image, data};
-}
-
-export function renderHeadFrame(sourceCanvas: HTMLCanvasElement, crop: CropRect, transform: HeadTransform) {
-    const canvas = document.createElement('canvas');
-    canvas.width = HEAD_ART_FRAME.width; canvas.height = HEAD_ART_FRAME.height;
-    const context = canvas.getContext('2d', {willReadFrequently: true});
-    if (!context) throw new Error('无法初始化像素画布');
-    context.imageSmoothingEnabled = false;
-    const width = Math.max(1, Math.round(crop.width * transform.scale));
-    const height = Math.max(1, Math.round(crop.height * transform.scale));
-    const placement = headFramePlacement(crop, transform);
-    const {x, y} = placement;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(sourceCanvas, crop.x, crop.y, crop.width, crop.height, x, y, width, height);
-    return {canvas, clipped: placement.clipped};
-}
-
-/** The neck stays at the body seam while hair may extend below it. */
-export function headFramePlacement(crop: CropRect, transform: HeadTransform) {
-    const width = Math.max(1, Math.round(crop.width * transform.scale));
-    const height = Math.max(1, Math.round(crop.height * transform.scale));
-    const anchor = transform.neckAnchor;
-    // Old configurations used the centre of the 374×310 head region.
-    const x = Math.round((anchor ? HEAD_ART_FRAME.neck.x - (anchor.x - crop.x) * width / crop.width : (374 - width) / 2) + transform.x);
-    const y = Math.round((anchor ? HEAD_ART_FRAME.neck.y - (anchor.y - crop.y) * height / crop.height : (310 - height) / 2) + transform.y);
-    return {x, y, width, height, clipped: x < 0 || y < 0 || x + width > HEAD_ART_FRAME.width || y + height > HEAD_ART_FRAME.height};
 }

@@ -5,13 +5,20 @@
   function sample(key,p,t){
     Object.assign(p,{ruinsSkill:true,ruinsMonster:key,charge:0,swing:0,walk:0,x:0,y:0,sx:1,sy:1,tilt:0,weapon:0,weaponLift:0,shield:0,hand:0,lean:0});
     if(key==='ruin_skeleton'){
-      const up=ease(t/.62)*(1-ease((t-.7)/.2)),cut=ease((t-.7)/.2)*(1-ease((t-1.2)/.7));
-      p.weapon=1.95*up-.82*cut;p.weaponLift=5*up;p.lean=-.08*up+.1*cut;
-      p.x=p.facing*(-3*up+9*cut);p.y=2*cut;p.hand=-.12*cut;
+      const ready=ease(t/.62),swing=ease((t-.72)/.24),recover=ease((t-1.3)/.8);
+      const held=1-recover;
+      p.wristX=33+((-8*ready)*(1-swing)+39*swing)*held;
+      p.wristY=81+((-35*ready)*(1-swing)-17*swing-16*Math.sin(swing*Math.PI))*held;
+      p.weapon=(-2.2*ready*(1-swing)-.85*swing)*held;
+      p.lean=(-.055*ready*(1-swing)+.07*swing)*held;
+      p.x=p.facing*(-3*ready*(1-swing)+10*swing)*held;p.y=2*swing*held;
     }else if(key==='ruin_knight'){
-      const brace=ease(t/.5)*(1-ease((t-1.12)/.5)),cut=ease((t-1.08)/.24)*(1-ease((t-1.68)/.65));
-      p.shield=-.25*brace;p.weapon=.25*brace-1.6*cut;p.weaponLift=3*cut;
-      p.lean=-.065*brace+.1*cut;p.x=p.facing*(-5*brace+10*cut);p.y=2*brace;
+      const brace=ease(t/.5)*(1-ease((t-1.25)/.6)),ready=ease(t/.72),cut=ease((t-1.08)/.3),recover=ease((t-1.7)/.65),held=1-recover;
+      p.shield=-.3*brace;p.shieldX=4*brace;p.shieldY=-9*brace;
+      p.wristX=42+(-10*ready*(1-cut)+22*cut)*held;
+      p.wristY=77+(-7*ready*(1-cut)-22*cut)*held;
+      p.weapon=(.3*ready*(1-cut)-1.7*cut)*held;
+      p.lean=(-.05*brace+.06*cut)*held;p.x=p.facing*(-4*brace+9*cut)*held;p.y=2*brace;
     }else if(key==='water_spirit'){
       const gather=ease(t/.62)*(1-ease((t-.7)/.24)),push=ease((t-.72)/.28)*(1-ease((t-1.2)/.6));
       p.waterGather=gather;p.waterPush=push;p.sy=1-.17*gather+.09*push;p.sx=1+.12*gather-.06*push;

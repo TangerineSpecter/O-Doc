@@ -53,7 +53,7 @@
 - 同一居民一小时最多一次进场；错过整点不补跑。
 - 批量处置与采购走 `market_batch.execute`，直接调用 `market_service.trade`，不经过 20 次工具调用计数；每笔使用稳定请求键，单笔失败只记录原因。顺序为：撤回/改价 → 库存出售/上架 → 已确认装备处置意向 → 采购。装备意向不重新询问用途；出售直接执行，挂牌价格从既有五档有限选择。已选价格按意向事实ID保存在同步的市场计划答案中；失败或恢复后沿用。仅有待挂牌且缺少定价场景/连接时不进场，不白扣体力。出售和上架共享星级顺序，上架选行跳过本轮已分给出售的数量，避免重复分配同一批库存；常驻肥料不受有限商品库存字段限制。
 
-代码入口：`market_tick.py`、`market_bait_refresh.py`、`market_batch.py`、`market_no_buy.py`、`action_runner.tick`。
+代码入口：`market_tick.py`、`market_bait_refresh.py`、`market_batch.py`、`market_no_buy.py`、`world_cycle.tick`。
 
 ## 五、预算与收入
 

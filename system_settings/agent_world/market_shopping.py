@@ -16,11 +16,6 @@ def farm_summary(context: dict) -> dict | None:
             'buildings': farm['buildings'], 'animals': len(farm['animals'])}
 
 
-def recipe_summary(recipe: dict) -> dict:
-    return {key: recipe[key] for key in ('id', 'sku', 'name', 'ingredients', 'required_level', 'state')
-            if key in recipe}
-
-
 def planting_summary(planting: dict) -> dict:
     return {'fertilizers': {kind: {'quantity': row['quantity'], 'quote': row.get('quote')}
                            for kind, row in planting.get('fertilizers', {}).items()},

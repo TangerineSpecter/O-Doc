@@ -46,7 +46,7 @@ Agent 管理 → 任务分配 → 空档活动 → 空档总开关与节奏，�
 
 ## 接口、展示与同步
 
-沿用生活配置及日程接口，无额外立即启动接口。设置增加 `interleaving_enabled`、`interleaving_check_minutes`、`interleaving_decision_minutes`、`interleaving_wait_minutes`。日程增加 `source`、`actual_started_at`、`actual_ended_at`、`actual_energy_cost`、`domain_detail`；详情增加 `activity_usage`。列表批量查询业务事实，缺失值为null。今日日程、周日程和列表显示空档穿插标签，主日程与穿插统计分开。
+沿用生活配置及日程接口，无额外立即启动接口。设置增加 `interleaving_enabled`、`interleaving_check_minutes`、`interleaving_decision_minutes`、`interleaving_wait_minutes`。日程增加 `source`、`actual_started_at`、`actual_ended_at`、`actual_energy_cost`、`domain_detail`；详情增加 `activity_usage`。列表批量查询业务事实，缺失值为null。今日日程、周日程和列表将空档穿插展示为「自由活动」标签，主日程与穿插统计分开。
 
 新增迁移 `0089_life_interleaving`。配置、调度状态、业务记录及检查点都进入WebDAV；线程、执行租约和本机授权不复制。旧快照缺少新表摘要时，只允许补入空表摘要，配置缺省为关闭。来源、合并及恢复核对居民归属、活动、检查点和关联日程；重复恢复不会启动行动。恢复后仍需本机授权。
 

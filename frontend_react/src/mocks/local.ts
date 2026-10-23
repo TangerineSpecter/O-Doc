@@ -1,7 +1,7 @@
 import {delay, http, HttpResponse} from 'msw';
 import {resolveLocalRoute} from './agentWorld/routes';
 import {resolveQuantRoute} from './quant/routes';
-import packageJson from '../../package.json';
+import packageJson from '../../package.json' with {type: 'json'};
 
 export const localHandlers = [
     http.get('https://api.github.com/repos/TangerineSpecter/O-Doc/tags', () => HttpResponse.json([{name: `v${packageJson.version}`, commit: {sha: '0'.repeat(40)}}])),

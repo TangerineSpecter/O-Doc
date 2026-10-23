@@ -1,8 +1,7 @@
-import type {FlowBlock, FlowStep, TokenRequest, TokenRequestContent} from '../types/api/tokenUsage';
-import {purposeNames} from './tokenUsage';
+import type {FlowBlock} from '../types/api/tokenUsage';
 
 /**
- * 执行流程视图的纯解析逻辑：把一次执行的模型请求正文拆成「输入分段小卡片 + 输出卡片」。
+ * 执行观测界面的纯解析逻辑：把模型请求正文拆成输入分段与输出内容。
  * 只做数据变形与度量，不依赖 React，便于单测。
  */
 
@@ -293,62 +292,4 @@ export function outputFromResponse(response: unknown): {blocks: FlowBlock[]; sum
     }
     if (!blocks.length) blocks.push(makeBlock('out-empty', '输出', '（本次没有输出内容）'));
     return {blocks, summary: outputSummaryOf(parts)};
-}
-
-export function flowStepsFromRequests(
-    requests: TokenRequest[],
-    contents: Record<string, TokenRequestContent | null>
-): FlowStep[] {
-    // 请求列表接口按时间倒序分页；流程中的编号和箭头必须沿实际执行顺序。
-    const ordered = [...requests].sort((left, right) =>
-        Date.parse(left.startedAt) - Date.parse(right.startedAt)
-        || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
-    );
-    return ordered.map((request, index) => {
-        const loaded = Object.prototype.hasOwnProperty.call(contents, request.id);
-        const content = loaded ? contents[request.id] : undefined;
-        const output = outputFromResponse(content?.response);
-        const step: FlowStep = {
-            id: request.id,
-            index: index + 1,
-            title: request.phase || purposeNames[request.purpose] || request.purpose,
-            purposeLabel: purposeNames[request.purpose] || request.purpose,
-            modelName: request.modelName,
-            modelType: request.modelType,
-            agentName: request.agentName,
-            startedAt: request.startedAt,
-            totalTokens: request.totalTokens,
-            inputs: [],
-            output: output?.blocks ?? [],
-            outputSummary: output?.summary ?? (request.status === 'running' ? '执行中…' : '无输出内容'),
-            rawRequest: content?.request,
-            rawResponse: content?.response,
-        };
-        if (!loaded) step.unavailable = '正在读取正文…';
-        else if (!content) step.unavailable = '请求正文读取失败';
-        else if (!content.available) step.unavailable = content.message || '请求正文未记录或已超过 30 天保留期';
-        else step.inputs = inputBlocksFromRequest(content.request);
-        return step;
-    });
-}
-
-export interface FlowTotals {
-    steps: number;
-    tokens: number;
-    inputChars: number;
-    outputChars: number;
-    ready: number;
-}
-
-export function flowTotals(steps: FlowStep[]): FlowTotals {
-    return steps.reduce<FlowTotals>(
-        (totals, step) => ({
-            steps: totals.steps + 1,
-            tokens: totals.tokens + (step.totalTokens ?? 0),
-            inputChars: totals.inputChars + step.inputs.reduce((sum, block) => sum + block.chars, 0),
-            outputChars: totals.outputChars + step.output.reduce((sum, block) => sum + block.chars, 0),
-            ready: totals.ready + (step.unavailable ? 0 : 1),
-        }),
-        {steps: 0, tokens: 0, inputChars: 0, outputChars: 0, ready: 0}
-    );
 }

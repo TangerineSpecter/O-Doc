@@ -37165,7 +37165,7 @@
     ]
   },
   "fishing": {
-    "version": "fishing-1.0.0",
+    "version": "fishing-1.1.0",
     "spots": {
       "pond": {
         "name": "青苇池塘",
@@ -37207,7 +37207,7 @@
       "name": "普通钓竿",
       "bonus": 0
     },
-    "intervalSeconds": 300,
+    "intervalSeconds": 60,
     "energyCost": 2,
     "durations": [
       30,

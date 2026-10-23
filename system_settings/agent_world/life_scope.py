@@ -37,11 +37,6 @@ def manual_combat_potion_owner(actor_id: str) -> str | None:
     return scope['owner_id'] if scope and scope['actor_id'] == actor_id else None
 
 
-def enrich(context):
-    scope = CURRENT.get()
-    return {**context, 'life': scope['context']} if scope else context
-
-
 def allowed(task, actor_id):
     from system_settings.models import Agent
     if not Agent.objects.filter(pk=actor_id, archived_at__isnull=True).exists():

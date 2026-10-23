@@ -6,10 +6,9 @@ import os
 from datetime import timedelta
 
 from django.db import OperationalError, ProgrammingError
-from django.db.models import Q
 from django.utils import timezone
 
-from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory
+from system_settings.models import AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory
 from utils.ai_service import AIService
 from utils.id_generator import generate_agent_conversation_id
 from utils.rag_client import RagClient
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 AGENT_MEMORY_COLLECTION = 'odoc_agent_short_term_memory'
 DEFAULT_MEMORY_TTL_DAYS = 30
 DEFAULT_RECALL_LIMIT = 5
-DEFAULT_LONG_TERM_LIMIT = 12
 PROMOTION_RECALL_COUNT = 3
 PROMOTION_BEST_SCORE = 0.8
 PROMOTION_QUERY_SOURCE_COUNT = 3
@@ -121,25 +119,6 @@ def build_memory_context(agent, record, user_text):
             })
 
     return messages
-
-
-def get_long_term_memories_for_record(agent, record, limit=DEFAULT_LONG_TERM_LIMIT):
-    base_queryset = AgentLongTermMemory.objects.filter(
-        agent=agent,
-        status=AgentLongTermMemory.STATUS_ACTIVE,
-    )
-    if record.sender_id:
-        queryset = base_queryset.filter(Q(sender_id=record.sender_id) | Q(scope='agent', sender_id='', chat_id=''))
-    else:
-        queryset = base_queryset.filter(Q(sender_id='', chat_id=record.chat_id or '') | Q(scope='agent', sender_id='', chat_id=''))
-
-    memories = list(queryset.order_by('-confidence', '-updated_at')[:limit])
-    if memories:
-        memory_queryset = AgentLongTermMemory.objects.filter(id__in=[memory.id for memory in memories])
-        from system_settings.sync_state import record_bulk_change
-        record_bulk_change(memory_queryset)
-        memory_queryset.update(last_recalled_at=timezone.now())
-    return memories
 
 
 def recall_short_term_memories(agent, record, query_text, limit=DEFAULT_RECALL_LIMIT):

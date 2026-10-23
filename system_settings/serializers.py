@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 
 from rest_framework import serializers
-from .models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
+from .models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, GeoLocation
 from .agent_world.scope_validation import PostScopeValidation
 from .agent_world.farm_gate import guarded as farm_guarded
 
@@ -62,12 +62,6 @@ class AIProviderSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'baseUrl': 'New API 地址应填写实例地址或以 /v1 结尾的 API 地址'})
         attrs['base_url'] = base_url if parsed.path else f'{base_url}/v1'
         return attrs
-
-class SystemSettingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SystemSetting
-        fields = ['key', 'value']
-
 
 class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
     archived = serializers.BooleanField(read_only=True)

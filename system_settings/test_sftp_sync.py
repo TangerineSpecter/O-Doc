@@ -74,12 +74,12 @@ class SftpSyncFlowTests(TestCase):
     def test_manual_sftp_failure_releases_lock_and_retry_preserves_stock(self):
         self.listing()
         first, _, _ = self.manager.sync_v2(manual_upload=True, force_overwrite=True)
-        pointer = self.server.storage.files[self.manager.v2_current_file]
+        pointer = self.server.storage.files[self.manager.remote.v2_current_file]
         self.server.fail_snapshot_upload = True
         with self.assertRaises(SyncError):
             self.manager.sync_v2(manual_upload=True, force_overwrite=True)
-        self.assertEqual(self.server.storage.files[self.manager.v2_current_file], pointer)
-        self.assertNotIn(self.manager.v2_dir + '/.sync-lock', self.server.storage.directories)
+        self.assertEqual(self.server.storage.files[self.manager.remote.v2_current_file], pointer)
+        self.assertNotIn(self.manager.remote.v2_dir + '/.sync-lock', self.server.storage.directories)
         self.server.fail_snapshot_upload = False
         second, _, _ = self.manager.sync_v2(manual_upload=True, force_overwrite=True)
         self.assertNotEqual(first['meta']['snapshot_id'], second['meta']['snapshot_id'])
@@ -120,7 +120,7 @@ class SftpSyncFlowTests(TestCase):
         self.assertEqual(failed['status'], 'error')
         self.assertEqual(failed['auto_sync_consecutive_failures'], 1)
         self.assertTrue(failed['auto_sync_next_retry_at'])
-        self.assertNotIn(self.manager.v2_dir + '/.sync-lock', self.server.storage.directories)
+        self.assertNotIn(self.manager.remote.v2_dir + '/.sync-lock', self.server.storage.directories)
         self.server.fail_snapshot_upload = False
         scheduler._run_sync(config, failed)
         recovered = get_runtime_state()
@@ -131,19 +131,19 @@ class SftpSyncFlowTests(TestCase):
 
     def test_unreadable_sftp_destination_never_publishes_an_empty_replacement(self):
         self.manager.sync_v2(manual_upload=True, force_overwrite=True)
-        pointer = self.server.storage.files[self.manager.v2_current_file]
+        pointer = self.server.storage.files[self.manager.remote.v2_current_file]
         original = self.server.open
 
         def denied(path, mode):
-            if path == self.manager.v2_current_file:
+            if path == self.manager.remote.v2_current_file:
                 raise PermissionError(errno.EACCES, 'denied', path)
             return original(path, mode)
 
         with patch.object(self.server, 'open', side_effect=denied):
             with self.assertRaises(OSError):
                 self.manager.sync_v2(source='scheduler')
-        self.assertEqual(self.server.storage.files[self.manager.v2_current_file], pointer)
-        self.assertNotIn(self.manager.v2_dir + '/.sync-lock', self.server.storage.directories)
+        self.assertEqual(self.server.storage.files[self.manager.remote.v2_current_file], pointer)
+        self.assertNotIn(self.manager.remote.v2_dir + '/.sync-lock', self.server.storage.directories)
 
 
 class SftpDirectoryErrorTests(TestCase):

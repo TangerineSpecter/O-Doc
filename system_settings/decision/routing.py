@@ -92,14 +92,12 @@ def report(scene, model_id, exc):
     logger.warning('Model fallback scene=%s model=%s failure=%s', scene, model_id, type(exc).__name__)
 
 
-def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None, deadline=None,
+def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None,
                scene='模型请求', check=None, model_only=False):
     """invoke must perform no replayable writes; tool callers retain their effect ledger.
 
-    ``deadline`` is not a shared pool. A provider that hangs does not stop the
-    next provider with 「当前阶段总时限已耗尽」.
+    A provider that hangs does not reduce the next provider's request window.
     """
-    _ = deadline
     models = candidates(agent, task=task, decision=decision, owner=owner, model_only=model_only)
     last = None
     for identity in models:
@@ -130,10 +128,8 @@ def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None
 
 
 def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision=False, owner=None,
-                  deadline=None, seconds=180, scene='模型请求', check=None, max_tokens=None, passthrough=(),
+                  scene='模型请求', check=None, max_tokens=None, passthrough=(),
                   model_only=False, repair_invalid=True, attempt_seconds=None):
-    # Callers still pass a stage clock. It does not size or cancel later providers.
-    _ = (deadline, seconds)
     window_seconds = MODEL_ATTEMPT_SECONDS if attempt_seconds is None else float(attempt_seconds)
     if not 0 < window_seconds < float('inf'):
         raise ValueError('模型等待时间必须为正数')
@@ -169,7 +165,7 @@ def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision
                     raise InvalidModelOutput('模型输出未通过场景校验：' + reason) from exc
                 repair_used = True
                 text = prompt + '\n上次输出未通过校验，请只返回规定JSON并遵守候选与字段要求。校验原因：' + reason
-    return run_models(agent, invoke, task=task, decision=decision, owner=owner, deadline=deadline,
+    return run_models(agent, invoke, task=task, decision=decision, owner=owner,
                       scene=scene, check=check, model_only=model_only)
 
 

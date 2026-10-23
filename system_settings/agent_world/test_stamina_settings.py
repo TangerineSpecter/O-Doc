@@ -72,8 +72,8 @@ class StaminaSettingsTests(TestCase):
         from system_settings.models import SyncEntityState
         self.change_rate(10, self.now)
         self.change_rate(0, self.now + timedelta(hours=1))
-        manager = SyncManager.__new__(SyncManager)
-        rows = manager._queryset_for_export(SystemSetting).filter(pk=SETTING_KEY)
+        manager = SyncManager()
+        rows = manager.models.queryset_for_export(SystemSetting).filter(pk=SETTING_KEY)
         data = json.loads(serializers.serialize('json', rows))
         validate_snapshot(data)
         self.assertTrue(SyncEntityState.objects.filter(model_label='system_settings.systemsetting', object_pk=SETTING_KEY).exists())

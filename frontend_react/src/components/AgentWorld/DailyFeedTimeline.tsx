@@ -180,6 +180,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                     {event.category === 'travel' && event.status === 'success' && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">已返程</span>}
                     {event.category === 'travel' && event.status === 'waiting' && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">等待恢复</span>}
                     {event.category === 'travel' && event.status === 'manual' && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">需要处理</span>}
+                    {event.category === 'fishing' && event.status === 'paused' && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">已暂停</span>}
                     {event.category === 'travel' && event.status === 'paused' && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">已暂停</span>}
                     <time className="ml-auto text-xs tabular-nums text-slate-400" dateTime={event.occurredAt}>{clock(event.occurredAt)}</time>
                 </div>

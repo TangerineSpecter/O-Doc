@@ -297,7 +297,6 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                 return (
                                     <AtlasGridCard
                                         key={equip.id}
-                                        id={equip.id}
                                         name={equip.name || equip.id}
                                         title={`${equip.name} · ${equipmentSlotLabel(equip.slot || '', String(equip.equipmentType || ''))}${equip.equipmentType ? ` · ${equipmentTypeLabels[equip.equipmentType] || equip.equipmentType}` : !equip.rootJob && !equip.requiredMastery ? ` · ${equipmentTypeLabels.generic}` : ''} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
                                         selected={isSelected}

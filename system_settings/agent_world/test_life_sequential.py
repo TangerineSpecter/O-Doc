@@ -75,15 +75,26 @@ class SequentialPlanningTests(TestCase):
                                        original_at=point, scheduled_at=point,
                                        activity=activity, context=context or {})
 
-    def test_first_cooking_plan_removes_food_from_second_slot(self):
+    def confirmed_cooking_item(self, key):
+        item = self.item(key, 'cooking')
+        plan = decide_plan(self.agent, 'admin', planning_facts('admin', self.agent),
+                           key=item.pk, task=self.task,
+                           decide=lambda scene, state, choices: next(iter(choices)))
+        item.task_id = self.task.pk
+        item.context = {'cooking_plan': plan}
+        item.save()
+        return item
+
+    def test_saved_cooking_plan_reserves_materials_until_cancelled(self):
         self.supply(quantity=2)
-        one, two = self.item('first'), self.item('second')
+        one, two = self.confirmed_cooking_item('first'), self.item('second')
         with patch('system_settings.agent_world.life_choices.choose_scene', side_effect=AssertionError('唯一候选不应请求模型')):
-            plan_items(self.config, self.agent, [two, one])
+            plan_items(self.config, self.agent, [two])
         one.refresh_from_db(); two.refresh_from_db()
         self.assertEqual(one.activity, 'cooking')
         self.assertEqual(one.context['cooking_plan']['entries'][0]['quantity'], 1)
         self.assertEqual(two.activity, 'rest')
+        self.assertNotIn('cooking_plan', two.context)
         self.assertEqual(stock_quantity(self.agent.pk, 'admin', 'crop.potato'), 2)
         self.assertFalse(recipe_options(DEFAULT_RULES, 1, available_pool('admin', self.agent.pk), 100))
         revise(one, '取消计划', status='cancelled')
@@ -164,8 +175,7 @@ class SequentialPlanningTests(TestCase):
 
     def test_saved_plan_executes_without_redrawing_recipe(self):
         self.supply(quantity=2)
-        item = self.item('cooking')
-        plan_items(self.config, self.agent, [item]); item.refresh_from_db()
+        item = self.confirmed_cooking_item('cooking')
         item.context['manual'] = True; item.save()
         from .life_scope import life_scope
         from .cooking_runner import run_cooking_opportunity
@@ -184,8 +194,7 @@ class SequentialPlanningTests(TestCase):
         from .life_scope import life_scope
         from .travel_models import AgentInventoryItem
         reserved = self.supply(quantity=2)
-        item = self.item('reserved')
-        plan_items(self.config, self.agent, [item]); item.refresh_from_db()
+        item = self.confirmed_cooking_item('reserved')
         add_stock(self.agent.pk, 'admin', self.agent.name, 'crop.potato', 2,
                   '土豆', 'farm_product', 40, stars=stars)
         with patch('system_settings.agent_world.life_choices.choose_scene', side_effect=AssertionError('唯一候选')):
@@ -224,14 +233,6 @@ class SequentialPlanningTests(TestCase):
                     key='preferences', task=self.task, decide=select)
         self.assertEqual(set(scenes), {'cooking_recipe', 'cooking_quantity',
                                        'cooking_ingredient_strategy', 'cooking_continue'})
-
-    def test_schedule_planning_passes_configured_task_preference(self):
-        self.task.prompt = '今天只做一份土豆'
-        self.task.save()
-        self.supply(quantity=2)
-        with patch('system_settings.agent_world.cooking_schedule_plan.decide_plan', wraps=decide_plan) as decide:
-            plan_items(self.config, self.agent, [self.item('preference')])
-        self.assertEqual(decide.call_args.args[2]['task_preference'], self.task.prompt)
 
     def test_manual_decision_passes_task_preference_to_model(self):
         from .cooking_runner import decide
@@ -300,8 +301,7 @@ class SequentialPlanningTests(TestCase):
 
     def test_plan_validation_and_new_sync_manifest(self):
         self.supply(quantity=2)
-        item = self.item('saved')
-        plan_items(self.config, self.agent, [item]); item.refresh_from_db()
+        item = self.confirmed_cooking_item('saved')
         from django.core import serializers
         import json
         from .cooking_schedule_sync import validate_source
@@ -314,8 +314,7 @@ class SequentialPlanningTests(TestCase):
 
     def test_synced_pending_plan_keeps_reservation_without_cooking(self):
         self.supply(quantity=2)
-        item = self.item('pending')
-        plan_items(self.config, self.agent, [item])
+        item = self.confirmed_cooking_item('pending')
         from utils.sync_manager import SyncManager, SyncError
         from .cooking_models import CookingOperation
         manager = SyncManager()
@@ -334,8 +333,7 @@ class SequentialPlanningTests(TestCase):
 
     def test_schedule_detail_exposes_typed_camel_case_cooking_plan(self):
         self.supply(quantity=2)
-        item = self.item('detail')
-        plan_items(self.config, self.agent, [item])
+        item = self.confirmed_cooking_item('detail')
         response = self.client.get(f'/api/settings/agent-world/life/schedule/{item.pk}/')
         self.assertEqual(response.status_code, 200)
         plan = response.json()['data']['context']['cookingPlan']
@@ -354,18 +352,21 @@ class SequentialPlanningTests(TestCase):
         self.assertNotIn('cooking_ingredient_strategy', calls)
 
     def test_user_edit_during_decision_is_not_overwritten(self):
-        self.supply(quantity=4)
+        AgentTask.objects.create(task_kind='investment', name='投资', enabled=True, agent=self.agent,
+                                 investment_config={'owner_id': 'admin'})
         item = self.item('edited')
-        def edit_then_choose(*args, **kwargs):
+        item.scheduled_at += timedelta(days=(7 - item.scheduled_at.weekday()) % 7)
+        item.save()
+        def edit_then_choose(agent, instruction, context, **kwargs):
             current = LifeItem.objects.get(pk=item.pk)
             current.intent = '用户刚刚修改'; current.save()
-            return '1'
-        with patch('system_settings.agent_world.life_choices.choose_scene', side_effect=edit_then_choose):
-            with self.assertRaisesMessage(ValueError, '决策期间发生变化'):
+            return {'plans': [{'id': item.pk, 'activity': 'investment', 'reason': '安排投资'}]}
+        with patch('system_settings.agent_world.life_planner.ask', side_effect=edit_then_choose):
+            with self.assertRaisesMessage(ValueError, '日程在规划期间发生变化'):
                 plan_items(self.config, self.agent, [item])
         item.refresh_from_db()
         self.assertEqual(item.intent, '用户刚刚修改')
-        self.assertNotIn('cooking_plan', item.context)
+        self.assertNotIn('daily_choice', item.context)
 
     def test_empty_candidates_rest_without_any_model_even_with_goals(self):
         from .life_models import LifeGoal

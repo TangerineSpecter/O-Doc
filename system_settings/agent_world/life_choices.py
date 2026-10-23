@@ -42,7 +42,7 @@ def choose(agent, owner: str, scene: str, state: dict, choices: dict, *, task=No
         with usage_scope(owner_id=owner, agent=agent, task=task,
                          purpose='task' if task else 'planning', phase=scene):
             result = complete_json(agent, prompt, validate, task=task, decision=True, owner=owner,
-                                   scene=scene, deadline=deadline,
+                                   scene=scene,
                                    check=lambda: require_active_agent(agent))['choice']
     if result not in choices:
         raise ValueError('模型选择不在合法候选中')

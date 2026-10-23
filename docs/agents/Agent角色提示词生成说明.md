@@ -18,4 +18,4 @@
 
 `role_profile`、姓名及补充`prompt`随Agent同步；生成素材、预览和撤销记录仅是临时编辑状态。详见[角色设定与决策路由](./Agent角色设定与决策路由说明.md)。
 
-后端验证角色字段、兼容、整理及生成输出；浏览器使用`frontend_react/scripts/test-agent-role-browser.cjs`（旧脚本入口委托此套件），所有API模拟，覆盖宽窄屏、整理预览修改、确认、撤销、取消、过期响应、从零生成和保存字段。环境变量`ODOC_PLAYWRIGHT_MODULE`、`ODOC_CHROMIUM`、`ODOC_AGENT_TEST_URL`指定浏览器测试环境。模拟验收不代表真实供应商的角色知识或最终文本质量已获人工确认。
+后端验证角色字段、兼容、整理及生成输出；浏览器使用`frontend_react/scripts/test-agent-role-browser.cjs`，所有API模拟，覆盖宽窄屏、整理预览修改、确认、撤销、取消、过期响应、从零生成和保存字段。环境变量`ODOC_PLAYWRIGHT_MODULE`、`ODOC_CHROMIUM`、`ODOC_AGENT_TEST_URL`指定浏览器测试环境。模拟验收不代表真实供应商的角色知识或最终文本质量已获人工确认。

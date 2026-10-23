@@ -1,4 +1,3 @@
-import {useState} from 'react';
 import {Activity, CheckCircle2, Cpu, Zap} from 'lucide-react';
 import type {TokenRequest} from '../../types/api/tokenUsage';
 import {knownTokens, clockTime} from '../../utils/tokenObservatory';
@@ -7,7 +6,6 @@ import {tokenNumber} from '../../utils/tokenUsage';
 export default function ObservationOverview({requests, selected, onSelect, unavailable}: {
     requests: TokenRequest[]; selected?: string; onSelect: (request: TokenRequest) => void; unavailable: boolean;
 }) {
-    const [, setHovered] = useState<TokenRequest | null>(null);
     const tail = requests.slice(-24);
     const maximum = Math.max(1, ...tail.flatMap(r => [r.inputTokens || 0, r.outputTokens || 0]));
     const count = requests.length;
@@ -114,8 +112,6 @@ export default function ObservationOverview({requests, selected, onSelect, unava
                                         aria-pressed={isSelected}
                                         title={`#${idx + 1} ${row.phase || row.taskName || '请求'} (${clockTime(row.startedAt)})\n入: ${tokenNumber(row.inputTokens)} / 出: ${tokenNumber(row.outputTokens)}`}
                                         onClick={() => onSelect(row)}
-                                        onMouseEnter={() => setHovered(row)}
-                                        onMouseLeave={() => setHovered(null)}
                                         className={`group relative flex h-full min-w-0 flex-1 items-end justify-center gap-px rounded-xs transition-all ${
                                             isSelected
                                                 ? 'bg-slate-200/70 ring-1 ring-slate-700 shadow-2xs'

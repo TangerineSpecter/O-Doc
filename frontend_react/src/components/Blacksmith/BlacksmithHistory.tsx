@@ -2,7 +2,7 @@ import {useState} from 'react';
 import {ChevronLeft, ChevronRight, Network} from 'lucide-react';
 import type {BlacksmithActivity, BlacksmithHistory as History} from '../../types/api/blacksmith';
 import EquipmentCard from '../Combat/EquipmentCard';
-import ExecutionFlowDialog from '../TokenUsage/ExecutionFlowDialog';
+import ExecutionObservatoryDialog from '../TokenUsage/ExecutionObservatoryDialog';
 import {blacksmithSceneLabels, blacksmithStatus, craftedEquipment, stageText} from './blacksmithPresentation';
 
 export function BlacksmithActivityDetails({activity}: {activity: BlacksmithActivity}) {
@@ -25,7 +25,7 @@ export function BlacksmithActivityDetails({activity}: {activity: BlacksmithActiv
                 {typeof stage.reason === 'string' && stage.reason !== stageText(stage) && <p className="mt-1 leading-relaxed text-slate-500">{stage.reason}</p>}
             </li>)}</ol>
         </details>}
-        {recordOpen && <ExecutionFlowDialog recordId={activity.recordId} taskName="铁匠铺打造" startedAt={activity.createdAt} onClose={() => setRecordOpen(false)}/>}
+        {recordOpen && <ExecutionObservatoryDialog recordId={activity.recordId} taskName="铁匠铺打造" startedAt={activity.createdAt} onClose={() => setRecordOpen(false)}/>}
     </>;
 }
 

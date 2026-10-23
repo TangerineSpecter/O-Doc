@@ -219,7 +219,7 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
         if actions.get('equipment'):
             from .market_preparation_equipment import execute_actions
             try:
-                equipment = execute_actions(owner, agent, session, plan, actions['equipment'], trade, now)
+                equipment = execute_actions(owner, agent, session, plan, actions['equipment'], trade)
                 result['done'].extend(equipment['done'])
                 result['failed'].extend(equipment['failed'])
                 result['skipped'].extend(equipment['skipped'])

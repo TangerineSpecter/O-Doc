@@ -214,7 +214,6 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                                 return (
                                     <AtlasGridCard
                                         key={monster.id}
-                                        id={monster.id}
                                         name={monster.name || monster.id}
                                         title={`${monster.name} · Lv.${monster.levelMin}–${monster.levelMax} · ${isDefeated ? '已击败' : isEncountered ? '已遭遇' : '尚未遭遇'}`}
                                         selected={isSelected}

@@ -194,7 +194,7 @@ class TravelSparseSyncTests(TestCase):
         snapshot = self.manager.publish_v2_snapshot(source='test')
         meta = snapshot['meta']
         broken = {**meta, 'travel_catalog': {**meta['travel_catalog'], 'deleted_ids': []}}
-        self.manager._write_remote_json(broken, self.manager._snapshot_path(meta['snapshot_id'], 'snapshot_meta.json'))
+        self.manager.remote.write_json(broken, self.manager.remote.snapshot_path(meta['snapshot_id'], 'snapshot_meta.json'))
         with self.assertRaisesRegex(SyncError, '删除清单与修订不一致'):
             self.manager.get_v2_snapshot(meta['snapshot_id'])
 

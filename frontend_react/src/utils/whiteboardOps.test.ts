@@ -20,8 +20,6 @@ import {
     layoutByConnections,
     nodeAfterResize,
     nodesAfterDrag,
-    moveNodes,
-    nodeFitsInViewport,
     normalizeDocument,
     setEdgeLabel,
     setEdgeStyle,
@@ -173,7 +171,7 @@ test('does not create a duplicate connection between the same handles', () => {
     assert.equal(once.length, document.edges.length);
 });
 
-test('multi-select can move and duplicate a group, including inner edges', () => {
+test('multi-select can duplicate a group, including inner edges', () => {
     const document = normalizeDocument(oldBoard());
     const selected = toggleNodeSelection(
         toggleNodeSelection([], 'note-1'),
@@ -182,24 +180,15 @@ test('multi-select can move and duplicate a group, including inner edges', () =>
     );
     assert.deepEqual(selected, ['note-1', 'article-1']);
 
-    const moved = moveNodes(document.nodes, selected, 30, -15);
-    const note = moved.find(node => node.id === 'note-1');
-    const article = moved.find(node => node.id === 'article-1');
-    const shape = moved.find(node => node.id === 'shape-1');
-    assert.equal(note?.x, 70);
-    assert.equal(note?.y, 45);
-    assert.equal(article?.x, 350);
-    assert.equal(shape?.x, 80);
-
     let nextId = 0;
-    const duplicated = duplicateSelection(moved, document.edges, selected, {
+    const duplicated = duplicateSelection(document.nodes, document.edges, selected, {
         offsetX: 40,
         offsetY: 40,
         idFactory: () => `dup-${++nextId}`,
     });
 
     assert.equal(duplicated.newIds.length, 2);
-    assert.equal(duplicated.nodes.length, moved.length + 2);
+    assert.equal(duplicated.nodes.length, document.nodes.length + 2);
     assert.equal(duplicated.edges.length, document.edges.length + 1);
 
     const copiedEdge = duplicated.edges.find(edge => edge.id === 'dup-3' || !document.edges.some(old => old.id === edge.id));
@@ -220,11 +209,12 @@ test('fit-to-content places every node inside the viewport math', () => {
     assert.ok(transform.scale > 0);
     assert.ok(transform.scale <= 1.5);
     for (const node of nodes) {
-        assert.equal(
-            nodeFitsInViewport(node, transform, viewport),
-            true,
-            `${node.id} should sit in the viewport after fit-to-content`
-        );
+        const left = node.x * transform.scale + transform.viewOffset.x;
+        const top = node.y * transform.scale + transform.viewOffset.y;
+        const right = (node.x + node.width) * transform.scale + transform.viewOffset.x;
+        const bottom = (node.y + node.height) * transform.scale + transform.viewOffset.y;
+        assert.ok(left >= -0.5 && top >= -0.5 && right <= viewport.width + 0.5 && bottom <= viewport.height + 0.5,
+            `${node.id} should sit in the viewport after fit-to-content`);
     }
 });
 

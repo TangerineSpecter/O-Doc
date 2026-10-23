@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-    getArticleTemplate,
-    isBlankArticleTemplate,
     isUserArticleTemplate,
     listArticleTemplates,
     MAX_USER_ARTICLE_TEMPLATES,
@@ -31,20 +29,16 @@ test('lists built-in templates with unique ids and names', () => {
 });
 
 test('blank template has empty content; others include markdown headings', () => {
-    const blank = getArticleTemplate('blank');
+    const blank = listArticleTemplates().find(template => template.id === 'blank');
     assert.ok(blank);
-    assert.equal(isBlankArticleTemplate(blank), true);
+    assert.equal(blank.content.trim(), '');
 
     const filled = listArticleTemplates().filter(template => template.id !== 'blank');
     assert.ok(filled.length > 0);
     for (const template of filled) {
-        assert.equal(isBlankArticleTemplate(template), false);
+        assert.notEqual(template.content.trim(), '');
         assert.match(template.content, /^## /m);
     }
-});
-
-test('unknown template id returns undefined', () => {
-    assert.equal(getArticleTemplate('does-not-exist'), undefined);
 });
 
 test('parseUserArticleTemplates skips invalid, builtin, and duplicate entries', () => {
@@ -84,7 +78,7 @@ test('saveUserArticleTemplate requires a name and appends a user template', () =
     assert.equal(isUserArticleTemplate(saved.template), true);
 
     const merged = listArticleTemplates(saved.templates);
-    assert.equal(getArticleTemplate('user-spec', saved.templates)?.name, '产品方案');
+    assert.equal(merged.find(template => template.id === 'user-spec')?.name, '产品方案');
     assert.ok(merged.some(template => template.id === 'user-spec'));
     assert.equal(merged.filter(template => template.source === 'builtin').length, listArticleTemplates().length);
 });

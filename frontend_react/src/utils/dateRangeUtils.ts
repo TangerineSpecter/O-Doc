@@ -78,17 +78,3 @@ export function normalizeDateRange(start: string, end: string): DateRange {
     }
     return { startDate: start, endDate: end };
 }
-
-/**
- * 精确到日的秒级时间戳转换（00:00:00 到 23:59:59）
- */
-export function dateRangeToTimestamps(range?: DateRange | null): { since?: number; until?: number } {
-    if (!range?.startDate || !range?.endDate) {
-        return { since: undefined, until: undefined };
-    }
-    const normalized = normalizeDateRange(range.startDate, range.endDate);
-    return {
-        since: dayjs(normalized.startDate).startOf('day').unix(),
-        until: dayjs(normalized.endDate).endOf('day').unix(),
-    };
-}

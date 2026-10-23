@@ -760,9 +760,3 @@ def extract_html_content(html, source_url=''):
         raise
     except Exception as exc:
         raise WebParserError('HTML 文件解析失败。') from exc
-
-
-def parse_web_content(url):
-    """Backwards-compatible wrapper returning ``(title, markdown_content)``."""
-    parsed = extract_web_content(url)
-    return parsed.title, parsed.best_candidate.markdown

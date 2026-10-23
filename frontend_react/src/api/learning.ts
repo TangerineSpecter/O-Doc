@@ -1,5 +1,5 @@
 import request from '../utils/request';
-import type {Attempt, CourseData, Exercise, LearningConfig, LearningModel, LearningRequest, Stage, GoalProposal, LearningSubject, LearningSession, LearningItem, LearningItemInput} from '../types/api/learning';
+import type {Attempt, CourseData, Exercise, LearningConfig, LearningModel, LearningRequest, Stage, GoalProposal, LearningSubject, LearningSession, LearningItemInput} from '../types/api/learning';
 type AttemptWire = Omit<Attempt, 'answers'> & {answerItems: {questionId: string; answer: string}[]};
 type ExerciseWire = Omit<Exercise, 'attempt' | 'attempts'> & {attempt: AttemptWire | null; attempts: AttemptWire[]};
 const normalizeAttempt = (value: AttemptWire): Attempt => ({...value, answers: Object.fromEntries(value.answerItems.map(v => [v.questionId, v.answer]))});
@@ -27,7 +27,6 @@ export const learningApi = {
     saveSession: (id: string, sessionId: string, revision: number, content: string) => request.put<unknown, LearningSession>(`${base(id)}sessions/${sessionId}/`, {revision, content}),
     sessionAction: (id: string, sessionId: string, revision: number, action: 'advance' | 'turn' | 'help' | 'retry' | 'end', requestKey: string, turnId?: string) => request.post<unknown, LearningSession | LearningRequest>(`${base(id)}sessions/${sessionId}/`, {revision, action, requestKey, turnId}),
     revise: (id: string, attemptId: string, questionId: string, content: string, requestKey: string, revisionId?: string) => request.post<unknown, LearningRequest>(`${base(id)}attempts/${attemptId}/revisions/`, {questionId, content, requestKey, revisionId}),
-    items: (id: string, signal?: AbortSignal) => request.get<unknown, LearningItem[]>(`${base(id)}items/`, {signal}),
     saveItem: (id: string, input: LearningItemInput, itemId?: string) => itemId ? request.put<unknown, {id: string}>(`${base(id)}items/${itemId}/`, input) : request.post<unknown, {id: string}>(`${base(id)}items/`, input),
     removeItem: (id: string, itemId: string) => request.delete(`${base(id)}items/${itemId}/`),
 };

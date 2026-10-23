@@ -123,7 +123,6 @@ export function MaterialAtlasView({catalog}: MaterialAtlasViewProps) {
                                 return (
                                     <AtlasGridCard
                                         key={mat.id}
-                                        id={mat.id}
                                         name={mat.name || mat.id}
                                         title={`${mat.name} · 等级 Lv.${mat.level} · 回收 ¥${mat.salePrice}/个`}
                                         selected={isSelected}

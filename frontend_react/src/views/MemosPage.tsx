@@ -684,7 +684,6 @@ export default function MemosPage() {
 
             {editingMemo && (
                 <MemoEditModal
-                    memo={editingMemo}
                     editContent={editContent}
                     editTag={editTag}
                     editPinned={editPinned}

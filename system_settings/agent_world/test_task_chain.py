@@ -70,7 +70,7 @@ class TaskChainTests(TestCase):
             record = run_farm_opportunity(self.farm_task, key='farm-error', manual=True)
         record.refresh_from_db()
         self.assertEqual(record.status, 'failed')
-        self.assertIn('模型选择经营计划失败（ValueError）', record.output)
+        self.assertIn('模型选择经营计划：manage失败（ValueError）：invalid plan', record.output)
         self.assertEqual(record.steps[-1]['status'], 'failed')
 
     def test_interrupted_recovery_is_idempotent(self):

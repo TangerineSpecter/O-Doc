@@ -137,6 +137,102 @@ class FishingTests(TestCase):
         self.buy('minnow',12,10)
         return self.prepared(bait='minnow')
 
+    def test_worker_cast_respects_postgres_primary_key_length(self):
+        from .worker import advance_one
+        trip = self.prepared()
+        create = WorldAction.objects.create
+        field = WorldAction._meta.get_field('id')
+        def strict_create(**values):
+            field.run_validators(values['pk'])
+            return create(**values)
+        with patch('django.utils.timezone.now', return_value=NOW + timedelta(minutes=1)), \
+             patch('system_settings.agent_world.fishing.runner.encounter', return_value={'kind': 'empty'}), \
+             patch.object(WorldAction.objects, 'create', side_effect=strict_create):
+            advance_one(trip.pk)
+        trip.refresh_from_db()
+        self.assertEqual(trip.state['casts'], 1)
+        self.assertNotIn('error', trip.state)
+        action = WorldAction.objects.get(result__fishing_trip_id=trip.pk)
+        self.assertLessEqual(len(action.pk), field.max_length)
+        checkpoint_all(); validate_source(database_data())
+        legacy = database_data()
+        event_id = action.result['fishing_event_id']
+        for row in legacy:
+            if row['model'] == 'system_settings.worldaction' and row['pk'] == action.pk:
+                row['pk'] = 'fishing-energy:' + event_id
+        validate_source(legacy, check_digest=False)
+
+    def test_one_minute_cast_due_and_no_offline_batch(self):
+        trip = self.prepared()
+        self.assertEqual(local_time(trip.next_tick_at), NOW + timedelta(minutes=1))
+        with patch('system_settings.agent_world.fishing.runner.encounter', return_value={'kind': 'empty'}):
+            cast(trip.pk, now=NOW + timedelta(seconds=59))
+            trip.refresh_from_db()
+            self.assertEqual(trip.state['casts'], 0)
+            cast(trip.pk, now=NOW + timedelta(seconds=60))
+            trip.refresh_from_db()
+            self.assertEqual(trip.state['casts'], 1)
+            self.assertEqual(local_time(trip.next_tick_at), NOW + timedelta(seconds=120))
+            cast(trip.pk, now=NOW + timedelta(minutes=10))
+            cast(trip.pk, now=NOW + timedelta(minutes=10))
+        trip.refresh_from_db()
+        self.assertEqual(trip.state['casts'], 2)
+        checkpoint_all(); validate_source(database_data())
+
+    def test_successful_cast_clears_transient_failure(self):
+        trip = self.prepared()
+        defer(trip.pk, '暂时无法推进')
+        self.cast_at(trip, minutes=5)
+        self.assertEqual(trip.state['casts'], 1)
+        self.assertEqual(trip.state['failures'], 0)
+        self.assertNotIn('error', trip.state)
+
+    def test_legacy_catalog_upgrades_new_trips_without_changing_old_trip(self):
+        from .catalog import current, VERSION
+        from .models import FishingCatalog, FishingConfig
+        legacy = builtin()
+        legacy.update(version='fishing-1.0.0', interval_seconds=300)
+        row = FishingCatalog.objects.create(pk=legacy['version'], rules=legacy)
+        old = self.prepared()
+        old.rules = legacy
+        old.next_tick_at = NOW + timedelta(minutes=5)
+        old.save()
+        finish(old.pk, '切换目录前结束')
+        FishingConfig.objects.filter(pk='admin').update(catalog=row)
+        self.assertEqual(current('admin')['interval_seconds'], 60)
+        new = self.prepared(key='new-rules')
+        self.assertEqual(new.rules['version'], VERSION)
+        self.assertEqual(FishingConfig.objects.get(pk='admin').catalog_id, VERSION)
+        old.refresh_from_db(); row.refresh_from_db()
+        self.assertEqual(old.rules, legacy)
+        self.assertEqual(row.rules, legacy)
+        checkpoint_all(); validate_source(database_data())
+
+    def test_revoked_permit_stops_worker_and_daily_feed_shows_pause(self):
+        from .worker import advance_one, start
+        trip = self.prepared()
+        with patch('system_settings.sync_scheduler._is_server_process', return_value=True), \
+             patch('system_settings.agent_world.fishing.worker._thread', None), \
+             patch('system_settings.agent_world.fishing.worker.threading.Thread'):
+            start()
+        self.assertFalse(FishingRuntime.objects.get(pk=trip.pk).authorized)
+        with patch('system_settings.agent_world.fishing.runner.cast') as execute:
+            advance_one(trip.pk)
+        execute.assert_not_called()
+        response = self.client.get('/api/settings/agent-world/daily-feed/', {'actor_id': self.agent.pk})
+        self.assertEqual(response.status_code, 200)
+        rows = response.data['data']['items']
+        fishing = next(row for row in rows if row['category'] == 'fishing')
+        self.assertEqual(fishing['title'], '出钓已暂停')
+        self.assertEqual(fishing['status'], 'paused')
+        self.assertIn('继续出钓', fishing['detail'])
+        with patch('django.utils.timezone.now', return_value=NOW + timedelta(minutes=1)), \
+             patch('system_settings.agent_world.fishing.runner.encounter', return_value={'kind': 'empty'}):
+            retry(trip.pk)
+            advance_one(trip.pk)
+        trip.refresh_from_db()
+        self.assertEqual(trip.state['casts'], 1)
+
     def test_prepare_three_rounds_and_stop_no_quantity_question(self):
         self.buy('dough',6,1);self.buy('corn',7,2)
         trip = self.trip()
@@ -459,7 +555,7 @@ class FishingTests(TestCase):
                     self.cast_at(trip)
                 original = local_time(trip.next_tick_at)
                 FishingRuntime.objects.filter(pk=trip.pk).update(authorized=False, token='', until=None)
-                resumed_at = original - timedelta(minutes=4)
+                resumed_at = original - timedelta(seconds=30)
                 with patch('django.utils.timezone.now', return_value=resumed_at):
                     response = self.client.post(f'/api/settings/agent-world/fishing/trips/{trip.pk}/retry/')
                     self.assertEqual(response.status_code, 200)
@@ -467,7 +563,7 @@ class FishingTests(TestCase):
                 trip.refresh_from_db()
                 self.assertEqual(local_time(trip.next_tick_at), original)
                 self.assertEqual(trip.state['casts'], prior_casts)
-                self.cast_at(trip, minutes=5 * (prior_casts + 1))
+                self.cast_at(trip, minutes=(original - local_time(trip.departed_at)).total_seconds() / 60)
                 trip.refresh_from_db()
                 self.assertEqual(trip.state['casts'], prior_casts + 1)
                 with patch('django.utils.timezone.now', return_value=original):
@@ -487,7 +583,7 @@ class FishingTests(TestCase):
             cast(trip.pk)
         trip.refresh_from_db()
         self.assertEqual(trip.state['casts'], 2)
-        self.assertEqual(local_time(trip.next_tick_at), resumed_at + timedelta(minutes=5))
+        self.assertEqual(local_time(trip.next_tick_at), resumed_at + timedelta(seconds=trip.rules['interval_seconds']))
         checkpoint_all()
 
     def test_fish_sale_preserves_discovery_and_sync_balances(self):

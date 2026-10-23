@@ -309,9 +309,9 @@ class HtmlNoteTests(APITestCase):
     def test_sync_includes_html_refs_media_and_legacy_default(self):
         article = self.imported()
         manager = SyncManager()
-        labels = {m._meta.label_lower for m in manager._iter_target_models()}
+        labels = {m._meta.label_lower for m in manager.models.iter_target_models()}
         self.assertIn('article.articleasset', labels)
-        manifest = manager._build_v2_media_manifest()
+        manifest = manager.media.build_v2_media_manifest()
         self.assertTrue(set(Asset.objects.values_list('file_path', flat=True)).issubset(manifest))
         data = json.loads(serializers.serialize('json', [article, *article.asset_references.all(), *Asset.objects.all()]))
         self.assertEqual(data[0]['fields']['content_format'], 'html')

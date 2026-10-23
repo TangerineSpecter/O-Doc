@@ -246,7 +246,7 @@ class MarketExecution:
                     [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(payload, cls=DjangoJSONEncoder, ensure_ascii=False)}],
                     tools, execute, model_id=config['model_id'], max_rounds=min(24 - self.tool_count, 6 if helper else 24),
                     deadline=self.deadline, message_transform=compact_messages, disable_thinking=True)
-                run_models(self.agent, invoke, task=self.task, decision=True, owner=self.owner, deadline=self.deadline, scene=phase, check=self.check)
+                run_models(self.agent, invoke, task=self.task, decision=True, owner=self.owner, scene=phase, check=self.check)
                 return self.summary()
         except ComplexStepFinished as exc:
             return str(exc)

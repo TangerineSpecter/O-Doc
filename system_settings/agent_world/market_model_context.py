@@ -5,7 +5,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from .market_queries import actor_context
 from .life_scope import CURRENT
 from .farm_gate import guarded
-from .market_shopping import planting_summary, seed_inventory, farm_summary, recipe_summary
+from .market_shopping import planting_summary, seed_inventory, farm_summary
 
 PAGE_SIZE = 20
 MARKET_DETAIL_TOPICS = ('inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat')
@@ -81,7 +81,7 @@ def model_context(owner: str, agent) -> dict:
 @guarded
 def observe(owner: str, agent, arguments: dict) -> dict:
     topic, number, search = arguments.get('topic'), arguments.get('page', 1), arguments.get('search', '')
-    if topic not in ('inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat', 'cooking', 'recipe', 'life', 'experiences') or set(arguments) - {'topic', 'page', 'search', 'item_id', 'listing_id', 'recipe_id'}:
+    if topic not in MARKET_DETAIL_TOPICS or set(arguments) - {'topic', 'page', 'search', 'item_id', 'listing_id'}:
         raise ValueError('市场详情查询无效')
     if not isinstance(search, str) or len(search) > 200:
         raise ValueError('搜索内容无效')
@@ -117,23 +117,6 @@ def observe(owner: str, agent, arguments: dict) -> dict:
         farm = context.get('farm')
         return {'farm': {key: page(value, number, search) if isinstance(value, list) else projection(value)
                          for key, value in farm.items()} if farm else None}
-    if topic in ('cooking', 'recipe'):
-        from .cooking_queries import overview, recipes
-        rows = recipes(owner, agent)
-        if topic == 'recipe':
-            recipe = next((row for row in rows if row['id'] == arguments.get('recipe_id')), None)
-            if not recipe:
-                raise ValueError('食谱不存在，请使用食谱列表中的ID')
-            return {'recipe': projection(recipe)}
-        return {'skill': overview(owner, agent.pk), 'recipes': page([recipe_summary(row) for row in rows], number, search),
-                'detail_access': '仅在确需食谱完整详情时，用topic=recipe和recipe_id查询。'}
-    if topic == 'experiences':
-        from .market_detail_queries import experiences
-        return page(experiences(agent), number, search)
-    from .market_detail_queries import life_details
-    fresh = life_details(owner, agent)
-    return {key: page(fresh.get(key, []), number, search) for key in ('goals', 'upcoming', 'today')} | {
-        'spending': context['spending'], 'preferences': fresh.get('preferences'), 'direction': fresh.get('direction')}
 
 
 def compact_messages(messages: list[dict]) -> list[dict]:

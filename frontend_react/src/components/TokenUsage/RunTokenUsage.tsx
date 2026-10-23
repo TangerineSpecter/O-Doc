@@ -3,7 +3,7 @@ import {Download, Loader2, Network} from 'lucide-react';
 import {useTokenUsageExport} from '../../hooks/useTokenUsageExport';
 import type {TokenMetrics, RunTokenMetrics} from '../../types/api/tokenUsage';
 import {tokenNumber} from '../../utils/tokenUsage';
-import ExecutionFlowDialog from './ExecutionFlowDialog';
+import ExecutionObservatoryDialog from './ExecutionObservatoryDialog';
 import TokenModelTotals from './TokenModelTotals';
 import TokenRequestList from './TokenRequestList';
 
@@ -77,6 +77,6 @@ export default function RunTokenUsage({id, usage, chain, taskName, startedAt}: {
         </>}
         <button onClick={() => setExpanded(value => !value)} aria-expanded={expanded} className="mt-3 text-xs font-medium text-orange-600 hover:underline">{expanded ? '收起模型请求' : '查看模型请求'}</button>
         {expanded && <div className="mt-3"><TokenRequestList filters={{all: '1', record_id: id}}/></div>}
-        {flowOpen && <ExecutionFlowDialog recordId={id} taskName={taskName} startedAt={startedAt} onClose={() => setFlowOpen(false)}/>}
+        {flowOpen && <ExecutionObservatoryDialog recordId={id} taskName={taskName} startedAt={startedAt} onClose={() => setFlowOpen(false)}/>}
     </section>;
 }

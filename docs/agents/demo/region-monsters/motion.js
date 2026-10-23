@@ -8,6 +8,7 @@
     if(action==='hit'||action==='defeat')return p;
     const t=Math.floor(elapsed*24)/24,heavy=['golem','tree'].includes(mon.family);
     Object.assign(p,{x:0,y:mon.hover?-17+Math.sin(time*3.1)*2:Math.sin(time*2.5)*.5,sx:1,sy:1,tilt:0,walk:0,swing:0,charge:0});
+    if(window.RiftMotion.actions[key]?.includes(action))return window.RiftMotion.sample(key,p,elapsed);
     if(window.EmberMotion.actions[key]?.includes(action))return window.EmberMotion.sample(key,p,elapsed);
     if(window.RuinsMotion.actions[key]?.includes(action))return window.RuinsMotion.sample(key,p,elapsed);
     if(key==='mist_treant'&&['root_prison','royal_dew'].includes(action))return window.MistTreantSkills.sample(p,elapsed);
@@ -37,5 +38,5 @@
     }
     return p;
   }
-  window.MeadowMotion={sample,shatterAt:shared.shatterAt,durations:{...shared.durations,crystal_resonance:3.4,vault_collapse:3.5,cinder_breath:2.8,magma_spines:2.9,furnace_ray:3,grave_blade:2.2,whirlpool_bolt:2.6,oath_counter:2.65,rising_tide:3.15,tidal_verdict:2.9,root_prison:3.3,royal_dew:3.8,mist_pounce:2.5,strike:2.2,armor_break:2.25,evasion:1.3,guard:3,shield:3,heal:2.8,poison:2.6,burn:2.6,magic_strike:2.3,curse:2.8}};
+  window.MeadowMotion={sample,shatterAt:shared.shatterAt,durations:{...shared.durations,...window.RiftMotion.durations,crystal_resonance:3.4,vault_collapse:3.5,cinder_breath:2.8,magma_spines:2.9,furnace_ray:3,grave_blade:2.2,whirlpool_bolt:2.6,oath_counter:2.65,rising_tide:3.15,tidal_verdict:2.9,root_prison:3.3,royal_dew:3.8,mist_pounce:2.5,strike:2.2,armor_break:2.25,evasion:1.3,guard:3,shield:3,heal:2.8,poison:2.6,burn:2.6,magic_strike:2.3,curse:2.8}};
 })();

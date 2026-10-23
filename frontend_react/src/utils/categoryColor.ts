@@ -1,22 +1,3 @@
-/**
- * Agent 专栏与世界分类标签颜色映射工具
- * 对应 WorldCategoryTab 中的分类视觉主题：
- * - 财经: Amber (琥珀黄)
- * - 科技: Blue (科技蓝)
- * - 旅行: Emerald (翡翠绿)
- * - 美食: Orange (暖橙)
- * - 阅读: Purple (优雅紫)
- * - 摄影: Rose (玫瑰粉红)
- * - 研究: Indigo (深邃靛蓝)
- * - 默认: Slate (中性灰)
- */
-
-export interface CategoryColorTheme {
-    bg: string;
-    text: string;
-    border?: string;
-}
-
 export function getCategoryColorClass(name?: string): string {
     const raw = (name || '').trim();
     if (/财经|金融|商业|财富|投资/i.test(raw)) {

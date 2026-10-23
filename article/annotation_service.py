@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from django.db import transaction
-from django.db.models import Q
 
 from anthology.models import Anthology
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment
@@ -309,17 +308,6 @@ def relocate_annotation(annotation):
     return {'located': True, 'start_offset': start, 'end_offset': end, 'reason': '文章已变化，已根据上下文重新定位'}
 
 
-def assert_no_overlap(article, start_offset, end_offset):
-    overlapping = ArticleAnnotation.objects.filter(
-        article=article,
-        is_valid=True,
-        start_offset__lt=end_offset,
-        end_offset__gt=start_offset,
-    ).exists()
-    if overlapping:
-        raise AnnotationError('该内容已有批注，暂不支持重叠批注')
-
-
 def get_user_identity(request):
     user_id = get_current_user_identifier(request)
     name = user_id
@@ -418,13 +406,6 @@ def add_comment(annotation, comment, identity):
     return created_comment
 
 
-def can_manage_article(request, article):
-    if not request or not request.user or not request.user.is_authenticated:
-        return False
-    user_id = get_current_user_identifier(request)
-    return article.author == user_id
-
-
 def can_delete_comment(request, comment):
     if not request or not request.user or not request.user.is_authenticated:
         return False
@@ -440,10 +421,6 @@ def can_delete_annotation(request, annotation):
         annotation.creator_type == 'user' and annotation.creator_id == user_id
         or annotation.article.author == user_id
     )
-
-
-def annotation_queryset_for_article(article):
-    return ArticleAnnotation.objects.filter(article=article, is_valid=True).prefetch_related('comments')
 
 
 def visible_comments(annotation):

@@ -450,7 +450,7 @@ class QuantTests(TestCase):
         backtest = Backtest.objects.create(entry=self.entry, name='历史实验', version_id=first)
         Attachment.objects.create(entry=self.entry, asset=asset, version_id=first, implementation=impl, backtest=backtest)
         run, _ = self.queue(implementation=impl)
-        manager = SyncManager.__new__(SyncManager)
+        manager = SyncManager()
         data = manager.build_snapshot_data()
         quant_meta = metadata(data)
         self.assertFalse(any(row['model'] == 'quant.job' for row in data))
@@ -467,7 +467,7 @@ class QuantTests(TestCase):
         self.assertFalse(Job.objects.exists())
 
     def test_restore_removes_stale_protected_research_in_dependency_order(self):
-        manager = SyncManager.__new__(SyncManager)
+        manager = SyncManager()
         clean = manager.build_snapshot_data()
         impl = self.implementation()
         asset = self.asset()

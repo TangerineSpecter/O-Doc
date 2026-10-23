@@ -9,6 +9,7 @@ from django.core import serializers
 from utils.sync_datetime import normalize_datetime_fraction
 from .models import FishingCatalog, FishingConfig, FishingProfile, FishingTrip, FishingEvent, FishingIntegrity
 from .rules import capture_probability, experience_for, duel_result, candidates
+from .constants import energy_action_id
 
 PREFIX = 'system_settings.'
 BUSINESS = {PREFIX + s for s in ('fishingcatalog','fishingconfig','fishingprofile','fishingtrip','fishingevent')}
@@ -184,7 +185,9 @@ def _validate(data, meta, check_digest):
                 from ..market_inventory import split_escrow
                 _, carried[payload_index] = split_escrow(carried[payload_index], 1)
                 balances[(owner,actor,'bait.'+bait)] -= 1
-                action = table('worldaction').get('fishing-energy:'+event_id)
+                # 旧SQLite快照可能已有超长标识；只读兼容，不改写已发生的体力事实。
+                action = (table('worldaction').get(energy_action_id(event_id))
+                          or table('worldaction').get('fishing-energy:'+event_id))
                 if not action or action['actor_id'] != actor or action['status'] != 'success' or Decimal(str(action['energy_cost'])) != rules['energy_cost'] or action['result'].get('fishing_event_id') != event_id:
                     fail('抛竿缺少对应体力事实')
                 outcome = value['outcome']

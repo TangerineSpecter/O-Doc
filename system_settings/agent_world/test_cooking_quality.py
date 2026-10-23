@@ -341,7 +341,7 @@ class CookingQualityTests(TestCase):
         remote = {'data': copy.deepcopy(data), 'meta': manager.build_snapshot_meta(data_list=data),
                   'revisions': manager._build_revision_manifest(data), 'media': {}}
         with patch.object(manager, 'get_v2_current', return_value=remote), \
-                patch.object(manager, '_restore_v2_media'), \
+                patch.object(manager.media, 'restore_v2_media'), \
                 patch.object(manager, 'reconcile_missing_book_media'), \
                 patch.object(manager, 'publish_v2_snapshot', return_value={}):
             for _ in range(2):

@@ -1,10 +1,8 @@
 import React from 'react';
 import { Hash, Pin, PinOff, X } from 'lucide-react';
-import { MemoItem } from '../../types/api/memo';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface MemoEditModalProps {
-  memo: MemoItem;
   editContent: string;
   editTag: string;
   editPinned: boolean;

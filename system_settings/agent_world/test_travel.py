@@ -17,13 +17,14 @@ from .travel_steps import advance
 from .travel_settlement import depart, purchase
 from .travel_publication import publish_journal, recover_photo, insert_photo, content_hash
 from .travel_candidates import candidates, travelling_ids
-from .travel_runner import process_journey, tick_travel, run_travel_opportunity
+from .travel_runner import process_journey, run_travel_opportunity
 from .travel_activity import start_activity, update_activity
 from .travel_ai import sourced_items, local_materials
 from .execution import stamina, execution_lease
 from system_settings.serializers import AgentTaskSerializer
 from system_settings.sync_state import LOCAL_ONLY_MODEL_LABELS
-from utils.sync_manager import SyncManager
+from utils.sync_models import SnapshotModels
+from utils.sync_restore import SnapshotRestorer
 
 
 class TravelTests(TestCase):
@@ -525,7 +526,7 @@ class TravelTests(TestCase):
         for label in ['system_settings.travelruntime', 'system_settings.travelseedstate', 'system_settings.travelmaterialcache']:
             self.assertIn(label, LOCAL_ONLY_MODEL_LABELS)
         data = [{'model': 'prompts.imagegenerationtask', 'pk': 'a', 'fields': {'lease_until': 'remote-lock', 'provider_task_id': 'real-task'}}]
-        SyncManager._strip_device_local_user_fields(data)
+        SnapshotModels.strip_device_local_user_fields(data)
         self.assertNotIn('lease_until', data[0]['fields'])
         self.assertEqual(data[0]['fields']['provider_task_id'], 'real-task')
 
@@ -563,7 +564,7 @@ class TravelTests(TestCase):
         row.refresh_from_db(); self.assertEqual(row.snapshot['photo']['attempt'], 1)
 
     def test_world_switch_blocks_automatic_recovery(self):
-        from .action_runner import tick
+        from .world_cycle import tick
         row = self.journey()
         TravelRuntime.objects.create(pk=row.pk, authorized=True)
         WorldActionRuntime.objects.create(pk='world', enabled=False)
@@ -809,7 +810,7 @@ class TravelTests(TestCase):
         self.assertEqual(row.snapshot['draft']['title'], '旅遊')
 
     def test_manual_trip_continues_with_world_switch_off_without_new_opportunities(self):
-        from .action_runner import tick
+        from .world_cycle import tick
         manual = self.journey()
         start_activity(manual, manual=True)
         TravelRuntime.objects.create(pk=manual.pk, authorized=True)
@@ -906,7 +907,7 @@ class TravelTests(TestCase):
 
     def test_restore_discards_remote_image_lease(self):
         data = [{'model':'prompts.imagegenerationtask', 'pk':'a'*32, 'fields':{'lease_until':'remote-lock'}}]
-        SyncManager._restore_device_local_user_fields(data)
+        SnapshotRestorer._restore_device_local_user_fields(data)
         self.assertIsNone(data[0]['fields']['lease_until'])
 
 
@@ -1054,17 +1055,6 @@ class TravelTests(TestCase):
         self.assertEqual(Article.objects.get(pk=row.article_id).content, '原文\n\n![旅行场景照](/new.png)')
 
 
-    def test_role_memory_recall_does_not_expose_other_users_or_agents(self):
-        from types import SimpleNamespace
-        from system_settings.models import AgentLongTermMemory
-        from system_settings.agent_memory import get_long_term_memories_for_record
-        global_memory = AgentLongTermMemory.objects.create(agent=self.agent, scope='agent', content='自身旅行')
-        AgentLongTermMemory.objects.create(agent=self.agent, sender_id='other-user', content='其他用户私事')
-        other_agent = Agent.objects.create(name='另一个角色')
-        AgentLongTermMemory.objects.create(agent=other_agent, scope='agent', content='另一角色经历')
-        for record in [SimpleNamespace(sender_id='current-user', chat_id='chat'), SimpleNamespace(sender_id='', chat_id='chat')]:
-            self.assertEqual([m.pk for m in get_long_term_memories_for_record(self.agent, record)], [global_memory.pk])
-
     def test_task_context_loads_and_prompt_recalls_relevant_travel_memory(self):
         from system_settings.agent_task_scheduler import AgentTaskScheduler
         from .travel_memory import remember_travel
@@ -1081,7 +1071,7 @@ class TravelTests(TestCase):
         self.assertIn(memory.content, prompt)
 
     def test_manual_photo_operations_continue_for_automatic_trip_with_world_off(self):
-        from .action_runner import tick
+        from .world_cycle import tick
         WorldActionRuntime.objects.create(pk='world', enabled=False)
         for operation in ['regenerate_image', 'query_image']:
             with self.subTest(operation=operation):
@@ -1101,7 +1091,7 @@ class TravelTests(TestCase):
                     take.assert_not_called()
 
     def test_world_off_skips_automatic_and_synced_photo_queues_without_local_authority(self):
-        from .action_runner import tick
+        from .world_cycle import tick
         WorldActionRuntime.objects.create(pk='world', enabled=False)
         for main_authority, photo_authority in [(True, False), (False, True)]:
             row = self.journey('done', status='completed', article_id='photo-test-article')

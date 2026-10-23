@@ -8,6 +8,7 @@ from django.test import TestCase
 from article.models import Article
 from stats.models import ReadStat
 from utils.sync_manager import SyncManager
+from utils.sync_restore import SnapshotRestorer
 
 
 class ReadStatSequenceTests(TestCase):
@@ -52,7 +53,7 @@ class ReadStatSequenceTests(TestCase):
         cursor = FakeCursor()
         with patch.object(connection, 'vendor', 'postgresql'), \
                 patch.object(connection, 'cursor', return_value=cursor):
-            SyncManager._lock_restored_sequence_tables([Article, ReadStat])
+            SnapshotRestorer._lock_restored_sequence_tables([Article, ReadStat])
 
         self.assertEqual(cursor.statements, [
             'LOCK TABLE "stats_read_record" IN SHARE ROW EXCLUSIVE MODE',

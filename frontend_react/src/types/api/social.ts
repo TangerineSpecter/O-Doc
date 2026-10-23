@@ -26,7 +26,7 @@ export interface SocialConfiguration {
 }
 export interface SocialTheatreTurn {
     id?: string; replyTo?: string;
-    round: number; speakerId: string; name: string; avatar: string; content: string; createdAt: string;
+    round: number; speakerId: string; name: string; avatar: string; content: string; createdAt?: string;
 }
 export interface SocialTheatreRelationChange {
     actorId: string; counterpartId: string; actorName: string; counterpartName: string;

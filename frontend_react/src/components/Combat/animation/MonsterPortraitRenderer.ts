@@ -1,7 +1,6 @@
 import {CaveMonsterActor} from './cavePixels/CaveMonsterActor';
 import {caveProfiles,isCaveMonsterId,cavePortraitFrame,caveSize} from './cavePixels/caveTypes';
-import type {CaveMonsterId,CaveMotion} from './cavePixels/caveTypes';
-import {caveDurations} from './cavePixels/caveMotion';
+import type {CaveMonsterId} from './cavePixels/caveTypes';
 import {Application, Graphics} from 'pixi.js';
 import {MeadowMonsterActor} from './meadowPixels/MeadowMonsterActor';
 import {meadowProfiles} from './meadowPixels/meadowTypes';
@@ -39,8 +38,6 @@ export class MonsterPortraitRenderer {
     private initialized = false;
     private disposed = false;
     private time = 0;
-    private action: CaveMotion = 'idle';
-    private actionStart = 0;
 
     constructor(private readonly host: HTMLElement, private readonly inHabitat: boolean,
                 private readonly monsterId: AnimatedMonsterId) {}
@@ -90,17 +87,9 @@ export class MonsterPortraitRenderer {
         this.app.render();
     }
 
-    play(action: CaveMotion) {
-        this.action = action; this.actionStart = this.time;
-        this.drawIdle(); if(this.initialized && !this.disposed)this.app.render();
-    }
-
     private drawIdle() {
         if (this.actor instanceof CaveMonsterActor) {
-            const age=this.time-this.actionStart;
-            if(age>=caveDurations[this.action])this.action='idle';
-            this.actor.sample(this.action,age,this.time,this.action==='defeat'?age:undefined);
-            if(this.shadow)this.shadow.visible=!(this.action==='defeat'&&age>=.26);
+            this.actor.sample('idle', this.time, this.time, undefined);
         } else if (this.actor instanceof MeadowMonsterActor) {
             this.actor.sample('idle', this.time, this.time, undefined);
         }

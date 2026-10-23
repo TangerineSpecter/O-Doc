@@ -12,7 +12,6 @@ export const caveProfiles: Record<CaveMonsterId, CaveProfile> = {
  'monster.moss_king': {key:'king', sourceFacing:-1, airborne:false, colors:['#f2e5b8','#bbd6a3','#759e89'], skills:['strike','guard']},
 };
 export const caveSkillLabels: Record<CaveSkill,string> = {evasion:'闪身',guard:'护体',strike:'重击',crystal:'晶棘突袭'};
-export const caveSkillIds: Record<CaveSkill,string> = {evasion:'skill.monster.evasion',guard:'skill.monster.guard',strike:'skill.monster.strike',crystal:'skill.monster.crystal'};
 export const caveSkillImpact: Record<CaveSkill,number> = {evasion:.4,guard:.6,strike:.88,crystal:.9};
 export const isCaveMonsterId = (id:string): id is CaveMonsterId => Object.prototype.hasOwnProperty.call(caveProfiles,id);
 export const caveSize = (key:CaveKey) => key === 'king' ? 1.2 : 1;

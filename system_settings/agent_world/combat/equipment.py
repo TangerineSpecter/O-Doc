@@ -28,18 +28,6 @@ def allowed(catalog: Catalog, template_id: str, job: str, level: int, actual_lev
                for r in catalog.tables['equipment_professions'])
 
 
-def loadout_slot_matches(catalog: Catalog, template_id: str, snapshot: dict, slot: str) -> bool:
-    """Accessory snapshots share one body slot; loadout keys distinguish ring instances."""
-    template = catalog.row('equipment_templates', template_id)
-    item_slot = snapshot.get('slot')
-    equipment_type = snapshot.get('equipment_type') or template.get('equipment_type', '')
-    if slot in {'ring_1', 'ring_2'}:
-        return item_slot == 'accessory' and equipment_type == 'ring'
-    if slot == 'accessory':
-        return item_slot == 'accessory' and equipment_type != 'ring'
-    return item_slot == slot
-
-
 def eligibility_template_id(catalog: Catalog, template_id: str, snapshot: dict, *, bound: bool) -> str:
     """Apply current training-sword rules to the immutable legacy starter snapshot."""
     if (template_id == 'equip.sword' and bound and snapshot.get('name') == '训练木剑' and

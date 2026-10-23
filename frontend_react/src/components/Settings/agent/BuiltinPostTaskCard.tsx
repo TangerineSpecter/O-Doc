@@ -21,9 +21,7 @@ import type {AgentTaskConfig} from '@/types/api/setting';
 
 interface Props {
     task: AgentTaskConfig;
-    agentNames: string[];
     running: boolean;
-    progress?: AgentTaskConfig['worldProgress'];
     onConfigure: () => void;
     onToggle: () => void;
     onRun: () => void;

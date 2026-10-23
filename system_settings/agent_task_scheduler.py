@@ -128,7 +128,7 @@ class AgentTaskScheduler:
 
         try:
             self._advance_post_illustrations()
-            from .agent_world.action_runner import tick
+            from .agent_world.world_cycle import tick
             tick(self)
             try:
                 tasks = list(AgentTask.objects.select_related('agent').filter(

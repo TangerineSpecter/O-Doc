@@ -18,6 +18,8 @@ export interface WorldDialogProps {
     bare?: boolean;
     manageFocus?: boolean;
     closeDisabled?: boolean;
+    /** Override the base layer when opened above a higher-level drawer. */
+    zIndex?: number;
 }
 
 function WorldDialogFrame({
@@ -31,6 +33,7 @@ function WorldDialogFrame({
     bare = false,
     manageFocus = true,
     closeDisabled = false,
+    zIndex = 120,
 }: WorldDialogProps) {
     const [isClosing, setIsClosing] = useState(false);
     const isClosingRef = useRef(false);
@@ -120,7 +123,7 @@ function WorldDialogFrame({
 
     // 嵌套弹窗不能受父卡片的动画 transform 和 overflow 裁切影响。
     return createPortal(
-        <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-end justify-center p-3 sm:items-center sm:p-5">
+        <div data-modal-scroll-lock style={{zIndex}} className="fixed inset-0 flex items-end justify-center p-3 sm:items-center sm:p-5">
             <button
                 type="button"
                 disabled={closeDisabled}

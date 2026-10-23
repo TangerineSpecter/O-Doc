@@ -216,10 +216,10 @@ class SocialTests(TestCase):
         self.assertEqual(emotion_now(relation.emotion)['kind'], '不满')
         apply_event(self.owner, self.agent.pk, peer, 'insult', {'category': 'insult', 'reason': '受到轻视'})
         apply_event(self.owner, self.agent.pk, peer, 'insult', {'category': 'insult', 'reason': '受到轻视'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, -28)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, -20)
         self.assertEqual(SocialEvent.objects.count(), 13)
         apply_event(self.owner, self.agent.pk, peer, 'apology', {'category': 'apology', 'reason': '对方道歉并解释'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, -23)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, -15)
         self.assertFalse(SocialRelation.objects.filter(actor_id=self.other.pk).exists())
         old = {**relation.emotion, 'at': (local_time()-timedelta(days=8)).isoformat()}
         self.assertEqual(emotion_now(old)['intensity'], 0)
@@ -500,10 +500,9 @@ class SocialTests(TestCase):
         self.moment.refresh_from_db(); self.assertEqual(self.moment.images, ['pic'])
         self.assertEqual(self.moment.image_state['status'], 'succeeded')
 
-    def test_migrated_scores_are_baseline_and_rebuildable(self):
+    def test_migrated_scores_are_baseline_for_new_events(self):
         from system_settings.models import AgentAffinity
         from .social_migration import seed_legacy_relations
-        from .social_relations import rebuild_relations
         AgentAffinity.objects.create(actor=self.agent, counterpart=self.other, score=65, event_count=30)
         seed_legacy_relations(self.owner)
         relation = SocialRelation.objects.get(actor_id=self.agent.pk)
@@ -511,8 +510,6 @@ class SocialTests(TestCase):
         self.assertEqual(relation.pk, stable_id(self.owner, self.agent.pk, f'agent-id:{self.other.pk}'))
         apply_event(self.owner, self.agent.pk, f'agent-id:{self.other.pk}', 'new', {'category': 'disagreement', 'reason': '有分歧'})
         relation.refresh_from_db(); self.assertEqual(relation.affinity, 64)
-        SocialRelation.objects.all().delete(); rebuild_relations(self.owner)
-        self.assertEqual(SocialRelation.objects.get(actor_id=self.agent.pk).affinity, 64)
 
     def test_media_failure_does_not_overwrite_new_request(self):
         from .social_media import recover_image

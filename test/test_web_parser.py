@@ -12,7 +12,6 @@ from utils.web_parser import (
     extract_html_content,
     extract_web_content,
     looks_like_login_or_block_page,
-    parse_web_content,
 )
 
 
@@ -58,9 +57,10 @@ class WebParserTests(TestCase):
     def test_import_keeps_article_when_navigation_contains_login(self, mock_get, _mock_resolve):
         mock_get.return_value = FakeResponse(self.ARTICLE_HTML)
 
-        title, content = parse_web_content('https://example.com/article')
+        parsed = extract_web_content('https://example.com/article')
+        content = parsed.best_candidate.markdown
 
-        self.assertEqual(title, '中文网页标题')
+        self.assertEqual(parsed.title, '中文网页标题')
         self.assertIn('这是需要保存的中文正文', content)
         self.assertIn('```python', content)
         self.assertIn('print("你好")', content)

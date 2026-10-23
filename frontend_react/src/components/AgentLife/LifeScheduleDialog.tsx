@@ -392,7 +392,6 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                         page={page}
                                         onPageChange={setPage}
                                         onSelectItem={setSelected}
-                                        dateKey={dateKey}
                                         density={density}
                                         statusFilter={status}
                                     />

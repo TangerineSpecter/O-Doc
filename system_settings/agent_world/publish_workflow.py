@@ -7,9 +7,6 @@ from urllib.parse import urlsplit
 
 from django.utils import timezone
 from system_settings.agent_prompts import build_agent_system_prompt
-from utils.ai_service import AIService
-from system_settings.agent_task_models import task_model_id
-from utils.bounded_completion import complete
 from .publish_config import categories_for, own_posts
 from .publish_search import search
 from .publish_voice import writing_context, VOICE_GUIDANCE
@@ -19,7 +16,6 @@ from .publish_title import validate_title
 from .publish_references import rebuild_references
 
 PUBLISH_TOTAL_DEADLINE_SECONDS = 600
-PUBLISH_MODEL_DEADLINE_SECONDS = 300
 
 
 class SkipPublication(ValueError):
@@ -53,7 +49,6 @@ class Workflow:
         self.save = save or (lambda state: None)
         self.progress = progress or (lambda phase: None)
         self.deadline = time.monotonic() + PUBLISH_TOTAL_DEADLINE_SECONDS
-        self.repairs = self.state.get('format_repairs', 0)
         self.state.setdefault('role_prompt', f'当前 Agent：{agent.name}\n{agent.prompt}')
         self.state.setdefault('extra', task.prompt)
         self.state.setdefault('profession', agent.profession.name if agent.profession else None)
@@ -104,7 +99,7 @@ class Workflow:
             return validate(value)
         from system_settings.agent_availability import require_active_agent
         return complete_json(self.agent, messages, checked, task=self.task,
-            decision=role_scene != 'expression', deadline=self.deadline, seconds=PUBLISH_MODEL_DEADLINE_SECONDS,
+            decision=role_scene != 'expression',
             scene='发帖 ' + phase, check=lambda: require_active_agent(self.agent), passthrough=(SkipPublication,))
 
     def select_category(self, categories: dict, rules: dict, recent: list) -> str:
@@ -206,7 +201,7 @@ class Workflow:
             for m in self.state['materials']
         ):
             # 旧快照不能伪填检索范围；同一机会重新检索并基于新素材核实写作。
-            self.state.update(materials=[], search_count=0, legacy_news_refreshed=True)
+            self.state.update(materials=[], search_count=0)
             for field in ('assessment', 'draft', 'verification_completed', 'verification_query'):
                 self.state.pop(field, None)
             if 'writing_context' not in self.state:

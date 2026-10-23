@@ -11,6 +11,7 @@ from .profiles import ensure
 from .sync import validate_source, revoke
 from ..life_time import storage_time, local_time
 from ..inventory_stock import add_stock, stock_quantity
+from utils.sync_merge import item_identity, revision_key
 
 
 class ExplorationTests(TestCase):
@@ -20,6 +21,7 @@ class ExplorationTests(TestCase):
         self.agent=Agent.objects.create(name='冒险者',model=model)
         self.now=storage_time(local_time());install()
         self.plan={'dungeon_id':'dungeon.moss_cave','style_id':'style.balanced','duration_seconds':1800,'potions':{}}
+        self.preparation_plan={**self.plan,'dungeon_id':'dungeon.sprout_meadow'}
 
     def run_trip(self,key='trip'):
         run=explorations.request('admin',self.agent,key,{},now=self.now)
@@ -82,7 +84,7 @@ class ExplorationTests(TestCase):
 
         run=explorations.request('admin',self.agent,'f'*64,{},now=self.now)
         with patch.object(AgentExecutionLease,'save',checked_save):
-            run=prepare(run.pk,planner=lambda *args:self.plan)
+            run=prepare(run.pk,planner=lambda *args:self.preparation_plan)
             self.assertEqual(run.status,'active')
             lease=AgentExecutionLease.objects.get(agent=self.agent)
             self.assertLessEqual(len(lease.token),field.max_length)
@@ -108,19 +110,19 @@ class ExplorationTests(TestCase):
         starter=EquipmentInstance.objects.get(pk=profile.loadout['weapon'])
         starter.template_id='equip.sword'
         starter.snapshot={**starter.snapshot,'template_id':'equip.sword','name':'训练木剑'}
-        starter.save(update_fields=['template_id','snapshot'])
+        starter.rules={**starter.rules,'job_levels':{'job.mage':10}}
+        starter.save(update_fields=['template_id','snapshot','rules'])
         run=explorations.request('admin',self.agent,'worn-gear-still-departs',{},now=self.now)
-        plan={**self.plan,'equipment':{'weapon':starter.pk}}
+        plan={**self.preparation_plan,'equipment':{'weapon':starter.pk}}
 
-        with patch('system_settings.agent_world.combat.equipment.allowed',return_value=False):
-            run=prepare(run.pk,planner=lambda *args:plan)
-            self.assertEqual(run.status,'active')
+        run=prepare(run.pk,planner=lambda *args:plan)
+        self.assertEqual(run.status,'active')
 
-            new_gear=EquipmentInstance.objects.create(pk='new-training-sword',owner_id='admin',
-                actor_id=self.agent.pk,catalog_id=starter.catalog_id,template_id=starter.template_id,
-                snapshot=starter.snapshot)
-            with self.assertRaisesMessage(ValueError,'装备不属于居民或不满足穿戴条件'):
-                preview_equipment(CombatProfile.objects.get(pk=self.agent.pk),{'weapon':new_gear.pk})
+        new_gear=EquipmentInstance.objects.create(pk='new-training-sword',owner_id='admin',
+            actor_id=self.agent.pk,catalog_id=starter.catalog_id,template_id=starter.template_id,
+            snapshot=starter.snapshot,rules=starter.rules)
+        with self.assertRaisesMessage(ValueError,'装备不属于居民或不满足穿戴条件'):
+            preview_equipment(CombatProfile.objects.get(pk=self.agent.pk),{'weapon':new_gear.pk})
 
     def test_ineligible_optional_equipment_does_not_block_exploration(self):
         import random
@@ -137,7 +139,7 @@ class ExplorationTests(TestCase):
         new_gear=EquipmentInstance.objects.create(pk='too-high-training-sword',owner_id='admin',
             actor_id=self.agent.pk,catalog_id=catalog.version,template_id='equip.training_sword',snapshot=snapshot)
         run=explorations.request('admin',self.agent,'skip-ineligible-gear',{},now=self.now)
-        plan={**self.plan,'equipment':{'weapon':new_gear.pk}}
+        plan={**self.preparation_plan,'equipment':{'weapon':new_gear.pk}}
 
         run=prepare(run.pk,planner=lambda *args:plan)
 
@@ -163,7 +165,7 @@ class ExplorationTests(TestCase):
         future=LifeItem.objects.create(pk='future-travel-reservation',owner_id='admin',actor_id=self.agent.pk,
             original_at=self.now,scheduled_at=self.now+timedelta(days=2),activity='travel',status='pending',budget=9995)
         run=explorations.request('admin',self.agent,'manual-reserved-potion-plan',{},now=self.now)
-        plan={**self.plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2},'equipment':{}}
+        plan={**self.preparation_plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2},'equipment':{}}
         run=prepare(run.pk,planner=lambda *args:plan)
         self.agent.refresh_from_db();future.refresh_from_db()
         prepared=run.snapshot['prepared_plan']
@@ -197,9 +199,8 @@ class ExplorationTests(TestCase):
         item=LifeItem.objects.create(pk='zero-budget-exploration',owner_id='admin',actor_id=self.agent.pk,
             original_at=self.now,scheduled_at=self.now,activity='exploration',status='running',budget=0)
         run=explorations.request('admin',self.agent,'zero-budget-preparation',{},life_item=item,now=self.now)
-        plan={**self.plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2},'equipment':{}}
-        with patch('system_settings.agent_world.life_context.build_context',return_value={}):
-            run=prepare(run.pk,planner=lambda *args:plan)
+        plan={**self.preparation_plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2},'equipment':{}}
+        run=prepare(run.pk,planner=lambda *args:plan)
         item.refresh_from_db()
         self.agent.refresh_from_db()
         self.assertEqual(run.status,'active')
@@ -312,7 +313,7 @@ class ExplorationTests(TestCase):
             merged, revisions, _ = manager.merge_v2_data(None, [], {}, remote)
             validate_source(merged)
             for row in merged:
-                key = manager._revision_key(row['model'], manager._item_identity(row))
+                key = revision_key(row['model'], item_identity(row))
                 self.assertEqual(revisions[key]['hash'], canonical_hash(row['fields']))
             manager.apply_snapshot_data(remote['data'], remote_meta=remote['meta'], full_overwrite=True)
             restored = AgentRunRecord.objects.get(pk=run.record_id)
@@ -354,7 +355,8 @@ class ExplorationTests(TestCase):
             run = explorations.tick(run.pk, now=self.now + timedelta(seconds=15))
         reward = run.result['rewards'][0]
         gear = EquipmentInstance.objects.get(pk=reward['equipment_id'])
-        self.assertIn('的双手杖', gear.snapshot['name'])
+        self.assertTrue(gear.snapshot['name'].endswith(catalog.row('equipment_templates', 'equip.staff')['name']))
+        self.assertEqual(gear.snapshot['equipment_type'], 'two_handed_staff')
         self.assertEqual(gear.snapshot, reward['item'])
         round_fact = CombatFact.objects.get(kind='round')
         kill = next(event for event in round_fact.payload['events'] if event['kind'] == 'kill')
@@ -469,7 +471,7 @@ class ExplorationTests(TestCase):
         SystemSetting.objects.create(key='system_mcp_config',value={'enabled':True})
         self.agent.money=1000;self.agent.save()
         run=explorations.request('admin',self.agent,'prepared',{},now=self.now)
-        plan={**self.plan,'purchases':{'potion.heal.1':2,'potion.mana.1':1},'potions':{'potion.heal.1':2},'equipment':{}}
+        plan={**self.preparation_plan,'purchases':{'potion.heal.1':2,'potion.mana.1':1},'potions':{'potion.heal.1':2},'equipment':{}}
         with patch('system_settings.agent_world.combat.preparation.depart',side_effect=ValueError('late resource change')):
             with self.assertRaises(ValueError):prepare(run.pk,planner=lambda *args:plan)
         self.assertEqual(MarketTransaction.objects.count(),2)
@@ -632,7 +634,7 @@ class ExplorationTests(TestCase):
         run_manual_life(ensure_task('admin'),self.agent.pk,'admin',AgentTaskScheduler())
         item=LifeItem.objects.get(activity='exploration')
         run=Exploration.objects.get(life_item_id=item.pk)
-        prepare(run.pk,planner=lambda *args:{**self.plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2}})
+        prepare(run.pk,planner=lambda *args:{**self.preparation_plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2}})
         CombatFact.objects.filter(exploration_id=run.pk,kind='depart').update(created_at=self.now)
         revoke(disable_auto=False)
         recover(self.now+timedelta(minutes=31));recover(self.now+timedelta(minutes=32))
@@ -715,13 +717,16 @@ class ExplorationTests(TestCase):
         validate_source(self.data())
 
     def test_catalog_adoption_sync_preserves_legacy_holy_staff_permissions(self):
+        import random
         from copy import deepcopy
         from . import attributes, equipment
         from .catalog import Catalog
         from .facts import append
+        from .history import freeze_legacy, maintain
         from .models import EquipmentInstance
-        from .profiles import promote, preview_equipment
+        from .profiles import equip, preview_equipment, stats
         from .store import digest
+        from ..life_models import LifeProfile
 
         released=install()
         legacy_tables=deepcopy(released.tables)
@@ -736,32 +741,45 @@ class ExplorationTests(TestCase):
                      ('job.priest','job.naturalist','job.warden')]:
             with self.subTest(job=path[-1]):
                 actor=Agent.objects.create(name=path[-1],model=self.agent.model)
-                profile=ensure('admin',actor,self.now)
+                progression=attributes.initial()
                 for job in path:
                     target=int(legacy.row('professions',job)['required_level'])
                     experience=sum(int(legacy.row('level_experience',f'level.{level}')['experience_to_next'])
-                                   for level in range(profile.progression['level'],target))
-                    profile.progression,_=attributes.award(legacy,profile.progression,experience)
-                    profile.save()
-                    append(profile,f'{actor.pk}:{job}:growth','round',{'events':[
-                        {'kind':'kill','experience':experience,'rewards':[]}]})
-                    profile=promote('admin',actor,f'{actor.pk}:{job}:promote',job)
-                weapon_id=profile.loadout['weapon']
-                weapon=EquipmentInstance.objects.get(pk=weapon_id)
-                self.assertEqual((weapon.template_id,weapon.catalog_id),('equip.holy_staff',legacy.version))
+                                   for level in range(progression['level'],target))
+                    progression,_=attributes.award(legacy,progression,experience)
+                    progression=attributes.promote(legacy,progression,job)
+                # Restore a saved old loadout and its wearing permissions; current
+                # promotion deliberately keeps the resident's valid training sword.
+                saved=equipment.generate(legacy,'equip.holy_staff',10,'white',random.Random(actor.pk),starter=True)
+                rules={'version':1,'slot':'weapon','equipment_type':'','grip':'',
+                       'job_levels':{job:10 for job in ('job.priest','job.naturalist','job.druid','job.warden')}}
+                weapon=EquipmentInstance.objects.create(pk='legacy-holy:'+actor.pk,owner_id='admin',
+                    actor_id=actor.pk,catalog_id=legacy.version,template_id='equip.holy_staff',
+                    snapshot=saved,rules=rules,bound=True)
+                LifeProfile.objects.create(pk=actor.pk,owner_id='admin')
+                profile=CombatProfile.objects.create(pk=actor.pk,owner_id='admin',actor_name=actor.name,
+                    catalog_id=legacy.version,progression=progression,loadout={'weapon':weapon.pk},recovered_at=self.now)
+                derived=stats(profile,legacy)
+                profile.hp,profile.mp=derived['hp_max'],derived['mp_max'];profile.save()
+                append(profile,'legacy-initialize:'+actor.pk,'initialize',{
+                    'equipment_id':weapon.pk,'progression':progression,'catalog_id':legacy.version})
+                freeze_legacy()
                 self.assertFalse(equipment.allowed(released,weapon.template_id,path[-1],
                                                    profile.progression['level'],weapon.snapshot['level']))
                 validate_source(self.data())
 
-                with patch('system_settings.agent_world.combat.explorations.current',return_value=released):
-                    explorations.request('admin',actor,f'{actor.pk}:adopt',{},now=self.now)
+                maintain(released)
                 profile.refresh_from_db()
                 self.assertEqual(profile.catalog_id,released.version)
-                self.assertEqual(profile.loadout['weapon'],weapon_id)
+                self.assertEqual(profile.loadout['weapon'],weapon.pk)
+                weapon.refresh_from_db()
+                self.assertEqual((weapon.snapshot,weapon.rules),(saved,rules))
                 validate_source(self.data())
-                # Historical compatibility does not grant new equip requests a mastery exemption.
-                with self.assertRaisesRegex(ValueError,'穿戴条件'):
-                    preview_equipment(profile,{'weapon':weapon_id})
+                profile=equip('admin',actor,'legacy-off:'+actor.pk,{'weapon':None})
+                preview_equipment(profile,{'weapon':weapon.pk})
+                profile=equip('admin',actor,'legacy-on:'+actor.pk,{'weapon':weapon.pk})
+                self.assertEqual(profile.loadout['weapon'],weapon.pk)
+                validate_source(self.data())
 
     def test_catalog_adoption_keeps_historical_growth_and_sync_provenance(self):
         profile=ensure('admin',self.agent,self.now)

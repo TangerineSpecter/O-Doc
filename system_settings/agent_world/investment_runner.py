@@ -98,7 +98,7 @@ def run_investment_opportunity(task,scheduler=None,*,key=None,manual=False):
                             from .investment_context import model_context
                             current = model_context(decision, overview(owner, agent.pk), task.prompt, prior)
                             return AIService.chat_completion_messages_with_tools([{'role':'system','content':prompt},{'role':'user','content':json.dumps(current,ensure_ascii=False,default=str)}],tool_definitions,execute,model_id=config['model_id'],max_rounds=max(1,20-tools.call_count),deadline=deadline)
-                        summary = run_models(agent, invoke, task=task, decision=True, owner=owner, deadline=deadline,
+                        summary = run_models(agent, invoke, task=task, decision=True, owner=owner,
                             scene='投资规划', check=lambda: check_authorization(decision, agent, token, manual)) or '本次投资机会结束'
                 except Finished as exc:summary=str(exc)
     except Exception as exc:

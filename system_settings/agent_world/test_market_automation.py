@@ -17,7 +17,7 @@ from .life_time import local_time, storage_time
 from .market_disposition import (aggregate, enqueue, select_rows, surplus_plan)
 from .market_disposition_worker import run as run_worker
 from .market_models import MarketIntegrity, MarketListing
-from .market_no_buy import clear_equipment, filter_candidates, is_blocked, record
+from .market_no_buy import clear_equipment, filter_candidates, record
 from .market_plan_models import (MarketDisposition, MarketDispositionTask, MarketGoal,
                                  MarketNoBuy, MarketPlan, MarketTick)
 from . import market_planning
@@ -118,11 +118,11 @@ class MarketAutomationTests(TestCase):
                                           'job_levels': {'job.warrior': 1}}, value=Decimal('100'),
             rules={'slot': 'weapon', 'job_levels': {'job.warrior': 1}})
         record('admin', self.a.pk, gear.pk, snapshot=gear.snapshot, price=100)
-        self.assertTrue(is_blocked('admin', self.a.pk, gear.pk))
+        self.assertTrue(MarketNoBuy.objects.filter(owner_id='admin', actor_id=self.a.pk, equipment_id=gear.pk).exists())
         rows = [{'equipment_id': gear.pk, 'snapshot': gear.snapshot}]
         self.assertEqual(filter_candidates('admin', self.a.pk, rows, 'job.warrior', 1), [])
         clear_equipment(gear.pk)
-        self.assertFalse(is_blocked('admin', self.a.pk, gear.pk))
+        self.assertFalse(MarketNoBuy.objects.filter(owner_id='admin', actor_id=self.a.pk, equipment_id=gear.pk).exists())
 
     def test_candidate_filter_uses_wear_rules_and_improvement(self):
         rules = {'version': 1, 'slot': 'weapon', 'equipment_type': 'sword', 'grip': 'one_handed',
@@ -559,9 +559,9 @@ class MarketAutomationTests(TestCase):
         self.assertEqual(MarketDispositionTask.objects.filter(status='running').count(), 2)
 
     def test_local_execution_models_are_excluded_from_sync(self):
-        from utils.sync_manager import SyncManager
+        from utils.sync_models import SnapshotModels
         from system_settings.sync_state import should_track
-        models = set(SyncManager._iter_target_models(SimpleNamespace(TARGET_APPS=['system_settings'])))
+        models = set(SnapshotModels(['system_settings']).iter_target_models())
         for model in (MarketTick, MarketDispositionTask):
             self.assertNotIn(model, models)
             self.assertFalse(should_track(model))

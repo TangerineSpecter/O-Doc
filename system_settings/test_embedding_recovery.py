@@ -64,7 +64,6 @@ class EmbeddingRecoveryTests(TestCase):
             self.assertNotEqual(old.name, current.name)
             self.assertEqual(len(old.get(include=['embeddings'])['embeddings'][0]), 2)
             self.assertEqual(len(current.get(include=['embeddings'])['embeddings'][0]), 3)
-        self.assertEqual(RagClient.search('查询'), ['旧正文'])
         documents, sources = RagClient.search_with_sources('查询')
         self.assertEqual(documents, ['旧正文'])
         self.assertEqual(sources[0]['id'], self.article.pk)

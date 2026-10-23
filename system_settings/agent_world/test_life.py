@@ -9,16 +9,15 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from system_settings.models import Agent, AgentTask, WorldActionRuntime, AgentRunRecord, WorldAction, AIProvider, AIModel, SystemSetting
-from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem
-from .life_config import DEFAULTS, validate_settings, ensure_profiles
-from .life_schedule import SHANGHAI, allocation_times, ensure_cycle, recover, requeue, stable_id
+from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeItem
+from .life_config import DEFAULTS, ensure_profiles
+from .life_schedule import SHANGHAI, allocation_times, ensure_cycle, recover, requeue
 from .life_time import local_time
 from .life_budget import charge_budget, adjust_budget
 from .life_scope import life_scope
 from .life_planner import apply_plan, check_goals
-from .life_context import build_context
+from .life_context import build_planning_selection_context
 from .life_sync import checkpoint_all, reconcile_life
-from .market_models import MarketSession, MarketBatch
 from .market_sessions import enter, close_session
 from .market_shop import current_batch
 from .market_service import trade
@@ -91,7 +90,7 @@ class LifeTests(TestCase):
 
     def test_manual_travel_finalized_when_automatic_runner_disabled(self):
         from .travel_models import TravelJourney
-        from .action_runner import tick
+        from .world_cycle import tick
         item = self.item(activity='travel', status='running', budget=9000, context={'manual': True})
         TravelJourney.objects.create(pk=item.pk, owner_id='admin', actor_id=self.ids[0],
                                      agent=self.agents[0], status='completed', phase='done')
@@ -314,7 +313,7 @@ class LifeTests(TestCase):
         apply_plan('admin',self.agents[0],[item],{'plans':[{'id':item.pk,'activity':'investment','budget':'1000','reason':'保留旅行资金'}]})
         item.refresh_from_db();self.assertEqual(item.task_id,self.task.pk)
         check_goals('admin',self.agents[0]);goal.refresh_from_db();self.assertEqual(goal.status,'completed')
-        self.assertEqual(build_context('admin',self.agents[0],item)['goals'],[])
+        self.assertEqual(build_planning_selection_context('admin',self.agents[0],[item])['goals'],[])
 
     def test_unknown_activity_and_missing_slot_rejected(self):
         item=self.item()
@@ -329,15 +328,6 @@ class LifeTests(TestCase):
         apply_plan('admin',self.agents[0],[item],proposal)
         future.refresh_from_db();self.assertEqual(future.budget,8000)
         self.assertEqual(future.revisions.get().reason,'降低后续购物预期')
-
-    def test_shared_context_has_past_and_future(self):
-        first=self.item(status='completed',result={'reason':'已买到种子'})
-        second=self.item('later',activity='travel',budget=2000,intent='下午旅行')
-        AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='采购',status='success',summary='已买到种子')
-        data=build_context('admin',self.agents[0],second)
-        self.assertEqual(data['recent_experiences'][0]['summary'],'已买到种子')
-        self.assertEqual(data['current']['budget'],'2000')
-        self.assertIn('today',data)
 
     def test_pinned_actor_no_second_random_selection(self):
         from .action_schedule import select_agent
@@ -394,7 +384,7 @@ class LifeTests(TestCase):
             cycle=ensure_cycle(self.config,NOW)
             self.assertEqual(ensure_cycle(self.config,NOW).pk,cycle.pk)
             self.agents[0].refresh_from_db()
-            data=build_context('admin',self.agents[0],item)
+            data=build_planning_selection_context('admin',self.agents[0],[item])
             import json
             json.dumps(data)
 
@@ -645,6 +635,32 @@ class LifeTests(TestCase):
         self.assertEqual(item.record_id,record.pk)
         self.assertEqual(item.result.get('reason'),'买入观察')
 
+    def test_finish_running_blacksmith_without_equipment_is_completed(self):
+        from .life_runner import finish_running
+        for label, stages in (('registered', [{'phase': 'type', 'choice': 'equip.training_sword', 'goal_id': 'goal'}]),
+                              ('no_new_goal', [])):
+            with self.subTest(outcome=label):
+                item = self.item('smith-' + label, activity='blacksmith', status='running')
+                result = {'reason': '本次铁匠铺活动结束。', 'pieces_made': 0,
+                          'operations': [], 'stages': stages}
+                WorldAction.objects.create(pk=item.pk, actor_id=item.actor_id, status='skipped',
+                                           snapshot={'blacksmith': True}, result=result)
+                finish_running(self.config, local_time())
+                item.refresh_from_db()
+                self.assertEqual(item.status, 'completed')
+                self.assertEqual(item.result, result)
+
+    def test_finish_running_blacksmith_failure_remains_failed(self):
+        from .life_runner import finish_running
+        item = self.item('smith-error', activity='blacksmith', status='running')
+        reason = '同一步打造决策连续三次不可用，本次停止；已完成装备保留。'
+        WorldAction.objects.create(pk=item.pk, actor_id=item.actor_id, status='failed',
+                                   snapshot={'blacksmith': True}, result={'reason': reason})
+        finish_running(self.config, local_time())
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'failed')
+        self.assertEqual(item.result['reason'], reason)
+
     def test_snapshot_keeps_skipped_opportunity_without_selected_actor(self):
         item=self.item(activity='investment',task_id=self.task.pk,status='rest')
         record=AgentRunRecord.objects.create(task=self.task,task_name='投资',status='success',summary='没有空闲居民')
@@ -725,7 +741,7 @@ class LifeTests(TestCase):
         run.assert_not_called()
 
     def test_busy_world_lock_closes_finished_work_and_leaves_due_slot(self):
-        from .action_runner import tick
+        from .world_cycle import tick
         today=local_time().date().isoformat()
         record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='已结束')
         done=self.item('done',activity='investment',status='running',task_id=self.task.pk,context={'execution_key':'done-key'})
@@ -801,7 +817,7 @@ class LifeMarketTests(TestCase):
         batch.refresh_from_db();self.assertEqual(batch.slots[0]['remaining_quantity'],0)
 
 
-class LifeProposalParsingTests(SimpleTestCase):
+class LifeProposalRequestTests(SimpleTestCase):
     def setUp(self):
         from unittest.mock import patch
         candidates = patch('system_settings.decision.routing.candidates', return_value=['mod_minimax'])
@@ -809,36 +825,6 @@ class LifeProposalParsingTests(SimpleTestCase):
         memory = patch('system_settings.agent_world.memory.recall.memory_context', return_value='')
         memory.start()
         self.addCleanup(memory.stop)
-
-    def test_parse_clean_json(self):
-        from .life_planner import parse_life_proposal
-        res = parse_life_proposal('{"plans": [{"id": "1", "activity": "rest"}]}')
-        self.assertEqual(res, {"plans": [{"id": "1", "activity": "rest"}]})
-
-    def test_parse_with_thinking_tags(self):
-        from .life_planner import parse_life_proposal
-        raw = '<think>I should rest today because stamina is low.</think>\n{"plans": [{"id": "1", "activity": "rest"}]}'
-        res = parse_life_proposal(raw)
-        self.assertEqual(res, {"plans": [{"id": "1", "activity": "rest"}]})
-
-    def test_parse_with_thinking_and_markdown_fences(self):
-        from .life_planner import parse_life_proposal
-        raw = '<think>\n规划分析...\n</think>\n```json\n{"plans": [{"id": "1", "activity": "farm"}]}\n```'
-        res = parse_life_proposal(raw)
-        self.assertEqual(res, {"plans": [{"id": "1", "activity": "farm"}]})
-
-    def test_parse_with_surrounding_commentary(self):
-        from .life_planner import parse_life_proposal
-        raw = '好的，这是为你规划的活动：\n```json\n{"plans": []}\n```\n祝你今天开心！'
-        res = parse_life_proposal(raw)
-        self.assertEqual(res, {"plans": []})
-
-    def test_parse_empty_or_thinking_only_raises_friendly_error(self):
-        from .life_planner import parse_life_proposal
-        with self.assertRaisesMessage(ValueError, '生活规划返回内容为空'):
-            parse_life_proposal('')
-        with self.assertRaisesMessage(ValueError, '生活规划未返回有效正文'):
-            parse_life_proposal('<think>正在思考但是没有生成正文...</think>')
 
     @patch('system_settings.agent_world.life_planner.require_active_agent', new=lambda agent: agent)
     def test_ask_passes_thinking_disabled_and_strips_thinking(self):

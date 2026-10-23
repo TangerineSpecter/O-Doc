@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {alphaBounds,applyBrushStroke,autoHeadTransform,headFramePlacement,removeColorRegion,removeFlatBackground} from './imageProcessing';
+import {alphaBounds,applyBrushStroke,removeColorRegion,removeFlatBackground} from './imageProcessing';
 import type {PixelImage} from './imageProcessing';
 
 function canvas(width:number,height:number,color:[number,number,number,number]):PixelImage {
@@ -34,27 +34,6 @@ test('brush can erase pixels and restore them from the original image',()=>{
     const restored=applyBrushStroke(erased,original,[{x:2,y:2}],1,'restore');
     assert.deepEqual(Array.from(restored.data.slice((2*5+2)*4,(2*5+2)*4+4)),[30,40,50,255]);
 });
-
-test('registered long hair extends below the neck without being clipped at the shoulder',()=>{
-    const placement=headFramePlacement({x:0,y:0,width:100,height:240},{x:0,y:0,scale:2,neckAnchor:{x:50,y:140}});
-    assert.equal(placement.y+140*2,310);
-    assert.equal(placement.y+placement.height,510);
-    assert.equal(placement.clipped,false);
-});
-
-test('auto alignment fits both the face above the neck and the hair below it',()=>{
-    const crop={x:0,y:0,width:100,height:240};
-    const transform=autoHeadTransform(crop,{x:50,y:140},'behind');
-    const placement=headFramePlacement(crop,transform);
-    assert.equal(transform.hairLayer,'behind');
-    assert.equal(placement.clipped,false);
-    assert.ok(placement.y+placement.height>310);
-});
-
-test('old unregistered transforms retain the original head placement',()=>{
-    assert.deepEqual(headFramePlacement({x:10,y:20,width:100,height:100},{x:0,y:0,scale:2}),{x:87,y:55,width:200,height:200,clipped:false});
-});
-
 
 test('clicked background pocket is removed without deleting disconnected same-color details',()=>{
     const source=canvas(7,7,[110,35,40,255]);

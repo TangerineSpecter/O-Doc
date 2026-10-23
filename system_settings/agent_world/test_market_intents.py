@@ -377,23 +377,6 @@ class MarketIntentTests(TestCase):
         self.assertFalse(MarketSession.objects.filter(record=record).exists())
         self.assertEqual(model.call_count, 0)
 
-    def test_recipe_list_is_small_and_full_selected_details_remain_available(self):
-        from .market_model_context import observe
-        from .cooking_queries import recipes
-        raw = recipes('admin', self.a)
-        summary = observe('admin', self.a, {'topic': 'cooking'})
-        self.assertEqual(summary['recipes']['total'], len(raw))
-        self.assertNotIn('description', summary['recipes']['items'][0])
-        self.assertNotIn('quality_previews', summary['recipes']['items'][0])
-        self.assertLess(len(json.dumps(summary)), len(json.dumps(raw)) // 2)
-        first = summary['recipes']['items'][0]
-        detail = observe('admin', self.a, {'topic': 'recipe', 'recipe_id': first['id']})['recipe']
-        self.assertEqual(detail['ingredients'], first['ingredients'])
-        self.assertEqual(detail['description'], raw[0]['description'])
-        self.assertIn('sale_price', detail)
-        with self.assertRaisesMessage(ValueError, '食谱不存在'):
-            observe('admin', self.a, {'topic': 'recipe', 'recipe_id': 'nonexistent'})
-
     def test_detail_diagnostics_record_topic_and_size_without_query_body(self):
         self.prepare()
         from .life_models import LifeConfig
@@ -401,7 +384,12 @@ class MarketIntentTests(TestCase):
         self.task.market_config['decision_enabled'] = False
         self.task.save()
         def read(messages, tools, execute, **kwargs):
+            retired = {'cooking', 'recipe', 'life', 'experiences'}
+            detail_tool = next(tool['function'] for tool in tools if tool['function']['name'] == 'observe_market_detail')
+            self.assertTrue(retired.isdisjoint(detail_tool['parameters']['properties']['topic']['enum']))
             execute('enter_market', {})
+            for topic in retired:
+                self.assertIn('不开放该详情主题', execute('observe_market_detail', {'topic': topic})['error'])
             execute('observe_market_detail', {'topic': 'planting', 'page': 1, 'search': '萝卜'})
             execute('leave_market', {'reason': 'farm_queue不可虚构种植计划'})
         record, _ = self.run_with(lambda *args, **kwargs: self.fail('JEV disabled'), read)

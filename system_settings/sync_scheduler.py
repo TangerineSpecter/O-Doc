@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import socket
@@ -519,48 +518,6 @@ class WebDavAutoSyncScheduler:
 
     def _build_sync_manager(self, config):
         return create_sync_manager(config)
-
-    def _consume_stream(self, stream):
-        messages = []
-        for chunk in stream:
-            if not chunk:
-                continue
-            try:
-                payload = json.loads(chunk.strip())
-            except json.JSONDecodeError:
-                continue
-            if payload.get('msg'):
-                messages.append(payload['msg'])
-                append_sync_message(payload['msg'], runner_id=self.runner_id)
-            if payload.get('step') == 'error':
-                raise SyncError(payload.get('msg') or '自动同步失败')
-        return messages
-
-    def _sync_from_remote_snapshot(self, manager, remote_meta):
-        messages = []
-        data_count = manager.sync_data_download(
-            remote_meta=remote_meta,
-            should_abort=lambda: not runner_owns_sync(self.runner_id),
-        )
-        messages.append(f"数据快照已恢复，共对齐 {data_count} 条记录")
-        append_sync_message(messages[-1], runner_id=self.runner_id)
-
-        file_count = manager.sync_assets_download(
-            should_abort=lambda: not runner_owns_sync(self.runner_id),
-        )
-        messages.append(f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件")
-        append_sync_message(messages[-1], runner_id=self.runner_id)
-
-        if remote_meta and remote_meta.get('snapshot_id') and runner_owns_sync(self.runner_id):
-            snapshot_id = remote_meta['snapshot_id']
-            now = timezone.now().isoformat()
-            self._save_runtime_state(
-                last_pulled_snapshot_id=snapshot_id,
-                last_synced_snapshot_id=snapshot_id,
-                last_pull_at=now,
-            )
-
-        return messages
 
     def _run_sync(self, config, runtime_state):
         recover_owned_remote_lock = remote_lock_recovery_runner()

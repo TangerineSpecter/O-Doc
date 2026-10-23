@@ -6,7 +6,7 @@ def build_battle_head_request(arguments: dict, options: dict, agent=None) -> dic
     background_mode = data.pop('background_mode', 'flat')
     if background_mode not in ('flat', 'transparent'):
         raise ValueError('背景方式无效')
-    pose_reference_id = data.pop('pose_reference_image_id', None) or data.pop('body_reference_image_id', None)
+    pose_reference_id = data.pop('pose_reference_image_id', None)
     appearance_override_id = data.pop('appearance_reference_image_id', None)
     use_agent_avatar = data.pop('use_agent_avatar', True)
     legacy_references = data.pop('reference_image_ids', [])

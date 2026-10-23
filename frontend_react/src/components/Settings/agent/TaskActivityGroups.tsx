@@ -13,8 +13,8 @@ const groups = [
     {id: 'independent', title: '独立活动', description: '按交易、社交、赛事或任务机会触发，保留各自的节奏。', kinds: ['market']},
 ] as const;
 
-export function TaskActivityGroups({tasks, runningTaskId, progress, onConfigure, onToggle, onRun, onPreview, memo}: {
-    tasks: AgentTaskConfig[]; runningTaskId: string | null; progress: Record<string, AgentTaskConfig['worldProgress']>;
+export function TaskActivityGroups({tasks, runningTaskId, onConfigure, onToggle, onRun, onPreview, memo}: {
+    tasks: AgentTaskConfig[]; runningTaskId: string | null;
     onConfigure: (task: AgentTaskConfig) => void; onToggle: (id: string) => void;
     onRun: (id: string) => void; onPreview: (task: AgentTaskConfig) => void; memo: ReactNode;
 }) {
@@ -31,8 +31,8 @@ export function TaskActivityGroups({tasks, runningTaskId, progress, onConfigure,
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {group.kinds.map(kind => tasks.find(task => task.taskKind === kind)).filter((task): task is AgentTaskConfig => !!task).map(task =>
-                    <BuiltinPostTaskCard key={task.taskKind} task={task} agentNames={[]} running={!!task.id && runningTaskId === task.id}
-                        progress={progress[task.id]} onConfigure={() => onConfigure(task)} onToggle={() => onToggle(task.id)} onRun={() => onRun(task.id)}
+                    <BuiltinPostTaskCard key={task.taskKind} task={task} running={!!task.id && runningTaskId === task.id}
+                        onConfigure={() => onConfigure(task)} onToggle={() => onToggle(task.id)} onRun={() => onRun(task.id)}
                         onPreview={task.taskKind === 'post_publish' ? () => onPreview(task) : undefined}/>
                 )}
                 {group.id === 'schedule' && <LotteryActivityCard/>}

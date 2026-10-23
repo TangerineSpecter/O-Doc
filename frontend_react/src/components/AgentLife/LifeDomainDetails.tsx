@@ -6,7 +6,7 @@ import {getFishingTrip} from '../../api/fishing';
 import {FishingTripDetails} from '../Fishing/FishingTripDetails';
 import type {FishingDetail} from '../../types/api/fishing';
 import type {LifeItem} from '../../types/api/agentLife';
-import ExecutionFlowDialog from '../TokenUsage/ExecutionFlowDialog';
+import ExecutionObservatoryDialog from '../TokenUsage/ExecutionObservatoryDialog';
 
 function ExplorationDetails({id}: {id: string}) {
     const state = useCombatObservation(id);
@@ -29,7 +29,7 @@ function FishingDetails({id, onClose}: {id: string; onClose: () => void}) {
     return <>{error && <p role="alert" className="text-xs text-red-600">{error}</p>}{trip ? <FishingTripDetails trip={trip} loading={loading} onBack={onClose} onPage={setPage}/> : <p className="text-xs text-slate-500">{loading ? '正在加载出钓记录…' : '暂无出钓记录'}</p>}</>;
 }
 export function LifeDomainDetails({detail, recordId, onClose}: {detail: NonNullable<LifeItem['domainDetail']>; recordId?: string; onClose: () => void}) {
-    if (detail.kind === 'blacksmith') return <ExecutionFlowDialog recordId={recordId || detail.id} taskName="铁匠铺打造" onClose={onClose}/>;
+    if (detail.kind === 'blacksmith') return <ExecutionObservatoryDialog recordId={recordId || detail.id} taskName="铁匠铺打造" onClose={onClose}/>;
     return <WorldDialog title={detail.kind === 'fishing' ? '出钓记录' : '探索记录'} onClose={onClose} size="extra-wide">
         {detail.kind === 'fishing' ? <FishingDetails id={detail.id} onClose={onClose}/> : <ExplorationDetails id={detail.id}/>}
     </WorldDialog>;

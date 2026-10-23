@@ -116,4 +116,4 @@ class WhiteboardApiTests(TestCase):
         self.assertFalse(Whiteboard.objects.filter(id='wb-valid-before-error').exists())
 
     def test_whiteboard_model_is_in_snapshot_export_scope(self):
-        self.assertIn(Whiteboard, list(SyncManager()._iter_target_models()))
+        self.assertIn(Whiteboard, list(SyncManager().models.iter_target_models()))

@@ -50,7 +50,11 @@ def finish_running(config, now):
             continue
         action=WorldAction.objects.filter(pk=key).first()
         if action and action.status in ('success','failed','skipped'):
-            status = 'completed' if action.status == 'success' else 'rest' if item.activity == 'market_prepare' and action.status == 'skipped' else 'failed'
+            # A forge visit can finish by registering goals without producing gear.
+            if action.status == 'success' or (item.activity == 'blacksmith' and action.status == 'skipped'):
+                status = 'completed'
+            else:
+                status = 'rest' if item.activity == 'market_prepare' and action.status == 'skipped' else 'failed'
             revise(item,'已核对实际执行事实',status=status,record_id=action.record_id or '',result=action.result)
         elif local_time(item.updated_at) < now-timedelta(minutes=15) and not action:
             revise(item,'准备阶段中断，没有业务提交，本机会结束',status='failed',result={'reason':'执行准备中断'})
@@ -157,11 +161,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
         return
     if not queue_farm and energy_insufficient:
         if item.attempts>=3:
-            if energy_insufficient:
-                revise(item,'体力不足，顺延重试后仍无法执行',status='rest',
-                       result={'reason':f'当前体力不足以启动活动，至少需要 {required_energy} 点'});return
-            revise(item,'持续忙碌，本次活动无法执行',status='failed',
-                   result={'reason':'居民持续忙碌，已达到顺延上限'});return
+            revise(item,'体力不足，顺延重试后仍无法执行',status='rest',
+                   result={'reason':f'当前体力不足以启动活动，至少需要 {required_energy} 点'});return
         item.attempts+=1
         point=local_time()+timedelta(minutes=config.settings.get('min_gap_minutes',15))
         left,right=window(config.settings,point.date())

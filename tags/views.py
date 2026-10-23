@@ -1,7 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
 from rest_framework.views import APIView
-from rest_framework.pagination import PageNumberPagination
 
 from article.models import Article
 from utils.drf_utils import get_current_user_identifier
@@ -9,13 +8,6 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from .models import Tag
 from .serializers import TagSerializer
-
-
-# 自定义分页类
-class TagPagination(PageNumberPagination):
-    page_size = 20  # 默认每页20条
-    page_size_query_param = 'page_size'  # 允许通过参数指定每页大小
-    max_page_size = 100  # 最大每页100条
 
 
 class TagCreateView(APIView):

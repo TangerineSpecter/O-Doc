@@ -64,24 +64,3 @@ def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None, status=Non
         'msg': error.message,
         'data': data
     }, status=status)
-
-
-def list_result(data=None, total=0, page=1, page_size=20):
-    """
-    统一的列表数据响应格式化函数
-    :param data: 列表数据
-    :param total: 总条数
-    :param page: 当前页码
-    :param page_size: 每页大小
-    :return: JsonResponse对象
-    """
-    return Response({
-        'code': ErrorCode.SUCCESS.code,
-        'msg': ErrorCode.SUCCESS.message,
-        'data': {
-            'total': total,
-            'page': page,
-            'page_size': page_size,
-            'list': data
-        }
-    })

@@ -3,8 +3,6 @@ import type {DecisionConfig, DecisionConnectionInput} from '../types/api/decisio
 
 export const getDecisionConfig = (signal?: AbortSignal) =>
     request.get<unknown, DecisionConfig>('/settings/decision-models/', {signal});
-export const saveDecisionKey = (apiKey: string | null) =>
-    request.patch<unknown, DecisionConfig>('/settings/decision-models/', {apiKey});
 export const createDecisionConnection = (value: DecisionConnectionInput) =>
     request.post<unknown, DecisionConfig>('/settings/decision-models/connections/', value);
 export const updateDecisionConnection = (id: string, value: Partial<DecisionConnectionInput>) =>

@@ -102,28 +102,3 @@ class Asset(models.Model):
                 'collId': self.linked_article.coll_id  # 新增：返回文集ID
             }
         return None
-
-    def soft_delete(self):
-        """软删除"""
-        self.is_valid = False
-        self.save(update_fields=['is_valid'])
-
-    @classmethod
-    def get_by_hash(cls, file_hash):
-        """通过文件哈希获取资源"""
-        return cls.objects.filter(file_hash=file_hash, is_valid=True).first()
-
-    @classmethod
-    def get_user_assets(cls, username, **kwargs):
-        """获取用户的资源列表"""
-        return cls.objects.filter(uploader=username, is_valid=True, **kwargs)
-
-    @classmethod
-    def get_linked_assets(cls, article_id):
-        """获取文章关联的资源"""
-        return cls.objects.filter(linked_article_id=article_id, is_valid=True)
-
-    @classmethod
-    def get_unlinked_assets(cls):
-        """获取未关联的资源"""
-        return cls.objects.filter(is_linked=False, is_valid=True)

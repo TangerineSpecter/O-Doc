@@ -219,10 +219,10 @@ class PublicationTests(TestCase):
         self.quota_post('今日一')
         self.assertEqual(task_reason('admin', self.agent, self.task, timezone.now()), '本期发帖总量已达到上限')
 
-    def test_unknown_or_stale_news_date_is_rejected(self):
-        for date in (None, (timezone.now()-timedelta(days=5)).isoformat(), (timezone.now()+timedelta(days=1)).isoformat()):
-            state=copy.deepcopy(self.state); state['materials'][0]['published_at']=date
-            with self.assertRaises(SkipPublication): validate_draft(state['draft'],state)
+    def test_news_without_actual_search_window_is_rejected(self):
+        state=copy.deepcopy(self.state)
+        state['materials'][0].pop('search_window')
+        with self.assertRaises(SkipPublication): validate_draft(state['draft'],state)
 
     def test_topic_accepts_old_material_and_citations_are_idempotent(self):
         state=copy.deepcopy(self.state); state['selection']['mode']='topic'; state['materials'][0]['published_at']=None
@@ -288,7 +288,7 @@ class PublicationTests(TestCase):
 
     @patch('system_settings.agent_world.publish_workflow.search')
     @patch('system_settings.decision.routing.complete')
-    @patch('system_settings.agent_world.publish_workflow.AIService.get_client_config_for_model',return_value={})
+    @patch('utils.ai_service.AIService.get_client_config_for_model',return_value={})
     def test_workflow_bounded_search_and_saved_materials(self, model, completion, search_mock):
         selection=self.state['selection']; assessment={**self.state['assessment'],'primary_source':False,'verification_query':'核实AI'}
         second={**self.source,'url':'https://other.example.com/confirm'}
@@ -301,7 +301,7 @@ class PublicationTests(TestCase):
 
     @patch('system_settings.agent_world.publish_workflow.search')
     @patch('system_settings.decision.routing.complete',side_effect=['bad','still bad'])
-    @patch('system_settings.agent_world.publish_workflow.AIService.get_client_config_for_model',return_value={})
+    @patch('utils.ai_service.AIService.get_client_config_for_model',return_value={})
     def test_format_repair_only_once(self, model, completion, search_mock):
         with self.assertRaises(ValueError): Workflow(self.task,self.agent).run()
         self.assertEqual(completion.call_count,2); search_mock.assert_not_called()
@@ -333,7 +333,7 @@ class PublicationTests(TestCase):
 
     @patch('system_settings.agent_world.publish_runner.Workflow.run')
     def test_disabled_local_runner_does_not_resume_publication(self, run):
-        from .action_runner import tick
+        from .world_cycle import tick
         self.release()
         action = self.action()
         WorldAction.objects.filter(pk=action.pk).update(updated_at=timezone.now()-timedelta(minutes=16))
@@ -346,7 +346,7 @@ class PublicationTests(TestCase):
 
     @patch('system_settings.agent_world.publish_runner.Workflow.run')
     def test_enabled_local_runner_resumes_publication_once(self, run):
-        from .action_runner import tick
+        from .world_cycle import tick
         self.release()
         WorldActionRuntime.objects.update(enabled=True)
         action = self.action()
@@ -362,7 +362,7 @@ class PublicationTests(TestCase):
         self.assertEqual(Article.objects.count(), 1)
 
     def test_disabled_runner_still_repairs_completed_publication(self):
-        from .action_runner import tick
+        from .world_cycle import tick
         action = self.commit(self.action())
         scheduler = AgentTaskScheduler()
         with patch.object(scheduler, '_send_task_notification', return_value=True) as notification:
@@ -404,7 +404,7 @@ class PublicationTests(TestCase):
         self.assertIn('system_settings.worldactionruntime',LOCAL_ONLY_MODEL_LABELS)
         self.assertIn('system_settings.agentexecutionlease',LOCAL_ONLY_MODEL_LABELS)
 
-    def test_sync_snapshot_roundtrip_keeps_result_and_local_leases(self):
+    def test_sync_snapshot_roundtrip_keeps_result_and_revokes_world_execution(self):
         from django.conf import settings
         from pathlib import Path
         from tempfile import TemporaryDirectory
@@ -412,6 +412,7 @@ class PublicationTests(TestCase):
         from utils.sync_manager import SyncManager
         from system_settings.sync_state import suspend_tracking
         self.commit(self.action())
+        WorldActionRuntime.objects.filter(pk='world').update(enabled=True)
         with TemporaryDirectory(prefix='odoc-publish-sync-') as root:
             media = Path(root)/'media'; media.mkdir()
             sentinel = Path(root)/'outside-media.txt'; sentinel.write_text('preserved')
@@ -427,7 +428,10 @@ class PublicationTests(TestCase):
                 action=WorldAction.objects.get(pk='opportunity-test')
                 self.assertEqual(action.status,'success'); self.assertIn('materials',action.snapshot)
                 self.assertEqual(Article.objects.count(),1)
-                self.assertEqual(WorldActionRuntime.objects.get(pk='world').token,'world-test')
+                runtime=WorldActionRuntime.objects.get(pk='world')
+                self.assertEqual(runtime.token,'')
+                self.assertIsNone(runtime.until)
+                self.assertFalse(runtime.enabled)
                 self.assertEqual(sentinel.read_text(),'preserved')
 
     def test_disable_remains_possible_when_search_service_offline(self):
@@ -446,7 +450,9 @@ class PublicationTests(TestCase):
         self.client.force_authenticate(user)
         for operation in ('preview','run_now'):
             response=self.client.post(f'/api/settings/agent-tasks/{self.task.pk}/{operation}/',{'agentId':self.agent.pk},format='json')
-            self.assertEqual(response.status_code,403)
+            self.assertEqual(response.status_code,404)
+        self.assertFalse(WorldAction.objects.exists())
+        self.assertFalse(Article.objects.exists())
 
     def test_adapted_selector_uses_publish_cost_and_keeps_comment_cost(self):
         from .action_schedule import select_agent
@@ -466,11 +472,14 @@ class PublicationTests(TestCase):
         action.refresh_from_db(); self.assertFalse(action.snapshot['notification_pending'])
         self.assertEqual(Article.objects.count(),1); self.assertEqual(action.energy_cost,Decimal('20'))
 
-    def test_stale_news_is_normal_skip_without_format_retry(self):
+    def test_news_with_bounded_search_accepts_unknown_date_without_model_retry(self):
         state=copy.deepcopy(self.state); state['materials'][0]['published_at']=None
         flow=Workflow(self.task,self.agent,state)
-        with self.assertRaises(SkipPublication): flow.run()
-        self.assertEqual(flow.repairs,0)
+        with patch.object(flow,'ask') as ask:
+            result=flow.run()
+        self.assertEqual(result['phase'],'ready')
+        self.assertEqual(result['draft']['source_urls'],[self.source['url']])
+        ask.assert_not_called()
 
     def test_singleton_cannot_be_taken_over_by_other_user(self):
         self.client.force_authenticate(User.objects.create_user('other',password='test'))

@@ -26,10 +26,11 @@
     "test:quant": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/quant.test.ts src/mocks/quant/routes.test.ts",
     "test:farm-scene": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Farm/scene/sceneModel.test.ts src/components/Farm/scene/pacing.test.ts src/components/Farm/scene/rainPattern.test.ts src/components/Farm/scene/simulation.test.ts",
     "test:execution-flow": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/executionFlow.test.ts src/utils/tokenObservatory.test.ts",
+    "test:agent-tasks": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/agentTaskValidation.test.ts src/utils/agentTaskPayload.test.ts src/mocks/agentWorld/agentTasks.test.ts src/components/Settings/agent/agentTaskDraft.test.ts",
     "test:social-theatre": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/socialTheatre.test.ts",
     "test:tournament": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Tournament/tournamentBracket.test.ts",
-    "test:agent-run-records": "node --test scripts/agent-run-records.test.mjs",
-    "test:blacksmith": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/blacksmith.test.ts"
+    "test:blacksmith": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/blacksmith.test.ts",
+    "test:local-routing": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test scripts/local-routing.test.mjs scripts/production-routing.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",

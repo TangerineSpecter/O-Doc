@@ -11,7 +11,6 @@ interface LifeScheduleListViewProps {
     page: number;
     onPageChange: (page: number) => void;
     onSelectItem: (id: string) => void;
-    dateKey?: (value: string) => string;
     density?: 'compact' | 'normal';
     statusFilter?: string;
 }

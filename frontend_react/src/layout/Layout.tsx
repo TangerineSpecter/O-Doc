@@ -192,7 +192,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
             <Navbar
                 onNavigate={onNavigate}
                 onOpenSearch={() => setIsSearchOpen(true)}
-                onOpenAI={handleOpenAIEntry}
                 userInfo={userInfo}
                 onLogout={handleLogout}
                 onOpenProfile={() => setIsProfileOpen(true)}

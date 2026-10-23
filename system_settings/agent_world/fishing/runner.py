@@ -11,6 +11,7 @@ from ..inventory_stock import add_stock
 from ..market_inventory import split_escrow
 from ..life_time import local_time, storage_time
 from .models import FishingTrip, FishingProfile
+from .constants import energy_action_id
 from .rules import candidates, encounter, capture_probability, experience_for, level_for, duel_result
 from .service import authorized, append, finish
 
@@ -80,6 +81,8 @@ def cast(identity: str, *, now=None, rng=None) -> None:
     trip.state['carried'][index] = remaining
     trip.state['cursor'] = (cursor + 1) % len(trip.state['plan']['baits'])
     trip.state['casts'] += 1
+    trip.state['failures'] = 0
+    trip.state.pop('error', None)
     profile = FishingProfile.objects.get(pk=trip.actor_id, owner_id=trip.owner_id)
     level = level_for(profile.experience, trip.rules['max_level'])[0]
     outcome = encounter(trip.rules, trip.state['plan']['spot'], bait, at, rng)
@@ -101,7 +104,7 @@ def cast(identity: str, *, now=None, rng=None) -> None:
         trip.status = 'duel'
         trip.state['duel'] = {'fish_id': outcome['fish_id'], 'wins': 0, 'losses': 0, 'round': 0}
     event = append(trip, 'cast', data)
-    WorldAction.objects.create(pk='fishing-energy:' + event.pk, actor_id=trip.actor_id,
+    WorldAction.objects.create(pk=energy_action_id(event.pk), actor_id=trip.actor_id,
         status='success', consumed_at=storage_time(at), energy_cost=trip.rules['energy_cost'], effects_done=True,
         snapshot={'fishing': True}, result={'fishing_trip_id': trip.pk, 'fishing_event_id': event.pk})
     trip.next_tick_at = at + timedelta(seconds=trip.rules['interval_seconds'])

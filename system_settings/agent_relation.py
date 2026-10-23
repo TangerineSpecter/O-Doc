@@ -11,9 +11,6 @@ from article.models import Article, ArticlePostComment, ArticlePostRating
 from system_settings.models import Agent, AgentActivity, AgentAffinity, AgentCreativity
 
 WINDOW_DAYS = 30
-TIER_ORDER = ('初识', '熟悉', '朋友', '知己')
-TIER_THRESHOLDS = {'熟悉': 20, '朋友': 45, '知己': 75}
-TIER_MARGIN = 4
 CREATIVITY_SATURATION = 8
 
 
@@ -30,72 +27,12 @@ def agent_from_creator_id(creator_id):
     return Agent.objects.filter(name=creator_id.split(':', 1)[1]).first()
 
 
-def apply_affinity_event(score, action, basis):
-    """按时间顺序重放一条互动后的分数，范围 0–100。"""
-    score = float(score)
-    action = action or ''
-    basis = str(basis or '')
-    if action == 'comment':
-        if basis == 'approve':
-            score += 12 * (1 - score / 100)
-        elif basis == 'disapprove':
-            score -= 16 * (0.55 + 0.45 * score / 100)
-    elif action == 'rate':
-        try:
-            rating = int(basis)
-        except (TypeError, ValueError):
-            rating = 0
-        if rating >= 7:
-            gain = 8 + (rating - 7) * 2
-            score += gain * (1 - score / 100)
-        elif 1 <= rating <= 4:
-            loss = 8 + (4 - rating) * 3
-            score -= loss * (0.55 + 0.45 * score / 100)
-    return max(0.0, min(100.0, score))
-
-
 def stance_for_rating(rating):
     if rating >= 7:
         return 'approve'
     if rating <= 4:
         return 'disapprove'
     return 'neutral'
-
-
-def replay_affinity(events):
-    score = 0.0
-    for action, basis in events:
-        score = apply_affinity_event(score, action, basis)
-    return int(round(score))
-
-
-def directional_band(score, previous=''):
-    """单方等级。已有等级时，进出各留 4 分，避免边界来回跳。"""
-    if previous not in TIER_ORDER:
-        return _raw_band(score)
-    index = TIER_ORDER.index(previous)
-    while index < len(TIER_ORDER) - 1:
-        threshold = TIER_THRESHOLDS[TIER_ORDER[index + 1]] + TIER_MARGIN
-        if score >= threshold:
-            index += 1
-        else:
-            break
-    while index > 0:
-        floor = TIER_THRESHOLDS[TIER_ORDER[index]] - TIER_MARGIN
-        if score < floor:
-            index -= 1
-        else:
-            break
-    return TIER_ORDER[index]
-
-
-def display_tier(own_band, other_band):
-    """朋友和知己需要双方都达到。只有一方有互动时，最高停在熟悉。"""
-    own_index = TIER_ORDER.index(own_band if own_band in TIER_ORDER else '初识')
-    if other_band not in TIER_ORDER:
-        return TIER_ORDER[min(own_index, TIER_ORDER.index('熟悉'))]
-    other_index = TIER_ORDER.index(other_band)
-    return TIER_ORDER[min(own_index, other_index)]
 
 
 def creativity_score(post_count, rating_values, rated_post_count, active_days):
@@ -367,75 +304,12 @@ def list_agent_activity_events(agent, *, days=7, action='', direction='outbound'
     return {'events': events, 'count': len(events)}
 
 
-def _raw_band(score):
-    if score >= TIER_THRESHOLDS['知己']:
-        return '知己'
-    if score >= TIER_THRESHOLDS['朋友']:
-        return '朋友'
-    if score >= TIER_THRESHOLDS['熟悉']:
-        return '熟悉'
-    return '初识'
-
-
 def _local_date(value):
     if value is None:
         return None
     if timezone.is_aware(value):
         value = timezone.localtime(value)
     return value.date()
-
-
-def _direction_events(actor, counterpart):
-    rows = AgentActivity.objects.filter(
-        agent=actor,
-        counterpart_id=agent_creator_id(counterpart),
-        action__in=['comment', 'rate'],
-        occurred_at__gte=window_start(),
-    ).order_by('occurred_at', 'id')
-    return [(row.action, row.score_delta_basis or row.stance) for row in rows]
-
-
-def _write_direction(actor, counterpart):
-    events = _direction_events(actor, counterpart)
-    existing = AgentAffinity.objects.filter(actor=actor, counterpart=counterpart).first()
-    if not events:
-        if existing:
-            existing.delete()
-        return None
-    score = replay_affinity(events)
-    band = directional_band(score, existing.band if existing else '')
-    other = AgentAffinity.objects.filter(actor=counterpart, counterpart=actor).first()
-    other_events = _direction_events(counterpart, actor)
-    other_band = ''
-    if other_events:
-        other_score = replay_affinity(other_events)
-        other_band = directional_band(other_score, other.band if other else '')
-    tier = display_tier(band, other_band)
-    snapshot, _ = AgentAffinity.objects.update_or_create(
-        actor=actor,
-        counterpart=counterpart,
-        defaults={
-            'score': score,
-            'band': band,
-            'tier': tier,
-            'event_count': len(events),
-            'computed_at': timezone.now(),
-        },
-    )
-    if other and other.tier != tier and other_band:
-        other.tier = display_tier(other_band, band)
-        other.save(update_fields=['tier', 'updated_at'])
-    return snapshot
-
-
-def _kept_affinity_ids(pair_keys):
-    ids = []
-    for actor_id, counterpart_id in pair_keys:
-        ids.extend(AgentAffinity.objects.filter(
-            actor_id__in=[actor_id, counterpart_id],
-            counterpart_id__in=[actor_id, counterpart_id],
-        ).values_list('id', flat=True))
-    return ids
 
 
 def _upsert_historical_activity(*, event_key, actor, article, action, stance, basis, title, summary, artifact_kind, artifact_id, occurred_at):

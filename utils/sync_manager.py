@@ -1,67 +1,32 @@
-import hashlib
+"""Snapshot orchestration, revision merge and local/remote commit boundaries."""
+
+from __future__ import annotations
+
 import json
 import os
 import shutil
 import tempfile
 import uuid
 import zipfile
-from collections import defaultdict
-from contextlib import contextmanager
 from datetime import datetime
-from urllib.parse import urlparse
-
-from django.apps import apps
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
 from django.conf import settings
-from django.core import serializers
-from django.core.management.color import no_style
-from django.db import connection, transaction
-from django.db.models import PROTECT
+from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-
-from utils.sync_datetime import SyncJSONEncoder
-
-from system_settings.sync_state import (
-    LOCAL_ONLY_MODEL_LABELS, LOCAL_ONLY_SYSTEM_SETTING_KEYS, PERMANENT_DELETE_HASH_PREFIX, canonical_hash, get_device_id,
-    is_tracking_suspended, suspend_tracking, sync_entity_identity,
-)
-
-
+from system_settings.sync_state import LOCAL_ONLY_SYSTEM_SETTING_KEYS, canonical_hash, get_device_id, suspend_tracking
 from system_settings.agent_world.farm_gate import guarded as farm_sync_guard
 from learning.locking import snapshot_guard as learning_sync_guard
 from novel.locking import snapshot_guard as novel_sync_guard
 from quant.locking import snapshot_guard as quant_sync_guard
 from novel.chapters import enforce_revision_retention as enforce_novel_revision_retention
 from system_settings.agent_world import travel_sync
-
-
-class SyncError(Exception):
-    """同步过程中的显式失败。"""
-
-
-class OverwriteConfirmationRequired(SyncError):
-    """当前目录存在备份，手动上传需要先确认替换。"""
-
-
-class SyncChoicesRequired(SyncError):
-    """两端都改过同一条记录。调用方把列表交回用户，不把这次同步记成失败。"""
-
-    def __init__(self, conflicts, total):
-        super().__init__(f'有 {total} 条记录两端都改过。请逐条选择保留本机或云端，未选择的用较新一侧。')
-        self.conflicts = conflicts
-        self.total = total
-
-
-_SCHEMA_GUARD_MARKERS = ('版本过新', '版本高于', '请升级', '请先升级')
-
-
-def schema_guard(exc: BaseException) -> bool:
-    """更高的快照或目录版本仍然拒绝；单机最新代码读不了未来格式。"""
-    text = str(exc)
-    return any(marker in text for marker in _SCHEMA_GUARD_MARKERS)
-
+from .sync_merge import item_map, revision_key, merge_records
+from .sync_policy import SyncError, OverwriteConfirmationRequired, SyncChoicesRequired, schema_guard, ensure_not_aborted
+from .sync_repository import SnapshotRepository
+from .sync_media import SnapshotMedia
+from .sync_models import SnapshotModels
+from .sync_restore import SnapshotRestorer
+from .sync_snapshot import SnapshotExporter
 
 def format_sync_result(summary, safety_backup=''):
     if summary.get('unchanged'):
@@ -93,37 +58,65 @@ def format_sync_result(summary, safety_backup=''):
 
 class SyncManager:
     SNAPSHOT_FORMAT = 2
+
     SNAPSHOT_RETENTION = 10
+
     REMOTE_LOCK_TTL_SECONDS = 2 * 60 * 60
+
     TARGET_APPS = [
         'article', 'anthology', 'categories', 'tags',
         'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning', 'novel', 'quant'
     ]
+
     def __init__(self, storage_client=None, remote_base_path=''):
-        self.client = storage_client
-        if storage_client is None:
-            self.base_path = ''
-            self.data_file = 'data_index.json'
-            self.meta_file = 'snapshot_meta.json'
-            self.media_dir = 'media'
-            self.v2_dir = 'sync-v2'
-            self.v2_snapshots_dir = 'sync-v2/snapshots'
-            self.v2_blobs_dir = 'sync-v2/blobs'
-            self.v2_current_file = 'sync-v2/current.json'
-            return
+        self.remote = SnapshotRepository(
+            storage_client, remote_base_path, snapshot_format=self.SNAPSHOT_FORMAT,
+            retention=self.SNAPSHOT_RETENTION, lock_ttl_seconds=self.REMOTE_LOCK_TTL_SECONDS,
+        )
+        self.media = SnapshotMedia(self.remote)
+        self.models = SnapshotModels(self.TARGET_APPS)
+        self.exporter = SnapshotExporter(self.models, lambda: self.get_current_app_version())
+        self.restorer = SnapshotRestorer(
+            self.models, lambda version: self.is_remote_version_older(version), self._guard_integrity,
+        )
 
-        path = (remote_base_path or '').strip().strip('/')
-        if not path:
-            raise ValueError('请填写远程路径，不要留空，以免写到错误的备份目录')
-        self.base_path = f"/{path}"
+    @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
+    def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None, integrity='strict'):
+        self._integrity_warnings = []
+        return self.restorer.apply_snapshot_data(
+            data_list, remote_meta, full_overwrite=full_overwrite,
+            should_abort=should_abort, integrity=integrity,
+        )
 
-        self.data_file = f"{self.base_path}/data_index.json"
-        self.meta_file = f"{self.base_path}/snapshot_meta.json"
-        self.media_dir = f"{self.base_path}/media"
-        self.v2_dir = f"{self.base_path}/sync-v2"
-        self.v2_snapshots_dir = f"{self.v2_dir}/snapshots"
-        self.v2_blobs_dir = f"{self.v2_dir}/blobs"
-        self.v2_current_file = f"{self.v2_dir}/current.json"
+    @farm_sync_guard
+    @novel_sync_guard
+    @learning_sync_guard
+    @quant_sync_guard
+    def build_snapshot_data(self, *, compact_travel=False, allow_exploration_review_mismatch=False, relax_integrity=False):
+        return self.exporter.build_snapshot_data(
+            compact_travel=compact_travel,
+            allow_exploration_review_mismatch=allow_exploration_review_mismatch,
+            relax_integrity=relax_integrity,
+        )
+
+    def build_snapshot_meta(self, source='manual', runner_id='', data_list=None):
+        return self.exporter.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list)
+
+    def list_v2_history(self):
+        return self.remote.list_history()
+
+    def reconcile_missing_book_media(self, *, drop_missing_assets=True):
+        return self.media.reconcile_missing_book_media(drop_missing_assets=drop_missing_assets)
+
+    def restore_media_from_directory(self, backup_media_root):
+        return self.media.restore_media_from_directory(backup_media_root)
+
+    def restore_v2_media_file(self, rel_path, *, expected_hash=''):
+        remote = self.get_v2_current() or self._get_legacy_snapshot()
+        return self.media.restore_file(rel_path, remote=remote, expected_hash=expected_hash)
 
     @staticmethod
     def get_current_app_version():
@@ -134,6 +127,7 @@ class SyncManager:
         except Exception:
             return os.getenv('ODOC_APP_VERSION', 'unknown')
 
+
     @staticmethod
     def _parse_version(version):
         try:
@@ -141,6 +135,7 @@ class SyncManager:
             return tuple(int(part) for part in parts[:3])
         except (TypeError, ValueError):
             return None
+
 
     @classmethod
     def _is_snapshot_version_compatible(cls, remote_version, current_version):
@@ -165,11 +160,6 @@ class SyncManager:
         if remote_major == current_major and remote_minor == current_minor and remote_patch > current_patch:
             return False
 
-        # 兼容 0.9.x 到 1.0.x 的主版本跨越（升级过渡）：
-        # 0.9.x 为 1.0.x 的紧邻前序版本，允许新版服务读取并合并以完成升级后的首次同步。
-        if remote_major == 0 and current_major == 1:
-            return remote_minor >= 9 and current_minor == 0
-
         # 同步快照只做向后兼容：当前版本可以读取同一主版本下的当前小版本
         # 或上一个小版本快照，但不能读取由更新系统生成的快照。
         if remote_major != current_major:
@@ -177,6 +167,7 @@ class SyncManager:
 
         # 允许新版服务读取上一个小版本生成的快照，完成升级后的首次同步。
         return current_minor - remote_minor <= 1
+
 
     @classmethod
     def is_remote_version_older(cls, remote_version, current_version=None):
@@ -193,6 +184,7 @@ class SyncManager:
         current_parts = current_parts + (0,) * (3 - len(current_parts))
         return remote_parts < current_parts
 
+
     @classmethod
     def is_remote_version_newer(cls, remote_version, current_version=None):
         current_version = current_version or cls.get_current_app_version()
@@ -207,6 +199,7 @@ class SyncManager:
         remote_parts = remote_parts + (0,) * (3 - len(remote_parts))
         current_parts = current_parts + (0,) * (3 - len(current_parts))
         return remote_parts > current_parts
+
 
     def validate_remote_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
@@ -254,541 +247,6 @@ class SyncManager:
                 "请先将两端系统升级到同一版本后再同步。"
             )
 
-    @staticmethod
-    def _normalize_rel_path(rel_path):
-        return rel_path.replace('\\', '/').lstrip('/')
-
-    @staticmethod
-    def _join_remote_path(base_path, child_name):
-        base_path = base_path.rstrip('/')
-        child_name = child_name.strip('/')
-        return f"{base_path}/{child_name}" if child_name else base_path
-
-    @staticmethod
-    def _hash_file(file_path):
-        digest = hashlib.md5()
-        with open(file_path, 'rb') as file_obj:
-            for chunk in iter(lambda: file_obj.read(1024 * 1024), b''):
-                digest.update(chunk)
-        return digest.hexdigest()
-
-    def _iter_target_models(self):
-        yield Group
-        yield get_user_model()
-        for app_label in self.TARGET_APPS:
-            app_config = apps.get_app_config(app_label)
-            for model in app_config.get_models():
-                if model._meta.label_lower in LOCAL_ONLY_MODEL_LABELS:
-                    continue
-                yield model
-
-    def _queryset_for_export(self, model):
-        queryset = model.objects.all()
-        if model._meta.label_lower == 'system_settings.combatcatalog':
-            from system_settings.agent_world.combat.history import runtime_catalog_ids
-            queryset = queryset.filter(pk__in=runtime_catalog_ids())
-        if model._meta.label_lower == 'system_settings.systemsetting':
-            queryset = queryset.exclude(key__in=LOCAL_ONLY_SYSTEM_SETTING_KEYS)
-        return queryset
-
-    def _drop_local_only_settings(self, data_list):
-        filtered = []
-        for item in data_list:
-            if (
-                item.get('model') == 'system_settings.systemsetting'
-                and str(item.get('pk')) in LOCAL_ONLY_SYSTEM_SETTING_KEYS
-            ):
-                continue
-            filtered.append(item)
-        return filtered
-
-    @staticmethod
-    def _strip_device_local_user_fields(data_list):
-        """不让每台设备独立维护的登录/展示资料进入跨设备快照。"""
-        user_label = get_user_model()._meta.label_lower
-        for item in data_list:
-            fields = item.get('fields') or {}
-            if item.get('model') == 'prompts.imagegenerationtask':
-                fields.pop('lease_until', None)
-            if item.get('model') == user_label:
-                fields.pop('email', None)
-            elif item.get('model') == 'user.userprofile':
-                fields.pop('nickname', None)
-        return data_list
-
-    @staticmethod
-    def _restore_device_local_user_fields(data_list):
-        """恢复快照中刻意省略的本机用户资料，避免全量反序列化写成默认空值。"""
-        User = get_user_model()
-        local_emails = dict(User.objects.values_list('username', 'email'))
-
-        from user.models import UserProfile
-        local_nicknames = dict(UserProfile.objects.values_list('userid', 'nickname'))
-
-        from prompts.models import ImageGenerationTask
-        local_image_leases = dict(ImageGenerationTask.objects.values_list('pk', 'lease_until'))
-
-        user_label = User._meta.label_lower
-        for item in data_list:
-            fields = item.get('fields') or {}
-            if item.get('model') == 'prompts.imagegenerationtask':
-                lease = local_image_leases.get(str(item.get('pk')))
-                fields['lease_until'] = lease.isoformat() if lease else None
-            if item.get('model') == user_label:
-                username = fields.get('username')
-                if username in local_emails:
-                    fields['email'] = local_emails[username]
-            elif item.get('model') == 'user.userprofile':
-                userid = fields.get('userid')
-                if userid in local_nicknames:
-                    fields['nickname'] = local_nicknames[userid]
-        return data_list
-
-    @staticmethod
-    def _ensure_not_aborted(should_abort):
-        if callable(should_abort) and should_abort():
-            raise SyncError('同步已取消')
-
-    def _fill_missing_snapshot_fields_from_local(self, data_list, model_map):
-        """旧快照没有的字段保留本地值，避免新版本字段被写成模型默认值。"""
-        items_by_model = defaultdict(list)
-        for item in data_list:
-            model = model_map.get(item.get('model'))
-            fields = item.get('fields')
-            pk = item.get('pk')
-            if model is None or pk is None or not isinstance(fields, dict):
-                continue
-            items_by_model[model].append(item)
-
-        for model, items in items_by_model.items():
-            local_objects = model.objects.in_bulk([item.get('pk') for item in items])
-            if not local_objects:
-                continue
-            serialized = {
-                str(row['pk']): (row.get('fields') or {})
-                for row in json.loads(serializers.serialize('json', list(local_objects.values()), cls=SyncJSONEncoder))
-            }
-            for item in items:
-                local_fields = serialized.get(str(item.get('pk')))
-                if not local_fields:
-                    continue
-                fields = item['fields']
-                for field_name, value in local_fields.items():
-                    if field_name not in fields:
-                        fields[field_name] = value
-
-    def _models_for_stale_cleanup(self):
-        """先删引用方，再删被 PROTECT 的记录，避免图书正文资源删不掉。"""
-        models = list(self._iter_target_models())
-        model_set = set(models)
-        blockers = {model: set() for model in models}
-
-        for model in models:
-            for field in model._meta.get_fields():
-                if not getattr(field, 'many_to_one', False):
-                    continue
-                remote = getattr(field, 'remote_field', None)
-                if remote is None or remote.on_delete is not PROTECT:
-                    continue
-                target = field.related_model
-                if target in model_set:
-                    blockers[target].add(model)
-
-        remaining = set(models)
-        preferred = list(reversed(models))
-        ordered = []
-        while remaining:
-            ready = [
-                model for model in preferred
-                if model in remaining and not (blockers[model] & remaining)
-            ]
-            if not ready:
-                ready = [model for model in preferred if model in remaining]
-            chosen = ready[0]
-            ordered.append(chosen)
-            remaining.remove(chosen)
-        return ordered
-
-    @staticmethod
-    def _reset_restored_sequences(models):
-        """显式恢复自增主键后同步数据库序列，避免后续新记录撞主键。"""
-        statements = connection.ops.sequence_reset_sql(no_style(), models)
-        if not statements:
-            return
-        with connection.cursor() as cursor:
-            for statement in statements:
-                cursor.execute(statement)
-
-    @staticmethod
-    def _lock_restored_sequence_tables(models):
-        """PostgreSQL 恢复期间阻止并发写入抢占待校正的自增序列。"""
-        if connection.vendor != 'postgresql':
-            return
-        table_names = {
-            model._meta.db_table
-            for model in models
-            if getattr(model._meta.pk, 'get_internal_type', lambda: '')()
-            in {'AutoField', 'BigAutoField', 'SmallAutoField'}
-        }
-        if not table_names:
-            return
-        with connection.cursor() as cursor:
-            for table_name in sorted(table_names):
-                quoted_table = connection.ops.quote_name(table_name)
-                cursor.execute(f'LOCK TABLE {quoted_table} IN SHARE ROW EXCLUSIVE MODE')
-
-    @staticmethod
-    def _get_media_relative_path(media_url):
-        media_url_path = urlparse(settings.MEDIA_URL).path.rstrip('/') + '/'
-        url_path = urlparse(media_url).path
-        if not url_path.startswith(media_url_path):
-            return ''
-
-        media_root = os.path.realpath(settings.MEDIA_ROOT)
-        local_path = os.path.realpath(os.path.join(media_root, url_path[len(media_url_path):]))
-        if os.path.commonpath([media_root, local_path]) != media_root:
-            return ''
-
-        return os.path.relpath(local_path, media_root).replace(os.sep, '/')
-
-    def _iter_valid_books(self):
-        from anthology.models import Book
-        return Book.objects.filter(is_valid=True).select_related('asset')
-
-    def _book_body_rel_path(self, book):
-        if not book.asset or not book.asset.file_path:
-            return ''
-        return self._normalize_rel_path(book.asset.file_path)
-
-    def _book_body_asset_ids(self):
-        return {book.asset_id for book in self._iter_valid_books() if book.asset_id}
-
-    def _released_book_rel_paths(self):
-        return [
-            rel_path for book in self._iter_valid_books()
-            if book.local_state == 'cloud_only' and (rel_path := self._book_body_rel_path(book))
-        ]
-
-    def _already_backed_up_book_rel_paths(self):
-        paths = []
-        for book in self._iter_valid_books():
-            rel_path = self._book_body_rel_path(book)
-            if not rel_path or not book.remote_available:
-                continue
-            if book.remote_hash != book.asset.file_hash:
-                continue
-            paths.append(rel_path)
-        return paths
-
-    def _collect_asset_relative_paths(self):
-        from assets.models import Asset
-
-        relative_paths = []
-        missing_files = []
-        released_asset_ids = {
-            book.asset_id for book in self._iter_valid_books()
-            if book.local_state == 'cloud_only' and book.asset_id
-        }
-        for asset in Asset.objects.filter(is_valid=True):
-            if not asset.file_path:
-                continue
-
-            rel_path = self._normalize_rel_path(asset.file_path)
-            local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
-            if not os.path.isfile(local_path):
-                # A cloud-only book has an explicit remote hash and is intentionally absent locally.
-                if asset.id in released_asset_ids:
-                    continue
-                missing_files.append(rel_path)
-                continue
-
-            relative_paths.append(rel_path)
-
-        return sorted(set(relative_paths)), missing_files
-
-    def _collect_user_avatar_relative_paths(self):
-        """收集保存在 MEDIA_ROOT 下的用户头像。"""
-        from user.models import UserProfile
-
-        relative_paths = []
-        missing_files = []
-        for avatar_url in UserProfile.objects.exclude(avatar='').values_list('avatar', flat=True):
-            rel_path = self._get_media_relative_path(avatar_url)
-            if not rel_path:
-                continue
-
-            local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
-            if not os.path.isfile(local_path):
-                missing_files.append(rel_path)
-                continue
-
-            relative_paths.append(rel_path)
-
-        return sorted(set(relative_paths)), missing_files
-
-    def _collect_media_relative_paths(self):
-        asset_paths, asset_missing = self._collect_asset_relative_paths()
-        avatar_paths, avatar_missing = self._collect_user_avatar_relative_paths()
-        return sorted(set(asset_paths) | set(avatar_paths)), asset_missing + avatar_missing
-
-    def reconcile_missing_book_media(self, *, drop_missing_assets=True):
-        """将本地已缺失的媒体降级，避免资源记录阻断整个数据同步。
-
-        图书正文是按需下载的大文件；正文不在本机时，保留书架记录并标记为
-        ``cloud_only``。封面丢失不影响阅读，移除封面引用后由前端使用默认封面。
-        ``drop_missing_assets`` 为真时，其他 Asset 若文件已不存在，则将资源记录软删除；
-        用户头像则清空头像引用。
-        这样缺失文件不会继续出现在下一份快照中，也不会阻断其他数据同步。
-        """
-        from anthology.models import Book
-        from assets.models import Asset
-
-        missing_body_ids = []
-        missing_cover_ids = []
-        for book in self._iter_valid_books():
-            body_path = self._book_body_rel_path(book)
-            if body_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, body_path)):
-                if book.local_state != 'cloud_only':
-                    missing_body_ids.append(book.book_id)
-            if book.cover_asset_id:
-                cover_path = self._normalize_rel_path(book.cover_asset.file_path)
-                if cover_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, cover_path)):
-                    missing_cover_ids.append(book.cover_asset_id)
-                    book.cover_asset = None
-                    book.save(update_fields=['cover_asset', 'updated_at'])
-
-        if missing_body_ids:
-            Book.objects.filter(book_id__in=missing_body_ids).update(local_state='cloud_only')
-
-        # 封面 Asset 只服务书架时可以安全失效，避免其残留资源记录继续阻断同步。
-        if missing_cover_ids:
-            body_asset_ids = set(Book.objects.filter(is_valid=True).values_list('asset_id', flat=True))
-            for asset in Asset.objects.filter(id__in=set(missing_cover_ids) - body_asset_ids).exclude(quant_references__isnull=False):
-                metadata = asset.metadata if isinstance(asset.metadata, dict) else {}
-                if metadata.get('book_cover') and not asset.linked_article_id:
-                    asset.is_valid = False
-                    asset.save(update_fields=['is_valid'])
-
-        if not drop_missing_assets:
-            return {'bodies': len(missing_body_ids), 'covers': len(set(missing_cover_ids)), 'assets': 0, 'avatars': 0}
-
-        # 图书正文已有 cloud_only 语义，绝不能将其 Asset 软删除；其余缺失 Asset
-        # 代表本机已不存在的附件/图片，保留有效记录只会让每次快照再次失败。
-        book_body_asset_ids = self._book_body_asset_ids()
-        missing_asset_ids = []
-        for asset in Asset.objects.filter(is_valid=True).exclude(id__in=book_body_asset_ids).exclude(quant_references__isnull=False):
-            rel_path = self._normalize_rel_path(asset.file_path)
-            if rel_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, rel_path)):
-                missing_asset_ids.append(asset.id)
-        if missing_asset_ids:
-            Asset.objects.filter(id__in=missing_asset_ids).update(is_valid=False)
-
-        # 头像没有独立 Asset，文件丢失时直接回退为默认头像。
-        from user.models import UserProfile
-        missing_avatar_urls = []
-        for avatar_url in UserProfile.objects.exclude(avatar='').values_list('avatar', flat=True):
-            rel_path = self._get_media_relative_path(avatar_url)
-            if rel_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, rel_path)):
-                missing_avatar_urls.append(avatar_url)
-        if missing_avatar_urls:
-            UserProfile.objects.filter(avatar__in=missing_avatar_urls).update(avatar='')
-
-        return {
-            'bodies': len(missing_body_ids),
-            'covers': len(set(missing_cover_ids)),
-            'assets': len(set(missing_asset_ids)),
-            'avatars': len(set(missing_avatar_urls)),
-        }
-
-    def validate_upload_state(self):
-        _, missing_files = self._collect_media_relative_paths()
-        if not missing_files:
-            return []
-
-        preview = '，'.join(missing_files[:3])
-        if len(missing_files) > 3:
-            preview += f' 等 {len(missing_files)} 个文件'
-
-        return [f"检测到资源记录存在但本地文件缺失：{preview}"]
-
-    def _list_local_files(self, local_root):
-        local_root = str(local_root)
-        if not os.path.isdir(local_root):
-            return []
-
-        file_list = []
-        for root, dirs, files in os.walk(local_root):
-            dirs[:] = [name for name in dirs if not name.startswith('.')]
-            for file_name in files:
-                if file_name.startswith('.') or file_name == 'Thumbs.db':
-                    continue
-                local_path = os.path.join(root, file_name)
-                rel_path = os.path.relpath(local_path, local_root)
-                file_list.append(self._normalize_rel_path(rel_path))
-        return sorted(file_list)
-
-    def _list_remote_files(self, remote_root):
-        root_dir = remote_root.rstrip('/')
-        remote_files = set()
-        stack = [root_dir]
-
-        while stack:
-            current_dir = stack.pop()
-            entries = self.client.list_directory(current_dir)
-            if entries is None:
-                if current_dir == root_dir:
-                    return None
-                raise SyncError(f"无法列出远程目录：{current_dir}")
-
-            for entry in entries:
-                remote_path = self._join_remote_path(current_dir, entry)
-                if self.client.is_directory(remote_path):
-                    stack.append(remote_path)
-                else:
-                    remote_files.add(remote_path)
-
-        return remote_files
-
-    def _remove_local_extra_files(self, local_root, expected_rel_paths):
-        deleted_count = 0
-        expected_rel_paths = set(expected_rel_paths)
-        for rel_path in self._list_local_files(local_root):
-            if rel_path in expected_rel_paths:
-                continue
-
-            local_path = os.path.join(local_root, rel_path)
-            try:
-                os.remove(local_path)
-                deleted_count += 1
-            except FileNotFoundError:
-                continue
-
-        return deleted_count
-
-    def _sync_tree_upload_stream(self, *, local_root, remote_root, relative_paths, label, preserve_remote_rel_paths=(), should_abort=None):
-        local_root = str(local_root)
-        self.client.ensure_directory(remote_root)
-
-        total_files = len(relative_paths)
-        yield json.dumps({
-            "step": "scan",
-            "total": total_files,
-            "msg": f"{label}：扫描到 {total_files} 个文件"
-        }) + "\n"
-
-        remote_existing_files = self._list_remote_files(remote_root) or set()
-        expected_remote_files = {
-            self._join_remote_path(remote_root, rel_path)
-            for rel_path in preserve_remote_rel_paths
-        }
-
-        for index, rel_path in enumerate(relative_paths, start=1):
-            self._ensure_not_aborted(should_abort)
-            local_path = os.path.join(local_root, rel_path)
-            if not os.path.isfile(local_path):
-                raise SyncError(f"{label}：本地文件缺失，无法同步 {rel_path}")
-
-            remote_path = self._join_remote_path(remote_root, rel_path)
-            expected_remote_files.add(remote_path)
-
-            remote_dir = os.path.dirname(remote_path)
-            self.client.ensure_directory(remote_dir)
-            if not self.client.upload_file(local_path, remote_path):
-                raise SyncError(f"{label}：上传失败 {rel_path}")
-
-            progress = 100 if total_files == 0 else int(index * 100 / total_files)
-            if index == 1 or index == total_files or index % 5 == 0:
-                yield json.dumps({
-                    "step": "uploading",
-                    "file": rel_path,
-                    "progress": progress,
-                    "msg": f"{label}：上传 {rel_path}"
-                }) + "\n"
-
-        stale_remote_files = sorted(remote_existing_files - expected_remote_files)
-        for stale_path in stale_remote_files:
-            if not self.client.delete_path(stale_path):
-                raise SyncError(f"{label}：删除远程冗余文件失败 {stale_path}")
-            yield json.dumps({
-                "step": "cleanup",
-                "msg": f"{label}：删除远程冗余文件 {stale_path}"
-            }) + "\n"
-
-        yield json.dumps({
-            "step": "summary",
-            "msg": f"✅ {label}同步完成（上传 {total_files} 个文件，清理 {len(stale_remote_files)} 个冗余文件）"
-        }) + "\n"
-
-    def sync_data_upload_stream(self, should_abort=None):
-        """
-        上传数据库快照。
-        """
-        self._ensure_not_aborted(should_abort)
-        self.client.ensure_directory(self.base_path)
-        yield json.dumps({"step": "init", "msg": "正在初始化数据库导出..."}) + "\n"
-
-        try:
-            all_data = self.build_snapshot_data()
-            total_count = len(all_data)
-            from collections import Counter
-            for model_label, count in Counter(item['model'] for item in all_data).items():
-                yield json.dumps({'step': 'processing', 'msg': f'正在导出 {model_label} ({count}条)...'}) + "\n"
-        except Exception as e:
-            raise SyncError(f"导出数据库快照失败: {str(e)}")
-
-        self._strip_device_local_user_fields(all_data)
-        yield json.dumps({"step": "processing", "msg": f"正在打包上传 {total_count} 条数据..."}) + "\n"
-
-        tmp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8', delete=False, suffix='.json') as tmp:
-                json.dump(all_data, tmp, ensure_ascii=False)
-                tmp_path = tmp.name
-
-            if not self.client.upload_file(tmp_path, self.data_file):
-                raise SyncError("数据库快照上传失败")
-
-            yield json.dumps({"step": "data_done", "msg": "✅ 数据库备份完成！"}) + "\n"
-
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
-    def sync_assets_upload_stream(self, should_abort=None):
-        """按资产记录同步媒体资源，避免数据库与文件集脱节。"""
-        relative_paths, missing_files = self._collect_media_relative_paths()
-        if missing_files:
-            preview = '，'.join(missing_files[:3])
-            if len(missing_files) > 3:
-                preview += f' 等 {len(missing_files)} 个文件'
-            raise SyncError(f"资源同步前校验失败：以下文件缺失 {preview}")
-
-        from anthology.models import Book
-        already_backed_up = set(self._already_backed_up_book_rel_paths())
-        released_paths = set(self._released_book_rel_paths())
-        upload_paths = [rel_path for rel_path in relative_paths if rel_path not in already_backed_up]
-        skipped = len(relative_paths) - len(upload_paths)
-        if skipped:
-            yield json.dumps({
-                "step": "scan",
-                "msg": f"媒体文件：跳过 {skipped} 个已备份的图书正文"
-            }) + "\n"
-
-        yield from self._sync_tree_upload_stream(
-            local_root=settings.MEDIA_ROOT,
-            remote_root=self.media_dir,
-            relative_paths=upload_paths,
-            label='媒体文件',
-            preserve_remote_rel_paths=already_backed_up | released_paths,
-            should_abort=should_abort,
-        )
-        # File upload has completed successfully. Persist a hash-bound remote availability marker
-        # before the database snapshot is written by the caller.
-        local_books = Book.objects.filter(is_valid=True, local_state='local').select_related('asset')
-        for book in local_books:
-            path = os.path.join(settings.MEDIA_ROOT, book.asset.file_path)
-            if os.path.isfile(path):
-                Book.objects.filter(book_id=book.book_id).update(remote_available=True, remote_hash=book.asset.file_hash)
 
     def _guard_integrity(self, label, fn, *, relax):
         """严格模式原样抛出。覆盖或对比模式只拦截未来版本，其余完整性问题记成提示。"""
@@ -806,565 +264,9 @@ class SyncManager:
             warnings.append(f'{label}：{exc}')
             return None
 
-    @staticmethod
-    def _choice_map(resolutions, resolution_default):
-        chosen = {}
-        if isinstance(resolutions, dict):
-            pairs = resolutions.items()
-        elif isinstance(resolutions, list):
-            pairs = ((item.get('key'), item.get('side')) for item in resolutions if isinstance(item, dict))
-        else:
-            pairs = ()
-        for key, side in pairs:
-            if key and side in ('local', 'remote'):
-                chosen[str(key)] = side
-        default = resolution_default if resolution_default in ('local', 'remote') else ''
-        return chosen, default
-
-    def _pick_revision(self, local_changed, remote_changed, local_rev, remote_rev, choice):
-        both_differ = bool(local_changed and remote_changed and local_rev != remote_rev)
-        if both_differ and choice in ('local', 'remote'):
-            return (local_rev if choice == 'local' else remote_rev), True
-        if self._is_permanent_delete(local_rev) != self._is_permanent_delete(remote_rev):
-            return self._revision_winner(local_rev, remote_rev), both_differ
-        if both_differ:
-            return self._revision_winner(local_rev, remote_rev), True
-        if remote_changed:
-            return remote_rev, False
-        return local_rev, False
-
-    @staticmethod
-    def _item_label(item):
-        if not item:
-            return '（这一侧没有记录）'
-        fields = item.get('fields') or {}
-        for name in ('title', 'name', 'content', 'summary', 'username'):
-            value = fields.get(name)
-            if isinstance(value, str) and value.strip():
-                return value.strip().replace('\n', ' ')[:80]
-        return str(item.get('pk'))
-
-    @staticmethod
-    def _automatic_memory(item):
-        if not item or item.get('model') != 'system_settings.agentlongtermmemory':
-            return False
-        from system_settings.agent_world.memory.sync import is_automatic
-        return is_automatic(item)
-
-    @farm_sync_guard
-    @novel_sync_guard
-    @learning_sync_guard
-    @quant_sync_guard
-    def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None, integrity='strict'):
-        """把快照写回数据库。full_overwrite 用于整库覆盖。integrity=repair 时领域校验改为提示，写完后由调用方整理。"""
-        from system_settings.agent_world.stamina_settings import validate_snapshot as validate_stamina
-        validate_stamina(data_list)
-        from system_settings.agent_world.combat.history_snapshot import normalize_source, compact_source
-        if remote_meta is None or remote_meta.get('combat_schema_version', 0) < 8:
-            data_list = compact_source(normalize_source(data_list))
-        from system_settings.agent_world.combat.sync import validate_source as validate_combat
-        validate_combat(data_list, remote_meta, allow_exploration_review_mismatch=integrity == 'repair')
-        from system_settings.agent_world.food_sync import validate_import as validate_food_import
-        validate_food_import(data_list, remote_meta)
-        relax = integrity == 'repair'
-        self._integrity_warnings = []
-
-        def guard(label, fn):
-            return self._guard_integrity(label, fn, relax=relax)
-
-        expanded = guard('旅行目录', lambda: travel_sync.expand(data_list, remote_meta))
-        if expanded is not None:
-            data_list = expanded
-        from system_settings.agent_world.life_snapshot import normalize_source as normalize_life_source
-        normalized = guard('生活摘要', lambda: normalize_life_source(data_list))
-        if normalized is not None:
-            data_list = normalized
-        from system_settings.agent_world.memory.sync import validate_source as validate_memories
-        guard('居民记忆', lambda: validate_memories(data_list, remote_meta))
-        from article.image_search_service import delete_image_vectors
-        from article.models import ImageVisualIndex
-
-        from learning.sync import validate as validate_learning
-        guard('学习', lambda: validate_learning(data_list, remote_meta))
-        from novel.sync import validate as validate_novel
-        guard('小说', lambda: validate_novel(data_list, remote_meta))
-        # Quant source versions and attachment ownership cannot be repaired by inference.
-        from quant.sync import validate as validate_quant
-        validate_quant(data_list, remote_meta)
-        from memos.sprout_sync import validate as validate_sprouts
-        guard('闪念发芽', lambda: validate_sprouts(data_list, remote_meta))
-        from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
-        guard('农场', lambda: validate_crops(data_list, remote_meta))
-        from system_settings.agent_world.cooking_quality_sync import validate_source as validate_dishes
-        cooking_source_hashes = guard('烹饪', lambda: validate_dishes(data_list, remote_meta)) or {}
-        from system_settings.agent_world.combat.sync import validate_source as validate_combat
-        guard('战斗', lambda: validate_combat(data_list, remote_meta))
-        from system_settings.agent_world.lottery_sync import validate_source as validate_lottery
-        validate_lottery(data_list, remote_meta)
-        from system_settings.agent_world.tournament_sync import validate_source as validate_tournaments
-        validate_tournaments(data_list, remote_meta)
-        from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
-        validate_fishing(data_list, remote_meta)
-        from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy
-        alchemy_source_hashes = guard('炼金', lambda: validate_alchemy(data_list, remote_meta)) or {}
-        from system_settings.agent_world.blacksmith_sync import validate_source as validate_blacksmith
-        validate_blacksmith(data_list, remote_meta)
-
-        def check_owner_set(label, meta_key, model_label, message):
-            expected = (remote_meta or {}).get(meta_key)
-            if expected is None:
-                return
-            actual = {str(item.get('pk')) for item in data_list if item.get('model') == model_label}
-            if set(expected) != actual:
-                raise SyncError(message)
-
-        guard('社交', lambda: check_owner_set(
-            '社交', 'social_owners', 'system_settings.socialintegrity', '社交快照缺少完整性记录，拒绝恢复',
-        ))
-        guard('烹饪', lambda: check_owner_set(
-            '烹饪', 'cooking_owners', 'system_settings.cookingintegrity', '烹饪快照缺少完整性记录，拒绝恢复',
-        ))
-        data_list = self._drop_local_only_settings(data_list)
-        self._strip_device_local_user_fields(data_list)
-        self._restore_device_local_user_fields(data_list)
-        self._reuse_local_builtin_skill_ids(data_list)
-        group_id_mapping = self._reuse_local_group_ids(data_list)
-        user_id_mapping = self._reuse_local_user_ids(data_list, group_id_mapping)
-        self._reuse_local_user_profile_ids(data_list, user_id_mapping)
-        self._remap_notification_users(data_list, user_id_mapping)
-        remote_pk_map = defaultdict(set)
-        model_map = {}
-        for model in self._iter_target_models():
-            model_label = f"{model._meta.app_label}.{model._meta.model_name}"
-            model_map[model_label] = model
-
-        from learning.sync_lessons import normalize_legacy as normalize_learning
-        data_list = normalize_learning(data_list)
-
-        if not full_overwrite:
-            self._fill_missing_snapshot_fields_from_local(data_list, model_map)
-
-        # PromptTemplate points at PromptResultImage, while the result image in
-        # turn points at a usage/template. The normal serializer order writes
-        # templates before result images, so persist this optional relation only
-        # after every prompt record has been restored.
-        prompt_cover_links = []
-        for item in data_list:
-            if item.get('model') != 'prompts.prompttemplate':
-                continue
-            fields = item.get('fields') or {}
-            cover_id = fields.pop('cover_result_image', None)
-            if cover_id:
-                prompt_cover_links.append((str(item.get('pk')), str(cover_id)))
-
-        for item in data_list:
-            model_label = item.get('model')
-            pk = item.get('pk')
-            if model_label in model_map:
-                remote_pk_map[model_label].add(str(pk))
-
-        skip_extra_delete = (not full_overwrite) and self.is_remote_version_older((remote_meta or {}).get('app_version'))
-        from system_settings.agent_archive_sync import prepare_restore, release_changed_names, revoke_archived_execution
-        from system_settings.decision.restore import policy_defaults
-        restored_policy_defaults = policy_defaults(data_list, full_overwrite=full_overwrite)
-        agent_rows = prepare_restore(data_list, full_overwrite=full_overwrite, retain_extra=skip_extra_delete)
-        restored_models = [
-            model_map[model_label]
-            for model_label, primary_keys in remote_pk_map.items()
-            if primary_keys
-        ]
-        invalid_image_ids = {
-            str(item.get('pk')) for item in data_list
-            if item.get('model') == 'article.image' and (item.get('fields') or {}).get('is_valid') is False
-        }
-        image_vectors_to_remove = dict(
-            ImageVisualIndex.objects.filter(image_id__in=invalid_image_ids).exclude(collection_name='')
-            .values_list('image_id', 'collection_name')
-        ) if invalid_image_ids else {}
-
-        with transaction.atomic(), suspend_tracking():
-            self._ensure_not_aborted(should_abort)
-            release_changed_names(agent_rows, retain_extra=skip_extra_delete)
-            self._lock_restored_sequence_tables(restored_models)
-            from system_settings.token_usage.sync import normalize_restored_usage
-            from system_settings.token_usage.capture import active_keys
-            active_usage_keys = active_keys()
-            normalize_restored_usage(data_list)
-            # 默认城市已在本机且值未变时，不做三万多次重复写入。
-            unchanged_cities = set(travel_sync.pristine_ids()) if (remote_meta or {}).get(travel_sync.META_KEY) else set()
-            _, city_defaults = travel_sync.catalog() if unchanged_cities else ('', {})
-            write_data = [item for item in data_list if not (
-                item.get('model') == travel_sync.LABEL and str(item.get('pk')) in unchanged_cities
-                and travel_sync.pristine(item, city_defaults)
-            )]
-            # 活跃模型请求可能在快照读取后创建或更新，恢复不能回退它们。
-            write_data = [item for item in write_data if not (
-                item.get('model') == 'system_settings.agenttokenusage'
-                and str(item.get('pk')) in active_usage_keys
-            )]
-            from system_settings.agent_world.combat.history import prepare_fact_restore
-            prepare_fact_restore(write_data)
-            for obj in serializers.deserialize('json', json.dumps(write_data)):
-                obj.save()
-            travel_sync.mark_initialized(remote_meta)
-
-            if prompt_cover_links:
-                from prompts.models import PromptTemplate
-                for template_id, image_id in prompt_cover_links:
-                    PromptTemplate.objects.filter(id=template_id).update(cover_result_image_id=image_id)
-
-            self._ensure_not_aborted(should_abort)
-            if not skip_extra_delete:
-                for model in self._models_for_stale_cleanup():
-                    model_label = f"{model._meta.app_label}.{model._meta.model_name}"
-                    # 兼容旧快照：此前未导出 auth.User，不能在恢复时删除当前登录账号。
-                    if model in (Group, get_user_model()) and model_label not in remote_pk_map:
-                        continue
-                    remote_pks = set(remote_pk_map.get(model_label, set()))
-                    if model._meta.label_lower == 'system_settings.systemsetting':
-                        remote_pks.update(LOCAL_ONLY_SYSTEM_SETTING_KEYS)
-                    local_objects = model.objects.all()
-                    if model_label == 'system_settings.agenttokenusage':
-                        local_objects = local_objects.exclude(pk__in=active_usage_keys)
-
-                    stale_pks = [
-                        str(pk) for pk in local_objects.values_list(model._meta.pk.attname, flat=True)
-                        if str(pk) not in remote_pks
-                    ]
-                    if stale_pks:
-                        stale = local_objects.filter(**{f"{model._meta.pk.attname}__in": stale_pks})
-                        if model._meta.label_lower == 'article.image':
-                            image_vectors_to_remove.update(
-                                ImageVisualIndex.objects.filter(image_id__in=stale_pks).exclude(collection_name='')
-                                .values_list('image_id', 'collection_name')
-                            )
-                        if model._meta.label_lower == 'assets.asset':
-                            # Remote HTML deletion must also reclaim this device's files.
-                            # Keep invalid records until cleanup succeeds, preserving retries.
-                            owned = list(stale.filter(metadata__html_import_owned=True))
-                            for asset in owned:
-                                asset.is_valid = False
-                                asset.is_linked = False
-                                asset.linked_article = None
-                                asset.metadata = {**asset.metadata, 'html_cleanup_pending': True}
-                                asset.save()
-                            stale = stale.exclude(pk__in=[asset.pk for asset in owned])
-                        stale.delete()
-
-            from system_settings.agent_world.cooking_sync import reconcile_cooking
-            guard('烹饪恢复', lambda: reconcile_cooking(source_hashes=cooking_source_hashes))
-            from system_settings.agent_world.alchemy_sync import reconcile_alchemy
-            guard('炼金恢复', lambda: reconcile_alchemy(source_hashes=alchemy_source_hashes))
-            from system_settings.agent_world.blacksmith_sync import reconcile as reconcile_blacksmith
-            reconcile_blacksmith()
-            from memos.sprout_sync import reset_execution as reset_sprouts
-            reset_sprouts()
-            from learning.sync import reset_execution
-            reset_execution()
-            from novel.sync import reset_execution as reset_novel_execution
-            reset_novel_execution()
-            from quant.sync import reset_execution as reset_quant_execution
-            reset_quant_execution()
-            from system_settings.agent_world.market_sync import reconcile_market
-            guard('市场', reconcile_market)
-            from system_settings.agent_world.combat.sync import revoke as revoke_combat
-            revoke_combat()
-            from system_settings.agent_world.investment_sync import reconcile_investments
-            guard('投资', reconcile_investments)
-            from system_settings.agent_world.farm_sync import reconcile_farms
-            guard('农场恢复', reconcile_farms)
-            from system_settings.agent_world.farm_quality_sync import normalize_legacy_inventory
-            normalize_legacy_inventory()
-            from system_settings.agent_world.cooking_quality_sync import normalize_legacy_inventory as normalize_dishes
-            normalize_dishes()
-            from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
-            checkpoint_cooking()
-            from system_settings.agent_world.alchemy_sync import checkpoint_all as checkpoint_alchemy
-            checkpoint_alchemy()
-            from system_settings.agent_world.blacksmith_sync import checkpoint_all as checkpoint_blacksmith
-            checkpoint_blacksmith()
-            from system_settings.agent_world.market_sync import end_restored_sessions, refresh_restored_checkpoints
-            end_restored_sessions()
-            refresh_restored_checkpoints()
-            from system_settings.agent_world.settlement import reconcile_awards
-            guard('结算', reconcile_awards)
-            from system_settings.agent_world.lottery_sync import reconcile as reconcile_lottery
-            reconcile_lottery()
-            from system_settings.agent_world.tournament_sync import reconcile as reconcile_tournaments, revoke as revoke_tournaments
-            revoke_tournaments()
-            reconcile_tournaments()
-            from system_settings.agent_world.fishing.sync import reconcile as reconcile_fishing
-            reconcile_fishing()
-            from system_settings.agent_world.life_sync import reconcile_life
-            guard('生活恢复', reconcile_life)
-            from system_settings.agent_world.social_sync import reconcile_social
-            guard('社交恢复', reconcile_social)
-            # Validate the original source first. Adding legacy policy defaults earlier
-            # would change LifeConfig's fingerprint and reject valid old snapshots.
-            from system_settings.decision.restore import normalize_policy
-            normalize_policy(restored_policy_defaults)
-            from system_settings.agent_world.publish_media import reset_photo_runtime
-            reset_photo_runtime()
-            from system_settings.models import AgentMemoryLease
-            AgentMemoryLease.objects.all().update(token='', until=None)
-            revoke_archived_execution()
-            if not any(item.get('model', '').startswith('system_settings.social') for item in data_list):
-                from system_settings.agent_world.social_migration import seed_legacy_relations
-                seed_legacy_relations()
-            self._reset_restored_sequences(restored_models)
-            travel_sync.record_missing()
-
-            if image_vectors_to_remove:
-                ImageVisualIndex.objects.filter(image_id__in=image_vectors_to_remove).update(enabled=False, error='')
-                # 外部 Chroma 写入必须晚于数据库提交；回滚时保留原索引。
-                transaction.on_commit(lambda vectors=dict(image_vectors_to_remove): delete_image_vectors(vectors), robust=True)
-            from article.html_note_resources import retry_html_cleanup
-            transaction.on_commit(retry_html_cleanup)
-
-        if not is_tracking_suspended():
-            from article.version_service import enforce_article_version_retention
-            enforce_article_version_retention()
-            enforce_novel_revision_retention()
-
-        return len(data_list)
-
-    @farm_sync_guard
-    def sync_data_download(self, remote_meta=None, should_abort=None):
-        """下载并恢复数据库快照，同时清理本地多余记录。"""
-        self._ensure_not_aborted(should_abort)
-        content = self.client.get_file_content(self.data_file)
-        if not content:
-            raise SyncError("云端未找到数据快照 data_index.json")
-        return self.apply_snapshot_data(
-            json.loads(content),
-            remote_meta=remote_meta,
-            should_abort=should_abort,
-        )
-
-    @staticmethod
-    def _reuse_local_builtin_skill_ids(data_list):
-        """将快照内置 Skill 映射到本地已有记录，避免启动初始化产生同名冲突。"""
-        from system_settings.models import Skill
-
-        skill_id_mapping = {}
-        for item in data_list:
-            if item.get('model') != 'system_settings.skill':
-                continue
-
-            fields = item.get('fields') or {}
-            skill_key = fields.get('skill_key') or ''
-            is_builtin = (
-                fields.get('is_system')
-                or fields.get('source') == 'built_in'
-                or bool(skill_key)
-            )
-            if not is_builtin:
-                continue
-
-            existing = None
-            if skill_key:
-                existing = Skill.objects.filter(skill_key=skill_key).first()
-            if not existing and fields.get('name'):
-                # 兼容早期内置 Skill 尚未写入 skill_key 的数据。
-                existing = Skill.objects.filter(name=fields['name']).first()
-
-            remote_id = str(item.get('pk'))
-            if existing and str(existing.pk) != remote_id:
-                skill_id_mapping[remote_id] = str(existing.pk)
-                item['pk'] = str(existing.pk)
-
-        if not skill_id_mapping:
-            return
-
-        for item in data_list:
-            if item.get('model') != 'system_settings.agent':
-                continue
-
-            fields = item.get('fields') or {}
-            skills = fields.get('skills')
-            if isinstance(skills, list):
-                fields['skills'] = [skill_id_mapping.get(str(skill_id), skill_id) for skill_id in skills]
-
-    @staticmethod
-    def _reuse_local_group_ids(data_list):
-        """按组名复用本地用户组，并返回远端到本地的主键映射。"""
-        group_label = Group._meta.label_lower
-        used_ids = set(Group.objects.values_list('pk', flat=True))
-        next_id = max(used_ids, default=0) + 1
-        group_id_mapping = {}
-
-        for item in data_list:
-            if item.get('model') != group_label:
-                continue
-
-            fields = item.get('fields') or {}
-            group_name = fields.get('name')
-            remote_id = item.get('pk')
-            if remote_id is None or not group_name:
-                continue
-
-            local_group = Group.objects.filter(name=group_name).first()
-            if local_group:
-                local_id = local_group.pk
-            elif remote_id in used_ids:
-                local_id = next_id
-                next_id += 1
-            else:
-                local_id = remote_id
-
-            group_id_mapping[str(remote_id)] = local_id
-            item['pk'] = local_id
-            used_ids.add(local_id)
-
-        return group_id_mapping
-
-    @staticmethod
-    def _reuse_local_user_ids(data_list, group_id_mapping):
-        """按用户名复用本地用户，并保留当前初始化管理员的密码。"""
-        User = get_user_model()
-        user_label = User._meta.label_lower
-        used_ids = set(User.objects.values_list('pk', flat=True))
-        next_id = max(used_ids, default=0) + 1
-        user_id_mapping = {}
-
-        for item in data_list:
-            if item.get('model') != user_label:
-                continue
-
-            fields = item.get('fields') or {}
-            username = fields.get('username')
-            remote_id = item.get('pk')
-            if remote_id is None or not username:
-                continue
-
-            local_user = User.objects.filter(username=username).first()
-            if local_user:
-                local_id = local_user.pk
-                if local_user.is_superuser:
-                    fields['password'] = local_user.password
-            elif remote_id in used_ids:
-                local_id = next_id
-                next_id += 1
-            else:
-                local_id = remote_id
-
-            user_id_mapping[str(remote_id)] = local_id
-            item['pk'] = local_id
-            used_ids.add(local_id)
-
-            groups = fields.get('groups')
-            if isinstance(groups, list):
-                fields['groups'] = [group_id_mapping.get(str(group_id), group_id) for group_id in groups]
-
-        return user_id_mapping
-
-    @staticmethod
-    def _reuse_local_user_profile_ids(data_list, user_id_mapping):
-        """按业务用户 ID 复用本地 Profile，避免跨环境使用自增用户 ID。"""
-        from user.models import UserProfile
-
-        for item in data_list:
-            if item.get('model') != 'user.userprofile':
-                continue
-
-            fields = item.get('fields') or {}
-            userid = fields.get('userid') or ''
-            if not userid:
-                continue
-
-            local_profile = UserProfile.objects.filter(userid=userid).first()
-            if local_profile:
-                # UserProfile 对 auth.User 是一对一关系，主键和外键都必须复用本地记录。
-                item['pk'] = local_profile.pk
-                fields['user'] = local_profile.user_id
-                continue
-
-            remote_user_id = str(fields.get('user'))
-            if remote_user_id in user_id_mapping:
-                fields['user'] = user_id_mapping[remote_user_id]
-
-    @staticmethod
-    def _remap_notification_users(data_list, user_id_mapping):
-        """通知的用户外键跟随跨设备用户名映射，不能直接使用远端自增 ID。"""
-        for item in data_list:
-            if item.get('model') != 'message.notification':
-                continue
-            fields = item.get('fields') or {}
-            remote_user_id = str(fields.get('user'))
-            if remote_user_id in user_id_mapping:
-                fields['user'] = user_id_mapping[remote_user_id]
-
-    def sync_assets_download(self, should_abort=None):
-        """根据数据库快照修复本地媒体资源，并清理多余文件。"""
-        from assets.models import Asset
-        from user.models import UserProfile
-
-        count = 0
-        local_media_root = str(settings.MEDIA_ROOT)
-        expected_rel_paths = set()
-
-        from anthology.models import Book
-        book_body_asset_ids = self._book_body_asset_ids()
-        assets = Asset.objects.filter(is_valid=True)
-        for asset in assets:
-            self._ensure_not_aborted(should_abort)
-            if not asset.file_path:
-                continue
-
-            rel_path = self._normalize_rel_path(asset.file_path)
-            local_path = os.path.join(local_media_root, rel_path)
-
-            # Book bodies are restored from the bookshelf, not by backup sync.
-            if asset.id in book_body_asset_ids:
-                if os.path.isfile(local_path):
-                    expected_rel_paths.add(rel_path)
-                else:
-                    Book.objects.filter(
-                        asset_id=asset.id, is_valid=True
-                    ).exclude(local_state='cloud_only').update(local_state='cloud_only')
-                continue
-
-            expected_rel_paths.add(rel_path)
-
-            remote_path = self._join_remote_path(self.media_dir, rel_path)
-
-            need_download = not os.path.exists(local_path)
-            if not need_download and asset.file_hash:
-                try:
-                    need_download = self._hash_file(local_path) != asset.file_hash
-                except Exception:
-                    need_download = True
-
-            if not need_download:
-                continue
-
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            if not self.client.download_file(remote_path, local_path):
-                raise SyncError(f"资源文件下载失败：{rel_path}")
-            count += 1
-
-        for avatar_url in UserProfile.objects.exclude(avatar='').values_list('avatar', flat=True):
-            rel_path = self._get_media_relative_path(avatar_url)
-            if not rel_path:
-                continue
-            expected_rel_paths.add(rel_path)
-
-            local_path = os.path.join(local_media_root, rel_path)
-            if os.path.exists(local_path):
-                continue
-
-            remote_path = self._join_remote_path(self.media_dir, rel_path)
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            if not self.client.download_file(remote_path, local_path):
-                raise SyncError(f"用户头像下载失败：{rel_path}")
-            count += 1
-
-        self._remove_local_extra_files(local_media_root, expected_rel_paths)
-
-        return count
 
     def get_remote_snapshot_meta(self):
-        content = self.client.get_file_content(self.meta_file)
+        content = self.remote.client.get_file_content(self.remote.meta_file)
         if not content:
             return None
 
@@ -1373,42 +275,6 @@ class SyncManager:
         except json.JSONDecodeError as exc:
             raise SyncError(f"远端快照元数据损坏：{exc}")
 
-    def build_snapshot_meta(self, source='manual', runner_id='', data_list=None):
-        from system_settings.agent_world.social_models import SocialIntegrity
-        from system_settings.agent_world.combat.sync import metadata as combat_metadata
-        from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
-        from system_settings.agent_world.alchemy_quality_sync import metadata as alchemy_metadata
-        from system_settings.agent_world.blacksmith_sync import metadata as blacksmith_metadata
-        from learning.sync import metadata as learning_metadata
-        from novel.sync import metadata as novel_metadata
-        from quant.sync import metadata as quant_metadata
-        from memos.sprout_sync import metadata as sprout_metadata
-        from system_settings.agent_world.memory.sync import metadata as memory_metadata
-        from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
-        from system_settings.agent_world.lottery_sync import metadata as lottery_metadata
-        from system_settings.agent_world.tournament_sync import metadata as tournament_metadata
-        from system_settings.agent_world.fishing.sync import metadata as fishing_metadata
-        return {
-            **lottery_metadata(data_list), **fishing_metadata(data_list), **tournament_metadata(data_list),
-            **combat_metadata(data_list),
-            **learning_metadata(data_list),
-            **novel_metadata(data_list),
-            **quant_metadata(data_list),
-            **sprout_metadata(data_list),
-            **crop_metadata(data_list),
-            **cooking_metadata(data_list),
-            **alchemy_metadata(data_list),
-            **blacksmith_metadata(data_list),
-            **memory_metadata(data_list),
-            'social_schema_version': 2,
-            'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
-            'snapshot_id': uuid.uuid4().hex,
-            'generated_at': datetime.utcnow().isoformat() + 'Z',
-            'source': source,
-            'runner_id': runner_id,
-            'app_version': self.get_current_app_version(),
-            'data_file': 'data_index.json',
-        }
 
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
@@ -1441,56 +307,6 @@ class SyncManager:
                 "请先升级本机后再导入。"
             )
 
-    @farm_sync_guard
-    @novel_sync_guard
-    @learning_sync_guard
-    @quant_sync_guard
-    def build_snapshot_data(self, *, compact_travel=False, allow_exploration_review_mismatch=False, relax_integrity=False):
-        from system_settings.agent_world.combat.store import install as install_combat
-        install_combat()
-        from system_settings.agent_world.life_sync import checkpoint_all
-        checkpoint_all()
-        from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
-        checkpoint_cooking()
-        from system_settings.agent_world.alchemy_sync import checkpoint_all as checkpoint_alchemy
-        checkpoint_alchemy()
-        from system_settings.agent_world.blacksmith_sync import checkpoint_all as checkpoint_blacksmith
-        checkpoint_blacksmith()
-        from system_settings.agent_world.social_sync import checkpoint_all as checkpoint_social
-        checkpoint_social()
-        from system_settings.agent_world.market_sync import normalize_legacy_dates as normalize_market_dates
-        from system_settings.agent_world.investment_sync import normalize_legacy_dates as normalize_investment_dates
-        normalize_market_dates()
-        normalize_investment_dates()
-        from system_settings.agent_world.lottery_sync import checkpoint_all as checkpoint_lottery
-        checkpoint_lottery()
-        from system_settings.agent_world.tournament_sync import checkpoint_all as checkpoint_tournaments
-        checkpoint_tournaments()
-        from system_settings.agent_world.fishing.sync import checkpoint_all as checkpoint_fishing
-        checkpoint_fishing()
-        all_data = []
-        sparse_cities = compact_travel and travel_sync.enabled()
-        for model in self._iter_target_models():
-            queryset = self._queryset_for_export(model)
-            if sparse_cities and model._meta.label_lower == travel_sync.LABEL:
-                queryset = travel_sync.export_queryset(queryset)
-            if queryset.exists():
-                all_data.extend(json.loads(serializers.serialize('json', queryset, cls=SyncJSONEncoder)))
-        from system_settings.agent_world.combat.sync import validate_source as validate_combat
-        from system_settings.agent_world.food_sync import validate_source as validate_food
-        validate_food(all_data)
-        from system_settings.agent_world.combat.sync import metadata as combat_metadata
-        validate_combat(all_data, combat_metadata(all_data),
-                        allow_exploration_review_mismatch=allow_exploration_review_mismatch or relax_integrity)
-        from system_settings.agent_world.alchemy_quality_sync import validate_source as validate_alchemy, metadata as alchemy_metadata
-        validate_alchemy(all_data, alchemy_metadata(all_data))
-        from system_settings.agent_world.blacksmith_sync import validate_source as validate_blacksmith, metadata as blacksmith_metadata
-        validate_blacksmith(all_data, blacksmith_metadata(all_data))
-        from system_settings.agent_world.tournament_sync import validate_source as validate_tournaments
-        validate_tournaments(all_data)
-        from quant.sync import validate as validate_quant
-        validate_quant(all_data)
-        return self._strip_device_local_user_fields(all_data)
 
     @staticmethod
     def _validate_force_overwrite_source(data):
@@ -1523,6 +339,7 @@ class SyncManager:
         validate_memories(data, memory_metadata(data))
         validate_names(data)
 
+
     @staticmethod
     def _safe_extract_zip(archive, dest_dir):
         dest_dir = os.path.realpath(dest_dir)
@@ -1532,11 +349,6 @@ class SyncManager:
                 raise SyncError('压缩包包含非法路径，已拒绝导入')
         archive.extractall(dest_dir)
 
-    def _book_body_rel_path_set(self):
-        return {
-            rel_path for book in self._iter_valid_books()
-            if (rel_path := self._book_body_rel_path(book))
-        }
 
     @farm_sync_guard
     @novel_sync_guard
@@ -1545,8 +357,8 @@ class SyncManager:
     def write_local_backup_zip(self, zip_path, source='local-export', runner_id=''):
         data_list = self.build_snapshot_data()
         meta = self.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list)
-        media_paths, _missing = self._collect_media_relative_paths()
-        book_bodies = self._book_body_rel_path_set()
+        media_paths, _missing = self.media.collect_media_relative_paths()
+        book_bodies = self.media.book_body_rel_path_set()
         with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
             archive.writestr('data_index.json', json.dumps(data_list, ensure_ascii=False))
             archive.writestr('snapshot_meta.json', json.dumps(meta, ensure_ascii=False))
@@ -1558,35 +370,6 @@ class SyncManager:
                     archive.write(local_path, arcname=f'media/{rel_path}')
         return meta
 
-    def restore_media_from_directory(self, backup_media_root):
-        copied = set()
-        if os.path.isdir(backup_media_root):
-            for rel_path in self._list_local_files(backup_media_root):
-                source_path = os.path.join(backup_media_root, rel_path)
-                dest_path = os.path.join(str(settings.MEDIA_ROOT), rel_path)
-                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                shutil.copy2(source_path, dest_path)
-                copied.add(rel_path)
-
-        expected_rel_paths, _missing = self._collect_media_relative_paths()
-        keep_book_bodies = {
-            rel_path for rel_path in self._book_body_rel_path_set()
-            if os.path.isfile(os.path.join(str(settings.MEDIA_ROOT), rel_path))
-        }
-        self._remove_local_extra_files(
-            str(settings.MEDIA_ROOT),
-            set(expected_rel_paths) | copied | keep_book_bodies,
-        )
-
-        from anthology.models import Book
-        for book in self._iter_valid_books():
-            rel_path = self._book_body_rel_path(book)
-            if not rel_path:
-                continue
-            local_path = os.path.join(str(settings.MEDIA_ROOT), rel_path)
-            if not os.path.isfile(local_path) and book.local_state != 'cloud_only':
-                Book.objects.filter(book_id=book.book_id).update(local_state='cloud_only')
-        return len(copied)
 
     @farm_sync_guard
     @novel_sync_guard
@@ -1595,7 +378,7 @@ class SyncManager:
     def import_local_backup_zip(self, zip_path, should_abort=None):
         extract_dir = tempfile.mkdtemp(prefix='odoc-backup-')
         try:
-            self._ensure_not_aborted(should_abort)
+            ensure_not_aborted(should_abort)
             with zipfile.ZipFile(zip_path) as archive:
                 self._safe_extract_zip(archive, extract_dir)
 
@@ -1623,58 +406,16 @@ class SyncManager:
         finally:
             shutil.rmtree(extract_dir, ignore_errors=True)
 
-    # ----- v2 immutable snapshots and three-way merge -----
-    @staticmethod
-    def _revision_key(model_label, identity):
-        return f'{model_label}:{identity}'
-
-    @staticmethod
-    def _item_identity(item):
-        """跨设备主键可能不同的内置模型使用业务稳定键。"""
-        return sync_entity_identity(item.get('model'), item['pk'], item.get('fields') or {})
-
-    @staticmethod
-    def _item_map(data_list):
-        return {
-            SyncManager._revision_key(item['model'], SyncManager._item_identity(item)): item
-            for item in data_list
-            if item.get('model') and item.get('pk') is not None
-        }
-
-    def _write_remote_json(self, payload, remote_path):
-        tmp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8', delete=False, suffix='.json') as tmp:
-                json.dump(payload, tmp, ensure_ascii=False, sort_keys=True)
-                tmp_path = tmp.name
-            if not self.client.upload_file(tmp_path, remote_path):
-                raise SyncError(f'写入远端快照失败：{remote_path}')
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
 
     @staticmethod
     def _json_payload_size(payload):
         return len(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode('utf-8'))
 
-    def _read_remote_json(self, remote_path, required=False):
-        content = self.client.get_file_content(remote_path)
-        if not content:
-            if required:
-                raise SyncError(f'远端快照缺少文件：{remote_path}')
-            return None
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise SyncError(f'远端快照 JSON 损坏：{remote_path}：{exc}')
-
-    def _snapshot_path(self, snapshot_id, filename):
-        return f'{self.v2_snapshots_dir}/{snapshot_id}/{filename}'
 
     def get_v2_current(self, *, relax_integrity=None):
         if relax_integrity is None:
             relax_integrity = bool(getattr(self, 'relax_integrity', False))
-        pointer = self._read_remote_json(self.v2_current_file)
+        pointer = self.remote.read_json(self.remote.v2_current_file)
         if not pointer or pointer.get('format') != self.SNAPSHOT_FORMAT:
             return None
         snapshot_id = pointer.get('snapshot_id')
@@ -1682,12 +423,13 @@ class SyncManager:
             return None
         return self.get_v2_snapshot(snapshot_id, relax_integrity=relax_integrity)
 
+
     def _get_remote_overwrite_state(self):
         """Read only the remote metadata needed to replace current, without merging its data."""
-        pointer = self._read_remote_json(self.v2_current_file)
+        pointer = self.remote.read_json(self.remote.v2_current_file)
         if not isinstance(pointer, dict) or pointer.get('format') != self.SNAPSHOT_FORMAT:
             legacy = self._get_legacy_snapshot()
-            released_book_paths = set(self._released_book_rel_paths())
+            released_book_paths = set(self.media.released_book_rel_paths())
             if released_book_paths:
                 raise SyncError('远端仍是旧版快照，强制覆盖前请先完成一次普通同步以迁移云端图书正文')
             return legacy
@@ -1695,18 +437,18 @@ class SyncManager:
         snapshot_id = pointer.get('snapshot_id')
         if not snapshot_id:
             raise SyncError('远端当前快照指针缺少快照 ID，无法安全覆盖')
-        meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
+        meta = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
         if not isinstance(meta, dict):
             raise SyncError('远端快照元数据格式不正确，无法安全覆盖')
         if meta.get('format') != self.SNAPSHOT_FORMAT:
             raise SyncError('远端快照格式不受支持，请升级客户端')
         self.validate_remote_snapshot_version(meta)
 
-        revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json')) or {}
+        revisions = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'revisions.json')) or {}
         if not isinstance(revisions, dict) or any(not isinstance(value, dict) for value in revisions.values()):
             revisions = {}
-        media = self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'))
-        released_book_paths = set(self._released_book_rel_paths())
+        media = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'media_manifest.json'))
+        released_book_paths = set(self.media.released_book_rel_paths())
         if not isinstance(media, dict) or any(not isinstance(value, dict) for value in media.values()):
             if released_book_paths:
                 raise SyncError('远端媒体清单无法读取，不能安全保留云端图书正文')
@@ -1719,9 +461,10 @@ class SyncManager:
             'media': media,
         }
 
+
     def _get_legacy_snapshot(self):
         """将 v1 根目录快照作为首次 v2 合并的只读远端输入，不把缺失记录视为删除。"""
-        data = self._read_remote_json(self.data_file)
+        data = self.remote.read_json(self.remote.data_file)
         if not isinstance(data, list):
             return None
         meta = self.get_remote_snapshot_meta() or {}
@@ -1730,34 +473,35 @@ class SyncManager:
         validate_quant(data, meta)
         generated_at = meta.get('generated_at') or timezone.now().isoformat()
         revisions, media = {}, {}
-        for key, item in self._item_map(data).items():
+        for key, item in item_map(data).items():
             revisions[key] = {
                 'hash': canonical_hash(item.get('fields') or {}), 'revision_at': generated_at,
                 'origin_device': 'legacy-v1', 'deleted': False,
             }
             if item.get('model') == 'assets.asset':
                 fields = item.get('fields') or {}
-                rel_path = self._normalize_rel_path(fields.get('file_path') or '')
+                rel_path = self.media.normalize_rel_path(fields.get('file_path') or '')
                 if rel_path:
                     media[rel_path] = {'hash': fields.get('file_hash') or '', 'legacy_path': True, 'size': fields.get('file_size') or 0}
             elif item.get('model') == 'user.userprofile':
-                rel_path = self._get_media_relative_path((item.get('fields') or {}).get('avatar') or '')
+                rel_path = self.media.get_media_relative_path((item.get('fields') or {}).get('avatar') or '')
                 if rel_path:
                     media[rel_path] = {'hash': '', 'legacy_path': True, 'size': 0}
         return {
             'meta': {**meta, 'snapshot_id': '', 'format': 1},
-            'data': self._strip_device_local_user_fields(data),
+            'data': self.models.strip_device_local_user_fields(data),
             'revisions': revisions,
             'media': media,
             'legacy': True,
         }
 
+
     def get_v2_snapshot(self, snapshot_id, *, relax_integrity=False):
-        meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
+        meta = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
         if meta.get('format') != self.SNAPSHOT_FORMAT:
             raise SyncError('远端快照格式不受支持，请升级客户端')
         self.validate_remote_snapshot_version(meta)
-        data = self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True)
+        data = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'data_index.json'), required=True)
         from learning.sync import validate as validate_learning
         from novel.sync import validate as validate_novel
         from quant.sync import validate as validate_quant
@@ -1773,26 +517,15 @@ class SyncManager:
         validate_tournaments(data, meta)
         from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
         validate_fishing(data, meta)
-        revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True)
+        revisions = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'revisions.json'), required=True)
         self._guard_integrity('旅行目录', lambda: travel_sync.validate_revisions(meta, revisions), relax=relax_integrity)
         return {
             'meta': meta,
-            'data': self._strip_device_local_user_fields(data),
+            'data': self.models.strip_device_local_user_fields(data),
             'revisions': revisions,
-            'media': self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'), required=True),
+            'media': self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'media_manifest.json'), required=True),
         }
 
-    def list_v2_history(self):
-        entries = self.client.list_directory(self.v2_snapshots_dir) or []
-        history = []
-        for snapshot_id in entries:
-            try:
-                meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'))
-            except SyncError:
-                continue
-            if meta and meta.get('format') == self.SNAPSHOT_FORMAT:
-                history.append(meta)
-        return sorted(history, key=lambda item: item.get('generated_at', ''), reverse=True)
 
     def _build_revision_manifest(self, data_list):
         from system_settings.models import SyncEntityState
@@ -1802,7 +535,7 @@ class SyncManager:
             travel_sync.record_missing()
         device_id = get_device_id()
         states = {
-            self._revision_key(state.model_label, state.object_pk): state
+            revision_key(state.model_label, state.object_pk): state
             for state in SyncEntityState.objects.all()
         }
         revisions = {}
@@ -1810,7 +543,7 @@ class SyncManager:
         to_update = []
         now = timezone.now()
 
-        for key, item in self._item_map(data_list).items():
+        for key, item in item_map(data_list).items():
             state = states.get(key)
             item_hash = canonical_hash(item.get('fields') or {})
             if state is None:
@@ -1855,6 +588,7 @@ class SyncManager:
                 }
         return revisions
 
+
     def _item_revision_at(self, item):
         fields = item.get('fields') or {}
         for field_name in ('updated_at', 'updated_time', 'modified_at', 'modified_time', 'created_at', 'created_time'):
@@ -1866,30 +600,6 @@ class SyncManager:
                 return self._normalize_revision_time(parsed)
         return timezone.now()
 
-    @staticmethod
-    def _revision_changed(base, candidate):
-        return (base or {}).get('hash') != (candidate or {}).get('hash') or bool((base or {}).get('deleted')) != bool((candidate or {}).get('deleted'))
-
-    @staticmethod
-    def _is_permanent_delete(revision):
-        return bool(revision.get('deleted')) and str(revision.get('hash', '')).startswith(PERMANENT_DELETE_HASH_PREFIX)
-
-    @staticmethod
-    def _revision_winner(local_revision, remote_revision):
-        """Permanent purges win; normal delete/edit conflicts preserve the edit."""
-        local_purged = SyncManager._is_permanent_delete(local_revision)
-        remote_purged = SyncManager._is_permanent_delete(remote_revision)
-        if local_purged != remote_purged:
-            return local_revision if local_purged else remote_revision
-        if bool(local_revision.get('deleted')) != bool(remote_revision.get('deleted')):
-            return remote_revision if local_revision.get('deleted') else local_revision
-        local_at = local_revision.get('revision_at', '')
-        remote_at = remote_revision.get('revision_at', '')
-        if remote_at > local_at:
-            return remote_revision
-        if remote_at < local_at:
-            return local_revision
-        return remote_revision if remote_revision.get('origin_device', '') > local_revision.get('origin_device', '') else local_revision
 
     def merge_v2_data(
         self, base, local_data, local_revisions, remote, *,
@@ -1920,7 +630,6 @@ class SyncManager:
         from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
         validate_fishing(local_data)
         validate_lottery(remote.get('data') or [], remote.get('meta'))
-        from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
         validate_fishing(remote.get('data') or [], remote.get('meta'))
         lottery_conflicts(local_data, remote.get('data') or [])
         from system_settings.agent_world.tournament_sync import validate_source as validate_tournaments, validate_conflicts as tournament_conflicts
@@ -1962,74 +671,11 @@ class SyncManager:
         from system_settings.agent_world.memory.sync import validate_source as validate_memories, metadata as memory_metadata, merge_aggregates
         guard('居民记忆', lambda: validate_memories(local_data, memory_metadata(local_data)))
         guard('居民记忆', lambda: validate_memories(remote.get('data') or [], remote.get('meta')))
-        base_data = self._item_map((base or {}).get('data') or [])
-        base_revisions = (base or {}).get('revisions') or {}
-        local_map = self._item_map(local_data)
-        remote_map = self._item_map(remote.get('data') or [])
         remote_revisions = remote.get('revisions') or {}
-        chosen, choice_default = self._choice_map(resolutions, resolution_default)
-        result, result_revisions = [], {}
-        summary = {
-            'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0,
-            'choice_items': [], 'choice_total': 0, 'integrity_warnings': [],
-        }
-
-        keys = set(base_revisions) | set(local_revisions) | set(remote_revisions) | set(local_map) | set(remote_map)
-        for key in sorted(keys):
-            base_rev = base_revisions.get(key, {'deleted': True, 'hash': ''})
-            local_rev = local_revisions.get(key, {'deleted': True, 'hash': ''})
-            remote_rev = remote_revisions.get(key, {'deleted': True, 'hash': ''})
-            local_changed = self._revision_changed(base_rev, local_rev)
-            remote_changed = self._revision_changed(base_rev, remote_rev)
-            choice = chosen.get(key) or choice_default
-            winner, is_conflict = self._pick_revision(local_changed, remote_changed, local_rev, remote_rev, choice)
-            if is_conflict:
-                summary['conflicts'] += 1
-                local_item = local_map.get(key)
-                remote_item = remote_map.get(key)
-                if not (self._automatic_memory(local_item) or self._automatic_memory(remote_item)):
-                    summary['choice_total'] += 1
-                    if len(summary['choice_items']) < 200:
-                        suggested = 'local' if self._revision_winner(local_rev, remote_rev) == local_rev else 'remote'
-                        model = (local_item or remote_item or {}).get('model') or key.split(':', 1)[0]
-                        summary['choice_items'].append({
-                            'key': key,
-                            'model': model,
-                            'label': self._item_label(local_item),
-                            'remote_label': self._item_label(remote_item),
-                            'local_at': local_rev.get('revision_at') or '',
-                            'remote_at': remote_rev.get('revision_at') or '',
-                            'suggested': suggested,
-                        })
-            result_revisions[key] = winner
-            if winner.get('deleted'):
-                summary['deleted'] += 1
-                continue
-            item = remote_map.get(key) if winner is remote_rev else local_map.get(key)
-            if item is None:
-                # A legacy/v1 manifest has no per-row state; absence is never treated as deletion.
-                item = local_map.get(key) or remote_map.get(key)
-            if item is not None:
-                if item.get('model') == 'system_settings.agenttokenusage':
-                    from system_settings.token_usage.sync import merge_usage_fact
-                    merged_usage = merge_usage_fact(item, [base_data.get(key), local_map.get(key), remote_map.get(key)])
-                    if merged_usage != item:
-                        item = merged_usage
-                        result_revisions[key] = {**winner, 'hash': canonical_hash(item.get('fields') or {})}
-                # 阅读是累积事实，不能被另一设备的标题/评分更新清空。
-                # 仅合并标记，其余字段及删除墓碑仍按原记录规则处理。
-                if item.get('model') == 'article.article' and any(
-                    candidate and (candidate.get('fields') or {}).get('agent_post_has_been_read') is True
-                    for candidate in (base_data.get(key), local_map.get(key), remote_map.get(key))
-                ) and (item.get('fields') or {}).get('agent_post_has_been_read') is not True:
-                    item = {**item, 'fields': {**(item.get('fields') or {}), 'agent_post_has_been_read': True}}
-                    # 合成记录必须有匹配的修订哈希，避免下一轮误判变化。
-                    result_revisions[key] = {**winner, 'hash': canonical_hash(item['fields'])}
-                result.append(item)
-                if key not in base_data:
-                    summary['created'] += 1
-                elif local_changed or remote_changed:
-                    summary['updated'] += 1
+        result, result_revisions, summary = merge_records(
+            base, local_data, local_revisions, remote,
+            resolutions=resolutions, resolution_default=resolution_default,
+        )
         if conflicts_only:
             summary['integrity_warnings'] = list(self._integrity_warnings)
             return [], {}, summary
@@ -2061,103 +707,9 @@ class SyncManager:
         summary['integrity_warnings'] = list(self._integrity_warnings)
         return result, result_revisions, summary
 
-    def _media_hash_cache_path(self):
-        return os.path.join(str(settings.MEDIA_ROOT), '.sync-v2-safety', 'media-hash-index.json')
-
-    def _load_media_hash_cache(self):
-        path = self._media_hash_cache_path()
-        try:
-            with open(path, encoding='utf-8') as cache_file:
-                payload = json.load(cache_file)
-        except (OSError, json.JSONDecodeError):
-            return {}
-        return payload if isinstance(payload, dict) else {}
-
-    def _save_media_hash_cache(self, cache, keep_paths):
-        retained = {path: entry for path, entry in cache.items() if path in keep_paths}
-        path = self._media_hash_cache_path()
-        try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            temporary = path + '.tmp'
-            with open(temporary, 'w', encoding='utf-8') as cache_file:
-                json.dump(retained, cache_file, ensure_ascii=False)
-            os.replace(temporary, path)
-        except OSError:
-            return
-
-    def _digest_media_file(self, rel_path, cache):
-        local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
-        file_stat = os.stat(local_path)
-        cached = cache.get(rel_path) or {}
-        if (
-            cached.get('size') == file_stat.st_size
-            and cached.get('mtime_ns') == file_stat.st_mtime_ns
-            and cached.get('hash')
-        ):
-            return cached['hash'], file_stat.st_size
-        digest = self._hash_file(local_path)
-        cache[rel_path] = {'size': file_stat.st_size, 'mtime_ns': file_stat.st_mtime_ns, 'hash': digest}
-        return digest, file_stat.st_size
-
-    def _compose_media_manifest(self, previous_media=None, *, allow_missing=False):
-        previous_media = previous_media or {}
-        paths, missing = self._collect_media_relative_paths()
-        if missing:
-            if allow_missing:
-                return None
-            raise SyncError('无法创建安全快照，本地存在缺失资源：' + '，'.join(missing[:3]))
-        cache = self._load_media_hash_cache()
-        media = {}
-        for rel_path in paths:
-            local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
-            if not os.path.isfile(local_path):
-                continue
-            digest, size = self._digest_media_file(rel_path, cache)
-            media[rel_path] = {'hash': digest, 'size': size}
-        self._save_media_hash_cache(cache, set(media))
-        released_book_paths = set(self._released_book_rel_paths())
-        for rel_path, entry in previous_media.items():
-            if rel_path in released_book_paths and rel_path not in media and entry.get('hash'):
-                media[rel_path] = {'hash': entry.get('hash'), 'size': int(entry.get('size') or 0)}
-        return media
-
-    def _build_v2_media_manifest(self, previous_media=None):
-        # 只有明确释放的 cloud_only 图书正文保留上一个 v2 快照的 blob 引用；
-        # 其他资源缺失时不能静默延续旧引用。
-        return self._compose_media_manifest(previous_media)
-
-    @staticmethod
-    def _format_size(size):
-        size = int(size or 0)
-        for unit in ('B', 'KB', 'MB', 'GB'):
-            if size < 1024 or unit == 'GB':
-                return f'{size:.1f} {unit}' if unit != 'B' else f'{size} B'
-            size /= 1024
-
-    def _upload_v2_blobs(self, media_manifest, report=None):
-        uploaded = 0
-        uploaded_bytes = 0
-        total = len(media_manifest)
-        for index, (rel_path, entry) in enumerate(media_manifest.items(), start=1):
-            digest = entry.get('hash')
-            local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
-            if not digest or not os.path.isfile(local_path):
-                continue
-            blob_path = f'{self.v2_blobs_dir}/{digest}'
-            if self.client.exists(blob_path):
-                continue
-            self.client.ensure_directory(self.v2_blobs_dir)
-            if not self.client.upload_file(local_path, blob_path):
-                raise SyncError(f'上传媒体 blob 失败：{rel_path}')
-            uploaded += 1
-            uploaded_bytes += int(entry.get('size', 0) or 0)
-            if callable(report):
-                progress = 80 + int(index / max(total, 1) * 12)
-                report(f'媒体上传 {index}/{total}：{rel_path}（{self._format_size(entry.get("size", 0))}）', progress)
-        return uploaded, uploaded_bytes
 
     def publish_v2_snapshot(self, *, source, runner_id='', base_snapshot_id='', previous_media=None, data_list=None, revisions=None, report=None):
-        if self.client is None:
+        if self.remote.client is None:
             raise SyncError('v2 远端快照需要已配置备份服务')
         snapshot_id = uuid.uuid4().hex
         data_list = data_list if data_list is not None else self.build_snapshot_data(compact_travel=True)
@@ -2165,17 +717,17 @@ class SyncManager:
         sparse_cities = travel_sync.enabled()
         if sparse_cities:
             data_list, revisions = travel_sync.compact(data_list, revisions)
-        media = self._build_v2_media_manifest(previous_media)
+        media = self.media.build_v2_media_manifest(previous_media)
         if callable(report):
             report(
-                f'快照统计：{len(data_list)} 条数据、{len(revisions)} 条修订、{len(media)} 个媒体文件（{self._format_size(sum(item.get("size", 0) for item in media.values()))}）',
+                f'快照统计：{len(data_list)} 条数据、{len(revisions)} 条修订、{len(media)} 个媒体文件（{self.media.format_size(sum(item.get("size", 0) for item in media.values()))}）',
                 78,
             )
-        uploaded, uploaded_bytes = self._upload_v2_blobs(media, report=report)
+        uploaded, uploaded_bytes = self.media.upload_v2_blobs(media, report=report)
         if callable(report):
-            report(f'媒体上传完成：新增 {uploaded} 个（{self._format_size(uploaded_bytes)}），其余复用远端 blob。', 92)
-        snapshot_dir = f'{self.v2_snapshots_dir}/{snapshot_id}'
-        self.client.ensure_directory(snapshot_dir)
+            report(f'媒体上传完成：新增 {uploaded} 个（{self.media.format_size(uploaded_bytes)}），其余复用远端 blob。', 92)
+        snapshot_dir = f'{self.remote.v2_snapshots_dir}/{snapshot_id}'
+        self.remote.client.ensure_directory(snapshot_dir)
         meta = {
             **self.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list),
             'snapshot_id': snapshot_id,
@@ -2196,172 +748,27 @@ class SyncManager:
             snapshot_bytes = meta['media_bytes'] + payload_bytes + self._json_payload_size(meta)
         if callable(report):
             report('正在写入数据、修订、媒体清单与快照元数据。', 94)
-        self._write_remote_json(data_list, self._snapshot_path(snapshot_id, 'data_index.json'))
-        self._write_remote_json(revisions, self._snapshot_path(snapshot_id, 'revisions.json'))
-        self._write_remote_json(media, self._snapshot_path(snapshot_id, 'media_manifest.json'))
-        self._write_remote_json(meta, self._snapshot_path(snapshot_id, 'snapshot_meta.json'))
+        self.remote.write_json(data_list, self.remote.snapshot_path(snapshot_id, 'data_index.json'))
+        self.remote.write_json(revisions, self.remote.snapshot_path(snapshot_id, 'revisions.json'))
+        self.remote.write_json(media, self.remote.snapshot_path(snapshot_id, 'media_manifest.json'))
+        self.remote.write_json(meta, self.remote.snapshot_path(snapshot_id, 'snapshot_meta.json'))
         # This pointer is the only mutable v2 file and is written only after all snapshot files exist.
-        self.client.ensure_directory(self.v2_dir)
-        self._write_remote_json({'format': self.SNAPSHOT_FORMAT, 'snapshot_id': snapshot_id}, self.v2_current_file)
+        self.remote.client.ensure_directory(self.remote.v2_dir)
+        self.remote.write_json({'format': self.SNAPSHOT_FORMAT, 'snapshot_id': snapshot_id}, self.remote.v2_current_file)
         # v1 客户端只会读取根目录元数据；用新版本标记让它在继续写旧格式前
         # 明确失败，而不是悄悄把 v1 根目录当成当前同步结果。
-        self._write_remote_json({
+        self.remote.write_json({
             'format': self.SNAPSHOT_FORMAT,
-            'v2_current': self.v2_current_file,
+            'v2_current': self.remote.v2_current_file,
             'snapshot_id': snapshot_id,
             'generated_at': meta['generated_at'],
             'app_version': meta['app_version'],
-        }, self.meta_file)
-        self._trim_v2_history()
+        }, self.remote.meta_file)
+        self.remote.trim_history()
         if callable(report):
-            report(f'快照发布完成：{snapshot_id[:12]}（逻辑大小 {self._format_size(snapshot_bytes)}）', 98)
+            report(f'快照发布完成：{snapshot_id[:12]}（逻辑大小 {self.media.format_size(snapshot_bytes)}）', 98)
         return {'meta': meta, 'data': data_list, 'revisions': revisions, 'media': media}
 
-    def _trim_v2_history(self):
-        history = self.list_v2_history()
-        pointer = self._read_remote_json(self.v2_current_file) or {}
-        current_id = pointer.get('snapshot_id')
-        retained = history[:self.SNAPSHOT_RETENTION]
-        retained_ids = {meta.get('snapshot_id') for meta in retained}
-        if current_id and current_id not in retained_ids:
-            current_meta = next((meta for meta in history if meta.get('snapshot_id') == current_id), None)
-            if current_meta:
-                retained = retained[:-1] + [current_meta]
-                retained_ids = {meta.get('snapshot_id') for meta in retained}
-        for meta in history:
-            snapshot_id = meta.get('snapshot_id')
-            if snapshot_id and snapshot_id not in retained_ids:
-                self._delete_remote_tree(f'{self.v2_snapshots_dir}/{snapshot_id}')
-        self._collect_unreferenced_v2_blobs()
-
-    def _delete_remote_tree(self, remote_path):
-        """协议客户端没有统一的递归删除能力时，安全地限定在指定快照目录内递归。"""
-        if self.client.is_directory(remote_path):
-            entries = self.client.list_directory(remote_path)
-            if entries is not None:
-                for name in entries:
-                    self._delete_remote_tree(f"{remote_path.rstrip('/')}/{name}")
-        return self.client.delete_path(remote_path)
-
-    @contextmanager
-    def _remote_sync_lock(self, runner_id='', recover_owned_lock=False):
-        """用原子目录创建串行化多个设备对 current.json 的发布。"""
-        if self.client is None:
-            yield
-            return
-        lock_dir = f'{self.v2_dir}/.sync-lock'
-        self.client.ensure_directory(self.v2_dir)
-        create = getattr(self.client, 'try_create_directory', None)
-        if not callable(create):
-            raise SyncError('当前备份协议不支持安全同步锁，请升级客户端')
-        acquired = create(lock_dir)
-        if not acquired:
-            lock_meta = self._read_remote_json(f'{lock_dir}/lock.json') or {}
-            # 仅处理“本机明确终止、随后重启后遗留”的锁：调用方必须显式授权恢复，
-            # 且远端 lock.json 的设备标识必须与本机一致，绝不清理其他设备的锁。
-            matching_runner = (
-                recover_owned_lock is True
-                or (isinstance(recover_owned_lock, str) and lock_meta.get('runner_id') == recover_owned_lock)
-            )
-            if recover_owned_lock and matching_runner and lock_meta.get('device_id') == get_device_id():
-                self._delete_remote_tree(lock_dir)
-                acquired = create(lock_dir)
-            started_at = parse_datetime(str(lock_meta.get('started_at') or ''))
-            if started_at and timezone.is_naive(started_at):
-                started_at = timezone.make_aware(started_at, timezone.get_current_timezone())
-            now = timezone.now()
-            if started_at and timezone.is_aware(started_at) and timezone.is_naive(now):
-                now = timezone.make_aware(now, timezone.get_current_timezone())
-            if not acquired and started_at and (now - started_at).total_seconds() > self.REMOTE_LOCK_TTL_SECONDS:
-                self._delete_remote_tree(lock_dir)
-                acquired = create(lock_dir)
-        if not acquired:
-            raise SyncError('另一台设备正在同步，请稍后重试')
-        try:
-            self._write_remote_json({
-                'runner_id': runner_id,
-                'device_id': get_device_id(),
-                'started_at': timezone.now().isoformat(),
-            }, f'{lock_dir}/lock.json')
-            yield
-        finally:
-            self._delete_remote_tree(lock_dir)
-
-    def _collect_unreferenced_v2_blobs(self):
-        """只回收已不被保留快照引用的 blob，历史恢复始终有完整媒体可用。"""
-        referenced = set()
-        for meta in self.list_v2_history():
-            snapshot_id = meta.get('snapshot_id')
-            if not snapshot_id:
-                continue
-            manifest = self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json')) or {}
-            referenced.update(
-                entry.get('hash') for entry in manifest.values()
-                if entry.get('hash') and not entry.get('legacy_path')
-            )
-        for digest in self.client.list_directory(self.v2_blobs_dir) or []:
-            if digest not in referenced:
-                self.client.delete_path(f'{self.v2_blobs_dir}/{digest}')
-
-    def _restore_v2_media(self, media_manifest, *, skip_paths=None):
-        skip_paths = set(skip_paths or ())
-        for rel_path, entry in (media_manifest or {}).items():
-            if rel_path in skip_paths:
-                continue
-            digest = entry.get('hash')
-            local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
-            if digest and os.path.isfile(local_path) and self._hash_file(local_path) == digest:
-                continue
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            tmp_path = local_path + '.sync-v2-partial'
-            remote_path = self._join_remote_path(self.media_dir, rel_path) if entry.get('legacy_path') else f'{self.v2_blobs_dir}/{digest}'
-            if not self.client.download_file(remote_path, tmp_path):
-                raise SyncError(f'下载 v2 媒体失败：{rel_path}')
-            if digest and self._hash_file(tmp_path) != digest:
-                os.remove(tmp_path)
-                raise SyncError(f'下载的媒体校验失败：{rel_path}')
-            os.replace(tmp_path, local_path)
-
-    @staticmethod
-    def _book_body_paths_from_snapshot(data_list):
-        """从快照数据中取出图书正文路径，供同步下载时跳过。"""
-        assets_by_id = {}
-        book_asset_ids = set()
-        for item in data_list or []:
-            fields = item.get('fields') or {}
-            if item.get('model') == 'assets.asset':
-                assets_by_id[str(item.get('pk'))] = fields.get('file_path') or ''
-            elif item.get('model') == 'anthology.book' and not fields.get('is_valid') is False:
-                if fields.get('asset'):
-                    book_asset_ids.add(str(fields['asset']))
-        return {
-            path for asset_id, path in assets_by_id.items()
-            if asset_id in book_asset_ids and path
-        }
-
-    def restore_v2_media_file(self, rel_path, *, expected_hash=''):
-        """按当前 v2 快照恢复一个媒体文件，供图书按需下载使用。"""
-        remote = self.get_v2_current() or self._get_legacy_snapshot()
-        entry = (remote or {}).get('media', {}).get(self._normalize_rel_path(rel_path))
-        if not entry or not entry.get('hash'):
-            raise SyncError('云端没有这本图书的可用副本，请选择本地文件补传')
-        digest = entry['hash']
-        if expected_hash and digest != expected_hash:
-            raise SyncError('云端图书副本与当前书架记录不一致，请选择本地文件补传')
-
-        local_path = os.path.join(settings.MEDIA_ROOT, self._normalize_rel_path(rel_path))
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        tmp_path = local_path + '.book-restore-partial'
-        remote_path = self._join_remote_path(self.media_dir, rel_path) if entry.get('legacy_path') else f'{self.v2_blobs_dir}/{digest}'
-        try:
-            if not self.client.download_file(remote_path, tmp_path):
-                raise SyncError('云端图书副本不存在或下载失败，请选择本地文件补传')
-            if self._hash_file(tmp_path) != digest:
-                raise SyncError('云端图书副本校验失败，请选择本地文件补传')
-            os.replace(tmp_path, local_path)
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
 
     def _apply_v2_revisions(self, revisions):
         from system_settings.models import SyncEntityState
@@ -2380,6 +787,7 @@ class SyncManager:
 
         travel_sync.prune_states()
 
+
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
@@ -2394,7 +802,7 @@ class SyncManager:
         )
         with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
             archive.writestr('data_index.json', json.dumps(data, ensure_ascii=False))
-            for rel_path in self._list_local_files(str(settings.MEDIA_ROOT)):
+            for rel_path in self.media.list_local_files(str(settings.MEDIA_ROOT)):
                 if rel_path.startswith('.sync-v2-safety/'):
                     continue
                 # 图片和压缩包再压一次几乎不减小体积，却会占满 NAS 的 CPU。
@@ -2404,10 +812,11 @@ class SyncManager:
                     compress_type=zipfile.ZIP_STORED,
                 )
         # 哈希索引和中断残留的临时文件与快照放在同一目录，不能占用三份备份的名额。
-        backups = [path for path in self._list_local_files(root) if path.endswith('.zip')]
+        backups = [path for path in self.media.list_local_files(root) if path.endswith('.zip')]
         for rel_path in backups[:-3]:
             os.remove(os.path.join(root, rel_path))
         return path
+
 
     def _normalize_revision_time(self, value):
         if value is None or value == '':
@@ -2422,6 +831,7 @@ class SyncManager:
             return timezone.make_naive(parsed, timezone.get_current_timezone())
         return parsed
 
+
     def _local_revision_is_newer(self, local_at, remote_at):
         local_parsed = self._normalize_revision_time(local_at)
         remote_parsed = self._normalize_revision_time(remote_at)
@@ -2429,25 +839,27 @@ class SyncManager:
             return False
         return local_parsed > remote_parsed
 
+
     def _read_aligned_head(self, base_snapshot_id):
         """读取当前指针、修订和媒体清单。数据正文留到确认有变更后再下载。"""
-        pointer = self._read_remote_json(self.v2_current_file)
+        pointer = self.remote.read_json(self.remote.v2_current_file)
         if not pointer or pointer.get('format') != self.SNAPSHOT_FORMAT:
             return None
         snapshot_id = pointer.get('snapshot_id') or ''
         if snapshot_id != base_snapshot_id:
             return None
-        meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
+        meta = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
         if meta.get('format') != self.SNAPSHOT_FORMAT:
             return None
         self.validate_remote_snapshot_version(meta)
-        revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True)
-        media = self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'), required=True)
+        revisions = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'revisions.json'), required=True)
+        media = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'media_manifest.json'), required=True)
         if not isinstance(revisions, dict) or not isinstance(media, dict):
             raise SyncError('远端修订或媒体清单格式不正确')
         travel_sync.validate_revisions(meta, revisions)
         meta.setdefault('snapshot_id', snapshot_id)
         return {'meta': meta, 'revisions': revisions, 'media': media}
+
 
     def _repair_miskeyed_revisions(self):
         """把曾经从右边拆开的修订键改回「模型:身份」。"""
@@ -2478,10 +890,12 @@ class SyncManager:
                 existing.save(update_fields=['content_hash', 'is_deleted', 'revision_at', 'origin_device', 'updated_at'])
             state.delete()
 
+
     @staticmethod
     def _revision_key_is_device_local(key):
         prefix = 'system_settings.systemsetting:'
         return key.startswith(prefix) and key[len(prefix):] in LOCAL_ONLY_SYSTEM_SETTING_KEYS
+
 
     def _revisions_match_stored_index(self, remote_revisions):
         from system_settings.models import SyncEntityState
@@ -2497,7 +911,7 @@ class SyncManager:
                 and state.object_pk in LOCAL_ONLY_SYSTEM_SETTING_KEYS
             ):
                 continue
-            local[self._revision_key(state.model_label, state.object_pk)] = state
+            local[revision_key(state.model_label, state.object_pk)] = state
         if set(local) != set(remote_revisions):
             return False
         for key, remote_rev in remote_revisions.items():
@@ -2509,6 +923,7 @@ class SyncManager:
             if self._local_revision_is_newer(state.revision_at, remote_rev.get('revision_at')):
                 return False
         return True
+
 
     @staticmethod
     def _revision_content_same(left, right):
@@ -2522,6 +937,7 @@ class SyncManager:
                 return False
         return True
 
+
     @staticmethod
     def _media_manifest_same(left, right):
         left = left or {}
@@ -2533,15 +949,17 @@ class SyncManager:
                 return False
         return True
 
+
     def _local_matches_head(self, head):
         if travel_sync.enabled() and not head['meta'].get(travel_sync.META_KEY):
             return False
         if not self._revisions_match_stored_index(head['revisions']):
             return False
-        local_media = self._compose_media_manifest(head.get('media'), allow_missing=True)
+        local_media = self.media.compose_media_manifest(head.get('media'), allow_missing=True)
         if local_media is None:
             return False
         return self._media_manifest_same(local_media, head.get('media'))
+
 
     @staticmethod
     def _unchanged_sync_result(head):
@@ -2550,6 +968,7 @@ class SyncManager:
             {'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0, 'unchanged': True},
             '',
         )
+
 
     @staticmethod
     def _revision_change_summary(previous, current):
@@ -2565,6 +984,7 @@ class SyncManager:
                 summary['updated'] += 1
         return summary
 
+
     def _publish_local_delta(
         self, head, *, source, runner_id, base_snapshot_id, report, should_abort, recover_owned_remote_lock,
     ):
@@ -2572,9 +992,9 @@ class SyncManager:
         from article.version_service import enforce_article_version_retention
 
         report('本机有变更，正在导出并发布快照。', 20)
-        self._ensure_not_aborted(should_abort)
-        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
-            pointer = self._read_remote_json(self.v2_current_file) or {}
+        ensure_not_aborted(should_abort)
+        with self.remote.lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+            pointer = self.remote.read_json(self.remote.v2_current_file) or {}
             if pointer.get('snapshot_id') != base_snapshot_id:
                 safety_backup = self.create_local_safety_backup('before-sync')
                 enforce_article_version_retention()
@@ -2590,7 +1010,7 @@ class SyncManager:
             self.reconcile_missing_book_media(drop_missing_assets=False)
             local_data = self.build_snapshot_data(compact_travel=True)
             local_revisions = self._build_revision_manifest(local_data)
-            local_media = self._build_v2_media_manifest(head.get('media'))
+            local_media = self.media.build_v2_media_manifest(head.get('media'))
             if (
                 self._revision_content_same(local_revisions, head['revisions'])
                 and self._media_manifest_same(local_media, head.get('media'))
@@ -2607,6 +1027,7 @@ class SyncManager:
             )
         return snapshot, summary, ''
 
+
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
@@ -2618,10 +1039,10 @@ class SyncManager:
         from article.version_service import enforce_article_version_retention
 
         report('已获取远端同步锁，正在读取当前快照。', 28)
-        self._ensure_not_aborted(should_abort)
+        ensure_not_aborted(should_abort)
         remote = self.get_v2_current(relax_integrity=relax_integrity) or self._get_legacy_snapshot()
         report('远端快照读取完成，正在合并本机与云端数据。', 40)
-        self._ensure_not_aborted(should_abort)
+        ensure_not_aborted(should_abort)
         local_data = self.build_snapshot_data(
             compact_travel=True,
             relax_integrity=relax_integrity,
@@ -2649,10 +1070,10 @@ class SyncManager:
             report('正在校验并恢复非图书媒体资源。', 58)
             # 此后会先覆盖媒体，再提交数据库并发布新指针；这些步骤必须作为一个
             # 不可中断的提交段完成，避免取消后留下媒体与数据库不一致的本地状态。
-            self._ensure_not_aborted(should_abort)
-            self._restore_v2_media(
+            ensure_not_aborted(should_abort)
+            self.media.restore_v2_media(
                 remote.get('media'),
-                skip_paths=self._book_body_paths_from_snapshot(remote.get('data')),
+                skip_paths=self.media.book_body_paths_from_snapshot(remote.get('data')),
             )
             with transaction.atomic():
                 with suspend_tracking():
@@ -2699,13 +1120,14 @@ class SyncManager:
             merged_revisions = self._build_revision_manifest(merged_data)
         report('正在发布新的 v2 合并快照。', 75)
         if not remote:
-            self._ensure_not_aborted(should_abort)
+            ensure_not_aborted(should_abort)
         snapshot = self.publish_v2_snapshot(
             source=source, runner_id=runner_id, base_snapshot_id=(remote or {}).get('meta', {}).get('snapshot_id', ''),
             previous_media=previous_media, data_list=merged_data, revisions=merged_revisions,
             report=report,
         )
         return snapshot, summary
+
 
     @farm_sync_guard
     def _raise_if_choices_needed(self, base_snapshot_id):
@@ -2729,6 +1151,7 @@ class SyncManager:
         if preview.get('choice_total'):
             raise SyncChoicesRequired(preview.get('choice_items') or [], preview['choice_total'])
 
+
     def sync_v2(
         self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
         should_abort=None, recover_owned_remote_lock=False, force_overwrite=False,
@@ -2744,7 +1167,7 @@ class SyncManager:
             if callable(on_progress):
                 on_progress(message, progress)
 
-        self._ensure_not_aborted(should_abort)
+        ensure_not_aborted(should_abort)
         report('正在检查远端是否已有备份。' if manual_upload else '正在比对修订清单与媒体哈希。', 8)
         if force_overwrite or manual_upload:
             if source != 'manual':
@@ -2778,30 +1201,32 @@ class SyncManager:
         enforce_article_version_retention()
         enforce_novel_revision_retention()
         report('本机安全快照已完成，正在连接远端并获取同步锁。', 18)
-        self._ensure_not_aborted(should_abort)
+        ensure_not_aborted(should_abort)
         # 首次扫描不能直接作废普通媒体：远端快照可能仍有可恢复副本。
         # 在媒体恢复完成（或确认远端不存在）后再执行实际清理。
         self.reconcile_missing_book_media(drop_missing_assets=False)
-        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+        with self.remote.lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
             snapshot, summary = self._merge_while_locked(
                 report, base_snapshot_id=base_snapshot_id, source=source, runner_id=runner_id, should_abort=should_abort,
                 relax_integrity=True, resolutions=resolutions, resolution_default=resolution_default,
             )
         return snapshot, summary, safety_backup
 
+
     def _require_empty_remote(self) -> None:
         # 只探测实际目录中的备份入口；本机上次同步状态不代表此目录有数据。
         # exists() 在部分协议中会把连接错误也返回 False，不能作为空目录的证据。
         def entries(path):
-            names = self.client.list_directory(path)
+            names = self.remote.client.list_directory(path)
             if names is None:
                 raise SyncError('无法读取远端目录，不能确定是否已有备份，请检查连接后重试。')
             return {str(name).rstrip('/').rsplit('/', 1)[-1] for name in names}
 
-        self.client.ensure_directory(self.base_path)
-        root = entries(self.base_path)
-        if 'data_index.json' in root or ('sync-v2' in root and 'current.json' in entries(self.v2_dir)):
+        self.remote.client.ensure_directory(self.remote.base_path)
+        root = entries(self.remote.base_path)
+        if 'data_index.json' in root or ('sync-v2' in root and 'current.json' in entries(self.remote.v2_dir)):
             raise OverwriteConfirmationRequired('当前远端目录已有备份，是否用本机快照覆盖？')
+
 
     def _force_overwrite_v2(
         self, *, runner_id, report, should_abort, recover_owned_remote_lock,
@@ -2820,11 +1245,11 @@ class SyncManager:
         enforce_article_version_retention()
         enforce_novel_revision_retention()
         report('本机安全快照已完成，正在准备上传。', 18)
-        self._ensure_not_aborted(should_abort)
+        ensure_not_aborted(should_abort)
         self.reconcile_missing_book_media(drop_missing_assets=False)
 
-        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
-            self._ensure_not_aborted(should_abort)
+        with self.remote.lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+            ensure_not_aborted(should_abort)
             if require_confirmation:
                 # 安全快照生成期间可能有其他上传；持锁后重新确认，避免未经同意覆盖。
                 self._require_empty_remote()
@@ -2861,7 +1286,7 @@ class SyncManager:
             summary['unchanged'] = False
             summary['repairs'] = repairs
             summary['integrity_warnings'] = list(getattr(self, '_integrity_warnings', []))
-            self._ensure_not_aborted(should_abort)
+            ensure_not_aborted(should_abort)
             report(
                 '远端没有备份，正在首次上传本机快照。' if remote is None
                 else '已确认覆盖，正在将本机快照发布为远端当前版本。',
@@ -2878,6 +1303,7 @@ class SyncManager:
             )
         return snapshot, summary, safety_backup
 
+
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
@@ -2891,7 +1317,7 @@ class SyncManager:
             if callable(on_progress):
                 on_progress(message, progress)
 
-        self._ensure_not_aborted(should_abort)
+        ensure_not_aborted(should_abort)
         report('正在读取云端快照。', 8)
         remote = self.get_v2_current(relax_integrity=True) or self._get_legacy_snapshot()
         if not remote or not isinstance(remote.get('data'), list):
@@ -2903,13 +1329,13 @@ class SyncManager:
             allow_exploration_review_mismatch=True,
             relax_integrity=True,
         )
-        self._ensure_not_aborted(should_abort)
-        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+        ensure_not_aborted(should_abort)
+        with self.remote.lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
             report('正在把云端快照写入本机。', 40)
-            self._ensure_not_aborted(should_abort)
-            self._restore_v2_media(
+            ensure_not_aborted(should_abort)
+            self.media.restore_v2_media(
                 remote.get('media'),
-                skip_paths=self._book_body_paths_from_snapshot(remote.get('data')),
+                skip_paths=self.media.book_body_paths_from_snapshot(remote.get('data')),
             )
             with transaction.atomic():
                 with suspend_tracking():
@@ -2938,6 +1364,7 @@ class SyncManager:
         report('云端快照已覆盖本机。', 100)
         return {'meta': remote.get('meta') or {}, 'data': remote.get('data') or []}, summary, safety_backup
 
+
     @farm_sync_guard
     @novel_sync_guard
     @learning_sync_guard
@@ -2946,9 +1373,9 @@ class SyncManager:
         from article.version_service import enforce_article_version_retention
 
         safety_backup = self.create_local_safety_backup('before-restore')
-        with self._remote_sync_lock(runner_id):
+        with self.remote.lock(runner_id):
             snapshot = self.get_v2_snapshot(snapshot_id)
-            self._restore_v2_media(snapshot.get('media'))
+            self.media.restore_v2_media(snapshot.get('media'))
             with transaction.atomic():
                 with suspend_tracking():
                     self.apply_snapshot_data(snapshot['data'], remote_meta=snapshot['meta'], full_overwrite=True)
@@ -2964,21 +1391,3 @@ class SyncManager:
                 previous_media=snapshot.get('media'), data_list=restored_data, revisions=restored_revisions,
             )
         return restored, safety_backup
-
-    def write_snapshot_meta(self, source='manual', runner_id=''):
-        meta = self.build_snapshot_meta(source=source, runner_id=runner_id)
-        meta['data_file'] = self.data_file
-
-        tmp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8', delete=False, suffix='.json') as tmp:
-                json.dump(meta, tmp, ensure_ascii=False)
-                tmp_path = tmp.name
-
-            if not self.client.upload_file(tmp_path, self.meta_file):
-                raise SyncError("快照元数据上传失败")
-
-            return meta
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)

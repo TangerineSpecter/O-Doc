@@ -179,7 +179,6 @@ export interface ArticleProps {
     onDelete?: () => void;
     canManage?: boolean;
     disableLinks?: boolean;
-    updatedAt?: string;
     lastRagSyncedAt?: string;
     isRagSynced?: boolean;
     mindMap?: MindMapNode;

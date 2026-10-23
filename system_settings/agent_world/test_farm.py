@@ -2,16 +2,14 @@ import copy
 import json
 from datetime import timedelta
 from decimal import Decimal
-from types import SimpleNamespace
 from unittest.mock import patch
 from django.contrib.auth.models import User
 from django.test import TestCase, SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 from system_settings.models import Agent, AIProvider, AIModel, AgentTask, AgentExecutionLease, WorldActionRuntime, WorldAction
-from system_settings.serializers import AgentTaskSerializer
 from .farm_catalog import DEFAULT_RULES, validate_rules
-from .farm_clock import advance_state, wet_intervals, production_result, DAY
+from .farm_clock import wet_intervals, production_result, DAY
 from .farm_models import AgentFarm, FarmOperation, FarmCatalog
 from .farm_service import ensure_farms, advance_farm, commit_operation, stock
 from .farm_runner import run_farm_opportunity, tick_farms, candidates
@@ -521,14 +519,6 @@ class FarmTests(TestCase):
         return LifeItem.objects.create(pk=identity, owner_id='admin', actor_id=self.agent.pk,
             activity='farm', budget=budget, original_at=timezone.now(), scheduled_at=timezone.now())
 
-    def test_life_planning_gets_current_expansion_price(self):
-        from .life_context import build_context
-        farm = AgentFarm.objects.get(pk=self.agent.pk)
-        farm.state['plots'].extend({'id': str(i), 'crop': None, 'watered_until': 0} for i in range(4, 8))
-        farm.save()
-        context = build_context('admin', self.agent)
-        self.assertEqual(context['farm_prices']['current_expansion'], {'plots': 8, 'next_plots': 12, 'cost': '1000'})
-
     def test_underbudget_expansion_is_corrected_before_execution(self):
         from .farm_runner import decide
         from .life_scope import life_scope
@@ -673,7 +663,9 @@ class FarmTests(TestCase):
             decide(self.task, self.agent, farm, options)
             after = call.call_args.args[1].split('\n资料：', 1)[1]
             context = json.loads(after.split('\n补充经营偏好：')[0])
-            self.assertEqual(context['farm'], {key: farm.state[key] for key in ('plots', 'buildings', 'animals')})
+            self.assertEqual(context['farm']['plots'], [{'id': row['id'], 'crop': None} for row in farm.state['plots']])
+            self.assertEqual(context['farm']['buildings'], {})
+            self.assertEqual(context['farm']['animals'], [])
             self.assertLessEqual(abs(len(after) - len(before)), 100)
             self.assertEqual(len(farm.state['operation_keys']), 10000)
 

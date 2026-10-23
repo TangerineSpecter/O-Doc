@@ -33,7 +33,7 @@ class RoutingTests(TestCase):
             if len(used) < 3:
                 raise TimeoutError('fixture')
             return 'ok'
-        self.assertEqual(run_models(self.agent, invoke, task=self.task, deadline=time.monotonic()+10), 'ok')
+        self.assertEqual(run_models(self.agent, invoke, task=self.task), 'ok')
         self.assertEqual(used, [self.models[i].pk for i in (0,2,3)])
         with self.assertRaisesRegex(ValueError, '取消'):
             run_models(self.agent, invoke, check=lambda: (_ for _ in ()).throw(ValueError('取消')))
@@ -46,7 +46,7 @@ class RoutingTests(TestCase):
             if value['choice'] != 'ok':
                 raise ValueError('bad')
             return value
-        result = complete_json(self.agent, '选择', validate, task=self.task, seconds=10)
+        result = complete_json(self.agent, '选择', validate, task=self.task)
         self.assertEqual(result['choice'], 'ok')
         self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0,0,2)])
         self.assertTrue(all(call.kwargs['allow_retries'] is False for call in completion.call_args_list))
@@ -62,7 +62,7 @@ class RoutingTests(TestCase):
                 raise ValueError('bad')
             return value
 
-        result = complete_json(self.agent, '选择', validate, task=self.task, seconds=180)
+        result = complete_json(self.agent, '选择', validate, task=self.task)
         self.assertEqual(result['choice'], 'ok')
         prompts = [call.args[1] for call in completion.call_args_list]
         self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0, 0, 2, 2)])
@@ -79,7 +79,7 @@ class RoutingTests(TestCase):
         def validate(value):
             return value
 
-        result = complete_json(self.agent, '选择', validate, task=self.task, seconds=180)
+        result = complete_json(self.agent, '选择', validate, task=self.task)
         self.assertEqual(result['choice'], 'ok')
         self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list], [self.models[i].pk for i in (0, 0, 2)])
         self.assertNotIn('上次输出未通过校验', completion.call_args_list[2].args[1])
@@ -104,10 +104,7 @@ class RoutingTests(TestCase):
 
         completion.side_effect = respond
         with patch('system_settings.decision.routing.time.monotonic', side_effect=monotonic):
-            # A 60s stage clock used to be gone after the first hang, so later
-            # models were skipped with 「当前阶段总时限已耗尽」.
-            result = complete_json(self.agent, '选择', lambda value: value, task=self.task,
-                                   deadline=clock['now'] + 60)
+            result = complete_json(self.agent, '选择', lambda value: value, task=self.task)
         self.assertEqual(result['choice'], 'ok')
         self.assertEqual([call.args[0]['model_id'] for call in completion.call_args_list],
                          [self.models[i].pk for i in (0, 2, 3)])

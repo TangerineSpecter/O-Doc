@@ -371,9 +371,6 @@ export const nodesInRect = (
         .map(node => node.id);
 };
 
-export const moveNodes = (nodes: WhiteboardNode[], nodeIds: string[], dx: number, dy: number): WhiteboardNode[] =>
-    nodes.map(node => nodeIds.includes(node.id) ? {...node, x: node.x + dx, y: node.y + dy} : node);
-
 export const duplicateSelection = (
     nodes: WhiteboardNode[],
     edges: WhiteboardEdge[],
@@ -650,22 +647,4 @@ export const focusNodeInView = (
             y: viewport.height / 2 - (node.y + node.height / 2) * safeScale,
         },
     };
-};
-
-export const nodeFitsInViewport = (
-    node: WhiteboardNode,
-    transform: ViewTransform,
-    viewport: WhiteboardViewport,
-    tolerance = 0.5
-) => {
-    const left = node.x * transform.scale + transform.viewOffset.x;
-    const top = node.y * transform.scale + transform.viewOffset.y;
-    const right = (node.x + node.width) * transform.scale + transform.viewOffset.x;
-    const bottom = (node.y + node.height) * transform.scale + transform.viewOffset.y;
-    return (
-        left >= -tolerance &&
-        top >= -tolerance &&
-        right <= viewport.width + tolerance &&
-        bottom <= viewport.height + tolerance
-    );
 };

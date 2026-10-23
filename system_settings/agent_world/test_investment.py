@@ -22,6 +22,10 @@ NOW = datetime(2026,9,28,10)
 
 
 class InvestmentMaintenanceTests(SimpleTestCase):
+    def setUp(self):
+        self.enterContext(patch('system_settings.agent_world.social_media_worker.start_manual_image_worker'))
+        self.enterContext(patch('system_settings.agent_world.social_theatre_worker.start_manual_theatre_worker'))
+
     def test_quote_failure_does_not_skip_market_maintenance(self):
         from . import worker
         with patch.object(worker, '_last_attempt', 0), patch.object(worker.time, 'monotonic', return_value=120), \

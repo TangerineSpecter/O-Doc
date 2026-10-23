@@ -1,15 +1,7 @@
-import React from 'react';
 import { 
     Bold, Italic, Underline, Highlighter, Waves, ImagePlus, Loader2,
     Strikethrough, Code 
 } from 'lucide-react';
-
-export interface BubbleMenuItem {
-    id: string;
-    icon: React.ReactNode;
-    label: string;
-    action: () => void;
-}
 
 interface BubbleMenuProps {
     isOpen: boolean;

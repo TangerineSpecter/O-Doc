@@ -84,7 +84,7 @@ def decide_social(agent, context, *, owner=None):
         prompt = (role_text(agent, 'social') + '\n只选择一个合法候选，不写正文、配图或感受。'
                   + SOCIAL_SELECTION_RULES + '返回 {"choice":"候选键"}。\n资料：'
                   + json.dumps({'context': selection_context, 'choices': descriptions}, ensure_ascii=False))
-        selected_key = complete_json(agent, prompt, validate_selection, decision=True, owner=owner, deadline=deadline, scene='社交选择', check=check)
+        selected_key = complete_json(agent, prompt, validate_selection, decision=True, owner=owner, scene='社交选择', check=check)
     selected = options[selected_key]
     if selected['action'] == 'skip':
         return {**selected, 'reason': '本次跳过社交机会', 'image_choice': 'none'}
@@ -105,4 +105,4 @@ def decide_social(agent, context, *, owner=None):
         image_choices=scoped['image_choices'], categories=tuple(RULES))
     prompt += '\n行为和目标已选定，不得改变。可不赞不评；说明只能根据真实资料。\n资料：' + json.dumps(expression_context, ensure_ascii=False)
     return complete_json(agent, prompt, lambda value: validate_result(value, context, selected),
-                         owner=owner, deadline=deadline, scene='社交表达', check=check)
+                         owner=owner, scene='社交表达', check=check)

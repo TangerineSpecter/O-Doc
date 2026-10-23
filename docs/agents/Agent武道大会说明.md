@@ -60,7 +60,7 @@ Agent 世界工具栏「武道大会」打开当前赛事、赛程、奖品、�
 ## 代码入口
 
 - 后端：`system_settings/agent_world/tournament_{models,rules,service,battle,rewards,decision,runner,queries,views,sync}.py`。
-- 调度：`action_runner.tick` 分派独立大会后台线程，使用本机租约及提交许可复核。
+- 调度：`world_cycle.tick` 分派独立大会后台线程，使用本机租约及提交许可复核。
 - 资产：`combat/facts.py`、`combat/sync.py`、`alchemy_integrity.py`、共用 `inventory_stock.py`；同步总入口 `utils/sync_manager.py`。
 - 前端：`components/Tournament/`、`hooks/useTournament.ts`、`api/tournament.ts`、`types/api/tournament.ts`；流程配置在 `decisionProcessGuides.ts` 和 `DecisionProcessInfo.tsx`。
 - Local 模式样例：`mocks/agentWorld/tournament.ts` 与 `routes.ts` 提供当前八十人赛（含预选与三人半决赛轮空）、历届四人赛、金蓝装备、一星药水和文字战报；沿用顶部样例、空数据、加载中、接口错误场景，不请求后端。

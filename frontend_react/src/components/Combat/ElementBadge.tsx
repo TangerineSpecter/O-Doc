@@ -15,8 +15,6 @@ import {
 } from 'lucide-react';
 import {formatRatio} from './presentation';
 
-export type ElementType = 'water' | 'fire' | 'earth' | 'wind' | 'light' | 'dark' | 'none' | string;
-
 export interface ElementVisualConfig {
     key: string;
     label: string;

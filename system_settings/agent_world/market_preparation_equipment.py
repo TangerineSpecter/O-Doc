@@ -21,9 +21,9 @@ def pending_actions(owner, actor_id):
 
 
 class BatchEquipmentRuntime:
-    def __init__(self, owner, agent, session, plan, trade, now):
+    def __init__(self, owner, agent, session, plan, trade):
         self.owner, self.agent, self.session = owner, agent, session
-        self.plan, self.trade, self.now = plan, trade, now
+        self.plan, self.trade = plan, trade
         self.deadline = time.monotonic() + 300
         self.done, self.failed, self.messages = [], [], []
 
@@ -87,9 +87,9 @@ class BatchEquipmentRuntime:
         return result
 
 
-def execute_actions(owner, agent, session, plan, actions, trade, now):
+def execute_actions(owner, agent, session, plan, actions, trade):
     from .market_decision_loop import process_preparation_equipment
-    runtime = BatchEquipmentRuntime(owner, agent, session, plan, trade, now)
+    runtime = BatchEquipmentRuntime(owner, agent, session, plan, trade)
     process_preparation_equipment(runtime, None,
         fact_ids={row['fact_id'] for row in actions}, report=runtime.report)
     finished = {row.get('equipment_id') for row in runtime.done}

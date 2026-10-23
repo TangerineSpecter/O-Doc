@@ -353,7 +353,7 @@ def _try_execute_memo_create_fallback(agent, message_id, user_text, tool_context
 
     safe_tool_name = ''
     for candidate_name, entry in tool_context.get('tool_map', {}).items():
-        if entry.get('tool_name') in {'create_memo', 'insert_memo'}:
+        if entry.get('tool_name') == 'create_memo':
             safe_tool_name = candidate_name
             break
     if not safe_tool_name:

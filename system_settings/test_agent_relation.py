@@ -9,45 +9,18 @@ from anthology.models import Anthology
 from article.models import Article, ArticlePostComment, ArticlePostRating
 from system_settings.agent_activity import record_post_comment, record_post_rating, record_tool_activity
 from system_settings.agent_relation import (
-    apply_affinity_event,
     backfill_relation_events,
     creativity_score,
-    directional_band,
-    display_tier,
     list_agent_activity_events,
     relation_graph,
-    replay_affinity,
 )
 from system_settings.agent_views import AgentRelationView
 from system_settings.agent_world.social_models import SocialRelation
-from system_settings.models import Agent, AgentActivity, AgentAffinity, AgentRunRecord, AgentTask, MCPServer, SyncEntityState
+from system_settings.models import Agent, AgentActivity, AgentRunRecord, AgentTask, MCPServer, SyncEntityState
 from utils.mcp_client import call_mcp_tool
 
 
-class AffinityMathTests(TestCase):
-    def test_approval_approaches_but_does_not_stick_at_one_hundred(self):
-        score = 0
-        for _ in range(30):
-            score = apply_affinity_event(score, 'comment', 'approve')
-        self.assertLess(score, 100)
-        self.assertGreater(score, 80)
-
-    def test_disapproval_lowers_a_high_score(self):
-        score = apply_affinity_event(90, 'comment', 'disapprove')
-        self.assertLess(score, 90)
-
-    def test_neutral_comment_does_not_move_the_score(self):
-        self.assertEqual(replay_affinity([('comment', 'neutral')]), 0)
-
-    def test_one_way_relationship_stops_at_familiar(self):
-        self.assertEqual(display_tier('知己', ''), '熟悉')
-        self.assertEqual(display_tier('知己', '初识'), '初识')
-        self.assertEqual(display_tier('知己', '知己'), '知己')
-
-    def test_band_hysteresis_holds_near_the_boundary(self):
-        self.assertEqual(directional_band(22, '熟悉'), '熟悉')
-        self.assertEqual(directional_band(15, '熟悉'), '初识')
-
+class CreativityMathTests(TestCase):
     def test_creativity_uses_recent_spread_and_ratings(self):
         burst = creativity_score(8, [10, 10], 2, 1)
         spread = creativity_score(8, [10, 10], 2, 8)

@@ -49,7 +49,10 @@ export const cookingRecipes: CookingRecipe[] = catalog.cooking.map(row => {
         timesMade: level * 3, ingredientValue: '24', processingGain: String(price - 24), iconAssetId: null, iconUrl: '',
         adventureEffects: [1, 2, 3, 4, 5].map(stars => ({stars, effects: {hp: stars * .02}, summary: `生命上限 +${stars * 2}%`}))};
 });
-export const cooking: CookingRecipes = {recipes: cookingRecipes, skill, ingredientOptions: cropKinds.map(k => ({sku: `crop.${k}`, name: farmRules.crops[k].name}))};
+export const cooking: CookingRecipes = {recipes: cookingRecipes, skill, ingredientOptions: [
+    ...cropKinds.map(k => ({sku: `crop.${k}`, name: farmRules.crops[k].name})),
+    {sku: 'product.chicken.normal', name: '普通鸡蛋'}, {sku: 'product.cow.normal', name: '普通牛奶'},
+]};
 export const alchemyRecipes: AlchemyRecipe[] = catalog.alchemy.map(row => ({...row, sku: `elixir.${row.id}`, description: '使用迷宫掉落材料炼制的战斗药剂。',
     ingredients: row.ingredients.map(([sku, quantity]) => ({sku: String(sku), quantity: Number(quantity), name: (catalog.materials as Record<string, (string | number)[]>)[sku]?.[0] as string || String(sku),
         tier: 1, source: '苔石洞窟', owned: row.id === 'iron' ? 0 : 20})),

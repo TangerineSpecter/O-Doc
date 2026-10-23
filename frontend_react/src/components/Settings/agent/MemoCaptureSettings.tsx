@@ -30,7 +30,6 @@ export function MemoCaptureSettings({task, agents, models, progress, running, on
     return <>
         <BuiltinPostTaskCard
             task={task || defaultMemoCaptureTask}
-            agentNames={agents.filter(agent => task?.agents?.includes(agent.id)).map(agent => agent.name)}
             running={running}
             onConfigure={configure}
             onToggle={() => {if (task) void onSave({...task, enabled: !task.enabled});}}

@@ -94,6 +94,7 @@ export default function ExecutionObservatoryDialog({
             title="执行观测"
             description={daily ? '北京时间 · 当天全部已采集调用与业务事实' : '本次执行 · 包含跨日请求'}
             size="extra-wide"
+            zIndex={140}
             onClose={onClose}
         >
             <div className="flex min-h-0 flex-1 flex-col gap-2.5 rounded-xl bg-slate-50 p-2.5 sm:p-3">

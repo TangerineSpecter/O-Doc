@@ -4,9 +4,6 @@ import time
 from datetime import timedelta
 from django.utils import timezone
 from system_settings.agent_prompts import build_agent_system_prompt
-from utils.ai_service import AIService
-from system_settings.agent_task_models import task_model_id
-from utils.bounded_completion import complete
 from .publish_search import search
 from .travel_models import TravelMaterialCache
 from .travel_language import normalize_generated_text, simplified_text
@@ -14,7 +11,6 @@ from .travel_language import normalize_generated_text, simplified_text
 
 @attributed('task')
 def ask(journey, instruction, context, validate, *, skill=''):
-    deadline = context.get('_request_deadline')
     context = {key: value for key, value in context.items() if key != '_request_deadline'}
     state = journey.snapshot
     from system_settings.agent_role import role_text
@@ -44,7 +40,7 @@ def ask(journey, instruction, context, validate, *, skill=''):
     text = prompt + '\n' + instruction + '\n上下文：' + json.dumps(context, ensure_ascii=False, default=str)
     from system_settings.agent_availability import require_active_agent
     return complete_json(journey.agent, text, lambda value: validate(normalize_generated_text(value)),
-        task=journey.task, decision=scene == 'planning', seconds=120, deadline=deadline, scene='旅行 ' + phase,
+        task=journey.task, decision=scene == 'planning', scene='旅行 ' + phase,
         check=lambda: require_active_agent(journey.agent))
 
 

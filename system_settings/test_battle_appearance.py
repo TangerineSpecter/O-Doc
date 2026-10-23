@@ -105,6 +105,7 @@ class BattleAppearancePersistenceTests(TestCase):
         with patch('system_mcp.image_generation.image_generation_options', return_value={
             'configured': True,
             'supports_reference_images': True,
+            'max_reference_images': 1,
             'agent_reference_images': {'avatar': 'agent-avatar'},
         }), patch('system_mcp.image_generation_tasks.generate_image', return_value={
             'status': 'generating', 'task_id': 'battle-head-task',
@@ -116,8 +117,8 @@ class BattleAppearancePersistenceTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         request_data = generate.call_args.args[0]
         self.assertEqual(request_data['reference_image_ids'], ['agent-avatar'])
-        self.assertIn('attached Agent avatar/reference image', request_data['prompt'])
-        self.assertNotIn('Optional additional requirements:', request_data['prompt'])
+        self.assertIn('IMAGE 1 = Agent avatar identity reference', request_data['prompt'])
+        self.assertNotIn('Optional outfit or appearance adjustments from the user:', request_data['prompt'])
 
 
     def test_version_two_keeps_extended_hair_canvas_and_neck_registration(self):
@@ -135,24 +136,6 @@ class BattleAppearancePersistenceTests(TestCase):
         payload['transform']['neck_anchor']['y'] = 20
         with self.assertRaisesMessage(ValueError, '颈部连接点超出原图'):
             validate_and_save_appearance(self.agent, 'owner-a', payload)
-
-    def test_body_reference_is_sent_second_with_a_separate_style_role(self):
-        client = APIClient()
-        user = User.objects.create_superuser('dual-ref-owner', password='test')
-        UserProfile.objects.update_or_create(user=user, defaults={'userid': 'owner-a'})
-        client.force_authenticate(user)
-        with patch('system_mcp.image_generation.image_generation_options', return_value={
-            'configured': True, 'supports_reference_images': True,
-            'agent_reference_images': {'avatar': 'agent-avatar'},
-        }), patch('system_mcp.image_generation_tasks.generate_image', return_value={'status': 'generating'}) as generate:
-            response = client.post(f'/api/settings/agents/{self.agent.pk}/battle-appearance-generation/',
-                                   {'prompt': '', 'bodyReferenceImageId': 'job-body'}, format='json')
-        self.assertEqual(response.status_code, 200, response.data)
-        data = generate.call_args.args[0]
-        self.assertEqual(data['reference_image_ids'], ['agent-avatar', 'job-body'])
-        self.assertNotIn('body_reference_image_id', data)
-        self.assertIn('FIRST attached Agent avatar', data['prompt'])
-        self.assertIn('LAST attached image is the actual headless battle body', data['prompt'])
 
     def test_body_reference_gets_deletion_protection_without_anonymous_read_access(self):
         from prompts.models import ImageGenerationTask

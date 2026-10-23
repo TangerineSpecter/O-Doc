@@ -133,19 +133,6 @@ def _build_summary(content, summary=''):
 
 TOOLS = [
     {
-        'name': 'insert_memo',
-        'description': '插入一条闪念备忘 Memos。兼容旧版名称，推荐新接入使用 create_memo。',
-        'inputSchema': {
-            'type': 'object',
-            'properties': {
-                'content': {'type': 'string', 'description': '备忘内容，最多 2000 字。'},
-                'tag': {'type': 'string', 'description': '可选标签。'},
-                'is_pinned': {'type': 'boolean', 'description': '是否置顶。'},
-            },
-            'required': ['content'],
-        },
-    },
-    {
         'name': 'create_memo',
         'description': '创建一条闪念 Memo。',
         'inputSchema': {
@@ -642,15 +629,15 @@ from system_settings.agent_world.market_tools import MARKET_TOOLS, NAMES as MARK
 TOOLS.extend(MARKET_TOOLS)
 TOOLS.extend(IMAGE_GENERATION_TOOLS)
 
-MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
+MEMO_TOOL_NAMES = {'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
 ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
 AGENT_POST_TOOL_NAMES = {
     'check_agent_post_publish', 'create_agent_post', 'list_agent_post_categories', 'list_agent_posts', 'get_agent_post', 'get_random_agent_post',
     'add_agent_post_comment', 'rate_agent_post', 'delete_agent_post'
 }
 ANTHOLOGY_TOOL_NAMES = {'create_anthology', 'list_anthologies', 'get_anthology', 'update_anthology', 'delete_anthology'}
-VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'} - AGENT_POST_TOOL_NAMES
-VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
+VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - AGENT_POST_TOOL_NAMES
+VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES
 VISIBLE_ARTICLE_TOOL_NAMES = ARTICLE_TOOL_NAMES
 VISIBLE_AGENT_POST_TOOL_NAMES = AGENT_POST_TOOL_NAMES
 VISIBLE_ACTIVITY_TOOL_NAMES = {'list_agent_activities', 'get_agent_profession'}
@@ -778,8 +765,6 @@ class ODocSystemMCPView(APIView):
         return get_system_mcp_tools_for_scope(self.tool_scope)
 
     def _is_tool_available(self, name):
-        if name == 'insert_memo':
-            return self.tool_scope in {'system', 'memos'}
         return any(tool['name'] == name for tool in self._available_tools())
 
     @classmethod
@@ -830,7 +815,7 @@ class ODocSystemMCPView(APIView):
         if name in MARKET_TOOL_NAMES:
             from system_settings.agent_world.market_tools import call_market_tool
             return call_market_tool(name, arguments, self.agent_context)
-        if name in {'insert_memo', 'create_memo'}:
+        if name == 'create_memo':
             return self._create_memo(arguments)
         if name == 'list_memos':
             return self._list_memos(arguments)

@@ -60,6 +60,7 @@
     if (f==='tree') sx-=Math.sin(time*2.4+y*.05)*smooth((71-y)/57)*1.2;
     if (f==='demon') sx-=Math.sin(time*7+y*.15)*smooth((32-y)/24)*1.2;
     if(key==='star_golem') sy-=Math.sin(time*2.8+x*.09)*smooth((Math.abs(x-64)-18)/30)*1.5;
+    if(p.riftSkill)return window.RiftMotion.deform(sx,sy,key,p);
     if(p.emberSkill)return window.EmberMotion.deform(sx,sy,key,p);
     if(p.ruinsMonster==='water_spirit')return window.RuinsMotion.deform(sx,sy,p);
     if(p.treantSkill)return window.MistTreantSkills.deform(sx,sy,p);

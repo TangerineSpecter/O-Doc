@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {actOnFishingTrip, getFishing, getFishingCatalog, getFishingConfig, getFishingTrip, saveFishingConfig} from '../api/fishing';
+import {actOnFishingTrip, getFishing, getFishingCatalog, getFishingTrip} from '../api/fishing';
 import type {FishingCatalog, FishingDetail, FishingOverview} from '../types/api/fishing';
 const message = (e: unknown) => e instanceof Error ? e.message : '钓鱼数据读取失败';
 
@@ -66,27 +66,4 @@ export function useFishingCatalog(actorId = '', active = true) {
         return () => controller.abort();
     }, [actorId, active, revision]);
     return {data, error, loading, reload: () => setRevision(v => v + 1)};
-}
-
-export function useFishingConfig() {
-    const [enabled, setEnabled] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
-    const lock = useRef(false);
-    useEffect(() => {
-        const controller = new AbortController();
-        getFishingConfig(controller.signal).then(value => {if (!controller.signal.aborted) setEnabled(value.enabled);})
-            .catch(e => {if (!controller.signal.aborted) setError(message(e));})
-            .finally(() => {if (!controller.signal.aborted) setLoading(false);});
-        return () => controller.abort();
-    }, []);
-    const toggle = async () => {
-        if (lock.current) return;
-        lock.current = true; setBusy(true); setError('');
-        try {const value = await saveFishingConfig(!enabled); setEnabled(value.enabled);}
-        catch (e) {setError(message(e));}
-        finally {lock.current = false; setBusy(false);}
-    };
-    return {enabled, loading, busy, error, toggle};
 }

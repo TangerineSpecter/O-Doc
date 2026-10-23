@@ -1,7 +1,6 @@
 import React from 'react';
 
 export interface AtlasGridCardProps {
-    id: string;
     name: string;
     title?: string;
     selected: boolean;

@@ -112,7 +112,6 @@ def relevant_registry(revision, text: str, through_chapter: int | None = None) -
 class Projection:
     def __init__(self, revision, through_chapter=None):
         self.through_chapter = through_chapter
-        self.revision = revision
         self.corrections = list(Correction.objects.filter(book=revision.book).filter(Q(introduced_ordinal=0) | Q(introduced_ordinal__lte=through_chapter))) if through_chapter is not None else list(Correction.objects.filter(book=revision.book))
         self.nodes = {c.key: c.patch for c in self.corrections if c.kind == 'node'}
         self.edge_patches = {c.key: c.patch for c in self.corrections if c.kind == 'edge'}

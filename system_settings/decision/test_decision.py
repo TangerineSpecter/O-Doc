@@ -98,10 +98,10 @@ class DecisionTests(TestCase):
     def test_snapshot_export_and_restore_include_secret(self):
         from utils.sync_manager import SyncManager
         save_key('admin', 'not-in-snapshot')
-        manager = SyncManager.__new__(SyncManager)
-        self.assertTrue(manager._queryset_for_export(SystemSetting).filter(pk=CREDENTIAL_KEY).exists())
+        manager = SyncManager()
+        self.assertTrue(manager.models.queryset_for_export(SystemSetting).filter(pk=CREDENTIAL_KEY).exists())
         remote = [{'model': 'system_settings.systemsetting', 'pk': CREDENTIAL_KEY, 'fields': {'value': {'admin': {'jev': 'remote-secret'}}}}]
-        self.assertEqual(manager._drop_local_only_settings(remote), remote)
+        self.assertEqual(manager.models.drop_local_only_settings(remote), remote)
         self.assertEqual(api_key('admin'), 'not-in-snapshot')
 
     def test_full_snapshot_restore_restores_remote_credential(self):

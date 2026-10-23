@@ -3,6 +3,8 @@ import type {InventoryItem} from '../../types/api/travel';
 import {MaterialPortrait} from '../Combat/atlas/MaterialPortrait';
 import {PotionPortrait} from '../Combat/atlas/PotionPortrait';
 import {RecipePixelPortrait} from '../Cooking/RecipePixelPortrait';
+import {BaitPortrait} from '../Fishing/BaitPortrait';
+import {FishPortrait} from '../Fishing/FishPortrait';
 import {farmItemIcon} from '../Farm/assets';
 import {ItemIconImage} from './ItemIconImage';
 
@@ -31,6 +33,10 @@ export function InventoryItemIcon({item, className, fallback}: {
 
     const builtin = sku.startsWith('dish.')
         ? <RecipePixelPortrait recipeId={sku} name={item.name} decorative className={className}/>
+        : sku.startsWith('bait.')
+        ? <BaitPortrait baitId={sku} className={className}/>
+        : sku.startsWith('fish.')
+        ? <FishPortrait fishId={sku.slice(5)} name={item.name} decorative className={className}/>
         : elixirId
         ? <PotionPortrait potionId={elixirId} name={item.name} decorative className={className}/>
         : potionId

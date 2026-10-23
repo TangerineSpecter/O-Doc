@@ -9,6 +9,8 @@ import {moments, comments, theatre, socialConfig, bounties, analytics, analytics
 import type {LifeItem} from '../../types/api/agentLife';
 import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentReports} from './tournament';
 import {resolveItemIconRoute} from './itemIcons';
+import {resolveCookingRoute} from './cooking';
+import {resolveAlchemyRoute} from './alchemy';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -29,11 +31,11 @@ for (const item of lifeItems) {
     item.context = {...item.context, dailyChoice: {time: at(7), plan: {id: `choice-${item.id}`, activity: item.activity, reason: '结合当前体力、库存和生活偏好安排今天的行动。', offeredActivities: ['farm', 'cooking', 'alchemy', 'blacksmith', 'exploration', 'travel']}}};
     if (item.activity === 'cooking') {
         const recipe = cooking.recipes[4];
-        item.context.cookingPlan = {version: 1, entries: [{recipeId: recipe.id, quantity: 3, ingredientStrategy: 'low_stars_first', rule: recipe}], materials: recipe.ingredients};
+        item.context.cookingPlan = {version: 1, entries: [{recipeId: recipe.id, quantity: 3, ingredientStrategy: 'low_stars_first', rule: structuredClone(recipe)}], materials: structuredClone(recipe.ingredients)};
     }
     if (item.activity === 'alchemy') {
         const recipe = alchemy.recipes[0];
-        item.context.alchemyPlan = {version: 1, entries: [{recipeId: recipe.id, quantity: 2, rule: recipe}], materials: recipe.ingredients};
+        item.context.alchemyPlan = {version: 1, entries: [{recipeId: recipe.id, quantity: 2, rule: structuredClone(recipe)}], materials: structuredClone(recipe.ingredients)};
     }
     if (item.activity === 'travel') item.context.travelPlan = {destination: {...journey.snapshot.selected!, countryCode: 'CN'}, budget: '460', budgetSource: 'structured', quotedAt: at(7)};
     if (item.activity === 'lottery') {item.context.lotteryPlan = {roundId: lotteryRound.id, quantity: 2}; item.context.lotteryNumbers = [[3, 7, 9], [1, 4, 6]];}
@@ -92,6 +94,10 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (iconResult !== undefined) return iconResult;
     const blacksmithResult = await resolveBlacksmithRoute(request.clone(), emptyScenario());
     if (blacksmithResult !== undefined) return blacksmithResult;
+    const cookingResult = await resolveCookingRoute(request.clone(), emptyScenario());
+    if (cookingResult !== undefined) return cookingResult;
+    const alchemyResult = await resolveAlchemyRoute(request.clone(), emptyScenario());
+    if (alchemyResult !== undefined) return alchemyResult;
     if (request.method === 'GET' && path.startsWith(`${base}/tournaments/`)) {
         if (path === `${base}/tournaments/current/`) return {...tournamentOverview, autoEnabled: (resource.get('/api/settings/agent-tasks/world_runner/') as {enabled: boolean} | undefined)?.enabled ?? false, event: emptyScenario() ? null : tournamentOverview.event};
         if (path === `${base}/tournaments/`) return page(tournamentHistory, url);
@@ -170,22 +176,15 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (path.endsWith('/sessions/')) return page(forActor(sessions, url), url);
         if (path.endsWith('/automation/')) return {date: day, plans: list(forActor(marketPlans, url))};
     }
-    for (const [domain, data] of [['cooking', cooking], ['alchemy', alchemy]] as const) {
-        if (path === `${base}/${domain}/recipes/`) return {...data, recipes: emptyScenario() ? [] : data.recipes, skill: actor(url) ? data.skill : null};
-        if (path.startsWith(`${base}/${domain}/agents/`)) {
-            if (!path.endsWith('/history/')) return data.skill;
-            const rows = data.recipes.slice(0, 8).map((r, i) => ({id: `local-${domain}-op-${i}`, recipeId: r.id, snapshot: {...r, name: r.name},
-                result: {experienceGained: 20, levelBefore: 5, levelAfter: 6, stars: 3, unitPrice: r.salePrice, ingredientValue: '12', processingGain: '30'}, reason: '准备探索用品并分享给朋友', createdAt: at(10 + i)}));
-            const result = page(rows, url); return {list: result.items, total: result.total, page: result.page, pageSize: result.pageSize};
-        }
-    }
     if (path.startsWith(`${base}/combat/agents/`)) {
         const id = path.split('/')[6], profile = combatProfiles.find(r => r.actorId === id) || combatProfiles[0];
         if (path.endsWith('/history/')) return {list: list([{id: exploration.id, status: exploration.status, elapsedSeconds: exploration.elapsedSeconds, result: exploration.result, createdAt: at(12)}]), total: emptyScenario() ? 0 : 1, page: 1};
         if (body.operation === 'preview_equip') return {attributes: profile.attributes}; return profile;
     }
-    if (path.includes('/combat/explorations/')) return exploration;
-    if (path.includes('/travel/')) return journey;
+    if (request.method === 'GET' || request.method === 'POST') {
+        if (new RegExp(`^${base}/combat/explorations/[^/]+/$`).test(path)) return exploration;
+        if (new RegExp(`^${base}/travel/[^/]+/$`).test(path)) return journey;
+    }
     if (path === `${base}/moments/`) {
         if (writing) {const row = {...moments[0], id: `local-moment-${Date.now()}`, content: String(body.content), images: [], createdAt: new Date().toISOString()}; moments.unshift(row); return {moment: row};}
         return {moments: url.searchParams.has('before') ? [] : list(forActor(moments, url)), nextCursor: null};

@@ -19,6 +19,13 @@ function timeLabel(value: string) {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'});
 }
 
+function formatTurnTime(value?: string) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('zh-CN', {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false});
+}
+
 const AVATAR_PALETTES = [
     {bg: 'bg-orange-100 text-orange-700 border-orange-200'},
     {bg: 'bg-emerald-100 text-emerald-700 border-emerald-200'},
@@ -670,24 +677,29 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
                             </div>
 
                             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-4 scrollbar-hide">
-                                {selected.transcript?.map((turn, index) => (
-                                    <article key={`${turn.round}-${turn.speakerId}-${index}`} className="flex items-start gap-3">
-                                        <ResidentAvatar name={turn.name} avatar={turn.avatar} size="sm" />
-                                        <div className="min-w-0 max-w-[85%]">
-                                            <div className="mb-1 flex items-center gap-2">
-                                                <span className="text-xs font-bold text-slate-800">{turn.name}</span>
-                                                <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-medium text-slate-400">
-                                                    第 {turn.round} 轮
-                                                </span>
+                                {selected.transcript?.map((turn, index) => {
+                                    const turnTime = formatTurnTime(turn.createdAt || (turn as {created_at?: string}).created_at);
+                                    return (
+                                        <article key={`${turn.round}-${turn.speakerId}-${index}`} className="flex items-start gap-3">
+                                            <ResidentAvatar name={turn.name} avatar={turn.avatar} size="sm" />
+                                            <div className="min-w-0 max-w-[85%]">
+                                                <div className="mb-1 flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-slate-800">{turn.name}</span>
+                                                    {turnTime && (
+                                                        <time dateTime={turn.createdAt || (turn as {created_at?: string}).created_at} className="text-[10px] text-slate-400">
+                                                            {turnTime}
+                                                        </time>
+                                                    )}
+                                                </div>
+                                                <div className="inline-block rounded-2xl rounded-tl-sm border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs transition-colors hover:border-orange-200">
+                                                    <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-800">
+                                                        {turn.content}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="inline-block rounded-2xl rounded-tl-sm border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs transition-colors hover:border-orange-200">
-                                                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-800">
-                                                    {turn.content}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </article>
-                                ))}
+                                        </article>
+                                    );
+                                })}
 
                                 {selected.status === 'running' && (
                                     <p className="py-2 text-center text-[11px] text-slate-400">

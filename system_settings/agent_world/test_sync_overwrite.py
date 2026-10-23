@@ -35,7 +35,7 @@ class ForceUploadQueueWindowTests(TestCase):
 
         self.assertTrue(summary['force_overwrite'])
         self.assertTrue(snapshot['meta']['snapshot_id'])
-        self.assertIn(manager.v2_current_file, manager.client.files)
+        self.assertIn(manager.remote.v2_current_file, manager.remote.client.files)
         self.assertIsNone(self._source_error())
 
     def _source_error(self):

@@ -16,11 +16,6 @@ def record(owner: str, actor_id: str, equipment_id: str, *, snapshot: dict | Non
     return row
 
 
-def is_blocked(owner: str, actor_id: str, equipment_id: str) -> bool:
-    return MarketNoBuy.objects.filter(
-        owner_id=owner, actor_id=actor_id, equipment_id=equipment_id).exists()
-
-
 def blocked_ids(owner: str, actor_id: str) -> set[str]:
     return set(MarketNoBuy.objects.filter(
         owner_id=owner, actor_id=actor_id).values_list('equipment_id', flat=True))
@@ -29,10 +24,6 @@ def blocked_ids(owner: str, actor_id: str) -> set[str]:
 def clear_equipment(equipment_id: str) -> int:
     """实例真正消失（卖给商店/删除）时，所有居民对它的不买标记都失去意义。"""
     return MarketNoBuy.objects.filter(equipment_id=equipment_id).delete()[0]
-
-
-def clear_actor(owner: str, actor_id: str) -> int:
-    return MarketNoBuy.objects.filter(owner_id=owner, actor_id=actor_id).delete()[0]
 
 
 def _wearable(snapshot: dict, rules: dict, job: str, level: int, slot: str) -> bool:

@@ -18,6 +18,7 @@ from system_settings.token_usage.queries import total, record_summaries
 from system_settings.token_usage.sync import normalize_restored_usage
 from system_settings.token_usage.views import TokenUsageView, TokenContentRenderer
 from utils.token_usage import usage_scope, usage_context, create_completion, attributed
+from utils.sync_merge import revision_key
 
 CONFIG = {'model_name': 'fake', 'model_id': 'm', 'provider_id': 'p', 'provider_name': 'fake-provider', 'provider_type': 'OpenAi'}
 
@@ -294,7 +295,7 @@ class UsageTests(TestCase):
         other = copy.deepcopy(fact); other['pk'] = 'another-device-request'; other['fields']['device_id'] = 'device-b'
         from system_settings.sync_state import canonical_hash
         def revisions(rows):
-            return {manager._revision_key(x['model'], str(x['pk'])): {'deleted': False, 'hash': canonical_hash(x['fields']), 'revision_at': '2026-10-10T12:00:00', 'origin_device': x['fields']['device_id']} for x in rows}
+            return {revision_key(x['model'], str(x['pk'])): {'deleted': False, 'hash': canonical_hash(x['fields']), 'revision_at': '2026-10-10T12:00:00', 'origin_device': x['fields']['device_id']} for x in rows}
         merged, _, _ = manager.merge_v2_data(None, [fact], revisions([fact]), {'data': [fact, other], 'revisions': revisions([fact, other])})
         usage_rows = [x for x in merged if x['model'] == 'system_settings.agenttokenusage']
         self.assertEqual({x['pk'] for x in usage_rows}, {row.pk, other['pk']})
@@ -307,7 +308,7 @@ class UsageTests(TestCase):
         final = json.loads(serializers.serialize('json', [row]))[0]
         interrupted = copy.deepcopy(final)
         interrupted['fields'].update(status='interrupted', usage_complete=False, total_tokens=None)
-        key = SyncManager._revision_key(final['model'], str(final['pk']))
+        key = revision_key(final['model'], str(final['pk']))
         def revision(item, when):
             return {key: {'deleted': False, 'hash': canonical_hash(item['fields']), 'revision_at': when, 'origin_device': 'fixture'}}
         merged, revisions, _ = SyncManager().merge_v2_data(None, [interrupted], revision(interrupted, '2026-10-10T15:00:00'),

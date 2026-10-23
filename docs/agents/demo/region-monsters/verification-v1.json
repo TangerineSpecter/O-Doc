@@ -210,8 +210,7 @@
       "reset and monster switch cleanup",
       "ruin knight original guard unchanged",
       "Node 22 syntax and git diff --check passed"
-    ],
-    "screenshot": "ore-guard-v2.png"
+    ]
   },
   "ironGuardArmorBreakRevision": {
     "scope": "iron_guard armor_break preview only",
@@ -222,8 +221,7 @@
       "reset and switch cleanup",
       "ESLint zero errors",
       "45-frame animation exported"
-    ],
-    "animation": "iron-guard-armor-break-v2.gif"
+    ]
   },
   "mineGiantSkillsRevision": {
     "scope": "mine_giant armor_break and strike previews only; not integrated",
@@ -235,8 +233,7 @@
       "reset and switch cleanup",
       "iron guard remains separate",
       "ESLint zero errors"
-    ],
-    "animation": "mine-giant-skills-v2.gif"
+    ]
   },
   "toxicMushroomRevision": {
     "scope": "toxic_mushroom drips and poison preview only; pending approval",
@@ -250,8 +247,7 @@
       "shared hit/defeat path retained; no drips after defeat",
       "browser no JavaScript errors",
       "four modified JS modules ESLint zero errors"
-    ],
-    "animation": "toxic-mushroom-poison-v2.gif"
+    ]
   },
   "mistWolfPounceRevision": {
     "scope": "preview-only candidate mist_pounce replaces strike; production catalogue and app untouched",
@@ -265,8 +261,7 @@
       "shared hit/defeat path",
       "no browser JS errors",
       "ESLint four modified JS modules"
-    ],
-    "animation": "mist-wolf-pounce-v2.gif"
+    ]
   },
   "ancientGuardRegenRevision": {
     "scope": "ancient_guard heal preview only; no HP/catalogue/app changes",
@@ -280,8 +275,7 @@
       "mist treant unchanged",
       "four modified JS modules ESLint zero errors",
       "browser no JS errors"
-    ],
-    "animation": "ancient-guard-regen-v2.gif"
+    ]
   },
   "mistTreantSkillsRevision": {
     "scope": "preview candidates root_prison/mist_domain replace poison/heal; production unchanged",
@@ -296,8 +290,7 @@
       "390/320px no overflow",
       "five modified JS modules ESLint zero errors; final root shape Node syntax passed",
       "browser no JS errors"
-    ],
-    "animation": "mist-treant-skills-v2.gif"
+    ]
   },
   "sunkenRuinsSkillsRevision": {
     "scope": "five review-only candidates for four monsters; production skills unchanged",
@@ -328,10 +321,6 @@
       "nine changed JS modules ESLint zero errors",
       "browser no JS errors",
       "final dark actor occlusion edits rechecked separately"
-    ],
-    "animations": [
-      "sunken-ruins-skills-v2.gif",
-      "tide-priest-barrier-v2.gif"
     ]
   },
   "emberFortressSkillsRevision": {
@@ -363,8 +352,7 @@
       "seven changed JS modules ESLint zero errors",
       "final taper and lava trajectory visually checked in current browser",
       "final boss pose baseline and furnace frame checked in current browser"
-    ],
-    "screenshot": "ember-fortress-skills-v2.png"
+    ]
   },
   "mineGiantBossRevisionV3": {
     "scope": "replace both preview skills and effects; production unchanged",
@@ -381,8 +369,7 @@
       "finite pose values throughout both timelines and directions",
       "shared hit/defeat samples identical to approved implementation",
       "four edited JavaScript files ESLint zero errors"
-    ],
-    "animation": "mine-giant-skills-v3.gif"
+    ]
   },
   "mistTreantRevisionV3": {
     "scope": "preview only; organic root binding and fruit-dew healing replace v2 cage/mist effects",
@@ -400,7 +387,62 @@
       "reset returns idle after frame update",
       "switching to ancient guard retains its independent heal skill",
       "root effect inspected at atlas size"
+    ]
+  },
+  "rift_v2_and_ruins_joints_v3": {
+    "date": "2026-10-23",
+    "status": "preview_only_pending_user_confirmation",
+    "skills": {
+      "rift_walker": [
+        "rift_cross"
+      ],
+      "star_golem": [
+        "orbital_collapse"
+      ],
+      "rift_lord": [
+        "void_loom"
+      ],
+      "star_overlord": [
+        "eclipse_breath",
+        "astral_wings"
+      ]
+    },
+    "fixes": [
+      "Skeleton and knight preserve the complete source texture in a continuous mesh; no cut-out shield/weapon masks or reconstructed legs.",
+      "Skeleton skull excluded from arm deformation. Bone-fire uses the same mapped source anchors."
     ],
-    "animation": "mist-treant-skills-v3.gif"
+    "checks": [
+      "10 changed JavaScript modules passed no-undef/no-unused-vars lint.",
+      "Both ruins skill timelines sampled at 0.02s: all mesh triangle signed areas positive (minimum 24.97).",
+      "Five rift skill timelines sampled at 0.025s in both directions: finite poses and deformation.",
+      "All four rift monsters retain exact shared hit/defeat poses.",
+      "Live browser captured all five rift skills and both repaired ruins actions through recovery.",
+      "Right-facing atlas-size skeleton, knight, and both dragon skills inspected.",
+      "Pause freezes elapsed time; reset returns to idle; monster switching updates skill controls.",
+      "No new browser errors after final reload; earlier syntax error belonged to superseded ruins-connected.js hash 204a9fecd9 and was fixed."
+    ],
+    "limits": [
+      "No production catalogue, damage rules, atlas or adventure integration.",
+      "No new 390px viewport validation in this iteration."
+    ]
+  },
+  "ruins_arms_v4": {
+    "date": "2026-10-23",
+    "status": "preview_only_pending_confirmation",
+    "supersedes": "ruins-joints-v3 (arm motion too small)",
+    "checks": [
+      "3 rig/effect modules plus skills.js passed ESLint.",
+      "0.01s sampling verifies both arm segment lengths and identical wrist/grip coordinates throughout both skills.",
+      "Maximum wrist displacement: skeleton 44.8 source pixels; knight 31.1.",
+      "Browser captures both final skill timelines, right-facing knight and atlas-size right-facing skeleton.",
+      "No browser error logs during final playback."
+    ],
+    "scope": "Two ruins actions only; shared hit/defeat and production atlas/adventure not changed."
+  },
+  "exportMediaCleanup": {
+    "date": "2026-10-23",
+    "reason": "User requested deletion of exported media unused by preview HTML.",
+    "removedFiles": 23,
+    "retained": "HTML, JavaScript, CSS, verification history, runtime backgrounds and source sprites."
   }
 }

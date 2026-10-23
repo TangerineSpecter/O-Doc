@@ -234,7 +234,6 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                 return (
                                     <AtlasGridCard
                                         key={prof.id}
-                                        id={prof.id}
                                         name={prof.name || prof.id}
                                         title={`${prof.name} · ${stageLabel} · 转职 Lv.${prof.requiredLevel}`}
                                         selected={isSelected}

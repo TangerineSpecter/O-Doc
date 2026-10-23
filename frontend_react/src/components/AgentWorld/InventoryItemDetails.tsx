@@ -21,13 +21,15 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
     const isDish = Boolean(item.source.sku?.startsWith('dish.'));
     const isCombat = Boolean(item.source.sku?.startsWith('combat.'));
     const isElixir = Boolean(item.source.sku?.startsWith('elixir.'));
+    const isBait = Boolean(item.source.sku?.startsWith('bait.'));
+    const isFish = Boolean(item.source.sku?.startsWith('fish.'));
     const isFarm = hasItemStars(item.source.sku) || Boolean(farmItemIcon(item.source.sku || ''));
     const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
     const value = item.value ?? item.source.unitPrice;
     const number = value ? Number(value) : NaN;
     const displayValue = Number.isFinite(number) ? number.toLocaleString('zh-CN', {maximumFractionDigits: 2}) : '—';
     const firstChar = Array.from(item.name.trim())[0] || '物';
-    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isElixir ? '炼金制作' : isCombat ? '冒险探索' : isDish ? '居民制作' : isFarm ? '世界物品' : '未明旅途');
+    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isBait ? '世界市场' : isFish ? '居民钓鱼' : isElixir ? '炼金制作' : isCombat ? '冒险探索' : isDish ? '居民制作' : isFarm ? '世界物品' : '未明旅途');
 
     return (
         <section
@@ -86,7 +88,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="inventory-item-hero-meta">
                     <div className="inventory-item-badge-tag">
                         <Compass size={11} />
-                        <span>{isElixir ? '炼金药水' : isCombat ? item.kind === 'combat_potion' ? '战斗药剂' : '冒险材料' : isDish ? '美食成品' : isFarm ? '经营物品' : '旅行纪念珍藏'}</span>
+                        <span>{isBait ? '钓鱼鱼饵' : isFish ? '钓鱼收获' : isElixir ? '炼金药水' : isCombat ? item.kind === 'combat_potion' ? '战斗药剂' : '冒险材料' : isDish ? '美食成品' : isFarm ? '经营物品' : '旅行纪念珍藏'}</span>
                     </div>
                     <h3 className="inventory-item-title" title={item.name}>{item.name}</h3>
                 </div>
@@ -147,7 +149,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="relic-dossier-row">
                     <dt className="relic-dossier-key">
                         <Compass size={12} />
-                        <span>{isFarm || isCombat ? '物品来源' : '旅行来源'}</span>
+                        <span>{isFarm || isCombat || isBait || isFish ? '物品来源' : '旅行来源'}</span>
                     </dt>
                     <span className="relic-dossier-line" aria-hidden="true" />
                     <dd className="relic-dossier-value relic-dossier-dest" title={destination}>

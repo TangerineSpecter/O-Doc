@@ -600,30 +600,6 @@ class AIService:
         return str(reasoning_delta)
 
     @staticmethod
-    def _split_thinking_from_content(content):
-        thinking_parts = []
-
-        def collect(match):
-            thinking_parts.append(match.group(0))
-            return ''
-
-        answer = THINK_BLOCK_RE.sub(collect, content)
-        thinking = '\n\n'.join(
-            re.sub(r'</?think(?:ing)?>', '', part, flags=re.IGNORECASE).strip()
-            for part in thinking_parts
-        ).strip()
-
-        return thinking, answer.strip()
-
-    @staticmethod
-    def _strip_thinking_stream_chunk(content, state):
-        return ''.join(event['content'] for event in AIService._split_thinking_stream_chunk(
-            content,
-            state,
-            include_thinking=False
-        ) if event['type'] == 'answer')
-
-    @staticmethod
     def _split_thinking_stream_chunk(content, state, include_thinking=False):
         events = []
         bucket_type = 'thinking' if state['in_thinking'] else 'answer'

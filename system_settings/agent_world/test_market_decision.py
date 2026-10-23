@@ -230,18 +230,18 @@ class MarketDecisionTests(TestCase):
         self.assertIn('完成1笔交易', record.summary)
 
     def test_shopping_context_omits_production_estimates_and_preserves_raw_data(self):
-        from .life_context import build_context
+        from .life_context import build_execution_context
         from .life_scope import life_scope
         from .market_queries import actor_context
         from django.core.serializers.json import DjangoJSONEncoder
-        life = build_context('admin', self.a)
-        with life_scope(SimpleNamespace(pk='not-used', actor_id=self.a.pk, owner_id='admin'), life), \
-             patch('system_settings.agent_world.market_spending.spending_context', return_value={'balance': '10000', 'spendable': '10000'}):
+        item = SimpleNamespace(pk='not-used', actor_id=self.a.pk, owner_id='admin',
+                               activity='market', intent='查看种子与肥料')
+        life = build_execution_context('admin', self.a, item)
+        with life_scope(item, life), patch('system_settings.agent_world.market_spending.spending_context', return_value={'balance': '10000', 'spendable': '10000'}):
             compact = model_context('admin', self.a)
-        old = {**actor_context('admin', self.a), 'life': life}
         encode = lambda value: json.dumps(value, cls=DjangoJSONEncoder, ensure_ascii=False)
-        self.assertLess(len(encode(compact)), len(encode(old)))
         self.assertNotIn('cooking', compact['life'])
+        self.assertEqual(compact['life']['current'], {'activity': 'market', 'intent': item.intent})
         details = observe('admin', self.a, {'topic': 'planting'})
         self.assertEqual(len(details['seeds']['items']), 16)
         self.assertEqual(details['seeds']['items'][0], {'sku': 'seed.radish', 'name': '萝卜种子', 'quantity': 0})
@@ -433,17 +433,6 @@ class MarketDecisionTests(TestCase):
         self.assertEqual(len(detail['price_lots']['items']), 3)
         with self.assertRaises(ValueError):
             observe('admin', self.b, {'topic': 'inventory_lots', 'item_id': item.pk})
-
-    def test_life_detail_pages_do_not_inherit_initial_snapshot_truncation(self):
-        from .life_models import LifeGoal
-        for index in range(25):
-            LifeGoal.objects.create(owner_id='admin', actor_id=self.a.pk, title=f'目标{index:02}')
-        result = observe('admin', self.a, {'topic': 'life', 'page': 2})
-        self.assertEqual(result['goals']['total'], 25)
-        self.assertEqual(len(result['goals']['items']), 5)
-        recipes = observe('admin', self.a, {'topic': 'cooking'})['recipes']
-        self.assertGreater(recipes['total'], 0)
-        self.assertIn('ingredients', recipes['items'][0])
 
     def test_dated_tool_projection_remains_json_for_history_compaction(self):
         from system_settings.models import AgentRunRecord

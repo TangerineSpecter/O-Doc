@@ -91,69 +91,6 @@ export type {
     SystemMCPConfig,
 };
 
-// --- 模拟数据 ---
-export const MOCK_PROVIDERS: AIProvider[] = [
-    {
-        id: 'p_deepseek',
-        name: 'DeepSeek',
-        type: 'DeepSeek',
-        baseUrl: 'https://api.deepseek.com/v1',
-        apiKey: 'sk-********************',
-        models: [
-            {id: 'm_ds_chat', name: 'deepseek-chat', type: 'chat'},
-            {id: 'm_ds_coder', name: 'deepseek-coder', type: 'chat'}
-        ]
-    },
-    {
-        id: 'p_qwen',
-        name: 'Qwen',
-        type: 'Qwen',
-        baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-        apiKey: 'sk-********************',
-        models: [
-            {id: 'm_qwen_max', name: 'qwen-max', type: 'chat'},
-            {id: 'm_qwen_turbo', name: 'qwen-turbo', type: 'chat'},
-            {id: 'm_qwen_vl', name: 'qwen-vl-plus', type: 'image'},
-            {id: 'm_qwen_emb', name: 'text-embedding-v1', type: 'embedding'}
-        ]
-    }, {
-        id: 'p_openai',
-        name: 'OpenAI',
-        type: 'OpenAi',
-        baseUrl: 'https://api.openai.com/v1',
-        apiKey: 'sk-********************',
-        models: [
-            {id: 'm_gpt4o', name: 'gpt-5.1', type: 'chat'},
-            {id: 'm_gpt35', name: 'gpt-4.1-turbo', type: 'chat'},
-            {id: 'm_gpt4o_image', name: 'gpt-4o', type: 'image'},
-            {id: 'm_emb3', name: 'text-embedding-3-small', type: 'embedding'}
-        ]
-    },
-    {
-        id: 'p_minimax',
-        name: 'MiniMax',
-        type: 'MiniMax',
-        baseUrl: 'https://api.minimaxi.com/v1',
-        apiKey: 'sk-********************',
-        models: [
-            {id: 'm_minimax_m27', name: 'MiniMax-M2.7', type: 'chat'},
-            {id: 'm_minimax_m27_fast', name: 'MiniMax-M2.7-highspeed', type: 'chat'}
-        ]
-    },
-    {
-        id: 'p_ollama',
-        name: 'Ollama',
-        type: 'Ollama',
-        baseUrl: 'http://localhost:11434/v1',
-        apiKey: '',
-        models: [
-            {id: 'm_llama3', name: 'qwen3:14b', type: 'chat'},
-            {id: 'm_bge', name: 'bge-m3', type: 'rerank'}
-        ]
-    }
-];
-
-// 这里预留后续对接真实接口的位置
 // 1. 获取所有服务商列表
 export const getProviders = () => request.get<unknown, AIProvider[]>('/settings/providers/');
 
@@ -210,8 +147,6 @@ export const saveAgent = (data: SaveAgentConfigParams) => {
     return request.post<AgentConfig>('/settings/agents/', data);
 };
 
-export const deleteAgent = (id: string) => request.delete(`/settings/agents/${id}/`);
-
 const agentBattleAppearanceUrl = (agentId: string) => `/settings/agents/${encodeURIComponent(agentId)}/battle-appearance/`;
 export const getAgentBattleAppearance = (agentId: string) => request.get<never, AgentBattleAppearance | {configured: false}>(agentBattleAppearanceUrl(agentId));
 export const saveAgentBattleAppearance = (agentId: string, data: Omit<AgentBattleAppearance, 'sourceImageUrl' | 'cutoutImageUrl' | 'headImageUrl'>) =>
@@ -256,15 +191,6 @@ export const setWorldRunner = (enabled: boolean) => request.post<never, {enabled
 export const deleteAgentTask = (id: string) => request.delete(`/settings/agent-tasks/${id}/`);
 
 export const runAgentTaskNow = (id: string) => request.post(`/settings/agent-tasks/${id}/run_now/`);
-
-export interface AgentRunRecordPage {
-    items: AgentRunRecordConfig[];
-    nextCursor: string | null;
-    hasMore: boolean;
-}
-
-export const getAgentRunRecords = (params: {cursor?: string; limit?: number} = {}, signal?: AbortSignal) =>
-    request.get<unknown, AgentRunRecordPage>('/settings/agent-run-records/', {params, signal});
 
 export const getAgentRunRecord = (id: string, signal?: AbortSignal) => request.get<unknown, AgentRunRecordConfig>(`/settings/agent-run-records/${id}/`, {signal});
 
@@ -335,12 +261,6 @@ export const cancelWebDavSync = () => request.post<any, WebDavSyncStatus>('/sett
 
 // 2. 开启时测试连接并保存配置；关闭时保存关闭状态
 export const saveWebDavConfig = (data: WebDavConfig) => request.post('/settings/config/save_webdav_config/', data, {timeout: 30000});
-
-// 3. 触发上传 (备份到 WebDAV)
-export const syncToWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_to_webdav/');
-
-// 4. 触发下载 (从 WebDAV 恢复)
-export const syncFromWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_from_webdav/');
 
 export const getSyncHistory = () => request.get<SyncHistoryEntry[]>('/settings/config/get_sync_history/');
 export const restoreSyncHistory = (snapshotId: string) => request.post<any, {snapshotId: string; safetyBackup: string}>('/settings/config/restore_sync_history/', {snapshotId}, {timeout: 0});

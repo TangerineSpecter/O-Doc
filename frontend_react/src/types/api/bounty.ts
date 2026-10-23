@@ -59,12 +59,6 @@ export interface Bounty {
     deliveries?: BountyDeliveryRow[];
 }
 
-export interface BountyOption {
-    id: string;
-    title?: string;
-    name?: string;
-}
-
 export interface BountyOptions {
     collections: { id: string; title: string }[];
     categories: { id: string; name: string }[];

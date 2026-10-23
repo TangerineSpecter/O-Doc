@@ -1,7 +1,7 @@
 """版本化首版内容；进行中的出钓使用自己的完整快照。"""
 from copy import deepcopy
 
-VERSION = 'fishing-1.0.0'
+VERSION = 'fishing-1.1.0'
 BAITS = {
     'worm': {'name': '蚯蚓', 'price': '1'},
     'dough': {'name': '面团', 'price': '1'},
@@ -37,7 +37,7 @@ FISH_ROWS = [
 def builtin() -> dict:
     return {'version': VERSION, 'spots': deepcopy(SPOTS), 'baits': deepcopy(BAITS),
             'rod': {'id': 'ordinary', 'name': '普通钓竿', 'bonus': 0},
-            'interval_seconds': 300, 'energy_cost': 2, 'durations': [30,60,120],
+            'interval_seconds': 60, 'energy_cost': 2, 'durations': [30,60,120],
             'max_level': 50, 'empty_probability': .15, 'junk_probability': .20,
             'king_probability': .01,
             'fish': {row[0]: {'name': row[1], 'spot': row[2], 'level': row[3],
@@ -49,7 +49,8 @@ def builtin() -> dict:
 def current(owner: str) -> dict:
     from .models import FishingConfig
     row = FishingConfig.objects.select_related('catalog').filter(pk=owner).first()
-    return deepcopy(row.catalog.rules) if row else builtin()
+    # 旧目录仍供历史出钓重放；新出钓使用一分钟规则。查询不写库。
+    return deepcopy(row.catalog.rules) if row and row.catalog_id != 'fishing-1.0.0' else builtin()
 
 
 def install():
@@ -58,3 +59,10 @@ def install():
     if row.rules != builtin():
         raise ValueError('同版本钓鱼目录内容不一致，请升级目录版本')
     return row
+
+
+def upgrade_config(config) -> None:
+    """仅切换内置旧目录；不可变目录与已有出钓快照保持原样。"""
+    if config.catalog_id == 'fishing-1.0.0':
+        config.catalog = install()
+        config.save(update_fields=['catalog', 'updated_at'])

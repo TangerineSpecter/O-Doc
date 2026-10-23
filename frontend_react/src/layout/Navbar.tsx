@@ -9,7 +9,6 @@ import type { UserInfo } from '../types/api/user';
 interface NavbarProps {
     onNavigate?: (viewName: string, params?: any) => void;
     onOpenSearch: () => void;
-    onOpenAI?: () => void;
     userInfo: UserInfo | null;
     onLogout: () => void;
     onOpenProfile: () => void;

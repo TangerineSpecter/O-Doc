@@ -101,7 +101,7 @@
 - 领域层：`alchemy_models.py`、`alchemy_materials.py`、`alchemy_plan.py`、`alchemy_service.py`、`alchemy_runner.py`、`alchemy_schedule_plan.py`、`alchemy_queries.py`。
 - 接口与同步：`alchemy_views.py`（路由在 `system_settings/urls.py`）、`alchemy_sync.py`、`alchemy_quality_sync.py`、`alchemy_integrity.py`。
 - 战斗衔接：`combat/elixir.py`（候选、冻结、触发、效果应用与返还口径）、`combat/explorations.py`（出发扣库/冻结/结算）、`combat/preparation.py`（携带清单校验）、`combat/effects.py`（元素强化合并）、`combat/sync.py`（协议版本）。
-- 生活日程：`life_runner.py`（分派与体力）、`life_eligibility.py`（可执行性）、`life_sequential_planner.py` 与 `life_daily_facts.py`（候选与当日事实）、`daily_feed.py` / `daily_feed_groups.py`（动态与摘要）、`action_runner.py`（恢复与轮询）。
+- 生活日程：`life_runner.py`（分派与体力）、`life_eligibility.py`（可执行性）、`life_sequential_planner.py` 与 `life_daily_facts.py`（候选与当日事实）、`daily_feed.py` / `daily_feed_groups.py`（动态与摘要）、`world_cycle.py`（恢复与轮询总入口）；`action_runner.py` 负责单篇互动执行及副作用修复。
 - 前端：`frontend_react/src/components/Alchemy/`、`hooks/useAlchemy.ts`、`api/alchemy.ts`、`types/api/alchemy.ts`，页签入口在 `components/AgentWorld/WorldCatalogDialog.tsx`；界面决策流程与 `(i)` 说明配置见 `frontend_react/src/components/AgentWorld/decisionProcessGuides.ts`（业务逻辑变动时须同步更新）。
 
 ## 未验收事项

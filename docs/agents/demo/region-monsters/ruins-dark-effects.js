@@ -1,58 +1,42 @@
-/* Dark bone fire and a shield-led riposte: no generic ground impact. */
+/* Blade fire and afterimages use the same wrist transform as the visible weapon. */
 (() => {
-  const {clamp,ease,dot,line,poly,slash}=window.RuinsPixels;
-  function weaponFire(c,p,key,t,scale){
-    const active=ease(t/.45)*(1-ease((t-1.2)/.5));if(!active)return;
-    c.save();c.globalAlpha*=active;c.translate(160+p.x,window.RegionPreview.floor+p.y);c.scale(p.facing*scale,scale);c.transform(1,0,-p.lean,1,0,0);
-    c.translate(34-64,70-118-p.weaponLift);c.rotate(p.weapon);
-    for(let i=0;i<8;i++){
-      const x=5+i*2.5,y=10+i*3.6,h=5+Math.sin(t*16+i*2)*2;
-      poly(c,[[x-3,y+2],[x-5,y-h*.5],[x-2,y-h],[x+1,y-h*.55],[x+3,y+1]],'#65568b');
-      poly(c,[[x-2,y],[x-2,y-h*.5],[x,y-h*.85],[x+1,y]],'#9bdde1');dot(c,x-1,y-1,'#e2f7ec',1);
+  const {ease,clamp,line,poly,dot}=window.RuinsPixels;
+  function world(key,point,p,opts){
+    const s=window.MeadowArt.monsterScale(key)*(opts.atlas?.4:1),[x,y]=point;
+    return [160+p.x+(x-64-p.lean*(y-118))*p.facing*s,window.RegionPreview.floor+p.y+(y-118)*s];
+  }
+  function blade(key,p,opts){const d=window.RuinsConnected.defs[key];return [d.heel,d.tip].map(q=>world(key,window.RuinsConnected.point(key,...q,p),p,opts));}
+  function trail(c,key,p,opts){
+    const start=key==='ruin_skeleton'?.72:1.08,end=key==='ruin_skeleton'?.96:1.38,t=p.elapsed;
+    if(t<start||t>end+.16)return;
+    const age=Math.min(t,end),fade=1-ease((t-end)/.16);
+    c.save();c.globalAlpha*=fade*.65;
+    // Sample actual past blade poses; ribbons terminate exactly at the visible cutting edge.
+    for(let i=9;i>0;i--){
+      const t0=Math.max(start,age-i*.015),t1=Math.max(start,age-(i-1)*.015);
+      const a=window.RuinsMotion.sample(key,{facing:p.facing,action:p.action,elapsed:t0},t0),b=window.RuinsMotion.sample(key,{facing:p.facing,action:p.action,elapsed:t1},t1);
+      const [ha,ta]=blade(key,a,opts),[hb,tb]=blade(key,b,opts);
+      const ia=[ha[0]+(ta[0]-ha[0])*.65,ha[1]+(ta[1]-ha[1])*.65],ib=[hb[0]+(tb[0]-hb[0])*.65,hb[1]+(tb[1]-hb[1])*.65];
+      c.save();c.globalAlpha*=(1-i/12);poly(c,[ia,ta,tb,ib],key==='ruin_skeleton'?'#8c79b2':'#76628d');line(c,...ta,...tb,'#dddbef',1);c.restore();
     }
     c.restore();
   }
-  function skeleton(c,p,time,opts,front){
-    const t=p.elapsed,s=(opts.atlas?.4:1)*window.MeadowArt.monsterScale('ruin_skeleton');
-    if(!front)return;weaponFire(c,p,'ruin_skeleton',t,s);
-    if(t>.7&&t<1.26){
-      const q=ease((t-.7)/.2),fade=1-ease((t-.99)/.27);
-      c.save();c.globalAlpha*=fade;c.translate(160+p.x,window.RegionPreview.floor);c.scale(p.facing*s,s);
-      slash(c,-7,-49,50,-2+q*2.7,1.05,'#453853',7);slash(c,-7,-49,47,-2+q*2.7,1,'#a693cb',4);slash(c,-7,-49,45,-2+q*2.7,.85,'#d2f5ef',2);
-      c.restore();
-    }
-    const age=t-.93;if(age>=0&&age<.7){
-      const x=160+p.facing*68*s,y=window.RegionPreview.floor-36*s;
-      c.save();c.globalAlpha*=1-ease(age/.7);
-      for(let i=0;i<9;i++){const yy=y+(i-4)*5*s-age*(6+i%3*10)*s,xx=x+p.facing*Math.sin(i*3+age)*age*24*s;
-        poly(c,[[xx-2*s,yy+3*s],[xx-3*s,yy-2*s],[xx+s,yy-(6+i%3)*s],[xx+2*s,yy]],i%2?'#8d80b5':'#b7e3e3');}
-      c.restore();
-    }
-  }
-  function knight(c,p,time,opts,front){
-    const t=p.elapsed,s=(opts.atlas?.4:1)*window.MeadowArt.monsterScale('ruin_knight'),floor=window.RegionPreview.floor;
-    if(!front)return;
-    c.save();c.translate(160+p.x,floor+p.y);c.scale(p.facing*s,s);c.transform(1,0,-p.lean,1,0,0);
-    // Light follows the rim of the ORIGINAL round shield; no summoned replacement shell.
-    if(t>.2&&t<1.3){
-      const a=ease((t-.2)/.3)*(1-ease((t-.95)/.35));c.save();c.globalAlpha*=a;
-      c.translate(93-64,60-118);c.rotate(p.shield);
-      for(let i=0;i<65;i++){const q=i/64*Math.PI*2;dot(c,12+Math.cos(q)*17,5+Math.sin(q)*23,'#82779b',1);}
-      const flash=1-clamp(Math.abs(t-.72)/.18);c.globalAlpha*=flash;
-      for(let i=0;i<7;i++){const q=-1.2+i*.4;line(c,29,3,29+Math.cos(q)*14,3+Math.sin(q)*17,i%2?'#d6e8dc':'#a5a1bd',1);}
-      c.restore();
-    }
-    if(t>1.08&&t<1.75){
-      const cut=ease((t-1.08)/.24),fade=1-ease((t-1.4)/.35);c.save();c.globalAlpha*=fade;
-      // Upward counter-cut after the shield catches the simulated incoming blow.
-      const a=1.2-cut*2.8;slash(c,4,-37,58,a,-1.2,'#332c47',9);slash(c,4,-37,55,a,-1.05,'#76618e',6);slash(c,4,-37,52,a,-.9,'#c7bfda',2);
-      c.restore();
-    }
+  function fire(c,key,p,opts){
+    if(key!=='ruin_skeleton')return;
+    const active=ease(p.elapsed/.4)*(1-ease((p.elapsed-1.25)/.5)),[h,tip]=blade(key,p,opts),s=window.MeadowArt.monsterScale(key)*(opts.atlas?.4:1);
+    c.save();c.globalAlpha*=active;
+    for(let i=0;i<8;i++){const q=i/8,x=h[0]+(tip[0]-h[0])*q,y=h[1]+(tip[1]-h[1])*q,r=(3+Math.sin(p.elapsed*18+i)*1.5)*s;poly(c,[[x-r,y],[x-r*.7,y-r],[x,y-r*1.8],[x+r*.5,y]],'#8570a4');line(c,x,y,x,y-r,'#b0e3de',Math.max(1,s));}
     c.restore();
-    const age=t-1.34;if(age>=0&&age<.55){c.save();c.globalAlpha*=1-age/.55;for(let i=0;i<10;i++){
-      const x=160+p.facing*(64+age*(12+i%3*8))*s,y=floor-(22+i*5+age*16)*s;
-      poly(c,[[x,y],[x+p.facing*7*s,y-5*s],[x+p.facing*4*s,y+3*s]],i%2?'#a599bb':'#4c425c');
-    }c.restore();}
   }
-  window.RuinsDarkEffects={draw(c,key,p,time,opts,front){if(key==='ruin_skeleton')skeleton(c,p,time,opts,front);else knight(c,p,time,opts,front);}};
+  function shield(c,p,opts){
+    const t=p.elapsed,active=ease((t-.2)/.3)*(1-ease((t-.95)/.4));if(!active)return;
+    c.save();c.globalAlpha*=active;
+    for(let i=0;i<80;i++){const a=i/80*Math.PI*2,q=window.RuinsConnected.shieldPoint(106+Math.cos(a)*15,65+Math.sin(a)*21,p),w=world('ruin_knight',q,p,opts);dot(c,...w,'#a199b4',1);}
+    const flash=1-clamp(Math.abs(t-.72)/.16),contact=world('ruin_knight',window.RuinsConnected.shieldPoint(120,62,p),p,opts),s=window.MeadowArt.monsterScale('ruin_knight')*(opts.atlas?.4:1);c.globalAlpha*=flash;
+    for(let i=0;i<6;i++){const a=-1.4+i*.5;line(c,...contact,contact[0]+p.facing*Math.cos(a)*12*s,contact[1]+Math.sin(a)*13*s,'#e5dfca',1);}
+    c.restore();
+  }
+  window.RuinsDarkEffects={draw(c,key,p,time,opts,front){
+    if(!front)return;trail(c,key,p,opts);fire(c,key,p,opts);if(key==='ruin_knight')shield(c,p,opts);
+  }};
 })();

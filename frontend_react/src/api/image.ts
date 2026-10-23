@@ -98,10 +98,6 @@ export const getImagesByAnthology = (collId: string) => {
   return request.get<any, Image[]>(`/article/image/list/${collId}`);
 };
 
-export const getImageDetail = (imageId: string) => {
-  return request.get<any, Image>(`/article/image/detail/${imageId}`);
-};
-
 export interface ImageReviewScores {
   theme: number;
   composition: number;

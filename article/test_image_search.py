@@ -18,6 +18,7 @@ from article.image_search_service import PROMPT_VERSION, image_index_status, ima
 from article.models import Image, ImageIndexJob, ImageIndexLease, ImageVisualIndex
 from system_settings.sync_state import LOCAL_ONLY_MODEL_LABELS
 from utils.sync_manager import SyncManager
+from utils.sync_restore import SnapshotRestorer
 
 
 class FakeCollection:
@@ -304,7 +305,7 @@ class ImageSearchTests(TestCase):
             if item['model'] == 'article.image' and item['pk'] == self.target.pk:
                 item['fields']['is_valid'] = False
 
-        with patch.object(SyncManager, '_reset_restored_sequences', side_effect=RuntimeError('restore failed')):
+        with patch.object(SnapshotRestorer, '_reset_restored_sequences', side_effect=RuntimeError('restore failed')):
             with self.assertRaisesMessage(RuntimeError, 'restore failed'):
                 with self.captureOnCommitCallbacks(execute=True):
                     SyncManager().apply_snapshot_data(snapshot, full_overwrite=True)

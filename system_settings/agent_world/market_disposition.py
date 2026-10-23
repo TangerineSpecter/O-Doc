@@ -148,7 +148,3 @@ def select_rows(owner: str, actor_id: str, sku: str, quantity: int, star_order: 
     if remaining:
         raise ValueError('可处置库存不足')
     return selected
-
-
-def review_policies(owner: str, actor_id: str):
-    return MarketDisposition.objects.filter(owner_id=owner, actor_id=actor_id, status='review')

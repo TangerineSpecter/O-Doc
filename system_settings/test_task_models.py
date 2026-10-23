@@ -104,21 +104,22 @@ class TaskModelTests(TestCase):
                 self.assertEqual(call.call_args.kwargs['model_id'], self.cheap.pk)
             self.assertEqual(self.agent.model_id, self.default.pk)
 
-    def test_publish_uses_task_model(self):
+    def test_publish_passes_task_to_shared_model_routing(self):
         from system_settings.agent_world.publish_workflow import Workflow
         flow = object.__new__(Workflow)
         self.task.model = self.cheap
         flow.task, flow.agent = self.task, self.agent
         flow.state, flow.prompt, flow.deadline = {}, '角色上下文', time.monotonic() + 30
-        flow.repairs = 0
-        with patch('system_settings.agent_world.publish_workflow.AIService.get_client_config_for_model', return_value={}) as config, patch('system_settings.agent_world.publish_workflow.complete', return_value='{"ok":true}'), patch('utils.completion_options.thinking_options', return_value={}):
+        with patch('system_settings.decision.routing.complete_json', return_value={'ok': True}) as complete:
             self.assertTrue(flow.ask('任务', {}, lambda value: value)['ok'])
-            config.assert_called_once_with(self.cheap.pk)
+        complete.assert_called_once()
+        self.assertIs(complete.call_args.kwargs['task'], self.task)
+        self.assertEqual(complete.call_args.kwargs['task'].model_id, self.cheap.pk)
 
     def test_travel_nodes_use_task_model(self):
         from system_settings.agent_world.travel_ai import ask
         self.task.model = self.cheap
-        journey = SimpleNamespace(pk='no-life-item', task=self.task, agent=self.agent, snapshot={'role_prompt': '角色'})
-        with patch('system_settings.agent_world.travel_ai.AIService.get_client_config_for_model', return_value={}) as config, patch('system_settings.agent_world.travel_ai.complete', return_value='{"ok":true}'), patch('utils.completion_options.thinking_options', return_value={}):
+        journey = SimpleNamespace(pk='no-life-item', phase='choose', task=self.task, agent=self.agent, snapshot={'role_prompt': '角色'})
+        with patch('system_settings.decision.routing.AIService.get_client_config_for_model', return_value={}) as config, patch('system_settings.decision.routing.complete', return_value='{"ok":true}'), patch('utils.completion_options.thinking_options', return_value={}):
             self.assertTrue(ask(journey, '节点', {}, lambda value: value)['ok'])
             config.assert_called_once_with(self.cheap.pk)

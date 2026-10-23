@@ -216,7 +216,7 @@ class RandomScheduleTests(TestCase):
     def test_runtime_excluded_but_configuration_and_records_exported(self):
         self.ready_plan()
         run_random_task(self.scheduler({}), self.task, self.now)
-        models = {model._meta.label_lower for model in SyncManager()._iter_target_models()}
+        models = {model._meta.label_lower for model in SyncManager().models.iter_target_models()}
         self.assertNotIn('system_settings.agentrandomruntime', models)
         self.assertIn('system_settings.agentrandomruntime', LOCAL_ONLY_MODEL_LABELS)
         self.assertIn('system_settings.agenttask', models)
