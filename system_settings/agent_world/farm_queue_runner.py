@@ -8,7 +8,7 @@ from .life_scope import CURRENT, check_current_authorization
 from .farm_gate import guarded
 from .farm_models import AgentFarm
 from .farm_queue_plan import event, save
-from .farm_automation import tend_farm
+from .farm_automation import run_investment, tend_farm
 
 
 @guarded
@@ -51,6 +51,7 @@ def run_queue_opportunity(task, scheduler=None, *, key, locked=None):
     with execution_lease(AgentExecutionLease, {'agent_id': agent.pk}) as token:
         if not token:
             raise WorldLeaseBusy()
+        run_investment(agent.pk, locked, token, task, now)
         tend_farm(agent.pk, locked, token, task, now, force=True)
     # Mark success only after tending: a failed collect/plant transaction must
     # remain retryable even though the day's queue activation is durable.

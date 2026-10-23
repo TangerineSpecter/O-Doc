@@ -317,6 +317,65 @@ def _none_label(facts: FarmQueueFacts, targets: list[dict], mode: str, kind: str
     return f'不补种，只买{detail}，采购上限{_yuan(amount)}元'
 
 
+def investment_cost(state: dict, rules: dict, kind: str, building: str | None = None) -> Decimal | None:
+    """当前地块或建筑阶段的目录现价；已到上限、阶段不符或参数无效时返回 None。"""
+    if kind == 'expand':
+        group = len(state.get('plots') or []) // 4
+        prices = rules.get('land_prices') or []
+        if not 1 <= group < 4 or len(prices) < group:
+            return None
+        return Decimal(str(prices[group - 1]))
+    if kind not in ('build', 'upgrade'):
+        return None
+    rule = (rules.get('buildings') or {}).get(building)
+    if not rule:
+        return None
+    level = (state.get('buildings') or {}).get(building, {}).get('level', 0)
+    prices, capacities = rule.get('prices') or [], rule.get('capacities') or []
+    if level >= min(3, len(prices), len(capacities)):
+        return None
+    if (kind == 'build' and level) or (kind == 'upgrade' and not level):
+        return None
+    house = (state.get('buildings') or {}).get(building, {})
+    occupied = sum(1 for animal in state.get('animals') or [] if animal.get('building') == building)
+    if capacities[level] <= house.get('capacity', 0) or capacities[level] < occupied:
+        return None
+    return Decimal(str(prices[level]))
+
+
+def investment_options(facts: FarmQueueFacts, limit: Decimal, *, on_hand: bool = False) -> dict | None:
+    """土地与建筑投资只使用种子采购上限之外的余额，价格取目录现值。"""
+    if on_hand or facts.start >= facts.cutoff:
+        return None
+    budget = facts.spendable - Decimal(limit)
+    if budget <= 0:
+        return None
+    rows = {}
+
+    def offer(kind: str, building: str | None, name: str, cost: Decimal) -> None:
+        key = kind if building is None else f'{kind}:{building}'
+        rows[key] = {'kind': kind, 'building': building, 'cost': f'{cost:.2f}',
+                     'label': f'{name}（费用{_yuan(str(cost))}元）'}
+
+    cost = investment_cost(facts.state, facts.rules, 'expand')
+    if cost is not None and cost <= budget:
+        group = len(facts.state.get('plots') or []) // 4
+        offer('expand', None, f'购买相邻四块耕地（{group * 4}→{group * 4 + 4}块）', cost)
+    for building, rule in (facts.rules.get('buildings') or {}).items():
+        level = (facts.state.get('buildings') or {}).get(building, {}).get('level', 0)
+        kind = 'build' if not level else 'upgrade'
+        cost = investment_cost(facts.state, facts.rules, kind, building)
+        if cost is None or cost > budget:
+            continue
+        offer(kind, building, f'{"建造" if kind == "build" else "升级"}{rule.get("name", building)}', cost)
+    if not rows:
+        return None
+    choices = {'none': f'不投资，保留{_yuan(str(budget))}元余额'}
+    choices.update({key: row['label'] for key, row in rows.items()})
+    return {'budget': f'{budget:.2f}', 'choices': choices, 'options': rows,
+            'fact': f'扣除种子采购上限后还可支配{_yuan(str(budget))}元'}
+
+
 def restock_options(facts: FarmQueueFacts, entries: list[dict], mode: str = 'none',
                     kind: str | None = None) -> dict | None:
     """Seed-budget tiers; each tier carries the queue targets it stands for."""

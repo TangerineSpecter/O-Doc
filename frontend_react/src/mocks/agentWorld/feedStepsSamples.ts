@@ -13,6 +13,7 @@ const atTime = (hour: number, minute = 0) => {
  * 1. 炼金制作（单瓶、多瓶、星级配方、经验与回收价值，带规划想法）
  * 2. 市场活动（进入市场、居民上架、装备上架、出售装备、商店购买、离开市场等多步时间线）
  * 3. 农场经营（AI规划、种植队列状态、收获、翻耕、播种浇水、施肥等自动化执行时间线）
+ * 4. 迷宫探索结算（按后端 settle 生成的报告文案，覆盖按计划完成、额度耗尽、角色倒地与暂停未结算）
  * 精确覆盖用户截图中的全部样本，并补充小橘、林芽、星河、白露等居民的日常制作、农场与市场交互。
  */
 export const feedStepsSamples: DailyFeedEvent[] = [
@@ -368,5 +369,73 @@ export const feedStepsSamples: DailyFeedEvent[] = [
             {id: 'step-farm-r3-3', title: '产物收集', detail: '新鲜鸡蛋 × 8、羊毛 × 4', occurredAt: atTime(8, 15), amount: null},
             {id: 'step-farm-r3-4', title: '队列状态', detail: '晨间农场巡视与打理完成', occurredAt: atTime(8, 20), amount: null},
         ],
+    },
+
+    // 样本 11：精确匹配用户截图（银月 迷宫探索 30 分钟：击杀、经验、体力、战利品、药剂返还与返回等级）
+    {
+        id: 'local-feed-exploration-yinyue-1',
+        actorId: 'local-resident-yinyue',
+        actorName: '银月',
+        actorIds: ['local-resident-yinyue'],
+        category: 'exploration',
+        source: 'exploration',
+        occurredAt: new Date(now.getTime() - 58 * 60000).toISOString(),
+        title: '迷宫探索 · 30 分钟',
+        detail: '银月探索30分钟，击败17只怪物，获得1679经验；消耗22体力。按计划完成探索 收获：蝠翼×8、苔石碎片×2、晶鳞×3。消耗药剂 0 瓶，返回 Lv.12。 炼金药水使用 2 瓶，返还 4 瓶。',
+        status: 'success',
+        amount: null,
+        rating: null,
+        target: {kind: 'exploration', id: 'local-exploration'},
+    },
+
+    // 样本 12：星河的长时间探索（每日额度耗尽结束，消耗药剂）
+    {
+        id: 'local-feed-exploration-resident-3',
+        actorId: 'local-resident-3',
+        actorName: '星河',
+        actorIds: ['local-resident-3'],
+        category: 'exploration',
+        source: 'exploration',
+        occurredAt: new Date(now.getTime() - 85 * 60000).toISOString(),
+        title: '迷宫探索 · 60 分钟',
+        detail: '星河探索60分钟，击败31只怪物，获得3260经验；消耗44体力。今日探索时间额度耗尽（每日累计探索限额：120 分钟） 收获：蝠翼×12、晶鳞×5、苔石碎片×4。消耗药剂 1 瓶，返回 Lv.18。',
+        status: 'success',
+        amount: null,
+        rating: null,
+        target: {kind: 'exploration', id: 'local-exploration'},
+    },
+
+    // 样本 13：白露中途倒地（红色休整横幅，仍按执行完成结算战利品）
+    {
+        id: 'local-feed-exploration-resident-4',
+        actorId: 'local-resident-4',
+        actorName: '白露',
+        actorIds: ['local-resident-4'],
+        category: 'exploration',
+        source: 'exploration',
+        occurredAt: new Date(now.getTime() - 120 * 60000).toISOString(),
+        title: '迷宫探索 · 18 分钟',
+        detail: '白露探索18分钟，击败6只怪物，获得540经验；消耗8体力。角色倒地，休息 30 分钟 收获：苔石碎片×3、蝠翼×2。消耗药剂 2 瓶，返回 Lv.9。',
+        status: 'success',
+        amount: null,
+        rating: null,
+        target: {kind: 'exploration', id: 'local-exploration'},
+    },
+
+    // 样本 14：小橘的探索等待自动恢复（尚未结算，仅展示进度回退文案）
+    {
+        id: 'local-feed-exploration-resident-1-paused',
+        actorId: 'local-resident-1',
+        actorName: '小橘',
+        actorIds: ['local-resident-1'],
+        category: 'exploration',
+        source: 'exploration',
+        occurredAt: new Date(now.getTime() - 155 * 60000).toISOString(),
+        title: '迷宫探索 · 45 分钟',
+        detail: '击败 12 只怪物，经验 860',
+        status: 'paused',
+        amount: null,
+        rating: null,
+        target: {kind: 'exploration', id: 'local-exploration'},
     },
 ];

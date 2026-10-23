@@ -99,6 +99,25 @@ def validate_queue(farm, facts: dict | None = None) -> None:
                 trade = get(MarketTransaction, purchase['id'], actor_id=farm.pk, owner_id=farm.owner_id)
                 if trade.result['total'] != purchase['amount']:
                     raise ValueError('采购金额缺少实际成交依据')
+            investment = plan.get('investment')
+            if investment is not None:
+                if not isinstance(investment, dict) or investment.get('kind') not in ('expand', 'build', 'upgrade'):
+                    raise ValueError('土地或建筑投资类型无效')
+                invested = [op for op in rows(FarmOperation) if op.farm_id == farm.pk
+                            and op.result.get('investment_plan_id') == pid
+                            and op.pk in farm.state.get('operation_keys', [])]
+                if investment.get('executed_at'):
+                    try:
+                        amount = -Decimal(invested[0].result.get('amount') or 0) if len(invested) == 1 else None
+                        spent = Decimal(investment.get('spent') or 0)
+                    except ArithmeticError:
+                        raise ValueError('土地或建筑投资金额无效')
+                    if len(invested) != 1 or invested[0].operation.get('kind') != investment['kind'] \
+                            or invested[0].operation.get('building') != investment.get('building') \
+                            or amount != spent:
+                        raise ValueError('土地或建筑投资缺少实际经营依据')
+                elif invested:
+                    raise ValueError('未执行的投资已有支出记录')
         for op in rows(FarmOperation):
             if op.farm_id == farm.pk and op.result.get('execution_mode') == 'queue' and op.operation['kind'] == 'harvest':
                 origins = [h['crop']['planting_origin'] for h in op.result.get('harvested', []) if h['crop'].get('planting_origin')]

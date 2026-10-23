@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {test, after} from 'node:test';
 import {register} from 'node:module';
 import type {DailyFeedResult} from '../../types/api/dailyFeed';
+import {parseSettlementReport} from '../../components/Combat/observationRecords';
 
 const location = new URL('http://localhost/?mockState=populated');
 const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
@@ -119,6 +120,44 @@ test('本地 Mock daily-feed 能正确返回符合图片样式的农场经营 12
 
     assert.equal(farmSample.steps[11].title, '队列状态');
     assert.equal(farmSample.steps[11].detail, '居民正在执行其他任务，下一轮重试');
+});
+
+test('本地 Mock daily-feed 能返回可解析的探索结算样例', async () => {
+    const request = new Request('http://localhost/api/settings/agent-world/daily-feed/?category=exploration', {method: 'GET'});
+    const response = (await resolveLocalRoute(request)) as DailyFeedResult;
+    assert.ok(response && Array.isArray(response.items));
+
+    // 截图态：银月 30 分钟探索，含战利品与返还药水
+    const sample = response.items.find(item => item.id === 'local-feed-exploration-yinyue-1');
+    assert.ok(sample, '未找到探索结算 mock 数据');
+    assert.equal(sample.title, '迷宫探索 · 30 分钟');
+    assert.equal(sample.target?.kind, 'exploration');
+    const parsed = parseSettlementReport(sample.detail);
+    assert.ok(parsed, '探索结算文案未被解析');
+    assert.equal(parsed.minutes, 30);
+    assert.equal(parsed.kills, 17);
+    assert.equal(parsed.experience, 1679);
+    assert.equal(parsed.energy, 22);
+    assert.equal(parsed.level, 12);
+    assert.equal(parsed.potions, 0);
+    assert.deepEqual(parsed.loots, [
+        {name: '蝠翼', count: 8},
+        {name: '苔石碎片', count: 2},
+        {name: '晶鳞', count: 3},
+    ]);
+    // 解析结果只做空白归一；横幅中的 “ · ” 分隔由界面文案层负责
+    assert.equal(parsed.reason, '按计划完成探索 返还 4 瓶');
+
+    // 倒地结算：横幅走休整样式
+    const fallen = response.items.find(item => item.id === 'local-feed-exploration-resident-4');
+    assert.ok(fallen);
+    assert.ok(parseSettlementReport(fallen.detail)?.reason?.includes('倒地'));
+
+    // 暂停探索：后端只提供进度回退文案，不进入结算卡片
+    const paused = response.items.find(item => item.id === 'local-feed-exploration-resident-1-paused');
+    assert.ok(paused);
+    assert.equal(paused.status, 'paused');
+    assert.equal(parseSettlementReport(paused.detail), null);
 });
 
 test('全部视图下最新事件包含图片样式的炼金与市场活动，并支持居民隔离过滤', async () => {

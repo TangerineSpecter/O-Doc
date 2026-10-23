@@ -60,6 +60,24 @@ def entries_for(value: list, rules: dict, plan_id: str) -> list[dict]:
     return result
 
 
+def investment_for(value, state: dict, rules: dict, cash: Decimal) -> dict | None:
+    """按当前地块/建筑阶段与真实余额确认投资；价格始终取目录现值。"""
+    if not value:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError('投资安排须为对象')
+    from .farm_queue_candidates import investment_cost
+    kind = value.get('kind')
+    building = None if kind == 'expand' else value.get('building')
+    if not isinstance(kind, str) or (building is not None and not isinstance(building, str)):
+        return None
+    cost = investment_cost(state, rules, kind, building)
+    if cost is None or cost > cash:
+        return None
+    return {'kind': kind, 'building': building, 'cost': f'{cost:.2f}',
+            'label': str(value.get('label') or '')[:120], 'executed_at': None, 'spent': None}
+
+
 def event(plan: dict, code: str, detail: str, now, *, entry_id: str = '') -> None:
     key = entry_id or 'plan'
     states = plan.setdefault('wait_states', {})
@@ -126,6 +144,7 @@ def install(item, task, specification: dict | None, reason: str, *, recheck_inve
     if not isinstance(specification, dict):
         raise ValueError('农场日程须同时提供farm_plan种植意图（允许空队列）')
     reason = _humanize_farm_reason(reason)
+    requested_investment = specification.get('investment')
     if recheck_inventory:
         from .farm_queue_decision import recheck
         specification = recheck(item, specification)
@@ -135,18 +154,27 @@ def install(item, task, specification: dict | None, reason: str, *, recheck_inve
         raise ValueError('采购上限不能为负数')
     now = timezone.now()
     end = window(effective_settings(config_for(item.owner_id), local_time(item.scheduled_at)), local_time(item.scheduled_at).date())[1]
-    entries = entries_for(specification.get('entries'), catalog_for(item.owner_id).rules, pid)
+    catalog = catalog_for(item.owner_id)
+    from .farm_queue_decision import available_cash
+    cash = available_cash(item.owner_id, item.actor_id, exclude_ids=[item.pk])
+    investment = investment_for(specification.get('investment'), farm.state, catalog.rules, cash)
+    if investment:
+        limit = min(limit, max(Decimal(0), cash - Decimal(investment['cost'])))
+    entries = entries_for(specification.get('entries'), catalog.rules, pid)
     plan = {'id': pid, 'version': 2, 'revision': 1, 'day': day, 'item_id': item.pk, 'task_id': task.pk,
             'starts_at': local_time(item.scheduled_at).timestamp(), 'cutoff': end.timestamp(),
             'activated_at': None, 'status': 'pending', 'entries': entries,
             'progress': {e['id']: 0 for e in entries}, 'procurement_limit': str(limit),
-            'purchases': [], 'reason': reason, 'events': [], 'wait_states': {}, 'requests': {}}
+            'investment': investment, 'purchases': [], 'reason': reason, 'events': [], 'wait_states': {},
+            'requests': {}}
     from .farm_queue_estimate import estimate
-    catalog = catalog_for(item.owner_id)
     plan['estimate'] = estimate(farm.state, entries, catalog.rules, catalog.seed, max(now.timestamp(), plan['starts_at']), plan['cutoff'])
     plan['versions'] = [snapshot(plan)]
     summary = '、'.join(f"{catalog.rules['crops'][e['sku'][5:]]['name']} ×{e['quantity']}" for e in entries) or '无新增播种目标'
-    event(plan, 'planned', f'计划种植：{summary}；采购上限 {limit}；尚未执行。' + plan['estimate']['assumptions'], now)
+    if requested_investment and not investment:
+        event(plan, 'investment-skipped', '余额或土地/建筑阶段已变化，本次不执行投资', now)
+    event(plan, 'planned', f'计划种植：{summary}；采购上限 {limit}；'
+          + (f'投资 {investment["label"]}；' if investment else '') + '尚未执行。' + plan['estimate']['assumptions'], now)
     plans[pid] = plan
     farm.state['planting_plan_id'] = pid
     attach_source(item, plan)
@@ -167,6 +195,7 @@ def overview(farm: AgentFarm | None, now=None) -> dict | None:
         return None
     result = {k: copy.deepcopy(plan[k]) for k in ('id', 'revision', 'day', 'starts_at', 'cutoff', 'status', 'procurement_limit')}
     result['procurement_spent'] = str(sum((Decimal(p['amount']) for p in plan['purchases']), Decimal(0)))
+    result['investment'] = copy.deepcopy(plan.get('investment'))
     result['estimate'] = copy.deepcopy(plan.get('estimate'))
     result['entries'] = []
     stocks = {}

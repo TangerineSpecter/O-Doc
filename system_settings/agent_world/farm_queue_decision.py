@@ -7,7 +7,8 @@ from decimal import Decimal
 from django.utils import timezone
 
 from .farm_queue_candidates import (FarmQueueFacts, capped, describe_basket, fertilizer_options,
-                                    purchase_baskets, purchase_cost, ranked_baskets, restock_options)
+                                    investment_options, purchase_baskets, purchase_cost, ranked_baskets,
+                                    restock_options)
 from .life_choices import choose
 from .life_time import local_time
 
@@ -133,13 +134,29 @@ def decide_plan(agent, owner: str, slot: dict, reason: str, preferences: str = '
             # 补种档位也带着真实目标；只改金额会让队列永远等不到可种的东西。
             if options[picked].get('entries'):
                 entries = _stamp(options[picked]['entries'], mode, kind)
-    return {'entries': entries, 'procurement_limit': limit}
+    investment = None
+    question = investment_options(facts, Decimal(limit), on_hand=on_hand)
+    if question:
+        picked = _ask(agent, owner, _context(reason, preferences,
+                                             planting=planting or '手头没有可种的种子',
+                                             fertilizer=fertilizer_label,
+                                             investment=question['fact']),
+                      question['choices'],
+                      '决定今天剩下的额度要不要投到土地或建筑。金额与可执行性由程序按目录现价复核，选中后只在当天开工时执行一次。',
+                      deadline, task)
+        investment = question['options'].get(picked)
+    result = {'entries': entries, 'procurement_limit': limit}
+    if investment:
+        result['investment'] = investment
+    return result
 
 
 def recheck(item, specification: dict) -> dict:
     """Called inside the existing farm transaction, after the provider returns."""
     from .farm_catalog import catalog_for
+    from .farm_models import AgentFarm
     from .farm_plan_inventory import inventory_plan
+    from .farm_queue_plan import investment_for
     from .inventory_stock import stock_quantity
     from .life_budget import money
     from .life_config import config_for, effective_settings
@@ -155,7 +172,15 @@ def recheck(item, specification: dict) -> dict:
     limit = money(result.get('procurement_limit', '0'))
     if limit < 0:
         raise ValueError('采购上限不能为负数')
-    limit = min(limit, available_cash(item.owner_id, item.actor_id, exclude_ids=[item.pk]))
+    farm = AgentFarm.objects.filter(pk=item.actor_id, owner_id=item.owner_id).first()
+    cash = available_cash(item.owner_id, item.actor_id, exclude_ids=[item.pk])
+    investment = investment_for(result.get('investment'), farm.state if farm else {}, catalog.rules, cash)
+    if investment:
+        result['investment'] = investment
+        cash = max(Decimal(0), cash - Decimal(investment['cost']))
+    else:
+        result.pop('investment', None)
+    limit = min(limit, cash)
     result['procurement_limit'] = str(limit)
     result['entries'] = affordable_targets(result['entries'], comparisons, catalog, limit)
     scheduled = local_time(item.scheduled_at)

@@ -109,29 +109,27 @@ export function FishingFeedSettlement({parsed, status}: FishingFeedSettlementPro
                             共 <span className="font-bold text-teal-700 font-mono">{parsed.totalCatches}</span> 条
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div className="flex flex-wrap gap-2">
                         {parsed.catches.map(item => (
                             <div
                                 key={item.name}
-                                className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white p-1.5 pl-2 shadow-2xs transition-all hover:border-teal-200"
+                                className="flex max-w-full items-center gap-2 rounded-xl border border-slate-200/80 bg-white p-1.5 pl-2 shadow-2xs transition-all hover:border-teal-200"
                             >
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-50/80 border border-teal-100/60">
-                                        {item.artId ? (
-                                            <FishPortrait
-                                                fishId={item.artId}
-                                                name={item.name}
-                                                decorative
-                                                className="h-5 w-5"
-                                            />
-                                        ) : (
-                                            <Fish className="h-3.5 w-3.5 text-teal-500" />
-                                        )}
-                                    </div>
-                                    <span className="truncate text-xs font-semibold text-slate-800" title={item.name}>
-                                        {item.name}
-                                    </span>
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-50/80 border border-teal-100/60">
+                                    {item.artId ? (
+                                        <FishPortrait
+                                            fishId={item.artId}
+                                            name={item.name}
+                                            decorative
+                                            className="h-5 w-5"
+                                        />
+                                    ) : (
+                                        <Fish className="h-3.5 w-3.5 text-teal-500" />
+                                    )}
                                 </div>
+                                <span className="min-w-0 truncate text-xs font-semibold text-slate-800" title={item.name}>
+                                    {item.name}
+                                </span>
                                 <span className="shrink-0 rounded-md bg-teal-50 px-1.5 py-0.5 font-mono text-xs font-bold text-teal-700 border border-teal-100/60">
                                     ×{item.quantity}
                                 </span>

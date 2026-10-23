@@ -282,9 +282,10 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
     ensure_opening(agent)
     balance = WorldLedger.objects.filter(agent_id=agent.pk).aggregate(total=Sum('amount'))['total'] or Decimal(0)
     amount, result = perform(farm, operation, catalog.rules, now.timestamp(), key)
+    amount = amount.quantize(Decimal('.01'))
+    result.update({'amount': str(amount), 'energy_cost': 2})
     from .farm_automation import apply_progress
     apply_progress(farm.state, operation, opportunity_id, result)
-    amount = amount.quantize(Decimal('.01'))
     if balance + amount < 0:
         raise ValueError('余额不足')
     if amount < 0:
@@ -298,7 +299,6 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
     energy_id = hashlib.sha256(f'farm-energy:{key}'.encode()).hexdigest()
     WorldAction.objects.create(pk=energy_id, task=task, agent=agent, actor_id=agent.pk, status='success',
         energy_cost=2, consumed_at=now, effects_done=True, snapshot={'farm_energy': True}, result={'operation_id': key})
-    result.update({'amount': str(amount), 'energy_cost': 2})
     row = FarmOperation.objects.create(pk=key, farm=farm, opportunity_id=opportunity_id, operation=operation, result=result, reason=reason, created_at=now)
     farm.state['operation_keys'] = [*farm.state.get('operation_keys', []), key]
     farm.state.pop('inventory_snapshot', None)

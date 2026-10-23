@@ -40,9 +40,11 @@ class FarmQueueTests(TestCase):
     def stock(self, sku='seed.potato', count=10):
         return add_stock(self.agent.pk, 'owner', self.agent.name, sku, count, sku, 'fertilizer' if sku.startswith('fertilizer.') else 'seed', 10, 'fixture-'+sku)
 
-    def plan(self, entries=None, item=None, limit='200'):
+    def plan(self, entries=None, item=None, limit='200', investment=None):
         item = item or self.item
         specification = {'entries':entries if entries is not None else [{'sku':'seed.potato','quantity':10}], 'procurement_limit':limit}
+        if investment:
+            specification['investment'] = investment
         with patch('django.utils.timezone.now', return_value=NOW):
             apply_plan('owner', self.agent, [item], {'plans':[{'id':item.pk,'activity':'farm','budget':'0','reason':'当天顺序种植', 'farm_plan':specification}]})
         item.refresh_from_db()
@@ -465,6 +467,25 @@ class FarmQueueTests(TestCase):
         self.assertIn('seed.ghost',str(caught.exception))
         self.assertIn(plan['day'],str(caught.exception))
 
+    def test_corrupt_investment_amount_raises_sync_error_not_decimal_error(self):
+        import json
+        from django.core import serializers
+        from system_settings.models import WorldAction
+        from .farm_models import FarmCatalog
+        from .farm_queue_sync import validate_queue_source
+        from utils.sync_manager import SyncError
+        self.stock()
+        self.plan(entries=[{'sku': 'seed.potato', 'quantity': 4}], limit='100',
+                  investment={'kind': 'expand', 'cost': '500', 'label': '扩地'})
+        self.activate()
+        data = json.loads(serializers.serialize('json', [self.farm(), *FarmCatalog.objects.all(), self.item,
+                                                         *WorldAction.objects.all(), *FarmOperation.objects.all()]))
+        farm = next(r for r in data if r['model'] == 'system_settings.agentfarm')
+        plan = next(iter(farm['fields']['state']['planting_plans'].values()))
+        plan['investment']['spent'] = 'not-a-number'
+        with self.assertRaises(SyncError):
+            validate_queue_source(data)
+
     def test_cancel_pending_requires_reason_and_never_rebuilds(self):
         from .life_schedule import revise
         self.stock();self.plan();self.activate()
@@ -509,6 +530,30 @@ class FarmQueueTests(TestCase):
     def test_old_fixed_window_plan_is_not_executed(self):
         farm=self.farm();farm.state['automation']={'version':1,'status':'active','task_id':self.task.pk,'plots':[],'last_window':''};farm.save()
         self.tend(NOW.replace(hour=18));self.assertEqual(FarmOperation.objects.count(),0)
+
+    def test_queue_start_executes_one_land_investment_at_directory_price(self):
+        from .farm_automation import run_investment
+        self.stock()
+        plan = self.plan(entries=[{'sku': 'seed.potato', 'quantity': 4}], limit='100',
+                         investment={'kind': 'expand', 'cost': '500', 'label': '扩地'})
+        self.assertEqual(plan['investment']['cost'], '500.00')
+        self.assertEqual(len(self.farm().state['plots']), 4)
+        self.activate()
+        farm = self.farm()
+        self.assertEqual(len(farm.state['plots']), 8)
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.money, 500)
+        operations = FarmOperation.objects.filter(operation__kind='expand')
+        self.assertEqual(operations.count(), 1)
+        self.assertEqual(operations.first().result['amount'], '-500.00')
+        self.assertEqual(current(farm, NOW)['investment']['spent'], '500.00')
+        validate_plan(farm)
+        reconcile_farms()
+        with patch('django.utils.timezone.now', return_value=NOW + timedelta(minutes=5)):
+            run_investment(self.agent.pk, 'world', 'agent', self.task, NOW + timedelta(minutes=5))
+        self.assertEqual(FarmOperation.objects.filter(operation__kind='expand').count(), 1)
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.money, 500)
 
     def test_expanded_farm_batches_and_partial_optional_fertilizer(self):
         farm=self.farm()

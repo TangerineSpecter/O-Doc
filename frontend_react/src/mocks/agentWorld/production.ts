@@ -29,7 +29,9 @@ export const farms: FarmState[] = residents.map((r, i) => ({id: r.id, actorName:
         plantingPlanId: `plan-${r.id}`, plantingPlans: {[`plan-${r.id}`]: {version: 2, id: `plan-${r.id}`, revision: 1, day, itemId: `local-life-${i}-0`, taskId: 'local-task-farm',
             startsAt: now.getTime() / 1000 - 3600, cutoff: now.getTime() / 1000 + 36000, activatedAt: now.getTime() / 1000 - 3600, status: 'active',
             entries: [{id: 'entry-1', sku: 'seed.strawberry', quantity: 6, priority: 1, fertilizerMode: 'optional', fertilizer: 'quality'}],
-            progress: {'entry-1': 2}, procurementLimit: '240', purchases: [], reason: '为甜点制作准备原料',
+            progress: {'entry-1': 2}, procurementLimit: '240', investment: {kind: 'expand', building: null, cost: '500.00',
+                label: '购买相邻四块耕地（4→8块）', executedAt: now.getTime() / 1000 - 3500, spent: '500.00'},
+            purchases: [], reason: '为甜点制作准备原料',
             events: [{id: 'event-1', at: now.getTime() / 1000, code: 'planted', detail: '已播种草莓，等待成熟', entryId: 'entry-1'}], waitStates: {}, versions: []}}},
     inventory: [...inventory.filter(item => item.actorId === r.id).map(item => ({...item, sku: item.source.sku!, stars: item.source.stars, quality: 'normal'})),
         {id: 'seed', name: '草莓种子', quantity: 8, value: '40', sku: 'seed.strawberry', quality: 'normal'}],
@@ -37,6 +39,8 @@ export const farms: FarmState[] = residents.map((r, i) => ({id: r.id, actorName:
 export const farmHistory: FarmOperation[] = ['harvest', 'plant', 'water', 'feed', 'collect'].map((kind, i) => ({id: `local-farm-op-${i}`, operation: {kind, targets: ['0']},
     result: {label: ['收获草莓', '播种土豆', '浇水', '喂养动物', '收集鸡蛋'][i], amount: '35', energyCost: 2, experienceGained: 15,
         products: [{name: i === 4 ? '鸡蛋' : '草莓', quantity: 3, quality: 'normal'}]}, reason: '本地样例：按今日种植计划执行', createdAt: at(8 + i)}));
+farmHistory.push({id: 'local-farm-op-expand', operation: {kind: 'expand'},
+    result: {label: '扩地', amount: '-500.00', energyCost: 2, investmentPlanId: 'plan-local'}, reason: '本地样例：按队列规划扩地', createdAt: at(7)});
 
 const ingredientName = (sku: string) => sku.startsWith('crop.') ? farmRules.crops[sku.slice(5) as CropKind]?.name || sku : sku.includes('chicken') ? '普通鸡蛋' : '普通牛奶';
 export const cookingRecipes: CookingRecipe[] = catalog.cooking.map(row => {

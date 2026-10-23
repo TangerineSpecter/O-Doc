@@ -87,8 +87,11 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         if not isinstance(reason,str) or not reason.strip() or len(reason)>2000:
             raise ValueError('生活规划须说明原因')
         budget = money(plan.get('budget','0'))
-        if activity == 'farm' and budget != item.spent:
-            raise ValueError('种植队列不预留采购或其他经营费用，采购由市场实际预算承担')
+        if activity == 'farm':
+            # 种植队列本身不预留采购费用；只按代码给出的投资金额预留当天的土地或建筑支出。
+            farm_plan = plan.get('farm_plan')
+            investment = (farm_plan.get('investment') if isinstance(farm_plan, dict) else None) or {}
+            budget = item.spent + money(str(investment.get('cost', '0')))
         if budget < item.spent:
             raise ValueError('预算小于已经支出')
         if item.status == 'running':
@@ -109,10 +112,15 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         detail = next(p for p in plans if p['id'] == item.pk)
         before = (item.activity, item.intent, item.budget, item.task_id, item.status, copy.deepcopy(item.context))
         if activity == 'farm':
+            from .farm_models import AgentFarm
             from .farm_queue_plan import install
             specification = next(p for p in plans if p['id'] == item.pk).get('farm_plan')
-            install(item, available[activity], specification, reason,
-                    recheck_inventory=detail.get('_farm_queue_candidate', False))
+            pid = install(item, available[activity], specification, reason,
+                          recheck_inventory=detail.get('_farm_queue_candidate', False))
+            farm_row = AgentFarm.objects.get(pk=item.actor_id, owner_id=item.owner_id)
+            investment = farm_row.state['planting_plans'][pid].get('investment') or {}
+            # 安装时可能因余额或阶段变化放弃投资，预算只覆盖最终确认的金额。
+            budget = item.spent + money(str(investment.get('cost', '0')))
         elif item.context.get('farm_plan_id'):
             from .farm_queue_schedule import cancel
             cancel(item, reason)

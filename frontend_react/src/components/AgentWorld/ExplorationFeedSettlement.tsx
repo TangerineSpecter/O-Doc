@@ -43,18 +43,18 @@ export function ExplorationFeedSettlement({parsed, status}: ExplorationFeedSettl
                 className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs transition-colors ${
                     isFallen
                         ? 'border-rose-200/80 bg-gradient-to-r from-rose-50/90 via-orange-50/30 to-white'
-                        : 'border-emerald-200/80 bg-gradient-to-r from-emerald-50/90 via-teal-50/30 to-white'
+                        : 'border-orange-200/80 bg-gradient-to-r from-orange-50/90 via-amber-50/30 to-white'
                 }`}
             >
                 <div
                     className={`flex items-center gap-1.5 font-medium ${
-                        isFallen ? 'text-rose-800' : 'text-emerald-800'
+                        isFallen ? 'text-rose-800' : 'text-orange-800'
                     }`}
                 >
                     {isFallen ? (
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
                     ) : (
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-600" />
                     )}
                     <span>{bannerReason}</span>
                 </div>
@@ -64,7 +64,7 @@ export function ExplorationFeedSettlement({parsed, status}: ExplorationFeedSettl
                         className={`inline-flex shrink-0 items-center rounded-md border bg-white/95 px-2 py-0.5 font-mono text-[10px] font-bold shadow-2xs ${
                             isFallen
                                 ? 'border-rose-200/70 text-rose-700'
-                                : 'border-emerald-200/70 text-emerald-700'
+                                : 'border-orange-200/70 text-orange-700'
                         }`}
                     >
                         返回 Lv.{parsed.level}

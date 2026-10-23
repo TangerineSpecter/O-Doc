@@ -2,6 +2,7 @@
 import hashlib
 import logging
 from contextvars import ContextVar
+from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from system_settings.models import Agent, AgentTask, AgentExecutionLease, WorldActionRuntime
@@ -22,6 +23,14 @@ def apply_progress(state: dict, operation: dict, opportunity_id: str, result: di
     if operation['kind'] in ('harvest', 'collect'):
         if operation['kind'] == 'harvest':
             result['source_plans'] = context.get('origins', [])
+        return
+    if operation['kind'] in ('expand', 'build', 'upgrade'):
+        plan = state['planting_plans'][context['plan_id']]
+        result['investment_plan_id'] = context['plan_id']
+        if plan.get('investment'):
+            # 执行标记与真实支出必须同一次 farm.save 落库，避免同步时出现已执行但无金额。
+            plan['investment']['executed_at'] = context.get('at')
+            plan['investment']['spent'] = str(-Decimal(result['amount']))
         return
     pid, eid = context['plan_id'], context['entry_id']
     plan = state['planting_plans'][pid]
@@ -150,6 +159,45 @@ def tend_farm(farm_id: str, world_token: str, agent_token: str, task: AgentTask,
             event(plan, 'completed', '当天种植队列已播种完成，等待实际成熟后收获', now)
     farm.state['planting_last_tick'] = slot
     save(farm, now)
+
+
+@guarded
+def run_investment(farm_id: str, world_token: str, agent_token: str, task: AgentTask, now) -> None:
+    """日程开工时执行一次计划内的扩地/建造/升级；价格与合法性由服务端现场复核。"""
+    from .farm_service import advance_farm
+    from .execution import stamina
+    farm = advance_farm(farm_id, now)
+    plan = current(farm, now)
+    investment = (plan or {}).get('investment') or {}
+    if not plan or not investment or investment.get('executed_at'):
+        return
+    if not plan.get('activated_at') or plan['status'] not in ('active', 'completed') or now.timestamp() >= plan['cutoff']:
+        return
+    operation = {'kind': investment['kind']}
+    if investment.get('building'):
+        operation['building'] = investment['building']
+    agent = Agent.objects.get(pk=farm.pk)
+    if stamina(agent, now) < 2:
+        event(plan, 'investment-stamina', '等待体力恢复后执行土地或建筑投资', now, entry_id='investment')
+        save(farm, now)
+        return
+    if not can_spend(farm, agent, 2, now, operation):
+        event(plan, 'investment-protected', '资源保护期内不执行土地或建筑投资', now, entry_id='investment')
+        save(farm, now)
+        return
+    key = hashlib.sha256(f'farm-investment:{plan["id"]}'.encode()).hexdigest()
+    save(farm, now)
+    try:
+        commit(farm, key, operation, task, agent_token, world_token, now,
+               {'plan_id': plan['id'], 'entry_id': '', 'at': now.timestamp()})
+    except ValueError as exc:
+        logger.warning('农场投资未执行 farm=%s plan=%s error=%s', farm.pk, plan['id'], exc)
+        farm.refresh_from_db()
+        plan = current(farm, now)
+        if plan and plan.get('investment'):
+            event(plan, 'investment-blocked', f'土地或建筑投资未执行：{exc}', now, entry_id='investment')
+            save(farm, now)
+        return
 
 
 def tick_automation(world_token: str) -> None:

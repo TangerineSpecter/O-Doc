@@ -97,6 +97,34 @@ class CandidateTests(SimpleTestCase):
             row['quote'] = {'price': 10}
         self.assertIsNone(fertilizer_options(value, entries))
 
+    def test_investment_options_only_use_cash_left_after_the_seed_cap(self):
+        from .farm_queue_candidates import investment_cost, investment_options
+        value = facts()
+        value.spendable = Decimal('520')
+        # 采购上限先占 200 元，只剩 320 元时买不起 500 元扩地。
+        options = investment_options(value, Decimal('200'))
+        self.assertNotIn('expand', options['options'])
+        self.assertEqual(options['budget'], '320.00')
+        self.assertIsNone(investment_options(value, Decimal('20'), on_hand=True))
+        options = investment_options(value, Decimal('20'))
+        self.assertEqual(options['options']['expand']['cost'], '500.00')
+        self.assertIn('500', options['choices']['expand'])
+        self.assertEqual(next(iter(options['choices'])), 'none')
+        value.state['plots'] = [{'id': str(i), 'crop': None} for i in range(16)]
+        self.assertIsNone(investment_cost(value.state, value.rules, 'expand'))
+
+    def test_investment_options_quote_the_building_stage_in_the_catalog(self):
+        from .farm_queue_candidates import investment_options
+        value = facts()
+        value.state['plots'] = [{'id': str(i), 'crop': None} for i in range(16)]
+        value.spendable = Decimal('850')
+        options = investment_options(value, Decimal('100'))
+        self.assertEqual(set(options['options']), {'build:coop'})
+        value.state['buildings'] = {'coop': {'level': 1, 'capacity': 2}}
+        options = investment_options(value, Decimal('100'))
+        self.assertEqual(options['options']['upgrade:coop']['cost'], '600.00')
+        self.assertNotIn('build:coop', options['options'])
+
     def test_no_seeds_offers_real_purchase_baskets_within_budget(self):
         value = facts()
         for crop in value.crops:
@@ -260,11 +288,11 @@ class FarmDecisionTests(TestCase):
             result = self.decide()
         self.assertTrue(result['entries'])
         # One held crop skips the basket. The hourly shop always quotes fertilizer,
-        # so the model answers fertilizer, then restock.
-        self.assertEqual(model.call_count, 2)
+        # so the model answers fertilizer, restock, then the land/building question.
+        self.assertEqual(model.call_count, 3)
         asked = [(call.args[1]['context'], call.args[2]) for call in model.call_args_list]
         for context, choices in asked:
-            self.assertTrue(set(context) <= {'intent', 'preferences', 'planting', 'fertilizer'})
+            self.assertTrue(set(context) <= {'intent', 'preferences', 'planting', 'fertilizer', 'investment'})
             self.assertNotIn('plans', context)
             self.assertNotIn('stocked_crops', context)
             self.assertNotIn('stamina', context)
@@ -274,6 +302,8 @@ class FarmDecisionTests(TestCase):
         self.assertIn('现在种，不买肥', asked[0][1].values())
         self.assertEqual(asked[1][0]['fertilizer'], asked[0][1]['no'])
         self.assertIn('不补种', asked[1][1].values())
+        self.assertEqual(next(iter(asked[2][1])), 'none')
+        self.assertIn('还可支配', asked[2][0]['investment'])
 
     def test_no_seed_stock_still_plans_purchasable_crop_targets(self):
         from .farm_catalog import catalog_for
@@ -346,12 +376,14 @@ class FarmDecisionTests(TestCase):
              patch('system_settings.decision.jev.choose', side_effect=fake), \
              patch('system_settings.decision.routing.complete', side_effect=AssertionError('不得请求普通模型')):
             result = self.decide()
-        self.assertEqual(len(seen), 3)
+        self.assertEqual(len(seen), 4)
         basket = seen[0][1][next(iter(seen[0][1]))]
         self.assertEqual(seen[1][0]['planting'], basket)
         self.assertIn('手头', seen[1][0]['fertilizer'])
         self.assertEqual(seen[2][0]['planting'], basket)
         self.assertEqual(seen[2][0]['fertilizer'], seen[1][1][next(iter(seen[1][1]))])
+        self.assertEqual(seen[3][0]['fertilizer'], seen[2][0]['fertilizer'])
+        self.assertIn('还可支配', seen[3][0]['investment'])
         self.assertLessEqual(max(len(choices) for _, choices in seen), 10)
         self.assertTrue(result['entries'])
         self.assertTrue(all(entry['fertilizer_mode'] == 'none' for entry in result['entries']))
@@ -374,7 +406,7 @@ class FarmDecisionTests(TestCase):
                  patch('system_settings.decision.jev.requests.post', return_value=response), \
                  patch('system_settings.decision.routing.complete', side_effect=respond) as text:
                 self.assertTrue(self.decide()['entries'])
-                questions = 2
+                questions = 3
                 self.assertEqual(model.call_count, questions if mode in ('failed', 'invalid') else 0)
                 self.assertEqual(text.call_count, questions)
 
@@ -426,6 +458,58 @@ class FarmDecisionTests(TestCase):
         self.assertEqual(old, farm.state['planting_plans'][old['id']])
         validate_queue(farm)
 
+    def test_investment_question_leaves_the_seed_cap_and_uses_directory_price(self):
+        from .farm_queue_decision import decide_plan
+
+        def select(agent, owner, scene, state, choices, **kwargs):
+            return 'expand' if 'expand' in choices else next(iter(choices))
+
+        with patch('django.utils.timezone.now', return_value=NOW), \
+             patch('system_settings.agent_world.farm_queue_decision.choose', side_effect=select):
+            result = decide_plan(self.agent, 'owner', self.slot, '想种点作物', task=self.task)
+        self.assertEqual(result['investment']['kind'], 'expand')
+        self.assertEqual(result['investment']['building'], None)
+        self.assertEqual(result['investment']['cost'], '500.00')
+        self.assertLessEqual(Decimal(result['procurement_limit']) + Decimal(result['investment']['cost']),
+                             Decimal('1000'))
+
+    def test_on_hand_intent_does_not_offer_land_or_buildings(self):
+        from .farm_queue_decision import decide_plan
+        seen = []
+
+        def select(agent, owner, scene, state, choices, **kwargs):
+            seen.append(dict(choices))
+            return next(iter(choices))
+
+        with patch('django.utils.timezone.now', return_value=NOW), \
+             patch('system_settings.agent_world.farm_queue_decision.choose', side_effect=select):
+            result = decide_plan(self.agent, 'owner', self.slot, '安排种植，利用现有资源')
+        self.assertNotIn('investment', result)
+        for choices in seen:
+            self.assertNotIn('expand', choices)
+
+    def test_install_drops_investment_that_no_longer_fits_the_balance(self):
+        from .farm_queue_plan import install
+        from .farm_models import AgentFarm
+        self.agent.money = 400
+        self.agent.save()
+        with patch('django.utils.timezone.now', return_value=NOW):
+            install(self.item, self.task, {'entries': [], 'procurement_limit': '0',
+                'investment': {'kind': 'expand', 'cost': '500', 'label': '扩地'}}, '想扩地', recheck_inventory=True)
+        plan = next(iter(AgentFarm.objects.get(pk=self.agent.pk).state['planting_plans'].values()))
+        self.assertIsNone(plan['investment'])
+        self.assertIn('investment-skipped', [e['code'] for e in plan['events']])
+
+    def test_install_reserves_investment_before_the_seed_cap(self):
+        from .farm_queue_plan import install
+        from .farm_models import AgentFarm
+        with patch('django.utils.timezone.now', return_value=NOW):
+            install(self.item, self.task, {'entries': [], 'procurement_limit': '900',
+                'investment': {'kind': 'expand', 'cost': '500', 'label': '扩地'}}, '想扩地', recheck_inventory=True)
+        plan = next(iter(AgentFarm.objects.get(pk=self.agent.pk).state['planting_plans'].values()))
+        self.assertEqual(plan['investment']['cost'], '500.00')
+        self.assertEqual(Decimal(plan['procurement_limit']), 500)
+
     def test_target_date_window_and_runtime_do_not_change_model_facts(self):
         from .farm_queue_decision import planning_facts
         self.slot['time'] = (NOW + timedelta(days=1)).replace(hour=23).isoformat()
@@ -447,7 +531,7 @@ class FarmDecisionTests(TestCase):
             original = copy.deepcopy(self.item.context)
             plan_items(self.config, self.agent, [self.item], preserve_activities=True)
         model.assert_called()
-        self.assertEqual(model.call_count, 2)
+        self.assertEqual(model.call_count, 3)
         self.item.refresh_from_db()
         self.assertEqual(original, self.item.context)
         validate_queue(AgentFarm.objects.get(pk=self.agent.pk))
