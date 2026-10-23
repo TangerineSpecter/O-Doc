@@ -57,11 +57,11 @@ test('rejects invalid questions and empty or oversized option lists', () => {
   assert.throws(() => parseImport(JSON.stringify(value)), /choice/);
 });
 
-test('reports malformed edited JSON at send time with the affected field', () => {
+test('keeps malformed edited candidates as text while still validating JSON state', () => {
   const config = parseImport(JSON.stringify(decision));
   config.state = '{';
   assert.throws(() => buildDecision(config), /State/);
   config.state = '{}';
   config.options[0].label = '{';
-  assert.throws(() => buildDecision(config), /exploration/);
+  assert.equal(buildDecision(config).questions.life_interleaving.criteria.exploration, '{');
 });

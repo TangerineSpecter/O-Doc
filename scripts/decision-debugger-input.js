@@ -51,7 +51,7 @@
       let value = option.label;
       if (option.valueType === 'json') {
         try { value = JSON.parse(option.label); }
-        catch (_) { throw new Error(`候选 ${option.key} 的 JSON 格式无效。`); }
+        catch (_) { value = option.label; }
       }
       return [option.key, value];
     }));
