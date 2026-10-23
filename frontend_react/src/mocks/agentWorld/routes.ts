@@ -197,7 +197,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     }
     if (path === `${base}/social/discussions/`) return {items: list([theatre]), nextCursor: null};
     if (path.startsWith(`${base}/social/discussions/`)) return writing ? {event: theatre} : theatre;
-    if (path === `${base}/fishing/`) return {...fishingOverview, enabled: (resource.get(`${base}/fishing/config/`) as {enabled: boolean} | undefined)?.enabled ?? fishingOverview.enabled, ...page(fishingOverview.items, url), residents: list(fishingOverview.residents)};
+    if (path === `${base}/fishing/`) return {...fishingOverview, enabled: (resource.get(`${base}/fishing/config/`) as {enabled: boolean} | undefined)?.enabled ?? fishingOverview.enabled, ...page(forActor(fishingOverview.items, url), url), active: list(forActor(fishingOverview.active, url)), residents: list(fishingOverview.residents)};
     if (path.includes('/fishing/trips/')) return fishingTrip;
     if (path === `${base}/lottery/rounds/`) return page([lotteryRound, previousRound], url);
     if (path.includes('/lottery/rounds/')) return path.endsWith('/tickets/') ? page(tickets, url) : {...lottery, config: (resource.get(`${base}/lottery/config/`) as LotteryConfig | undefined) ?? lottery.config, round: path.includes(previousRound.id) ? previousRound : lotteryRound};

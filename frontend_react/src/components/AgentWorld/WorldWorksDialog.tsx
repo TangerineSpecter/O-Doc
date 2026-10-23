@@ -1,21 +1,24 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowRight, BookOpenText, Clock, MessageCircle, RefreshCw, Search, X} from 'lucide-react';
-import {Link} from 'react-router-dom';
 import WorldDialog from './WorldDialog';
-import {Select, type SelectOption} from '../common/Select';
-import {ProfessionBadge} from './ProfessionBadge';
-import PostRatingBadge from '../AgentPost/PostRatingBadge';
-import AgentAvatar from './AgentAvatar';
 import StarLoader from '../common/StarLoader';
 import {getArticles, type Article} from '../../api/article';
 import {getAnthologyList, type Anthology} from '../../api/anthology';
 import {getAgents, type AgentConfig} from '../../api/setting';
+import WorldWorksSidebar from './worldWorks/WorldWorksSidebar';
+import WorldWorksToolbar from './worldWorks/WorldWorksToolbar';
+import WorldWorksCard from './worldWorks/WorldWorksCard';
+import WorldWorksEmpty from './worldWorks/WorldWorksEmpty';
+import type {
+    AnthologyItem,
+    ArticleDisplayItem,
+    AuthorItem,
+    SortKey,
+    ViewMode,
+} from './worldWorks/types';
 
 interface WorldWorksDialogProps {
     onClose: () => void;
 }
-
-type SortKey = 'recent' | 'rating' | 'comments' | 'read';
 
 function formatPostDate(dateStr?: string) {
     if (!dateStr) return '';
@@ -51,12 +54,16 @@ export default function WorldWorksDialog({onClose}: WorldWorksDialogProps) {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // 搜索与排序
+    // 交互与筛选状态
     const [searchKeyword, setSearchKeyword] = useState('');
     const [sortBy, setSortBy] = useState<SortKey>('recent');
+    const [viewMode, setViewMode] = useState<ViewMode>('grid');
+    const [selectedAnthologyId, setSelectedAnthologyId] = useState<string | null>(null);
+    const [selectedAuthorName, setSelectedAuthorName] = useState<string | null>(null);
+    const [featuredOnly, setFeaturedOnly] = useState(false);
 
     // 分页加载
-    const [visibleCount, setVisibleCount] = useState(20);
+    const [visibleCount, setVisibleCount] = useState(24);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +84,6 @@ export default function WorldWorksDialog({onClose}: WorldWorksDialogProps) {
     }, [agents]);
 
     const fetchData = useCallback(async () => {
-        // 仅获取 Agent 类型的文集（type === 'agent'）
         const [anthologiesRes, agentsRes] = await Promise.all([
             getAnthologyList('agent'),
             getAgents().catch(() => []),
@@ -94,31 +100,9 @@ export default function WorldWorksDialog({onClose}: WorldWorksDialogProps) {
         return {
             agentColls,
             agentWorks,
-            agents: Array.isArray(agentsRes) ? agentsRes as unknown as AgentConfig[] : [],
+            agents: Array.isArray(agentsRes) ? (agentsRes as unknown as AgentConfig[]) : [],
         };
     }, []);
-
-    useEffect(() => {
-        let isActive = true;
-        void fetchData()
-            .then(({agentColls, agentWorks, agents: loadedAgents}) => {
-                if (!isActive) return;
-                setAgentAnthologies(agentColls);
-                setArticles(agentWorks);
-                setAgents(loadedAgents);
-            })
-            .catch(err => {
-                if (!isActive) return;
-                console.error('加载世界作品失败:', err);
-                setError(err instanceof Error ? err.message : '加载作品列表失败，请稍后重试');
-            })
-            .finally(() => {
-                if (isActive) setLoading(false);
-            });
-        return () => {
-            isActive = false;
-        };
-    }, [fetchData]);
 
     const loadData = useCallback(async (isRefresh: boolean) => {
         if (isRefresh) {
@@ -141,57 +125,165 @@ export default function WorldWorksDialog({onClose}: WorldWorksDialogProps) {
         }
     }, [fetchData]);
 
-    const handleRetry = () => {
+    useEffect(() => {
         void loadData(false);
-    };
+    }, [loadData]);
 
-    const handleRefresh = () => {
-        void loadData(true);
-    };
+    // 格式化所有作品的基础展示数据项
+    const displayItems: ArticleDisplayItem[] = useMemo(() => {
+        return articles.map(article => {
+            const authorName =
+                article.agentPostCreatorName || article.authorName || article.author || '智能体';
+            const cleanId = (article.agentPostCreatorId || '').replace(/^(agent-id:|agent:)/, '');
+            const matchedAgent = agentMap.get(cleanId) || agentMap.get(authorName);
+            const authorAvatar = article.agentPostCreatorAvatar || matchedAgent?.avatar || '';
+            const profession =
+                article.agentPostCreatorProfession || matchedAgent?.professionName || null;
+            const anthology = anthologyMap.get(article.collId);
+            const anthologyTitle = anthology?.title || '居民生活手记';
+            const summary = getSummaryText(article);
+            const readTime =
+                article.readTime || Math.max(1, Math.ceil((article.content || '').length / 400));
+            const formattedDate = formatPostDate(article.createdAt || article.updatedAt);
+            const rawRating =
+                article.agentPostRating ??
+                (article as unknown as {rating?: number}).rating ??
+                null;
 
-    const sortOptions: SelectOption<SortKey>[] = [
-        {value: 'recent', label: '最新发布'},
-        {value: 'rating', label: '评分最高'},
-        {value: 'comments', label: '互动最多'},
-        {value: 'read', label: '阅读量最高'},
-    ];
+            return {
+                article,
+                authorName,
+                authorAvatar,
+                profession,
+                anthologyTitle,
+                summary,
+                readTime,
+                formattedDate,
+                rating: rawRating,
+                categoryName: article.agentPostCategoryName,
+            };
+        });
+    }, [articles, agentMap, anthologyMap]);
 
-    // 过滤与排序计算（仅通过搜索关键词过滤）
-    const filteredArticles = useMemo(() => {
+    // 统计专栏文集数据
+    const anthologyItems: AnthologyItem[] = useMemo(() => {
+        const counts = new Map<string, number>();
+        displayItems.forEach(item => {
+            const collId = item.article.collId;
+            counts.set(collId, (counts.get(collId) || 0) + 1);
+        });
+
+        return agentAnthologies.map(anth => ({
+            collId: anth.collId,
+            title: anth.title,
+            description: anth.description,
+            count: counts.get(anth.collId) || anth.count || 0,
+            iconId: anth.iconId,
+        }));
+    }, [agentAnthologies, displayItems]);
+
+    // 统计创作者数据
+    const authorItems: AuthorItem[] = useMemo(() => {
+        const map = new Map<string, {count: number; avatar?: string; profession?: string; id: string}>();
+
+        displayItems.forEach(item => {
+            const current = map.get(item.authorName) || {
+                count: 0,
+                avatar: item.authorAvatar,
+                profession: item.profession || undefined,
+                id: item.article.agentPostCreatorId || item.authorName,
+            };
+            current.count += 1;
+            if (item.authorAvatar && !current.avatar) current.avatar = item.authorAvatar;
+            if (item.profession && !current.profession) current.profession = item.profession;
+            map.set(item.authorName, current);
+        });
+
+        return Array.from(map.entries()).map(([name, data]) => ({
+            name,
+            id: data.id,
+            avatar: data.avatar,
+            profession: data.profession,
+            count: data.count,
+        }));
+    }, [displayItems]);
+
+    // 重置所有筛选
+    const handleClearFilters = useCallback(() => {
+        setSearchKeyword('');
+        setSelectedAnthologyId(null);
+        setSelectedAuthorName(null);
+        setFeaturedOnly(false);
+        setVisibleCount(24);
+    }, []);
+
+    // 筛选与排序后的作品列表
+    const filteredDisplayItems = useMemo(() => {
         const keyword = searchKeyword.trim().toLowerCase();
 
-        return articles.filter(article => {
-            if (!keyword) return true;
-            const title = (article.title || '').toLowerCase();
-            const summary = (article.postSummary || article.content || '').toLowerCase();
-            const creator = (article.agentPostCreatorName || article.authorName || article.author || '').toLowerCase();
-            const collTitle = (anthologyMap.get(article.collId)?.title || '').toLowerCase();
-            return title.includes(keyword) || summary.includes(keyword) || creator.includes(keyword) || collTitle.includes(keyword);
-        }).sort((a, b) => {
-            if (sortBy === 'rating') {
-                return (b.agentPostRating || 0) - (a.agentPostRating || 0);
-            }
-            if (sortBy === 'comments') {
-                return (b.postCommentCount || 0) - (a.postCommentCount || 0);
-            }
-            if (sortBy === 'read') {
-                return (b.readCount || 0) - (a.readCount || 0);
-            }
-            // 按首次发布时间降序，编辑旧作品不改变发布顺序
-            const timeA = new Date(a.createdAt || a.updatedAt).getTime();
-            const timeB = new Date(b.createdAt || b.updatedAt).getTime();
-            return timeB - timeA;
-        });
-    }, [articles, searchKeyword, sortBy, anthologyMap]);
+        return displayItems
+            .filter(item => {
+                // 文集过滤
+                if (selectedAnthologyId && item.article.collId !== selectedAnthologyId) {
+                    return false;
+                }
+                // 作者过滤
+                if (selectedAuthorName && item.authorName !== selectedAuthorName) {
+                    return false;
+                }
+                // 精选过滤 (评分 >= 4.0 或互动 > 0)
+                if (featuredOnly) {
+                    const r = item.rating || 0;
+                    if (r < 4.0 && (item.article.postCommentCount || 0) < 1) {
+                        return false;
+                    }
+                }
+                // 搜索过滤
+                if (keyword) {
+                    const title = (item.article.title || '').toLowerCase();
+                    const summary = (item.article.postSummary || item.article.content || '').toLowerCase();
+                    const author = item.authorName.toLowerCase();
+                    const coll = item.anthologyTitle.toLowerCase();
+                    const cat = (item.categoryName || '').toLowerCase();
+                    const prof = (item.profession || '').toLowerCase();
+                    if (
+                        !title.includes(keyword) &&
+                        !summary.includes(keyword) &&
+                        !author.includes(keyword) &&
+                        !coll.includes(keyword) &&
+                        !cat.includes(keyword) &&
+                        !prof.includes(keyword)
+                    ) {
+                        return false;
+                    }
+                }
+                return true;
+            })
+            .sort((a, b) => {
+                if (sortBy === 'rating') {
+                    return (b.rating || 0) - (a.rating || 0);
+                }
+                if (sortBy === 'comments') {
+                    return (b.article.postCommentCount || 0) - (a.article.postCommentCount || 0);
+                }
+                if (sortBy === 'read') {
+                    return (b.article.readCount || 0) - (a.article.readCount || 0);
+                }
+                // 最新发布
+                const timeA = new Date(a.article.createdAt || a.article.updatedAt).getTime();
+                const timeB = new Date(b.article.createdAt || b.article.updatedAt).getTime();
+                return timeB - timeA;
+            });
+    }, [displayItems, selectedAnthologyId, selectedAuthorName, featuredOnly, searchKeyword, sortBy]);
 
     // 分页切片
-    const visibleArticles = useMemo(() => {
-        return filteredArticles.slice(0, visibleCount);
-    }, [filteredArticles, visibleCount]);
+    const visibleDisplayItems = useMemo(() => {
+        return filteredDisplayItems.slice(0, visibleCount);
+    }, [filteredDisplayItems, visibleCount]);
 
-    const hasMore = visibleArticles.length < filteredArticles.length;
+    const hasMore = visibleDisplayItems.length < filteredDisplayItems.length;
 
-    // 滚动加载更多
+    // 滚动加载
     const handleScroll = useCallback(() => {
         if (isLoadingMore || !hasMore) return;
         const container = scrollContainerRef.current;
@@ -201,11 +293,30 @@ export default function WorldWorksDialog({onClose}: WorldWorksDialogProps) {
         if (scrollTop + clientHeight >= scrollHeight - 120) {
             setIsLoadingMore(true);
             setTimeout(() => {
-                setVisibleCount(prev => prev + 15);
+                setVisibleCount(prev => prev + 18);
                 setIsLoadingMore(false);
             }, 200);
         }
     }, [isLoadingMore, hasMore]);
+
+    // 当前筛选的面包屑标题与副标题计算
+    const activeFilterTitle = useMemo(() => {
+        if (selectedAuthorName) {
+            return `${selectedAuthorName} 的创作手记`;
+        }
+        if (selectedAnthologyId) {
+            const matched = anthologyMap.get(selectedAnthologyId);
+            return `专栏：${matched?.title || '文集'}`;
+        }
+        if (featuredOnly) {
+            return '高分与热门推荐';
+        }
+        return '全部作品';
+    }, [selectedAuthorName, selectedAnthologyId, featuredOnly, anthologyMap]);
+
+    const hasActiveFilter = Boolean(
+        selectedAnthologyId || selectedAuthorName || featuredOnly || searchKeyword,
+    );
 
     return (
         <WorldDialog
@@ -215,219 +326,139 @@ export default function WorldWorksDialog({onClose}: WorldWorksDialogProps) {
             onClose={onClose}
         >
             <div className="flex h-full min-h-0 flex-col">
-                {/* 顶部控制栏：搜索与排序 */}
-                <div className="mb-3.5 shrink-0">
-                    <div className="flex flex-wrap items-center justify-between gap-2.5">
-                        {/* 搜索框 */}
-                        <div className="relative min-w-[220px] flex-1 sm:max-w-md">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                            <input
-                                type="text"
-                                value={searchKeyword}
-                                onChange={e => {
-                                    setSearchKeyword(e.target.value);
-                                    setVisibleCount(20);
-                                }}
-                                placeholder="搜索 Agent 作品标题、摘要、作者..."
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-8 text-xs text-slate-800 placeholder:text-slate-400 transition-colors focus:border-orange-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            />
-                            {searchKeyword && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSearchKeyword('')}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
-                                >
-                                    <X className="h-3.5 w-3.5" />
-                                </button>
-                            )}
-                        </div>
+                {/* 桌面端左右分栏主体 / 移动端上下布局 */}
+                <div className="flex min-h-0 flex-1 flex-col lg:flex-row gap-4">
+                    {/* 左侧边栏 (专栏文集与创作者) */}
+                    <WorldWorksSidebar
+                        totalCount={articles.length}
+                        anthologies={anthologyItems}
+                        authors={authorItems}
+                        selectedAnthologyId={selectedAnthologyId}
+                        selectedAuthorName={selectedAuthorName}
+                        featuredOnly={featuredOnly}
+                        onSelectAll={handleClearFilters}
+                        onToggleFeatured={() => {
+                            setFeaturedOnly(prev => !prev);
+                            setSelectedAnthologyId(null);
+                            setSelectedAuthorName(null);
+                            setVisibleCount(24);
+                        }}
+                        onSelectAnthology={collId => {
+                            setSelectedAnthologyId(collId);
+                            setSelectedAuthorName(null);
+                            setFeaturedOnly(false);
+                            setVisibleCount(24);
+                        }}
+                        onSelectAuthor={authorName => {
+                            setSelectedAuthorName(authorName);
+                            setSelectedAnthologyId(null);
+                            setFeaturedOnly(false);
+                            setVisibleCount(24);
+                        }}
+                    />
 
-                        {/* 排序与操作 */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-400 hidden sm:inline">
-                                共 <strong className="font-semibold text-orange-600">{filteredArticles.length}</strong> 篇作品
-                            </span>
+                    {/* 右侧主展厅内容区 */}
+                    <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        {/* 顶部工具栏 */}
+                        <WorldWorksToolbar
+                            keyword={searchKeyword}
+                            onKeywordChange={val => {
+                                setSearchKeyword(val);
+                                setVisibleCount(24);
+                            }}
+                            sortBy={sortBy}
+                            onSortChange={val => {
+                                setSortBy(val);
+                                setVisibleCount(24);
+                            }}
+                            viewMode={viewMode}
+                            onViewModeChange={setViewMode}
+                            refreshing={refreshing}
+                            loading={loading}
+                            onRefresh={() => void loadData(true)}
+                            activeFilterTitle={activeFilterTitle}
+                            hasActiveFilter={hasActiveFilter}
+                            onClearFilters={handleClearFilters}
+                            totalResultCount={filteredDisplayItems.length}
+                        />
 
-                            <div className="w-28">
-                                <Select
-                                    value={sortBy}
-                                    options={sortOptions}
-                                    onChange={value => {
-                                        setSortBy(value);
-                                        setVisibleCount(20);
-                                    }}
-                                    menuPortal={true}
-                                    buttonClassName="h-8 py-1 px-2.5 text-xs rounded-xl"
-                                />
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={handleRefresh}
-                                disabled={refreshing || loading}
-                                title="刷新作品列表"
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 active:scale-95 disabled:opacity-50"
-                            >
-                                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-orange-500' : ''}`} />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 作品主体列表滚动区（遵守规范：使用 scrollbar-hide，严禁原生滚动条） */}
-                <div
-                    ref={scrollContainerRef}
-                    onScroll={handleScroll}
-                    className="min-h-0 flex-1 overflow-y-auto pr-0.5 scrollbar-hide"
-                >
-                    {loading ? (
-                        <div className="flex h-64 flex-col items-center justify-center gap-3">
-                            <StarLoader />
-                            <p className="text-xs text-slate-400">正在检索智能体专栏作品…</p>
-                        </div>
-                    ) : error ? (
-                        <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-red-100 bg-red-50/50 p-6 text-center">
-                            <p className="text-xs text-red-600">{error}</p>
-                            <button
-                                type="button"
-                                onClick={handleRetry}
-                                className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
-                            >
-                                重新尝试
-                            </button>
-                        </div>
-                    ) : visibleArticles.length === 0 ? (
-                        <div className="flex h-64 flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
-                            <BookOpenText className="h-10 w-10 text-slate-300" />
-                            <p className="text-sm font-semibold text-slate-700">暂无智能体创作作品</p>
-                            <p className="text-xs text-slate-400">
-                                {searchKeyword ? '未找到符合搜索条件的作品，尝试清除关键词' : '智能体将在自主发帖任务或创作计划中发布作品'}
-                            </p>
-                            {searchKeyword && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSearchKeyword('')}
-                                    className="mt-1 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100"
-                                >
-                                    清空搜索词
-                                </button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-3 px-1 pt-1.5 pb-4">
-                            {visibleArticles.map(article => {
-                                const anthology = anthologyMap.get(article.collId);
-                                const authorName = article.agentPostCreatorName || article.authorName || article.author || '智能体';
-                                const authorAvatar = article.agentPostCreatorAvatar || '';
-                                const cleanId = (article.agentPostCreatorId || '').replace(/^(agent-id:|agent:)/, '');
-                                const matchedAgent = agentMap.get(cleanId) || agentMap.get(authorName);
-                                const profession = article.agentPostCreatorProfession || matchedAgent?.professionName || null;
-                                const summary = getSummaryText(article);
-                                const readTime = article.readTime || Math.max(1, Math.ceil((article.content || '').length / 400));
-
-                                return (
-                                    <Link
-                                        key={article.articleId}
-                                        to={`/article/${article.collId}/${article.articleId}`}
-                                        state={{from: '/agent-world'}}
-                                        onClick={onClose}
-                                        className="group relative block rounded-2xl border border-slate-200/85 bg-white p-4 shadow-2xs transition-all duration-200 hover:border-orange-300 hover:shadow-sm hover:bg-orange-50/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 cursor-pointer sm:p-4.5"
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            {/* 作者与文集胶囊信息 */}
-                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                                <AgentAvatar name={authorName} avatar={authorAvatar} size="sm" />
-                                                <div className="min-w-0">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="truncate text-xs font-bold text-slate-800">
-                                                            {authorName}
-                                                        </span>
-                                                        {profession && (
-                                                            <ProfessionBadge professionName={profession} size="xs" variant="purple" />
-                                                        )}
-                                                    </div>
-                                                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
-                                                        <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
-                                                            <BookOpenText className="h-2.5 w-2.5 shrink-0 text-slate-400" />
-                                                            <span className="max-w-[120px] truncate sm:max-w-[180px]">
-                                                                {anthology?.title || 'Agent 专栏'}
-                                                            </span>
-                                                        </span>
-                                                        <span>·</span>
-                                                        <span>{formatPostDate(article.createdAt || article.updatedAt)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* 右上角评分/标签 */}
-                                            <div className="flex shrink-0 items-center gap-1.5">
-                                                {article.agentPostRating ? (
-                                                    <PostRatingBadge rating={article.agentPostRating} />
-                                                ) : null}
-                                                {article.agentPostCategoryName && (
-                                                    <span className="hidden rounded-full border border-orange-200/80 bg-orange-50/70 px-2 py-0.5 text-[10px] font-medium text-orange-700 sm:inline-block">
-                                                        {article.agentPostCategoryName}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* 作品标题 */}
-                                        <h3 className="mt-2.5 text-sm font-bold text-slate-900 transition-colors group-hover:text-orange-600 sm:text-base">
-                                            {article.title}
-                                        </h3>
-
-                                        {/* 作品摘要 */}
-                                        {summary && (
-                                            <p className="mt-1 text-xs leading-relaxed text-slate-500 line-clamp-2">
-                                                {summary}
-                                            </p>
-                                        )}
-
-                                        {/* 底部元信息行 */}
-                                        <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-400">
-                                            <div className="flex items-center gap-3">
-                                                <span className="inline-flex items-center gap-1">
-                                                    <Clock className="h-3 w-3" />
-                                                    <span>约 {readTime} 分钟</span>
-                                                </span>
-                                                {typeof article.postCommentCount === 'number' && (
-                                                    <span className="inline-flex items-center gap-1">
-                                                        <MessageCircle className="h-3 w-3" />
-                                                        <span>{article.postCommentCount} 条互动</span>
-                                                    </span>
-                                                )}
-                                                {typeof article.readCount === 'number' && article.readCount > 0 && (
-                                                    <span className="hidden items-center gap-1 sm:inline-flex">
-                                                        <span>{article.readCount} 次阅读</span>
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <div className="inline-flex items-center gap-1 font-semibold text-orange-600 transition-transform group-hover:translate-x-0.5">
-                                                <span>阅读正文</span>
-                                                <ArrowRight className="h-3.5 w-3.5" />
-                                            </div>
-                                        </div>
-                                    </Link>
-                                );
-                            })}
-
-                            {/* 触底加载更多状态 */}
-                            {hasMore && (
-                                <div className="flex justify-center py-2">
+                        {/* 作品卡片滚动区 (隐藏原生滚动条，保留流畅滚动) */}
+                        <div
+                            ref={scrollContainerRef}
+                            onScroll={handleScroll}
+                            className="min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-hide"
+                        >
+                            {loading ? (
+                                <div className="flex h-64 flex-col items-center justify-center gap-3">
+                                    <StarLoader />
+                                    <p className="text-xs text-slate-400">正在检索智能体专栏作品…</p>
+                                </div>
+                            ) : error ? (
+                                <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-red-100 bg-red-50/50 p-6 text-center">
+                                    <p className="text-xs text-red-600">{error}</p>
                                     <button
                                         type="button"
-                                        onClick={() => setVisibleCount(v => v + 15)}
-                                        disabled={isLoadingMore}
-                                        className="rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-2xs hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 disabled:opacity-50"
+                                        onClick={() => void loadData(false)}
+                                        className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
                                     >
-                                        {isLoadingMore ? '正在加载更多…' : `加载更多作品 (剩余 ${filteredArticles.length - visibleArticles.length} 篇)`}
+                                        重新尝试
                                     </button>
+                                </div>
+                            ) : visibleDisplayItems.length === 0 ? (
+                                <WorldWorksEmpty
+                                    keyword={searchKeyword}
+                                    hasFilter={hasActiveFilter}
+                                    onReset={handleClearFilters}
+                                />
+                            ) : (
+                                <div className="pb-4">
+                                    {/* 网格视图与列表视图分支 */}
+                                    {viewMode === 'grid' ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 min-[1500px]:grid-cols-4 gap-2.5">
+                                            {visibleDisplayItems.map(item => (
+                                                <WorldWorksCard
+                                                    key={item.article.articleId}
+                                                    item={item}
+                                                    viewMode="grid"
+                                                    onClose={onClose}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {visibleDisplayItems.map(item => (
+                                                <WorldWorksCard
+                                                    key={item.article.articleId}
+                                                    item={item}
+                                                    viewMode="list"
+                                                    onClose={onClose}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* 触底加载更多 */}
+                                    {hasMore && (
+                                        <div className="mt-4 flex justify-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => setVisibleCount(v => v + 18)}
+                                                disabled={isLoadingMore}
+                                                className="rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-2xs hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 disabled:opacity-50 transition-colors"
+                                            >
+                                                {isLoadingMore
+                                                    ? '正在加载更多…'
+                                                    : `加载更多作品 (剩余 ${
+                                                          filteredDisplayItems.length -
+                                                          visibleDisplayItems.length
+                                                      } 篇)`}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
-                    )}
+                    </section>
                 </div>
             </div>
         </WorldDialog>

@@ -53,6 +53,113 @@ class IdleSchedulingTests(TestCase):
     def state(self):
         return LifeInterleavingState.objects.create(pk=self.agent.pk, owner_id='admin', next_decision_at=self.now, next_check_at=self.now)
 
+    def test_new_selection_reads_changed_stock_and_passes_live_opportunities(self):
+        from .combat.profiles import ensure
+        ensure('admin', self.agent)
+        from .inventory_stock import take_stock
+        from .life_interleaving_candidates import build, selection_input
+        CookingTests.supply(self, quantity=8)
+        with patch('system_settings.agent_world.life_interleaving_candidates.available_window', return_value=3600), \
+             patch('system_settings.agent_world.life_interleaving_candidates.capacity',
+                   return_value={'energy': 100, 'projection': {'safe': True}}):
+            before, resource, gap = build(self.config, self.agent, self.now)
+            take_stock(self.agent.pk, 'admin', 'crop.potato', 6)
+            after, resource, gap = build(self.config, self.agent, self.now)
+            self.assertEqual(before['cooking']['available_recipes'][0]['max_quantity'], 4)
+            self.assertEqual(after['cooking']['available_recipes'][0]['max_quantity'], 1)
+            state = selection_input(self.config, self.agent, after, resource, gap, self.now)
+            self.assertEqual(state['activities']['cooking'], after['cooking'])
+            self.assertIn('保护后续承诺', state['decision_context'])
+            take_stock(self.agent.pk, 'admin', 'crop.potato', 2)
+            empty, _, _ = build(self.config, self.agent, self.now)
+            self.assertNotIn('cooking', empty)
+
+    def exploration_task(self):
+        from .combat.schedule import ensure_task
+        return ensure_task('admin')
+
+    def test_first_adventure_is_only_candidate_without_creating_business_data(self):
+        from .life_interleaving_candidates import build
+        from .combat.models import CombatProfile, EquipmentInstance, CombatCatalog, CombatFact
+        self.exploration_task()
+        CookingTests.supply(self, quantity=8)
+        with patch('system_settings.agent_world.life_interleaving_candidates.available_window', return_value=3600), \
+             patch('system_settings.agent_world.life_interleaving_candidates.capacity', return_value={'energy': 100, 'projection': {'safe': True}}):
+            candidates, _, _ = build(self.config, self.agent, self.now)
+        self.assertEqual(set(candidates), {'exploration'})
+        self.assertTrue(candidates['exploration']['initial_adventure'])
+        for model in (CombatProfile, EquipmentInstance, CombatCatalog, CombatFact):
+            self.assertFalse(model.objects.exists(), model.__name__)
+
+    def test_first_adventure_waits_for_time_energy_and_enabled_capability(self):
+        from .life_interleaving_candidates import build
+        task = self.exploration_task()
+        for seconds, energy, enabled in ((1799, 100, True), (3600, 21, True), (3600, 100, False)):
+            with self.subTest(seconds=seconds, energy=energy, enabled=enabled):
+                task.enabled = enabled
+                task.save()
+                with patch('system_settings.agent_world.life_interleaving_candidates.available_window', return_value=seconds), \
+                     patch('system_settings.agent_world.life_interleaving_candidates.capacity', return_value={'energy': energy, 'projection': {'safe': True}}):
+                    self.assertEqual(build(self.config, self.agent, self.now)[0], {})
+
+    def test_first_adventure_executes_without_activity_model_and_initializes_once(self):
+        from .life_interleaving import process
+        from .combat.models import CombatProfile, EquipmentInstance, Exploration
+        from system_settings.models import AgentRunRecord
+        self.exploration_task()
+        state = self.state()
+        with patch('system_settings.agent_world.life_interleaving_candidates.available_window', return_value=3600), \
+             patch('system_settings.agent_world.life_interleaving_candidates.capacity', return_value={'energy': 100, 'projection': {'safe': True}}), \
+             patch('system_settings.agent_world.life_interleaving.choose') as choose:
+            process(self.config, state, None, self.now)
+            choose.assert_not_called()
+            item = LifeItem.objects.get(activity='exploration')
+            self.assertEqual(item.status, 'running')
+            self.assertIn('首次冒险由系统引导', item.intent)
+            profile = CombatProfile.objects.get(pk=self.agent.pk)
+            self.assertEqual(profile.progression['level'], 1)
+            self.assertEqual(Exploration.objects.get().life_item_id, item.pk)
+            self.assertTrue(AgentRunRecord.objects.filter(summary__contains='首次冒险由系统引导').exists())
+            process(self.config, state, None, self.now + timedelta(minutes=5))
+        self.assertEqual(CombatProfile.objects.count(), 1)
+        self.assertEqual(EquipmentInstance.objects.filter(pk='starter:' + self.agent.pk).count(), 1)
+        self.assertEqual(Exploration.objects.count(), 1)
+
+    def test_first_adventure_respects_pause_and_world_switch(self):
+        from .life_interleaving import process
+        from .combat.models import CombatProfile
+        from system_settings.models import WorldActionRuntime
+        self.exploration_task()
+        state = self.state()
+        self.config.paused_agents = [self.agent.pk]
+        self.config.save()
+        with patch('system_settings.agent_world.life_interleaving.choose') as choose:
+            process(self.config, state, None, self.now)
+            self.config.paused_agents = []
+            self.config.save()
+            WorldActionRuntime.objects.filter(pk='world').update(enabled=False)
+            process(self.config, state, None, self.now)
+            choose.assert_not_called()
+        self.assertFalse(CombatProfile.objects.exists())
+        self.assertFalse(LifeItem.objects.exists())
+
+    def test_after_initialization_normal_candidates_and_wait_return(self):
+        from .combat.profiles import ensure
+        from .life_interleaving_candidates import build
+        from .life_interleaving import process
+        self.exploration_task()
+        ensure('admin', self.agent)
+        CookingTests.supply(self, quantity=8)
+        with patch('system_settings.agent_world.life_interleaving_candidates.available_window', return_value=3600), \
+             patch('system_settings.agent_world.life_interleaving_candidates.capacity', return_value={'energy': 100, 'projection': {'safe': True}}), \
+             patch('system_settings.agent_world.life_interleaving.choose', return_value='wait') as choose:
+            candidates, _, _ = build(self.config, self.agent, self.now)
+            self.assertIn('cooking', candidates)
+            self.assertFalse(candidates['exploration']['initial_adventure'])
+            process(self.config, self.state(), None, self.now)
+        self.assertIn('wait', choose.call_args.args[4])
+        self.assertFalse(LifeItem.objects.exists())
+
     def test_no_candidates_no_call_and_wait_has_no_card(self):
         from .life_interleaving import process
         state = self.state()
@@ -150,6 +257,8 @@ class IdleSchedulingTests(TestCase):
         self.assertEqual(validate_life_output(value, '', context), value)
 
     def test_real_cooking_entry_and_actual_facts(self):
+        from .combat.profiles import ensure
+        ensure('admin', self.agent)
         from .inventory_stock import add_stock
         from .life_interleaving import process
         from .life_facts import actuals
@@ -225,6 +334,8 @@ class IdleSchedulingTests(TestCase):
                 prepare(item, self.agent)
 
     def test_recovery_reuses_craft_operations_and_debits(self):
+        from .combat.profiles import ensure
+        ensure('admin', self.agent)
         from .inventory_stock import add_stock
         from .life_interleaving import process
         from .life_craft_recovery import resume

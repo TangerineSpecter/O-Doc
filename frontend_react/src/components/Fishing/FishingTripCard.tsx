@@ -1,4 +1,4 @@
-import {ArrowUpRight, Clock, Crown, Fish, MapPin, RotateCw, Undo2, Waves} from 'lucide-react';
+import {ArrowUpRight, Clock, Crown, Fish, MapPin, RotateCw, Undo2} from 'lucide-react';
 import type {FishingTrip} from '../../types/api/fishing';
 import {BaitPortrait} from './BaitPortrait';
 import {FishPortrait} from './FishPortrait';
@@ -11,15 +11,31 @@ export function FishingTripCard({trip, now, busy, onSelect, onAction}: {
     onAction: (kind: 'retry' | 'recall') => void;
 }) {
     const remaining = trip.deadline ? Math.max(0, Math.ceil((Date.parse(trip.deadline) - now) / 60000)) : null;
-    const fishId = trip.duel?.fishId || (trip.catches[0] && fishArtIdForName(trip.catches[0].name));
+    const hasKing = Boolean(trip.duel) || trip.catches.some(c => c.name.includes('王'));
     const caught = trip.catches.reduce((count, item) => count + item.quantity, 0);
-    return <article className={`fishing-trip-card overflow-hidden rounded-2xl border bg-white ${trip.duel ? 'border-amber-200' : 'border-slate-200/90'}`}>
+    return <article
+        onClick={onSelect}
+        className={`fishing-trip-card group cursor-pointer overflow-hidden rounded-2xl border bg-white transition-all hover:border-teal-300 hover:shadow-md ${trip.duel ? 'border-amber-200' : 'border-slate-200/90'}`}
+    >
         <div className="flex items-start gap-3 p-3">
-            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border ${trip.duel ? 'border-amber-200/70 bg-amber-50/80' : 'border-teal-100/80 bg-[#f3f7ef]'}`}>
-                {fishId ? <FishPortrait fishId={fishId} name={trip.catches[0]?.name || '鱼王'} decorative className="h-14 w-14"/> : <Waves className="h-6 w-6 text-teal-500/70"/>}
+            <div className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border ${hasKing ? 'border-amber-200/90 bg-gradient-to-br from-amber-50 to-amber-100/50' : 'border-teal-200/70 bg-gradient-to-br from-[#eff6ef] via-[#f5f9f3] to-white'} shadow-2xs`}>
+                <span className="font-mono text-xl font-black text-teal-800" aria-hidden="true">
+                    {Array.from(trip.actorName)[0] || '钓'}
+                </span>
+                {hasKing && (
+                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white shadow-2xs" title="遇见或捕获鱼王">
+                        <Crown className="h-3 w-3"/>
+                    </span>
+                )}
             </div>
             <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-1.5"><h4 className="text-sm font-bold text-slate-800">{trip.actorName}</h4><span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-semibold ${trip.duel ? 'border-amber-200 bg-amber-50 text-amber-700' : trip.endedAt ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-teal-200 bg-teal-50 text-teal-700'}`}><span className={`h-1 w-1 rounded-full ${trip.duel ? 'bg-amber-500' : trip.endedAt ? 'bg-slate-400' : 'bg-teal-500'}`}/>{!trip.endedAt && !trip.authorized ? '等待本机授权' : labels[trip.status]}</span></div>
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <h4 className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
+                        <span>{trip.actorName}</span>
+                        <span className="text-[10px] font-normal text-slate-400">· 出钓手札</span>
+                    </h4>
+                    <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-semibold ${trip.duel ? 'border-amber-200 bg-amber-50 text-amber-700' : trip.endedAt ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-teal-200 bg-teal-50 text-teal-700'}`}><span className={`h-1 w-1 rounded-full ${trip.duel ? 'bg-amber-500' : trip.endedAt ? 'bg-slate-400' : 'bg-teal-500'}`}/>{!trip.endedAt && !trip.authorized ? '等待本机授权' : labels[trip.status]}</span>
+                </div>
                 <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-400"><span className="inline-flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5 text-teal-600"/>{fishingSpotLabels[trip.plan.spot || ''] || '选择钓点中'}</span><span>已抛竿 {trip.casts} 次</span></p>
                 <p className="mt-1 text-[9px] text-slate-400">{fishingTime(trip.endedAt || trip.departedAt || trip.createdAt)}</p>
             </div>
@@ -38,8 +54,15 @@ export function FishingTripCard({trip, now, busy, onSelect, onAction}: {
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-100 bg-slate-50/50 px-3 py-2">
             <span className="mr-auto text-[10px] text-slate-400">收获 <strong className="font-semibold text-slate-700">{caught}</strong> 条{trip.experience > 0 && <span className="ml-2 font-semibold text-amber-600">EXP +{trip.experience}</span>}</span>
-            {!trip.endedAt && <><button type="button" disabled={busy} onClick={() => onAction('recall')} className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 disabled:opacity-40"><Undo2 className="h-3 w-3"/>提前返回</button>{(trip.status === 'paused' || !trip.authorized) && <button type="button" disabled={busy} onClick={() => onAction('retry')} className="inline-flex items-center gap-1 text-[10px] font-medium text-teal-700 disabled:opacity-40"><RotateCw className="h-3 w-3"/>继续出钓</button>}</>}
-            <button type="button" onClick={onSelect} className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-teal-700 hover:text-teal-900">查看过程<ArrowUpRight className="h-3 w-3"/></button>
+            {!trip.endedAt && <><button type="button" disabled={busy} onClick={e => {e.stopPropagation(); onAction('recall');}} className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 disabled:opacity-40"><Undo2 className="h-3 w-3"/>提前返回</button>{(trip.status === 'paused' || !trip.authorized) && <button type="button" disabled={busy} onClick={e => {e.stopPropagation(); onAction('retry');}} className="inline-flex items-center gap-1 text-[10px] font-medium text-teal-700 disabled:opacity-40"><RotateCw className="h-3 w-3"/>继续出钓</button>}</>}
+            <button
+                type="button"
+                onClick={e => {e.stopPropagation(); onSelect();}}
+                className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 shadow-sm transition-all hover:border-teal-300 hover:bg-teal-100 active:scale-95 group-hover:bg-teal-700 group-hover:text-white group-hover:border-teal-700"
+            >
+                <span>查看过程</span>
+                <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"/>
+            </button>
         </div>
     </article>;
 }

@@ -140,8 +140,13 @@ def process(config, state, scheduler, now):
             return
         selected = state.checkpoint.get('selected')
         if selected is None:
-            selected = choose(config.pk, agent, 'life_interleaving', selection_input(config, agent, candidates, resource, gap, now),
-                              {**{kind: value for kind, value in candidates.items()}, 'wait': '暂不活动'}, record=decision_record)
+            if candidates.get('exploration', {}).get('initial_adventure'):
+                selected = 'exploration'
+                decision_record.summary = '系统说明：首次冒险由系统引导，自动创建冒险档案并进入探索准备'
+                decision_record.save(update_fields=['summary'])
+            else:
+                selected = choose(config.pk, agent, 'life_interleaving', selection_input(config, agent, candidates, resource, gap, now),
+                                  {**{kind: value for kind, value in candidates.items()}, 'wait': '暂不活动'}, record=decision_record)
         now = local_time()
         if now >= local_time(datetime.fromisoformat(state.checkpoint['expires_at'])):
             finish_selection(state, '系统说明：决策返回时空档机会已过期')
@@ -169,7 +174,8 @@ def process(config, state, scheduler, now):
             item, _ = LifeItem.objects.get_or_create(pk=opportunity, defaults={
                 'owner_id': config.pk, 'actor_id': agent.pk, 'original_at': now, 'scheduled_at': now,
                 'activity': selected, 'task_id': task_for(config.pk, agent, selected).pk,
-                'intent': '系统说明：在日程空档内，根据可用资源选择活动',
+                'intent': ('系统说明：首次冒险由系统引导，自动建档并准备探索' if candidates.get(selected, {}).get('initial_adventure')
+                           else '系统说明：在日程空档内，根据可用资源选择活动'),
                 'context': {'planned_on': now.date().isoformat(), 'interleaving': {
                     'version': 1, 'opportunity_id': opportunity, 'choices': [], 'selection_record_id': decision_record.pk,
                     'expires_at': (now + timedelta(seconds=gap)).isoformat(),

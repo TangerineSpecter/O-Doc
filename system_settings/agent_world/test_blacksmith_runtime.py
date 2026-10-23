@@ -244,7 +244,8 @@ class BlacksmithEntryTests(TestCase):
         self.assertEqual(candidates['blacksmith']['max_pieces'], 3)
         self.assertEqual(set(candidates['blacksmith']), {
             'free_goal_slots', 'ready_goals', 'goal_progress', 'legal_goal_recipes',
-            'energy_allowance', 'max_pieces',
+            'energy_allowance', 'max_pieces', 'registerable_goals',
+            'craftable_equipment_now', 'opportunity',
         })
 
     def test_accessory_decision_context_includes_existing_ring_stock(self):

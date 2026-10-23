@@ -3,11 +3,14 @@ import {actOnFishingTrip, getFishing, getFishingCatalog, getFishingTrip} from '.
 import type {FishingCatalog, FishingDetail, FishingOverview} from '../types/api/fishing';
 const message = (e: unknown) => e instanceof Error ? e.message : '钓鱼数据读取失败';
 
-export function useFishing(active = true, initialTripId = '') {
+export function useFishing(active = true, initialTripId = '', actorId = '') {
     const [data, setData] = useState<FishingOverview | null>(null);
+    const [history, setHistory] = useState<FishingOverview | null>(null);
+    const [historyKey, setHistoryKey] = useState('');
     const [detail, setDetail] = useState<FishingDetail | null>(null);
     const [selected, setSelected] = useState(initialTripId);
     const [page, setPage] = useState(1);
+    const queryKey = `${actorId}:${page}`;
     const [eventPage, setEventPage] = useState(1);
     const [revision, setRevision] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -22,14 +25,15 @@ export function useFishing(active = true, initialTripId = '') {
             if (controller.signal.aborted) return;
             setLoading(true); setError('');
             try {
-                const [overview, trip] = await Promise.all([getFishing(page, controller.signal),
-                    selected ? getFishingTrip(selected, eventPage, controller.signal) : Promise.resolve(null)]);
-                if (!controller.signal.aborted) {setData(overview); setDetail(trip);}
+                const [overview, trip, filteredHistory] = await Promise.all([getFishing(actorId ? 1 : page, controller.signal),
+                    selected ? getFishingTrip(selected, eventPage, controller.signal) : Promise.resolve(null),
+                    actorId ? getFishing(page, controller.signal, actorId) : Promise.resolve(null)]);
+                if (!controller.signal.aborted) {setData(overview); setDetail(trip); setHistory(filteredHistory || overview); setHistoryKey(queryKey);}
             } catch (e) {if (!controller.signal.aborted) setError(message(e));}
             finally {if (!controller.signal.aborted) setLoading(false);}
         })();
         return () => controller.abort();
-    }, [active, page, selected, eventPage, revision]);
+    }, [active, page, actorId, queryKey, selected, eventPage, revision]);
     useEffect(() => {
         if (!active) return;
         const timer = window.setInterval(() => {if (!document.hidden) setRevision(v => v + 1);}, 5000);
@@ -43,7 +47,7 @@ export function useFishing(active = true, initialTripId = '') {
         finally {actionLock.current = false; setBusy(false);}
     };
     const choose = (id: string) => {setDetail(null); setEventPage(1); setSelected(id);};
-    return {data, detail, selected, page, eventPage, loading, error, busy, action, choose,
+    return {data, history: historyKey === queryKey ? history : null, detail, selected, page, eventPage, loading, error, busy, action, choose,
         setPage, setEventPage, reload: () => setRevision(v => v + 1)};
 }
 

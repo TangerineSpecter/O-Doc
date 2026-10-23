@@ -1,7 +1,7 @@
 import request from '../utils/request';
 import type {FishingCatalog, FishingDetail, FishingOverview, FishingTrip} from '../types/api/fishing';
 const base = '/settings/agent-world/fishing';
-export const getFishing = (page: number, signal?: AbortSignal) => request.get<never, FishingOverview>(`${base}/`, {params: {page}, signal});
+export const getFishing = (page: number, signal?: AbortSignal, actorId = '') => request.get<never, FishingOverview>(`${base}/`, {params: {page, actorId}, signal});
 export const getFishingConfig = (signal?: AbortSignal) => request.get<never, {enabled: boolean}>(`${base}/config/`, {signal});
 export const saveFishingConfig = (enabled: boolean) => request.post<never, {enabled: boolean}>(`${base}/config/`, {enabled});
 export const getFishingCatalog = (actorId = '', signal?: AbortSignal) => request.get<never, FishingCatalog>(`${base}/catalog/`, {params: {actorId}, signal});

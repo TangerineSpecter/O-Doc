@@ -89,6 +89,18 @@
     .security-note strong { color: #587060; font-weight: 750; }
     .inline-symbol { color: #6c9777; font-weight: 900; }
     .split-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .import-tools { margin-bottom: 15px; }
+    .import-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .import-bar p { flex: 1 1 190px; margin: 0; color: var(--muted); font-size: 11px; }
+    .import-tools details { margin-top: 10px; }
+    .import-tools summary { width: fit-content; cursor: pointer; color: #627066; font-size: 11px; }
+    .import-tools textarea { margin: 9px 0; max-height: 220px; scrollbar-width: none; }
+    .import-status { margin: 9px 0 0; font-size: 11px; color: var(--green); overflow-wrap: anywhere; }
+    .import-status.error { color: var(--red); }
+    .state-format { display: flex; align-items: center; gap: 5px; margin: 0; font-weight: 500; }
+    .state-format input { accent-color: var(--orange); }
+    .option-row textarea { min-height: 90px; max-height: 180px; font: 11px/1.5 var(--mono); scrollbar-width: none; }
+    .option-row textarea::-webkit-scrollbar, .import-tools textarea::-webkit-scrollbar { display: none; }
     .question-body { padding-top: 17px; }
     .question-fields { display: grid; grid-template-columns: minmax(140px, .42fr) minmax(0, 1fr); gap: 12px; margin-bottom: 15px; }
     .options-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0 8px; }
@@ -251,8 +263,25 @@
             <span class="head-meta">STATE → QUESTION</span>
           </div>
           <div class="panel-body">
+            <div class="import-tools">
+              <div class="import-bar">
+                <button id="import-file-button" class="subtle-btn" type="button">导入 JSON 文件</button>
+                <input id="import-file" class="sr-only" type="file" accept=".json,application/json" tabindex="-1" aria-label="选择决策 JSON 文件">
+                <p>支持 input.json 和 request.json，导入后手动发送测试。</p>
+              </div>
+              <details id="import-paste">
+                <summary>粘贴 JSON 导入</summary>
+                <label for="import-json" class="sr-only">待导入的 JSON</label>
+                <textarea id="import-json" class="mono-input" spellcheck="false" placeholder="粘贴包含 state 和 questions 的 JSON，或完整请求体"></textarea>
+                <button id="import-apply" class="subtle-btn" type="button">应用 JSON</button>
+              </details>
+              <p id="import-status" class="import-status" role="status" aria-live="polite"></p>
+            </div>
             <div class="field">
-              <label for="state">State / 提供给模型的上下文</label>
+              <div class="split-label">
+                <label for="state">State / 提供给模型的上下文</label>
+                <label class="state-format"><input id="state-json" type="checkbox">按 JSON 解析</label>
+              </div>
               <textarea id="state" spellcheck="false">你是一个快乐的小公主，你昨天吃了苹果，你今天想吃的是？</textarea>
             </div>
           </div>
@@ -324,6 +353,7 @@
     </div>
   </main>
 
+  <script src="scripts/decision-debugger-input.js"></script>
   <script>
     (() => {
       const CONFIG_KEY = 'odoc-decision-debugger-config-v1';
@@ -347,6 +377,7 @@
       const model = $('#model');
       const apiKey = $('#api-key');
       const state = $('#state');
+      const stateJson = $('#state-json');
       const questionId = $('#question-id');
       const instructions = $('#instructions');
       const optionList = $('#option-list');
@@ -359,6 +390,7 @@
       const responsePreview = $('#response-preview');
       let optionSequence = 0;
       let activeController = null;
+      let importSequence = 0;
 
       const safeStorage = (storage, operation, key, value) => {
         try {
@@ -394,8 +426,9 @@
         key.setAttribute('aria-label', '候选项 key');
         key.value = option.key || '';
 
-        const label = document.createElement('input');
-        label.type = 'text';
+        row.dataset.valueType = option.valueType === 'json' ? 'json' : 'text';
+        const label = document.createElement(option.valueType === 'json' ? 'textarea' : 'input');
+        if (label.tagName === 'INPUT') label.type = 'text';
         label.autocomplete = 'off';
         label.placeholder = '显示名称';
         label.setAttribute('aria-label', '候选项显示名称');
@@ -422,7 +455,8 @@
       function getOptions() {
         return [...optionList.querySelectorAll('.option-row')].map((row) => ({
           key: row.children[0].value.trim(),
-          label: row.children[1].value.trim()
+          label: row.children[1].value,
+          valueType: row.dataset.valueType
         }));
       }
 
@@ -440,6 +474,7 @@
           endpoint: endpoint.value,
           model: model.value,
           state: state.value,
+          stateType: stateJson.checked ? 'json' : 'text',
           questionId: questionId.value,
           instructions: instructions.value,
           options: getOptions()
@@ -451,6 +486,7 @@
         endpoint.value = config.endpoint ?? sample.endpoint;
         model.value = config.model ?? sample.model;
         state.value = config.state ?? sample.state;
+        stateJson.checked = config.stateType === 'json';
         questionId.value = config.questionId ?? sample.questionId;
         instructions.value = config.instructions ?? sample.instructions;
         optionList.replaceChildren();
@@ -458,8 +494,31 @@
           .slice(0, 255).forEach(createOptionRow);
       }
 
+      function showImportStatus(message, error = false) {
+        $('#import-status').className = `import-status${error ? ' error' : ''}`;
+        $('#import-status').textContent = message;
+      }
+
+      function importJson(text, source) {
+        // Validate the whole input before changing any field or saved configuration.
+        const config = DecisionDebuggerInput.parseImport(text);
+        applyConfig({endpoint: endpoint.value, model: model.value, ...config});
+        persistConfig();
+        const decision = DecisionDebuggerInput.buildDecision(config);
+        requestPreview.textContent = JSON.stringify({model: model.value,
+          messages: [{role: 'user', content: JSON.stringify(decision)}]}, null, 2);
+        responsePreview.textContent = '等待手动发送';
+        resultContent.replaceChildren();
+        const message = document.createElement('p');
+        message.textContent = '决策输入已导入，检查后点击“发送决策请求”。';
+        resultContent.append(message);
+        setResultState('已导入，等待请求');
+        showImportStatus(`已导入${source} · ${config.questionId} · ${config.options.length} 个选项。连接地址和密钥保持当前设置。`);
+      }
+
       function setBusy(busy) {
         runButton.disabled = busy;
+        ['#import-file-button', '#import-apply', '#reset'].forEach(selector => { $(selector).disabled = busy; });
         runButton.replaceChildren();
         if (busy) {
           const spinner = document.createElement('i');
@@ -493,18 +552,14 @@
         if (!state.value.trim()) throw new Error('State 不能为空。');
         if (!id) throw new Error('问题 ID 不能为空。');
         if (!instructions.value.trim()) throw new Error('问题说明不能为空。');
-        if (choices.length === 0 || choices.some((item) => !item.key || !item.label)) {
+        if (choices.length === 0 || choices.some((item) => !item.key || !item.label.trim())) {
           throw new Error('请为每个候选选项填写 key 和显示名称。');
         }
         const keys = choices.map((item) => item.key);
         if (new Set(keys).size !== keys.length) throw new Error('候选选项 key 不能重复。');
-        const criteria = Object.fromEntries(choices.map(({ key, label }) => [key, label]));
-        const decision = {
-          state: state.value.trim(),
-          questions: {
-            [id]: { type: 'choice', instructions: instructions.value.trim(), criteria }
-          }
-        };
+        const decision = DecisionDebuggerInput.buildDecision({state: state.value,
+          stateType: stateJson.checked ? 'json' : 'text', questionId: id,
+          instructions: instructions.value, options: choices});
         return {
           endpoint: normalizeEndpoint(endpoint.value),
           payload: {
@@ -541,6 +596,10 @@
 
       function displayChoice(key, options) {
         const option = options.find((item) => item.key === String(key));
+        if (option?.valueType === 'json') {
+          try { const value = JSON.parse(option.label); return value?.name || value?.opportunity || String(key); }
+          catch (_) { return String(key); }
+        }
         return option ? option.label : String(key ?? '未返回');
       }
 
@@ -749,6 +808,28 @@
         optionList.lastElementChild.querySelector('input').focus();
       });
       runButton.addEventListener('click', sendRequest);
+      $('#import-file-button').addEventListener('click', () => $('#import-file').click());
+      $('#import-file').addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        const sequence = ++importSequence;
+        if (!file) return;
+        try {
+          if (file.size > 5 * 1024 * 1024) throw new Error('JSON 文件不能超过 5 MB。');
+          const text = await file.text();
+          if (sequence !== importSequence || runButton.disabled) return;
+          importJson(text, file.name);
+        } catch (error) {
+          if (sequence === importSequence) showImportStatus(error.message, true);
+        } finally {
+          if (sequence === importSequence) event.target.value = '';
+        }
+      });
+      $('#import-apply').addEventListener('click', () => {
+        importSequence += 1;
+        try { importJson($('#import-json').value, '粘贴内容'); }
+        catch (error) { showImportStatus(error.message, true); }
+      });
+      stateJson.addEventListener('change', persistConfig);
       $('#reveal-key').addEventListener('click', (event) => {
         const visible = apiKey.type === 'password';
         apiKey.type = visible ? 'text' : 'password';
@@ -756,6 +837,9 @@
         event.currentTarget.setAttribute('aria-label', visible ? '隐藏 API Key' : '显示 API Key');
       });
       $('#reset').addEventListener('click', () => {
+        importSequence += 1;
+        $('#import-json').value = '';
+        showImportStatus('');
         applyConfig(sample);
         persistConfig();
         resultContent.innerHTML = '<div class="empty-state"><div class="empty-orbit" aria-hidden="true">↗</div><h3>准备好做一次选择</h3><p>填入自己的 API Key，发送请求后这里会展示模型选择、候选优先级和用量。</p></div>';
