@@ -32,6 +32,13 @@ export interface BlacksmithRecipes {
     qualityProbabilities: {quality: string; probability: number}[]; energyCost: number; maxPieces: number;
     actor: {id: string; name: string; level: number; jobId: string; jobName: string;
         energy: string | number; initialized: boolean} | null;
+    goalState: {goals: BlacksmithGoal[]; invalidGoals: {id: string; recipeId: string; templateId: string; reason: string}[];
+        freeSlots: number; readyCount: number; canRegister: boolean};
+}
+export interface BlacksmithGoal {
+    id: string; recipeId: string; templateId: string; bandId: string; bandLabel: string;
+    slot: string; slotName: string; typeName: string; ready: boolean;
+    ingredients: {sku: string; name: string; required: number; available: number; missing: number}[];
 }
 export interface BlacksmithRulePatch {ingredients: {sku: string; quantity: number}[]}
 export interface BlacksmithPiece {
@@ -39,7 +46,7 @@ export interface BlacksmithPiece {
     snapshot: Record<string, unknown>;
     result: {equipmentId: string; item: EquipmentSnapshot; rules: EquipmentWearRules;
         catalogId: string; quantity: number; energyCost: number; ingredientValue: string;
-        value: string; level: number; quality: string};
+        value: string; level: number; quality: string; goalId?: string};
     reason: string; createdAt?: string;
 }
 export interface BlacksmithOperation extends BlacksmithPiece {

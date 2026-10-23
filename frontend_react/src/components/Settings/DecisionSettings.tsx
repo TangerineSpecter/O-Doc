@@ -126,7 +126,7 @@ export function DecisionSettings() {
                                         </div>
                                         <div className="space-y-2 text-xs leading-5 text-slate-600">
                                             <p>连接信息和 API Key 都随 WebDAV 同步；暂时沿用哪一个模型只记在本机，不进入快照。在世界设置 → 决策模型里选择哪些连接加入顺序，并拖动排列。平时用第一位；后面的模型成功后默认沿用 2 小时，也可选 1 小时或 4 小时。觉得第一位不稳定时，把稳定的模型拖到第一位。</p>
-                                            <p>密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。OpenAI Chat + JSON 适配器会把 state/questions 放入 user content，并解析 assistant 返回的 JSON。</p>
+                                            <p>密钥不会通过设置接口回显，但会进入同步快照，请确保远端存储访问受控。原生 System One 请求 /systemone；OpenAI Chat + JSON 请求 /chat/completions，并从 assistant 正文解析 JSON。请按服务实际提供的接口选择。</p>
                                         </div>
                                     </div>
                                 )}
@@ -147,7 +147,7 @@ export function DecisionSettings() {
 
             {loading ? <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin"/>正在读取决策连接…</p> : error ? <div role="alert" className="text-xs text-red-600">{error}<button type="button" onClick={() => void refresh()} className="ml-3 underline">重试</button></div> : <div className="space-y-3">
                 {stickyConnection && failover?.stickyUntil && <p role="status" className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-xs leading-5 text-lime-800">顺序里靠前的模型暂时跳过。当前沿用「{stickyConnection.name}」，{formatStickyUntil(failover.stickyUntil)} 后重新从第一位开始。沿用状态只保存在本机。</p>}
-                {connections.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-xs leading-5 text-slate-500">还没有决策连接。JEV、本地决策模型和其他服务都从右上角「新增模型」添加。选择 JEV 会填入默认服务地址和模型 ID，名称和密钥仍由你填写。</p>}
+                {connections.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-xs leading-5 text-slate-500">还没有决策连接。JEV、本地决策模型和其他服务都从右上角「新增模型」添加。选择原生 System One 会填入 JEV 默认地址和模型 ID，可改为本地服务；名称和密钥仍由你填写。</p>}
                 {connections.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {connections.map(connection => (

@@ -24,7 +24,8 @@ from .life_models import LifeItem
 from .life_schedule import OPEN
 from .life_time import local_time, storage_time
 from .market_plan_candidates import (MAX_QUESTIONS, equipment_rows, listing_rows, listing_quote, listing_star_options,
-                                     money, need_rows, price_options, quantity_options)
+                                     bait_exact_quantities, bait_quantity_ranges, money, need_rows,
+                                     price_options, quantity_options)
 from .market_plan_models import MarketGoal, MarketPlan, plan_id, stable_key
 from .market_shop import shop_payload
 
@@ -84,7 +85,8 @@ def _facts(owner: str, agent, now) -> dict:
 
 def needs_signature(rows: list[dict]) -> str:
     """种子与肥料缺口的指纹；变化时才重新评估，避免每小时重复建目标。"""
-    payload = [[row['kind'], row['sku'], int(row['missing'])] for row in rows]
+    payload = [[row['kind'], row['sku'], int(row['missing'])] for row in rows
+               if row['kind'] in ('seed', 'fertilizer')]
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:32]
 
 
@@ -113,6 +115,8 @@ def _queue_goals(owner: str, agent, plan: MarketPlan, rows: list[dict], room: De
     created, added, lines = 0, Decimal(0), []
     deadline = _end_of_day(now)
     for row in rows:
+        if row['kind'] not in ('seed', 'fertilizer'):
+            continue
         if remaining <= 0:
             break
         missing = int(row['missing']) - covered.get(row['sku'], 0)
@@ -161,7 +165,8 @@ def refresh_queue_needs(owner: str, actor_id: str, now=None) -> int:
     agent = Agent.objects.filter(pk=actor_id, archived_at__isnull=True).first()
     if not agent:
         return 0
-    rows = need_rows(owner, agent, now)
+    rows = [row for row in need_rows(owner, agent, now)
+            if row['kind'] in ('seed', 'fertilizer')]
     signature = needs_signature(rows)
     context = dict(plan.context or {})
     if context.get('needs_signature') == signature:
@@ -287,7 +292,21 @@ def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict
                           'reason': f"种植缺口{row['missing']}{row['unit']}", 'name': row['name']})
 
     for row in [r for r in facts['needs'] if r['kind'] == 'bait'][:1]:
-        count = quantity(row, '决定是否补充鱼饵；按可用预算和背包库存准备，十二份仅为一次出钓参考，不是限购。')
+        remaining = max(Decimal(0), available - committed())
+        ranges, bounds = bait_quantity_ranges(row['owned'], row['unit_price'], remaining)
+        state = _need_state(row, str(remaining))
+        range_key, reason = ask('bait-range:' + row['sku'], state, ranges,
+                                '先选择鱼饵购买数量区间；0表示不买，单种鱼饵成交后最多持有99份。')
+        if range_key in bounds:
+            lower, upper = bounds[range_key]
+            exact = bait_exact_quantities(lower, upper, row['unit_price'], row['missing'])
+            selected, exact_reason = ask('bait-quantity:' + row['sku'] + ':' + range_key,
+                {**state, 'selected_range': ranges[range_key]}, exact,
+                '在已选区间中决定购买的准确份数；12份是出钓参考，不是购买上限。')
+            count = int(selected) if selected in exact else (
+                min(max(row['missing'], lower), upper) if exact_reason == 'exhausted' else 0)
+        else:
+            count = min(row['missing'], max((high for _, high in bounds.values()), default=0)) if reason == 'exhausted' else 0
         if count > 0:
             goals.append({'kind': 'shop', 'sku': row['sku'], 'slot': '', 'quantity': count,
                           'min_stars': 1, 'max_unit_price': str(money(row['unit_price'])),

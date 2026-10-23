@@ -205,9 +205,10 @@ def connection_test(owner: str, connection_id: str = 'jev') -> dict:
     except ValueError as exc:
         raise DecisionUnavailable(str(exc)) from None
     secret = api_key(owner, connection_id)
-    # systemone, including the migrated id jev, keeps the pre-adapter probe.
-    # A decision POST here turned parser exceptions into 「连接测试响应结构无效」.
-    if profile['protocol'] == 'systemone':
+    # The historical JEV connection keeps its model-list probe. Custom
+    # System One services may expose only the decision endpoint, so verify
+    # those with the same typed request used by normal decisions.
+    if profile['protocol'] == 'systemone' and connection_id == 'jev':
         return _models_probe(profile, secret)
     try:
         _send(owner, profile, {'connection_test': 'Check whether the decision service is ready.'},

@@ -9,7 +9,7 @@ import StarLoader from '../common/StarLoader';
 import './residentActivityTransition.css';
 
 export default function ResidentActivityDialog({agent, onClose, onViewComplete}: {agent: AgentRelationNode; onClose: () => void; onViewComplete?: () => void}) {
-    const feed = useDailyFeed(agent.id, 'all', 10);
+    const feed = useDailyFeed(agent.id, 'all', 10, true);
     const scrollRoot = useRef<HTMLDivElement>(null);
     const loadMoreTarget = useRef<HTMLDivElement>(null);
     const {loading, loadingMore, error, result, loadMore} = feed;
@@ -21,9 +21,9 @@ export default function ResidentActivityDialog({agent, onClose, onViewComplete}:
         observer.observe(loadMoreTarget.current);
         return () => observer.disconnect();
     }, [loading, loadingMore, error, result?.hasMore, loadMore]);
-    return <WorldDialog title={`${agent.name}的最近活动`} description="最近发生的小事，按时间从新到旧排列。" size="compact" fixedHeight onClose={onClose}>
+    return <WorldDialog title={`${agent.name}的最近活动`} description="活动结果与已保存的模型选择，按时间从新到旧排列。" size="compact" fixedHeight onClose={onClose}>
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-4 flex shrink-0 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3"><AgentAvatar name={agent.name} avatar={agent.avatar}/><div className="flex-1"><p className="text-sm font-semibold text-slate-800">{agent.name}</p><p className="mt-1 text-xs text-slate-400">最近的创作与生活动态</p></div><button type="button" aria-label="刷新居民活动" title="刷新" disabled={feed.loading || feed.loadingMore} onClick={feed.reload} className="rounded-md border border-slate-200 bg-white p-2 text-slate-400 transition-colors hover:border-orange-200 hover:text-orange-600"><RefreshCw className={`h-4 w-4 ${feed.loading ? 'motion-safe:animate-spin' : ''}`}/></button></div>
+            <div className="mb-4 flex shrink-0 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3"><AgentAvatar name={agent.name} avatar={agent.avatar}/><div className="flex-1"><p className="text-sm font-semibold text-slate-800">{agent.name}</p><p className="mt-1 text-xs text-slate-400">最近的活动结果与选择判断</p></div><button type="button" aria-label="刷新居民活动" title="刷新" disabled={feed.loading || feed.loadingMore} onClick={feed.reload} className="rounded-md border border-slate-200 bg-white p-2 text-slate-400 transition-colors hover:border-orange-200 hover:text-orange-600"><RefreshCw className={`h-4 w-4 ${feed.loading ? 'motion-safe:animate-spin' : ''}`}/></button></div>
             <div ref={scrollRoot} className="relative min-h-0 flex-1 overflow-y-auto px-1 scrollbar-hide" aria-busy={feed.loading || feed.loadingMore}>
                 <div role="status" aria-hidden={!feed.loading} className={`resident-activity-loading flex justify-center py-12 ${feed.loading ? '' : 'resident-activity-loading-finished'}`}><StarLoader variant="pill" message="正在读取最近活动…"/></div>
                 {!feed.loading && <div className="resident-activity-content">

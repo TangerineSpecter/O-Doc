@@ -88,6 +88,10 @@ def _goal_buy(owner: str, actor_id: str, plan: MarketPlan, goal: MarketGoal, now
         unit = Decimal(str(slot['price']))
         available = int(slot['remaining_quantity']) if 'remaining_quantity' in slot else remain
         quantity = min(remain, available)
+        if goal.sku.startswith('bait.'):
+            from .fishing.constants import MAX_BAIT_STOCK
+            from .inventory_stock import stock_quantity
+            quantity = min(quantity, max(0, MAX_BAIT_STOCK - stock_quantity(actor_id, owner, goal.sku)))
         if quantity < 1 or (goal.max_unit_price and unit > goal.max_unit_price):
             return None
         return {'kind': 'buy_shop', 'batch_id': batch.pk, 'slot_id': slot['id'],
@@ -199,7 +203,16 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
             for operation in row.get('operations', []):
                 key = _key(tick.pk, operation)
                 try:
-                    trade(session, agent, key, operation, now)
+                    # A forge goal can be registered after the hourly read-only precheck.
+                    if row['sku'].startswith('combat.material.'):
+                        live = surplus_plan(owner, agent.pk, row['sku'])
+                        if not live or int(operation.get('quantity', 0)) > live['surplus']:
+                            result['skipped'].append({'operation': operation, 'reason': '材料已分配给打造目标'})
+                            continue
+                    if row['sku'].startswith('combat.material.'):
+                        trade(session, agent, key, operation, now, protect_goals=True)
+                    else:
+                        trade(session, agent, key, operation, now)
                     result['done'].append(operation)
                 except Exception as exc:  # noqa: BLE001
                     result['failed'].append({'operation': operation, 'reason': str(exc)[:300]})
@@ -227,7 +240,8 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
             except Exception as exc:  # noqa: BLE001
                 result['failed'].append({'operation': operation, 'reason': str(exc)[:300]})
     finally:
-        close_session(session, '按日计划批量执行完成', now)
+        # 装备意向会逐件请求定价，成交可能晚于本轮预检时间。
+        close_session(session, '按日计划批量执行完成')
     # 部分失败不影响已完成动作；全部失败才把本次预检标记为失败。
     result['ok'] = not result['failed'] or bool(result['done'])
     return result

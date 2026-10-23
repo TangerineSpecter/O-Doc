@@ -21,7 +21,8 @@ from .market_no_buy import clear_equipment, filter_candidates, is_blocked, recor
 from .market_plan_models import (MarketDisposition, MarketDispositionTask, MarketGoal,
                                  MarketNoBuy, MarketPlan, MarketTick)
 from . import market_planning
-from .market_plan_candidates import price_options, quantity_options
+from .market_plan_candidates import (bait_exact_quantities, bait_quantity_ranges,
+                                     price_options, quantity_options)
 from .market_planning import ensure_plan, validate_plan
 from .market_sync import CORE_ASSET_MODELS, fingerprints, normalize_legacy_dates
 from .market_tick import run as run_ticks
@@ -244,6 +245,47 @@ class MarketAutomationTests(TestCase):
         choices, meta = price_options('5.20')
         self.assertEqual(set(meta), {'0', '5.20', '5.72', '6.24'})
         self.assertEqual(choices['0'], '不追，等更合适的')
+
+    def test_bait_two_rounds_cover_partial_last_range_and_budget(self):
+        ranges, bounds = bait_quantity_ranges(15, '1.00', '1000.00')
+        self.assertEqual(len(ranges), 9)
+        self.assertEqual(bounds['80-84'], (80, 84))
+        self.assertNotIn('90-99', ranges)
+        self.assertEqual(list(bait_exact_quantities(*bounds['80-84'], '1.00', 7)),
+                         ['80', '81', '82', '83', '84'])
+        ranges, bounds = bait_quantity_ranges(0, '2.00', '33.00')
+        self.assertEqual(bounds['10-16'], (10, 16))
+        self.assertEqual(len(bait_exact_quantities(*bounds['0-9'], '2.00', 12)), 10)
+
+    def test_daily_plan_bait_uses_two_cached_decisions(self):
+        facts = {**self.plan_facts(), 'available': '1000.00',
+                 'needs': [{'key': 'bait:bait.worm', 'kind': 'bait', 'sku': 'bait.worm',
+                            'name': '蚯蚓', 'missing': 7, 'owned': 15,
+                            'unit_price': Decimal('1.00'), 'unit': '份', 'effect': '可钓：鲫鱼'}],
+                 'listings': [], 'equipment': [], 'shop_skus': {'bait.worm'}}
+        seen = []
+
+        def choose(owner, agent, scene, state, choices, **kwargs):
+            seen.append((kwargs['question_id'], list(choices)))
+            return '80-84' if 'bait-range:' in kwargs['question_id'] else '84'
+
+        with patch.object(market_planning, '_facts', return_value=facts), \
+             patch.object(market_planning, 'choose_scene', side_effect=choose):
+            plan = ensure_plan('admin', self.a.pk, self.now)
+        self.assertEqual(len(seen), 2)
+        self.assertTrue(all(len(choices) <= 10 for _, choices in seen))
+        self.assertEqual(list(plan.goals.values_list('sku', 'quantity')), [('bait.worm', 84)])
+        self.assertEqual(plan.context['answers']['bait-range:bait.worm'], '80-84')
+        self.assertEqual(plan.context['answers']['bait-quantity:bait.worm:80-84'], '84')
+
+    def test_hourly_queue_refresh_does_not_bypass_bait_decision(self):
+        plan = self.plan()
+        bait = {'kind': 'bait', 'sku': 'bait.worm', 'missing': 12,
+                'owned': 0, 'unit_price': Decimal('1.00'), 'unit': '份', 'name': '蚯蚓'}
+        with patch.object(market_planning, 'need_rows', return_value=[bait]), \
+             patch.object(market_planning, 'queue_purchase_room', return_value=Decimal('100')):
+            self.assertEqual(market_planning.refresh_queue_needs('admin', self.a.pk, self.now), 0)
+        self.assertFalse(plan.goals.exists())
 
     def test_need_rows_aggregates_duplicates_and_uses_quotes(self):
         from . import market_plan_candidates as candidates

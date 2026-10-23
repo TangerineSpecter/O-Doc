@@ -11,9 +11,10 @@ from .inventory_stock import stock_quantity
 from .market_models import MarketListing
 from .market_no_buy import filter_candidates
 from .market_shop import shop_payload
+from .fishing.constants import MAX_BAIT_STOCK
 
 MAX_OPTIONS = 10
-MAX_QUESTIONS = 8
+MAX_QUESTIONS = 9
 CRAFTING_SIMULATION_ENERGY = Decimal('1000000')
 GOAL_SLOTS = ('weapon', 'offhand', 'head', 'body', 'hands', 'legs', 'feet',
               'accessory', 'ring_1', 'ring_2')
@@ -47,6 +48,33 @@ def quantity_options(missing: int, unit_price, available, *, unit: str = '份',
         choices[str(quantity)] = _quantity_label(quantity, missing, cost, unit, owned)
         meta[str(quantity)] = {'quantity': quantity, 'cost': str(cost)}
     return choices, meta
+
+
+def bait_quantity_ranges(owned: int, unit_price, available) -> tuple[dict, dict]:
+    """十个以内的十位区间；0 表示不买，末尾区间可不足十份。"""
+    price = money(unit_price)
+    if price <= 0:
+        return {}, {}
+    maximum = min(MAX_BAIT_STOCK - max(0, int(owned)),
+                  int(max(Decimal(0), money(available)) // price))
+    maximum = max(0, maximum)
+    choices, bounds = {}, {}
+    for lower in range(0, maximum + 1, 10):
+        upper = min(lower + 9, maximum)
+        key = f'{lower}-{upper}'
+        label = (f'不买或买1～{upper}份' if upper else '不买') if lower == 0 else f'买{lower}～{upper}份'
+        choices[key] = label
+        bounds[key] = (lower, upper)
+    return choices, bounds
+
+
+def bait_exact_quantities(lower: int, upper: int, unit_price, missing: int) -> dict:
+    """所选区间内逐份列出，最多十个合法整数。"""
+    price = money(unit_price)
+    return {str(count): ('不买' if count == 0 else
+            f'买{count}份（约{(price * count).quantize(Decimal("0.01"))}元）' +
+            ('，补齐参考缺口' if count == missing else ''))
+            for count in range(lower, upper + 1)}
 
 
 def _quantity_label(quantity: int, missing: int, cost: Decimal, unit: str, owned: int) -> str:

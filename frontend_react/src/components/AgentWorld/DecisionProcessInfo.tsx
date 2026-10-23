@@ -7,9 +7,10 @@ import {DecisionProcessSteps} from './DecisionProcessSteps';
 
 export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
     const [open, setOpen] = useState(false);
+    // 同一入口展示完整领域流程，包括市场日规划和小时补饵的独立决策。
     const guide = decisionProcessGuides[kind];
     return <>
-        <button type="button" aria-label={`查看${guide.title}`} title={guide.title}
+        <button type="button" aria-label={`查看${guide.title}`} title={`${guide.title}：${guide.subtitle}`}
             aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40">
             <Info className="h-4 w-4" aria-hidden="true"/>

@@ -76,7 +76,8 @@ def _requirements(owner: str, actor_id: str, exclude_ids=(), exclude_action_id=N
     return reserved, frozen
 
 
-def available_pool(owner: str, actor_id: str, *, exclude_ids=(), exclude_action_id=None) -> list[dict]:
+def available_pool(owner: str, actor_id: str, *, exclude_ids=(), exclude_action_id=None,
+                   protect_goals: bool = False) -> list[dict]:
     """Only the current uncommitted forge piece is reserved, never hypothetical pieces."""
     pool = material_pool(actor_id, owner)
     reserved, frozen = _requirements(owner, actor_id, exclude_ids, exclude_action_id)
@@ -87,4 +88,11 @@ def available_pool(owner: str, actor_id: str, *, exclude_ids=(), exclude_action_
         used = min(row['quantity'], reserved[row['sku']])
         row['quantity'] -= used
         reserved[row['sku']] -= used
+    if protect_goals:
+        from .blacksmith_goals import requirements
+        goals = requirements(owner, actor_id)
+        for row in sorted(pool, key=lambda value: (value['created_at'], value['inventory_id'])):
+            used = min(row['quantity'], goals[row['sku']])
+            row['quantity'] -= used
+            goals[row['sku']] -= used
     return pool

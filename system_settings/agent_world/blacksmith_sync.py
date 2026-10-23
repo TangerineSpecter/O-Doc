@@ -9,12 +9,12 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 
-from .blacksmith_integrity import (ACTION, CATALOG, INTEGRITY, OPERATION,
+from .blacksmith_integrity import (ACTION, CATALOG, INTEGRITY, OPERATION, GOAL,
     database_data, fingerprints, fingerprints_source, owners_for)
 from .blacksmith_rolls import validate_snapshot
 
-SCHEMA_VERSION = 1
-PHASES = {'band', 'slot', 'type', 'commit', 'continue', 'done'}
+SCHEMA_VERSION = 2
+PHASES = {'band', 'slot', 'type', 'commit', 'continue', 'done', 'choose_goal', 'goal_count'}
 _checkpoint_owners = ContextVar('blacksmith_checkpoint_owners', default=None)
 
 
@@ -89,8 +89,8 @@ def changed(sender, instance, **kwargs):
 
 def register_signals() -> None:
     from system_settings.models import WorldAction
-    from .blacksmith_models import BlacksmithCatalog, BlacksmithOperation
-    for model in (BlacksmithCatalog, BlacksmithOperation, WorldAction):
+    from .blacksmith_models import BlacksmithCatalog, BlacksmithOperation, BlacksmithGoal
+    for model in (BlacksmithCatalog, BlacksmithOperation, BlacksmithGoal, WorldAction):
         for signal in (post_save, post_delete):
             signal.connect(changed, sender=model, weak=False, dispatch_uid=f'blacksmith:{model.__name__}:{signal}')
 
@@ -100,6 +100,7 @@ def metadata(data: list[dict] | None = None) -> dict:
     return {'blacksmith_schema_version': SCHEMA_VERSION,
         'blacksmith_owners': sorted(owners_for(data)),
         'blacksmith_operations': sorted(str(row['pk']) for row in data if row['model'] == OPERATION),
+        'blacksmith_goals': sorted(str(row['pk']) for row in data if row['model'] == GOAL),
         'blacksmith_actions': sorted(str(row['pk']) for row in data if row['model'] == ACTION
                                    and row['fields'].get('snapshot', {}).get('blacksmith'))}
 
@@ -150,9 +151,17 @@ def _validate_operation(identity: str, operation: dict, rows: dict) -> None:
         fail('制作事实缺少所属打造活动')
     decisions = {row.get('phase'): row.get('choice') for row in action['snapshot'].get('decisions', [])
                  if isinstance(row, dict) and row.get('piece_index') == index}
-    if (decisions.get('band') != snapshot['rule']['band_id'] or decisions.get('slot') != operation['recipe_id']
-            or decisions.get('type') != snapshot['template_id']
-            or (index and decisions.get('continue') != 'continue')):
+    if action['snapshot'].get('version') == 2:
+        goal_id = result.get('goal_id')
+        goal = rows.get((GOAL, goal_id))
+        if (not goal or goal['status'] != 'completed' or goal['operation_id'] != identity
+                or goal['owner_id'] != operation['owner_id'] or goal['actor_id'] != operation['actor_id']
+                or goal['recipe_id'] != operation['recipe_id']
+                or goal['template_id'] != snapshot['template_id']):
+            fail('目标与已完成装备不一致')
+    elif (decisions.get('band') != snapshot['rule']['band_id'] or decisions.get('slot') != operation['recipe_id']
+          or decisions.get('type') != snapshot['template_id']
+          or (index and decisions.get('continue') != 'continue')):
         fail('已完成装备缺少对应的逐步决策')
     energy = rows.get((ACTION, hashlib.sha256(f'blacksmith-energy:{identity}'.encode()).hexdigest()))
     if (not energy or energy['actor_id'] != operation['actor_id'] or energy['status'] != 'success'
@@ -207,12 +216,100 @@ def _validate_decisions(state: dict) -> None:
         fail('当前装备类型与已确认选择不一致')
 
 
+def _validate_goal_decisions(identity: str, state: dict, parts: list[dict], rows: dict) -> set[str]:
+    scenes = {'goal_count': 'blacksmith_goal_count', 'band': 'blacksmith_level_band',
+              'slot': 'blacksmith_slot', 'type': 'blacksmith_type',
+              'goal_priority': 'blacksmith_goal_priority'}
+    expected, remaining, registered, sequence = None, 0, 0, 0
+    band = recipe = None
+    last_index = 0
+    stopped = False
+    goal_ids = set()
+    priorities = {}
+    if len(state['decisions']) > 20:
+        fail('目标决策次数超出本次上限')
+    for decision in state['decisions']:
+        if (not isinstance(decision, dict) or decision.get('scene') != scenes.get(decision.get('phase'))
+                or type(decision.get('piece_index')) is not int
+                or not last_index <= decision['piece_index'] <= state['cursor']
+                or not isinstance(decision.get('choice'), str) or not decision['choice']
+                or decision.get('source') not in ('model', 'system')
+                or not isinstance(decision.get('reason'), str) or stopped):
+            fail('目标决策阶段、顺序或所属件无效')
+        last_index = decision['piece_index']
+        phase, choice = decision['phase'], decision['choice']
+        if phase == 'goal_priority':
+            if expected or last_index in priorities:
+                fail('材料争用选择顺序无效')
+            priorities[last_index] = choice
+            continue
+        if phase == 'goal_count':
+            if expected or remaining or type(choice) is not str or not choice.isdigit():
+                fail('目标登记数量选择顺序无效')
+            remaining = int(choice)
+            if not 0 <= remaining <= 3 - registered:
+                fail('目标登记数量超出本轮上限')
+            sequence += 1
+            expected = 'band' if remaining else None
+            stopped = remaining == 0
+        elif phase == 'band' and expected == 'band':
+            band = choice
+            expected = 'slot'
+        elif phase == 'slot' and expected == 'slot':
+            if choice.split(':', 1)[0] != band:
+                fail('目标部位不属于已选等级档')
+            recipe = choice
+            expected = 'type'
+        elif phase == 'type' and expected == 'type':
+            goal_id = decision.get('goal_id')
+            expected_id = hashlib.sha256(
+                f'blacksmith-goal:{state["owner_id"]}:{rows[(ACTION, identity)]["actor_id"]}:{identity}:{sequence}:{registered}'.encode()
+            ).hexdigest()
+            goal = rows.get((GOAL, goal_id))
+            if (goal_id != expected_id or not goal or goal_id in goal_ids
+                    or goal['recipe_id'] != recipe or goal['template_id'] != choice
+                    or goal['owner_id'] != state['owner_id']
+                    or goal['actor_id'] != rows[(ACTION, identity)]['actor_id']):
+                fail('目标登记事实与逐步选择不一致')
+            goal_ids.add(goal_id)
+            registered += 1
+            sequence += 1
+            remaining -= 1
+            expected = 'band' if remaining else None
+        else:
+            fail('目标逐步选择顺序无效')
+    if (state['registered_count'] != registered or state['goal_sequence'] != sequence
+            or state['remaining_registrations'] != remaining):
+        fail('目标登记计数与选择事实不一致')
+    phase = state['phase']
+    if (phase in ('band', 'slot', 'type') and (phase != expected or last_index != state['cursor'])):
+        fail('目标选择检查点与决策不一致')
+    # Cancellation and exhausted retries keep the saved choices for audit,
+    # even when registration did not reach a type/goal. Live work must finish it.
+    terminated = phase == 'done' and rows[(ACTION, identity)]['status'] in ('success', 'failed', 'skipped')
+    if phase in ('choose_goal', 'goal_count', 'commit', 'done') and expected and not terminated:
+        fail('目标登记尚未完成却进入打造阶段')
+    if phase == 'commit':
+        current = state['current']
+        goal = rows.get((GOAL, current.get('goal_id')))
+        if (not goal or goal['recipe_id'] != current.get('recipe_id')
+                or goal['template_id'] != current['snapshot']['template_id']
+                or priorities.get(state['cursor'], current['goal_id']) != current['goal_id']):
+            fail('待提交装备与已登记目标不一致')
+    for index, goal_id in priorities.items():
+        chosen = next((row['result'].get('goal_id') for row in parts if row['piece_index'] == index),
+                      state['current'].get('goal_id') if phase == 'commit' and state['cursor'] == index else None)
+        if goal_id != chosen:
+            fail('材料争用选择与实际打造目标不一致')
+    return goal_ids
+
+
 def _validate(data: list[dict], meta: dict | None) -> None:
     from .blacksmith_catalog import DEFAULT_RULES, validate_rule
     rows = {}
     for row in data:
         key = row['model'], str(row['pk'])
-        if key in rows and row['model'] in (ACTION, CATALOG, OPERATION, INTEGRITY):
+        if key in rows and row['model'] in (ACTION, CATALOG, OPERATION, INTEGRITY, GOAL):
             fail('重复业务身份')
         rows[key] = {'id': str(row['pk']), **row['fields']}
     actual = metadata(data)
@@ -223,10 +320,17 @@ def _validate(data: list[dict], meta: dict | None) -> None:
     owners = owners_for(data)
     if owners and version == 0:
         fail('打造数据缺少新版同步版本')
+    if version < 2 and (actual['blacksmith_goals'] or any(
+            row['model'] == ACTION and row['fields'].get('snapshot', {}).get('blacksmith')
+            and row['fields']['snapshot'].get('version') == 2 for row in data)):
+        fail('打造目标需要新版同步协议')
     if actual['blacksmith_operations'] and 'combat_schema_version' in meta and meta['combat_schema_version'] < 12:
         fail('锻造装备需要新版战斗同步协议，请升级所有设备')
     if version:
-        for key in ('blacksmith_owners', 'blacksmith_operations', 'blacksmith_actions'):
+        keys = ('blacksmith_owners', 'blacksmith_operations', 'blacksmith_actions')
+        if version >= 2:
+            keys += ('blacksmith_goals',)
+        for key in keys:
             values = meta.get(key)
             if (not isinstance(values, list) or any(not isinstance(value, str) for value in values)
                     or sorted(values) != actual[key] or len(values) != len(set(values))):
@@ -246,12 +350,13 @@ def _validate(data: list[dict], meta: dict | None) -> None:
         if label == OPERATION:
             _validate_operation(identity, operation, rows)
             grouped[operation['opportunity_id']].append(operation)
+    registered_goals = set()
     for (label, identity), action in rows.items():
         if label != ACTION or not action.get('snapshot', {}).get('blacksmith'):
             continue
         state = action['snapshot']
         parts = sorted(grouped[identity], key=lambda row: row['piece_index'])
-        if (state.get('version') != 1 or state.get('phase') not in PHASES
+        if (state.get('version') not in (1, 2) or state.get('phase') not in PHASES
                 or type(state.get('cursor')) is not int or not 0 <= state['cursor'] <= 3
                 or [row['piece_index'] for row in parts] != list(range(state['cursor']))
                 or not isinstance(state.get('decisions'), list)
@@ -272,26 +377,66 @@ def _validate(data: list[dict], meta: dict | None) -> None:
                 fail('重试时间缺少时区')
         failures = state.get('decision_failures', {})
         if not isinstance(failures, dict) or any(
-                key not in {f'{index}:{phase}' for index in range(3) for phase in ('band', 'slot', 'type', 'continue')}
+                key not in {f'{index}:{phase}' for index in range(3) for phase in
+                            ('band', 'slot', 'type', 'continue', 'goal_count', 'goal_priority')}
                 or type(count) is not int or not 1 <= count <= 3 for key, count in failures.items()):
             fail('决策退避检查点无效')
         if phase == 'commit':
             validate_snapshot(current['snapshot'], current['recipe_id'])
-            if current['snapshot']['rule'] != current['rule']:
+            if state['version'] == 1 and current['snapshot']['rule'] != current['rule']:
                 fail('当前件冻结规则与预留配方不一致')
-        if phase in ('type', 'commit'):
+        if state['version'] == 1 and phase in ('type', 'commit'):
             if (not current.get('rule') or current.get('reservation', {}).get('ingredients') != [
                     {'sku': row['sku'], 'quantity': row['quantity']} for row in current['rule']['ingredients']]):
                 fail('当前件预留与配方不一致')
-        elif current.get('reservation'):
+        elif state['version'] == 1 and current.get('reservation'):
             fail('非制作阶段存在无依据的预留')
+        if state['version'] == 2 and phase == 'commit':
+            if current.get('reservation', {}).get('ingredients') != [
+                    {'sku': row['sku'], 'quantity': row['quantity']}
+                    for row in current['snapshot']['rule']['ingredients']]:
+                fail('目标单件冻结预留与当前配方不一致')
+        elif state['version'] == 2 and current.get('reservation'):
+            fail('目标非制作阶段存在无依据的材料预留')
         if state['cursor'] == 3 and phase != 'done':
             fail('完成三件后仍尝试继续')
-        if phase == 'continue' and not 1 <= state['cursor'] < 3:
+        if state['version'] == 1 and phase == 'continue' and not 1 <= state['cursor'] < 3:
             fail('继续决策缺少前一件成品')
         if action['status'] != 'claimed' and (phase != 'done' or current):
             fail('已结束活动仍持有材料预留')
-        _validate_decisions(state)
+        if state['version'] == 1:
+            _validate_decisions(state)
+        else:
+            if (type(state.get('goal_sequence')) is not int or state['goal_sequence'] < 0
+                    or type(state.get('registered_count')) is not int
+                    or not 0 <= state['registered_count'] <= 3
+                    or type(state.get('remaining_registrations')) is not int
+                    or not 0 <= state['remaining_registrations'] <= 3):
+                fail('打造目标决策检查点无效')
+            if phase == 'commit' and current.get('goal_id') not in {
+                    key for label, key in rows if label == GOAL}:
+                fail('正在打造的目标缺失')
+            registered_goals.update(_validate_goal_decisions(identity, state, parts, rows))
+    active_counts = defaultdict(int)
+    for (label, identity), goal in rows.items():
+        if label != GOAL:
+            continue
+        if (goal['status'] not in ('active', 'completed', 'invalid') or not goal['owner_id']
+                or not goal['actor_id'] or not goal['recipe_id'] or not goal['template_id']):
+            fail('打造目标身份或状态无效')
+        if goal['status'] == 'active':
+            active_counts[(goal['owner_id'], goal['actor_id'])] += 1
+            if goal['operation_id']:
+                fail('待打造目标已有完成操作')
+        elif goal['status'] == 'completed' and (not goal['operation_id'] or
+                (OPERATION, goal['operation_id']) not in rows):
+            fail('已完成目标缺少打造操作')
+        elif goal['status'] == 'invalid' and goal['operation_id']:
+            fail('失效目标已有完成操作')
+    if any(count > 3 for count in active_counts.values()):
+        fail('待打造目标超过三件')
+    if any(label == GOAL and identity not in registered_goals for label, identity in rows):
+        fail('打造目标缺少铁匠铺登记决策')
 
 
 def validate_source(data: list[dict], meta: dict | None = None) -> None:
@@ -322,6 +467,15 @@ def validate_conflicts(local: list[dict], remote: list[dict]) -> None:
         if row['model'] == OPERATION and str(row['pk']) in left:
             if hash_rows([left[str(row['pk'])]], ('created_at',)) != hash_rows([row['fields']], ('created_at',)):
                 fail('同一件装备在两台设备产生不同结果，请选择完整设备快照')
+    local_goals = {str(row['pk']): row['fields'] for row in local if row['model'] == GOAL}
+    for row in remote:
+        if row['model'] != GOAL or str(row['pk']) not in local_goals:
+            continue
+        before, after = local_goals[str(row['pk'])], row['fields']
+        if ((before['recipe_id'], before['template_id']) != (after['recipe_id'], after['template_id'])
+                or (before['status'] == after['status'] == 'completed'
+                    and before['operation_id'] != after['operation_id'])):
+            fail('同一打造目标在两台设备发生冲突')
 
 
 def refresh_merged(data: list[dict], revisions: dict) -> None:

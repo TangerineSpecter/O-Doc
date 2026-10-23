@@ -29,6 +29,8 @@ const decisionSceneLabels = {
     blacksmith_slot: '打造装备部位',
     blacksmith_type: '打造装备类型',
     blacksmith_continue: '打造后继续选择',
+    blacksmith_goal_count: '打造目标登记数量',
+    blacksmith_goal_priority: '打造目标材料争用',
     alchemy_recipe: '炼金配方选择',
     alchemy_quantity: '炼金瓶数选择',
     alchemy_continue: '炼金继续制作',

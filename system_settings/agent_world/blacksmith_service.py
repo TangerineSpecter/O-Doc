@@ -69,7 +69,7 @@ def commit_piece(actor_id: str, opportunity_id: str, index: int, recipe_id: str,
         raise ValueError('系统 MCP 已关闭')
     action = WorldAction.objects.select_for_update().get(pk=opportunity_id, actor_id=actor_id, task=task, status='claimed')
     state = action.snapshot
-    if (not state.get('blacksmith') or state.get('owner_id') != owner or state.get('version') != 1
+    if (not state.get('blacksmith') or state.get('owner_id') != owner or state.get('version') not in (1, 2)
             or state.get('cursor') != index or state.get('phase') != 'commit'
             or (state.get('current') or {}).get('snapshot') != snapshot):
         raise ValueError('打造不属于当前已确认的这一件')
@@ -79,6 +79,14 @@ def commit_piece(actor_id: str, opportunity_id: str, index: int, recipe_id: str,
     profile = CombatProfile.objects.select_for_update().get(pk=actor_id, owner_id=owner)
     if profile.catalog_id != snapshot['catalog_id'] or profile.progression['job'] != snapshot['job']:
         raise ValueError('职业或装备目录发生变化，请结束本次打造后重新选择')
+    if state['version'] == 2:
+        from .blacksmith_catalog import rules_for as current_rules
+        from .blacksmith_models import BlacksmithGoal
+        goal = BlacksmithGoal.objects.select_for_update().filter(
+            pk=state['current'].get('goal_id'), owner_id=owner, actor_id=actor_id, status='active').first()
+        if (not goal or goal.recipe_id != recipe_id or goal.template_id != snapshot['template_id']
+                or current_rules(owner).get(recipe_id) != snapshot['rule']):
+            raise ValueError('打造目标或实时配方已变化，请重新核算材料')
     catalog = current(profile.catalog_id)
     options = {row['template_id']: row for row in template_options(catalog, profile, snapshot['rule'])}
     selected = options.get(snapshot['template_id'])
@@ -103,15 +111,26 @@ def commit_piece(actor_id: str, opportunity_id: str, index: int, recipe_id: str,
     result = {'equipment_id': equipment_id, 'item': item, 'rules': rules, 'catalog_id': catalog.version,
               'quantity': 1, 'energy_cost': 2, 'ingredient_value': str(cost), 'value': item['value'],
               'level': item['level'], 'quality': item['quality']}
+    if state['version'] == 2:
+        result['goal_id'] = state['current']['goal_id']
     operation = BlacksmithOperation.objects.create(pk=key, owner_id=owner, actor_id=actor_id,
         actor_name=agent.name, opportunity_id=opportunity_id, piece_index=index, recipe_id=recipe_id,
         snapshot=copy.deepcopy(snapshot), result=result, reason=reason[:500], created_at=now)
+    if state['version'] == 2:
+        goal.status, goal.operation_id = 'completed', key
+        goal.save(update_fields=['status', 'operation_id', 'updated_at'])
+        from .market_disposition import enqueue
+        for ingredient in snapshot['rule']['ingredients']:
+            enqueue(owner, actor_id, ingredient['sku'], 0, source='blacksmith',
+                    operation=f'goal-completed:{key}:{ingredient["sku"]}')
     WorldAction.objects.create(pk=hashlib.sha256(f'blacksmith-energy:{key}'.encode()).hexdigest(),
         task=task, agent=agent, actor_id=actor_id, status='success', energy_cost=2, consumed_at=now,
         effects_done=True, snapshot={'blacksmith_energy': True, 'owner_id': owner}, result={'operation_id': key})
     append(profile, 'blacksmith:' + key, 'forge', {'operation_id': key, 'equipment_id': equipment_id,
         'recipe_id': recipe_id, 'catalog_id': catalog.version, 'materials': copy.deepcopy(snapshot['materials'])})
-    action.snapshot = {**state, 'cursor': index + 1, 'phase': 'done' if index == 2 else 'continue', 'current': {}}
+    action.snapshot = {**state, 'cursor': index + 1,
+                       'phase': 'done' if index == 2 else ('choose_goal' if state['version'] == 2 else 'continue'),
+                       'current': {}}
     action.save(update_fields=['snapshot', 'updated_at'])
     request_checkpoint(owner)
     return operation

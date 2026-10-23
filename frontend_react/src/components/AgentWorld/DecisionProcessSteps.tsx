@@ -1,6 +1,6 @@
 import type {DecisionProcessGuide} from './decisionProcessTypes';
 
-/** Render the supplied sequence verbatim; never infer links or decisions from step indexes. */
+/** Render the supplied sequence verbatim; never infer links or decisions from step indexes (including hourly replenishment). */
 export function DecisionProcessSteps({guide}: {guide: DecisionProcessGuide}) {
     return <div className="space-y-5">
         <p className="text-sm leading-6 text-slate-600">{guide.introduction}</p>
@@ -31,6 +31,6 @@ export function DecisionProcessSteps({guide}: {guide: DecisionProcessGuide}) {
             {guide.notes.map(note => <div key={note.title}><h4 className="text-xs font-semibold text-slate-700">{note.title}</h4><p className="mt-1 text-xs leading-6 text-slate-600">{note.detail}</p></div>)}
             {guide.upcoming && <p className="border-t border-slate-200 pt-3 text-xs leading-6 text-slate-600">当前限制：{guide.upcoming}</p>}
         </section>
-        <p className="text-xs text-slate-500">流程按代码核对：2026-10-23。一次模型决策单列一步；条件跳过、系统确定和重复执行分别注明。</p>
+        <p className="text-xs text-slate-500">流程按代码核对：2026-10-23。每次模型选择独立列出；系统自动执行、跳过条件与循环上限按对应步骤说明。</p>
     </div>;
 }

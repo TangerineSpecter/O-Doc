@@ -12,6 +12,7 @@ import WorldManagementDialog from '../components/AgentWorld/WorldManagementDialo
 import {AgentResidentsMobileBar, AgentResidentsSidebar} from '../components/AgentWorld/AgentResidentsBar';
 import {useAgentRelation} from '../hooks/useAgentRelation';
 import {useAgentWorld} from '../hooks/useAgentWorld';
+import {useSocialTheatreLatest} from '../hooks/useSocialTheatreLatest';
 import type {WorldCatalogSection} from '../components/AgentWorld/WorldCatalogDialog';
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
@@ -58,6 +59,7 @@ export default function AgentWorldPage() {
     const [travelArchiveId, setTravelArchiveId] = useState('');
     const [momentDetailId, setMomentDetailId] = useState<string | null>(null);
     const [feedRefreshToken, setFeedRefreshToken] = useState(0);
+    const {event: latestTheatreEvent} = useSocialTheatreLatest(feedRefreshToken);
     const closeLife = useCallback(() => setLifeOpen(false), []);
     const [investmentOpen, setInvestmentOpen] = useState(false);
     const [feedViewKey, setFeedViewKey] = useState(0);
@@ -214,7 +216,14 @@ export default function AgentWorldPage() {
 
     return (
         <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-            <AgentWorldBanner stats={statsData} />
+            <AgentWorldBanner
+                stats={statsData}
+                theatreEvent={latestTheatreEvent}
+                onOpenTheatre={(eventId) => {
+                    setSocialTheatreEventId(eventId || '');
+                    setSocialTheatreHistoryOpen(true);
+                }}
+            />
 
             {/* 卡片下方操作栏：生活玩法横向滑条，移动端隐藏左侧标题标签，直接顶格横滑 */}
             <div className="mt-2.5 flex items-center gap-2 sm:mt-3.5">
@@ -285,11 +294,12 @@ export default function AgentWorldPage() {
                     agents={residents}
                     selectedAgentId={world.agentId}
                     onSelectAgent={world.setAgentId}
+                    theatreEvent={latestTheatreEvent}
                     onOpenRelation={() => setPanel('graph')}
                     onOpenAttributes={() => setPanel('attributes')}
                     onOpenAnalytics={() => setAnalyticsActor(world.agentId)}
                     onOpenTheatre={() => {
-                        setSocialTheatreEventId('');
+                        setSocialTheatreEventId(latestTheatreEvent?.id || '');
                         setSocialTheatreHistoryOpen(true);
                     }}
                     onOpenManagement={openAgentManagement}

@@ -142,7 +142,7 @@ class DecisionTests(TestCase):
 
     @patch('system_settings.decision.jev.requests.post')
     @patch('system_settings.decision.jev.requests.get')
-    def test_systemone_connection_test_probes_models_not_a_decision(self, get, post):
+    def test_custom_systemone_connection_test_uses_decision_endpoint(self, get, post):
         created = self.client.post('/api/settings/decision-models/connections/', {
             'name': 'JEV', 'protocol': 'systemone',
             'baseUrl': 'https://api.typesafe.ai/v1', 'modelId': 'jev-latest',
@@ -153,38 +153,43 @@ class DecisionTests(TestCase):
         self.assertTrue(saved['id'].startswith('dc_'))
         self.assertEqual(saved['modelId'], 'jev-latest')
         self.assertEqual(saved['baseUrl'], 'https://api.typesafe.ai/v1')
-        get.return_value = Mock(status_code=200)
-        get.return_value.json.return_value = {'models': [{'name': 'jev-latest', 'description': 'Jev', 'release_date': '2026-09-15'}]}
-        response = self.client.post(f"/api/settings/decision-models/connections/{saved['id']}/test/")
-        self.assertEqual(response.status_code, 200, response.content)
-        post.assert_not_called()
-        self.assertEqual(get.call_args.args[0], 'https://api.typesafe.ai/v1/models')
-        self.assertEqual(get.call_args.kwargs['headers']['Authorization'], 'Bearer safe-secret')
-        self.assertNotIn('safe-secret', str(response.content))
-        self.assertEqual(AgentTokenUsage.objects.count(), 0)
-        get.return_value.json.return_value = {
+        post.return_value = Mock(status_code=200, text='ok')
+        post.return_value.json.return_value = {
             'model': 'jev-latest',
             'answers': {'connection_test': {'type': 'choice', 'choice': 'connected', 'confidence': 1,
-                        'probabilities': {'connected': 1, 'unavailable': 0}}},
+                                            'probabilities': {'connected': 1, 'unavailable': 0}}},
         }
+        response = self.client.post(f"/api/settings/decision-models/connections/{saved['id']}/test/")
+        self.assertEqual(response.status_code, 200, response.content)
+        get.assert_not_called()
+        self.assertEqual(post.call_args.args[0], 'https://api.typesafe.ai/v1/systemone')
+        self.assertEqual(post.call_args.kwargs['headers']['Authorization'], 'Bearer safe-secret')
+        self.assertEqual(post.call_args.kwargs['json']['model'], 'jev-latest')
+        self.assertEqual(post.call_args.kwargs['json']['questions']['connection_test']['type'], 'choice')
+        self.assertNotIn('safe-secret', str(response.content))
+        self.assertEqual(AgentTokenUsage.objects.count(), 0)
+        post.return_value.json.return_value = {'model': 'jev-latest', 'answers': {}}
         rejected = self.client.post(f"/api/settings/decision-models/connections/{saved['id']}/test/")
         self.assertEqual(rejected.status_code, 502)
-        self.assertIn('模型列表响应无效', rejected.json()['msg'])
-        self.assertNotIn('连接测试响应结构无效', rejected.json()['msg'])
+        self.assertIn('决策模型返回了无效候选', rejected.json()['msg'])
 
-    @patch('system_settings.decision.jev.requests.get')
-    def test_systemone_full_endpoint_still_probes_models_list(self, get):
+    @patch('system_settings.decision.jev.requests.post')
+    def test_custom_systemone_full_endpoint_is_not_appended_twice(self, post):
         created = self.client.post('/api/settings/decision-models/connections/', {
             'name': 'JEV full', 'protocol': 'systemone',
             'baseUrl': 'https://api.typesafe.ai/v1/systemone', 'modelId': 'jev-latest',
             'apiKey': 'safe-secret',
         }, format='json')
         connection_id = created.json()['data']['connections'][0]['id']
-        get.return_value = Mock(status_code=200)
-        get.return_value.json.return_value = {'data': [{'id': 'jev-latest'}]}
+        post.return_value = Mock(status_code=200, text='ok')
+        post.return_value.json.return_value = {
+            'model': 'jev-latest',
+            'answers': {'connection_test': {'type': 'choice', 'choice': 'connected', 'confidence': 1,
+                                            'probabilities': {'connected': 1, 'unavailable': 0}}},
+        }
         response = self.client.post(f'/api/settings/decision-models/connections/{connection_id}/test/')
         self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(get.call_args.args[0], 'https://api.typesafe.ai/v1/models')
+        self.assertEqual(post.call_args.args[0], 'https://api.typesafe.ai/v1/systemone')
 
     def test_systemone_url_normalization(self):
         from .adapters.systemone import SystemOneAdapter

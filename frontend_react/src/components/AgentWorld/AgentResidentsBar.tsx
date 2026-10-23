@@ -1,12 +1,16 @@
-import { BarChart3, Bot, MessagesSquare, Network, Settings, Sparkles, UserRound, Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { BarChart3, Bot, MessagesSquare, MoreHorizontal, Network, Settings, Sparkles, UserRound, Users } from 'lucide-react';
 import type { AgentWorldAgentStatus } from '../../types/api/setting';
+import type { SocialTheatreEvent } from '../../types/api/social';
 import useHorizontalWheelScroll from '../../hooks/useHorizontalWheelScroll';
 import AgentAvatar from './AgentAvatar';
+import SocialTheatreBannerTicker from './SocialTheatreBannerTicker';
 
 interface AgentResidentsProps {
     agents: AgentWorldAgentStatus[];
     selectedAgentId: string;
     onSelectAgent: (agentId: string) => void;
+    theatreEvent?: SocialTheatreEvent | null;
     onOpenRelation?: () => void;
     onOpenAttributes?: () => void;
     onOpenAnalytics?: () => void;
@@ -105,6 +109,7 @@ export function AgentResidentsMobileBar({
     agents,
     selectedAgentId,
     onSelectAgent,
+    theatreEvent,
     onOpenRelation,
     onOpenAttributes,
     onOpenAnalytics,
@@ -114,12 +119,29 @@ export function AgentResidentsMobileBar({
     const totalActivities = agents.reduce((sum, agent) => sum + (agent.todayCount || 0), 0);
     const activeAgentsCount = agents.filter(a => a.status === 'running').length;
     const scrollRef = useHorizontalWheelScroll<HTMLDivElement>();
+    const [moreOpen, setMoreOpen] = useState(false);
+    const moreMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!moreOpen) return;
+        const handleDown = (e: MouseEvent | TouchEvent) => {
+            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+                setMoreOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleDown);
+        document.addEventListener('touchstart', handleDown);
+        return () => {
+            document.removeEventListener('mousedown', handleDown);
+            document.removeEventListener('touchstart', handleDown);
+        };
+    }, [moreOpen]);
 
     return (
         <section aria-label="居民状态" className="mb-3 rounded-2xl border border-orange-100/90 bg-white/95 p-3 shadow-xs">
-            {/* 顶栏微标题与右上角快捷功能按钮 */}
+            {/* 顶栏微标题 + 中间小剧场即时动态条 + 右侧「...」更多操作 */}
             <div className="mb-2 flex items-center justify-between gap-1.5 px-0.5">
-                <div className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-slate-800">
+                <div className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-slate-800">
                     <Users className="h-3.5 w-3.5 shrink-0 text-orange-500" />
                     <span className="shrink-0">居民状态</span>
                     <span className="text-[11px] font-normal text-slate-400">({agents.length})</span>
@@ -131,62 +153,95 @@ export function AgentResidentsMobileBar({
                     )}
                 </div>
 
-                {/* 右上角快捷操作工具组 */}
-                <div className="flex shrink-0 items-center gap-1 overflow-x-auto scrollbar-hide py-0.5">
-                    {onOpenRelation && (
-                        <button
-                            type="button"
-                            onClick={onOpenRelation}
-                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
-                            title="关系图谱"
-                        >
-                            <Network className="h-3 w-3 shrink-0 text-slate-500" />
-                            <span>图谱</span>
-                        </button>
-                    )}
-                    {onOpenAttributes && (
-                        <button
-                            type="button"
-                            onClick={onOpenAttributes}
-                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
-                            title="属性"
-                        >
-                            <UserRound className="h-3 w-3 shrink-0 text-slate-500" />
-                            <span>属性</span>
-                        </button>
-                    )}
-                    {onOpenAnalytics && (
-                        <button
-                            type="button"
-                            onClick={onOpenAnalytics}
-                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-orange-200/80 bg-orange-50/80 px-1.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100 active:scale-95"
-                            title="居民数据分析"
-                        >
-                            <BarChart3 className="h-3 w-3 shrink-0 text-orange-600" />
-                            <span>分析</span>
-                        </button>
-                    )}
-                    {onOpenTheatre && (
-                        <button
-                            type="button"
-                            onClick={onOpenTheatre}
-                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
-                            title="小剧场记录"
-                        >
-                            <MessagesSquare className="h-3 w-3 shrink-0 text-slate-500" />
-                            <span>剧场</span>
-                        </button>
-                    )}
-                    {onOpenManagement && (
-                        <button
-                            type="button"
-                            onClick={onOpenManagement}
-                            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
-                            title="Agent 管理"
-                        >
-                            <Settings className="h-3 w-3 shrink-0 text-slate-500" />
-                            <span>管理</span>
-                        </button>
+                {/* 中间：小剧场即时单行条 (把原本留白的大片空间完全用上！) */}
+                {theatreEvent && onOpenTheatre ? (
+                    <div className="min-w-0 flex-1 flex items-center justify-start overflow-hidden mx-1">
+                        <SocialTheatreBannerTicker
+                            event={theatreEvent}
+                            onOpenTheatre={onOpenTheatre}
+                            compact={true}
+                        />
+                    </div>
+                ) : (
+                    <div className="min-w-0 flex-1" />
+                )}
+
+                {/* 右上角：更多功能「...」下拉菜单 */}
+                <div className="relative flex shrink-0 items-center py-0.5">
+                    {(onOpenRelation || onOpenAttributes || onOpenAnalytics || onOpenManagement) && (
+                        <div ref={moreMenuRef} className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setMoreOpen(prev => !prev)}
+                                className={`inline-flex shrink-0 items-center justify-center rounded-lg border px-1.5 py-1 text-[11px] font-medium transition-colors active:scale-95 ${
+                                    moreOpen
+                                        ? 'border-orange-300 bg-orange-50 text-orange-700'
+                                        : 'border-slate-200/80 bg-slate-50/70 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                }`}
+                                title="更多功能"
+                                aria-label="更多功能"
+                                aria-expanded={moreOpen}
+                            >
+                                <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
+                            </button>
+
+                            {moreOpen && (
+                                <div className="absolute right-0 top-full mt-1.5 z-40 w-32 rounded-xl border border-slate-200 bg-white p-1 shadow-lg animate-in fade-in zoom-in-95 duration-100">
+                                    {onOpenRelation && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMoreOpen(false);
+                                                onOpenRelation();
+                                            }}
+                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-700"
+                                        >
+                                            <Network className="h-3.5 w-3.5 text-slate-500" />
+                                            <span>关系图谱</span>
+                                        </button>
+                                    )}
+                                    {onOpenAttributes && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMoreOpen(false);
+                                                onOpenAttributes();
+                                            }}
+                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-700"
+                                        >
+                                            <UserRound className="h-3.5 w-3.5 text-slate-500" />
+                                            <span>居民属性</span>
+                                        </button>
+                                    )}
+                                    {onOpenAnalytics && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMoreOpen(false);
+                                                onOpenAnalytics();
+                                            }}
+                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-700"
+                                        >
+                                            <BarChart3 className="h-3.5 w-3.5 text-orange-600" />
+                                            <span>数据分析</span>
+                                        </button>
+                                    )}
+                                    {onOpenManagement && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMoreOpen(false);
+                                                onOpenManagement();
+                                            }}
+                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-700"
+                                        >
+                                            <Settings className="h-3.5 w-3.5 text-slate-500" />
+                                            <span>Agent 管理</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

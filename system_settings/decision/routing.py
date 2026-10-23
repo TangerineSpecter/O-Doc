@@ -22,6 +22,7 @@ SCENES = {'fishing_spot': '钓鱼地点选择', 'fishing_duration': '钓鱼时�
           'alchemy_continue': '炼金继续制作',
           'blacksmith_level_band': '打造等级档选择', 'blacksmith_slot': '打造部位选择',
           'blacksmith_type': '打造类型选择', 'blacksmith_continue': '打造继续判断',
+          'blacksmith_goal_count': '打造目标登记数量', 'blacksmith_goal_priority': '打造材料争用选择',
           'social_action': '社交行为选择', 'bounty_accept': '悬赏接单选择',
           'travel_destination': '旅行目的地', 'travel_visit': '旅行游览', 'travel_event': '旅行遭遇',
           'combat_preparation': '迷宫探索准备', 'combat_listing_price': '探索装备挂牌定价'}

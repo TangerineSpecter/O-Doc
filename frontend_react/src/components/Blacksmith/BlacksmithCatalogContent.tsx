@@ -7,6 +7,7 @@ import {BlacksmithRecipeCard} from './BlacksmithRecipeCard';
 import {BlacksmithRecipeDetails} from './BlacksmithRecipeDetails';
 import {BlacksmithRuleEditor} from './BlacksmithRuleEditor';
 import {BlacksmithHistory} from './BlacksmithHistory';
+import {BlacksmithGoals} from './BlacksmithGoals';
 import {filterBlacksmithRecipes} from './blacksmithPresentation';
 import type {BlacksmithRecipe} from '../../types/api/blacksmith';
 
@@ -51,6 +52,7 @@ export function BlacksmithCatalogContent({residents, initialAgentId = '', active
                     <button type="button" aria-label="刷新铁匠铺" onClick={state.reload} className="rounded-xl p-2 text-slate-500 hover:bg-white hover:text-orange-700"><RefreshCw className="h-4 w-4"/></button>
                 </div>
             </div>
+            <BlacksmithGoals goalState={state.data?.goalState}/>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <div className="inline-flex gap-1 rounded-full border border-slate-200/60 bg-slate-100 p-1" aria-label="铁匠铺视图">
                     {([{id: 'recipes', label: '打造配方', icon: BookOpen}, {id: 'history', label: '打造记录', icon: History}] as const).map(tab => <button key={tab.id} type="button" aria-pressed={view === tab.id} onClick={() => setView(tab.id)}

@@ -94,6 +94,15 @@ def _state(owner: str, actor_id: str, sku: str) -> dict:
                                             item__source__sku=sku)
     prices = [str(row.unit_price) for row in listings[:20]]
     disposition = MarketDisposition.objects.filter(owner_id=owner, actor_id=actor_id, sku=sku).first()
+    forge_goals = []
+    if sku.startswith('combat.material.'):
+        from .blacksmith_goals import summary as forge_summary
+        for goal in forge_summary(owner, actor_id)['goals']:
+            ingredient = next((row for row in goal['ingredients'] if row['sku'] == sku), None)
+            if ingredient:
+                forge_goals.append({'goal_id': goal['id'], 'equipment': goal['type_name'],
+                                    'required': ingredient['required'], 'available': ingredient['available'],
+                                    'missing': ingredient['missing']})
     return {
         'sku': sku, 'name': entry['name'] if entry else sku,
         'total': total, 'reserved': reserved, 'available': max(0, total - reserved),
@@ -105,6 +114,7 @@ def _state(owner: str, actor_id: str, sku: str) -> dict:
                             'sell_ratio': disposition.sell_ratio,
                             'list_ratio': disposition.list_ratio,
                             'star_order': disposition.star_order} if disposition else None),
+        'forge_goals': forge_goals,
     }
 
 
@@ -146,6 +156,13 @@ def _decide_task(owner: str, agent, task: MarketDispositionTask, budget: Budget)
         return
 
     available = state['available']
+    if available == 0 and state['forge_goals']:
+        # Protected stock has no disposable portion yet. Do not create a
+        # lasting zero-surplus policy; completion/invalidity will queue it again.
+        task.status = 'done'
+        task.error = ''
+        task.save(update_fields=['status', 'error', 'updated_at'])
+        return
     if available <= MIN_ASK_QUANTITY - 1:
         _save_policy(owner, task.actor_id, task.sku, target_hold=available, sell_ratio=0,
                      list_ratio=0, star_order='low', list_price_ratio='1.20',

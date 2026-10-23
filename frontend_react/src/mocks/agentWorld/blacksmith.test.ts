@@ -24,6 +24,11 @@ test('完整图鉴包含70条配方；默认展示不足材料，模型可做筛
     assert.ok(ready.length > 0);
     assert.ok(ready.every(row => row.state === 'ready' && row.maxPieces <= 3));
     assert.equal(data.qualityProbabilities.reduce((sum, row) => sum + row.probability, 0), 1);
+    assert.equal(data.goalState.goals.length, 2);
+    assert.equal(data.goalState.freeSlots, 1);
+    assert.equal(data.goalState.readyCount, 1);
+    assert.ok(data.goalState.goals.some(goal => goal.ingredients.some(row => row.missing > 0)));
+    assert.deepEqual(data.goalState.invalidGoals, []);
 });
 
 test('高于居民等级的职业后续装备保留，首领模板不会成为类型候选', () => {
@@ -101,6 +106,8 @@ test('本地列表、详情、空数据与分页历史契约完整，未知路�
     assert.ok(history.list.every(row => row.stages.length && row.operations.length));
     const empty = await resolveBlacksmithRoute(request('recipes/'), true) as BlacksmithRecipes;
     assert.deepEqual(empty.recipes, []);
+    assert.deepEqual(empty.goalState.goals, []);
+    assert.equal(empty.goalState.freeSlots, 3);
     const later = await resolveBlacksmithRoute(request(`agents/${actorId}/history/?page=2`), false) as BlacksmithHistory;
     assert.deepEqual(later.list, []);
     assert.equal(await resolveBlacksmithRoute(request('unknown/'), false), undefined);
@@ -116,7 +123,7 @@ test('编辑拒绝过低成本与非法材料，合法编辑不改历史配方�
     assert.equal(JSON.stringify(blacksmithActivities), beforeHistory);
 });
 
-test('本地立即执行真实更新体力、材料和历史，最多三件且每件独立选择', () => {
+test('本地立即执行已就绪目标并释放目标位', () => {
     const before = blacksmithOverview(actorId);
     const count = blacksmithActivities.length;
     const activity = runMockBlacksmith(actorId)!;
@@ -127,7 +134,9 @@ test('本地立即执行真实更新体力、材料和历史，最多三件且�
     const recipe = after.recipes.find(row => row.id === activity.operations[0].recipeId)!;
     const prior = before.recipes.find(row => row.id === recipe.id)!;
     assert.ok(recipe.ingredients.every((row, index) => row.available < prior.ingredients[index].available));
-    assert.ok(activity.stages.filter(stage => stage.scene === 'blacksmith_continue').length >= 1);
+    assert.equal(activity.stages[0].scene, 'blacksmith_auto_forge');
+    assert.equal(after.goalState.goals.length, before.goalState.goals.length - 1);
+    assert.equal(after.goalState.freeSlots, before.goalState.freeSlots + 1);
 });
 
 test('纯local全局仍为未匹配API保留501和拒绝访问真实后端', () => {

@@ -158,3 +158,45 @@ class ResidentDailyFeedTests(TestCase):
         buyer = self.client.get('/api/settings/agent-world/daily-feed/', {'actor_id': self.other.pk}).data['data']
         self.assertEqual(len(buyer['items']), 1)
         self.assertTrue(buyer['items'][0]['occurredAt'].startswith((self.today - timedelta(days=4)).date().isoformat()))
+
+    def test_batch_market_leave_follows_sales_and_all_purchase_sources(self):
+        from .market_plan_models import MarketTick
+
+        started = storage_time(self.today - timedelta(days=2))
+        session = MarketSession.objects.create(
+            id='batch:feed-order', owner_id=self.owner, actor_id=self.actor.pk,
+            actor_name=self.actor.name, mode='batch', status='closed',
+            created_at=started, ended_at=started, expires_at=started + timedelta(minutes=5),
+        )
+        operations = [
+            ({'kind': 'sell', 'item_id': 'crop', 'quantity': 1}, '出售作物'),
+            ({'kind': 'list_combat_equipment', 'equipment_id': 'gear', 'unit_price': '2.50'}, '新手护甲'),
+            ({'kind': 'buy_listing', 'listing_id': 'listing', 'version': 1, 'quantity': 1}, '居民挂牌'),
+            ({'kind': 'buy_shop', 'slot_id': 'seed.carrot', 'quantity': 1}, '商店商品'),
+            ({'kind': 'buy_shop', 'slot_id': 'bait.worm', 'quantity': 2}, '蚯蚓鱼饵'),
+            ({'kind': 'buy_shop', 'slot_id': 'fertilizer.yield', 'quantity': 3}, '增产肥'),
+        ]
+        for index, (operation, name) in enumerate(operations):
+            MarketTransaction.objects.create(
+                id=f'batch-trade-{index}', owner_id=self.owner, session=session,
+                actor_id=self.actor.pk, actor_name=self.actor.name,
+                operation=operation, result={'name': name, 'quantity': operation.get('quantity', 1)},
+                created_at=started + timedelta(seconds=index + 1),
+            )
+        MarketTick.objects.create(
+            id='feed-order', owner_id=self.owner, actor_id=self.actor.pk,
+            hour=started, scheduled_at=started, session_id=session.pk,
+            hits={'outcome': {'done': [operation for operation, _ in operations]}},
+        )
+
+        response = self.client.get('/api/settings/agent-world/daily-feed/', {
+            'actor_id': self.actor.pk, 'date': local_time(started).date().isoformat(),
+        })
+        self.assertEqual(response.status_code, 200)
+        item = next(row for row in response.data['data']['items'] if row['category'] == 'market')
+        self.assertEqual([step['title'] for step in item['steps']], [
+            '进入市场', '商店回收', '装备上架', '购买居民商品',
+            '商店购买', '商店购买', '商店购买', '离开市场',
+        ])
+        self.assertEqual([step['detail'].split(' × ')[0] for step in item['steps'][3:7]],
+                         ['居民挂牌', '商店商品', '蚯蚓鱼饵', '增产肥'])

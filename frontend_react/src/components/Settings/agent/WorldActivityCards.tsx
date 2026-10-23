@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {Fish} from 'lucide-react';
 import {getFishingConfig, saveFishingConfig} from '../../../api/fishing';
 import {getLotteryConfig, saveLotteryConfig} from '../../../api/lottery';
 import {getSocialConfiguration, saveSocialConfiguration} from '../../../api/social';
@@ -12,7 +13,7 @@ const writeLottery = (value: LotteryConfig) => saveLotteryConfig(value.enabled);
 
 export function FishingActivityCard() {
     const state = useActivityConfiguration(getFishingConfig, writeFishing);
-    return <ActivityConfigCard title="居民钓鱼" guides={['fishing']} description="在空档选择钓点、鱼饵和时长，逐竿复核体力；关闭后，进行中的钓鱼会结束并退还剩余鱼饵。"
+    return <ActivityConfigCard title="居民钓鱼" guides={['fishing']} icon={<span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 text-teal-600"><Fish className="h-3.5 w-3.5"/></span>} description="在空档选择钓点、鱼饵和时长，逐竿复核体力；关闭后，进行中的钓鱼会结束并退还剩余鱼饵。"
         enabled={state.value?.enabled ?? null} busy={state.saving} loading={state.loading} error={state.error}
         onRetry={state.reload} onToggle={() => {if (state.value) void state.save({...state.value, enabled: !state.value.enabled});}}/>;
 }

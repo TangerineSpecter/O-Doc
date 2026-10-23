@@ -329,13 +329,15 @@ class FishingTests(TestCase):
             with self.assertRaises(DecisionUnavailable):prepare_step(trip.pk)
         trip.refresh_from_db();self.assertEqual(trip.state['plan'],{'baits':[]})
 
-    def test_no_quantity_limit_and_stable_hourly_quote(self):
-        self.buy('worm',200,1)
-        self.assertEqual(stock_quantity(self.agent.pk,'admin','bait.worm'),212)
+    def test_bait_purchase_caps_owned_stock_and_keeps_stable_hourly_quote(self):
+        self.buy('worm',87,1)
+        self.assertEqual(stock_quantity(self.agent.pk,'admin','bait.worm'),99)
+        with self.assertRaisesRegex(ValueError, '最多持有99份'):
+            self.buy('worm',1,2)
         one=current_batch('admin');two=current_batch('admin')
         self.assertEqual(one.supplies,two.supplies)
         self.assertEqual(sum(q['kind']=='bait' for q in one.supplies),1)
-        self.agent.refresh_from_db();self.assertEqual(self.agent.money,788)
+        self.agent.refresh_from_db();self.assertEqual(self.agent.money,901)
         checkpoint_all()
 
     def test_full_snapshot_restore_revokes_authority_and_preserves_stock(self):
@@ -533,7 +535,7 @@ class FishingTests(TestCase):
         goal=MarketGoal.objects.create(pk='bait-goal',owner_id='admin',actor_id=self.agent.pk,plan=plan,
             kind='shop',sku='bait.worm',quantity=150,max_unit_price=1)
         operation=_goal_buy('admin',self.agent.pk,plan,goal,NOW,agent=self.agent)
-        self.assertEqual(operation['quantity'],150)
+        self.assertEqual(operation['quantity'],87)
         self.assertEqual(operation['slot_id'],'bait.worm')
 
     def test_fish_trade_between_residents_keeps_both_balances(self):

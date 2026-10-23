@@ -41,3 +41,22 @@ class BlacksmithIntegrity(models.Model):
 
     class Meta:
         app_label = 'system_settings'
+
+
+class BlacksmithGoal(models.Model):
+    """One intended piece; its recipe and material progress are read live."""
+
+    id = models.CharField(primary_key=True, max_length=64)
+    owner_id = models.CharField(max_length=40, db_index=True)
+    actor_id = models.CharField(max_length=40, db_index=True)
+    recipe_id = models.CharField(max_length=40)
+    template_id = models.CharField(max_length=80)
+    status = models.CharField(max_length=16, default='active')  # active / completed / invalid
+    operation_id = models.CharField(max_length=140, blank=True, default='')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = 'system_settings'
+        ordering = ['created_at', 'id']
+        indexes = [models.Index(fields=['owner_id', 'actor_id', 'status'], name='blacksmith_goal_actor')]

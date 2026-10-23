@@ -1,4 +1,4 @@
-"""每小时预检与按需进场：先只读判断，命中才进入市场会话。"""
+"""每小时预检与按需进场：先检查需求与报价，命中才进入市场会话。"""
 import hashlib
 import logging
 import time
@@ -195,6 +195,12 @@ def run(now=None, limit: int = 3) -> dict:
                 refresh_queue_needs(tick.owner_id, tick.actor_id, now)
             except Exception:  # noqa: BLE001 - 补目标失败不应跳过本小时其他动作
                 logger.exception('农场队列缺口刷新失败 actor=%s', tick.actor_id)
+            plan.refresh_from_db()
+            from .market_bait_refresh import refresh_bait_needs
+            try:
+                refresh_bait_needs(tick.owner_id, agent, plan, now)
+            except Exception:  # noqa: BLE001 - 鱼饵决策故障不能阻断其他买卖
+                logger.exception('小时鱼饵补购失败 actor=%s', tick.actor_id)
             plan.refresh_from_db()
             actions = build_actions(tick.owner_id, tick.actor_id, plan, now, agent=agent)
             actions['goals'].extend(_equipment_actions(tick.owner_id, agent, plan, now))

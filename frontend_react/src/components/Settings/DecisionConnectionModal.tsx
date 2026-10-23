@@ -13,8 +13,8 @@ interface DecisionConnectionModalProps {
 }
 
 const protocolOptions = [
-    {value: 'systemone' as const, label: 'JEV / TypeSafe System One', description: '发送 state/questions，接收 answers'},
-    {value: 'openai_chat_json' as const, label: 'OpenAI Chat + JSON 决策', description: '将 state/questions JSON 放入 user content，解析 assistant JSON'},
+    {value: 'systemone' as const, label: '原生 System One（含 JEV）', description: '请求 /systemone，发送 state/questions，接收 answers'},
+    {value: 'openai_chat_json' as const, label: 'OpenAI Chat + JSON 决策', description: '请求 /chat/completions，将 state/questions 放入 user content'},
 ];
 
 export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: DecisionConnectionModalProps) {
@@ -72,7 +72,7 @@ export function DecisionConnectionModal({isOpen, initialData, onClose, onSave}: 
                 <header className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4">
                     <div className="min-w-0 flex-1">
                         <h3 id="decision-connection-title" className="font-bold text-slate-900">{initialData ? '编辑' : '新增'}</h3>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">选择模型实际提供的协议。选中 JEV / TypeSafe System One 时，服务地址和模型 ID 会填入 JEV 默认值，仍可修改。名称和 API Key 保持空白。</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">按实际接口选择协议：原生服务用 System One，NewAPI 转发用 OpenAI Chat。选中 System One 时会填入 JEV 默认地址和模型 ID，可改为本地服务；名称和 API Key 不预填。</p>
                     </div>
                     <button type="button" aria-label="关闭" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4"/></button>
                 </header>

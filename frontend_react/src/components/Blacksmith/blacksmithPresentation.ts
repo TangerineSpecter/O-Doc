@@ -5,6 +5,8 @@ export const blacksmithStateLabels = {unselected: '请选择居民', unavailable
 export const blacksmithSceneLabels: Record<string, string> = {
     blacksmith_level_band: '选择等级范围', blacksmith_slot: '选择装备部位',
     blacksmith_type: '选择装备类型', blacksmith_continue: '决定继续或结束',
+    blacksmith_goal_count: '决定登记目标数量', blacksmith_goal_priority: '材料争用时选择目标',
+    blacksmith_auto_forge: '按目标自动打造',
 };
 export const blacksmithStatus = (activity: BlacksmithActivity) => activity.operations.length > 0 && activity.status === 'failed'
     ? '已完成部分打造' : ({success: '已完成', claimed: '执行中', failed: '未完成', skipped: '已结束'}[activity.status] || activity.status);

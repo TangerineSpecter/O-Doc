@@ -68,7 +68,7 @@ def commit_bottle(actor_id: str, opportunity_id: str, index: int, recipe_id: str
     from .life_scope import CURRENT
     scope = CURRENT.get()
     free = {row['inventory_id']: row for row in available_pool(
-        owner, actor_id, exclude_ids=[scope['item_id']] if scope else [])}
+        owner, actor_id, exclude_ids=[scope['item_id']] if scope else [], protect_goals=False)}
     if any(free.get(row['inventory_id'], {}).get('quantity', 0) < row['quantity']
            for row in snapshot['materials']):
         raise ValueError('炼金材料已被其他日程预留')

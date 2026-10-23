@@ -33,6 +33,20 @@ export const feed: DailyFeedEvent[] = Array.from({length: 48}, (_, i) => {
     target: {kind: i >= 12 && n === 5 ? 'alchemy' : targets[n], id: targets[n] === 'travel' ? 'local-travel' : targets[n] === 'exploration' ? 'local-exploration' : targets[n] === 'fishing' ? 'local-fishing' : 'local-moment-0',
             ...(n === 0 ? {collId: 'local-world', articleId: 'local-post-0'} : {}), ...(n === 1 ? {artifactId: 'local-moment-0'} : {})}};
 });
+export const residentDecisions: DailyFeedEvent[] = residents.flatMap((resident, index) => [
+    {id: `local-decision-plan-${index}`, actorId: resident.id, actorName: resident.name,
+        category: 'decision', source: 'life-decision', occurredAt: new Date(now.getTime() - (index * 18 + 6) * 60000).toISOString(),
+        title: '选择了迷宫探索', detail: '想先去熟悉的区域积累经验，再准备下一次长途探索。',
+        decisionBasis: 'model_reason', decisionSlot: at(11), status: 'success', amount: null, target: {kind: 'life', id: `local-life-${index}-3`}},
+    {id: `local-decision-promotion-${index}`, actorId: resident.id, actorName: resident.name,
+        category: 'decision', source: 'combat-promotion', occurredAt: new Date(now.getTime() - (index * 18 + 35) * 60000).toISOString(),
+        title: `Lv.10 转职为${['战士', '游侠', '法师', '牧师'][index]}`, detail: '这个职业的技能与当前装备更契合，也能补足队伍的战斗短板。',
+        decisionBasis: 'model_reason', status: 'success', amount: null, target: {kind: 'exploration', id: 'local-exploration'}},
+    {id: `local-decision-choice-only-${index}`, actorId: resident.id, actorName: resident.name,
+        category: 'decision', source: 'life-decision', occurredAt: new Date(now.getTime() - (index * 18 + 90) * 60000).toISOString(),
+        title: '选择了农场经营', detail: '', decisionBasis: 'choice_only', decisionSlot: at(14),
+        status: 'success', amount: null, target: {kind: 'life', id: `local-life-${index}-0`}},
+]);
 export const activities: AgentActivity[] = feed.slice(0, 8).map((f, i) => ({id: f.id, type: i % 2 ? 'interaction' : 'publication', status: 'success',
     agent: {id: f.actorId, name: f.actorName, avatar: ''}, title: f.title, summary: f.detail, occurredAt: f.occurredAt, runRecordId: 'local-run'}));
 export const fishingGrowth = {level: 15, experience: 3740, progress: 65, needed: 450};

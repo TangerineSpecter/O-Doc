@@ -50,7 +50,7 @@ export function DecisionConnectionCard({
                                 ? 'border-blue-100 bg-blue-50 text-blue-600'
                                 : 'border-indigo-100 bg-indigo-50 text-indigo-600'
                         }`}>
-                            {connection.protocol === 'systemone' ? 'JEV' : 'JSON 决策'}
+                            {connection.protocol === 'systemone' ? (connection.id === 'jev' ? 'JEV' : 'System One') : 'JSON 决策'}
                         </span>
                         {connection.builtIn && (
                             <span className="shrink-0 whitespace-nowrap rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium leading-none text-slate-500">
@@ -79,6 +79,11 @@ export function DecisionConnectionCard({
                             </span>
                         )}
                     </div>
+                    {result && !isSuccess && (
+                        <p role="alert" className="mt-2 break-words text-xs leading-5 text-rose-700">
+                            {result.message}
+                        </p>
+                    )}
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">

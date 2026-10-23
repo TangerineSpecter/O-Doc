@@ -26,6 +26,8 @@ CATEGORIES = {'fishing', 'exploration', 'publication', 'interaction', 'travel', 
 MARKET_LABELS = {
     'buy_shop': '商店购买', 'sell': '商店回收', 'list': '居民上架',
     'buy_listing': '购买居民商品', 'reprice': '调整挂牌价格', 'withdraw': '撤回挂牌',
+    'buy_potion': '购买药剂', 'sell_combat_material': '出售冒险材料',
+    'sell_combat_equipment': '出售装备', 'list_combat_equipment': '装备上架',
 }
 FARM_LABELS = {
     'plant': '播种', 'water': '浇水', 'harvest': '收获', 'feed': '喂养',
@@ -641,6 +643,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         if session.mode != 'archive':
             events[-1]['_execution_group'] = 'market:' + (session.record_id or session.pk)
             if session.mode == 'batch':
+                events[-1]['_execution_batch'] = True
                 order = batch_orders.get(session.pk, {})
                 events[-1]['_execution_order'] = order.get(operation_key(op), len(order))
         events[-1]['_execution_failed'] = bool(session.record and session.record.status == 'failed')
@@ -661,6 +664,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         event.update(_execution_group=group, _execution_order=-1,
                      _execution_running=row.status == 'active',
                      _execution_failed=bool(row.record and row.record.status == 'failed'))
+        if row.mode == 'batch':
+            event['_execution_batch'] = True
         events.append(event)
         if row.ended_at:
             interrupted = row.reason == PROCESS_INTERRUPTED
@@ -674,6 +679,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
             event['_execution_group'] = group
             event['_execution_order'] = 1_000_000_000
             event['_execution_failed'] = interrupted
+            if row.mode == 'batch':
+                event['_execution_batch'] = True
             events.append(event)
 
     decisions = list(InvestmentDecision.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end).select_related('record'))

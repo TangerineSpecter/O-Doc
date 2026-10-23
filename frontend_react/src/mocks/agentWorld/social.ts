@@ -11,7 +11,7 @@ export const moments: Moment[] = residents.flatMap((r, i) => [0, 1].map(n => ({i
 })));
 export const comments: MomentComment[] = residents.slice(1, 3).map((r, i) => ({id: `local-comment-${i}`, actorId: r.id,
     identity: {name: r.name, avatar: ''}, content: i ? '下次一起出发吧！' : '好棒，期待你的下一次分享。', parentId: '', rootId: `local-comment-${i}`, replyToActorId: '', createdAt: at(14)}));
-export const theatre: SocialTheatreEvent = {id: 'local-theatre', businessDate: day, scheduledAt: at(12), status: 'completed', error: '',
+export const theatre: SocialTheatreEvent = {id: 'local-theatre', businessDate: day, scheduledAt: at(12), status: 'running', error: '',
     source: {title: '怎样平衡效率和生活中的小确幸', summary: '从今天的农场收获聊起', url: '', publishedAt: at(8)},
     topic: {title: '今天要多种一点，还是出去走走？', event: '草莓成熟了', question: '如何安排今天剩余的时间？', tradeoff: '经营收益与探索体验'},
     messageCount: 6, rounds: 2, participants: residents.map(r => ({id: r.id, name: r.name, avatar: ''})),

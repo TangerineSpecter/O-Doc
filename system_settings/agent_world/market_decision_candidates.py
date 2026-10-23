@@ -65,6 +65,9 @@ def candidates(owner: str, agent) -> list[dict]:
         unit = Decimal(row['price'])
         available_cash = min(cash, procurement) if procurement is not None and (row['sku'].startswith('seed.') or row['sku'] in needs) else cash
         maximum = min(row.get('remaining_quantity', 1000000), int(available_cash // unit))
+        if row.get('kind') == 'bait':
+            from .fishing.constants import MAX_BAIT_STOCK
+            maximum = min(maximum, max(0, MAX_BAIT_STOCK - stock_quantity(agent.pk, owner, row['sku'])))
         if row.get('kind') == 'animal':
             building = row['rules']['building']
             house = farm.state['buildings'].get(building, {}) if farm else {}

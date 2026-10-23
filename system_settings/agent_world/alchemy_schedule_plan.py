@@ -40,9 +40,9 @@ def validate_plan(plan: dict) -> dict:
     return plan
 
 
-def available_pool(owner: str, actor_id: str, *, exclude_ids=()) -> list[dict]:
+def available_pool(owner: str, actor_id: str, *, exclude_ids=(), protect_goals: bool = True) -> list[dict]:
     from .crafting_materials import available_pool as shared_pool
-    return shared_pool(owner, actor_id, exclude_ids=exclude_ids)
+    return shared_pool(owner, actor_id, exclude_ids=exclude_ids, protect_goals=protect_goals)
 
 
 def recipe_options(rules: dict, level: int, pool: list[dict], energy, *, excluded=()) -> dict:

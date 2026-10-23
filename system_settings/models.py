@@ -1040,7 +1040,7 @@ from .agent_world.social_models import (SocialConfig, Moment, MomentComment, Mom
 
 from .agent_world.cooking_models import CookingCatalog, CookingSkill, CookingOperation, CookingIntegrity  # noqa: E402,F401
 from .agent_world.alchemy_models import AlchemyCatalog, AlchemySkill, AlchemyOperation, AlchemyIntegrity  # noqa: E402,F401
-from .agent_world.blacksmith_models import BlacksmithCatalog, BlacksmithOperation, BlacksmithIntegrity  # noqa: E402,F401
+from .agent_world.blacksmith_models import BlacksmithCatalog, BlacksmithOperation, BlacksmithIntegrity, BlacksmithGoal  # noqa: E402,F401
 
 from .token_usage.models import AgentTokenUsage  # noqa: E402,F401
 

@@ -51,6 +51,24 @@ export function TaskActivityGroups({tasks, runningTaskId, progress, onConfigure,
                 </>}
             </div>
         </section>)}
-        {idleOpen && <WorldDialog title="空档活动设置" onClose={() => {setIdleOpen(false); life.refresh();}}><WorldInterleavingSettings/></WorldDialog>}
+        {idleOpen && (
+            <WorldDialog
+                title="空档活动设置"
+                description="居民完成主日程规划后，可在空档自主穿插开展制作与探索"
+                titleAction={<DecisionProcessInfo kind="interleaving"/>}
+                size="compact"
+                onClose={() => {
+                    setIdleOpen(false);
+                    life.refresh();
+                }}
+            >
+                <WorldInterleavingSettings
+                    onClose={() => {
+                        setIdleOpen(false);
+                        life.refresh();
+                    }}
+                />
+            </WorldDialog>
+        )}
     </div>;
 }

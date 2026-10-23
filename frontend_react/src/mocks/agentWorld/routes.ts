@@ -2,7 +2,7 @@ import type {AgentTaskConfig} from '../../types/api/setting';
 import type {LotteryConfig} from '../../types/api/lottery';
 import {blacksmithActivities, blacksmithFacts, blacksmithLifeItems, resolveBlacksmithRoute, runMockBlacksmith} from './blacksmith';
 import {observationRoute, observationRequests, observationMetrics, observationFacts, addBlacksmithObservation} from './tokenUsage';
-import {residents, professions, activities, graph, feed, lifeConfig, lifeItems, goals, ledger, day, at} from './residents';
+import {residents, professions, activities, graph, feed, residentDecisions, lifeConfig, lifeItems, goals, ledger, day, at} from './residents';
 import {farms, farmRules, farmHistory, inventory, cooking, alchemy, itemCatalog, shop, listings, transactions, sessions, marketPlans} from './production';
 import {combatCatalog, combatProfiles, exploration, journey, fishingCatalog, fishingOverview, fishingTrip, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
 import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, worldPosts} from './social';
@@ -135,10 +135,13 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === '/api/settings/agent-activities/') return {items: list(activities.filter(r => !actor(url) || r.agent.id === actor(url))), nextCursor: null, hasMore: false};
     if (path === '/api/settings/agent-relations/') return emptyScenario() ? {nodes: [], edges: []} : graph;
     if (path === `${base}/daily-feed/`) {
-        const rows = list([...feed, ...observationFacts, ...blacksmithFacts]).filter(r => !url.searchParams.get('date') || new Date(r.occurredAt).toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'}) === url.searchParams.get('date')), category = url.searchParams.get('category') || 'all';
+        const allRows = [...feed, ...observationFacts, ...blacksmithFacts];
+        const withDecisions = url.searchParams.get('include_decisions') === '1' && !!actor(url);
+        const rows = list([...allRows, ...(withDecisions ? residentDecisions : [])]).filter(r => !url.searchParams.get('date') || new Date(r.occurredAt).toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'}) === url.searchParams.get('date'))
+            .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt) || right.id.localeCompare(left.id)), category = url.searchParams.get('category') || 'all';
         const selected = forActor(rows, url).filter(r => category === 'all' || r.category === category);
         const offset = Number(url.searchParams.get('cursor')) || 0, size = Number(url.searchParams.get('page_size')) || 20;
-        return {date: url.searchParams.get('date') || day, items: selected.slice(offset, offset + size), total: selected.length, allTotal: rows.length,
+        return {date: url.searchParams.get('date') || day, items: selected.slice(offset, offset + size), total: selected.length, allTotal: allRows.length,
             hasMore: offset + size < selected.length, nextCursor: offset + size < selected.length ? String(offset + size) : null,
             counts: Object.fromEntries([...new Set(rows.map(r => r.category))].map(c => [c, rows.filter(r => r.category === c).length])),
             actorCounts: Object.fromEntries(residents.map(r => [r.id, rows.filter(f => f.actorId === r.id).length]))};

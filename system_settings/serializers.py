@@ -405,13 +405,6 @@ class AgentRandomAllocationsField(serializers.Field):
 
 
 class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if instance.task_kind == 'memo_capture':
-            from memos.models import MemoCaptureAuthorization
-            data['enabled'] = MemoCaptureAuthorization.objects.filter(pk=instance.pk, enabled=True).exists()
-        return data
-
     world_progress = serializers.SerializerMethodField()
     random_allocations = AgentRandomAllocationsField(required=False)
     random_count = serializers.IntegerField(min_value=1, max_value=10000, required=False)
@@ -484,6 +477,9 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        if instance.task_kind == 'memo_capture':
+            from memos.models import MemoCaptureAuthorization
+            data['enabled'] = MemoCaptureAuthorization.objects.filter(pk=instance.pk, enabled=True).exists()
         if instance.task_kind == 'market' and isinstance(data.get('market_config'), dict):
             from .agent_world.life_models import LifeConfig
             owner = (instance.market_config or {}).get('owner_id')

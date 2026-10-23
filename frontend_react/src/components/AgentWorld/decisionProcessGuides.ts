@@ -6,7 +6,7 @@ import {interleavingGuide} from './decisionGuides/interleaving';
 
 export type {DecisionGuideKind, DecisionFlowStep, DecisionProcessGuide} from './decisionProcessTypes';
 
-/** The single registry used by task cards and domain panels. Keep sources in docs/agents. */
+/** The single registry used by task cards and domain panels. Keep sources in docs/agents; market includes daily and hourly bait decisions. */
 export const decisionProcessGuides: Record<DecisionGuideKind, DecisionProcessGuide> = {
     ...scheduledGuides, ...idleGuides, ...independentGuides, interleaving: interleavingGuide,
 };

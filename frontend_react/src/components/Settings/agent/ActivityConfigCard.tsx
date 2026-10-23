@@ -2,14 +2,14 @@ import {DecisionProcessInfo} from '../../AgentWorld/DecisionProcessInfo';
 import {decisionProcessGuides, type DecisionGuideKind} from '../../AgentWorld/decisionProcessGuides';
 import type {ReactNode} from 'react';
 
-export function ActivityConfigCard({title, description, enabled, busy, loading, error, onToggle, onRetry, children, guides = []}: {
+export function ActivityConfigCard({title, description, enabled, busy, loading, error, onToggle, onRetry, children, guides = [], icon}: {
     title: string; description: string; enabled: boolean | null; busy: boolean; loading: boolean;
-    error: string; onToggle: () => void; onRetry: () => void; children?: ReactNode; guides?: DecisionGuideKind[];
+    error: string; onToggle: () => void; onRetry: () => void; children?: ReactNode; guides?: DecisionGuideKind[]; icon?: ReactNode;
 }) {
     return <section aria-label={title} className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
         <div>
             <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-wrap items-center gap-1"><h4 className="text-xs font-bold text-slate-800">{title}</h4>{guides.length === 1 && <DecisionProcessInfo kind={guides[0]}/>}</div>
+                <div className="flex min-w-0 flex-wrap items-center gap-1">{icon}<h4 className="text-xs font-bold text-slate-800">{title}</h4>{guides.length === 1 && <DecisionProcessInfo kind={guides[0]}/>}</div>
                 <button type="button" role="switch" aria-label={`启用${title}`} aria-checked={enabled === true}
                     disabled={busy || loading || enabled === null} onClick={onToggle}
                     className={`shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-medium disabled:opacity-50 ${enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>

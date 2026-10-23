@@ -7,7 +7,7 @@ from .facts import append
 from ..inventory_stock import add_stock
 
 
-def transact(owner,agent,key,operation,change_money,at):
+def transact(owner,agent,key,operation,change_money,at,*,protect_goals=False):
     profile=CombatProfile.objects.select_for_update().filter(pk=agent.pk,owner_id=owner).first()
     if not profile:
         from .profiles import ensure
@@ -29,7 +29,8 @@ def transact(owner,agent,key,operation,change_money,at):
         row=catalog.row('materials',operation.get('material_id'))
         from ..crafting_materials import available_pool
         from ..alchemy_materials import allocate, consume
-        materials=allocate(available_pool(owner,agent.pk),[{'sku':'combat.'+row['id'],'quantity':count}])
+        materials=allocate(available_pool(owner,agent.pk,protect_goals=protect_goals),
+                           [{'sku':'combat.'+row['id'],'quantity':count}])
         consume(agent.pk,owner,materials)
         amount=Decimal(row['sale_price'])*count
         result={'name':row['name'],'quantity':count,'total':str(amount)}

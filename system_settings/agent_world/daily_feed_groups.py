@@ -13,9 +13,14 @@ def grouped_execution_events(events, start, end):
         else:
             projected.append(event)
     for (identity, actor), rows in groups.items():
-        rows.sort(key=lambda row: (row['occurredAt'], row.get('_execution_order', 0), row['id']))
+        if all(row.get('_execution_batch') for row in rows):
+            # 旧批量记录的离场时间可能早于逐件装备交易；完成序列才是实际顺序。
+            rows.sort(key=lambda row: (row.get('_execution_order', 0), row['occurredAt'], row['id']))
+        else:
+            rows.sort(key=lambda row: (row['occurredAt'], row.get('_execution_order', 0), row['id']))
         for row in rows:
             row.pop('_execution_order', None)
+            row.pop('_execution_batch', None)
         latest = rows[-1]
         if identity.startswith('activity:') and len(rows) == 1:
             projected.append(latest)

@@ -142,7 +142,7 @@ class BlacksmithDecisionTests(SimpleTestCase):
         self.assertEqual(value['source'], 'system')
         self.assertEqual(value['scene'], 'blacksmith_level_band')
 
-    def test_blacksmith_is_interleaved_and_has_four_decision_routes(self):
+    def test_blacksmith_is_interleaved_and_has_goal_decision_routes(self):
         from .life_activities import MAIN_ACTIVITIES, INTERLEAVED_ACTIVITIES
         from .life_config import KINDS
         from system_settings.decision.routing import SCENES
@@ -150,7 +150,8 @@ class BlacksmithDecisionTests(SimpleTestCase):
         self.assertIn('blacksmith', INTERLEAVED_ACTIVITIES)
         self.assertNotIn('blacksmith', MAIN_ACTIVITIES)
         self.assertTrue(all(scene in SCENES for scene in
-            ('blacksmith_level_band', 'blacksmith_slot', 'blacksmith_type', 'blacksmith_continue')))
+            ('blacksmith_level_band', 'blacksmith_slot', 'blacksmith_type', 'blacksmith_continue',
+             'blacksmith_goal_count', 'blacksmith_goal_priority')))
 
     def test_daily_feed_groups_actual_equipment_by_forge_opportunity(self):
         from .daily_feed import _event
@@ -206,7 +207,9 @@ class BlacksmithEntryTests(TestCase):
         self.calls = []
         def connection(owner, state, choices, **kwargs):
             self.calls.append((kwargs['scene'], copy.deepcopy(state)))
-            return ('finish' if 'finish' in choices else next(iter(choices))), .9
+            if kwargs['scene'] == 'blacksmith_goal_count':
+                return ('1' if sum(scene == 'blacksmith_goal_count' for scene, _ in self.calls) == 1 else '0'), .9
+            return next(iter(choices)), .9
         self.enterContext(patch('system_settings.decision.routing.choose_connections', side_effect=connection))
 
     def test_automatic_entry_reuses_selection_record_and_same_key_never_debits_again(self):
@@ -221,8 +224,7 @@ class BlacksmithEntryTests(TestCase):
         self.assertEqual(AgentRunRecord.objects.count(), 1)
         operation = BlacksmithOperation.objects.get(opportunity_id=self.item.pk)
         self.assertEqual(operation.piece_index, 0)
-        self.assertTrue(any(scene == 'blacksmith_continue' and len(state['completed']) == 1
-                            for scene, state in self.calls))
+        self.assertEqual(sum(scene == 'blacksmith_goal_count' for scene, _ in self.calls), 2)
         balance = list(AgentInventoryItem.objects.filter(actor_id=self.agent.pk).values_list('pk', 'quantity'))
         self.assertEqual(WorldAction.objects.get(pk=self.item.pk).status, 'success')
         with life_scope(self.item, {}):
@@ -241,7 +243,8 @@ class BlacksmithEntryTests(TestCase):
         self.assertIn('blacksmith', candidates)
         self.assertEqual(candidates['blacksmith']['max_pieces'], 3)
         self.assertEqual(set(candidates['blacksmith']), {
-            'craftable_recipes', 'level_bands', 'energy_allowance', 'max_pieces',
+            'free_goal_slots', 'ready_goals', 'goal_progress', 'legal_goal_recipes',
+            'energy_allowance', 'max_pieces',
         })
 
     def test_accessory_decision_context_includes_existing_ring_stock(self):

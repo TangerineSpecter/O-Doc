@@ -10,6 +10,7 @@ type Rule = Omit<BlacksmithRecipe, 'types' | 'state' | 'disabledReason' | 'maxPi
 const rules = JSON.parse(rawRules) as Rule[];
 const tables = catalog.combat.tables;
 const usedMaterials = new Map<string, number>();
+const completedGoalActors = new Set<string>();
 export const blacksmithMaterials: BlacksmithMaterial[] = tables.materials.map(material => {
     const sources = tables.drops.filter(row => row.itemKind === 'material' && row.itemId === material.id).flatMap(drop => {
         const monster = tables.monsters.find(row => row.id === drop.monsterId)!;
@@ -64,6 +65,23 @@ export function blacksmithOverview(actorId = '', empty = false): BlacksmithRecip
     const actor = resident && profile ? {id: resident.id, name: resident.name, initialized: profile.initialized,
         level: profile.progression.level, jobId: profile.progression.job,
         jobName: tables.professions.find(row => row.id === profile.progression.job)?.name || '战士', energy: Number(resident.stamina)} : null;
+    const sampleRule = rules.find(rule => rule.bandId === '10-20' && rule.slot === 'weapon');
+    const sampleType = sampleRule && actor ? typesFor(sampleRule, actor.jobId, actor.level)[0] : undefined;
+    const missingGoals = !empty && actor && sampleRule && sampleType ? [{id: `goal-${actor.id}-missing`,
+        recipeId: sampleRule.id, templateId: sampleType.templateId, bandId: sampleRule.bandId,
+        bandLabel: sampleRule.bandLabel, slot: sampleRule.slot, slotName: sampleRule.slotName,
+        typeName: sampleType.name, ready: false,
+        ingredients: sampleRule.ingredients.map(row => ({sku: row.sku, name: row.name,
+            required: row.quantity, available: Math.max(0, row.quantity - 5), missing: Math.min(5, row.quantity)}))}] : [];
+    const readyGoals = !empty && actor && sampleRule && sampleType && !completedGoalActors.has(actor.id) ? [{id: `goal-${actor.id}-ready`,
+        recipeId: sampleRule.id, templateId: sampleType.templateId, bandId: sampleRule.bandId,
+        bandLabel: sampleRule.bandLabel, slot: sampleRule.slot, slotName: sampleRule.slotName,
+        typeName: sampleType.name, ready: true,
+        ingredients: sampleRule.ingredients.map(row => ({sku: row.sku, name: row.name,
+            required: row.quantity, available: row.quantity, missing: 0}))}] : [];
+    const sampleGoals = [...readyGoals, ...missingGoals];
+    const goalState = {goals: sampleGoals, invalidGoals: [], freeSlots: 3 - sampleGoals.length,
+        readyCount: readyGoals.length, canRegister: Boolean(actor?.initialized)};
     return {recipes: empty ? [] : rules.map(rule => {
         const types = actor?.initialized ? typesFor(rule, actor.jobId, actor.level) : [];
         const ingredients = rule.ingredients.map(row => {
@@ -75,7 +93,7 @@ export function blacksmithOverview(actorId = '', empty = false): BlacksmithRecip
         const state = !actor ? 'unselected' : !actor.initialized || !types.length ? 'unavailable' : ingredients.some(row => row.available < row.quantity) ? 'missing' : actor.energy < 2 ? 'tired' : 'ready';
         return {...rule, ingredients, types, state, disabledReason: state === 'ready' ? '' : !actor ? '请先选择居民' : !actor.initialized ? '尚未建立冒险档案' : state === 'unavailable' ? '当前职业路线在本档没有可打造类型' : state === 'missing' ? '可用材料不足' : '体力不足',
             maxPieces: state === 'ready' ? max : 0, ingredientValue: ingredients.reduce((sum, row) => sum + Number(row.price) * row.quantity, 0).toFixed(2), timesMade: 0};
-    }), materials: blacksmithMaterials, bands: [...new Map(rules.map(row => [row.bandId, {id: row.bandId, label: row.bandLabel, levelMin: row.levelMin, levelMax: row.levelMax}])).values()],
+    }), goalState, materials: blacksmithMaterials, bands: [...new Map(rules.map(row => [row.bandId, {id: row.bandId, label: row.bandLabel, levelMin: row.levelMin, levelMax: row.levelMax}])).values()],
     qualityProbabilities: [{quality: 'white', probability: .7}, {quality: 'blue', probability: .25}, {quality: 'gold', probability: .05}], energyCost: 2, maxPieces: 3, actor};
 }
 
@@ -119,9 +137,16 @@ export const blacksmithLifeItems: LifeItem[] = blacksmithActivities.map(lifeFor)
 
 export function runMockBlacksmith(actorId: string) {
     const overview = blacksmithOverview(actorId);
-    const recipe = overview.recipes.find(row => row.bandId === '10-20' && row.slot === 'weapon' && row.state === 'ready') || overview.recipes.find(row => row.state === 'ready');
+    const goal = overview.goalState.goals.find(row => row.ready);
+    if (!goal || Number(overview.actor?.energy || 0) < 2) return null;
+    const recipe = overview.recipes.find(row => row.id === goal.recipeId && row.state === 'ready');
     if (!recipe) return null;
-    const activity = makeActivity(actorId, false, String(Date.now()), Math.min(2, recipe.maxPieces));
+    const activity = makeActivity(actorId, false, String(Date.now()), 1);
+    activity.operations[0].result.goalId = goal.id;
+    activity.snapshot = {...activity.snapshot, version: 2};
+    activity.stages = [{phase: 'automatic', scene: 'blacksmith_auto_forge', choice: goal.id,
+        reason: '材料齐备，按已登记目标自动打造'}];
+    activity.result = {...activity.result, stages: activity.stages, reason: '已完成 1 件已登记目标装备。'};
     for (const op of activity.operations) {
         const rule = (op.snapshot.rule as BlacksmithRecipe);
         for (const ingredient of rule.ingredients) {
@@ -132,6 +157,7 @@ export function runMockBlacksmith(actorId: string) {
     }
     const resident = residents.find(row => row.id === actorId)!;
     resident.stamina = String(Number(resident.stamina) - activity.operations.length * 2);
+    completedGoalActors.add(actorId);
     blacksmithActivities.unshift(activity);
     blacksmithFacts.unshift(factFor(activity));
     blacksmithLifeItems.unshift(lifeFor(activity));

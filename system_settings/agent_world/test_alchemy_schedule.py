@@ -106,7 +106,7 @@ class AlchemyScheduleTests(TestCase):
             if executed:
                 self.assertEqual(self.run_saved(items[0]).status, 'success')
             # 库存、日程、制作计数与当前打造预留各一次，不随日程数量增长。
-            with self.assertNumQueries(4):
+            with self.assertNumQueries(5):
                 pool = available_pool('admin', self.agent.pk)
             self.assertEqual(sum(row['quantity'] for row in pool
                                  if row['sku'] == 'combat.material.moss_cave.1'), 2)

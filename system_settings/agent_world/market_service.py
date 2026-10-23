@@ -10,7 +10,7 @@ from .farm_models import AgentFarm
 from .farm_clock import advance_state
 from .farm_catalog import catalog_for
 from .farm_service import perform
-from .inventory_stock import add_stock
+from .inventory_stock import add_stock, stock_quantity
 from .travel_models import AgentInventoryItem
 from .income import ensure_opening
 from .models import WorldLedger
@@ -97,7 +97,7 @@ def withdraw_listing(listing, agent, key):
 
 @guarded
 @transaction.atomic
-def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None) -> dict:
+def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None, *, protect_goals=False) -> dict:
     if not isinstance(operation,dict) or not isinstance(operation.get('kind'),str):raise ValueError('交易操作格式无效')
     check_mcp()
     at = now or timezone.now()
@@ -149,7 +149,8 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         from .combat.market import transact
         def change_combat_money(target, amount, transaction_key, transaction_at):
             return change_money(target,amount,transaction_key,transaction_at,operation_kind=kind)
-        result.update(transact(owner,agent,key,operation,change_combat_money,at))
+        result.update(transact(owner,agent,key,operation,change_combat_money,at,
+                               protect_goals=protect_goals))
         deltas = result['deltas']
     elif kind == 'buy_shop':
         batch = current_batch(owner, at)
@@ -162,6 +163,10 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         item = ({'sku':'feed','name':'饲料','kind':'feed','price':str(batch.feed_price)} if slot_id == 'feed' else
                 next((s for s in [*slots, *batch.supplies] if s['id'] == slot_id), None))
         if not item: raise ValueError('商品位不存在')
+        if item['kind'] == 'bait':
+            from .fishing.constants import MAX_BAIT_STOCK
+            if stock_quantity(agent.pk, owner, item['sku']) + count > MAX_BAIT_STOCK:
+                raise ValueError('同一种鱼饵最多持有99份，请减少购买数量')
         if slot_id not in constant_ids and count > item['remaining_quantity']: raise ValueError('商品库存不足')
         if slot_id not in constant_ids:
             bought = set(str(value) for value in MarketTransaction.objects.filter(owner_id=owner,actor_id=agent.pk,operation__kind='buy_shop',operation__batch_id=batch.pk).exclude(operation__slot_id__in=constant_ids).values_list('operation__slot_id',flat=True))
@@ -199,7 +204,8 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             raise ValueError('商店仅回收农作物、畜产品、美食及鱼类')
         if item.source.get('sku', '').startswith('combat.material.'):
             from .crafting_materials import available_pool
-            free = {row['inventory_id']: row['quantity'] for row in available_pool(owner, agent.pk)}
+            free = {row['inventory_id']: row['quantity'] for row in available_pool(
+                owner, agent.pk, protect_goals=protect_goals)}
             if count > free.get(item.pk, 0):
                 raise ValueError('材料已被炼金或打造预留，可挂牌数量不足')
         payload = split_item(item, count)

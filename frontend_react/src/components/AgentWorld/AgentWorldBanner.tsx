@@ -1,5 +1,7 @@
 import type {LucideIcon} from 'lucide-react';
 import BlinkingBotIcon from '../common/BlinkingBotIcon';
+import SocialTheatreBannerTicker from './SocialTheatreBannerTicker';
+import type {SocialTheatreEvent} from '../../types/api/social';
 import './AgentWorldBanner.css';
 
 type AgentWorldBannerStat = {
@@ -14,11 +16,13 @@ type AgentWorldBannerStat = {
 
 type AgentWorldBannerProps = {
     stats: readonly AgentWorldBannerStat[];
+    theatreEvent?: SocialTheatreEvent | null;
+    onOpenTheatre?: (eventId?: string) => void;
 };
 
 const bannerWorldscapeUrl = `${import.meta.env.BASE_URL}agent-world-banner-worldscape.svg`;
 
-export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
+export default function AgentWorldBanner({stats, theatreEvent, onOpenTheatre}: AgentWorldBannerProps) {
     return (
         <section
             aria-labelledby="agent-world-title"
@@ -37,7 +41,7 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
 
             <div className="relative flex items-center justify-between gap-2.5 sm:gap-6">
                 {/* 左侧：微型机器人头像 + 标题 */}
-                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                     <div className="agent-world-banner__bot relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-orange-200 bg-white text-orange-600 shadow-2xs sm:h-9 sm:w-9">
                         <span aria-hidden="true" className="absolute inset-[2.5px] rounded-full border border-dashed border-orange-200/80 sm:inset-[3.5px]" />
                         <BlinkingBotIcon className="relative h-3.5 w-3.5 sm:h-4.5 sm:w-4.5" strokeWidth={1.8} />
@@ -45,7 +49,7 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
                             <span className="absolute left-1/2 top-[-1px] h-1.5 w-1.5 -translate-x-1/2 rounded-full border border-white bg-emerald-500 shadow-[0_0_0_1px_rgba(16,185,129,0.18)]" />
                         </span>
                     </div>
-                    <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+                    <div className="flex items-center gap-1.5 sm:gap-2.5">
                         <h1 id="agent-world-title" className="text-sm font-bold tracking-tight text-slate-900 whitespace-nowrap sm:text-base">
                             Agent 世界
                         </h1>
@@ -62,6 +66,16 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
                         </span>
                     </div>
                 </div>
+
+                {/* 中间：小剧场即时单行胶囊 (截图 1 红框位置，在 >= md 屏幕单行嵌入显示) */}
+                {theatreEvent && onOpenTheatre && (
+                    <div className="hidden min-w-0 flex-1 md:flex items-center justify-start max-w-xl mx-2">
+                        <SocialTheatreBannerTicker
+                            event={theatreEvent}
+                            onOpenTheatre={onOpenTheatre}
+                        />
+                    </div>
+                )}
 
                 {/* 右侧：统计指标纯单行水平并排 */}
                 <div className="flex shrink-0 items-center gap-1.5 divide-x divide-slate-100 sm:gap-3 sm:divide-slate-200/80">

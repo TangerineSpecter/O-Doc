@@ -8,6 +8,7 @@ from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
 from .daily_feed import CATEGORIES, day_events, feed_scope, latest_event_day
 from .life_time import SHANGHAI, local_time, storage_time
+from .resident_decisions import decision_events, latest_decision_day
 
 
 class DailyFeedView(APIView):
@@ -27,6 +28,9 @@ class DailyFeedView(APIView):
         if category not in CATEGORIES | {'all'}:
             return valid_result('活动分类无效', status=400)
         actor = str(request.query_params.get('actor_id') or '')[:40]
+        include_decisions = request.query_params.get('include_decisions', '0')
+        if include_decisions not in ('0', '1') or (include_decisions == '1' and (not actor or category != 'all')):
+            return valid_result('决策记录仅支持指定居民的全部活动', status=400)
         cursor = str(request.query_params.get('cursor') or '')
         cursor_at = None
         if cursor:
@@ -46,10 +50,17 @@ class DailyFeedView(APIView):
             return valid_result('活动分页条数无效', status=400)
         owner = get_current_user_identifier(request)
         scope = feed_scope(request, owner)
+        show_decisions = include_decisions == '1' and actor in scope.actors
+
+        def selected_events(day, business_events):
+            if not show_decisions:
+                return business_events
+            return sorted([*business_events, *decision_events(owner, actor, day, scope.names)],
+                          key=lambda row: (row['occurredAt'], row['id']), reverse=True)
         today = local_time().date()
         if selected_day is not None:
             all_events, events, counts, global_total, actor_counts = day_events(request, owner, selected_day, actor, scope=scope)
-            filtered = all_events if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
+            filtered = selected_events(selected_day, all_events) if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
             total = len(filtered)
             if cursor:
                 filtered = [row for row in filtered if (row['occurredAt'], row['id']) < (moment, identity)]
@@ -65,7 +76,7 @@ class DailyFeedView(APIView):
                     all_events, events = today_all, today_events
                 else:
                     all_events, events, _, _, _ = day_events(request, owner, current_day, actor, scope=scope)
-                rows = all_events if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
+                rows = selected_events(current_day, all_events) if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
                 if cursor:
                     rows = [row for row in rows if (row['occurredAt'], row['id']) < (moment, identity)]
                 filtered.extend(rows[:size + 1 - len(filtered)])
@@ -73,6 +84,9 @@ class DailyFeedView(APIView):
                     break
                 before = storage_time(datetime.combine(current_day, time.min, SHANGHAI))
                 current_day = latest_event_day(request, owner, before, category, actor, scope=scope)
+                if show_decisions:
+                    decision_day = latest_decision_day(owner, actor, before)
+                    current_day = max(filter(None, (current_day, decision_day)), default=None)
             total = len(filtered[:size])
             shown = filtered[:size]
             has_more = len(filtered) > size

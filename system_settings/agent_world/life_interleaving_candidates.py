@@ -43,7 +43,7 @@ def build(config, agent, now=None, *, item=None):
     now = local_time(now)
     gap = available_window(config.pk, agent.pk, now, exclude_item=item.pk if item else None)
     resource = capacity(config.pk, agent, now, exclude_item=item.pk if item else None)
-    if not gap or not resource['energy'] or not resource['projection']['safe']:
+    if not gap or not resource['projection']['safe']:
         return {}, resource, gap
     result = {}
     for kind in INTERLEAVED_ACTIVITIES:
@@ -64,12 +64,16 @@ def build(config, agent, now=None, *, item=None):
                 result[kind] = {'craftable_recipes': len(options), 'level': facts['level'],
                                 'finished_stock': stock, 'energy_allowance': resource['energy']}
         elif kind == 'blacksmith':
-            from .blacksmith_candidates import planning_facts, recipe_options
-            facts = planning_facts(config.pk, agent, exclude_ids=[item.pk] if item else [])
-            options = recipe_options(facts['rules'], facts['catalog'], facts['profile'], facts['pool'], resource['energy'])
-            if options:
-                result[kind] = {'craftable_recipes': len(options),
-                    'level_bands': sorted({row['band_id'] for row in options.values()}),
+            from .blacksmith_goals import eligible, summary
+            goals = summary(config.pk, agent.pk)
+            if (goals['can_register'] or (goals['ready_count'] and resource['energy'] >= 2)) and gap:
+                result[kind] = {'free_goal_slots': goals['free_slots'],
+                    'ready_goals': goals['ready_count'],
+                    'goal_progress': [{'recipe_id': row['recipe_id'],
+                        'missing': [{'sku': part['sku'], 'quantity': part['missing']}
+                                    for part in row['ingredients'] if part['missing']]}
+                                     for row in goals['goals']],
+                    'legal_goal_recipes': len(eligible(config.pk, agent.pk)),
                     'energy_allowance': resource['energy'], 'max_pieces': 3}
         elif kind == 'fishing':
             from .fishing.service import eligibility, durations, inventory

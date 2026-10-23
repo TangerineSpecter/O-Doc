@@ -5,7 +5,7 @@ export interface DailyFeedEvent {
     categories?: Exclude<DailyFeedCategory, 'all'>[];
     steps?: {id: string; title: string; detail: string; occurredAt: string; amount: string | null}[];
     id: string;
-    category: Exclude<DailyFeedCategory, 'all'>;
+    category: Exclude<DailyFeedCategory, 'all'> | 'decision';
     source: string;
     actorId: string;
     actorIds?: string[];
@@ -16,6 +16,8 @@ export interface DailyFeedEvent {
     status: string;
     amount: string | null;
     reason?: string;
+    decisionBasis?: 'model_reason' | 'choice_only';
+    decisionSlot?: string;
     currentAction?: string;
     subAction?: string;
     isMotive?: boolean;

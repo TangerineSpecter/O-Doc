@@ -11,7 +11,7 @@ export function shanghaiDay(value = new Date()) {
     return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageSize = 30) {
+export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageSize = 30, includeDecisions = false) {
     const [items, setItems] = useState<DailyFeedEvent[]>([]);
     const [result, setResult] = useState<DailyFeedResult | null>(null);
     const [loading, setLoading] = useState(true);
@@ -33,7 +33,7 @@ export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageS
         active.current?.abort();
         const controller = new AbortController();
         active.current = controller;
-        const query = `${category}|${actorId}|${pageSize}`;
+        const query = `${category}|${actorId}|${pageSize}|${includeDecisions}`;
         const sameQuery = currentQuery.current === query;
         currentQuery.current = query;
         if (!sameQuery) {
@@ -42,7 +42,8 @@ export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageS
             setResult(null);
         }
         setError('');
-        getDailyFeed({category, actor_id: actorId || undefined, page_size: pageSize}, controller.signal)
+        getDailyFeed({category, actor_id: actorId || undefined, page_size: pageSize,
+            include_decisions: includeDecisions ? 1 : undefined}, controller.signal)
             .then(data => {
                 if (id !== requestId.current) return;
                 setResult(previous => sameQuery && previous?.nextCursor
@@ -61,7 +62,7 @@ export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageS
             })
             .finally(() => {if (id === requestId.current) setLoading(false);});
         return () => {controller.abort();};
-    }, [actorId, category, pageSize, revision]);
+    }, [actorId, category, pageSize, includeDecisions, revision]);
 
     const loadMore = useCallback(async () => {
         if (!result?.nextCursor || loading || loadingMore || (pagingRequest.current && !pagingRequest.current.signal.aborted)) return;
@@ -73,7 +74,8 @@ export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageS
         setLoadingMore(true);
         setError('');
         try {
-            const next = await getDailyFeed({category, actor_id: actorId || undefined, cursor: result.nextCursor, page_size: pageSize}, controller.signal);
+            const next = await getDailyFeed({category, actor_id: actorId || undefined, cursor: result.nextCursor,
+                page_size: pageSize, include_decisions: includeDecisions ? 1 : undefined}, controller.signal);
             if (id !== requestId.current || controller.signal.aborted) return;
             setItems(previous => {
                 const known = new Set(previous.map(item => item.id));
@@ -88,7 +90,7 @@ export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageS
                 setLoadingMore(false);
             }
         }
-    }, [actorId, category, loading, loadingMore, pageSize, result]);
+    }, [actorId, category, includeDecisions, loading, loadingMore, pageSize, result]);
 
     useEffect(() => {
         const timer = window.setInterval(() => {

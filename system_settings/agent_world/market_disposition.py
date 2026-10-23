@@ -88,7 +88,8 @@ def reserved_quantity(owner: str, actor_id: str, sku: str) -> int:
     from .crafting_materials import available_pool
     total = sum(row['quantity'] for row in material_pool(actor_id, owner) if row['sku'] == sku)
     free = sum(row['quantity'] for row in available_pool(owner, actor_id) if row['sku'] == sku)
-    return max(0, total - free)
+    from .blacksmith_goals import requirements
+    return max(0, total - free) + requirements(owner, actor_id)[sku]
 
 
 def total_quantity(owner: str, actor_id: str, sku: str) -> int:
@@ -128,7 +129,7 @@ def select_rows(owner: str, actor_id: str, sku: str, quantity: int, star_order: 
     free = None
     if sku.startswith('combat.material.'):
         from .crafting_materials import available_pool
-        free = {row['inventory_id']: row['quantity'] for row in available_pool(owner, actor_id)}
+        free = {row['inventory_id']: row['quantity'] for row in available_pool(owner, actor_id, protect_goals=True)}
     # Combat materials have no stars; match the NPC sale's available-lot FIFO so
     # a combined sale/list plan skips exactly the batches that the sale will take.
     rows.sort(key=lambda row: (int((row.source or {}).get('stars') or 1),

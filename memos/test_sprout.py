@@ -172,6 +172,28 @@ class CaptureFixture(TestCase):
 
 
 class CaptureTests(CaptureFixture):
+    def test_memo_switch_response_matches_local_authorization(self):
+        from memos.models import MemoCaptureAuthorization
+        from user.models import UserProfile
+
+        user = User.objects.create_user(username='alice')
+        UserProfile.objects.create(user=user, userid='alice')
+        client = APIClient()
+        client.force_authenticate(user)
+        url = f'/api/settings/agent-tasks/{self.task.pk}/'
+        payload = dict(AgentTaskSerializer(self.task).data)
+
+        for enabled in (True, False):
+            response = client.put(url, {**payload, 'enabled': enabled}, format='json')
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data['data']['enabled'], enabled)
+            self.assertEqual(MemoCaptureAuthorization.objects.get(pk=self.task.pk).enabled, enabled)
+            self.task.refresh_from_db()
+            self.assertFalse(self.task.enabled)
+            listing = client.get('/api/settings/agent-tasks/')
+            self.assertEqual(listing.status_code, 200, listing.data)
+            self.assertEqual(next(row for row in listing.data['data'] if row['id'] == self.task.pk)['enabled'], enabled)
+
     def test_receipt_and_author_not_model_controlled(self):
         from system_mcp.views import ODocSystemMCPView
         view = ODocSystemMCPView(tool_scope='memos', agent_context=self.agent)

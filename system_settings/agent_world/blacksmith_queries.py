@@ -12,6 +12,7 @@ from .inventory_stock import inventory_items
 
 
 def overview(owner: str, agent=None) -> dict:
+    from .blacksmith_goals import summary as goal_summary
     facts = planning_facts(owner, agent) if agent else None
     profile = facts['profile'] if facts else None
     catalog = facts['catalog'] if facts else read_catalog()
@@ -61,7 +62,10 @@ def overview(owner: str, agent=None) -> dict:
     return {'recipes': recipes, 'materials': [row for row in definitions.values()
         if any(source['rank'] != 'boss' for source in row['sources'])],
         'bands': copy.deepcopy(BANDS), 'quality_probabilities': copy.deepcopy(QUALITY_PROBABILITIES),
-        'energy_cost': ENERGY_COST, 'max_pieces': MAX_PIECES, 'actor': actor}
+        'energy_cost': ENERGY_COST, 'max_pieces': MAX_PIECES, 'actor': actor,
+        'goal_state': goal_summary(owner, agent.pk) if agent and profile else
+                      {'goals': [], 'invalid_goals': [], 'free_slots': MAX_PIECES,
+                       'ready_count': 0, 'can_register': False}}
 
 
 def history(owner: str, actor_id: str, page: int = 1) -> dict:

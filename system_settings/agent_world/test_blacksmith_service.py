@@ -20,7 +20,7 @@ from .alchemy_materials import allocate, material_pool
 from .blacksmith_catalog import DEFAULT_RULES, catalog_for
 from .blacksmith_candidates import template_options
 from .blacksmith_integrity import fingerprints_source
-from .blacksmith_models import BlacksmithOperation
+from .blacksmith_models import BlacksmithOperation, BlacksmithGoal, BlacksmithCatalog
 from .blacksmith_queries import history
 from .blacksmith_rolls import QUALITY_RULES, outcome, quality_for_roll
 from .blacksmith_service import commit_piece
@@ -142,8 +142,9 @@ class BlacksmithServiceTests(TestCase):
         def choose(owner, state, choices, **kwargs):
             scene = kwargs['scene']
             scenes.append((scene, copy.deepcopy(state)))
-            selected = {'blacksmith_level_band': '1-10', 'blacksmith_slot': '1-10:weapon',
-                        'blacksmith_type': 'equip.training_sword', 'blacksmith_continue': 'finish'}[scene]
+            selected = {'blacksmith_goal_count': '1' if not any(row[0] == 'blacksmith_goal_count' for row in scenes[:-1]) else '0',
+                        'blacksmith_level_band': '1-10', 'blacksmith_slot': '1-10:weapon',
+                        'blacksmith_type': 'equip.training_sword'}[scene]
             self.assertIn(selected, choices)
             return selected, {}
         with patch('system_settings.decision.routing.choose_connections', side_effect=choose):
@@ -424,15 +425,336 @@ class BlacksmithServiceTests(TestCase):
 
     def test_real_runner_stops_after_observing_one_result_and_syncs_complete_source(self):
         operation, scenes = self.run_one()
-        continuation = next(state for scene, state in scenes if scene == 'blacksmith_continue')
-        self.assertEqual(continuation['completed'][0]['result']['equipment_id'], operation.result['equipment_id'])
+        self.assertEqual([scene for scene, _ in scenes].count('blacksmith_goal_count'), 2)
+        self.assertEqual(operation.result['goal_id'], BlacksmithGoal.objects.get(operation_id=operation.pk).pk)
         action = WorldAction.objects.get(pk='forge-run')
         self.assertEqual((action.snapshot['cursor'], action.snapshot['phase']), (1, 'done'))
-        self.assertEqual(len(action.result['stages']), 4)
+        self.assertEqual(len(action.result['stages']), 5)
         data = self.data()
         validate_source(data, metadata(data))
         from .combat.sync import validate_source as validate_combat, metadata as combat_metadata
         validate_combat(data, combat_metadata(data))
+
+    def test_registered_goals_use_live_recipe_and_protect_materials(self):
+        from .blacksmith_goals import register, summary, requirements
+        from .alchemy_schedule_plan import available_pool as alchemy_available
+        from .market_disposition import reserved_quantity
+        template = template_options(self.catalog, self.profile, self.rule)[0]
+        first = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'first')
+        second = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'second')
+        self.assertNotEqual(first.pk, second.pk)
+        state = summary('admin', self.agent.pk)
+        self.assertEqual((state['free_slots'], state['ready_count']), (1, 2))
+        sku = self.rule['ingredients'][0]['sku']
+        self.assertEqual(requirements('admin', self.agent.pk)[sku], self.rule['ingredients'][0]['quantity'] * 2)
+        self.assertEqual(sum(row['quantity'] for row in alchemy_available('admin', self.agent.pk)
+                             if row['sku'] == sku), 0)
+        self.assertGreaterEqual(reserved_quantity('admin', self.agent.pk, sku), self.rule['ingredients'][0]['quantity'])
+        catalog = BlacksmithCatalog.objects.get(pk='admin')
+        rules = copy.deepcopy(catalog.rules)
+        rules[self.rule['id']]['ingredients'][0]['quantity'] += 5
+        catalog.rules = rules
+        catalog.version += 1
+        catalog.save(update_fields=['rules', 'version', 'updated_at'])
+        self.assertEqual(summary('admin', self.agent.pk)['goals'][0]['ingredients'][0]['missing'], 5)
+
+    def test_visit_can_register_zero_without_craftable_materials(self):
+        from .blacksmith_runner import run_blacksmith_opportunity
+        from .blacksmith_goals import summary
+        self.alchemy_item()
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+
+        def choose_zero(owner, state, choices, **kwargs):
+            return ('0' if kwargs['scene'] == 'blacksmith_goal_count' else next(iter(choices))), {}
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=choose_zero):
+            run_blacksmith_opportunity(self.task, key='zero-goals', manual=True)
+        self.assertEqual(BlacksmithGoal.objects.count(), 0)
+
+    def test_visit_can_register_three_without_craftable_materials(self):
+        from .blacksmith_runner import run_blacksmith_opportunity
+        from .blacksmith_goals import summary
+        self.alchemy_item()
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+
+        def choose_three(owner, state, choices, **kwargs):
+            return ('3' if kwargs['scene'] == 'blacksmith_goal_count' else next(iter(choices))), {}
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=choose_three):
+            record = run_blacksmith_opportunity(self.task, key='three-goals', manual=True)
+        self.assertEqual((len(summary('admin', self.agent.pk)['goals']), BlacksmithOperation.objects.count()),
+                         (3, 0), record.summary)
+        data = self.data()
+        validate_source(data, metadata(data))
+
+    def test_three_new_ready_goals_auto_forge_at_visit_limit(self):
+        from .blacksmith_runner import run_blacksmith_opportunity
+        self.grant(2, key='three-ready-stock')
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+        scenes = []
+
+        def choose(owner, state, choices, **kwargs):
+            scene = kwargs['scene']
+            scenes.append(scene)
+            selected = {'blacksmith_goal_count': '3', 'blacksmith_level_band': '1-10',
+                        'blacksmith_slot': '1-10:weapon', 'blacksmith_type': 'equip.training_sword'}[scene]
+            self.assertIn(selected, choices)
+            return selected, {}
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=choose):
+            run_blacksmith_opportunity(self.task, key='three-ready-goals', manual=True)
+        self.assertEqual(BlacksmithOperation.objects.count(), 3)
+        self.assertEqual(BlacksmithGoal.objects.filter(status='completed').count(), 3)
+        self.assertNotIn('blacksmith_goal_priority', scenes)
+        action = WorldAction.objects.get(pk='three-ready-goals')
+        self.assertEqual((action.snapshot['cursor'], action.snapshot['phase']), (3, 'done'))
+        data = self.data()
+        validate_source(data, metadata(data))
+
+    def test_competing_ready_goals_ask_once_and_keep_unbuilt_goal(self):
+        from .blacksmith_goals import register
+        from .blacksmith_runner import run_blacksmith_opportunity
+        template = template_options(self.catalog, self.profile, self.rule)[0]
+        first = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'priority-first')
+        second = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'priority-second')
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+        scenes = []
+
+        def choose(owner, state, choices, **kwargs):
+            scenes.append(kwargs['scene'])
+            return (second.pk if kwargs['scene'] == 'blacksmith_goal_priority' else '0'), {}
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=choose):
+            run_blacksmith_opportunity(self.task, key='priority-goals', manual=True)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual((first.status, second.status), ('active', 'completed'))
+        self.assertEqual(BlacksmithOperation.objects.get().result['goal_id'], second.pk)
+        self.assertEqual(scenes.count('blacksmith_goal_priority'), 1)
+
+    def test_auto_market_sale_uses_unprotected_lot_and_releases_after_completion(self):
+        from .blacksmith_goals import register
+        from .market_disposition import surplus_plan
+        from .market_plan_models import MarketDisposition
+        from .market_models import MarketSession, MarketRuntime
+        from .market_service import trade
+        template = template_options(self.catalog, self.profile, self.rule)[0]
+        goal = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'market-hold')
+        ingredient = self.rule['ingredients'][0]
+        MarketDisposition.objects.create(owner_id='admin', actor_id=self.agent.pk, sku=ingredient['sku'],
+            target_hold=0, sell_ratio=100, list_ratio=0)
+        self.assertEqual(surplus_plan('admin', self.agent.pk, ingredient['sku'])['sell'], 0)
+        self.grant(1, key='extra-market-stock')
+        self.assertEqual(surplus_plan('admin', self.agent.pk, ingredient['sku'])['sell'], ingredient['quantity'])
+        SystemSetting.objects.update_or_create(key='system_mcp_config', defaults={'value': {'enabled': True}})
+        session = MarketSession.objects.create(pk='protected-market-session', owner_id='admin',
+            actor_id=self.agent.pk, actor_name=self.agent.name, mode='mcp', expires_at=self.now + timedelta(minutes=5))
+        MarketRuntime.objects.create(pk=session.pk, agent_token='agent-token', process_id=1)
+        trade(session, self.agent, 'protected-market-sale', {'kind': 'sell_combat_material',
+            'material_id': ingredient['sku'][len('combat.'):], 'quantity': ingredient['quantity']},
+            now=self.now, protect_goals=True)
+        self.assertEqual(surplus_plan('admin', self.agent.pk, ingredient['sku'])['sell'], 0)
+        goal.status = 'invalid'
+        goal.save(update_fields=['status', 'updated_at'])
+        self.assertEqual(surplus_plan('admin', self.agent.pk, ingredient['sku'])['sell'], ingredient['quantity'])
+
+    def test_invalid_goal_is_visible_but_releases_slot_and_materials_on_read(self):
+        from .blacksmith_goals import register, summary, requirements
+        template = template_options(self.catalog, self.profile, self.rule)[0]
+        goal = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'route-invalid')
+        with patch('system_settings.agent_world.blacksmith_goals.template_options', return_value=[]):
+            state = summary('admin', self.agent.pk)
+            self.assertEqual((state['free_slots'], len(state['goals'])), (3, 0))
+            self.assertEqual(state['invalid_goals'][0]['id'], goal.pk)
+            self.assertFalse(requirements('admin', self.agent.pk))
+        goal.refresh_from_db()
+        self.assertEqual(goal.status, 'active', '图鉴查询不能改写同步状态')
+
+    def test_market_marking_waits_when_all_stock_is_for_goal(self):
+        from .blacksmith_goals import register
+        from .market_disposition import enqueue
+        from .market_disposition_worker import run as run_worker
+        from .market_plan_models import MarketDisposition
+        template = template_options(self.catalog, self.profile, self.rule)[0]
+        register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'market-marking')
+        sku = self.rule['ingredients'][0]['sku']
+        task = enqueue('admin', self.agent.pk, sku, 1, source='stock', operation='goal-stock')
+        with patch('system_settings.agent_world.market_disposition_worker.choose_scene',
+                   side_effect=AssertionError('全部受保护的材料不得进入处置模型')):
+            run_worker(owner='admin')
+        task.refresh_from_db()
+        self.assertEqual(task.status, 'done')
+        self.assertFalse(MarketDisposition.objects.filter(owner_id='admin', actor_id=self.agent.pk, sku=sku).exists())
+
+    def test_frozen_v2_piece_preempts_goal_hold_without_double_reserving(self):
+        from .blacksmith_goals import register, requirements
+        template = template_options(self.catalog, self.profile, self.rule)[0]
+        goal = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'frozen-v2')
+        self.grant(1, key='free-after-frozen')
+        action, _ = self.confirmed_action('frozen-v2-piece')
+        state = action.snapshot
+        state['version'] = 2
+        state['current']['goal_id'] = goal.pk
+        action.snapshot = state
+        action.save(update_fields=['snapshot'])
+        sku = self.rule['ingredients'][0]['sku']
+        self.assertEqual(requirements('admin', self.agent.pk)[sku], 0)
+        self.assertEqual(sum(row['quantity'] for row in available_pool('admin', self.agent.pk,
+            protect_goals=True) if row['sku'] == sku), self.rule['ingredients'][0]['quantity'])
+
+    def test_v2_sync_rejects_tampered_goal_selection_even_after_rehash(self):
+        from utils.sync_manager import SyncError
+        self.run_one()
+        source = self.data()
+        action = next(row for row in source if row['model'] == 'system_settings.worldaction'
+                      and row['fields']['snapshot'].get('blacksmith'))
+        for mutate in (
+                lambda state: state.update(registered_count=0),
+                lambda state: next(row for row in state['decisions'] if row['phase'] == 'type').update(goal_id='missing'),
+                lambda state: next(row for row in state['decisions'] if row['phase'] == 'band').update(choice='20-30')):
+            broken = copy.deepcopy(source)
+            target = next(row for row in broken if row['model'] == action['model'] and row['pk'] == action['pk'])
+            mutate(target['fields']['snapshot'])
+            self.rehash(broken)
+            with self.assertRaises(SyncError):
+                validate_source(broken, metadata(broken))
+
+    def test_v2_merge_rejects_conflicting_completion_of_same_goal(self):
+        from utils.sync_manager import SyncError
+        self.run_one()
+        local = self.data()
+        remote = copy.deepcopy(local)
+        goal = next(row for row in remote if row['model'] == 'system_settings.blacksmithgoal')
+        goal['fields']['operation_id'] = 'other-device:0'
+        with self.assertRaises(SyncError):
+            validate_conflicts(local, remote)
+
+    def test_failed_piece_keeps_goal_and_materials(self):
+        from .blacksmith_runner import run_blacksmith_opportunity
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+
+        def choose(owner, state, choices, **kwargs):
+            scene = kwargs['scene']
+            requested = {'blacksmith_goal_count': '1', 'blacksmith_level_band': '1-10',
+                         'blacksmith_slot': '1-10:weapon', 'blacksmith_type': 'equip.training_sword'}
+            return requested.get(scene, next(iter(choices))), {}
+
+        with patch('system_settings.decision.routing.choose_connections', side_effect=choose), \
+             patch('system_settings.agent_world.blacksmith_service.outcome', side_effect=RuntimeError('模拟打造失败')):
+            run_blacksmith_opportunity(self.task, key='failed-goal', manual=True)
+        self.assertEqual(BlacksmithGoal.objects.filter(status='active').count(), 1)
+        self.assertFalse(BlacksmithOperation.objects.exists())
+        self.assertTrue(all(stock_quantity(self.agent.pk, 'admin', row['sku']) == row['quantity']
+                            for row in self.rule['ingredients']))
+
+    def goal_choice(self, action, agent, phase, state, choices, *, count='1'):
+        from .blacksmith_decisions import SCENES
+        choice = {'goal_count': count, 'band': '1-10', 'slot': '1-10:weapon',
+                  'type': 'equip.training_sword'}[phase]
+        self.assertIn(choice, choices)
+        return {'piece_index': action.snapshot['cursor'], 'phase': phase, 'scene': SCENES[phase],
+                'choice': choice, 'source': 'system', 'reason': '系统选择说明：隔离测试合法选择。'}
+
+    def test_stopped_goal_registration_remains_syncable_at_each_incomplete_stage(self):
+        from .blacksmith_runner import run_blacksmith_opportunity
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+        for stop_phase in ('band', 'slot', 'type'):
+            with self.subTest(phase=stop_phase):
+                def choose(action, agent, phase, state, choices):
+                    if phase == stop_phase:
+                        raise ValueError('模拟登记中途候选失效')
+                    return self.goal_choice(action, agent, phase, state, choices)
+
+                key = 'stopped-registration-' + stop_phase
+                with patch('system_settings.agent_world.blacksmith_goal_runner.choose', side_effect=choose), \
+                     patch('system_settings.agent_world.action_schedule.select_agent', return_value=self.agent):
+                    run_blacksmith_opportunity(self.task, key=key, manual=True)
+                action = WorldAction.objects.get(pk=key)
+                self.assertEqual((action.status, action.snapshot['phase']), ('skipped', 'done'))
+                self.assertEqual(action.snapshot['remaining_registrations'], 1)
+                data = self.data()
+                validate_source(data, metadata(data))
+        self.assertFalse(BlacksmithGoal.objects.exists())
+        self.assertFalse(BlacksmithOperation.objects.exists())
+
+    def test_stopped_registration_keeps_completed_choices_and_survives_repeated_restore(self):
+        from system_settings.tests import MemoryStorageClient
+        from utils.sync_manager import SyncManager, SyncError
+        from .blacksmith_runner import run_blacksmith_opportunity
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+
+        def choose(action, agent, phase, state, choices):
+            if action.snapshot['registered_count'] == 1:
+                raise ValueError('登记第二件前停止')
+            return self.goal_choice(action, agent, phase, state, choices, count='2')
+
+        with patch('system_settings.agent_world.blacksmith_goal_runner.choose', side_effect=choose):
+            run_blacksmith_opportunity(self.task, key='partly-registered', manual=True)
+        goal = BlacksmithGoal.objects.get()
+        self.assertEqual(goal.status, 'active')
+        manager = SyncManager(MemoryStorageClient(), '/backup')
+        data = manager.build_snapshot_data()
+        meta = manager.build_snapshot_meta(data_list=data)
+        for _ in range(2):
+            manager.apply_snapshot_data(copy.deepcopy(data), meta, full_overwrite=True)
+            self.assertEqual(BlacksmithGoal.objects.get().pk, goal.pk)
+            self.assertFalse(BlacksmithOperation.objects.exists())
+            self.assertEqual(stamina(self.agent), Decimal(100))
+        for mutate in (
+                lambda state: state.update(registered_count=0),
+                lambda state: next(row for row in state['decisions'] if row['phase'] == 'type').update(goal_id='missing')):
+            broken = copy.deepcopy(data)
+            action = next(row for row in broken if row['model'] == 'system_settings.worldaction'
+                          and row['pk'] == 'partly-registered')
+            mutate(action['fields']['snapshot'])
+            self.rehash(broken)
+            with self.assertRaises(SyncError):
+                validate_source(broken, metadata(broken))
+
+    def test_exhausted_registration_retries_sync_but_live_unfinished_done_is_rejected(self):
+        from utils.sync_manager import SyncError
+        from system_settings.decision.jev import DecisionUnavailable
+        from .blacksmith_runner import run_blacksmith_opportunity
+        AgentExecutionLease.objects.update(token='', until=None)
+        WorldActionRuntime.objects.update(token='', until=None)
+
+        def choose(action, agent, phase, state, choices):
+            if phase == 'slot':
+                raise DecisionUnavailable('模拟决策连接不可用')
+            return self.goal_choice(action, agent, phase, state, choices)
+
+        with patch('system_settings.agent_world.blacksmith_goal_runner.choose', side_effect=choose):
+            for _ in range(3):
+                run_blacksmith_opportunity(self.task, key='exhausted-registration', manual=True)
+        action = WorldAction.objects.get(pk='exhausted-registration')
+        self.assertEqual((action.status, action.snapshot['phase']), ('failed', 'done'))
+        data = self.data()
+        validate_source(data, metadata(data))
+        row = next(row for row in data if row['model'] == 'system_settings.worldaction'
+                   and row['pk'] == action.pk)
+        row['fields']['status'] = 'claimed'
+        self.rehash(data)
+        with self.assertRaisesRegex(SyncError, '目标登记尚未完成'):
+            validate_source(data, metadata(data))
+
+    def test_completed_goal_is_removed_from_active_slots_and_sync_rejects_missing_receipt(self):
+        from utils.sync_manager import SyncError
+        operation, _ = self.run_one()
+        self.assertEqual(BlacksmithGoal.objects.filter(status='active').count(), 0)
+        self.assertEqual(BlacksmithGoal.objects.get(operation_id=operation.pk).status, 'completed')
+        data = self.data()
+        goal = next(row for row in data if row['model'] == 'system_settings.blacksmithgoal')
+        goal['fields']['operation_id'] = 'missing-operation'
+        self.rehash(data)
+        with self.assertRaises(SyncError):
+            validate_source(data, metadata(data))
 
     def test_incomplete_or_tampered_sources_are_rejected_even_after_rehash(self):
         from utils.sync_manager import SyncError
@@ -470,9 +792,9 @@ class BlacksmithServiceTests(TestCase):
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
         self.assertEqual(meta['combat_schema_version'], 12)
-        self.assertEqual(meta['blacksmith_schema_version'], 1)
+        self.assertEqual(meta['blacksmith_schema_version'], 2)
         with self.assertRaisesRegex(SyncError, '版本过新'):
-            validate_source(data, {**metadata(data), 'blacksmith_schema_version': 2})
+            validate_source(data, {**metadata(data), 'blacksmith_schema_version': 3})
         with self.assertRaisesRegex(SyncError, '新版同步版本'):
             validate_source(data, {**metadata(data), 'blacksmith_schema_version': 0})
         with self.assertRaisesRegex(SyncError, '版本过新'):
@@ -506,7 +828,7 @@ class BlacksmithServiceTests(TestCase):
                 merged, _ = manager._merge_while_locked(lambda *_args: None, base_snapshot_id=baseline,
                     source='blacksmith-test', runner_id='isolated', should_abort=None)
             self.assertEqual(restore.call_count, 1, '必须经过真实合并恢复路径')
-            self.assertEqual(restore.call_args.kwargs['remote_meta']['blacksmith_schema_version'], 1)
+            self.assertEqual(restore.call_args.kwargs['remote_meta']['blacksmith_schema_version'], 2)
             self.assertEqual(restore.call_args.kwargs['remote_meta']['blacksmith_operations'], [operation.pk])
             self.assertEqual(catalog_for('admin').version, 2)
             self.assertEqual(BlacksmithOperation.objects.get(pk=operation.pk).result, saved)

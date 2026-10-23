@@ -32,7 +32,7 @@ const tabs = [
     {value: 'record', label: '记录', icon: Activity},
 ] as const;
 
-const categoryStyles: Record<DailyFeedCategory, {badge: string; active: string}> = {
+const categoryStyles: Record<DailyFeedCategory | 'decision', {badge: string; active: string}> = {
     all: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
     publication: {badge: 'bg-amber-50 text-amber-700', active: 'bg-amber-50 text-amber-700'},
     interaction: {badge: 'bg-violet-50 text-violet-700', active: 'bg-violet-50 text-violet-700'},
@@ -48,6 +48,7 @@ const categoryStyles: Record<DailyFeedCategory, {badge: string; active: string}>
     investment: {badge: 'bg-indigo-50 text-indigo-700', active: 'bg-indigo-50 text-indigo-700'},
     finance: {badge: 'bg-rose-50 text-rose-700', active: 'bg-rose-50 text-rose-700'},
     record: {badge: 'bg-slate-100 text-slate-700', active: 'bg-slate-100 text-slate-700'},
+    decision: {badge: 'bg-sky-50 text-sky-700', active: 'bg-sky-50 text-sky-700'},
 };
 
 function clock(value: string) {

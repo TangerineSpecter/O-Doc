@@ -203,6 +203,9 @@ def finish(action, scheduler=None, *, reason=None, failed=False):
 
 
 def advance(action, agent, agent_token, world_token, scheduler=None):
+    if action.snapshot.get('version') == 2:
+        from .blacksmith_goal_runner import advance as advance_goals
+        return advance_goals(action, agent, agent_token, world_token, scheduler)
     from .blacksmith_catalog import MAX_PIECES
     from .blacksmith_candidates import recipe_options, template_options
     from .blacksmith_decisions import choose
@@ -356,12 +359,11 @@ def run_blacksmith_opportunity(task, scheduler=None, *, key=None, manual=False, 
             return action.record
         return resume(action, scheduler, locked=locked) if action.status == 'claimed' else action.record
     from .action_schedule import select_agent
-    from .blacksmith_catalog import ENERGY_COST
     from .life_scope import CURRENT
     from .life_models import LifeItem
     scope = CURRENT.get()
     item = LifeItem.objects.filter(pk=scope['item_id']).first() if scope else None
-    agent = select_agent(task, cost=ENERGY_COST)
+    agent = select_agent(task, cost=0)
     blocked = agent is None
     if blocked and item:
         agent = Agent.objects.filter(pk=item.actor_id).first()
@@ -379,8 +381,9 @@ def run_blacksmith_opportunity(task, scheduler=None, *, key=None, manual=False, 
         record.task, record.task_name = task, task.name
         record.save(update_fields=['task', 'task_name'])
     action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk, record=record,
-        snapshot={'blacksmith': True, 'owner_id': task.blacksmith_config['owner_id'], 'version': 1,
-            'cursor': 0, 'phase': 'band', 'decisions': [], 'current': {},
+        snapshot={'blacksmith': True, 'owner_id': task.blacksmith_config['owner_id'], 'version': 2,
+            'cursor': 0, 'phase': 'choose_goal', 'goal_sequence': 0, 'registered_count': 0,
+            'remaining_registrations': 0, 'decisions': [], 'current': {},
             'life_item_id': item.pk if item else '', 'manual': bool(manual or (item and item.context.get('manual')))})
     if manual and action.snapshot['manual']:
         from .blacksmith_authorization import authorize
