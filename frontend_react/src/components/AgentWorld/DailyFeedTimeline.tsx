@@ -1,8 +1,10 @@
 import {ExecutionFeedSteps} from './ExecutionFeedSteps';
 import {ExplorationFeedSettlement} from './ExplorationFeedSettlement';
+import {FishingFeedSettlement} from './FishingFeedSettlement';
 import {parseSettlementReport} from '../Combat/observationRecords';
+import {parseFishingSettlement} from './fishingSettlement';
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
-import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, FlaskConical, Hammer, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
+import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, Fish, FlaskConical, Hammer, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
 import {useEffect, useMemo, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
@@ -19,7 +21,7 @@ const tabs = [
     {value: 'publication', label: '作品', icon: BookOpenText},
     {value: 'interaction', label: '互动', icon: MessageCircle},
     {value: 'travel', label: '旅行', icon: MapPin},
-    {value: 'fishing', label: '钓鱼', icon: Activity},
+    {value: 'fishing', label: '钓鱼', icon: Fish},
     {value: 'exploration', label: '探索', icon: Activity},
     {value: 'cooking', label: '烹饪', icon: Sparkles},
     {value: 'alchemy', label: '炼金', icon: FlaskConical},
@@ -166,6 +168,11 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
         return parseSettlementReport(mainDetail);
     }, [event.category, mainDetail]);
 
+    const parsedFishing = useMemo(() => {
+        if (event.category !== 'fishing' || !mainDetail) return null;
+        return parseFishingSettlement(mainDetail, event.status);
+    }, [event.category, mainDetail, event.status]);
+
     return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 transition-all hover:border-orange-200/80">
         <div className="flex items-start gap-3">
             <AgentAvatar name={agent?.name || event.actorName} avatar={agent?.avatar || ''} size="md"/>
@@ -192,6 +199,8 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                     <div className="mt-1.5">
                         {parsedExploration ? (
                             <ExplorationFeedSettlement parsed={parsedExploration} status={event.status} />
+                        ) : parsedFishing ? (
+                            <FishingFeedSettlement parsed={parsedFishing} status={event.status} />
                         ) : isMotive ? (
                             <div className="mt-2.5 rounded-r-lg border-l-2 border-orange-400 bg-orange-50/30 py-1.5 pl-3">
                                 <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-700">

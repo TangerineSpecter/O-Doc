@@ -1,4 +1,4 @@
-import {LifeSourceBadge, scheduleCounts} from './LifeSourceBadge';
+import {LifeSourceBadge} from './LifeSourceBadge';
 import {useEffect, useMemo, useState, type ElementType} from 'react';
 import {
     Activity,
@@ -15,6 +15,7 @@ import {
     Clock3,
     Coffee,
     Compass,
+    Fish,
     FlaskConical,
     Hammer,
     MessageSquare,
@@ -27,6 +28,7 @@ import {
     Sun,
     Sunrise,
     Sunset,
+    Swords,
     TrendingUp,
     Utensils,
 } from 'lucide-react';
@@ -59,9 +61,18 @@ const activityMetaConfig: Record<
     }
 > = {
     blacksmith: {
-        label: '铁匠铺打造', icon: Hammer,
-        badgeColor: 'bg-orange-50 text-orange-700 border-orange-200/80',
-        accentBar: 'bg-orange-500', dotColor: 'bg-orange-500',
+        label: '铁匠铺打造',
+        icon: Hammer,
+        badgeColor: 'bg-amber-50 text-amber-800 border-amber-300/80',
+        accentBar: 'bg-amber-600',
+        dotColor: 'bg-amber-600',
+    },
+    fishing: {
+        label: '钓鱼',
+        icon: Fish,
+        badgeColor: 'bg-teal-50 text-teal-700 border-teal-200/80',
+        accentBar: 'bg-teal-500',
+        dotColor: 'bg-teal-500',
     },
     travel: {
         label: '旅行',
@@ -94,16 +105,16 @@ const activityMetaConfig: Record<
     market: {
         label: '市场交易',
         icon: ShoppingBag,
-        badgeColor: 'bg-amber-50 text-amber-700 border-amber-200/80',
-        accentBar: 'bg-amber-500',
-        dotColor: 'bg-amber-500',
+        badgeColor: 'bg-yellow-50 text-yellow-800 border-yellow-200/80',
+        accentBar: 'bg-yellow-500',
+        dotColor: 'bg-yellow-500',
     },
     market_prepare: {
         label: '每日市场机会',
         icon: ShoppingBag,
-        badgeColor: 'bg-amber-50 text-amber-700 border-amber-200/80',
-        accentBar: 'bg-amber-500',
-        dotColor: 'bg-amber-500',
+        badgeColor: 'bg-yellow-50 text-yellow-800 border-yellow-200/80',
+        accentBar: 'bg-yellow-500',
+        dotColor: 'bg-yellow-500',
     },
     investment: {
         label: '股票投资',
@@ -128,10 +139,17 @@ const activityMetaConfig: Record<
     },
     exploration: {
         label: '迷宫探索',
+        icon: Swords,
+        badgeColor: 'bg-red-50 text-red-700 border-red-200/80',
+        accentBar: 'bg-red-500',
+        dotColor: 'bg-red-500',
+    },
+    lottery: {
+        label: '大乐透购票',
         icon: Sparkles,
-        badgeColor: 'bg-purple-50 text-purple-700 border-purple-200/80',
-        accentBar: 'bg-purple-500',
-        dotColor: 'bg-purple-500',
+        badgeColor: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200/80',
+        accentBar: 'bg-fuchsia-500',
+        dotColor: 'bg-fuchsia-500',
     },
     rest: {
         label: '休息',
@@ -346,6 +364,8 @@ export default function LifeScheduleTodayTimeline({
     onSelectItem,
 }: LifeScheduleTodayTimelineProps) {
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [showMain, setShowMain] = useState<boolean>(true);
+    const [showInterleaved, setShowInterleaved] = useState<boolean>(false);
     const [currentTime, setCurrentTime] = useState(getShanghaiCurrent);
 
     useEffect(() => {
@@ -366,23 +386,64 @@ export default function LifeScheduleTodayTimeline({
 
     const [showEarlyHistory, setShowEarlyHistory] = useState(false);
 
-    // 统计指标（实时反映当天开销与达成率）
+    // 来源数量统计（主日程 vs 自由活动）
+    const {mainCount, interleavedCount} = useMemo(() => {
+        let main = 0;
+        let interleaved = 0;
+        for (const item of sortedItems) {
+            if (item.source === 'interleaved') {
+                interleaved++;
+            } else {
+                main++;
+            }
+        }
+        return {mainCount: main, interleavedCount: interleaved};
+    }, [sortedItems]);
+
+    const handleToggleSource = (type: 'main' | 'interleaved') => {
+        if (type === 'main') {
+            if (showMain && !showInterleaved) {
+                setShowMain(false);
+                setShowInterleaved(true);
+                return;
+            }
+            setShowMain((prev) => !prev);
+        } else {
+            if (showInterleaved && !showMain) {
+                setShowInterleaved(false);
+                setShowMain(true);
+                return;
+            }
+            setShowInterleaved((prev) => !prev);
+        }
+    };
+
+    // 按来源筛选（主日程 / 自由活动，默认只展示主日程）
+    const sourceFilteredItems = useMemo(() => {
+        return sortedItems.filter((item) => {
+            const isInterleaved = item.source === 'interleaved';
+            if (isInterleaved) return showInterleaved;
+            return showMain;
+        });
+    }, [sortedItems, showMain, showInterleaved]);
+
+    // 统计指标（实时反映当前视图达成率与全天开销、构成）
     const stats = useMemo(() => {
-        const totalCount = sortedItems.length;
-        const completedCount = sortedItems.filter((i) => i.status === 'completed').length;
-        const restCount = sortedItems.filter((i) => i.status === 'rest').length;
-        const runningCount = sortedItems.filter((i) => i.status === 'running').length;
-        const pendingCount = sortedItems.filter((i) => i.status === 'pending').length;
-        const failedCount = sortedItems.filter((i) => i.status === 'failed').length;
+        const totalCount = sourceFilteredItems.length;
+        const completedCount = sourceFilteredItems.filter((i) => i.status === 'completed').length;
+        const restCount = sourceFilteredItems.filter((i) => i.status === 'rest').length;
+        const runningCount = sourceFilteredItems.filter((i) => i.status === 'running').length;
+        const pendingCount = sourceFilteredItems.filter((i) => i.status === 'pending').length;
+        const failedCount = sourceFilteredItems.filter((i) => i.status === 'failed').length;
         const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-        // 统计总花费
+        // 统计总花费（当天总览）
         const totalSpent = sortedItems.reduce(
             (acc, i) => acc + (parseFloat(i.spent || '0') || 0),
             0
         );
 
-        // 当天全部活动类型构成分布
+        // 当天全部活动类型构成分布（基于全天数据概览）
         const activityCounts: Record<string, number> = {};
         for (const item of sortedItems) {
             activityCounts[item.activity] = (activityCounts[item.activity] || 0) + 1;
@@ -399,13 +460,13 @@ export default function LifeScheduleTodayTimeline({
             totalSpent,
             activityCounts,
         };
-    }, [sortedItems]);
+    }, [sourceFilteredItems, sortedItems]);
 
     // 状态筛选
     const displayItems = useMemo(() => {
-        if (statusFilter === 'all') return sortedItems;
-        return sortedItems.filter((i) => i.status === statusFilter);
-    }, [sortedItems, statusFilter]);
+        if (statusFilter === 'all') return sourceFilteredItems;
+        return sourceFilteredItems.filter((i) => i.status === statusFilter);
+    }, [sourceFilteredItems, statusFilter]);
 
     // 当前时段
     const currentPeriod = getPeriodByMinutes(currentTime.minutes);
@@ -493,7 +554,58 @@ export default function LifeScheduleTodayTimeline({
                             </span>
                         </div>
 
-                        <span className="text-[11px] text-slate-500">{scheduleCounts(sortedItems)}</span>
+                        {/* 来源快捷过滤胶囊（主日程 / 自由活动，独立药丸卡片避免粘连） */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => handleToggleSource('main')}
+                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all duration-150 ${
+                                    showMain
+                                        ? 'border-orange-200/90 bg-white font-semibold text-slate-800 shadow-2xs hover:border-orange-300'
+                                        : 'border-slate-200/70 bg-slate-50/80 text-slate-400 hover:border-slate-300 hover:bg-white hover:text-slate-600'
+                                }`}
+                                title={showMain ? '主日程已选中（点击切换）' : '点击选中主日程'}
+                            >
+                                <span
+                                    className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                                        showMain ? 'bg-orange-500' : 'bg-slate-300'
+                                    }`}
+                                />
+                                <span>主日程</span>
+                                <span
+                                    className={`font-mono text-[11px] ${
+                                        showMain ? 'font-semibold text-slate-500' : 'text-slate-400'
+                                    }`}
+                                >
+                                    {mainCount}
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => handleToggleSource('interleaved')}
+                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all duration-150 ${
+                                    showInterleaved
+                                        ? 'border-violet-200/90 bg-white font-semibold text-violet-700 shadow-2xs hover:border-violet-300'
+                                        : 'border-slate-200/70 bg-slate-50/80 text-slate-400 hover:border-slate-300 hover:bg-white hover:text-slate-600'
+                                }`}
+                                title={showInterleaved ? '自由活动已选中（点击切换）' : '点击选中自由活动'}
+                            >
+                                <span
+                                    className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                                        showInterleaved ? 'bg-violet-500' : 'bg-slate-300'
+                                    }`}
+                                />
+                                <span>自由</span>
+                                <span
+                                    className={`font-mono text-[11px] ${
+                                        showInterleaved ? 'font-semibold text-violet-500' : 'text-slate-400'
+                                    }`}
+                                >
+                                    {interleavedCount}
+                                </span>
+                            </button>
+                        </div>
                         {/* 达成情况 */}
                         <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white px-2.5 py-1 text-xs text-slate-600 shadow-2xs">
                             <span>达成</span>
@@ -606,7 +718,7 @@ export default function LifeScheduleTodayTimeline({
             {/* 顶栏 2：【24小时全景微缩时间刻度光轨】（仅在桌面/宽屏端展示，移动端隐去避免像素级重叠噪点） */}
             <div className="hidden sm:block shrink-0 border-b border-slate-100 bg-white px-4 py-1.5">
                 <Day24HourRibbon
-                    items={sortedItems}
+                    items={sourceFilteredItems}
                     currentMinutes={currentTime.minutes}
                     currentTimeString={currentTime.timeString}
                     onSelectItem={onSelectItem}

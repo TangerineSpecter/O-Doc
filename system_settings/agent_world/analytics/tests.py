@@ -328,3 +328,56 @@ class CombatAnalyticsTests(AnalyticsTests):
         row_b = next(r for r in result['comparison'] if r['id'] == self.b.pk)
         self.assertEqual(row_a['professionName'], '吟游诗人')
         self.assertIsNone(row_b['professionName'])
+
+
+class FishingAnalyticsTests(TestCase):
+    setUp = AnalyticsTests.setUp
+    fetch = AnalyticsTests.fetch
+
+    def test_fishing_event_window_owner_filter_and_denominator(self):
+        from ..fishing.models import FishingTrip, FishingEvent
+        before = self.at - timedelta(days=2)
+        def trip(key, owner='admin', actor=None, departed=None):
+            return FishingTrip.objects.create(id=key, life_item_id=key, owner_id=owner,
+                actor_id=actor or self.a.pk, actor_name='钓手', departed_at=departed or self.at, ended_at=self.at)
+        old = trip('old', departed=before)
+        current = trip('current', actor=self.b.pk)
+        foreign = trip('foreign', owner='other')
+        preparing = FishingTrip.objects.create(id='preparing', life_item_id='preparing', owner_id='admin',
+            actor_id='preparing-actor', actor_name='准备中')
+        def event(t, seq, kind='cast', data=None, at=None):
+            FishingEvent.objects.create(id=f'{t.pk}:{seq}', trip=t, sequence=seq, kind=kind,
+                data=data or {}, created_at=at or self.at)
+        event(old, 1, data={'outcome': {'kind': 'fish'}, 'catch': {'king': False}, 'experience': 12})
+        event(old, 2, data={'outcome': {'kind': 'escaped'}, 'experience': 2})
+        event(old, 3, data={'outcome': {'kind': 'empty'}})
+        event(old, 4, data={'outcome': {'kind': 'junk'}})
+        event(old, 5, data={'outcome': {'kind': 'king'}})
+        event(old, 6, 'duel_end', {'catch': {'king': True}, 'experience': 60})
+        event(old, 7, 'duel_round', {'experience': 999})
+        event(old, 8, data={'catch': {'king': False}, 'experience': 999}, at=before)
+        event(foreign, 1, data={'catch': {'king': True}, 'experience': 999})
+        event(current, 1, data={'outcome': {'kind': 'empty'}})
+        result = self.fetch(self.a.pk)
+        row, = result['fishingComparison']
+        self.assertEqual((row['trips'], row['casts'], row['catches'], row['kings'], row['experience']), (0, 5, 2, 1, 74))
+        self.assertEqual(row['ordinaryCatchRate'], 50)
+        other, = self.fetch(self.b.pk)['fishingComparison']
+        self.assertEqual(other['trips'], 1)
+        self.assertIsNone(other['ordinaryCatchRate'])
+        fishing = next(c for c in self.fetch()['categories'] if c['key'] == 'fishing')
+        self.assertEqual(fishing['count'], 1)
+        self.assertEqual(FishingTrip.objects.get(pk=preparing.pk).departed_at, None)
+
+    def test_historical_fishing_resident_and_foreign_profile(self):
+        from ..fishing.models import FishingTrip, FishingProfile
+        FishingProfile.objects.create(id=self.b.pk, owner_id='other')
+        LifeProfile.objects.filter(pk=self.b.pk).delete()
+        FishingTrip.objects.create(id='history', life_item_id='history', owner_id='admin',
+            actor_id='departed-fisher', actor_name='历史钓手', departed_at=self.at, ended_at=self.at)
+        result = self.fetch()
+        self.assertNotIn(self.b.pk, [r['id'] for r in result['residents']])
+        historical, = self.fetch('departed-fisher')['fishingComparison']
+        self.assertEqual(historical['name'], '历史钓手')
+        self.assertEqual(historical['trips'], 1)
+        self.assertTrue(historical['departed'])

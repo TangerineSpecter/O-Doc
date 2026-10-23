@@ -5,7 +5,7 @@ from decimal import Decimal
 from ..life_time import local_time
 
 CATEGORIES = {'work': '工作', 'publication': '创作', 'social': '社交', 'farm': '农场',
-              'cooking': '烹饪', 'travel': '旅行', 'market': '市场', 'investment': '投资', 'exploration': '冒险'}
+              'cooking': '烹饪', 'travel': '旅行', 'market': '市场', 'investment': '投资', 'exploration': '冒险', 'fishing': '钓鱼', 'lottery': '大乐透'}
 
 
 def money(value):

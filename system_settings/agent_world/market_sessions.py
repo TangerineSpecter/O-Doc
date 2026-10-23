@@ -90,7 +90,8 @@ def invalid_reason(session, now=None):
 
 @guarded
 @transaction.atomic
-def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='mcp', now=None) -> MarketSession:
+def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='mcp', now=None,
+          clear_fish=False) -> MarketSession:
     check_mcp()
     now = now or timezone.now()
     if not isinstance(key, str) or not key or len(key) > 64:
@@ -135,6 +136,10 @@ def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='m
     MarketRuntime.objects.create(pk=key, agent_token=token, process_id=os.getpid())
     WorldAction.objects.create(pk=hashlib.sha256(('market-energy:'+key).encode()).hexdigest(), actor_id=agent.pk, task=task, status='success',
         consumed_at=now, energy_cost=COST, effects_done=True, snapshot={'market_energy': True}, result={'session_id': key})
+    # 只有明确的市场进场回收普通鱼；战斗补给商店、探索准备等共用入口不改动鱼库存。
+    if clear_fish:
+        from .market_fish import clear as sell_fish
+        session.fish_sale = sell_fish(owner, session, agent, now)
     return session
 
 

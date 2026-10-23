@@ -5,5 +5,5 @@ export function LifeSourceBadge({item}: {item: LifeItem}) {
 export function scheduleCounts(items: LifeItem[]) {
     const idle = items.filter(item => item.source === 'interleaved').length;
     const main = items.filter(item => item.source !== 'interleaved' && !['market', 'market_prepare'].includes(item.activity)).length;
-    return `主日程 ${main} · 穿插 ${idle}`;
+    return `主日程 ${main} · 自由 ${idle}`;
 }

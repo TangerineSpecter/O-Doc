@@ -1,4 +1,4 @@
-import {Archive, Plus} from 'lucide-react';
+import {Archive, Download, Plus} from 'lucide-react';
 
 type AgentView = 'list' | 'tasks';
 
@@ -9,6 +9,8 @@ interface AgentSettingsToolbarProps {
     onCreateTask: () => void;
     onOpenArchive: () => void;
     archivedCount: number;
+    onExportCsv: () => void;
+    canExport?: boolean;
 }
 
 const views: Array<{value: AgentView; label: string}> = [
@@ -17,10 +19,20 @@ const views: Array<{value: AgentView; label: string}> = [
 ];
 
 export default function AgentSettingsToolbar({
-    activeView, onViewChange, onCreateAgent, onCreateTask, onOpenArchive, archivedCount,
+    activeView, onViewChange, onCreateAgent, onCreateTask, onOpenArchive, archivedCount, onExportCsv, canExport,
 }: AgentSettingsToolbarProps) {
     return (
         <div className="flex flex-wrap items-center gap-2.5">
+            <button
+                type="button"
+                onClick={onExportCsv}
+                disabled={canExport === false}
+                title="一键导出全部活跃 Agent 设定为 CSV"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-orange-300 hover:text-orange-600 focus-visible:outline-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+                <Download className="h-3.5 w-3.5 text-slate-500"/>
+                导出 CSV
+            </button>
             <button type="button" onClick={onOpenArchive} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-orange-300 hover:text-orange-600 focus-visible:outline-orange-500">
                 <Archive className="h-3.5 w-3.5"/>归档居民 <span>{archivedCount}</span>
             </button>

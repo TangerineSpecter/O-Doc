@@ -27,9 +27,7 @@ def reward(trip: FishingTrip, fish_id: str, at, rng) -> dict:
     item = add_stock(trip.actor_id, trip.owner_id, trip.actor_name, sku, 1, fish['name'],
                      'fish_king' if fish['king'] else 'fish', Decimal(fish['value']),
                      f'{trip.pk}:{trip.revision + 1}')
-    if not fish['king']:
-        from ..market_disposition import enqueue
-        enqueue(trip.owner_id, trip.actor_id, sku, source='fishing', operation=f'{trip.pk}:{trip.revision + 1}')
+    # 鱼没有配方用途，进入市场时由 market_fish 统一回收，不入处置队列。
     return {'fish_id': fish_id, 'name': fish['name'], 'king': fish['king'], 'weight': weight,
             'experience': gained, 'value': fish['value'], 'item_id': item.pk,
             'caught_at': at.isoformat()}

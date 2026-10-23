@@ -188,8 +188,12 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
     if not task:
         return {'ok': False, 'reason': '没有可用的市场任务'}
     now = now or timezone.now()
-    session = enter(owner, agent, f'batch:{tick.pk}'[:64], task=task, mode='batch', now=now)
+    session = enter(owner, agent, f'batch:{tick.pk}'[:64], task=task, mode='batch', now=now,
+                    clear_fish=True)
     result = {'ok': True, 'session_id': session.pk, 'done': [], 'skipped': [], 'failed': []}
+    fish_sale = getattr(session, 'fish_sale', None)
+    if fish_sale and fish_sale['sold']:
+        result['fish_sale'] = fish_sale
     try:
         # 先撤单/改价，再处置，最后采购。
         for operation in [*actions.get('withdraws', []), *actions.get('reprices', [])]:
@@ -255,6 +259,9 @@ def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None, agent=N
                'equipment': pending_actions(owner, agent_id)}
     from .market_plan_models import MarketDisposition
     for disposition in MarketDisposition.objects.filter(owner_id=owner, actor_id=agent_id, status='active'):
+        # 鱼在进场时统一回收，不再按处置策略生成出售或上架动作。
+        if disposition.sku.startswith('fish.'):
+            continue
         state = surplus_plan(owner, agent_id, disposition.sku)
         if not state:
             continue

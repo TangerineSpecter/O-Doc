@@ -2,6 +2,7 @@ import {residents, ledger, now, at, day} from './residents';
 import type {Moment, MomentComment, SocialTheatreEvent, SocialConfiguration} from '../../types/api/social';
 import type {Bounty} from '../../types/api/bounty';
 import type {ResidentAnalytics} from '../../types/api/residentAnalytics';
+import {lotteryAnalyticsMock} from './lotteryAnalytics';
 import type {TokenMetrics} from '../../types/api/tokenUsage';
 
 export const moments: Moment[] = residents.flatMap((r, i) => [0, 1].map(n => ({id: `local-moment-${i * 2 + n}`, actorId: r.id,
@@ -37,9 +38,13 @@ export const analytics: ResidentAnalytics = {startDate: at(0, -6).slice(0, 10), 
     residents: residents.map(r => ({id: r.id, name: r.name, avatar: '', departed: false, professionName: r.professionName})),
     overview: {activeResidents: 4, activeDays: 7, publications: 24, interactions: 68, received: 32, income: '5760', expense: '1200', net: '4560'},
     daily: Array.from({length: 7}, (_, i) => ({date: at(12, i - 6).slice(0, 10), behaviors: 10 + i * 3, activeResidents: 4, income: String(400 + i * 80), expense: String(80 + i * 10)})),
-    categories: [{key: 'farm', name: '农场', count: 28, percentage: 40}, {key: 'exploration', name: '探索', count: 21, percentage: 30}, {key: 'publication', name: '创作', count: 21, percentage: 30}],
+    categories: [{key: 'farm', name: '农场', count: 28, percentage: 32.6}, {key: 'exploration', name: '探索', count: 21, percentage: 24.4}, {key: 'publication', name: '创作', count: 21, percentage: 24.4}, {key: 'fishing', name: '钓鱼', count: 8, percentage: 9.3}, {key: 'lottery', name: '大乐透', count: 8, percentage: 9.3}],
     peers: residents.map(r => ({id: r.id, name: r.name, count: 12})), financeSources: [{kind: 'farm_sell', income: '4800', expense: '0'}, {kind: 'market_buy', income: '0', expense: '1200'}],
     outcomes: {harvests: 28, collections: 18, journeys: 4, destinations: 3, explorations: 12, wins: 126},
+    lotteryStatistics: lotteryAnalyticsMock(new URL(`http://localhost/?start_date=${day}&end_date=${day}`), false),
+    fishingComparison: residents.map((r, i) => ({id: r.id, name: r.name, avatar: '', departed: false,
+        trips: 2, casts: 12 + i, catches: 6 + i, kings: i === 0 ? 1 : 0, escaped: 2, empty: 2, junk: 2,
+        ordinaryCatches: i === 0 ? 5 : 6 + i, ordinaryCatchRate: Math.round(1000 * (i === 0 ? 5 : 6 + i) / (i === 0 ? 7 : 8 + i)) / 10, experience: 80 + i * 16})),
     combatComparison: residents.map(r => ({id: r.id, name: r.name, avatar: '', departed: false, job: 'job.warrior', jobName: '战士', explorations: 3, settled: 3, completed: 2, ongoing: 0, fallen: 1,
         recalled: 0, exhausted: 0, otherEnded: 0, kills: 42, bossKills: 1, experience: 680, elapsedSeconds: 10800, longestSeconds: 3600, averageSeconds: 3600, energy: 60, potions: 6,
         successRate: 66.7, killsPerHour: 14, destinations: 2, unclassifiedKills: 0, monsters: [{id: 'monster.slime', name: '软泥怪', kills: 18, highestLevel: 8}]})),

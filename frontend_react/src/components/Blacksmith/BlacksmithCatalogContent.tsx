@@ -100,7 +100,7 @@ export function BlacksmithCatalogContent({
                                 </span>
                                 <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50/90 border border-amber-200/70 px-2 py-0.5 font-bold tabular-nums text-amber-800 shadow-2xs">
                                     <Zap className="h-3 w-3 text-amber-600" />
-                                    {actor.energy}
+                                    {Number(Number(actor.energy).toFixed(1))}
                                     <span className="text-[10px] font-normal text-amber-700/80">体力</span>
                                 </span>
                             </div>

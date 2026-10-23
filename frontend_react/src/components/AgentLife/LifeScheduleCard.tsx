@@ -10,6 +10,12 @@ import {
     Coffee,
     Calendar,
     Activity,
+    Fish,
+    FlaskConical,
+    Hammer,
+    Sparkles,
+    Swords,
+    Utensils,
 } from 'lucide-react';
 import type {LifeItem} from '../../types/api/agentLife';
 import {activityLabels, showsLifeBudget, statusLabels} from './lifeLabels';
@@ -30,6 +36,31 @@ const activityConfig: Record<
         accentBar: string;
     }
 > = {
+    blacksmith: {
+        icon: Hammer,
+        badgeColor: 'bg-amber-50 text-amber-800 border-amber-300/80',
+        accentBar: 'bg-amber-600',
+    },
+    exploration: {
+        icon: Swords,
+        badgeColor: 'bg-red-50 text-red-700 border-red-200/80',
+        accentBar: 'bg-red-500',
+    },
+    fishing: {
+        icon: Fish,
+        badgeColor: 'bg-teal-50 text-teal-700 border-teal-200/80',
+        accentBar: 'bg-teal-500',
+    },
+    cooking: {
+        icon: Utensils,
+        badgeColor: 'bg-orange-50 text-orange-700 border-orange-200/80',
+        accentBar: 'bg-orange-500',
+    },
+    alchemy: {
+        icon: FlaskConical,
+        badgeColor: 'bg-violet-50 text-violet-700 border-violet-200/80',
+        accentBar: 'bg-violet-500',
+    },
     travel: {
         icon: Compass,
         badgeColor: 'bg-cyan-50 text-cyan-700 border-cyan-100',
@@ -69,6 +100,11 @@ const activityConfig: Record<
         icon: Coffee,
         badgeColor: 'bg-rose-50 text-rose-700 border-rose-100',
         accentBar: 'bg-rose-400',
+    },
+    lottery: {
+        icon: Sparkles,
+        badgeColor: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100',
+        accentBar: 'bg-fuchsia-500',
     },
     unplanned: {
         icon: Calendar,

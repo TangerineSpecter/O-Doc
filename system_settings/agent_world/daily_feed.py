@@ -448,7 +448,9 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     )
     for trip in fishing_rows:
         caught = [e.data['catch'] for e in trip.caught_events]
-        detail = '、'.join(c['name'] for c in caught) or '尚无收获'
+        counts = Counter(c['name'] for c in caught)
+        catches_summary = '、'.join(f"{name} ×{count}" if count > 1 else name for name, count in counts.items()) or '尚无收获'
+        detail = catches_summary
         detail += f" · 抛竿{trip.state.get('casts',0)}次"
         if trip.state.get('reason'):
             detail += ' · ' + trip.state['reason']

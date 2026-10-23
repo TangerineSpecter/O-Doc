@@ -5,6 +5,7 @@ import {
     CalendarDays,
     Coins,
     Compass,
+    Fish,
     Info,
     MessageCircle,
     MessageSquareQuote,
@@ -12,6 +13,7 @@ import {
     Sparkles,
     Sprout,
     Swords,
+    Ticket,
     TrendingUp,
     Users,
     UtensilsCrossed,
@@ -23,6 +25,8 @@ import AgentAvatar from '../AgentAvatar';
 import {ActivityChart, FinanceChart} from './AnalyticsCharts';
 import ResidentsComparison from './ResidentsComparison';
 import CombatResidentsRanking from './CombatResidentsRanking';
+import FishingStatistics from './FishingStatistics';
+import LotteryStatistics from './LotteryStatistics';
 
 function Section({
     title,
@@ -91,6 +95,8 @@ const categoryTheme: Record<string, {label: string; color: string; bar: string; 
     post: {label: '创作', color: 'text-purple-600', bar: 'bg-purple-500', bg: 'bg-purple-50', icon: BookOpenText},
     interaction: {label: '社交', color: 'text-pink-600', bar: 'bg-pink-500', bg: 'bg-pink-50', icon: MessageCircle},
     farm: {label: '农场', color: 'text-emerald-600', bar: 'bg-emerald-500', bg: 'bg-emerald-50', icon: Sprout},
+    lottery: {label: '大乐透', color: 'text-orange-700', bar: 'bg-orange-600', bg: 'bg-orange-50', icon: Ticket},
+    fishing: {label: '钓鱼', color: 'text-cyan-700', bar: 'bg-cyan-600', bg: 'bg-cyan-50', icon: Fish},
     cooking: {label: '烹饪', color: 'text-amber-600', bar: 'bg-amber-500', bg: 'bg-amber-50', icon: UtensilsCrossed},
     travel: {label: '旅行', color: 'text-teal-600', bar: 'bg-teal-500', bg: 'bg-teal-50', icon: Compass},
     market: {label: '市场', color: 'text-orange-600', bar: 'bg-orange-500', bg: 'bg-orange-50', icon: ShoppingBag},
@@ -534,6 +540,14 @@ export default function AnalyticsContent({data}: {data: ResidentAnalytics}) {
                             统计区间内暂无入账与支出流水记录
                         </div>
                     )}
+                </Section>
+
+                <Section title="大乐透统计" icon={Ticket} description="购票结果与实际资金收支分开展示，待开奖不计入中奖率。" wide>
+                    <LotteryStatistics data={data.lotteryStatistics}/>
+                </Section>
+
+                <Section title="钓鱼统计" icon={Fish} description="按所选日期内的实际出钓、逐竿及捕获事实统计。普通鱼捕获率不含空竿、垃圾和鱼王。" wide>
+                    <FishingStatistics rows={data.fishingComparison || []}/>
                 </Section>
 
                 <Section title="居民战斗经历排行榜" icon={Swords} description="比较实际探索与击败成果，点击居民打开战斗统计卡片。" wide>

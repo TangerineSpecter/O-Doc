@@ -23,6 +23,10 @@ import {
     Ban,
     FileEdit,
     Hammer,
+    Fish,
+    Swords,
+    FlaskConical,
+    Utensils,
 } from 'lucide-react';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {getLifeItem, changeLifeItem} from '../../api/agentLife';
@@ -33,6 +37,14 @@ function ActivityIcon({activity, className}: {activity?: string; className?: str
     switch (activity) {
         case 'blacksmith':
             return <Hammer className={className} />;
+        case 'exploration':
+            return <Swords className={className} />;
+        case 'fishing':
+            return <Fish className={className} />;
+        case 'cooking':
+            return <Utensils className={className} />;
+        case 'alchemy':
+            return <FlaskConical className={className} />;
         case 'travel':
             return <Compass className={className} />;
         case 'farm':
@@ -400,7 +412,7 @@ export default function LifeItemDetails({
                                     value={reason}
                                     onChange={(e) => setReason(e.target.value)}
                                     placeholder={
-                                        item.source === 'interleaved' ? '请输入取消本次穿插的原因…' : item.status === 'failed'
+                                        item.source === 'interleaved' ? '请输入取消本次自由活动的原因…' : item.status === 'failed'
                                             ? item.activity === 'market_prepare'
                                                 ? '请说明重试这次市场机会的原因…'
                                                 : '请说明重试或重新规划的原因…'

@@ -13,6 +13,8 @@ from ..investment_models import InvestmentTrade, InvestmentAccount
 from ..social_models import Moment, MomentComment, MomentLike
 from ..combat.models import CombatFact, CombatEncounter, Exploration, CombatProfile
 from ..models import WorldLedger
+from ..fishing.models import FishingProfile, FishingTrip
+from ..lottery_models import LotteryTicket
 
 
 def resident_id(value):
@@ -49,10 +51,11 @@ def load_facts(request, owner, start, end):
     actors = _actor_scope(owner)
     # Unassigned global residents remain visible, as in the residents sidebar; assets owned by another account do not.
     foreign = set()
-    for model in (LifeProfile, AgentFarm, CookingSkill, InvestmentAccount, CombatProfile):
+    for model in (LifeProfile, AgentFarm, CookingSkill, InvestmentAccount, CombatProfile, FishingProfile):
         foreign.update(model.objects.exclude(owner_id=owner).values_list('id', flat=True))
     actors.update(Agent.objects.exclude(pk__in=foreign).values_list('id', flat=True))
     actors.update(CookingSkill.objects.filter(owner_id=owner).values_list('id', flat=True))
+    actors.update(FishingProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
     for model in (CookingOperation, InvestmentTrade, MarketTransaction, Exploration, CombatFact):
         actors.update(model.objects.filter(owner_id=owner).values_list('actor_id', flat=True))
 
@@ -65,7 +68,8 @@ def load_facts(request, owner, start, end):
 
     # Identity lookup is independent of the selected date window, so old residents remain selectable.
     for model, key, name in ((AgentFarm, 'id', 'actor_name'), (CookingSkill, 'id', 'actor_name'),
-                             (TravelJourney, 'actor_id', None), (Exploration, 'actor_id', 'actor_name')):
+                             (TravelJourney, 'actor_id', None), (Exploration, 'actor_id', 'actor_name'),
+                             (FishingTrip, 'actor_id', 'actor_name'), (LotteryTicket, 'actor_id', 'actor_name')):
         fields = [key, name] if name else [key, 'snapshot']
         for actor, value in model.objects.filter(owner_id=owner).values_list(*fields):
             remember(actor, value if name else value.get('agent_name', ''))
@@ -158,6 +162,10 @@ def load_facts(request, owner, start, end):
             add(category+':'+row.pk, row.actor_id, row.created_at, category, row.actor_name)
     for row in window(TravelJourney.objects.filter(owner_id=owner), 'departed_at'):
         add('travel:'+row.pk, row.actor_id, row.departed_at, 'travel')
+    for row in window(FishingTrip.objects.filter(owner_id=owner), 'departed_at'):
+        add('fishing:'+row.pk, row.actor_id, row.departed_at, 'fishing')
+    for row in window(LotteryTicket.objects.filter(owner_id=owner, round__owner_id=owner)):
+        add('lottery:'+row.purchase_key+':'+row.actor_id, row.actor_id, row.created_at, 'lottery')
     facts.journeys = list(window(TravelJourney.objects.filter(owner_id=owner, status='completed'), 'returned_at'))
     if TravelJourney.objects.filter(owner_id=owner, status='completed', returned_at__isnull=True).exists():
         facts.unknown.add('部分旧旅行未记录返程时间，未计入区间完成成果。')
@@ -178,15 +186,16 @@ def visible_resident_ids(owner):
     """Return the same account-visible resident identities used by analytics."""
     actors = _actor_scope(owner)
     foreign = set()
-    for model in (LifeProfile, AgentFarm, CookingSkill, InvestmentAccount, CombatProfile):
+    for model in (LifeProfile, AgentFarm, CookingSkill, InvestmentAccount, CombatProfile, FishingProfile):
         foreign.update(model.objects.exclude(owner_id=owner).values_list('id', flat=True))
     actors.update(Agent.objects.exclude(pk__in=foreign).values_list('id', flat=True))
     actors.update(CookingSkill.objects.filter(owner_id=owner).values_list('id', flat=True))
+    actors.update(FishingProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
 
     for model in (CookingOperation, MarketTransaction, InvestmentTrade):
         actors.update(model.objects.filter(owner_id=owner).values_list('actor_id', flat=True).distinct())
     for model, field in ((AgentFarm, 'id'), (CookingSkill, 'id'),
-                         (TravelJourney, 'actor_id'), (Exploration, 'actor_id')):
+                         (TravelJourney, 'actor_id'), (Exploration, 'actor_id'), (FishingTrip, 'actor_id'), (LotteryTicket, 'actor_id')):
         actors.update(model.objects.filter(owner_id=owner).values_list(field, flat=True).distinct())
     actors.update(filter(None, (resident_id(value) for value in
         Moment.objects.filter(owner_id=owner).values_list('actor_id', flat=True).distinct())))

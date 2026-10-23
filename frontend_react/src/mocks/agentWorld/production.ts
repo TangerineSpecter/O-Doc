@@ -85,8 +85,10 @@ export const shop: MarketShop = {id: 'local-shop', startsAt: at(0), expiresAt: a
         ...(['quality', 'yield'] as const).map(k => ({id: k, sku: `fertilizer.${k}`, kind: 'fertilizer' as const, price: String(farmRules.fertilizers[k].basePrice), ...farmRules.fertilizers[k]}))]};
 export const listings: MarketListing[] = inventory.slice(0, 24).map((item, i) => ({id: `local-listing-${i}`, sellerId: item.actorId, sellerName: item.actorName,
     item: {...item, kind: 'crop', iconAssetId: item.iconAssetId || undefined}, initialQuantity: 12, remainingQuantity: 8, unitPrice: item.value, version: 1, status: 'active', createdAt: at(10), history: []}));
-export const transactions: MarketTransaction[] = residents.map((r, i) => ({id: `local-transaction-${i}`, actorId: r.id, actorName: r.name,
-    sessionId: `local-session-${i}`, operation: {kind: 'buy', reason: '补足下一轮种植的种子'}, result: {kind: 'seed', name: '草莓种子', quantity: 3, total: '120', unitPrice: '40'}, createdAt: at(10 + i)}));
+export const transactions: MarketTransaction[] = [...residents.map((r, i) => ({id: `local-transaction-${i}`, actorId: r.id, actorName: r.name,
+    sessionId: `local-session-${i}`, operation: {kind: 'buy', reason: '补足下一轮种植的种子'}, result: {kind: 'seed', name: '草莓种子', quantity: 3, total: '120', unitPrice: '40'}, createdAt: at(10 + i)})),
+    {id: 'local-transaction-fish', actorId: residents[0].id, actorName: residents[0].name, sessionId: 'local-session-0',
+        operation: {kind: 'sell', reason: '进场自动回收普通鱼'}, result: {kind: 'fish', name: '鲫鱼', quantity: 3, total: '6', fishing_sku: 'fish.crucian'}, createdAt: at(14)}];
 export const sessions: MarketSession[] = residents.map((r, i) => ({id: `local-session-${i}`, actorId: r.id, actorName: r.name, status: 'completed', mode: 'automatic', callCount: 2,
     createdAt: at(10), expiresAt: at(11), endedAt: at(11), reason: '已完成采购并保留日常储备金',
     calls: [{name: 'buy', at: at(10), arguments: {sku: 'seed.strawberry', quantity: 3}, result: {name: '草莓种子', quantity: 3, total: '120', budgetBefore: '300', budgetAfter: '180'}}],

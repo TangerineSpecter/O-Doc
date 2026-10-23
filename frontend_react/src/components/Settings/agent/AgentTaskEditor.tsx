@@ -102,7 +102,16 @@ export function AgentTaskEditor({task, agents, archivedAgents, mcpServers, model
                 </div>
 
                 <div className="max-h-[72vh] space-y-5 overflow-y-auto scrollbar-hide p-6">
-                    <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
+                    <div className="flex items-center justify-between">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            isSystemTask
+                                ? 'border border-orange-200/90 bg-orange-50 text-orange-700 shadow-2xs'
+                                : 'border border-slate-200 bg-slate-100 text-slate-600'
+                        }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isSystemTask ? 'bg-orange-500' : 'bg-slate-400'}`} />
+                            {isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}
+                        </span>
+                    </div>
                     {isSystemTask && <>
                         <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <MarketTaskFields value={taskForm.marketConfig || {}} onChange={marketConfig => setTaskForm({...taskForm, marketConfig})}/> : isExplorationTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民准备地点、装备与药剂，规则自动推进持续战斗。自动探索由空档活动决策触发，需开启本机自动执行、自动穿插和迷宫探索能力。准备使用有限决策，确定步骤与战斗由系统执行。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isBlacksmithTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民依次选择等级范围、部位和当前职业路线可用类型，消耗自己的迷宫材料打造装备。每件消耗2点体力，不收金币；等级在范围内随机，白/蓝/金概率为70%/25%/5%。每做完一件再决定是否继续，一次最多三件。配方与记录在世界图鉴的铁匠铺查看。</p> : isAlchemyTask ? <p className="rounded-2xl bg-violet-50 p-4 text-sm leading-relaxed text-slate-600">使用背包里的迷宫素材炼制一次性药水，一次最多三道配方、每道五瓶；每瓶消耗一体力并获得炼金经验。药水不在商店出售，探索出发时最多携带五瓶，未用完自动返还。配方与效果在炼金图鉴查看。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={imageModels} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields imageModels={imageModels} value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
                             onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>

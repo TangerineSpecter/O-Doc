@@ -2,6 +2,7 @@ import type {AgentConfig, AgentActivity, AgentRelationGraph} from '../../types/a
 import type {DailyFeedEvent, DailyFeedCategory} from '../../types/api/dailyFeed';
 import type {LifeConfig, LifeItem, LifeGoal} from '../../types/api/agentLife';
 import type {WorldLedger, WorldProfession} from '../../types/api/agentWorld';
+import {feedStepsSamples} from './feedStepsSamples';
 
 export const now = new Date();
 export const day = now.toLocaleDateString('en-CA');
@@ -21,18 +22,70 @@ export const residents: AgentConfig[] = ['小橘', '林芽', '星河', '白露']
 export const professions: WorldProfession[] = residents.map((r, i) => ({id: r.profession!, name: r.professionName!, description: '本地样例职业与成长加成', enabled: true,
     bonuses: [{category: 'local-category', percentage: '15'}], farmYieldPercentage: String(i === 1 ? 25 : 5),
     mazeEquipmentDropBonusPercentage: '5', mazeMaterialYieldPercentage: '10', mazeEquipmentIntervalReductionPercentage: '5', mazeExperienceBonusPercentage: '10'}));
-const categories: Exclude<DailyFeedCategory, 'all'>[] = ['publication', 'interaction', 'travel', 'exploration', 'farm', 'cooking', 'market', 'trade', 'investment', 'finance', 'record', 'fishing'];
-const labels = ['发布了新芽草甸观察笔记', '和朋友讨论今天的收获', '完成杭州旅行，带回一份纪念品', '从苔石洞窟满载归来', '收获三星草莓，获得种植经验', '制作番茄炒蛋，厨艺提升', '采购下一轮种植所需种子', '出售多余收获，入账 240 橘币', '完成模拟投资复盘', '收到作品收益 120 橘币', '今天的生活计划已排好', '钓到金鳞鲤王，刷新个人纪录'];
-const targets = ['activity', 'moment', 'travel', 'exploration', 'farm', 'cooking', 'market', 'market', 'investment', 'life', 'life', 'fishing'];
-export const feed: DailyFeedEvent[] = Array.from({length: 48}, (_, i) => {
+const categories: Exclude<DailyFeedCategory, 'all'>[] = ['fishing', 'publication', 'interaction', 'travel', 'exploration', 'farm', 'cooking', 'alchemy', 'market', 'trade', 'investment', 'finance', 'record'];
+const labels = ['出钓归来', '发布了新芽草甸观察笔记', '和朋友讨论今天的收获', '完成杭州旅行，带回一份纪念品', '从苔石洞窟满载归来', '收获三星草莓，获得种植经验', '制作番茄炒蛋，厨艺提升', '炼制愈合药剂，经验提升', '采购下一轮种植所需种子', '出售多余收获，入账 240 橘币', '完成模拟投资复盘', '收到作品收益 120 橘币', '今天的生活计划已排好'];
+const targets = ['fishing', 'activity', 'moment', 'travel', 'exploration', 'farm', 'cooking', 'alchemy', 'market', 'market', 'investment', 'life', 'life'];
+
+export const fishingFeedSamples = [
+    {
+        title: '出钓归来',
+        detail: '乌鳢、乌鳢、乌鳢、乌鳢、乌鳢、乌鳢、乌鳢、乌鳢、乌鳢、乌鳢 · 抛竿20次 · 系统说明: 本次垂钓结束，为后续日程保留体力',
+        status: 'success',
+    },
+    {
+        title: '出钓归来',
+        detail: '乌鳢、鲫鱼、鲫鱼、乌鳢 · 抛竿7次 · 系统说明: 本次垂钓结束，为后续日程保留体力',
+        status: 'success',
+    },
+    {
+        title: '出钓归来',
+        detail: '鲫鱼、鲫鱼、鲫鱼、鲫鱼、鲫鱼、彩鳑鲏 · 抛竿12次 · 鱼饵用尽或当前时间没有适用鱼种',
+        status: 'success',
+    },
+    {
+        title: '出钓归来',
+        detail: '金鳞鲤王 ×1、鲤鱼 ×3 · 抛竿15次 · 成功捕获稀有鱼王，尽兴而归',
+        status: 'success',
+    },
+    {
+        title: '出钓归来',
+        detail: '乌鳢、乌鳢、乌鳢、乌鳢 · 抛竿8次 · 系统说明: 本次垂钓结束，为后续日程保留体力',
+        status: 'success',
+    },
+    {
+        title: '出钓归来',
+        detail: '尚无收获 · 抛竿5次 · 系统说明: 本次垂钓结束，为后续日程保留体力',
+        status: 'success',
+    },
+    {
+        title: '正在钓鱼',
+        detail: '乌鳢 ×2 · 抛竿6次 · 正在浅滩钓点挥竿，等待大鱼上钩',
+        status: 'running',
+    },
+    {
+        title: '出钓已暂停',
+        detail: '尚无收获 · 抛竿0次 · 请到钓鱼面板检查本机运行开关，并继续出钓',
+        status: 'paused',
+    },
+];
+
+const generatedFeed: DailyFeedEvent[] = Array.from({length: 48}, (_, i) => {
     const r = residents[(i + Math.floor(i / categories.length)) % 4], n = i % categories.length;
-    return {id: `local-feed-${i}`, actorId: r.id, actorName: r.name, actorIds: [r.id], category: categories[n], source: 'local',
-        occurredAt: new Date(now.getTime() - i * 18 * 60000).toISOString(), title: labels[n],
-        detail: '本地样例：保留完整行动原因、过程与结算说明，方便检查长文案、折行和弹窗样式。', status: i === 3 ? 'running' : 'success',
-        amount: ['trade', 'finance'].includes(categories[n]) ? '120.00' : null, rating: n === 0 ? 4.6 : null,
-    target: {kind: i >= 12 && n === 5 ? 'alchemy' : targets[n], id: targets[n] === 'travel' ? 'local-travel' : targets[n] === 'exploration' ? 'local-exploration' : targets[n] === 'fishing' ? 'local-fishing' : 'local-moment-0',
-            ...(n === 0 ? {collId: 'local-world', articleId: 'local-post-0'} : {}), ...(n === 1 ? {artifactId: 'local-moment-0'} : {})}};
+    const cat = categories[n];
+    const isFishing = cat === 'fishing';
+    const fishingSample = isFishing ? fishingFeedSamples[Math.floor(i / categories.length) % fishingFeedSamples.length] : null;
+    const title = fishingSample ? fishingSample.title : labels[n];
+    const detail = fishingSample ? fishingSample.detail : '本地样例：保留完整行动原因、过程与结算说明，方便检查长文案、折行和弹窗样式。';
+    const status = fishingSample ? fishingSample.status : (i === 3 ? 'running' : 'success');
+    return {id: `local-feed-${i}`, actorId: r.id, actorName: r.name, actorIds: [r.id], category: cat, source: isFishing ? 'fishing' : 'local',
+        occurredAt: new Date(now.getTime() - (i + 10) * 18 * 60000).toISOString(), title,
+        detail, status,
+        amount: ['trade', 'finance'].includes(cat) ? '120.00' : null, rating: n === 1 ? 4.6 : null,
+    target: {kind: targets[n], id: targets[n] === 'travel' ? 'local-travel' : targets[n] === 'exploration' ? 'local-exploration' : targets[n] === 'fishing' ? 'local-fishing' : 'local-moment-0',
+            ...(n === 1 ? {collId: 'local-world', articleId: 'local-post-0'} : {}), ...(n === 2 ? {artifactId: 'local-moment-0'} : {})}};
 });
+
+export const feed: DailyFeedEvent[] = [...feedStepsSamples, ...generatedFeed];
 export const residentDecisions: DailyFeedEvent[] = residents.flatMap((resident, index) => [
     {id: `local-decision-plan-${index}`, actorId: resident.id, actorName: resident.name,
         category: 'decision', source: 'life-decision', occurredAt: new Date(now.getTime() - (index * 18 + 6) * 60000).toISOString(),

@@ -61,6 +61,7 @@ import {MemoCaptureSettings} from './agent/MemoCaptureSettings';
 import {TaskActivityGroups} from './agent/TaskActivityGroups';
 import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask, defaultFarmTask, defaultMarketTask, defaultInvestmentTask, defaultCookingTask, defaultAlchemyTask, defaultBlacksmithTask, defaultExplorationTask} from './agent/builtinTasks';
 import {PostPublishPreviewModal} from './agent/PostPublishPreviewModal';
+import {downloadAgentCsv} from '@/utils/agentCsvExport';
 
 interface AgentSettingsProps {
     initialView?: AgentView;
@@ -264,6 +265,23 @@ export const AgentSettings = ({
     const openCreateTaskModal = () => setTaskEditor({});
     const openEditTaskModal = (task: AgentTaskConfig) => setTaskEditor({task});
 
+    const handleExportAgents = () => {
+        if (!agents || agents.length === 0) {
+            toast.warning('暂无活跃 Agent 可导出');
+            return;
+        }
+        try {
+            const success = downloadAgentCsv(agents);
+            if (success) {
+                toast.success(`已成功导出 ${agents.length} 位 Agent 设定`);
+            } else {
+                toast.warning('暂无活跃 Agent 可导出');
+            }
+        } catch {
+            toast.error('导出失败，请重试');
+        }
+    };
+
     const openEditModal = (agent: AgentConfig) => {
         clearAvatarPreview();
         setForm({
@@ -434,6 +452,8 @@ export const AgentSettings = ({
                         onCreateTask={openCreateTaskModal}
                         onOpenArchive={() => setArchiveOpen(true)}
                         archivedCount={archivedAgents.length}
+                        onExportCsv={handleExportAgents}
+                        canExport={agents.length > 0}
                     />
                 </div>
             </div>

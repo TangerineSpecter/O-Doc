@@ -11,6 +11,8 @@ import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentRepor
 import {resolveItemIconRoute} from './itemIcons';
 import {resolveCookingRoute} from './cooking';
 import {resolveAlchemyRoute} from './alchemy';
+import {fishingAnalyticsMock} from './fishingAnalytics';
+import {lotteryAnalyticsMock} from './lotteryAnalytics';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -150,7 +152,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         return {date: url.searchParams.get('date') || day, items: selected.slice(offset, offset + size), total: selected.length, allTotal: allRows.length,
             hasMore: offset + size < selected.length, nextCursor: offset + size < selected.length ? String(offset + size) : null,
             counts: Object.fromEntries([...new Set(rows.map(r => r.category))].map(c => [c, rows.filter(r => r.category === c).length])),
-            actorCounts: Object.fromEntries(residents.map(r => [r.id, rows.filter(f => f.actorId === r.id).length]))};
+            actorCounts: Object.fromEntries([...new Set([...residents.map(r => r.id), ...rows.map(f => f.actorId)])].map(id => [id, rows.filter(f => f.actorId === id).length]))};
     }
     if (path === `${base}/ledger/`) return list(forActor(ledger, url));
     if (path === `${base}/inventory/`) return list(forActor(inventory, url));
@@ -209,7 +211,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (path.endsWith('/decisions/')) return page(investmentDecisions, url);
         if (path.endsWith('/detail/')) return {position: positions.find(p => p.code === url.searchParams.get('code')) || positions[0], analysis: null, analysisError: '本地样例行情'};
     }
-    if (path === `${base}/analytics/`) return {...analytics, startDate: url.searchParams.get('start_date') || analytics.startDate, endDate: url.searchParams.get('end_date') || day, actorId: actor(url),
+    if (path === `${base}/analytics/`) return {...analytics, startDate: url.searchParams.get('start_date') || analytics.startDate, endDate: url.searchParams.get('end_date') || day, actorId: actor(url), lotteryStatistics: lotteryAnalyticsMock(url, emptyScenario()), fishingComparison: fishingAnalyticsMock(url, emptyScenario()),
         ...(emptyScenario() ? {daily: [], categories: [], peers: [], comparison: [], combatComparison: [], residents: []} : {})};
     if (path === `${base}/analytics/ledger/`) {const result = page(forActor(analyticsLedger, url), url); return {...result, nextPage: result.hasMore ? result.page + 1 : null};}
     if (path.startsWith(`${base}/token-usage/`)) return observationRoute(url, emptyScenario());

@@ -2,6 +2,7 @@ import type {MarketTransaction} from '../../types/api/market';
 import {PotionPortrait} from '../Combat/atlas/PotionPortrait';
 import {MaterialPortrait} from '../Combat/atlas/MaterialPortrait';
 import {EquipmentPortrait} from '../Combat/atlas/EquipmentPortrait';
+import {FishPortrait} from '../Fishing/FishPortrait';
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
 import {ArrowDownLeft, ArrowUpRight, Tag} from 'lucide-react';
@@ -11,6 +12,7 @@ export type TransactionVisual =
     | {type: 'farm'; src: string; name: string}
     | {type: 'material'; materialId: string; name: string}
     | {type: 'equipment'; equipmentId: string; name: string}
+    | {type: 'fish'; fishId: string; name: string}
     | {type: 'custom'; src: string; name: string};
 
 const POTION_NAME_MAP: Record<string, string> = {
@@ -88,6 +90,12 @@ export function resolveTransactionVisual(row: MarketTransaction): TransactionVis
     const iconUrl = res.iconUrl || res.icon_url;
     if (typeof iconUrl === 'string' && iconUrl) {
         return {type: 'custom', src: iconUrl, name: name || '商品'};
+    }
+
+    // 进场统一回收的鱼只带稳定 SKU，按鱼类图鉴像素形象展示。
+    const fishSku = String(res.fishing_sku || '');
+    if (fishSku.startsWith('fish.')) {
+        return {type: 'fish', fishId: fishSku.slice('fish.'.length), name: name || '鱼'};
     }
 
     // 2. 药剂 (Potion)
@@ -272,6 +280,14 @@ export function TransactionItemIcon({
                         decorative
                         className="h-7 w-7"
                         fallbackClassName="h-6 w-6"
+                    />
+                )}
+                {visual.type === 'fish' && (
+                    <FishPortrait
+                        fishId={visual.fishId}
+                        name={visual.name}
+                        decorative
+                        className="h-7 w-7"
                     />
                 )}
                 {visual.type === 'custom' && (

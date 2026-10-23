@@ -1,7 +1,13 @@
-import type {AnalyticsComparison} from '../types/api/residentAnalytics';
+import type {
+    AnalyticsComparison,
+    FishingAnalyticsResident,
+    LotteryAnalyticsResident,
+} from '../types/api/residentAnalytics';
 
 export type AnalyticsPeriod = '7' | '30' | 'custom';
 export type ComparisonColumn = 'activeDays' | 'publications' | 'interactions' | 'income' | 'expense' | 'net';
+export type LotteryRankingColumn = 'net' | 'prizes' | 'expense' | 'winningTickets' | 'winRate' | 'tickets' | 'pendingTickets' | 'firstTickets';
+export type FishingRankingColumn = 'catches' | 'kings' | 'ordinaryCatchRate' | 'experience' | 'trips' | 'casts';
 
 export function analyticsRange(days: number, now = new Date()) {
     const today = new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'}).format(now);
@@ -34,5 +40,48 @@ export function sortAnalyticsResidents(rows: AnalyticsComparison[], column: Comp
         const a = left[column], b = right[column];
         const difference = typeof a === 'string' && typeof b === 'string' ? cents(a) - cents(b) : Number(a) - Number(b);
         return (difference < 0 ? -1 : difference > 0 ? 1 : 0) * (descending ? -1 : 1) || left.id.localeCompare(right.id);
+    });
+}
+
+export function sortLotteryResidents(rows: LotteryAnalyticsResident[], column: LotteryRankingColumn, descending: boolean) {
+    return [...rows].sort((left, right) => {
+        const a = left[column], b = right[column];
+        let difference: number | bigint = 0;
+        if (column === 'net' || column === 'prizes' || column === 'expense') {
+            difference = cents(a as string) - cents(b as string);
+        } else if (a === null || b === null) {
+            if (a === b) difference = 0;
+            else if (a === null) return 1;
+            else return -1;
+        } else {
+            difference = (a as number) - (b as number);
+        }
+        const primary = (difference < 0 ? -1 : difference > 0 ? 1 : 0) * (descending ? -1 : 1);
+        if (primary !== 0) return primary;
+        const netDiff = cents(right.net) - cents(left.net);
+        if (netDiff !== 0n) return netDiff < 0n ? -1 : 1;
+        if (right.winningTickets !== left.winningTickets) return right.winningTickets - left.winningTickets;
+        if (right.tickets !== left.tickets) return right.tickets - left.tickets;
+        return left.id.localeCompare(right.id);
+    });
+}
+
+export function sortFishingResidents(rows: FishingAnalyticsResident[], column: FishingRankingColumn, descending: boolean) {
+    return [...rows].sort((left, right) => {
+        const a = left[column], b = right[column];
+        let difference = 0;
+        if (a === null || b === null) {
+            if (a === b) difference = 0;
+            else if (a === null) return 1;
+            else return -1;
+        } else {
+            difference = (a as number) - (b as number);
+        }
+        const primary = (difference < 0 ? -1 : difference > 0 ? 1 : 0) * (descending ? -1 : 1);
+        if (primary !== 0) return primary;
+        if (right.catches !== left.catches) return right.catches - left.catches;
+        if (right.kings !== left.kings) return right.kings - left.kings;
+        if (right.experience !== left.experience) return right.experience - left.experience;
+        return left.id.localeCompare(right.id);
     });
 }

@@ -31,6 +31,8 @@ export interface ResidentAnalytics {
     peers: {id: string; name: string; count: number}[];
     financeSources: {kind: string; income: string; expense: string}[];
     outcomes: {harvests: number; collections: number; journeys: number; destinations: number; explorations: number; wins: number};
+    lotteryStatistics: {overview: LotteryAnalyticsMetrics; residents: LotteryAnalyticsResident[]};
+    fishingComparison: FishingAnalyticsResident[];
     combatComparison: CombatAnalyticsResident[]; comparison: AnalyticsComparison[]; notes: string[];
 }
 
@@ -46,3 +48,19 @@ export interface CombatAnalyticsResident extends AnalyticsResident {
     unclassifiedKills: number;
     monsters: {id: string; name: string; kills: number; highestLevel: number}[];
 }
+
+export interface FishingAnalyticsResident extends AnalyticsResident {
+    trips: number; casts: number; catches: number; kings: number; escaped: number;
+    empty: number; junk: number; experience: number; ordinaryCatches: number;
+    ordinaryCatchRate: number | null;
+}
+
+export interface LotteryAnalyticsMetrics {
+    purchases: number; tickets: number; rounds: number; settledTickets: number; pendingTickets: number;
+    winningTickets: number; firstTickets: number; secondTickets: number; thirdTickets: number; unwonTickets: number;
+    winningRounds: number; unknownTickets: number; winRate: number | null;
+    expense: string; prizes: string; net: string; maxPrize: string;
+    firstAwards: number; secondAwards: number; thirdAwards: number;
+    firstPrize: string; secondPrize: string; thirdPrize: string;
+}
+export interface LotteryAnalyticsResident extends AnalyticsResident, LotteryAnalyticsMetrics {}

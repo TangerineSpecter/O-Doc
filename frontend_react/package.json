@@ -27,9 +27,13 @@
     "test:farm-scene": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Farm/scene/sceneModel.test.ts src/components/Farm/scene/pacing.test.ts src/components/Farm/scene/rainPattern.test.ts src/components/Farm/scene/simulation.test.ts",
     "test:execution-flow": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/executionFlow.test.ts src/utils/tokenObservatory.test.ts",
     "test:agent-tasks": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/agentTaskValidation.test.ts src/utils/agentTaskPayload.test.ts src/mocks/agentWorld/agentTasks.test.ts src/components/Settings/agent/agentTaskDraft.test.ts",
+    "test:agent-csv": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/agentCsvExport.test.ts",
     "test:social-theatre": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/socialTheatre.test.ts",
     "test:tournament": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Tournament/tournamentBracket.test.ts",
     "test:blacksmith": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/blacksmith.test.ts",
+    "test:feed-steps": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/feedSteps.test.ts",
+    "test:lottery-analytics": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test scripts/lottery-analytics.test.mjs",
+    "test:fishing-analytics": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test scripts/fishing-analytics.test.mjs",
     "test:fishing-filter": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test scripts/fishing-filter.test.mjs",
     "test:decision-debugger": "node --test ../scripts/tests/decision-debugger-input.test.cjs",
     "test:local-routing": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test scripts/local-routing.test.mjs scripts/production-routing.test.mjs"

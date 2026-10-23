@@ -12,17 +12,15 @@ from .inventory_stock import inventory_items
 from .market_plan_models import (MarketDisposition, MarketDispositionTask,
                                  disposition_task_id)
 
-DISPOSABLE_PREFIXES = ('crop.', 'product.', 'dish.', 'elixir.', 'combat.material.', 'fish.')
+DISPOSABLE_PREFIXES = ('crop.', 'product.', 'dish.', 'elixir.', 'combat.material.')
 SOUVENIR_PREFIX = 'souvenir.'
-SHOP_SELL_PREFIXES = ('crop.', 'product.', 'dish.', 'fish.')
+SHOP_SELL_PREFIXES = ('crop.', 'product.', 'dish.')
 COMBAT_SELL_PREFIXES = ('combat.material.',)
-LIST_PREFIXES = ('crop.', 'product.', 'dish.', 'elixir.', 'combat.material.', 'souvenir.', 'fish.')
+LIST_PREFIXES = ('crop.', 'product.', 'dish.', 'elixir.', 'combat.material.', 'souvenir.')
 
 
 def disposable(sku: str) -> bool:
-    from .fishing.catalog import FISH_ROWS
-    if sku in {'fish.' + row[0] for row in FISH_ROWS if row[-1]}:
-        return False
+    """鱼不进处置队列：进入市场时由 market_fish 统一回收普通鱼。"""
     return bool(sku) and (sku.startswith(DISPOSABLE_PREFIXES) or sku.startswith(SOUVENIR_PREFIX))
 
 

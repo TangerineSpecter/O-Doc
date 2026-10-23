@@ -13,6 +13,8 @@ from ..serializers import LedgerSerializer
 from .queries import load_facts, visible_resident_ids
 from .service import aggregate
 from .combat_statistics import load_combat_statistics
+from .fishing_statistics import load_fishing_statistics
+from .lottery_statistics import load_lottery_statistics
 
 
 class AnalyticsParams(serializers.Serializer):
@@ -44,6 +46,8 @@ class AnalyticsView(APIView):
         residents = {key: value for key, value in facts.residents.items() if not actor or key == actor}
         return success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
                                **aggregate(facts, first, last, actor),
+                               'lotteryStatistics': load_lottery_statistics(get_current_user_identifier(request), start, end, residents),
+                               'fishingComparison': load_fishing_statistics(get_current_user_identifier(request), start, end, residents),
                                'combatComparison': load_combat_statistics(get_current_user_identifier(request), start, end, residents)})
 
 

@@ -70,9 +70,14 @@ def call_market_tool(name: str, arguments: dict, agent, *, task=None, record=Non
         raise ValueError('市场工具包含未知参数')
     if name == 'enter_market':
         cleanup()
-        session = enter(owner, agent, request_key(agent.pk, arguments.get('request_id')), task=task, record=record, mode=mode)
+        session = enter(owner, agent, request_key(agent.pk, arguments.get('request_id')), task=task,
+                        record=record, mode=mode, clear_fish=True)
         from .market_spending import spending_context
-        return {**payload(session), 'spending': spending_context(owner, agent.pk)}
+        result = {**payload(session), 'spending': spending_context(owner, agent.pk)}
+        fish_sale = getattr(session, 'fish_sale', None)
+        if fish_sale and fish_sale['sold']:
+            result['fish_sale'] = fish_sale
+        return result
     explicit = arguments.get('session_id')
     session = (MarketSession.objects.filter(pk=explicit, actor_id=agent.pk, owner_id=owner).first() if explicit else
                MarketSession.objects.filter(actor_id=agent.pk, owner_id=owner, status='active').first())
