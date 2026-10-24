@@ -213,7 +213,7 @@ def _reflect_damage(catalog: Catalog, bearer: dict, attacker: dict, raw_by_type:
     for kind, raw in raw_by_type.items():
         amount = damage(raw * reflect, kind, bearer['level'], attacker)
         taken, absorbed, broken = hurt(attacker, amount)
-        events.append({'actor': bearer['name'], 'target': attacker['name'], 'action': '盾墙·反伤',
+        events.append({'actor': bearer['name'], 'target': attacker['name'], 'actor_id':bearer.get('id'), 'target_id':attacker.get('id'), 'action': '盾墙·反伤',
                        'kind': 'damage', 'damage': taken, 'absorbed': absorbed,
                        'hit': True, 'critical': False})
         if broken:
@@ -239,6 +239,8 @@ def upkeep(fighter: dict, tick: int, events: list[dict], *, opponent=None, catal
                 if broken and opponent is not None and catalog is not None and rng is not None:
                     events.extend(_shield_break(catalog, fighter, opponent, broken, tick, rng))
             else:
+                if fighter['hp'] <= 0:
+                    continue
                 restored = min(fighter['stats']['hp_max'] - fighter['hp'], math.floor(state['raw']))
                 fighter['hp'] += restored
                 events.append({'actor': fighter['name'], 'action': state['name'], 'healing': restored, 'kind': 'hot'})
@@ -293,7 +295,7 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
                             variation=rng.uniform(.95, 1.05), critical=value(attacker, 'critical_damage') if critical else 1,
                             extra=extra, element_factor=factor) if landed else 0
             taken, absorbed, broken = hurt(target, amount)
-            event = {'actor': attacker['name'], 'target': target['name'], 'action': action_name, 'kind': 'damage',
+            event = {'actor': attacker['name'], 'target': target['name'], 'actor_id':attacker.get('id'), 'target_id':target.get('id'), 'action': action_name, 'kind': 'damage',
                      'damage': taken, 'absorbed': absorbed, 'hit': landed, 'critical': landed and critical}
             if landed and element and abs(factor - 1) > 1e-9:
                 event['element'] = element
@@ -314,7 +316,7 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
             continue
         if code not in ('heal', 'shield', 'hot', 'dot', 'modifier', 'reflect'):
             continue
-        receiver = attacker if fx['target'] == 'self' else target
+        receiver = attacker if fx['target'] in ('self', 'ally', 'all_allies') else target
         if (receiver is target and (not successful or target['hp'] <= 0)) or rng.random() >= float(fx['chance']):
             continue
         raw = value(attacker, fx['stat']) * float(fx['value'])
@@ -322,7 +324,7 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
         if code == 'heal':
             restored = min(receiver['stats']['hp_max'] - receiver['hp'], max(0, math.floor(raw)))
             receiver['hp'] += restored
-            events.append({'actor': attacker['name'], 'action': name, 'kind': 'heal', 'healing': restored})
+            events.append({'actor': attacker['name'], 'target':receiver['name'], 'actor_id':attacker.get('id'), 'target_id':receiver.get('id'), 'action': name, 'kind': 'heal', 'healing': restored})
             continue
         state = {'code': code, 'group': fx['group'], 'stat': fx['stat'], 'value': float(fx['value']), 'name': name}
         if code in ('modifier', 'reflect'):
@@ -342,5 +344,5 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
                     state['element'] = element
             state.update(raw=raw * (1 + clamp(bonus, 0, 2)) * factor, remaining=duration, next_tick=tick + (1 if receiver is attacker else 0), source_level=attacker['level'], damage_type=fx['damage_type'])
         status(receiver, state)
-        events.append({'actor': attacker['name'], 'target': receiver['name'], 'action': name, 'kind': code, 'duration': duration, 'group': fx['group']})
+        events.append({'actor': attacker['name'], 'target': receiver['name'], 'actor_id':attacker.get('id'), 'target_id':receiver.get('id'), 'action': name, 'kind': code, 'duration': duration, 'group': fx['group']})
     return events

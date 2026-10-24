@@ -307,7 +307,7 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
     _record_choice(trace, 'dungeon_id', record)
     dungeon = catalog.row('dungeons', dungeon_id)
 
-    duration_candidates = [(1800, '30分钟'), (3600, '60分钟'), (7200, '120分钟')]
+    duration_candidates = ([(constraints['duration_seconds'], f"加入{constraints['duration_seconds']//60}分钟")] if run.snapshot.get('target_party_id') else [(1800, '30分钟'), (3600, '60分钟'), (7200, '120分钟')])
     if constraints.get('duration_seconds') is not None:
         duration_candidates = [(seconds, label) for seconds, label in duration_candidates
                                if seconds == constraints['duration_seconds']]

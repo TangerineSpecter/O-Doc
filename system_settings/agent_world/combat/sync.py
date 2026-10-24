@@ -21,7 +21,7 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>12:
+    if meta and meta.get('combat_schema_version',0)>14:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     from .history_snapshot import normalize_source, compact_source, aggregate_frame, verify_chain
     if meta is None or meta.get('combat_schema_version', 0) < 8:
@@ -262,6 +262,8 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             )
             if recap_mismatch and not allow_exploration_review_mismatch:
                 raise SyncError('探索回顾记录与固定结算摘要不一致')
+    from .party_sync import validate_source as validate_parties
+    validate_parties(data, meta)
     return True
 
 
@@ -307,6 +309,8 @@ def normalize_exploration_reviews(data: list[dict]) -> list[dict]:
 
 
 def validate_catalog_conflicts(local,remote):
+    from .party_sync import validate_conflicts
+    validate_conflicts(local, remote)
     from utils.sync_manager import SyncError
     a={str(r['pk']):r['fields'] for r in local if r['model']==CATALOG}
     for r in remote:
@@ -327,6 +331,11 @@ def revoke(*, disable_auto=True):
     from .permissions import local_runtime
     from . import attributes
     from .store import current
+    from .party_models import AdventureParty
+    from .party_facts import append as shared_fact
+    for party in AdventureParty.objects.filter(status='active'):
+        party.status, party.next_tick_at = 'paused', None
+        shared_fact(party, 'pause', {'reason':'服务停止或数据恢复，执行授权已关闭'})
     for run in Exploration.objects.filter(status='paused'):
         if not local_runtime(run):continue
         profile=CombatProfile.objects.filter(pk=run.actor_id).first()
@@ -360,5 +369,5 @@ def metadata(data=None):
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
     # 12: forge receipts establish equipment provenance and consume maze materials.
-    return {'combat_schema_version':12,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+    return {'combat_schema_version':14,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

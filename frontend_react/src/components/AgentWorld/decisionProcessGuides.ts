@@ -6,7 +6,7 @@ import {interleavingGuide} from './decisionGuides/interleaving';
 
 export type {DecisionGuideKind, DecisionFlowStep, DecisionProcessGuide} from './decisionProcessTypes';
 
-/** The single registry used by task cards and domain panels. Keep sources in docs/agents; market includes daily/hourly bait decisions; idle guides include passive recovery boundaries. */
+/** The single registry used by task cards and domain panels. Keep sources in docs/agents; market includes daily/hourly bait decisions; idle guides include adventure-mode decisions, shared-party settlement and passive recovery boundaries. */
 export const decisionProcessGuides: Record<DecisionGuideKind, DecisionProcessGuide> = {
     ...scheduledGuides, ...idleGuides, ...independentGuides, interleaving: interleavingGuide,
 };

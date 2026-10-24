@@ -4,7 +4,7 @@ import {blacksmithActivities, blacksmithFacts, blacksmithLifeItems, resolveBlack
 import {observationRoute, observationRequests, observationMetrics, observationFacts, addBlacksmithObservation} from './tokenUsage';
 import {residents, professions, activities, graph, feed, residentDecisions, lifeConfig, lifeItems, goals, ledger, day, at} from './residents';
 import {farms, farmRules, farmHistory, inventory, cooking, alchemy, itemCatalog, shop, listings, transactions, sessions, marketPlans} from './production';
-import {combatCatalog, combatProfiles, exploration, journey, fishingCatalog, fishingOverview, fishingTrip, fishingTrips, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
+import {combatCatalog, combatProfiles, exploration, localParty, localOlderPartyEvents, localAdventureOptions, localPartyExploration, journey, fishingCatalog, fishingOverview, fishingTrip, fishingTrips, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
 import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, worldPosts} from './social';
 import type {LifeItem} from '../../types/api/agentLife';
 import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentReports} from './tournament';
@@ -14,6 +14,8 @@ import {resolveAlchemyRoute} from './alchemy';
 import {fishingAnalyticsMock} from './fishingAnalytics';
 import {lotteryAnalyticsMock} from './lotteryAnalytics';
 import {lifeScheduleResponse} from './lifeSchedule';
+import {localCombatPreparation} from './combatPreparation';
+import {combatAnalyticsMock} from './combatAnalytics';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -178,13 +180,22 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (path.endsWith('/sessions/')) return page(forActor(sessions, url), url);
         if (path.endsWith('/automation/')) return {date: day, plans: list(forActor(marketPlans, url))};
     }
+    if (new RegExp(`^${base}/combat/parties/[^/]+/events/$`).test(path)) return {events:emptyScenario()?[]:[...localOlderPartyEvents,...localParty.events].filter(e=>e.sequence<Number(url.searchParams.get('before')||100)),hasMore:false};
     if (path.startsWith(`${base}/combat/agents/`)) {
         const id = path.split('/')[6], profile = combatProfiles.find(r => r.actorId === id) || combatProfiles[0];
+        if (path.endsWith('/adventure-options/')) return {solo:true,parties:emptyScenario()?[]:localAdventureOptions.parties};
+        if (body.operation==='prepare') return localCombatPreparation.prepare(id,body,emptyScenario());
         if (path.endsWith('/history/')) return {list: list([{id: exploration.id, status: exploration.status, elapsedSeconds: exploration.elapsedSeconds, result: exploration.result, createdAt: at(12)}]), total: emptyScenario() ? 0 : 1, page: 1};
-        if (body.operation === 'preview_equip') return {attributes: profile.attributes}; return profile;
+        if (body.operation === 'preview_equip') return {attributes: profile.attributes};
+        return {...profile,activeExplorationId:localCombatPreparation.active(id)};
     }
     if (request.method === 'GET' || request.method === 'POST') {
-        if (new RegExp(`^${base}/combat/explorations/[^/]+/$`).test(path)) return exploration;
+        if (new RegExp(`^${base}/combat/explorations/[^/]+/$`).test(path)) {
+            const id=decodeURIComponent(path.split('/')[6]);
+            const prepared=request.method==='POST'?localCombatPreparation.command(id,body.operation):localCombatPreparation.read(id);
+            if(prepared)return prepared;
+            return emptyScenario()?{...exploration,party:null}:path.includes('/local-party-exploration/')?localPartyExploration:exploration;
+        }
         if (new RegExp(`^${base}/travel/[^/]+/$`).test(path)) return journey;
     }
     if (path === `${base}/moments/`) {
@@ -211,8 +222,12 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (path.endsWith('/decisions/')) return page(investmentDecisions, url);
         if (path.endsWith('/detail/')) return {position: positions.find(p => p.code === url.searchParams.get('code')) || positions[0], analysis: null, analysisError: '本地样例行情'};
     }
-    if (path === `${base}/analytics/`) return {...analytics, startDate: url.searchParams.get('start_date') || analytics.startDate, endDate: url.searchParams.get('end_date') || day, actorId: actor(url), lotteryStatistics: lotteryAnalyticsMock(url, emptyScenario()), fishingComparison: fishingAnalyticsMock(url, emptyScenario()),
-        ...(emptyScenario() ? {daily: [], categories: [], peers: [], comparison: [], combatComparison: [], residents: []} : {})};
+    if (path === `${base}/analytics/`) {
+        const combat=combatAnalyticsMock(url,emptyScenario());
+        return {...analytics, startDate: url.searchParams.get('start_date') || analytics.startDate, endDate: url.searchParams.get('end_date') || day, actorId: actor(url), lotteryStatistics: lotteryAnalyticsMock(url, emptyScenario()), fishingComparison: fishingAnalyticsMock(url, emptyScenario()),
+            combatComparison:combat.combatComparison,outcomes:{...analytics.outcomes,explorations:combat.explorations,wins:combat.wins},
+            ...(emptyScenario() ? {daily: [], categories: [], peers: [], comparison: [], residents: []} : {})};
+    }
     if (path === `${base}/analytics/ledger/`) {const result = page(forActor(analyticsLedger, url), url); return {...result, nextPage: result.hasMore ? result.page + 1 : null};}
     if (path.startsWith(`${base}/token-usage/`)) return observationRoute(url, emptyScenario());
     if (path === `${base}/bounties/options/`) return {collections: [{id: 'local-world', title: '居民生活手记'}], categories, residents, searchReady: true, inviteDelayMinutes: 5, claimHours: 24};

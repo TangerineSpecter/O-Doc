@@ -85,14 +85,33 @@ def request(owner, agent, key, constraints, *, life_item=None, now=None):
     if key=='combat-worker':raise ValueError('请求键为系统保留标识')
     old = Exploration.objects.filter(pk=key).first()
     if old:
-        if old.owner_id!=owner or old.actor_id!=agent.pk or old.snapshot.get('constraints')!=constraints or old.life_item_id!=(life_item.pk if life_item else ''):
+        if old.owner_id!=owner or old.actor_id!=agent.pk or old.snapshot.get('requested_constraints', old.snapshot.get('constraints'))!=constraints or old.life_item_id!=(life_item.pk if life_item else ''):
             raise ValueError('出发请求键已用于不同参数')
         return old
-    if not isinstance(constraints,dict) or set(constraints)-{'dungeon_id','duration_seconds','style_id'}:
+    if not isinstance(constraints,dict) or set(constraints)-{'dungeon_id','duration_seconds','style_id','adventure_mode','party_id','party_revision'}:
         raise ValueError('探索约束格式无效')
+    requested = dict(constraints)
+    party_id = constraints.get('party_id')
+    mode=constraints.get('adventure_mode')
+    if mode not in (None,'solo','join') or (mode=='join' and not party_id) or (mode=='solo' and party_id):
+        raise ValueError('冒险方式与目标队伍不一致')
+    if party_id is not None and (not isinstance(party_id,str) or not 1<=len(party_id)<=64 or
+                                 type(constraints.get('party_revision')) is not int or constraints['party_revision']<0):
+        raise ValueError('目标队伍及版本格式无效')
+    if party_id:
+        from .party_options import options
+        option = next((r for r in options(owner, agent, now)['parties'] if r['id']==party_id), None)
+        if not option or constraints.get('party_revision') != option['revision']:
+            raise ValueError('所选冒险已变化，请重新选择')
+        constraints = {**constraints, 'duration_seconds': option['duration_seconds'], 'dungeon_id': option['dungeon_id']}
     duration = constraints.get('duration_seconds',1800)
-    if type(duration) is not int or duration not in (1800,3600,7200):
-        raise ValueError('探索时长只能为 30、60 或 120 分钟')
+    if type(duration) is not int or (not party_id and duration not in (1800,3600,7200)) or (party_id and duration<600):
+        raise ValueError('自己出发须30、60或120分钟，加入至少10分钟')
+    join_only = False
+    if life_item and not party_id and not constraints:
+        from ..life_interleaving_candidates import legal_durations
+        if not legal_durations(life_item, [1800], seconds=True, now=now):
+            duration, join_only = 600, True
     catalog = current()
     for field,table in (('dungeon_id','dungeons'),('style_id','styles')):
         if field in constraints:
@@ -111,7 +130,7 @@ def request(owner, agent, key, constraints, *, life_item=None, now=None):
         raise ValueError('达到转职等级，等待 Agent 完成转职后才能继续探索')
     profile.save()
     row = Exploration.objects.create(pk=key,owner_id=owner,actor_id=agent.pk,actor_name=agent.name,catalog_id=catalog.version,
-        life_item_id=life_item.pk if life_item else '',duration_seconds=duration,snapshot={'constraints':constraints,'origin':uuid.uuid4().hex})
+        life_item_id=life_item.pk if life_item else '',duration_seconds=duration,snapshot={'constraints':{k:v for k,v in constraints.items() if k in ('dungeon_id','duration_seconds','style_id')},'requested_constraints':requested,'origin':uuid.uuid4().hex,'target_party_id':party_id,'adventure_mode':constraints.get('adventure_mode', 'solo' if requested and not party_id else None),'join_only':join_only})
     CombatRuntime.objects.update_or_create(pk=key,defaults={'owner_id':owner,'authorized':True,'requests':{'origin':row.snapshot['origin']}})
     append(profile,key+':request','request',{'constraints':constraints},row)
     return row
@@ -181,12 +200,22 @@ def consume(run, profile, amount, block, now):
 
 @guarded
 @transaction.atomic
-def depart(run_id, plan, now=None):
+def depart(run_id, plan, now=None, *, party=None):
     now=local_time(now)
     run=Exploration.objects.select_for_update().get(pk=run_id)
     if run.status!='preparing':return run
     runtime=CombatRuntime.objects.filter(pk=run.pk,authorized=True).first()
     if not runtime:raise ValueError('探索执行授权已撤销')
+    if run.snapshot.get('target_party_id') and party is None:
+        if run.phase == 'waiting_party':
+            return run
+        run.phase = 'waiting_party'
+        run.snapshot['prepared_plan'] = plan
+        run.revision += 1
+        run.save()
+        append(CombatProfile.objects.get(pk=run.actor_id), run.pk+':waiting-party',
+               'waiting_party', {'party_id': run.snapshot['target_party_id'], 'plan': plan}, run)
+        return run
     agent=Agent.objects.select_for_update().get(pk=run.actor_id)
     profile=CombatProfile.objects.select_for_update().get(pk=run.actor_id)
     if run.life_item_id:
@@ -200,9 +229,9 @@ def depart(run_id, plan, now=None):
     dungeon=catalog.row('dungeons',plan['dungeon_id'])
     catalog.row('styles',plan['style_id'])
     duration=plan['duration_seconds']
-    if type(duration)is not int or duration not in (1800,3600,7200):raise ValueError('探索时长无效')
+    if type(duration)is not int or (duration not in (1800,3600,7200) and not (party is not None and duration>=600)):raise ValueError('探索时长无效')
     for key,val in run.snapshot['constraints'].items():
-        if plan.get(key)!=val:raise ValueError('准备计划未遵守用户约束')
+        if plan.get(key)!=val and not (party is not None and key=='duration_seconds' and plan[key]<=val):raise ValueError('准备计划未遵守用户约束')
     available_window(run.owner_id,run.actor_id,duration,run.life_item_id,now)
     if busy(run.actor_id,excluding=run.pk):raise ValueError('准备结束时居民已被其他活动占用')
     config,_=CombatConfig.objects.get_or_create(pk=run.owner_id)
@@ -257,7 +286,9 @@ def depart(run_id, plan, now=None):
         'enemy':None,'potions':potions,'elixirs':elixirs,'elixir_cooldown':0,'elixir_used_encounter':-1,
         'encounter':0,'nonboss_kills':0,'boss_seen':False,'waiting_until':0,'food':food}
     charges=[consume(run,profile,10,'entry',now),consume(run,profile,2,0,now)]
-    spawn(run,catalog,now)
+    from .party_sessions import modern
+    if not modern(catalog):
+        spawn(run,catalog,now)
     lease,_=AgentExecutionLease.objects.get_or_create(agent=agent)
     lease.token=lease_token(run.pk);lease.until=storage_time(now+timedelta(seconds=duration+60));lease.save()
     run.status,run.phase='active','battle'
@@ -267,6 +298,9 @@ def depart(run_id, plan, now=None):
     append(profile,run.pk+':depart','depart',{'plan':plan,'profession_bonuses':profession_bonuses,'consumption':charges,
            'food_version':1,'food':food,'food_adjustment':food_adjustment,
            'elixir_version':1,'elixirs':elixirs},run)
+    if modern(catalog):
+        from .party_sessions import attach
+        attach(run, now, party)
     return run
 
 
@@ -294,6 +328,25 @@ def spawn(run,catalog,now):
 
 def settle(run, profile, status, reason, now):
     if run.status in TERMINAL:return run
+    from .party_sessions import detach
+    if run.status=='active' and run.snapshot.get('party_id') and run.state.get('accounted_at'):
+        from datetime import datetime
+        from .party_models import AdventureParty, AdventureMember
+        from .party_tick import account
+        member=AdventureMember.objects.filter(exploration_id=run.pk,active=True).first()
+        point=min(now,local_time(member.ends_at)) if member else now
+        delta=(point-local_time(datetime.fromisoformat(run.state['accounted_at']))).total_seconds()
+        if 0<delta<=30 and AdventureParty.objects.filter(pk=run.snapshot['party_id'],status='active').exists():
+            try:
+                charges=account(run,AdventureParty.objects.get(pk=run.snapshot['party_id']),point)
+            except ValueError:
+                charges=[]
+            profile.refresh_from_db()
+            run.save()
+            append(profile,f'{run.pk}:last-time:{run.elapsed_seconds}','round',{'events':[],'consumption':charges},run)
+    detach(run, now)
+    if run.snapshot.get('party_final'):
+        run.result['party_kills']=run.snapshot['party_final'].get('team_kills',0)
     catalog=current(run.catalog_id)
     returned={}
     for sid,count in run.state.get('potions',{}).items():
@@ -324,6 +377,8 @@ def settle(run, profile, status, reason, now):
     run.ended_at,run.next_tick_at=now,None
     run.revision+=1
     report=f'{run.actor_name}探索{run.elapsed_seconds//60}分钟，击败{run.result.get("kills",0)}只怪物，获得{run.result.get("experience",0)}经验；消耗{run.result.get("energy",0)}体力。{reason}'
+    if 'party_kills' in run.result:
+        report+=f' 本人参与击败{run.result.get("kills",0)}只，离队时队伍累计击败{run.result["party_kills"]}只（按怪物去重）。'
     reward_counts = {}
     for reward in run.result.get('rewards', []):
         if isinstance(reward, dict):
@@ -365,6 +420,7 @@ def settle(run, profile, status, reason, now):
         item=LifeItem.objects.filter(pk=run.life_item_id).first()
         if item:revise(item,'战斗探索已结算',status='completed' if execution_completed(status) else 'failed',record_id=record.pk,result={'exploration_id':run.pk,'reason':report})
     append(profile,run.pk+':terminal','terminal',{'status':status,'report':report,'returned':returned,'record_id':record.pk},run)
+    adopt_catalog(profile,current())
     return run
 
 
@@ -381,6 +437,11 @@ def finish(run_id, status='recalled', reason='提前召回', now=None):
 def tick(run_id, expected_revision=None, now=None):
     now=local_time(now)
     run=Exploration.objects.select_for_update().get(pk=run_id)
+    if run.snapshot.get('party_id'):
+        from .party_tick import tick as shared_tick
+        shared_tick(run.snapshot['party_id'], now=now)
+        run.refresh_from_db()
+        return run
     if run.status!='active' or (expected_revision is not None and run.revision!=expected_revision):return run
     if now<local_time(run.next_tick_at):return run
     profile=CombatProfile.objects.select_for_update().get(pk=run.actor_id)
@@ -541,6 +602,19 @@ def resume(run_id, now=None):
     lease.token=lease_token(run.pk);lease.until=storage_time((end or now+timedelta(seconds=remaining))+timedelta(seconds=60));lease.save()
     run.status,run.phase,run.reason='active','battle' if run.state.get('enemy') else 'searching',''
     run.next_tick_at=min(now+timedelta(seconds=15),end) if end else now+timedelta(seconds=15)
+    if run.snapshot.get('party_id'):
+        from .party_models import AdventureParty
+        from .party_sessions import resume_ready
+        party = AdventureParty.objects.select_for_update().get(pk=run.snapshot['party_id'])
+        if party.status == 'completed':raise ValueError('队伍已经结束')
+        run.state['accounted_at']=now.isoformat()
+        run.next_tick_at=None
+        run.phase,run.reason='interrupted','等待其他组队成员恢复；等待期间不计费、不行动'
+        run.save()
+        from .party_facts import append as shared_fact
+        shared_fact(party,'resume',{'actor_id':run.actor_id})
+        resume_ready(party,now)
+        run.refresh_from_db()
     run.revision+=1;run.save()
     append(CombatProfile.objects.get(pk=run.actor_id),f'{run.pk}:resume:{run.revision}','resume',{},run)
     return run

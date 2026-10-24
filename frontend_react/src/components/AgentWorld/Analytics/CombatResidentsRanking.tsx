@@ -164,13 +164,13 @@ export default function CombatResidentsRanking({
                     </span>
                     <span className="text-slate-300">|</span>
                     <span className="flex items-center gap-1 text-slate-600">
-                        累计讨伐
+                        参与击杀合计
                         <strong className="font-bold tabular-nums text-slate-900">{totalKills}</strong>
                         只魔物
                     </span>
                     <span className="text-slate-300">·</span>
                     <span className="flex items-center gap-1 text-slate-600">
-                        首领击破
+                        首领参与击破
                         <strong className="font-bold tabular-nums text-amber-700">{totalBossKills}</strong>
                         只
                     </span>
@@ -382,7 +382,7 @@ export default function CombatResidentsRanking({
             </div>
 
             <p className="mt-2.5 text-[11px] leading-5 text-slate-400">
-                默认按击败魔物、首领、经验依次排序。仅统计区间内实际出发的探索及其最新成果；未结算不进入成功率分母。点击整行任意位置查看完整战斗经历档案。
+                默认按击败魔物、首领、经验依次排序。仅统计区间内实际出发的探索及其最新成果；未结算不进入成功率分母。组队共同击杀分别计入参与居民，合计为参与击杀人次。点击整行任意位置查看完整战斗经历档案。
             </p>
 
             {selected && (

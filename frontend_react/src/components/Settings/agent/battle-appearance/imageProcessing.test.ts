@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {alphaBounds,applyBrushStroke,removeColorRegion,removeFlatBackground} from './imageProcessing';
+import {alphaBounds,applyBrushStroke,characterFramePlacement,groundCharacterPlacement,removeColorRegion,removeFlatBackground} from './imageProcessing';
 import type {PixelImage} from './imageProcessing';
 
 function canvas(width:number,height:number,color:[number,number,number,number]):PixelImage {
@@ -72,4 +72,33 @@ test('large accepted artwork fits fully without clamping scale above the fitted 
         assert.ok(transform.scale<.1);
         assert.equal(characterFramePlacement(bounds,transform).clipped,false);
     }
+});
+
+test('transparent padding outside the canvas does not block saving, visible shoes do',()=>{
+    const crop={x:0,y:0,width:374,height:528};
+    const content={x:100,y:40,width:174,height:450};
+    assert.equal(characterFramePlacement(crop,{x:0,y:38,scale:1},content).clipped,false);
+    assert.equal(characterFramePlacement(crop,{x:0,y:39,scale:1},content).clipped,true);
+    assert.equal(characterFramePlacement(crop,{x:-100,y:0,scale:1},content).clipped,false);
+    assert.equal(characterFramePlacement(crop,{x:-101,y:0,scale:1},content).clipped,true);
+    assert.equal(characterFramePlacement(crop,{x:0,y:-41,scale:1},content).clipped,true);
+    assert.equal(characterFramePlacement(crop,{x:101,y:0,scale:1},content).clipped,true);
+});
+
+test('ground alignment trims selected transparent padding and keeps every shoe pixel in frame',()=>{
+    const image=canvas(400,600,[0,0,0,0]);
+    for(let y=50;y<550;y++)for(let x=100;x<300;x++)image.data[(y*400+x)*4+3]=255;
+    // A separate visible region outside the selection must not affect its feet.
+    image.data[(599*400+399)*4+3]=255;
+    const selected={x:50,y:0,width:300,height:580};
+    const aligned=groundCharacterPlacement(image,selected,{x:4,y:36,scale:.8})!;
+    assert.deepEqual(aligned.crop,{x:100,y:50,width:200,height:500});
+    assert.deepEqual(aligned.transform,{x:4,y:0,scale:.8});
+    const placement=characterFramePlacement(aligned.crop,aligned.transform);
+    assert.equal(placement.clipped,false);
+    assert.equal(placement.y+placement.height,528);
+    assert.deepEqual(groundCharacterPlacement(image,aligned.crop,aligned.transform),aligned);
+    const fitted=groundCharacterPlacement(image,selected,{x:999,y:99,scale:4})!;
+    assert.equal(characterFramePlacement(fitted.crop,fitted.transform).clipped,false);
+    assert.equal(groundCharacterPlacement(canvas(2,2,[0,0,0,0]),{x:0,y:0,width:2,height:2},{x:0,y:0,scale:1}),null);
 });

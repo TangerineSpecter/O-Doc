@@ -28,8 +28,8 @@ export interface CombatFood {
         quantity: number; lots: {quantity: number; price: string}[]}[];
 }
 export interface CombatElixirCarry {recipeId: string; name: string; stars: number; count: number; remaining: number; summary: string; trigger: Record<string, string | number>}
-export interface CombatResult {energy?: number; experience?: number; kills?: number; potionsUsed?: Record<string, number>; elixirsUsed?: Record<string, number>; elixirsCarried?: {recipeId: string; stars: number; count: number}[]; returnedElixirs?: {recipeId: string; stars: number; count: number}[]; rewards?: CombatReward[]; report?: string; food?: CombatFood | null; foodAdjustment?: string}
-export interface CombatSnapshot {visual?:CombatVisualSnapshot;promotionBusy?:boolean;remainingSeconds?: number | null; canControl: boolean; id: string; actorId: string; version: number; stage: string; status: string; reason: string; elapsedSeconds: number; durationSeconds: number; nextTickAt: string | null; player: Combatant | null; enemy: Combatant | null; potions: Record<string, number>; elixirs?: CombatElixirCarry[]; result: CombatResult; events: CombatEvent[]; latestCursor: number; nextCursor: number; hasMore: boolean}
+export interface CombatResult {energy?: number; experience?: number; kills?: number; partyKills?:number; potionsUsed?: Record<string, number>; elixirsUsed?: Record<string, number>; elixirsCarried?: {recipeId: string; stars: number; count: number}[]; returnedElixirs?: {recipeId: string; stars: number; count: number}[]; rewards?: CombatReward[]; report?: string; food?: CombatFood | null; foodAdjustment?: string}
+export interface CombatSnapshot {party?:AdventurePartySnapshot|null;visual?:CombatVisualSnapshot;promotionBusy?:boolean;remainingSeconds?: number | null; canControl: boolean; id: string; actorId: string; version: number; stage: string; status: string; reason: string; elapsedSeconds: number; durationSeconds: number; nextTickAt: string | null; player: Combatant | null; enemy: Combatant | null; potions: Record<string, number>; elixirs?: CombatElixirCarry[]; result: CombatResult; events: CombatEvent[]; latestCursor: number; nextCursor: number; hasMore: boolean}
 export interface CombatHistory {list: {id: string; status: string; elapsedSeconds: number; result: CombatResult; createdAt: string}[]; total: number; page: number}
 export interface CombatHistoryStorage {
     currentVersion: string; catalogCount: number; syncCatalogCount: number;
@@ -37,3 +37,10 @@ export interface CombatHistoryStorage {
     versions: {version: string; bytes: number; synchronized: boolean; activeExplorations: number; residents: number}[];
 }
 export interface CombatConfig {dailyMinutes: number; historyStorage?: CombatHistoryStorage}
+
+export interface AdventureOption {id:string;revision:number;dungeonId:string;dungeonName:string;durationSeconds:number;endsAt:string;members:{actorId:string;name:string;level:number;jobId:string;jobName:string}[]}
+export interface AdventureOptions {solo:boolean;parties:AdventureOption[]}
+export interface PartyCombatant extends Combatant {visual?:CombatVisualSnapshot;id:string;jobId?:string;jobName?:string;templateId?:string;revived?:boolean;taunt?:{actorId:string;expires:number}}
+export interface PartyRoll {rewardId:string;winnerId:string;rounds:Record<string,number>[];reward:CombatReward}
+export interface PartyAction extends CombatAction {actorId?:string;targetId?:string;rolls?:PartyRoll[]}
+export interface AdventurePartySnapshot {id:string;version:number;leaderId:string;status:string;dungeonId:string;teamKills:number;players:PartyCombatant[];enemies:PartyCombatant[];wave:number;round:number;phase:string;roundSeconds:number;actionOrder:string[];endsAt:string;events:{id:string;sequence:number;kind:string;payload:{events?:PartyAction[];actionOrder?:string[]}}[]}

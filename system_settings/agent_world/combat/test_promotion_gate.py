@@ -16,6 +16,10 @@ from .store import current, install
 
 class PromotionGateTests(TestCase):
     def setUp(self):
+        # Legacy in-flight explorations keep the personal engine after this release.
+        legacy = patch('system_settings.agent_world.combat.party_sessions.modern', return_value=False)
+        legacy.start()
+        self.addCleanup(legacy.stop)
         provider = AIProvider.objects.create(name='test', type='OpenAi', base_url='https://example.invalid')
         model = AIModel.objects.create(name='test', type='chat', provider=provider)
         self.agent = Agent.objects.create(name='转职冒险者', model=model)

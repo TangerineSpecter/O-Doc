@@ -27,6 +27,7 @@
 
 | 展示位置 | 当前主要代码入口 | 必查内容 |
 | --- | --- | --- |
+| 组队共同战报与roll分配 | `Combat/PartyCombatLog.tsx`；获胜物品沿用个人观察掉落格子与详情 | 共同战报为文字归属与点数，不新增图标；稳定模板ID、材料ID和装备实例保持原奖励快照，获胜者背包及详情继续复用公共渲染。local覆盖共同战报与分页 |
 | 居民背包格子及物品详情 | `AgentWorld/InventoryBackpack.tsx`、`InventoryItemDetails.tsx` → `InventoryItemIcon.tsx` | 两处均可显示，SKU 路由正确，自定义图优先且失败回退内置图 |
 | 综合物品图鉴列表及详情 | `AgentWorld/ItemCatalogDialog.tsx`，后端 `item_catalog.py` | 列表/详情一致；未拥有、数量为零时是否仍属于目录；不重复收录专属图鉴物品 |
 | 钓鱼图鉴与鱼种详情 | `Fishing/FishingSpeciesCard.tsx`、`FishingSpeciesDetails.tsx` | 鱼种 ID 与绘制表覆盖；鱼饵材料图一致 |

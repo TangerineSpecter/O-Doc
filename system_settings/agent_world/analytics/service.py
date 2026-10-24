@@ -92,6 +92,6 @@ def aggregate(facts, first, last, actor=''):
                      'journeys': sum(row.actor_id in selected for row in facts.journeys),
                      'destinations': len(destinations),
                      'explorations': sum(row.actor_id in selected for row in facts.explorations),
-                     'wins': sum(row.actor_id in selected for row in facts.wins)},
+                     'wins': len({row.identity for row in facts.wins if row.actor_id in selected})},
         'comparison': rows, 'notes': sorted(facts.unknown),
     }

@@ -16,7 +16,7 @@ class RuleTests(SimpleTestCase):
         with self.assertRaises(ValueError):validate(Path(__file__).resolve().parents[3]/'docs/data/combat')
         c=self.catalog
         self.assertEqual((len(c.tables['dungeons']),len(c.tables['monsters']),len(c.tables['professions'])),(7,28,29))
-        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),74)
+        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),75)
         for row in c.tables['skills']:
             for rank in c.ranks[row['id']]:
                 progress=attributes.initial();progress['skills']={row['id']:int(rank['rank'])};progress['level']=99
@@ -194,7 +194,7 @@ class RuleTests(SimpleTestCase):
 
     def test_element_factor_follows_channel_damage_and_stays_bounded(self):
         c = self.catalog
-        self.assertEqual(c.version, 'combat-1.0.21')
+        self.assertEqual(c.version, 'combat-1.0.22')
         defender = engine.fighter({'hp_max': 1000, 'mp_max': 10, 'physical_defense': 60}, '守方', 10)
         self.assertEqual(effects.damage(150, 'physical', 10, defender, variation=1), 100)
         defender['defending'] = True

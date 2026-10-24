@@ -11,7 +11,8 @@ from ..travel_models import TravelJourney
 from ..market_models import MarketTransaction
 from ..investment_models import InvestmentTrade, InvestmentAccount
 from ..social_models import Moment, MomentComment, MomentLike
-from ..combat.models import CombatFact, CombatEncounter, Exploration, CombatProfile
+from ..combat.models import CombatFact, Exploration, CombatProfile
+from .combat_kills import load_combat_kills
 from ..models import WorldLedger
 from ..fishing.models import FishingProfile, FishingTrip
 from ..lottery_models import LotteryTicket
@@ -173,7 +174,7 @@ def load_facts(request, owner, start, end):
     for row in window(CombatFact.objects.filter(owner_id=owner, kind='depart')):
         add('exploration:'+row.exploration_id, row.actor_id, row.created_at, 'exploration')
     facts.explorations = list(window(Exploration.objects.filter(owner_id=owner), 'ended_at'))
-    facts.wins = list(window(CombatEncounter.objects.filter(owner_id=owner, result__killed=True), 'ended_at'))
+    facts.wins = list(load_combat_kills(owner, actor_ids=actors, start=start, end=end))
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)))
     from ..market_finance import classify_market_ledger_entries
     classify_market_ledger_entries(facts.ledger, owner)

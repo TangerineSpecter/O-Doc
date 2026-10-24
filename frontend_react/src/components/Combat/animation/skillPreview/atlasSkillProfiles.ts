@@ -40,6 +40,7 @@ export const atlasSkillProfiles:AtlasSkillProfile[]=[
     profile(49,'影袭','shadow',3,'dagger','#9e8ccf','#e5dcff','enemy','dash'),
     profile(51,'毒刃','poison',3,'dagger','#a3bd79','#ebffd1','enemy','slash'),
     profile(53,'大治愈术','greatheal',3,'holy_staff','#e7cf8e','#fffcdd','self'),
+    profile(75,'复活术','greatheal',3,'holy_staff','#e7cf8e','#fffcdd','self'),
     profile(55,'审判之光','judgment',3,'holy_staff','#e5bf75','#fffcdf'),
     profile(57,'回春术','renew',3,'holy_staff','#a8ce7b','#f0f8c9','self'),
     profile(59,'森林结界','forest',3,'holy_staff','#7bbf9c','#e4f8c5','self'),

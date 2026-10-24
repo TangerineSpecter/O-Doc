@@ -61,7 +61,11 @@ def exploration_candidate(owner, agent, now, gap, resource) -> dict:
     quota = (cfg.daily_minutes if cfg else 120) * 60 - used
     times = [n // 60 for n in (1800, 3600, 7200) if n <= gap and n <= quota and energy(n) <= resource['energy']]
     if not times:
-        return {}
+        from .combat.party_options import options
+        joining = options(owner, agent, now)['parties'] if profile else []
+        if not joining:
+            return {}
+        times = sorted({row['duration_seconds']//60 for row in joining})
     return {'durations_minutes': times, 'remaining_minutes': quota // 60,
             'initial_adventure': profile is None,
             'opportunity': f'当前可探索，单次可选时长{times}分钟，今日剩余额度{quota // 60}分钟'}

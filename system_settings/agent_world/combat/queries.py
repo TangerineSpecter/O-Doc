@@ -17,7 +17,7 @@ def resident_presence(owner: str | None = None) -> dict[str, dict]:
     if owner is not None:
         runs=runs.filter(owner_id=owner)
     return {run.actor_id:{'status':'idle' if run.status=='paused' else 'running',
-        'current_action':'等待 Agent 完成转职' if run.status=='paused' and run.phase in ('promotion','promotion_failed') else labels[run.status]} for run in runs}
+        'current_action':'等待 Agent 完成转职' if run.status=='paused' and run.phase in ('promotion','promotion_failed') else '等待下一波加入队伍' if run.phase=='waiting_party' else labels[run.status]} for run in runs}
 
 
 def with_timezone(value):
@@ -92,6 +92,15 @@ def profile_view(owner,agent):
         from .idle_recovery import project
         resources = project(profile.hp, profile.mp, int(derived['hp_max']), int(derived['mp_max']),
                             profile.recovered_at, profile.rest_until)
+    encountered,defeated=set(),set()
+    for encounter in CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk).values('monster','result'):
+        monster=encounter['monster']
+        ids={u['id'] for u in monster.get('monsters',[]) if u.get('id')} or {monster.get('id')}
+        encountered.update(ids-{None})
+        if encounter['result'].get('killed'):defeated.update(ids-{None})
+    # Shared waves may be left after a partial clear; actual personal kill receipts remain authoritative.
+    for payload in CombatFact.objects.filter(owner_id=owner,actor_id=agent.pk,kind='round').values_list('payload',flat=True):
+        defeated.update(e['monster']['id'] for e in payload.get('events',[]) if e.get('kind')=='kill' and e.get('monster',{}).get('id'))
     return {'initialized':bool(profile),'actor_id':agent.pk,'progression':progression,'attributes':derived, **resources,
         'loadout':profile.loadout if profile else {},'equipment':equipment_items,'skills':skills,
         'potions':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['potions']],
@@ -99,10 +108,11 @@ def profile_view(owner,agent):
         'active_exploration_id':run.pk if run else None,'promotion_options':options,'promotion_busy':promotion_busy,
         'reselect_options':attributes.reselect_options(catalog),'reselect_blocked':reselect_blocked,
         'rest_until':local_time(profile.rest_until).isoformat() if profile and profile.rest_until else None,
-        'loot_progress':profile.loot_progress if profile else {},'discoveries':{'encountered':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('monster__id',flat=True))),'defeated':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk,result__killed=True).values_list('monster__id',flat=True))),'equipment':sorted(discovered_equipment)}}
+        'loot_progress':profile.loot_progress if profile else {},'discoveries':{'encountered':sorted(encountered),'defeated':sorted(defeated),'equipment':sorted(discovered_equipment)}}
 
 
 def snapshot(run,cursor=0,limit=100):
+    from .party_queries import snapshot as party_snapshot
     # The shared gate spans the complete read, preventing a round from crossing this snapshot.
     facts=CombatFact.objects.filter(exploration_id=run.pk).order_by('sequence')
     latest=facts.last()
@@ -140,6 +150,7 @@ def snapshot(run,cursor=0,limit=100):
         'remaining_seconds':remaining if end else None,
         'elapsed_seconds':run.elapsed_seconds,'duration_seconds':run.duration_seconds,'next_tick_at':local_time(run.next_tick_at).isoformat() if run.next_tick_at else None,
         'promotion_busy':promotion_busy,
+        'party':party_snapshot(run),
         'player':run.state.get('player'),'enemy':run.state.get('enemy'),'visual':visual,'potions':run.state.get('potions',{}),
         'elixirs':[{key:entry.get(key) for key in ('recipe_id','name','stars','count','remaining','summary','trigger')} for entry in run.state.get('elixirs',[])],'result':run.result,
         'events':events,'latest_cursor':confirmed,'next_cursor':events[-1]['sequence'] if events else min(cursor,confirmed),'has_more':bool(events and events[-1]['sequence']<confirmed)}

@@ -19,6 +19,9 @@ deploy/runtime/
 templates/index.html
 static/
 
+# 独立动画预览与实验素材，不进入运行镜像
+docs/agents/demo/
+
 # 临时文件
 *.log
 *.tmp

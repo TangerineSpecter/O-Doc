@@ -1,4 +1,4 @@
-"""Five-second independent polling; no offline catch-up or world-slot ownership while waiting."""
+"""One-second independent polling; no offline catch-up or world-slot ownership while waiting."""
 import atexit
 import logging
 import os
@@ -71,9 +71,13 @@ def advance():
         from .recovery import recover
         recover()
         recover_expired_rests()
-        for row in Exploration.objects.filter(status='active',next_tick_at__lte=storage_time(local_time())).values('id','revision'):
+        for row in Exploration.objects.filter(status='active',next_tick_at__lte=storage_time(local_time())).exclude(snapshot__has_key='party_id').values('id','revision'):
             tick(row['id'],row['revision'])
-        for pending in Exploration.objects.filter(status='preparing',id__in=CombatRuntime.objects.filter(authorized=True).values('id')):
+        from .party_models import AdventureParty
+        from .party_tick import tick as party_tick
+        for row in AdventureParty.objects.filter(status='active').values('id', 'revision'):
+            party_tick(row['id'], row['revision'])
+        for pending in Exploration.objects.filter(status='preparing').exclude(phase='waiting_party').filter(id__in=CombatRuntime.objects.filter(authorized=True).values('id')):
             from datetime import datetime
             retry = pending.snapshot.get('preparation_retry_at')
             if retry and local_time(datetime.fromisoformat(retry)) > local_time():
@@ -120,14 +124,17 @@ def recover_expired_rests(now=None):
 
 def loop():
     from .store import install
+    installed = False
     while not _stop.is_set():
         try:
             close_old_connections()
-            install()
+            if not installed:
+                install()
+                installed = True
             advance()
         except Exception:logger.exception('探索推进暂不可用，将重试')
         finally:close_old_connections()
-        _stop.wait(5)
+        _stop.wait(1)
 
 
 def start():

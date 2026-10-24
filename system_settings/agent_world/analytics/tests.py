@@ -318,6 +318,74 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertIsNone(rows[self.b.pk]['successRate'])
         self.assertIsNone(rows[self.b.pk]['killsPerHour'])
 
+    def party_kill(self, run, unit, *, template='monster.slime', rank='normal', shared=None, at=None, owner='admin'):
+        from ..combat.party_models import AdventureEvent
+        run.snapshot['party_id']='party-test';run.save(update_fields=['snapshot'])
+        shared=shared or 'shared-'+unit
+        AdventureEvent.objects.get_or_create(pk=shared,defaults={'party_id':'party-test','owner_id':owner,
+            'sequence':AdventureEvent.objects.count()+1,'kind':'round','digest':'test','created_at':at or self.at})
+        return CombatFact.objects.create(pk=f'{run.pk}:{unit}:{CombatFact.objects.count()}',owner_id=owner,
+            actor_id=run.actor_id,exploration_id=run.pk,sequence=CombatFact.objects.filter(actor_id=run.actor_id).count()+1,
+            kind='round',digest='test',created_at=self.at,payload={'shared_event_id':shared,'events':[
+                {'kind':'kill','monster':{'id':template,'unit_id':unit,'name':template,'rank':rank,'level':20},'experience':10,'rewards':[]}]})
+
+    def test_party_members_each_count_success_experience_and_all_monsters_without_wave_double_count(self):
+        a=self.exploration('party-a',self.a,kills=3)
+        b=self.exploration('party-b',self.b,kills=3)
+        a.result.update(experience=83,elixirs_used={'healing:1':2,'fury:2':1});a.save(update_fields=['result'])
+        b.result.update(experience=127,elixirs_used={'healing:1':1});b.save(update_fields=['result'])
+        for run in (a,b):
+            self.party_kill(run,'normal-1')
+            self.party_kill(run,'normal-2')
+            self.party_kill(run,'boss-1',template='monster.moss_king',rank='boss')
+            # A duplicated personal receipt and a wave-level encounter must not add kills.
+            self.party_kill(run,'normal-1')
+            CombatEncounter.objects.create(pk=run.pk+':wave',owner_id='admin',actor_id=run.actor_id,exploration_id=run.pk,
+                number=1,monster={'id':'monster.slime','rank':'normal','level':20},result={'killed':True},ended_at=self.at)
+        result=self.fetch();rows={row['id']:row for row in result['combatComparison']}
+        for row in rows.values():
+            self.assertEqual((row['explorations'],row['completed'],row['successRate']),(1,1,100.0))
+            self.assertEqual((row['kills'],row['bossKills'],row['unclassifiedKills']),(3,1,0))
+            self.assertEqual({m['id']:m['kills'] for m in row['monsters']},{'monster.slime':2,'monster.moss_king':1})
+        self.assertEqual((rows[self.a.pk]['experience'],rows[self.a.pk]['potions']),(83,5))
+        self.assertEqual((rows[self.b.pk]['experience'],rows[self.b.pk]['potions']),(127,3))
+        self.assertEqual(result['outcomes']['wins'],3)
+        self.assertEqual(self.fetch(self.a.pk)['outcomes']['wins'],3)
+        self.assertEqual(len(self.fetch(self.b.pk)['combatComparison']),1)
+        self.assertEqual(self.fetch()['combatComparison'],result['combatComparison'])
+
+    def test_party_partial_clear_counts_before_wave_end_and_never_infers_unearned_kills(self):
+        run=self.exploration('partial-party',self.a,status='recalled',kills=1)
+        self.party_kill(run,'killed-unit',template='monster.moss_king',rank='boss')
+        # The wave encounter remains unfinished; its other monsters were not killed by this member.
+        CombatEncounter.objects.create(pk='unfinished-wave',owner_id='admin',actor_id=self.a.pk,exploration_id=run.pk,
+            number=1,monster={'id':'other','monsters':[{'id':'other'}]},result={},ended_at=self.at)
+        row=next(row for row in self.fetch()['combatComparison'] if row['id']==self.a.pk)
+        self.assertEqual((row['kills'],row['bossKills'],row['unclassifiedKills']),(1,1,0))
+        self.assertEqual(row['monsters'][0]['id'],'monster.moss_king')
+        self.assertEqual((row['recalled'],row['successRate']),(1,0.0))
+
+    def test_party_outcome_window_uses_shared_kill_time_and_cohort_keeps_later_results(self):
+        run=self.exploration('cross-date-party',self.a,kills=1)
+        # The personal receipt is in the selected interval; the shared event occurred later.
+        self.party_kill(run,'later-kill',at=self.at+timedelta(days=3))
+        result=self.fetch();row=next(row for row in result['combatComparison'] if row['id']==self.a.pk)
+        self.assertEqual((row['kills'],row['unclassifiedKills']),(1,0))
+        self.assertEqual(result['outcomes']['wins'],0)
+        later=self.fetch(start_date='2026-10-04',end_date='2026-10-04')
+        self.assertEqual(later['outcomes']['wins'],1)
+        self.assertTrue(all(row['explorations']==0 for row in later['combatComparison']))
+
+    def test_party_foreign_receipts_and_missing_unit_ids_cannot_create_details(self):
+        run=self.exploration('scoped-party',self.a,kills=2)
+        self.party_kill(run,'foreign-unit',owner='other')
+        fact=self.party_kill(run,'missing-unit')
+        fact.payload['events'][0]['monster'].pop('unit_id');fact.save(update_fields=['payload'])
+        result=self.fetch();row=next(row for row in result['combatComparison'] if row['id']==self.a.pk)
+        self.assertEqual((row['kills'],row['bossKills'],row['unclassifiedKills']),(2,0,2))
+        self.assertEqual(row['monsters'],[])
+        self.assertEqual(result['outcomes']['wins'],0)
+
     def test_comparison_includes_profession_name(self):
         from system_settings.models import WorldProfession
         prof = WorldProfession.objects.create(name='吟游诗人')

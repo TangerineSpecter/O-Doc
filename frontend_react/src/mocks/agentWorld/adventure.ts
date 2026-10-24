@@ -1,6 +1,6 @@
 import catalog from './catalog';
 import {residents, at, now, day} from './residents';
-import type {CombatCatalog, CombatProfile, CombatSnapshot} from '../../types/api/combat';
+import type {CombatCatalog, CombatProfile, CombatSnapshot, CombatReward} from '../../types/api/combat';
 import type {TravelJourney} from '../../types/api/travel';
 export {fishingCatalog, fishingOverview, fishingTrip, fishingTrips} from './fishing';
 import type {LotteryOverview, LotteryRound, LotteryTicket} from '../../types/api/lottery';
@@ -50,3 +50,26 @@ export const trades: InvestmentTrade[] = positions.map((p, i) => ({id: `local-tr
     result: {price: '12', priceDate: day, source: 'local', cashDelta: '-1200', allocatedCost: '1200', realizedProfit: '0'}}));
 export const investmentDecisions: InvestmentDecision[] = [{id: 'local-investment-decision', createdAt: now.toISOString(), status: 'completed', reason: '保留现金储备，继续观察。', referenceDate: day,
     calls: [{tool: 'get_positions', arguments: {}, result: {positions}}]}];
+
+const localPartyRewards: CombatReward[] = [
+    {id:'local-party-loot',kind:'material',item:combatCatalog.tables.materials.find(m=>m.id==='material.moss_cave.1')!,quantity:2,elapsedSeconds:240},
+    {id:'local-party-equipment',kind:'equipment',equipmentId:'local-party-sword',item:{templateId:'equip.sword',name:'苔石长剑',slot:'weapon',equipmentType:'long_sword',grip:'one_handed',level:18,quality:'blue',value:'180',stats:{physicalAttack:60},affixes:[]},elapsedSeconds:240},
+];
+export const localParty: import('../../types/api/combat').AdventurePartySnapshot = {
+    id:'local-party',version:3,leaderId:residents[0].id,status:'active',dungeonId:'dungeon.moss_cave',teamKills:21,wave:2,round:8,phase:'battle',roundSeconds:3,
+    actionOrder:[residents[1].id,'local-monster-1',residents[0].id,residents[3].id,residents[2].id],endsAt:new Date(Date.now()+30*60_000).toISOString(),
+    players:residents.slice(0,4).map((r,i)=>({id:r.id,name:r.name,level:70,jobId:['job.spellblade','job.sharpshooter','job.highpriest','job.cryomancer'][i],jobName:['盾卫','神射手','神官','冰术师'][i],hp:i===1?200:i===3?0:800-i*100,mp:300,stats:{hpMax:1000,mpMax:600,dexterity:30+i*10},states:i===0?[{code:'modifier',name:'盾墙·全队减伤',remaining:2}]:[],revived:i===1})),
+    enemies:[0,1,2,3].map(i=>({id:`local-monster-${i}`,templateId:['monster.moss_beast','monster.cave_bat','monster.cave_crystal_lizard','monster.slime'][i],name:['苔石兽','洞穴蝙蝠','洞穴晶蜥','软泥怪'][i],rank:i===0?'elite':'normal',level:18,hp:i===2?0:450,mp:80,stats:{hpMax:1000,mpMax:100},states:[],taunt:{actorId:residents[0].id,expires:10}})),
+    events:[{id:'local-party-event',sequence:3,kind:'round',payload:{events:[
+        {kind:'revive',actorId:residents[2].id,actor:residents[2].name,targetId:residents[1].id,target:residents[1].name,action:'复活术',healing:200},
+        {kind:'damage',actorId:'local-monster-1',actor:'洞穴蝙蝠',targetId:residents[3].id,target:residents[3].name,action:'普通攻击',damage:500},
+        {kind:'loot_roll',rolls:localPartyRewards.map(reward=>({rewardId:reward.id,winnerId:residents[0].id,rounds:[{[residents[0].id]:91,[residents[1].id]:32,[residents[2].id]:65,[residents[3].id]:78}],reward}))},
+    ]}}],
+};
+export const localAdventureOptions: import('../../types/api/combat').AdventureOptions = {solo:true,parties:[{id:'local-open-party',revision:3,dungeonId:'dungeon.moss_cave',dungeonName:'苔石洞窟',durationSeconds:1500,endsAt:localParty.endsAt,members:residents.slice(1,3).map((u,i)=>({actorId:u.id,name:u.name,level:19+i,jobId:i?'job.mage':'job.ranger',jobName:i?'法师':'游侠'}))}]};
+export const localOlderPartyEvents: import('../../types/api/combat').AdventurePartySnapshot['events'] = [
+    {id:'local-party-earlier',sequence:2,kind:'round',payload:{events:[{kind:'heal',actorId:residents[2].id,actor:residents[2].name,targetId:residents[0].id,target:residents[0].name,action:'大治愈术',healing:300}]}},
+];
+
+export const localPartyExploration: CombatSnapshot = {...exploration,id:'local-party-exploration',actorId:residents[0].id,status:'active',stage:'battle',reason:'',elapsedSeconds:240,durationSeconds:1800,player:localParty.players[0],party:localParty,
+    result:{energy:12,experience:240,kills:18,rewards:localPartyRewards},events:[{id:'local-party-personal',sequence:1,kind:'round',elapsedSeconds:240,createdAt:now.toISOString(),payload:{events:[{kind:'kill',monster:{id:'monster.cave_crystal_lizard',name:'洞穴晶蜥',level:18,rank:'normal'},experience:16,rewards:localPartyRewards}]}}],latestCursor:1,nextCursor:1,hasMore:false};

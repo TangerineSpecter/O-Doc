@@ -83,7 +83,7 @@ def validate(run: Exploration,plan: dict) -> dict:
     profile = CombatProfile.objects.get(pk=run.actor_id)
     if profile.progression['level'] < int(dungeon['recommended_level_min']):
         raise ValueError('角色等级未达到迷宫推荐等级下限')
-    if type(plan.get('duration_seconds'))is not int or plan['duration_seconds'] not in (1800,3600,7200):raise ValueError('计划时长无效')
+    if type(plan.get('duration_seconds'))is not int or (plan['duration_seconds'] not in (1800,3600,7200) and not (run.snapshot.get('target_party_id') and plan['duration_seconds']>=600)):raise ValueError('计划时长无效')
     from ..food_effects import validate_selection
     validate_selection(plan.get('food'), plan['duration_seconds'])
     from ..elixir_effects import validate_carried
@@ -172,6 +172,10 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
     try:
         with scope,manual_potion_scope:
             # Persist the proposed preparation before any paid transaction. Retry never asks for a new plan.
+            from .party_sessions import modern
+            if modern(current(run.catalog_id)):
+                from .party_options import select_for_preparation
+                select_for_preparation(run, agent)
             plan=run.snapshot.get('prepared_plan')
             if plan is None:
                 from system_settings.decision.routing import jev_enabled

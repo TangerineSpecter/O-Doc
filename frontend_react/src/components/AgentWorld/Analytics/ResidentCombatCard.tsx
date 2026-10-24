@@ -187,7 +187,7 @@ export default function ResidentCombatCard({
                     {/* 药剂消耗 */}
                     <div className="flex flex-col justify-between rounded-xl border border-sky-100/90 bg-gradient-to-br from-sky-50/50 to-blue-50/40 p-3.5 shadow-2xs">
                         <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-medium text-sky-800">消耗恢复药剂</span>
+                            <span className="text-[11px] font-medium text-sky-800" title="普通红蓝药与炼金药水的实际使用总数">消耗药剂（含炼金）</span>
                             <FlaskConical className="h-4 w-4 text-sky-500" />
                         </div>
                         <div className="mt-2.5">
@@ -390,6 +390,7 @@ export default function ResidentCombatCard({
                     </p>
                     <p className="mt-0.5">
                         成功率 = 按计划完成 / 已结算探索；召回、倒地、体力耗尽等均计入分母。时长使用实际战斗推进秒数（不计暂停等待）。
+                        组队共同击杀按本人参与记录计入，加入前和离队后的击杀不计；经验按本人实际获得累计，药剂包含普通药剂和炼金药水。
                     </p>
                 </div>
             </div>

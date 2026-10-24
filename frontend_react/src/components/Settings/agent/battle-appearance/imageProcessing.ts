@@ -16,24 +16,65 @@ export function autoCharacterTransform(bounds: CropRect): CharacterTransform {
     return {x: 0, y: 0, scale};
 }
 
-export function characterFramePlacement(crop: CropRect, transform: CharacterTransform) {
+export function characterFramePlacement(crop: CropRect, transform: CharacterTransform, content: CropRect | null = crop) {
     const width = Math.max(1, Math.round(crop.width * transform.scale));
     const height = Math.max(1, Math.round(crop.height * transform.scale));
     const x = Math.round((BATTLE_CHARACTER_FRAME.width - width) / 2 + transform.x);
     const y = Math.round(BATTLE_CHARACTER_FRAME.height - height + transform.y);
-    return {x, y, width, height, clipped: x < 0 || y < 0 || x + width > BATTLE_CHARACTER_FRAME.width || y + height > BATTLE_CHARACTER_FRAME.height};
+    // Transparent padding may cross the frame; only visible artwork can be cut off.
+    const left = content ? x + Math.floor((content.x - crop.x) * width / crop.width) : 0;
+    const top = content ? y + Math.floor((content.y - crop.y) * height / crop.height) : 0;
+    const right = content ? x + Math.ceil((content.x + content.width - crop.x) * width / crop.width) : 0;
+    const bottom = content ? y + Math.ceil((content.y + content.height - crop.y) * height / crop.height) : 0;
+    return {x, y, width, height, left, top, right, bottom, clipped: left < 0 || top < 0 || right > BATTLE_CHARACTER_FRAME.width || bottom > BATTLE_CHARACTER_FRAME.height};
 }
 
-export function renderCharacterFrame(sourceCanvas: HTMLCanvasElement, crop: CropRect, transform: CharacterTransform) {
+/** Check only the overflow strips, in bounded tiles rather than allocating a huge zoomed canvas. */
+function hasClippedPixels(source: HTMLCanvasElement, crop: CropRect, placement: ReturnType<typeof characterFramePlacement>) {
+    if (!placement.clipped) return false;
+    const {left, top, right, bottom} = placement;
+    const regions = [
+        {x: left, y: top, right: Math.min(0, right), bottom},
+        {x: Math.max(BATTLE_CHARACTER_FRAME.width, left), y: top, right, bottom},
+        {x: Math.max(0, left), y: top, right: Math.min(BATTLE_CHARACTER_FRAME.width, right), bottom: Math.min(0, bottom)},
+        {x: Math.max(0, left), y: Math.max(BATTLE_CHARACTER_FRAME.height, top), right: Math.min(BATTLE_CHARACTER_FRAME.width, right), bottom},
+    ];
+    const tile = document.createElement('canvas');
+    const context = tile.getContext('2d', {willReadFrequently: true});
+    if (!context) throw new Error('无法检查角色画布边界');
+    for (const region of regions) for (let y = region.y; y < region.bottom; y += 256) for (let x = region.x; x < region.right; x += 256) {
+        tile.width = Math.min(256, region.right - x); tile.height = Math.min(256, region.bottom - y);
+        context.imageSmoothingEnabled = false;
+        context.drawImage(source, crop.x, crop.y, crop.width, crop.height, placement.x - x, placement.y - y, placement.width, placement.height);
+        const pixels = context.getImageData(0, 0, tile.width, tile.height).data;
+        for (let offset = 3; offset < pixels.length; offset += 4) if (pixels[offset] > 0) return true;
+    }
+    return false;
+}
+
+/** Trim padding inside the selected character, retaining its size where it fits. */
+export function groundCharacterPlacement(image: PixelImage, crop: CropRect, transform: CharacterTransform) {
+    const bounds = alphaBounds(image, crop);
+    if (!bounds) return null;
+    const scale = Math.min(transform.scale, autoCharacterTransform(bounds).scale);
+    const width = Math.max(1, Math.round(bounds.width * scale));
+    const margin = Math.floor((BATTLE_CHARACTER_FRAME.width - width) / 2);
+    return {crop: bounds, transform: {x: Math.max(-margin, Math.min(margin, transform.x)), y: 0, scale}};
+}
+
+export function renderCharacterFrame(sourceCanvas: HTMLCanvasElement, crop: CropRect, transform: CharacterTransform, content?: CropRect | null) {
     const canvas = document.createElement('canvas');
     canvas.width = BATTLE_CHARACTER_FRAME.width; canvas.height = BATTLE_CHARACTER_FRAME.height;
     const context = canvas.getContext('2d', {willReadFrequently: true});
     if (!context) throw new Error('无法初始化像素画布');
     context.imageSmoothingEnabled = false;
-    const placement = characterFramePlacement(crop, transform);
+    const bounds = content === undefined
+        ? alphaBounds(sourceCanvas.getContext('2d', {willReadFrequently: true})!.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height), crop)
+        : content;
+    const placement = characterFramePlacement(crop, transform, bounds);
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(sourceCanvas, crop.x, crop.y, crop.width, crop.height, placement.x, placement.y, placement.width, placement.height);
-    return {canvas, clipped: placement.clipped};
+    return {canvas, clipped: hasClippedPixels(sourceCanvas, crop, placement)};
 }
 
 const colorDistance = (data: Uint8ClampedArray, offset: number, color: [number, number, number]) =>
@@ -89,9 +130,10 @@ export function removeFlatBackground(source: PixelImage, tolerance = 24) {
     return {image: {...source, data}, color, removed: write, alreadyTransparent: false};
 }
 
-export function alphaBounds(image: PixelImage): CropRect | null {
+export function alphaBounds(image: PixelImage, area: CropRect = {x: 0, y: 0, width: image.width, height: image.height}): CropRect | null {
     let left = image.width, top = image.height, right = -1, bottom = -1;
-    for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+    const endX = Math.min(image.width, area.x + area.width), endY = Math.min(image.height, area.y + area.height);
+    for (let y = Math.max(0, area.y); y < endY; y++) for (let x = Math.max(0, area.x); x < endX; x++) {
         if (image.data[(y * image.width + x) * 4 + 3] === 0) continue;
         left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
     }

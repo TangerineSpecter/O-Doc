@@ -12,6 +12,10 @@ export const getCombatConfig = (signal?: AbortSignal) => request.get<never, Comb
 export const setCombatConfig = (data: Partial<Pick<CombatConfig, 'dailyMinutes'>>, key = combatKey()) => request.post<never, CombatConfig>(`${base}config/`, {key, ...data});
 export const combatCommand = <T = CombatProfile>(id: string, data: Record<string, unknown>, key = combatKey(), signal?: AbortSignal) => request.post<never, T>(actor(id), {key, ...data}, {signal});
 export const getCombatSnapshot = (id: string, cursor: number, signal?: AbortSignal) => request.get<never, CombatSnapshot>(exploration(id), {params: {cursor}, signal});
-export const explorationCommand = (id: string, operation: 'recall' | 'resume', key = combatKey()) => request.post<never, CombatSnapshot>(exploration(id), {key, operation});
+export const explorationCommand = (id: string, operation: 'recall' | 'resume' | 'leave', key = combatKey()) => request.post<never, CombatSnapshot>(exploration(id), {key, operation});
 
 export const previewCombatEquipment = (id: string, equipment: Record<string, string | null>, signal?: AbortSignal) => request.post<never, {attributes: Record<string, number | string>}>(actor(id), {key:combatKey(), operation:'preview_equip', equipment}, {signal});
+
+export const getAdventureOptions = (id:string, signal?:AbortSignal) => request.get<never, import('../types/api/combat').AdventureOptions>(`${actor(id)}adventure-options/`, {signal});
+
+export const getPartyEvents = (id:string, before:number, signal?:AbortSignal) => request.get<never,{events:import('../types/api/combat').AdventurePartySnapshot['events'];hasMore:boolean}>(`${base}parties/${encodeURIComponent(id)}/events/`,{params:{before},signal});

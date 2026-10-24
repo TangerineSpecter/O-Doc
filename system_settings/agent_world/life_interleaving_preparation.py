@@ -9,7 +9,7 @@ def resize_exploration(run, agent, plan):
     item = LifeItem.objects.filter(pk=run.life_item_id).first()
     if not item or not is_interleaved(item):
         return plan
-    legal = legal_durations(item, (1800, 3600, 7200), seconds=True)
+    legal = legal_durations(item, ([plan['duration_seconds']] if run.snapshot.get('target_party_id') else (1800, 3600, 7200)), seconds=True)
     duration = plan['duration_seconds']
     if duration in legal:
         return plan

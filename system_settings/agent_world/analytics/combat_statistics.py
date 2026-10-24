@@ -1,5 +1,6 @@
 """Read-only departure-cohort combat statistics, scoped to the authenticated owner."""
-from ..combat.models import CombatFact, CombatEncounter, Exploration, CombatProfile
+from ..combat.models import CombatFact, Exploration, CombatProfile
+from .combat_kills import load_combat_kills
 
 OPEN = {'preparing', 'active', 'paused', 'settling'}
 
@@ -18,7 +19,7 @@ def count(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
 
-def aggregate_combat(residents, runs, encounters):
+def aggregate_combat(residents, runs, kills):
     profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys())}
     rows = {}
     for actor, resident in residents.items():
@@ -60,16 +61,18 @@ def aggregate_combat(residents, runs, encounters):
         row['longestSeconds'] = max(row['longestSeconds'], elapsed)
         row['energy'] += count(result.get('energy'))
         row['potions'] += sum(count(amount) for amount in (result.get('potions_used') or {}).values())
+        row['potions'] += sum(count(amount) for amount in (result.get('elixirs_used') or {}).values())
         destination = (run.snapshot.get('plan') or {}).get('dungeon_id')
         if destination:
             row['destinations'].add(destination)
-    seen_encounters = set()
-    for encounter in encounters:
-        row = rows.get(encounter.actor_id)
-        if row is None or encounter.exploration_id not in seen or encounter.pk in seen_encounters or not encounter.result.get('killed'):
+    seen_kills = set()
+    for kill in kills:
+        row = rows.get(kill.actor_id)
+        key = (kill.actor_id, kill.exploration_id, kill.identity)
+        if row is None or kill.exploration_id not in seen or key in seen_kills:
             continue
-        seen_encounters.add(encounter.pk)
-        monster = encounter.monster or {}
+        seen_kills.add(key)
+        monster = kill.monster
         key = monster.get('id') or 'unknown'
         detail = row['monsters'].setdefault(key, {'id': key, 'name': monster.get('name') or '未记录魔物', 'kills': 0, 'highestLevel': 0})
         detail['kills'] += 1
@@ -90,6 +93,5 @@ def load_combat_statistics(owner, start, end, residents):
     ids = CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
         created_at__gte=start, created_at__lt=end).values_list('exploration_id', flat=True).distinct()
     runs = list(Exploration.objects.filter(owner_id=owner, actor_id__in=residents, pk__in=ids))
-    encounters = CombatEncounter.objects.filter(owner_id=owner, actor_id__in=residents,
-        exploration_id__in=[run.pk for run in runs], result__killed=True)
-    return aggregate_combat(residents, runs, encounters)
+    kills = load_combat_kills(owner, exploration_ids=[run.pk for run in runs], actor_ids=residents)
+    return aggregate_combat(residents, runs, kills)

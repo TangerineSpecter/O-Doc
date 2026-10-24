@@ -1,0 +1,295 @@
+{
+  "catalog": "combat-1.0.22",
+  "seeds": 20,
+  "assumptions": "30分钟固定等级蓝装，生产行动/生成/经验/掉落规则，无升级、体力不足或模型决策；未携带美食炼金药。药耗包含倒地者，不含补购和炼金。",
+  "samples": [
+    {
+      "level": 55,
+      "jobs": [
+        "job.swordmaster"
+      ],
+      "kills": 17.1,
+      "experience_per_member": 20896.1,
+      "materials_per_member": 6.05,
+      "equipment_per_member": 1.0,
+      "fallen_fraction": 0.2,
+      "unrescued_fraction": 0.2,
+      "potion_consumption_per_member": 4.2,
+      "active_seconds": 1744.5
+    },
+    {
+      "level": 55,
+      "jobs": [
+        "job.swordmaster",
+        "job.highpriest"
+      ],
+      "kills": 27.05,
+      "experience_per_member": 24609.0,
+      "materials_per_member": 16.625,
+      "equipment_per_member": 2.55,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 1.775,
+      "active_seconds": 1791.7
+    },
+    {
+      "level": 55,
+      "jobs": [
+        "job.spellblade",
+        "job.swordmaster",
+        "job.highpriest"
+      ],
+      "kills": 41.45,
+      "experience_per_member": 33708.95,
+      "materials_per_member": 16.2,
+      "equipment_per_member": 3.183,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 4.15,
+      "active_seconds": 1795.75
+    },
+    {
+      "level": 55,
+      "jobs": [
+        "job.spellblade",
+        "job.swordmaster",
+        "job.highpriest",
+        "job.cryomancer"
+      ],
+      "kills": 64.2,
+      "experience_per_member": 47354.588,
+      "materials_per_member": 19.312,
+      "equipment_per_member": 3.438,
+      "fallen_fraction": 0.013,
+      "unrescued_fraction": 0.013,
+      "potion_consumption_per_member": 3.638,
+      "active_seconds": 1795.15
+    },
+    {
+      "level": 55,
+      "jobs": [
+        "job.swordmaster",
+        "job.swordmaster",
+        "job.swordmaster",
+        "job.swordmaster"
+      ],
+      "kills": 31.45,
+      "experience_per_member": 21646.3,
+      "materials_per_member": 9.412,
+      "equipment_per_member": 1.587,
+      "fallen_fraction": 1.0,
+      "unrescued_fraction": 1.0,
+      "potion_consumption_per_member": 7.025,
+      "active_seconds": 694.3
+    },
+    {
+      "level": 55,
+      "jobs": [
+        "job.swordmaster",
+        "job.highpriest",
+        "job.cryomancer",
+        "job.sharpshooter"
+      ],
+      "kills": 58.15,
+      "experience_per_member": 42387.975,
+      "materials_per_member": 18.0,
+      "equipment_per_member": 2.712,
+      "fallen_fraction": 0.2,
+      "unrescued_fraction": 0.2,
+      "potion_consumption_per_member": 3.65,
+      "active_seconds": 1653.8
+    },
+    {
+      "level": 75,
+      "jobs": [
+        "job.swordmaster"
+      ],
+      "kills": 14.65,
+      "experience_per_member": 33661.95,
+      "materials_per_member": 5.45,
+      "equipment_per_member": 1.35,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 2.55,
+      "active_seconds": 1791.75
+    },
+    {
+      "level": 75,
+      "jobs": [
+        "job.swordmaster",
+        "job.highpriest"
+      ],
+      "kills": 20,
+      "experience_per_member": 35616.5,
+      "materials_per_member": 12.225,
+      "equipment_per_member": 2.075,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 1.4,
+      "active_seconds": 1795.1
+    },
+    {
+      "level": 75,
+      "jobs": [
+        "job.spellblade",
+        "job.swordmaster",
+        "job.highpriest"
+      ],
+      "kills": 31.3,
+      "experience_per_member": 48635.3,
+      "materials_per_member": 12.367,
+      "equipment_per_member": 2.35,
+      "fallen_fraction": 0.083,
+      "unrescued_fraction": 0.083,
+      "potion_consumption_per_member": 3.967,
+      "active_seconds": 1797
+    },
+    {
+      "level": 75,
+      "jobs": [
+        "job.spellblade",
+        "job.swordmaster",
+        "job.highpriest",
+        "job.cryomancer"
+      ],
+      "kills": 46,
+      "experience_per_member": 68332.6,
+      "materials_per_member": 14.175,
+      "equipment_per_member": 2.163,
+      "fallen_fraction": 0.2,
+      "unrescued_fraction": 0.2,
+      "potion_consumption_per_member": 4.287,
+      "active_seconds": 1727.25
+    },
+    {
+      "level": 75,
+      "jobs": [
+        "job.swordmaster",
+        "job.swordmaster",
+        "job.swordmaster",
+        "job.swordmaster"
+      ],
+      "kills": 28.55,
+      "experience_per_member": 40003.05,
+      "materials_per_member": 8.725,
+      "equipment_per_member": 1.438,
+      "fallen_fraction": 1.0,
+      "unrescued_fraction": 1.0,
+      "potion_consumption_per_member": 6.825,
+      "active_seconds": 782.7
+    },
+    {
+      "level": 75,
+      "jobs": [
+        "job.swordmaster",
+        "job.highpriest",
+        "job.cryomancer",
+        "job.sharpshooter"
+      ],
+      "kills": 42.35,
+      "experience_per_member": 62536.025,
+      "materials_per_member": 12.95,
+      "equipment_per_member": 2.112,
+      "fallen_fraction": 0.45,
+      "unrescued_fraction": 0.438,
+      "potion_consumption_per_member": 3.888,
+      "active_seconds": 1541.2
+    },
+    {
+      "level": 90,
+      "jobs": [
+        "job.swordmaster"
+      ],
+      "kills": 17.8,
+      "experience_per_member": 48631.65,
+      "materials_per_member": 5.6,
+      "equipment_per_member": 1.2,
+      "fallen_fraction": 0.05,
+      "unrescued_fraction": 0.05,
+      "potion_consumption_per_member": 2.05,
+      "active_seconds": 1791.75
+    },
+    {
+      "level": 90,
+      "jobs": [
+        "job.swordmaster",
+        "job.highpriest"
+      ],
+      "kills": 24.35,
+      "experience_per_member": 52880.3,
+      "materials_per_member": 14.625,
+      "equipment_per_member": 2.875,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 1.1,
+      "active_seconds": 1795
+    },
+    {
+      "level": 90,
+      "jobs": [
+        "job.spellblade",
+        "job.swordmaster",
+        "job.highpriest"
+      ],
+      "kills": 37.95,
+      "experience_per_member": 72622.8,
+      "materials_per_member": 15.483,
+      "equipment_per_member": 2.6,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 3.433,
+      "active_seconds": 1795.5
+    },
+    {
+      "level": 90,
+      "jobs": [
+        "job.spellblade",
+        "job.swordmaster",
+        "job.highpriest",
+        "job.cryomancer"
+      ],
+      "kills": 59.9,
+      "experience_per_member": 105897.65,
+      "materials_per_member": 18.25,
+      "equipment_per_member": 2.95,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 3.075,
+      "active_seconds": 1796.25
+    },
+    {
+      "level": 90,
+      "jobs": [
+        "job.swordmaster",
+        "job.swordmaster",
+        "job.swordmaster",
+        "job.swordmaster"
+      ],
+      "kills": 38.2,
+      "experience_per_member": 63160.512,
+      "materials_per_member": 11.162,
+      "equipment_per_member": 2.075,
+      "fallen_fraction": 0.912,
+      "unrescued_fraction": 0.912,
+      "potion_consumption_per_member": 7.95,
+      "active_seconds": 1035.25
+    },
+    {
+      "level": 90,
+      "jobs": [
+        "job.swordmaster",
+        "job.highpriest",
+        "job.cryomancer",
+        "job.sharpshooter"
+      ],
+      "kills": 63.65,
+      "experience_per_member": 111947.4,
+      "materials_per_member": 19.35,
+      "equipment_per_member": 3.212,
+      "fallen_fraction": 0.0,
+      "unrescued_fraction": 0.0,
+      "potion_consumption_per_member": 3.0,
+      "active_seconds": 1791
+    }
+  ]
+}

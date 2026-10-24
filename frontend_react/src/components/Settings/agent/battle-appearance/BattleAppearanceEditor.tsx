@@ -14,7 +14,7 @@ import {BattleHeadPreview} from './BattleHeadPreview';
 import {independentWeapons} from '@/components/Combat/animation/playerAppearance/layeredPlayerArt';
 import {DEFAULT_APPEARANCE_OVERLAYS} from '@/components/Combat/animation/playerAppearance/LayeredPlayerActor';
 import type {AppearanceOverlayTransform,AppearanceOverlayTransforms} from '@/components/Combat/animation/playerAppearance/LayeredPlayerActor';
-import {alphaBounds, applyBrushStroke, autoCharacterTransform, BATTLE_CHARACTER_FRAME, BATTLE_CHARACTER_MIN_SCALE, BATTLE_CHARACTER_MAX_SCALE, removeColorRegion, removeFlatBackground, renderCharacterFrame} from './imageProcessing';
+import {alphaBounds, applyBrushStroke, autoCharacterTransform, BATTLE_CHARACTER_FRAME, BATTLE_CHARACTER_MIN_SCALE, BATTLE_CHARACTER_MAX_SCALE, groundCharacterPlacement, removeColorRegion, removeFlatBackground, renderCharacterFrame} from './imageProcessing';
 import type {CharacterTransform,CropRect,PixelImage} from './imageProcessing';
 import {ACTIVE_HEAD_TASKS, useBattleHeadTask} from './useBattleHeadTask';
 import {BattleHeadTaskStatus} from './BattleHeadTaskStatus';
@@ -205,7 +205,9 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
         if(selection){context.strokeStyle='#f97316';context.lineWidth=Math.max(1,Math.ceil(pixels.width/500));context.setLineDash([4,3]);context.strokeRect(selection.x,selection.y,selection.width,selection.height);context.setLineDash([]);}
     },[pixels,selection]);
 
-    const frameResult=useMemo(()=>pixels&&crop?renderCharacterFrame(putPixels(pixels),crop,transform):null,[pixels,crop,transform]);
+    const sourceCanvas=useMemo(()=>pixels?putPixels(pixels):null,[pixels]);
+    const contentBounds=useMemo(()=>pixels&&crop?alphaBounds(pixels,crop):null,[pixels,crop]);
+    const frameResult=useMemo(()=>sourceCanvas&&crop?renderCharacterFrame(sourceCanvas,crop,transform,contentBounds):null,[sourceCanvas,crop,transform,contentBounds]);
     const frame=frameResult?.canvas||null;const clipped=frameResult?.clipped||false;
     useEffect(()=>{
         if(!frame||!frameCanvas.current)return;
@@ -239,6 +241,13 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
     };
 
     const autoAlign=()=>{if(!pixels)return;const bounds=alphaBounds(pixels);if(!bounds){toast.warning('当前没有可见角色像素');return;}setCrop(bounds);setTransform(autoCharacterTransform(bounds));};
+
+    const alignFeet=()=>{
+        if(!pixels||!crop)return;
+        const aligned=groundCharacterPlacement(pixels,crop,transform);
+        if(!aligned){toast.warning('当前选区没有可见角色像素');return;}
+        setCrop(aligned.crop);setTransform(aligned.transform);
+    };
 
     const pointerPoint=(event:ReactPointerEvent<HTMLCanvasElement>)=>{
         const rect=event.currentTarget.getBoundingClientRect();const canvas=event.currentTarget;
@@ -326,7 +335,7 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
 
     const save=async()=>{
         if(saving||(!restoreDefaultPending&&(!pixels||!crop)))return;
-        if(!restoreDefaultPending&&clipped){toast.warning('头发超出完整画布，请缩小或调整位置后保存');return;}
+        if(!restoreDefaultPending&&clipped){toast.warning('角色超出画布，请点击鞋底贴地或缩小后保存');return;}
         setSaving(true);setMessage('');
         try{
             if(restoreDefaultPending){
@@ -410,10 +419,10 @@ export function BattleAppearanceEditor({agent,imageModels,onClose,onSaved}:Props
 
                     <div className={`grid items-start gap-4 ${pixels?'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)]':''}`}>
                         {pixels&&<section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <div className="mb-3"><h3 className="text-sm font-bold text-slate-800">3. 调整完整角色在战斗画布中的位置</h3><p className="mt-1 text-xs text-slate-500">拖动整个人物或用方向键微调；自动适配会保留头发、衣服和鞋子。</p></div>
+                            <div className="mb-3"><h3 className="text-sm font-bold text-slate-800">3. 调整完整角色在战斗画布中的位置</h3><p className="mt-1 text-xs text-slate-500">拖动或用方向键微调；点击「鞋底贴地」去掉透明留白，让完整鞋底落在阴影上。</p></div>
                             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
                                 <div className={`flex min-h-[190px] items-center justify-center rounded-xl border border-slate-200 ${checker}`}><div className="relative aspect-[374/528] w-full max-w-[253px] overflow-hidden"><canvas ref={frameCanvas} tabIndex={0} className="absolute inset-0 h-full w-full touch-none outline-none [image-rendering:pixelated] focus:ring-2 focus:ring-orange-300" onPointerDown={framePointerDown} onPointerMove={framePointerMove} onPointerUp={framePointerUp} onPointerCancel={framePointerUp} onKeyDown={event=>{const step=event.shiftKey?4:1;if(event.key==='ArrowLeft'){event.preventDefault();nudge(-step,0);}if(event.key==='ArrowRight'){event.preventDefault();nudge(step,0);}if(event.key==='ArrowUp'){event.preventDefault();nudge(0,-step);}if(event.key==='ArrowDown'){event.preventDefault();nudge(0,step);}}} aria-label="拖动完整角色到战斗画布中的合适位置"/></div></div>
-                                <div className="space-y-3"><div><label className="mb-1 block text-[11px] font-semibold text-slate-600">等比缩放 {transform.scale.toFixed(2)}×</label><input type="range" min={BATTLE_CHARACTER_MIN_SCALE} max={BATTLE_CHARACTER_MAX_SCALE} step="0.001" value={transform.scale} onChange={event=>setTransform(value=>({...value,scale:Number(event.target.value)}))} className="w-full accent-orange-500"/></div><div className="flex items-center justify-center gap-1"><button onClick={()=>nudge(-1,0)} className="rounded-lg bg-slate-100 p-2" title="左移一像素"><ArrowLeft className="h-4 w-4"/></button><div className="flex flex-col gap-1"><button onClick={()=>nudge(0,-1)} className="rounded-lg bg-slate-100 p-2" title="上移一像素"><ArrowUp className="h-4 w-4"/></button><button onClick={()=>nudge(0,1)} className="rounded-lg bg-slate-100 p-2" title="下移一像素"><ArrowDown className="h-4 w-4"/></button></div><button onClick={()=>nudge(1,0)} className="rounded-lg bg-slate-100 p-2" title="右移一像素"><ArrowRight className="h-4 w-4"/></button></div>{clipped&&<p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">角色素材超出导出画布；请缩小或移回画布内，保留头发与鞋子。</p>}<p className="text-[10px] leading-4 text-slate-400">完整画布：374×528 px<br/>位置 ({transform.x}, {transform.y})</p></div>
+                                <div className="space-y-3"><div><label className="mb-1 block text-[11px] font-semibold text-slate-600">等比缩放 {transform.scale.toFixed(2)}×</label><input type="range" min={BATTLE_CHARACTER_MIN_SCALE} max={BATTLE_CHARACTER_MAX_SCALE} step="0.001" value={transform.scale} onChange={event=>setTransform(value=>({...value,scale:Number(event.target.value)}))} className="w-full accent-orange-500"/></div><div className="flex items-center justify-center gap-1"><button onClick={()=>nudge(-1,0)} className="rounded-lg bg-slate-100 p-2" title="左移一像素"><ArrowLeft className="h-4 w-4"/></button><div className="flex flex-col gap-1"><button onClick={()=>nudge(0,-1)} className="rounded-lg bg-slate-100 p-2" title="上移一像素"><ArrowUp className="h-4 w-4"/></button><button onClick={()=>nudge(0,1)} className="rounded-lg bg-slate-100 p-2" title="下移一像素"><ArrowDown className="h-4 w-4"/></button></div><button onClick={()=>nudge(1,0)} className="rounded-lg bg-slate-100 p-2" title="右移一像素"><ArrowRight className="h-4 w-4"/></button></div><button type="button" onClick={alignFeet} className="w-full rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-700 hover:bg-orange-100">鞋底贴地</button>{clipped&&<p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">角色可见部分超出画布；点击「鞋底贴地」或缩小，避免裁掉头发与鞋子。</p>}<p className="text-[10px] leading-4 text-slate-400">完整画布：374×528 px<br/>位置 ({transform.x}, {transform.y})</p></div>
                             </div>
                         </section>}
                         <BattleHeadPreview jobId={jobId} weaponId={weaponId} headUrl={legacyHeadUrl} characterUrl={characterUrl} onWeaponChange={setWeaponId} previewWeaponOnly={weaponId!==equippedWeapon} overlays={overlays} activeOverlay={activeOverlay} onActiveOverlayChange={setActiveOverlay} onOverlayChange={updateOverlay}/>

@@ -55,6 +55,17 @@ class CombatView(APIView):
                     profile=CombatProfile.objects.select_for_update().filter(pk=identity,owner_id=owner).first()
                     if profile:profiles.recover_expired_rest(profile)
                     return respond(queries.profile_view(owner,agent))
+                if self.kind=='party_events':
+                    from .party_models import AdventureParty, AdventureEvent
+                    party=get_object_or_404(AdventureParty,pk=identity,owner_id=owner)
+                    before=int(request.GET.get('before',party.head+1))
+                    if before<1:raise ValueError('战报游标无效')
+                    events=list(AdventureEvent.objects.filter(party_id=party.pk,sequence__lt=before).order_by('-sequence')[:40])
+                    return respond({'events':[{'id':e.pk,'sequence':e.sequence,'kind':e.kind,'payload':e.payload} for e in reversed(events)],
+                        'has_more':bool(events and events[-1].sequence>1)})
+                if self.kind=='adventure_options':
+                    from .party_options import options
+                    return respond(options(owner,actor_for(owner,identity)))
                 if self.kind=='history':
                     profile=CombatProfile.objects.filter(pk=identity,owner_id=owner).first()
                     if not profile:actor_for(owner,identity)
@@ -120,6 +131,13 @@ class CombatView(APIView):
                         return respond(queries.snapshot(run))
                     if operation=='recall':explorations.finish(run.pk)
                     elif operation=='resume':explorations.resume(run.pk)
+                    elif operation=='leave' and run.snapshot.get('party_id') and run.status=='active':
+                        if run.phase=='searching':
+                            explorations.finish(run.pk,'recalled','当前波次已结束，已离队')
+                        else:
+                            run.state['leave_after_wave']=True
+                            run.reason='已申请在本波结束后离队'
+                            run.save()
                     else:raise ValueError('未知探索操作')
                     run.refresh_from_db()
                     append(CombatProfile.objects.get(pk=run.actor_id),key,'command',{'arguments':{'operation':operation,'exploration_id':run.pk}},run)

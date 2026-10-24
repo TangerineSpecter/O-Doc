@@ -1,3 +1,5 @@
+import AdventureModeChoice from './AdventureModeChoice';
+import {useAdventureOptions} from '../../hooks/useAdventureOptions';
 import {useState} from 'react';
 import {Select} from '../common/Select';
 import type {CombatCatalog, CombatProfile} from '../../types/api/combat';
@@ -24,10 +26,11 @@ export default function ExplorationPreparation({
 
     const [dungeon, setDungeon] = useState(recommended);
     const [duration, setDuration] = useState('1800');
+    const {selected:party,select:setParty,...adventures}=useAdventureOptions(profile.actorId);
     const [style, setStyle] = useState('style.balanced');
     const selected = catalog.tables.styles.find(row => row.id === style);
 
-    const energyCost = 10 + 2 * Math.ceil(Number(duration) / 300);
+    const energyCost = 10 + 2 * Math.ceil((party?.durationSeconds??Number(duration)) / 300);
     const isExploring = Boolean(profile.activeExplorationId);
 
     return (
@@ -51,23 +54,24 @@ export default function ExplorationPreparation({
                 )}
             </div>
 
+            <AdventureModeChoice {...adventures} value={party} onChange={setParty}/>
             {/* 下拉配置三栏 */}
-            <div className="mt-3.5 grid gap-2.5 sm:grid-cols-3">
-                <div>
+            <div className={`mt-3.5 grid gap-2.5 ${party?'':'sm:grid-cols-3'}`}>
+                {!party&&<div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">目的地地牢</label>
                     <Select
                         menuPortal
                         value={dungeon}
                         onChange={setDungeon}
                         options={catalog.tables.dungeons
-                            .filter(row => row.enabled === '1')
+                            .filter(row => row.enabled === '1' && Number(row.recommendedLevelMin)<=profile.progression.level)
                             .map(row => ({
                                 value: row.id,
                                 label: `${row.name} · Lv.${row.recommendedLevelMin}–${row.recommendedLevelMax}`,
                             }))}
                     />
-                </div>
-                <div>
+                </div>}
+                {!party&&<div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">预计探索时长</label>
                     <Select
                         menuPortal
@@ -79,7 +83,7 @@ export default function ExplorationPreparation({
                             {value: '7200', label: '2 小时（深度）'},
                         ]}
                     />
-                </div>
+                </div>}
                 <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">作战战术风格</label>
                     <Select
@@ -137,8 +141,8 @@ export default function ExplorationPreparation({
             <div className="mt-3.5 flex justify-end">
                 <button
                     type="button"
-                    disabled={busy || isExploring || Boolean(profile.restUntil)}
-                    onClick={() => onStart({dungeonId: dungeon, durationSeconds: Number(duration), styleId: style})}
+                    disabled={busy || isExploring || Boolean(profile.restUntil) || Boolean(party&&(adventures.loading||adventures.error))}
+                    onClick={() => onStart(party?{partyId:party.id,partyRevision:party.revision,styleId:style}:{adventureMode:'solo',dungeonId:dungeon,durationSeconds:Number(duration),styleId:style})}
                     className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95 disabled:opacity-40 whitespace-nowrap shrink-0"
                 >
                     {isExploring ? (

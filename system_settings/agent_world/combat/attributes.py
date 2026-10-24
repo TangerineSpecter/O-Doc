@@ -252,12 +252,17 @@ def monster(catalog: Catalog, template: dict, level: int) -> dict:
             'healing': 0, 'damage_type': profile['damage_type']}
 
 
-def kill_experience(catalog: Catalog, level: int, actor_level: int, rank: str) -> int:
-    base = math.floor(10 + 3 * level + .3 * level ** 2)
-    limit = math.floor(1.25 * math.floor(10 + 3 * actor_level + .3 * actor_level ** 2))
+def base_kill_experience(catalog: Catalog, level: int, rank: str) -> float:
+    return math.floor(10+3*level+.3*level**2)*numeric(catalog.row('monster_ranks',rank),'experience_multiplier')
+
+
+def kill_experience(catalog: Catalog, level: int, actor_level: int, rank: str, *, share: float | None = None) -> int:
+    """Apply personal limits/level decay to an already allocated, rank-inclusive share."""
+    base = base_kill_experience(catalog,level,rank) if share is None else share
+    limit = math.floor(1.25 * math.floor(10 + 3 * actor_level + .3 * actor_level ** 2))*numeric(catalog.row('monster_ranks',rank),'experience_multiplier')
     delta = level - actor_level
     factor = 1 if -3 <= delta <= 3 else 1 + .1 * (delta + 3) if -9 <= delta <= -4 else .1 if -19 <= delta <= -10 else .02 if delta <= -20 else 1 + min(.2, .04 * (delta - 3))
-    return max(1, math.floor(min(base, limit) * numeric(catalog.row('monster_ranks', rank), 'experience_multiplier') * factor))
+    return max(1, math.floor(min(base, limit) * factor))
 
 
 def apply_experience_bonus(experience: int, percentage) -> int:

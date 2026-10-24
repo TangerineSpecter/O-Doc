@@ -33,9 +33,9 @@ ELEMENT_NAMES = {'water': '水', 'fire': '火', 'earth': '土', 'wind': '风', '
 
 
 def portions(duration: int) -> int:
-    if type(duration) is not int or duration not in (1800, 3600, 7200):
+    if type(duration) is not int or not 600 <= duration <= 7200:
         raise ValueError('美食覆盖时长无效')
-    return duration // 1800
+    return (duration + 1799) // 1800
 
 
 def effects_for(recipe_id: str, stars: int, version: int = VERSION) -> dict:

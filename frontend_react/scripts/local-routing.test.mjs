@@ -33,6 +33,20 @@ async function request(path, method = 'GET', body) {
     return {response, payload: await response.json()};
 }
 
+test('combat prepare returns a readable local preparation for solo and join instead of a four-person battle',async()=>{
+    location.search='?mockState=populated';
+    const {payload:options}=await request('/combat/agents/local-agent-0/adventure-options/');
+    const party=options.data.parties[0];
+    for(const constraints of [{adventureMode:'solo',durationSeconds:1800},{partyId:party.id,partyRevision:party.revision}]) {
+        const {response,payload}=await request('/combat/agents/local-agent-0/','POST',{operation:'prepare',constraints});
+        assert.equal(response.status,200);assert.equal(payload.data.status,'preparing');assert.equal(payload.data.party,null);
+        const detail=await request(`/combat/explorations/${payload.data.id}/`);
+        assert.equal(detail.payload.data.id,payload.data.id);assert.equal(detail.payload.data.status,'preparing');
+        const recalled=await request(`/combat/explorations/${payload.data.id}/`,'POST',{operation:'recall'});
+        assert.equal(recalled.payload.data.id,payload.data.id);assert.equal(recalled.payload.data.status,'recalled');
+    }
+});
+
 for (const state of ['populated', 'empty']) {
     test(`known travel and exploration GET/POST details remain local in ${state}`, async () => {
         location.search = `?mockState=${state}`;

@@ -240,6 +240,8 @@ class SnapshotRestorer:
         data_list = normalize_learning(data_list)
 
         if not full_overwrite:
+            from system_settings.agent_world.combat.party_sync import complete_legacy_fields
+            complete_legacy_fields(data_list)
             self._fill_missing_snapshot_fields_from_local(data_list, model_map)
 
         # PromptTemplate points at PromptResultImage, while the result image in
