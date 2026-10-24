@@ -1,9 +1,10 @@
 """纯规则：时间、候选、概率、成长及猜拳；不执行 I/O。"""
 import math
 from datetime import timedelta
+from .catalog import MAX_LEVEL
 
 
-def level_for(experience: int, maximum: int = 50) -> tuple[int, int, int]:
+def level_for(experience: int, maximum: int = MAX_LEVEL) -> tuple[int, int, int]:
     level, remaining = 1, experience
     while level < maximum:
         needed = 100 + 25 * (level - 1)
@@ -14,7 +15,7 @@ def level_for(experience: int, maximum: int = 50) -> tuple[int, int, int]:
     return maximum, remaining, 0
 
 
-def skill_progress(experience: int, maximum: int = 50) -> dict:
+def skill_progress(experience: int, maximum: int = MAX_LEVEL) -> dict:
     """居民属性采用其他生活技能一致的 0～1 进度，不改变累计经验。"""
     level, remaining, needed = level_for(experience, maximum)
     return {'level': level, 'experience': experience, 'level_experience': remaining,

@@ -207,15 +207,19 @@ class LifeScheduleView(APIView):
             if not timedelta(0)<end-start<=timedelta(days=366):raise ValueError('查询范围须为1至366天')
             qs=qs.filter(scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end))
             if request.query_params.get('actor_id'):qs=qs.filter(actor_id=request.query_params['actor_id'])
+            from .life_schedule_query import select_source, source_counts, status_summary
+            counts = source_counts(qs)
+            qs = select_source(qs, request.query_params.get('source', 'all'))
+            from .combat.models import Exploration
+            from .combat.explorations import EXECUTION_COMPLETED
+            settled_exploration = Exploration.objects.filter(
+                life_item_id=OuterRef('pk'), record_id=OuterRef('record_id'),
+                owner_id=owner_of(request), ended_at__isnull=False, status__in=EXECUTION_COMPLETED,
+            )
+            qs = qs.annotate(_settled_exploration=Exists(settled_exploration))
+            summary = status_summary(qs)
             requested_status=request.query_params.get('status')
             if requested_status in ('completed','failed'):
-                from .combat.models import Exploration
-                from .combat.explorations import EXECUTION_COMPLETED
-                settled_exploration=Exploration.objects.filter(
-                    life_item_id=OuterRef('pk'), record_id=OuterRef('record_id'),
-                    owner_id=owner_of(request), ended_at__isnull=False, status__in=EXECUTION_COMPLETED,
-                )
-                qs=qs.annotate(_settled_exploration=Exists(settled_exploration))
                 if requested_status=='completed':
                     qs=qs.filter(Q(status='completed')|Q(_settled_exploration=True))
                 else:
@@ -225,24 +229,22 @@ class LifeScheduleView(APIView):
             page=int(request.query_params.get('page','1'))
             if page<1:raise ValueError('页码无效')
             view=request.query_params.get('view','list')
-            if view not in ('week','list'):raise ValueError('日程视图无效')
-            from .life_activities import main_items
-            counts = {'interleaved': qs.filter(context__interleaving__version=1).count(),
-                      'main': main_items(qs).exclude(activity__in=('market', 'market_prepare')).count()}
+            if view not in ('today','week','list'):raise ValueError('日程视图无效')
             from .life_facts import batch_actuals
             ordered=qs.order_by('scheduled_at','id')
-            if view=='week':
-                if end-start>timedelta(days=7):raise ValueError('周日程查询范围不能超过7天')
+            if view in ('today', 'week'):
+                limit = 1 if view == 'today' else 7
+                if end-start>timedelta(days=limit):raise ValueError(f'日程查询范围不能超过{limit}天')
                 # 日历必须以完整日期范围分组，不能把分页缺失误呈现为当天无安排。
                 rows=list(ordered)
                 settled_ids=settled_exploration_item_ids(rows)
                 facts = batch_actuals(rows)
                 items=[item_data(i,settled_exploration_ids=settled_ids, facts=facts[i.pk]) for i in rows]
-                return success_result({'total':len(items),'items':items,'page':1,'counts':counts})
+                return success_result({'total':len(items),'items':items,'page':1,'counts':counts,'summary':summary})
             rows=list(ordered[(page-1)*100:page*100])
             settled_ids=settled_exploration_item_ids(rows)
             facts = batch_actuals(rows)
-            return success_result({'total':qs.count(),'items':[item_data(i,settled_exploration_ids=settled_ids,facts=facts[i.pk]) for i in rows],'page':page,'counts':counts})
+            return success_result({'total':qs.count(),'items':[item_data(i,settled_exploration_ids=settled_ids,facts=facts[i.pk]) for i in rows],'page':page,'counts':counts,'summary':summary})
         except ValueError as exc:return valid_result(str(exc),status=400)
 
     @guarded

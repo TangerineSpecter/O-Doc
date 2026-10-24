@@ -8,8 +8,6 @@ import {
     Check,
     CheckCircle2,
     ChevronDown,
-    ChevronLeft,
-    ChevronRight,
     ChevronUp,
     Clock,
     Clock3,
@@ -32,7 +30,7 @@ import {
     TrendingUp,
     Utensils,
 } from 'lucide-react';
-import type {LifeItem} from '../../types/api/agentLife';
+import type {LifeItem, LifeSchedule, LifeScheduleSource} from '../../types/api/agentLife';
 import type {AgentConfig} from '../../types/api/setting';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import StarLoader from '../common/StarLoader';
@@ -44,8 +42,10 @@ interface LifeScheduleTodayTimelineProps {
     items: LifeItem[];
     agents: AgentConfig[];
     total: number;
-    page: number;
-    onPageChange: (page: number) => void;
+    counts?: LifeSchedule['counts'];
+    summary?: LifeSchedule['summary'];
+    source: LifeScheduleSource;
+    onSourceChange: (source: LifeScheduleSource) => void;
     onSelectItem: (id: string) => void;
 }
 
@@ -359,13 +359,15 @@ export default function LifeScheduleTodayTimeline({
     items,
     agents,
     total,
-    page,
-    onPageChange,
+    counts,
+    summary,
+    source,
+    onSourceChange,
     onSelectItem,
 }: LifeScheduleTodayTimelineProps) {
     const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [showMain, setShowMain] = useState<boolean>(true);
-    const [showInterleaved, setShowInterleaved] = useState<boolean>(false);
+    const showMain = source !== 'interleaved';
+    const showInterleaved = source !== 'main';
     const [currentTime, setCurrentTime] = useState(getShanghaiCurrent);
 
     useEffect(() => {
@@ -386,46 +388,22 @@ export default function LifeScheduleTodayTimeline({
 
     const [showEarlyHistory, setShowEarlyHistory] = useState(false);
 
-    // 来源数量统计（主日程 vs 自由活动）
-    const {mainCount, interleavedCount} = useMemo(() => {
-        let main = 0;
-        let interleaved = 0;
-        for (const item of sortedItems) {
-            if (item.source === 'interleaved') {
-                interleaved++;
-            } else {
-                main++;
-            }
-        }
-        return {mainCount: main, interleavedCount: interleaved};
-    }, [sortedItems]);
-
-    const handleToggleSource = (type: 'main' | 'interleaved') => {
-        if (type === 'main') {
-            if (showMain && !showInterleaved) {
-                setShowMain(false);
-                setShowInterleaved(true);
-                return;
-            }
-            setShowMain((prev) => !prev);
-        } else {
-            if (showInterleaved && !showMain) {
-                setShowInterleaved(false);
-                setShowMain(true);
-                return;
-            }
-            setShowInterleaved((prev) => !prev);
-        }
+    const mainCount = counts?.main ?? sortedItems.filter(i => i.source !== 'interleaved').length;
+    const interleavedCount = counts?.interleaved ?? sortedItems.filter(i => i.source === 'interleaved').length;
+    const handleToggleSource = (kind: 'main' | 'interleaved') => {
+        const next = source === 'all' ? (kind === 'main' ? 'interleaved' : 'main')
+            : source === kind ? (kind === 'main' ? 'interleaved' : 'main') : 'all';
+        onSourceChange(next);
     };
-
-    // 按来源筛选（主日程 / 自由活动，默认只展示主日程）
-    const sourceFilteredItems = useMemo(() => {
-        return sortedItems.filter((item) => {
-            const isInterleaved = item.source === 'interleaved';
-            if (isInterleaved) return showInterleaved;
-            return showMain;
-        });
-    }, [sortedItems, showMain, showInterleaved]);
+    // The server filters sources before returning the complete day.
+    const sourceFilteredItems = sortedItems;
+    const unfinished = summary
+        ? ['pending', 'running', 'deferred', 'paused'].reduce((n, key) => n + (summary[key] || 0), 0)
+        : sortedItems.filter(i => !['completed', 'rest', 'failed', 'cancelled'].includes(i.status)).length;
+    const failed = summary?.failed ?? sortedItems.filter(i => i.status === 'failed').length;
+    const completionText = unfinished > 0 ? `所选来源仍有 ${unfinished} 项待处理，可切换全部状态查看`
+        : failed > 0 ? `今日安排已处理，其中 ${failed} 项失败，可查看详情恢复`
+        : '今日所选来源的安排已处理完毕';
 
     // 统计指标（实时反映当前视图达成率与全天开销、构成）
     const stats = useMemo(() => {
@@ -433,7 +411,7 @@ export default function LifeScheduleTodayTimeline({
         const completedCount = sourceFilteredItems.filter((i) => i.status === 'completed').length;
         const restCount = sourceFilteredItems.filter((i) => i.status === 'rest').length;
         const runningCount = sourceFilteredItems.filter((i) => i.status === 'running').length;
-        const pendingCount = sourceFilteredItems.filter((i) => i.status === 'pending').length;
+        const pendingCount = sourceFilteredItems.filter((i) => ['pending', 'deferred', 'paused'].includes(i.status)).length;
         const failedCount = sourceFilteredItems.filter((i) => i.status === 'failed').length;
         const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
@@ -465,6 +443,7 @@ export default function LifeScheduleTodayTimeline({
     // 状态筛选
     const displayItems = useMemo(() => {
         if (statusFilter === 'all') return sourceFilteredItems;
+        if (statusFilter === 'pending') return sourceFilteredItems.filter(i => ['pending', 'deferred', 'paused'].includes(i.status));
         return sourceFilteredItems.filter((i) => i.status === statusFilter);
     }, [sourceFilteredItems, statusFilter]);
 
@@ -538,8 +517,8 @@ export default function LifeScheduleTodayTimeline({
             <div className="shrink-0 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2.5">
                     {/* 左侧：时间与达成率简报 */}
-                    <div className="flex items-center gap-2.5">
-                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200/80 bg-white px-2.5 py-1 text-xs shadow-2xs">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                        <div className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200/80 bg-white px-2.5 py-1 text-xs shadow-2xs">
                             <span className="relative flex h-2 w-2">
                                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
                                 <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
@@ -796,7 +775,8 @@ export default function LifeScheduleTodayTimeline({
                             <CurrentDividerBar
                                 timeString={currentTime.timeString}
                                 hoursRemaining={currentTime.hoursRemaining}
-                                unfinishedCount={activeItems.length}
+                                unfinishedCount={unfinished}
+                                completionText={completionText}
                             />
 
                             {/* 后续待办与进行中安排 */}
@@ -814,7 +794,7 @@ export default function LifeScheduleTodayTimeline({
                                 </div>
                             ) : (
                                 <div className="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/20 px-3 py-2.5 text-center text-xs text-emerald-700">
-                                    🎉 今日后续无更多安排，居民自由休憩中 ✨
+                                    {completionText}
                                 </div>
                             )}
                         </>
@@ -860,7 +840,8 @@ export default function LifeScheduleTodayTimeline({
                     <CurrentDividerBar
                         timeString={currentTime.timeString}
                         hoursRemaining={currentTime.hoursRemaining}
-                        unfinishedCount={activeItems.length}
+                        unfinishedCount={unfinished}
+                                completionText={completionText}
                     />
 
                     {/* 3. 待处理与进行中安排 */}
@@ -890,7 +871,7 @@ export default function LifeScheduleTodayTimeline({
                             </div>
                         ) : (
                             <div className="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/20 px-3 py-2.5 text-center text-xs text-emerald-700">
-                                🎉 今日所有安排已全部完成，居民自由休憩中 ✨
+                                {completionText}
                             </div>
                         )}
                     </div>
@@ -900,35 +881,9 @@ export default function LifeScheduleTodayTimeline({
                 <TodayInsightsSection stats={stats} agents={agents} items={sortedItems} />
             </div>
 
-            {/* 分页控制（超过100条时提供） */}
-            {total > 100 && (
-                <div className="flex shrink-0 items-center justify-between border-t border-slate-100 bg-white px-4 py-2 text-xs text-slate-500">
-                    <span className="text-[11px]">
-                        共 <strong className="font-semibold text-slate-700">{total}</strong> 项日程
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-400">第 {page} 页</span>
-                        <button
-                            type="button"
-                            disabled={page <= 1}
-                            onClick={() => onPageChange(page - 1)}
-                            className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                        >
-                            <ChevronLeft className="h-3 w-3 shrink-0" />
-                            上一页
-                        </button>
-                        <button
-                            type="button"
-                            disabled={page * 100 >= total}
-                            onClick={() => onPageChange(page + 1)}
-                            className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                        >
-                            下一页
-                            <ChevronRight className="h-3 w-3 shrink-0" />
-                        </button>
-                    </div>
-                </div>
-            )}
+            <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-2 text-xs text-slate-500">
+                共 {total} 项日程 · 当前来源全天完整展示
+            </div>
         </div>
     );
 }
@@ -1164,10 +1119,12 @@ function CurrentDividerBar({
     timeString,
     hoursRemaining,
     unfinishedCount,
+    completionText,
 }: {
     timeString: string;
     hoursRemaining: number;
     unfinishedCount: number;
+    completionText: string;
 }) {
     return (
         <div className="relative my-2.5 flex items-center gap-2">
@@ -1184,7 +1141,7 @@ function CurrentDividerBar({
                 <span className="text-[11px] text-orange-700">
                     {unfinishedCount > 0
                         ? `距今日结束还剩 ${hoursRemaining} 小时 · 剩余 ${unfinishedCount} 项待处理`
-                        : '今日已完成所有安排，居民自由休憩中 ✨'}
+                        : completionText}
                 </span>
             </div>
 
@@ -1235,7 +1192,7 @@ function TodayInsightsSection({
                 </div>
                 <div className="flex items-center gap-1.5">
                     <span className="text-[11px] text-slate-400">
-                        今日共产生 {stats.totalCount} 项生活行为
+                        今日所选来源共 {stats.totalCount} 项安排
                     </span>
                     <div className="sm:hidden text-slate-400">
                         {mobileExpanded ? (

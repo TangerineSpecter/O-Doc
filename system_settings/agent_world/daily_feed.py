@@ -632,6 +632,14 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     for farm in AgentFarm.objects.filter(owner_id=owner):
         for plan in farm.state.get('planting_plans', {}).values():
             for row in plan.get('events', []):
+                # 轮询状态供队列恢复和诊断使用，不是居民已发生的行动；
+                # 在投影处过滤，也覆盖历史数据，避免重试刷新卡片时间。
+                if row['code'] in {
+                    'busy', 'recovered', 'resumed', 'activated', 'land', 'seeds',
+                    'fertilizer', 'stamina', 'travel', 'paused', 'mcp-disabled',
+                    'investment-stamina', 'investment-protected',
+                }:
+                    continue
                 when = datetime.fromtimestamp(row['at'], SHANGHAI)
                 if not start <= storage_time(when) < end:
                     continue

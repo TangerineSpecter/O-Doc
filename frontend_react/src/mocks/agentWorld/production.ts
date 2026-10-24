@@ -7,14 +7,15 @@ import type {InventoryItem} from '../../types/api/travel';
 import type {CatalogItem} from '../../types/api/itemCatalog';
 import type {MarketListing, MarketTransaction, MarketSession, MarketShop, MarketAutomationPlan} from '../../types/api/market';
 import {createMarketPlanPreview} from '../../components/Market/marketPlanPreviewData';
+import {fishingInventory} from './fishing';
 
 export const farmRules: FarmRules = structuredClone(catalog.farm);
 export const skill = {level: 6, experience: 560, levelExperience: 400, levelFloor: 400, nextLevelExperience: 700, progress: 53};
-export const inventory: InventoryItem[] = residents.flatMap(r => cropKinds.flatMap((kind, i) => [1, 3, 5].map(stars => ({
+export const inventory: InventoryItem[] = [...residents.flatMap(r => cropKinds.flatMap((kind, i) => [1, 3, 5].map(stars => ({
     id: `${r.id}-${kind}-${stars}`, actorId: r.id, actorName: r.name, originActorId: r.id, originActorName: r.name,
     kind: 'crop', name: farmRules.crops[kind].name, quantity: 5 + i, rarity: 'normal', value: String(farmRules.crops[kind].salePrice * stars),
     source: {sku: `crop.${kind}`, stars, quality: 'normal'}, iconUrl: '',
-}))));
+})))), ...fishingInventory];
 export const farms: FarmState[] = residents.map((r, i) => ({id: r.id, actorName: r.name, appearance: {style: i % 3, palette: i % 3},
     avatar: '', professionName: r.professionName, balance: r.money, planting: skill, farmBonus: {professionId: r.profession!, professionName: r.professionName!, percentage: '25'},
     revision: 1, serverTime: now.toISOString(), weather: i % 2 ? 'rain' : 'sun', hour: 14, currentAction: '照料作物，等待本轮成熟',
@@ -89,10 +90,20 @@ export const shop: MarketShop = {id: 'local-shop', startsAt: at(0), expiresAt: a
         ...(['quality', 'yield'] as const).map(k => ({id: k, sku: `fertilizer.${k}`, kind: 'fertilizer' as const, price: String(farmRules.fertilizers[k].basePrice), ...farmRules.fertilizers[k]}))]};
 export const listings: MarketListing[] = inventory.slice(0, 24).map((item, i) => ({id: `local-listing-${i}`, sellerId: item.actorId, sellerName: item.actorName,
     item: {...item, kind: 'crop', iconAssetId: item.iconAssetId || undefined}, initialQuantity: 12, remainingQuantity: 8, unitPrice: item.value, version: 1, status: 'active', createdAt: at(10), history: []}));
+listings.push(...fishingInventory.filter(item => item.rarity === 'rare').map(item => ({
+    id: `local-listing-${item.id}`, sellerId: item.actorId, sellerName: item.actorName,
+    item: {...item, kind: 'fish', iconAssetId: undefined}, initialQuantity: 1, remainingQuantity: 1,
+    unitPrice: item.value, version: 1, status: 'active', createdAt: at(10), history: [],
+})));
 export const transactions: MarketTransaction[] = [...residents.map((r, i) => ({id: `local-transaction-${i}`, actorId: r.id, actorName: r.name,
     sessionId: `local-session-${i}`, operation: {kind: 'buy', reason: '补足下一轮种植的种子'}, result: {kind: 'seed', name: '草莓种子', quantity: 3, total: '120', unitPrice: '40'}, createdAt: at(10 + i)})),
     {id: 'local-transaction-fish', actorId: residents[0].id, actorName: residents[0].name, sessionId: 'local-session-0',
         operation: {kind: 'sell', reason: '进场自动回收普通鱼'}, result: {kind: 'fish', name: '鲫鱼', quantity: 3, total: '6', fishing_sku: 'fish.crucian'}, createdAt: at(14)}];
+transactions.push(...fishingInventory.map(item => ({
+    id: `local-transaction-${item.id}`, actorId: item.actorId, actorName: item.actorName, sessionId: 'local-session-3',
+    operation: {kind: item.rarity === 'rare' ? 'sell_listing' : 'sell', reason: item.rarity === 'rare' ? '鱼王交易样例' : '进场自动回收普通鱼'},
+    result: {kind: 'fish', name: item.name, quantity: 1, total: item.value, unitPrice: item.value, fishingSku: item.source.sku}, createdAt: at(14),
+})));
 export const sessions: MarketSession[] = residents.map((r, i) => ({id: `local-session-${i}`, actorId: r.id, actorName: r.name, status: 'completed', mode: 'automatic', callCount: 2,
     createdAt: at(10), expiresAt: at(11), endedAt: at(11), reason: '已完成采购并保留日常储备金',
     calls: [{name: 'buy', at: at(10), arguments: {sku: 'seed.strawberry', quantity: 3}, result: {name: '草莓种子', quantity: 3, total: '120', budgetBefore: '300', budgetAfter: '180'}}],

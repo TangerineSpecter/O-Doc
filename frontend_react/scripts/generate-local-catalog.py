@@ -35,7 +35,6 @@ fertilizers = constants('farm_quality.py', {'FERTILIZERS'})['FERTILIZERS']
 farm = constants('farm_catalog.py', {'DEFAULT_RULES'}, {'FERTILIZERS': fertilizers})['DEFAULT_RULES']
 cooking = constants('cooking_catalog.py', {'RECIPES'})['RECIPES']
 alchemy = constants('alchemy_catalog.py', {'RECIPES', 'MATERIALS', 'DUNGEONS'})
-fishing = constants('fishing/catalog.py', {'VERSION', 'BAITS', 'SPOTS', 'FISH_ROWS'})
 tables = {file.stem: list(csv.DictReader(file.open(encoding='utf-8-sig', newline='')))
           for file in sorted((DOMAIN / 'combat/data').glob('*.csv'))}
 manifest = json.loads((DOMAIN / 'combat/data/manifest.json').read_text())
@@ -43,6 +42,16 @@ manifest = json.loads((DOMAIN / 'combat/data/manifest.json').read_text())
 sys.path.insert(0, str(ROOT))
 from system_settings.agent_world.combat.catalog import Catalog
 from system_settings.agent_world.combat.attributes import monster
+from system_settings.agent_world.fishing.catalog import builtin as fishing_builtin
+
+
+def fishing_projection():
+    rules = fishing_builtin()
+    result = camel(rules)
+    # 这些键是业务ID而不是结构字段，须与 FishingJSONRenderer 一致。
+    for field in ('spots', 'fish', 'baits'):
+        result[field] = {key: camel(value) for key, value in rules[field].items()}
+    return result
 
 combat_catalog = Catalog(tables, manifest['version'])
 monster_previews = [{'id': row['id'], 'level': int(row['level_min']),
@@ -53,12 +62,7 @@ result = {
     'alchemy': camel(alchemy['RECIPES']), 'materials': alchemy['MATERIALS'],
     'dungeons': alchemy['DUNGEONS'],
     'combat': {'version': manifest['version'], 'tables': camel(tables), 'monsterPreviews': monster_previews},
-    'fishing': {'version': fishing['VERSION'], 'spots': camel(fishing['SPOTS']), 'baits': fishing['BAITS'],
-                'rod': {'id': 'ordinary', 'name': '普通钓竿', 'bonus': 0},
-                'intervalSeconds': 300, 'energyCost': 2, 'durations': [30, 60, 120], 'maxLevel': 50,
-                'fish': {r[0]: {'name': r[1], 'spot': r[2], 'level': r[3], 'preferred': [r[4]],
-                                  'accepted': [r[5]], 'hours': r[6], 'weightRange': r[7],
-                                  'value': r[8], 'king': r[9], 'weight': 1} for r in fishing['FISH_ROWS']}},
+    'fishing': fishing_projection(),
 }
 destination = ROOT / 'frontend_react/src/mocks/agentWorld/catalog.json'
 destination.parent.mkdir(parents=True, exist_ok=True)

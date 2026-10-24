@@ -1,9 +1,12 @@
 """隔离测试库、临时媒体与 fake 决策；不得访问真实供应商。"""
 import copy
+import json
 import random
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import patch
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIClient
@@ -35,7 +38,7 @@ class FishingRulesTests(SimpleTestCase):
         })
         self.assertEqual(skill_progress(225)['progress'], 0)
         capped = skill_progress(10000000)
-        self.assertEqual(capped['level'], 50)
+        self.assertEqual(capped['level'], 99)
         self.assertEqual(capped['progress'], 1)
         self.assertIsNone(capped['next_level_experience'])
         self.assertEqual(skill_progress(150, maximum=2)['progress'], 1)
@@ -51,7 +54,7 @@ class FishingRulesTests(SimpleTestCase):
     def test_growth_and_night_window(self):
         self.assertEqual(level_for(99), (1,99,100))
         self.assertEqual(level_for(225), (3,0,150))
-        self.assertEqual(level_for(10000000)[0],50)
+        self.assertEqual(level_for(10000000)[0],99)
         fish = builtin()['fish']['catfish']
         self.assertTrue(active(fish,NOW.replace(hour=23)))
         self.assertTrue(active(fish,NOW.replace(hour=2)))
@@ -104,6 +107,96 @@ class FishingTests(TestCase):
         item = LifeItem.objects.create(pk=key,owner_id='admin',actor_id=self.agent.pk,task_id=self.task.pk,
             activity='fishing',original_at=NOW,scheduled_at=NOW,context={'planned_on':NOW.date().isoformat()})
         return request(item)
+
+    def test_old_builtin_read_projection_is_pure_and_write_upgrades(self):
+        from .catalog import current, upgrade_config, VERSION
+        from .models import FishingCatalog, FishingConfig
+        for version in ('fishing-1.0.0', 'fishing-1.1.0'):
+            legacy = builtin()
+            legacy.update(version=version, max_level=50)
+            legacy['spots'] = {key: value for key, value in legacy['spots'].items() if key in ('pond','river','lake')}
+            legacy['fish'] = {key: value for key, value in legacy['fish'].items() if value['spot'] in legacy['spots']}
+            FishingCatalog.objects.create(pk=version, rules=legacy)
+            FishingConfig.objects.filter(pk='admin').update(catalog_id=version)
+            self.assertEqual(current('admin')['version'], VERSION)
+            self.assertEqual(FishingConfig.objects.get(pk='admin').catalog_id, version)
+            response = self.client.get('/api/settings/agent-world/fishing/catalog/').json()['data']['rules']
+            fixture = Path(__file__).resolve().parents[3] / 'frontend_react/src/mocks/agentWorld/catalog.json'
+            self.assertEqual(response, json.loads(fixture.read_text())['fishing'])
+            self.assertEqual(response['spots']['frost_lake']['requiredLevel'], 70)
+            self.assertEqual(response['fish']['frost_king']['spot'], 'frost_lake')
+            self.assertEqual(response['fish']['frost_king']['weightRange'], [18,45])
+            self.assertEqual(FishingConfig.objects.get(pk='admin').catalog_id, version)
+            upgrade_config(FishingConfig.objects.get(pk='admin'))
+            self.assertEqual(FishingConfig.objects.get(pk='admin').catalog_id, VERSION)
+            self.assertEqual(FishingCatalog.objects.get(pk=version).rules, legacy)
+
+    def test_custom_catalog_and_market_growth_are_respected(self):
+        from .catalog import current, upgrade_config
+        from .models import FishingCatalog, FishingConfig
+        from .market import needs
+        custom = builtin()
+        custom.update(version='fishing-custom', max_level=45)
+        FishingCatalog.objects.create(pk=custom['version'], rules=custom)
+        FishingConfig.objects.filter(pk='admin').update(catalog_id=custom['version'])
+        upgrade_config(FishingConfig.objects.get(pk='admin'))
+        self.assertEqual(current('admin'), custom)
+        FishingProfile.objects.create(pk=self.agent.pk, owner_id='admin', experience=100000)
+        with patch('system_settings.agent_world.fishing.market.level_for', wraps=level_for) as calculate:
+            needs('admin',self.agent,[])
+        self.assertEqual(calculate.call_args.args, (100000,45))
+        response = self.client.get('/api/settings/agent-world/fishing/').json()['data']
+        self.assertEqual(response['residents'][0]['level'],45)
+
+    def test_service_unlocks_every_new_spot_at_its_threshold(self):
+        from .service import spots
+        profile = FishingProfile.objects.create(pk=self.agent.pk, owner_id='admin')
+        rules = builtin()
+        for key, spot in list(rules['spots'].items())[3:]:
+            threshold = sum(100+25*(n-1) for n in range(1,spot['required_level']))
+            for xp, unlocked in ((threshold-1,False),(threshold,True)):
+                profile.experience=xp;profile.save()
+                with patch('system_settings.agent_world.fishing.service.inventory', return_value={bait: 12 for bait in rules['baits']}):
+                    self.assertEqual(key in spots('admin',self.agent.pk,NOW,rules),unlocked,(key,xp))
+
+    def test_mixed_catalog_snapshot_restores_without_rewriting_old_trip(self):
+        from tempfile import TemporaryDirectory
+        from utils.sync_manager import SyncManager
+        from .models import FishingCatalog, FishingConfig
+        from .catalog import VERSION
+        old = self.prepared(key='old-plan')
+        legacy = copy.deepcopy(old.rules)
+        legacy.update(version='fishing-1.1.0',max_level=50)
+        legacy['spots'] = {key: value for key,value in legacy['spots'].items() if key in ('pond','river','lake')}
+        legacy['fish'] = {key: value for key,value in legacy['fish'].items() if value['spot'] in legacy['spots']}
+        FishingCatalog.objects.create(pk=legacy['version'],rules=legacy)
+        old.rules=legacy;old.save(update_fields=['rules'])
+        FishingConfig.objects.filter(pk='admin').update(catalog_id=legacy['version'])
+        configure('admin',True)
+        old.refresh_from_db()
+        self.assertEqual(old.rules,legacy)
+        self.cast_at(old,kind='fish')
+        finish(old.pk,'旧趟返程')
+        new = self.prepared(key='new-plan')
+        self.cast_at(new,kind='fish')
+        with TemporaryDirectory(prefix='fishing-expansion-sync-') as folder, override_settings(MEDIA_ROOT=str(Path(folder) / 'media')):
+            self.assertTrue(Path(settings.MEDIA_ROOT).resolve().is_relative_to(Path(folder).resolve()))
+            outside_media = Path(folder) / 'outside-media.txt'
+            outside_media.write_text('untouched')
+            manager=SyncManager();data=manager.build_snapshot_data();meta=manager.build_snapshot_meta(data_list=data)
+            validate_source(data,meta)
+            self.assertEqual(meta['fishing_schema_version'],1)
+            manager.apply_snapshot_data(data,meta)
+            self.assertEqual(FishingTrip.objects.get(pk=old.pk).rules,legacy)
+            self.assertEqual(FishingTrip.objects.get(pk=new.pk).rules['version'],VERSION)
+            self.assertFalse(FishingRuntime.objects.get(pk=new.pk).authorized)
+            self.assertEqual(stock_quantity(self.agent.pk,'admin','fish.crucian'),2)
+            conflict=copy.deepcopy(data)
+            row=next(row for row in conflict if row['model']=='system_settings.fishingcatalog' and row['pk']==VERSION)
+            row['fields']['rules']['fish']['trench_king']['value']='721'
+            with self.assertRaises(SyncError):
+                validate_conflicts(data,conflict)
+            self.assertEqual(outside_media.read_text(),'untouched')
 
     def prepared(self,key='plan',bait=''):
         trip = self.trip(key)

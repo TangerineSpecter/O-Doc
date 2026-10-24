@@ -8,6 +8,10 @@ class AgentUnavailableError(ValueError):
     """居民暂时没有执行资格，批量维护可跳过后继续处理其他居民。"""
 
 
+class AgentBusyError(AgentUnavailableError):
+    """Transient occupancy, not a failed business/model attempt."""
+
+
 def require_active_agent(agent):
     identity = getattr(agent, 'pk', agent)
     current = Agent.objects.filter(pk=identity).first()
@@ -24,5 +28,5 @@ def agent_operation(agent, *, promotion_run_id: str = ''):
     current = require_active_agent(agent)
     with execution_lease(AgentExecutionLease, {'agent': current}, promotion_run_id=promotion_run_id) as token:
         if not token:
-            raise AgentUnavailableError('居民正在执行其他任务，请稍后重试')
+            raise AgentBusyError('居民正在执行其他任务，请稍后重试')
         yield current

@@ -93,7 +93,7 @@ export function resolveTransactionVisual(row: MarketTransaction): TransactionVis
     }
 
     // 进场统一回收的鱼只带稳定 SKU，按鱼类图鉴像素形象展示。
-    const fishSku = String(res.fishing_sku || '');
+    const fishSku = String(res.fishingSku || res.fishing_sku || '');
     if (fishSku.startsWith('fish.')) {
         return {type: 'fish', fishId: fishSku.slice('fish.'.length), name: name || '鱼'};
     }

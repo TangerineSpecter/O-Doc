@@ -19,8 +19,9 @@ export function MarketListingItemIcon({item, className, fallback}: {
         || sku.startsWith('combat.material.');
     const materialId = sku.startsWith('combat.') ? sku.slice('combat.'.length) : sku;
     const isCombatEquipment = item.kind === 'combat_equipment' || item.source?.kind === 'combat_equipment';
-    const equipmentId = item.source?.equipmentId || '';
     const snapshot = item.equipmentSnapshot;
+    // source.equipmentId is an instance ID; the frozen template identifies its artwork.
+    const equipmentId = snapshot?.templateId || item.source?.equipmentId || '';
     const builtinIcon = sku.startsWith('dish.')
         ? <RecipePixelPortrait recipeId={sku} name={item.name} decorative className={className}/>
         : sku.startsWith('bait.')

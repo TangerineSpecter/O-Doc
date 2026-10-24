@@ -22,9 +22,10 @@ def entry():
             paths.append(Path(source.name))
             source.write("""import React from 'react';
 import {createRoot} from 'react-dom/client';
+import {BrowserRouter} from 'react-router-dom';
 import {FishingPanel} from './src/components/Fishing/FishingPanel';
 import './src/index.css';
-createRoot(document.getElementById('root')!).render(<React.StrictMode><main style={{height:'100vh',display:'flex',flexDirection:'column',padding:16}}><FishingPanel/></main></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><main style={{height:'100vh',display:'flex',flexDirection:'column',padding:16}}><FishingPanel/></main></BrowserRouter></React.StrictMode>);
 """)
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', prefix='.fishing-return-', dir=ROOT, delete=False) as html:
             paths.append(Path(html.name))
@@ -79,8 +80,10 @@ def run(browser, base, filename, with_next):
         page.wait_for_load_state('networkidle')
         expect(page.get_by_text('钓手甲 · 正在垂钓', exact=True)).to_be_visible()
         assert state['detail_reads'] >= 1
+        page.get_by_role('tab', name='出钓手札').click()
         page.get_by_role('button', name='下一页', exact=True).click()
         expect(page.get_by_text('2 / 2', exact=True)).to_be_visible()
+        page.get_by_role('tab', name='水边观察').click()
         page.locator('canvas').evaluate('(canvas) => {canvas.dataset.observation = "original";}')
         state['returned'] = True
         state['fail'] = True
@@ -103,8 +106,10 @@ def run(browser, base, filename, with_next):
         expect(page.get_by_role('status').filter(has_text='钓获 鲫鱼')).to_be_visible()
         expect(page.get_by_text('钓手甲 · 本次已返程', exact=True)).to_be_visible()
         # Changing archive pages while playing must not recreate the canvas/cursor.
+        page.get_by_role('tab', name='出钓手札').click()
         page.get_by_role('button', name='上一页', exact=True).click()
         page.wait_for_load_state('networkidle')
+        page.get_by_role('tab', name='水边观察').click()
         page.clock.run_for(6100)
         expect(page.get_by_role('status').filter(has_text='钓获 鲤鱼')).to_be_visible()
         expect(page.locator('canvas')).to_have_attribute('data-observation', 'original')

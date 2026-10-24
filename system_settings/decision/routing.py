@@ -112,7 +112,7 @@ def run_models(agent, invoke: Callable, *, task=None, decision=False, owner=None
             continue
         try:
             from utils.token_usage import usage_scope
-            with usage_scope(agent=agent, task=task, owner_id=owner, phase=scene):
+            with usage_scope(agent=agent, task=task, owner_id=owner, phase=SCENES.get(scene, scene)):
                 result = invoke(config)
         except MODEL_ERRORS + (InvalidModelOutput,) as exc:
             last = exc

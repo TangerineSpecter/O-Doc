@@ -1,51 +1,15 @@
-import {cx, ell, hash, mk, rc, type Ctx, type Sprite} from '../../Farm/scene/pixel';
+import {cx, ell, hash, mk, rc, type Ctx} from '../../Farm/scene/pixel';
 import {drawTree, drawFlower, drawTuft} from '../../Farm/scene/treeSprites';
 import {drawBarrel, drawLamp, drawSign} from '../../Farm/scene/propSprites';
 import {drawFenceH} from '../../Farm/scene/fenceSprites';
 import type {FishingSpot} from './sceneModel';
+import {palettes} from './spotPalettes';
+import {buildExpansionBackground, drawAtmosphere} from './sceneExpansionArt';
+import {SCENE_WIDTH, SCENE_HEIGHT, WATER_EDGE, shoreX, stamp, reeds, pier} from './scenePrimitives';
+export {SCENE_WIDTH, SCENE_HEIGHT, stamp, pixelLine} from './scenePrimitives';
 
-export const SCENE_WIDTH = 576;
-export const SCENE_HEIGHT = 324;
-export const WATER_EDGE = 208;
-export const palettes = {
-    pond: {water: '#66a7ab', deep: '#55979e', light: '#9dced0', grass: '#b9cd83', dark: '#94ad6b', sand: '#e0d29b'},
-    river: {water: '#73b1c3', deep: '#5999b4', light: '#b4dce1', grass: '#b6cf94', dark: '#8cae7c', sand: '#d8d3ae'},
-    lake: {water: '#819bb6', deep: '#6f86a7', light: '#c0d2df', grass: '#b5c1a0', dark: '#8caa91', sand: '#d9d4bc'},
-};
-export function stamp(g: Ctx, s: Sprite, x: number, y: number, scale = 2) {
-    g.drawImage(s.c, Math.round(x - s.ax * scale), Math.round(y - s.ay * scale), s.c.width * scale, s.c.height * scale);
-}
-export function pixelLine(g: Ctx, x: number, y: number, endX: number, endY: number, color: string, size = 1) {
-    const steps = Math.max(Math.abs(endX - x), Math.abs(endY - y), 1);
-    for (let i = 0; i <= steps; i++) rc(g, Math.round(x + (endX - x) * i / steps), Math.round(y + (endY - y) * i / steps), size, size, color);
-}
-export const shoreX = (y: number) => WATER_EDGE + Math.round((Math.sin(y / 42) * 13 + Math.cos(y / 23) * 6) / 3) * 3;
-function reeds(g: Ctx, x: number, y: number) {
-    for (let i = 0; i < 5; i++) {
-        const h = 14 + hash(x, i) * 16;
-        pixelLine(g, x + i * 4, y, x + i * 4 - 3, y - h, '#547c4b', 2);
-        pixelLine(g, x + i * 4, y - 2, x + i * 4 + 4, y - h / 2, '#8fa653');
-        if (i % 2 === 0) rc(g, x + i * 4 - 4, y - h, 4, 8, '#986a43');
-    }
-}
-function pier(g: Ctx) {
-    rc(g, 169, 192, 138, 37, '#4e8589');
-    rc(g, 166, 172, 136, 39, '#704f38');
-    for (let x = 168; x < 300; x += 12) {
-        rc(g, x, 173, 10, 32, '#bd8954');
-        rc(g, x, 173, 10, 2, '#f1cc87');
-        rc(g, x, 178, 2, 21, '#d7a86c');
-        rc(g, x + 5, 179 + (x % 3), 1, 16, '#a3754a');
-        rc(g, x + 3, 175, 2, 1, '#7a593e');
-        rc(g, x + 3, 202, 2, 1, '#7a593e');
-    }
-    rc(g, 166, 206, 136, 4, '#94633e');
-    for (const x of [170, 229, 292]) for (const y of [172, 209]) {
-        rc(g, x, y, 6, 13, '#78583c'); rc(g, x, y, 2, 11, '#bc8d58');
-        rc(g, x - 1, y - 2, 8, 4, '#ecc78a'); rc(g, x + 1, y - 1, 4, 1, '#c49b64');
-    }
-}
 export function buildFishingBackground(spot: FishingSpot): HTMLCanvasElement {
+    if (spot !== 'pond' && spot !== 'river' && spot !== 'lake') return buildExpansionBackground(spot);
     const c = mk(SCENE_WIDTH, SCENE_HEIGHT, true), g = cx(c), p = palettes[spot];
     rc(g, 0, 0, SCENE_WIDTH, SCENE_HEIGHT, p.water);
     for (let y = 0; y < SCENE_HEIGHT; y += 3) {
@@ -102,7 +66,7 @@ export function buildFishingBackground(spot: FishingSpot): HTMLCanvasElement {
 export function drawWater(g: Ctx, spot: FishingSpot, seconds: number) {
     const p = palettes[spot];
     for (let i = 0; i < 65; i++) {
-        const x = 245 + (hash(i, 32) * 305 + seconds * (spot === 'river' ? 7 : 1.7)) % 305;
+        const x = 245 + (hash(i, 32) * 305 + seconds * (spot === 'stream' ? 13 : spot === 'river' ? 7 : 1.7)) % 305;
         const y = 12 + hash(i, 31) * 302;
         const width = 3 + Math.round(hash(i, 16) * 10);
         g.globalAlpha = 0.18 + (Math.sin(seconds * 1.3 + i) + 1) * 0.14;
@@ -115,4 +79,5 @@ export function drawWater(g: Ctx, spot: FishingSpot, seconds: number) {
         ell(g, Math.round(x), y, 6, 2, '#235766'); rc(g, x - 9, y - 2, 3, 4, '#235766');
     }
     g.globalAlpha = 1;
+    drawAtmosphere(g, spot, seconds);
 }

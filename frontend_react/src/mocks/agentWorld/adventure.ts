@@ -1,8 +1,8 @@
 import catalog from './catalog';
-import {residents, at, now, day, fishingGrowth} from './residents';
+import {residents, at, now, day} from './residents';
 import type {CombatCatalog, CombatProfile, CombatSnapshot} from '../../types/api/combat';
 import type {TravelJourney} from '../../types/api/travel';
-import type {FishingCatalog, FishingOverview, FishingDetail} from '../../types/api/fishing';
+export {fishingCatalog, fishingOverview, fishingTrip, fishingTrips} from './fishing';
 import type {LotteryOverview, LotteryRound, LotteryTicket} from '../../types/api/lottery';
 import type {InvestmentPosition, InvestmentTrade, InvestmentOverview, InvestmentDecision} from '../../types/api/investment';
 
@@ -34,15 +34,6 @@ export const journey: TravelJourney = {id: 'local-travel', actorId: residents[2]
         encounters: [{description: '在街角遇见一位手工艺人', choice: '聊聊制作过程', reaction: '带回一份手工明信片。'}],
         food: {choice: '品尝本地小吃', reaction: '清淡的口味很适合今天的天气。'}, shopping: {reason: '旅行纪念', basket: [{id: 'postcard', quantity: 1}]},
         goods: [{id: 'postcard', name: '西湖手绘明信片', price: '20'}], draft: {title: '在西湖边慢下来', content: '## 今日旅行\n沿着湖边散步，发现城市中安静的角落。', reflection: '生活的灵感往往来自细小的发现。'}, photo: {status: 'disabled'}, sources: []}};
-export const fishingCatalog: FishingCatalog = {rules: catalog.fishing as FishingCatalog['rules'], discovery: Object.fromEntries(Object.keys(catalog.fishing.fish).slice(0, 8).map(id => [id, {count: 6, maxWeight: 3.8, firstCaughtAt: at(9), recordActor: residents[0].id}]))};
-export const fishingTrip: FishingDetail = {id: 'local-fishing', actorId: residents[3].id, actorName: residents[3].name, status: 'completed',
-    plan: {spot: 'pond', minutes: 60, baits: ['worm', 'corn'], complete: true}, casts: 12, carried: [{name: '蚯蚓', quantity: 20, sku: 'bait.worm'}],
-    duel: null, error: '', reason: '本地样例：完成今日垂钓', catches: [{name: '鲫鱼', quantity: 5}, {name: '金鳞鲤王', quantity: 1}], experience: 80,
-    authorized: true, departedAt: at(9), deadline: at(10), createdAt: at(9), endedAt: at(10), eventTotal: 3, eventPage: 1, rules: fishingCatalog.rules,
-    events: Array.from({length: 3}, (_, i) => ({id: `fishing-event-${i}`, kind: 'catch', createdAt: at(9), data: {catch: {fishId: 'crucian', name: '鲫鱼', king: false, weight: .8 + i, experience: 10, caughtAt: at(9)}}}))};
-export const fishingOverview: FishingOverview = {enabled: true, active: [], items: [fishingTrip], total: 1, page: 1,
-    residents: residents.map(r => ({id: r.id, name: r.name, ...fishingGrowth,
-        baits: [{id: 'worm', name: '蚯蚓', quantity: 20}], spots: Object.entries(catalog.fishing.spots).map(([id, row]) => ({id, ...row})), recentCatches: ['鲫鱼', '鲤鱼']}))};
 const lotteryRules = {version: 2, ticketPrice: '50', ticketLimit: 10, subsidy: '1000', secondPrize: '500', thirdPrize: '200'};
 export const lotteryRound: LotteryRound = {id: 'local-lottery', sequence: 12, status: 'open', opensAt: at(0, -1), closesAt: at(20, 1), drawsAt: at(20, 1),
     rules: lotteryRules, pool: '6600', ticketCount: 112, result: {}, settledAt: null};

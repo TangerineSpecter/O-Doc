@@ -4,6 +4,7 @@ import {setupServer} from 'msw/node';
 import {localHandlers, unhandledLocalApi} from '../src/mocks/local.ts';
 import {handlers} from '../src/mocks/handlers.ts';
 import {journey, exploration} from '../src/mocks/agentWorld/adventure.ts';
+import {observationRequests} from '../src/mocks/agentWorld/tokenUsage.ts';
 
 const location = new URL('http://localhost/?mockState=populated');
 const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
@@ -87,3 +88,30 @@ test('slow scenario delays known details before returning local samples', async 
         assert.equal(payload.data.id, details[index].id);
     });
 });
+
+const legacy = observationRequests.find(row => row.phase === 'life_interleaving');
+const observationPaths = [
+    `/token-usage/summary/?all=1&agent_id=${legacy.agentKey}`,
+    `/token-usage/requests/?all=1&agent_id=${legacy.agentKey}`,
+    `/token-usage/requests/${legacy.id}/content/`,
+    `/daily-feed/?actor_id=${legacy.agentKey}`,
+];
+for (const state of ['populated', 'empty', 'slow', 'error']) {
+    test(`execution observation lists and bodies stay local in ${state}`, async () => {
+        location.search = `?mockState=${state}`;
+        const started = performance.now();
+        const results = await Promise.all(observationPaths.map(path => request(path)));
+        for (const {response, payload} of results) {
+            assert.equal(response.status, state === 'error' ? 503 : 200);
+            assert.equal(payload.code, state === 'error' ? 503 : 200);
+        }
+        if (state === 'slow') assert.ok(performance.now() - started >= 1700);
+        if (state === 'empty') {
+            assert.equal(results[1].payload.data.items.length, 0);
+            assert.equal(results[2].payload.data.available, false);
+        } else if (state !== 'error') {
+            const body = results[2].payload.data;
+            assert.ok(body.available && body.request && body.response);
+        }
+    });
+}

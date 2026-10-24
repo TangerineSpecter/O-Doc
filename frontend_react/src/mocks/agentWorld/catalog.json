@@ -37165,7 +37165,7 @@
     ]
   },
   "fishing": {
-    "version": "fishing-1.1.0",
+    "version": "fishing-1.2.0",
     "spots": {
       "pond": {
         "name": "青苇池塘",
@@ -37178,6 +37178,34 @@
       "lake": {
         "name": "镜月湖畔",
         "requiredLevel": 20
+      },
+      "stream": {
+        "name": "松影溪涧",
+        "requiredLevel": 30
+      },
+      "wetland": {
+        "name": "雾苇湿地",
+        "requiredLevel": 40
+      },
+      "bay": {
+        "name": "咸风海湾",
+        "requiredLevel": 50
+      },
+      "reef": {
+        "name": "珊瑚浅礁",
+        "requiredLevel": 60
+      },
+      "frost_lake": {
+        "name": "霜镜寒湖",
+        "requiredLevel": 70
+      },
+      "hot_spring": {
+        "name": "赤岩温泉",
+        "requiredLevel": 80
+      },
+      "trench": {
+        "name": "幽蓝海沟",
+        "requiredLevel": 90
       }
     },
     "baits": {
@@ -37214,7 +37242,10 @@
       60,
       120
     ],
-    "maxLevel": 50,
+    "maxLevel": 99,
+    "emptyProbability": 0.15,
+    "junkProbability": 0.2,
+    "kingProbability": 0.01,
     "fish": {
       "crucian": {
         "name": "鲫鱼",
@@ -37224,7 +37255,8 @@
           "worm"
         ],
         "accepted": [
-          "dough"
+          "dough",
+          "corn"
         ],
         "hours": [
           [
@@ -37585,6 +37617,882 @@
           35
         ],
         "value": "160",
+        "king": true,
+        "weight": 1
+      },
+      "stream_grouper": {
+        "name": "溪石斑",
+        "spot": "stream",
+        "level": 30,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "dough"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.1,
+          0.6
+        ],
+        "value": "18",
+        "king": false,
+        "weight": 1
+      },
+      "ayu": {
+        "name": "香鱼",
+        "spot": "stream",
+        "level": 33,
+        "preferred": [
+          "dough"
+        ],
+        "accepted": [
+          "worm"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.1,
+          0.8
+        ],
+        "value": "20",
+        "king": false,
+        "weight": 1
+      },
+      "red_spotted_trout": {
+        "name": "红点鳟",
+        "spot": "stream",
+        "level": 36,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          0.3,
+          2
+        ],
+        "value": "22",
+        "king": false,
+        "weight": 1
+      },
+      "rainbow_trout": {
+        "name": "虹鳟",
+        "spot": "stream",
+        "level": 39,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          0.8,
+          5
+        ],
+        "value": "24",
+        "king": false,
+        "weight": 1
+      },
+      "stream_king": {
+        "name": "翠脊溪王",
+        "spot": "stream",
+        "level": 40,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          6,
+          15
+        ],
+        "value": "240",
+        "king": true,
+        "weight": 1
+      },
+      "loach": {
+        "name": "泥鳅",
+        "spot": "wetland",
+        "level": 40,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "dough"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.05,
+          0.3
+        ],
+        "value": "26",
+        "king": false,
+        "weight": 1
+      },
+      "mud_carp": {
+        "name": "鲮鱼",
+        "spot": "wetland",
+        "level": 43,
+        "preferred": [
+          "corn"
+        ],
+        "accepted": [
+          "dough"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.3,
+          2
+        ],
+        "value": "28",
+        "king": false,
+        "weight": 1
+      },
+      "featherback": {
+        "name": "弓背鱼",
+        "spot": "wetland",
+        "level": 46,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          1,
+          6
+        ],
+        "value": "30",
+        "king": false,
+        "weight": 1
+      },
+      "marsh_eel": {
+        "name": "泽鳗",
+        "spot": "wetland",
+        "level": 49,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          0.8,
+          4
+        ],
+        "value": "32",
+        "king": false,
+        "weight": 1
+      },
+      "wetland_king": {
+        "name": "苍髯泽王",
+        "spot": "wetland",
+        "level": 50,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          12,
+          30
+        ],
+        "value": "320",
+        "king": true,
+        "weight": 1
+      },
+      "mullet": {
+        "name": "鲻鱼",
+        "spot": "bay",
+        "level": 50,
+        "preferred": [
+          "dough"
+        ],
+        "accepted": [
+          "corn"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.5,
+          3
+        ],
+        "value": "34",
+        "king": false,
+        "weight": 1
+      },
+      "sea_bass": {
+        "name": "海鲈",
+        "spot": "bay",
+        "level": 53,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          1,
+          8
+        ],
+        "value": "36",
+        "king": false,
+        "weight": 1
+      },
+      "black_seabream": {
+        "name": "黑鲷",
+        "spot": "bay",
+        "level": 56,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "worm"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          0.8,
+          5
+        ],
+        "value": "38",
+        "king": false,
+        "weight": 1
+      },
+      "red_drum": {
+        "name": "红鼓鱼",
+        "spot": "bay",
+        "level": 59,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          2,
+          15
+        ],
+        "value": "40",
+        "king": false,
+        "weight": 1
+      },
+      "bay_king": {
+        "name": "潮冠鲷王",
+        "spot": "bay",
+        "level": 60,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "worm"
+        ],
+        "hours": [
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          15,
+          40
+        ],
+        "value": "400",
+        "king": true,
+        "weight": 1
+      },
+      "tuskfish": {
+        "name": "青衣鱼",
+        "spot": "reef",
+        "level": 60,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "worm"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.5,
+          4
+        ],
+        "value": "42",
+        "king": false,
+        "weight": 1
+      },
+      "spotted_grouper": {
+        "name": "花斑石斑",
+        "spot": "reef",
+        "level": 63,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          1,
+          10
+        ],
+        "value": "44",
+        "king": false,
+        "weight": 1
+      },
+      "ornate_wrasse": {
+        "name": "锦纹隆头鱼",
+        "spot": "reef",
+        "level": 66,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          1,
+          8
+        ],
+        "value": "46",
+        "king": false,
+        "weight": 1
+      },
+      "redfin_snapper": {
+        "name": "赤鳍笛鲷",
+        "spot": "reef",
+        "level": 69,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          2,
+          12
+        ],
+        "value": "48",
+        "king": false,
+        "weight": 1
+      },
+      "reef_king": {
+        "name": "斑斓礁王",
+        "spot": "reef",
+        "level": 70,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            9,
+            17
+          ]
+        ],
+        "weightRange": [
+          20,
+          50
+        ],
+        "value": "480",
+        "king": true,
+        "weight": 1
+      },
+      "ice_whitefish": {
+        "name": "冰湖白鲑",
+        "spot": "frost_lake",
+        "level": 70,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "dough"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.5,
+          3
+        ],
+        "value": "50",
+        "king": false,
+        "weight": 1
+      },
+      "northern_char": {
+        "name": "北境红点鲑",
+        "spot": "frost_lake",
+        "level": 73,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          1,
+          6
+        ],
+        "value": "52",
+        "king": false,
+        "weight": 1
+      },
+      "silver_grayling": {
+        "name": "银纹茴鱼",
+        "spot": "frost_lake",
+        "level": 76,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          0.5,
+          4
+        ],
+        "value": "54",
+        "king": false,
+        "weight": 1
+      },
+      "frost_cod": {
+        "name": "寒湖鳕",
+        "spot": "frost_lake",
+        "level": 79,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          2,
+          12
+        ],
+        "value": "56",
+        "king": false,
+        "weight": 1
+      },
+      "frost_king": {
+        "name": "霜冠鲑王",
+        "spot": "frost_lake",
+        "level": 80,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          18,
+          45
+        ],
+        "value": "560",
+        "king": true,
+        "weight": 1
+      },
+      "spring_crucian": {
+        "name": "暖泉鲫",
+        "spot": "hot_spring",
+        "level": 80,
+        "preferred": [
+          "dough"
+        ],
+        "accepted": [
+          "corn"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.3,
+          2
+        ],
+        "value": "58",
+        "king": false,
+        "weight": 1
+      },
+      "redfin_barb": {
+        "name": "赤鳍鲃",
+        "spot": "hot_spring",
+        "level": 83,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "dough"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.5,
+          4
+        ],
+        "value": "60",
+        "king": false,
+        "weight": 1
+      },
+      "amber_trout": {
+        "name": "琥珀鳟",
+        "spot": "hot_spring",
+        "level": 86,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          1,
+          7
+        ],
+        "value": "62",
+        "king": false,
+        "weight": 1
+      },
+      "obsidian_eel": {
+        "name": "玄纹鳗",
+        "spot": "hot_spring",
+        "level": 89,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "worm"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          2,
+          10
+        ],
+        "value": "64",
+        "king": false,
+        "weight": 1
+      },
+      "spring_king": {
+        "name": "赤曜泉王",
+        "spot": "hot_spring",
+        "level": 90,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          15,
+          40
+        ],
+        "value": "640",
+        "king": true,
+        "weight": 1
+      },
+      "blue_lanternfish": {
+        "name": "蓝灯鱼",
+        "spot": "trench",
+        "level": 90,
+        "preferred": [
+          "worm"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          0.1,
+          0.8
+        ],
+        "value": "66",
+        "king": false,
+        "weight": 1
+      },
+      "abyss_cod": {
+        "name": "幽蓝鳕",
+        "spot": "trench",
+        "level": 93,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            0,
+            24
+          ]
+        ],
+        "weightRange": [
+          2,
+          12
+        ],
+        "value": "68",
+        "king": false,
+        "weight": 1
+      },
+      "longnose_chimaera": {
+        "name": "长吻银鲛",
+        "spot": "trench",
+        "level": 96,
+        "preferred": [
+          "shrimp"
+        ],
+        "accepted": [
+          "minnow"
+        ],
+        "hours": [
+          [
+            5,
+            9
+          ],
+          [
+            17,
+            21
+          ]
+        ],
+        "weightRange": [
+          3,
+          18
+        ],
+        "value": "70",
+        "king": false,
+        "weight": 1
+      },
+      "abyss_angler": {
+        "name": "深渊鮟鱇",
+        "spot": "trench",
+        "level": 99,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          5,
+          25
+        ],
+        "value": "72",
+        "king": false,
+        "weight": 1
+      },
+      "trench_king": {
+        "name": "星灯渊王",
+        "spot": "trench",
+        "level": 99,
+        "preferred": [
+          "minnow"
+        ],
+        "accepted": [
+          "shrimp"
+        ],
+        "hours": [
+          [
+            21,
+            5
+          ]
+        ],
+        "weightRange": [
+          25,
+          70
+        ],
+        "value": "720",
         "king": true,
         "weight": 1
       }

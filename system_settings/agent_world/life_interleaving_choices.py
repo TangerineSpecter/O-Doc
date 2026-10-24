@@ -6,7 +6,7 @@ from .life_models import LifeItem
 
 
 def choose(owner, agent, scene, state, choices, *, task=None, record=None):
-    from system_settings.decision.routing import choose_connections
+    from system_settings.decision.routing import SCENES, choose_connections
     from system_settings.decision.jev import DecisionUnavailable
     from utils.token_usage import usage_scope
     if not choices:
@@ -17,7 +17,7 @@ def choose(owner, agent, scene, state, choices, *, task=None, record=None):
         raise ValueError('有限决策候选过多')
     from .execution import execution_lease
     from system_settings.models import WorldActionRuntime
-    with execution_lease(WorldActionRuntime, {'pk': 'life-idle-decision'}) as token, usage_scope(owner_id=owner, agent=agent, task=task, record=record, purpose='planning', phase=scene):
+    with execution_lease(WorldActionRuntime, {'pk': 'life-idle-decision'}) as token, usage_scope(owner_id=owner, agent=agent, task=task, record=record, purpose='planning', phase=SCENES.get(scene, '空档活动准备')):
         if not token:
             raise DecisionUnavailable('其他穿插决策正在执行，请等待下一轮')
         selected, _ = choose_connections(owner, state, choices, deadline=time.monotonic() + 60,

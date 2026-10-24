@@ -121,7 +121,7 @@ def busy_for_life(actor, item):
     from ..life_models import LifeItem
     from ..travel_candidates import travelling_ids
     from ..market_models import MarketSession
-    return actor in travelling_ids() or Exploration.objects.filter(actor_id=actor,status__in=OPEN).exists() or MarketSession.objects.filter(actor_id=actor,status='active').exists() or AgentExecutionLease.objects.filter(agent_id=actor,until__gt=storage_time(local_time())).exists() or LifeItem.objects.filter(actor_id=actor,status='running').exclude(pk=item).exists()
+    return actor in travelling_ids() or Exploration.objects.filter(actor_id=actor,status__in=OPEN).exists() or MarketSession.objects.filter(actor_id=actor,status='active',expires_at__gt=storage_time(local_time())).exists() or AgentExecutionLease.objects.filter(agent_id=actor,until__gt=storage_time(local_time())).exists() or LifeItem.objects.filter(actor_id=actor,status='running').exclude(pk=item).exists()
 
 
 @guarded

@@ -7,6 +7,7 @@
 | 旅行城市导入、价格与来源 | [旅行城市数据说明](./旅行城市数据说明.md) | `travel_cities_seed.csv` 由 `system_settings/agent_world/travel_seed.py` 在初始化链路读取；模板和 provenance 文件用于维护与追溯 |
 | 旅行城市历史名称清理 | [城市清理报告](./travel_city_cleanup_report.md) | 迁移检查记录，按报告日期理解 |
 | 战斗配置设计与离线评估 | [战斗设计包](./combat/README.md) | `design_only`，由 `scripts/combat_design/` 生成与校验，不能作为运行目录安装 |
+| 当前运行钓鱼内容 | [居民钓鱼说明](../agents/Agent居民钓鱼说明.md) | `system_settings/agent_world/fishing/catalog.py` 与 `catalog_expansion.py` 为版本化运行目录；local 生成脚本从同一纯规则入口生成样例，稳定ID不得驼峰化 |
 | 当前运行战斗内容 | [后端生产包说明](../../system_settings/agent_world/combat/data/README.md) | 安装入口为 `combat/catalog.py`、`store.py`；版本与文件清单见生产 `manifest.json` |
 
 ## 调整数据文件前

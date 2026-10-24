@@ -1,6 +1,6 @@
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {FlowBlock, TokenRequest} from '../types/api/tokenUsage';
-import {purposeNames} from './tokenUsage';
+import {requestPhaseName} from './tokenUsageLabels';
 
 export interface ObservedActivity {
     id: string;
@@ -36,7 +36,7 @@ export function observedActivities(requests: TokenRequest[], facts: DailyFeedEve
     for (const row of [...requests].sort(requestOrder)) {
         const id = row.recordKey ? `run:${row.recordKey}:${row.agentKey}` : `request:${row.id}`;
         const group = groups.get(id) ?? {
-            id, title: row.taskName || row.phase || purposeNames[row.purpose] || row.purpose,
+            id, title: row.taskName || requestPhaseName(row),
             startedAt: row.startedAt, requests: [], facts: [],
         };
         group.requests.push(row);

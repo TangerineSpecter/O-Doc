@@ -680,7 +680,7 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
         running_by_agent = {}
         for activity in ordered_activities.filter(status='running').exclude(agent_id=None):
             running_by_agent.setdefault(activity.agent_id, activity)
-        from .agent_world.combat.queries import resident_presence
+        from .agent_world.life_presence import resident_presence
         from utils.drf_utils import get_current_user_identifier
         exploring=resident_presence(get_current_user_identifier(request))
         agents = []

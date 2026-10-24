@@ -37,7 +37,7 @@ class TokenUsageView(APIView):
                 row = visible_usage(request).filter(pk=request_id).only('id', 'started_at', 'status', 'ended_at').first()
                 if row is None:
                     raise NotFound()
-                data = request_content(row.pk, row.started_at, row.status, row.ended_at)
+                data = request_content(row.pk, row.started_at, row.status, row.ended_at, device_id=row.device_id)
                 result = success_result(data)
                 result['Cache-Control'] = 'no-store'
                 return result

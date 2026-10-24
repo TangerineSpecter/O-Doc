@@ -60,6 +60,8 @@ def advance_one(identity: str) -> None:
 
 
 def advance() -> None:
+    from ..life_activity_recovery import reconcile
+    reconcile(domain='fishing')
     from system_settings.models import Agent, WorldActionRuntime
     from ..life_models import LifeItem
     from .models import FishingConfig

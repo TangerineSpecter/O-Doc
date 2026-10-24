@@ -1,6 +1,7 @@
 """账号隔离、只读目录和出钓管理；不提供人工发鱼或改经验。"""
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.renderers import BrowsableAPIRenderer
 from utils.response_utils import success_result, valid_result
 from ..life_views import owner_of
 from ..life_models import LifeProfile
@@ -8,6 +9,7 @@ from .models import FishingConfig, FishingTrip
 from .catalog import current
 from .service import configure, finish, retry
 from .queries import summary, discovery, trip_data
+from .renderers import FishingJSONRenderer
 
 
 def page(value) -> int:
@@ -22,6 +24,7 @@ def page(value) -> int:
 
 class FishingView(APIView):
     permission_classes = [IsAuthenticated]
+    renderer_classes = [FishingJSONRenderer, BrowsableAPIRenderer]
     section = 'overview'
 
     def get(self, request, identity=None):

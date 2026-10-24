@@ -78,7 +78,8 @@ class Capture:
     def _detail_failed(self, error: Exception) -> None:
         # 诊断内容可缺失，不能掩盖模型结果；日志不包含请求内容或异常中的路径/凭据。
         logger.warning('Token request detail unavailable: request=%s error=%s', self.row.pk, type(error).__name__)
-        self.detail = None
+        # 保留内存快照，后续请求、响应和结束阶段会重试保存。
+        # 一次瞬时文件错误不能让整条请求永久停止采集。
 
     def _update_detail(self, key, value) -> None:
         try:

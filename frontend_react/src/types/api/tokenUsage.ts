@@ -37,6 +37,7 @@ export interface TokenGroups {items: TokenGroup[]; total: number; page: number; 
 export interface TokenRequests {items: TokenRequest[]; nextCursor: string | null; hasMore: boolean}
 export interface TokenRequestContent {
     available: boolean;
+    reason?: 'disabled' | 'expired' | 'not_found' | 'unreadable' | 'invalid' | 'incomplete' | 'other_device';
     message?: string;
     request?: unknown;
     response?: unknown;

@@ -7,6 +7,7 @@ export interface FishingRules {
     baits: Record<string, {name: string; price: string}>; fish: Record<string, FishingFish>;
     rod: {id: string; name: string; bonus: number}; intervalSeconds: number; energyCost: number;
     durations: number[]; maxLevel: number;
+    emptyProbability: number; junkProbability: number; kingProbability: number;
 }
 export interface FishingDiscovery {count: number; maxWeight: number; firstCaughtAt: string; recordActor: string}
 export interface FishingCatalog {rules: FishingRules; discovery: Record<string, FishingDiscovery>}

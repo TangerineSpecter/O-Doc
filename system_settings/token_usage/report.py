@@ -7,7 +7,7 @@ from django.http import FileResponse
 from rest_framework.request import Request
 
 from .queries import finish_metrics
-from .content import request_content
+from .content import current_device_id, request_content
 from system_settings.agent_world.life_time import local_time
 
 REPORT_FIELDS = (
@@ -94,11 +94,12 @@ def export_report(rows: QuerySet, request: Request) -> FileResponse:
             metadata.update(include_content=True, order='started_at,id',
                             scope='指定单次执行且符合筛选条件的全部已采集模型请求，按开始时间及请求 ID 排序；不受分页影响')
         content_count = 0
+        local_device = current_device_id() if include_content else ''
         report_file.write(b'{"metadata":')
         write(metadata)
         report_file.write(b',"requests":[')
         # 单次查询按批读取，汇总使用导出的同一份请求事实，不再单独聚合查询。
-        for row in rows.order_by('started_at', 'id').values(*REPORT_FIELDS).iterator(chunk_size=2000):
+        for row in rows.order_by('started_at', 'id').values(*REPORT_FIELDS, 'device_id').iterator(chunk_size=2000):
             if stats['request_count']:
                 report_file.write(b',')
             add_metrics(stats, row)
@@ -109,8 +110,10 @@ def export_report(rows: QuerySet, request: Request) -> FileResponse:
             start, end = row['started_at'], row['ended_at']
             if include_content:
                 row['sequence'] = stats['request_count']
-                row['content'] = request_content(row['id'], start, row['status'], end)
+                row['content'] = request_content(row['id'], start, row['status'], end,
+                                                 device_id=row['device_id'], local_device_id=local_device)
                 content_count += int(row['content']['available'])
+            row.pop('device_id')
             row['elapsed_seconds'] = (end - start).total_seconds() if end and end >= start else None
             row['started_at'] = local_time(start).isoformat()
             row['ended_at'] = local_time(end).isoformat() if end else None

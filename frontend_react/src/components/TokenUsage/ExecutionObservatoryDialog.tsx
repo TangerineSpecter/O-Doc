@@ -1,3 +1,4 @@
+import {requestPhaseName} from '../../utils/tokenUsageLabels';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {
     ArrowLeft,
@@ -366,7 +367,7 @@ export default function ExecutionObservatoryDialog({
                                                                             isSelected ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'
                                                                         }`}
                                                                     >
-                                                                        {row.phase || row.purpose}
+                                                                        {requestPhaseName(row)}
                                                                     </span>
                                                                 </span>
 

@@ -14,7 +14,7 @@ from .life_planner import plan_items, check_goals
 from .life_market import ensure_daily_market, execute_daily_market
 from .life_time import local_time,storage_time
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
-from .farm_gate import farm_gate
+from .farm_gate import farm_gate, guarded
 
 logger=logging.getLogger(__name__)
 
@@ -63,13 +63,12 @@ def finish_running(config, now):
 def due_item(config, now):
     due = main_items(LifeItem.objects.filter(
         owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lte=timezone.now(),
-    )).exclude(actor_id__in=config.paused_agents).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at').first()
-    if not due:
-        return None
-    retry = due.context.get('planning_retry_at')
-    if retry and local_time(timezone.datetime.fromisoformat(retry)) > now:
-        return None
-    return due
+    )).exclude(actor_id__in=config.paused_agents).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at')
+    for item in due:
+        retry = item.context.get('planning_retry_at')
+        if not retry or local_time(timezone.datetime.fromisoformat(retry)) <= now:
+            return item
+    return None
 
 
 def world_execution_busy() -> bool:
@@ -253,9 +252,12 @@ def execute_item(item: LifeItem, scheduler) -> None:
 
 
 def tick_life(scheduler) -> None:
+    from .life_activity_recovery import reconcile, requeue_busy_failures
+    reconcile()
     configs=list(LifeConfig.objects.filter(migrated=True))
     # 核对业务事实不启动新行动，手动旅行结束时也必须释放预留。
     for config in configs:
+        requeue_busy_failures(config, local_time())
         finish_running(config,local_time())
     from .life_interleaving_recovery import expire_selections
     expire_selections()
@@ -304,6 +306,23 @@ def tick_life(scheduler) -> None:
                             break
         except Exception:
             logger.exception('生活周期处理失败 owner=%s',config.pk)
+
+
+@guarded
+@transaction.atomic
+def _wait_for_planning(entries, now):
+    from .life_activity_recovery import BUSY_REASON
+    for source in entries:
+        entry = LifeItem.objects.select_for_update().filter(pk=source.pk).first()
+        if not entry or entry.status not in ('pending', 'deferred'):
+            continue
+        context = {**entry.context, 'planning_retry_at': (now + timedelta(minutes=5)).isoformat()}
+        if entry.status == 'deferred' and entry.result.get('reason') == BUSY_REASON:
+            entry.context = context
+            entry.save(update_fields=['context', 'updated_at'])
+        else:
+            revise(entry, '居民暂时忙碌，保留原时段等待规划，不计失败次数', status='deferred',
+                   context=context, result={'reason': BUSY_REASON})
 
 
 def _plan_cycle(config, scheduler, now):
@@ -367,8 +386,19 @@ def _plan_cycle(config, scheduler, now):
     blocked_days = {(entry.actor_id, local_time(entry.scheduled_at).date()) for entry in pending
                     if entry.context.get('planning_retry_at') and local_time(
                         timezone.datetime.fromisoformat(entry.context['planning_retry_at'])) > now}
-    first = next((entry for entry in pending
-                  if (entry.actor_id, local_time(entry.scheduled_at).date()) not in blocked_days), None)
+    from .life_occupancy import occupied
+    first = None
+    for entry in pending:
+        group = (entry.actor_id, local_time(entry.scheduled_at).date())
+        if group in blocked_days:
+            continue
+        if occupied(entry):
+            waiting = [row for row in pending if (row.actor_id, local_time(row.scheduled_at).date()) == group]
+            _wait_for_planning(waiting, now)
+            blocked_days.add(group)
+            continue
+        first = entry
+        break
     if first is None:
         return
     actor = first.actor_id
@@ -381,10 +411,14 @@ def _plan_cycle(config, scheduler, now):
     try:
         plan_items(config, agent, entries)
     except Exception as exc:
+        from system_settings.agent_availability import AgentBusyError
+        if isinstance(exc, AgentBusyError):
+            _wait_for_planning(entries, now)
+            return
         detail = str(exc)[:500]
         start = local_time(first.scheduled_at).replace(hour=0, minute=0, second=0, microsecond=0)
-        affected = LifeItem.objects.filter(owner_id=config.pk, actor_id=actor, status__in=['pending', 'deferred'],
-            scheduled_at__gte=storage_time(start), scheduled_at__lt=storage_time(start + timedelta(days=1))).exclude(activity='market_prepare')
+        affected = main_items(LifeItem.objects.filter(owner_id=config.pk, actor_id=actor, status__in=['pending', 'deferred'],
+            scheduled_at__gte=storage_time(start), scheduled_at__lt=storage_time(start + timedelta(days=1)))).exclude(activity='market_prepare')
         for entry in affected:
             entry.refresh_from_db()
             if entry.status not in ('pending', 'deferred'):

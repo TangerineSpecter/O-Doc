@@ -73,5 +73,22 @@ test('local 请求筛选与分页覆盖全部样例，空场景和过期正文�
     assert.deepEqual(new Set(rows.map(row => row.id)), new Set(expected.map(row => row.id)));
     assert.ok(rows.every(row => row.agentKey === actor));
     assert.equal((observationRoute(firstUrl, true) as TokenRequests).items.length, 0);
-    assert.deepEqual(observationRoute(new URL('http://local/api/settings/agent-world/token-usage/requests/local-observation-0-8/content/'), false), {available: false, message: '本地样例：正文未记录或已超过保留期'});
+    assert.deepEqual(observationRoute(new URL('http://local/api/settings/agent-world/token-usage/requests/local-observation-0-8/content/'), false), {available: false, reason: 'not_found', message: '当前服务器未找到该请求的输入输出正文文件'});
+});
+
+test('凌晨历史英文阶段在时间轴与调用链统一转成中文，未知阶段不泄露标识', async () => {
+    const {requestPhaseName} = await import('./tokenUsageLabels');
+    const base = observationRequests[0];
+    const labels = {daily_consolidation: '每日记忆整理', life_interleaving: '空档活动选择', combat_preparation: '迷宫探索准备'};
+    for (const [phase, label] of Object.entries(labels)) {
+        const row = {...base, taskName: '', phase};
+        assert.equal(requestPhaseName(row), label);
+        assert.equal(observedActivities([row], [])[0].title, label);
+    }
+    assert.equal(requestPhaseName({...base, phase: 'new_internal_phase', purpose: 'memory'}), '记忆整理');
+    assert.equal(requestPhaseName({...base, phase: '已确认中文阶段'}), '已确认中文阶段');
+    for (const row of observationRequests.filter(r => r.id.startsWith('local-legacy-'))) {
+        const body = observationRoute(new URL(`http://local/api/settings/agent-world/token-usage/requests/${row.id}/content/`), false) as {available: boolean; request: unknown; response: unknown};
+        assert.ok(body.available && body.request && body.response);
+    }
 });

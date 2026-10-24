@@ -4,7 +4,7 @@ import {blacksmithActivities, blacksmithFacts, blacksmithLifeItems, resolveBlack
 import {observationRoute, observationRequests, observationMetrics, observationFacts, addBlacksmithObservation} from './tokenUsage';
 import {residents, professions, activities, graph, feed, residentDecisions, lifeConfig, lifeItems, goals, ledger, day, at} from './residents';
 import {farms, farmRules, farmHistory, inventory, cooking, alchemy, itemCatalog, shop, listings, transactions, sessions, marketPlans} from './production';
-import {combatCatalog, combatProfiles, exploration, journey, fishingCatalog, fishingOverview, fishingTrip, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
+import {combatCatalog, combatProfiles, exploration, journey, fishingCatalog, fishingOverview, fishingTrip, fishingTrips, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
 import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, worldPosts} from './social';
 import type {LifeItem} from '../../types/api/agentLife';
 import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentReports} from './tournament';
@@ -13,6 +13,7 @@ import {resolveCookingRoute} from './cooking';
 import {resolveAlchemyRoute} from './alchemy';
 import {fishingAnalyticsMock} from './fishingAnalytics';
 import {lotteryAnalyticsMock} from './lotteryAnalytics';
+import {lifeScheduleResponse} from './lifeSchedule';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -84,10 +85,9 @@ function schedule(url: URL) {
     // Week/list views request different date ranges. Populate the requested dates as well as today.
     const start = url.searchParams.get('start')?.slice(0, 10) || day;
     const end = url.searchParams.get('end')?.slice(0, 10) || day;
-    let rows = forActor(lifeItems, url).filter(i => !url.searchParams.get('status') || i.status === url.searchParams.get('status'));
+    let rows = list(forActor(lifeItems, url));
     if (!(start <= day && day <= end)) rows = rows.map(i => ({...i, scheduledAt: `${start}${i.scheduledAt.slice(10)}`, originalAt: `${start}${i.originalAt.slice(10)}`}));
-    const result = {...page(rows, url), counts: {main: list(rows).filter(i => i.source !== 'interleaved' && !['market', 'market_prepare'].includes(i.activity)).length, interleaved: list(rows).filter(i => i.source === 'interleaved').length}};
-    return url.searchParams.get('view') === 'week' ? {...result, items: list(rows), total: list(rows).length} : result;
+    return lifeScheduleResponse(rows, url);
 }
 
 export async function resolveLocalRoute(request: Request): Promise<unknown> {
@@ -200,7 +200,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === `${base}/social/discussions/`) return {items: list([theatre]), nextCursor: null};
     if (path.startsWith(`${base}/social/discussions/`)) return writing ? {event: theatre} : theatre;
     if (path === `${base}/fishing/`) return {...fishingOverview, enabled: (resource.get(`${base}/fishing/config/`) as {enabled: boolean} | undefined)?.enabled ?? fishingOverview.enabled, ...page(forActor(fishingOverview.items, url), url), active: list(forActor(fishingOverview.active, url)), residents: list(fishingOverview.residents)};
-    if (path.includes('/fishing/trips/')) return fishingTrip;
+    if (path.includes('/fishing/trips/')) return fishingTrips.find(trip => path.includes(`/${trip.id}/`)) || fishingTrip;
     if (path === `${base}/lottery/rounds/`) return page([lotteryRound, previousRound], url);
     if (path.includes('/lottery/rounds/')) return path.endsWith('/tickets/') ? page(tickets, url) : {...lottery, config: (resource.get(`${base}/lottery/config/`) as LotteryConfig | undefined) ?? lottery.config, round: path.includes(previousRound.id) ? previousRound : lotteryRound};
     if (path.startsWith(`${base}/investment/`)) {

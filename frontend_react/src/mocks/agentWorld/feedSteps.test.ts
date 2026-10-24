@@ -87,18 +87,18 @@ test('本地 Mock daily-feed 能正确返回符合图片样式的市场交易 7 
     assert.equal(sample2.steps[5].detail, '小鱼饵 × 90 · 单价 3');
 });
 
-test('本地 Mock daily-feed 能正确返回符合图片样式的农场经营 12 步执行明细', async () => {
+test('本地 Mock daily-feed 能正确返回符合图片样式的农场经营 8 步执行明细', async () => {
     const request = new Request('http://localhost/api/settings/agent-world/daily-feed/?category=farm', {method: 'GET'});
     const response = (await resolveLocalRoute(request)) as DailyFeedResult;
     assert.ok(response && Array.isArray(response.items));
 
-    // 验证林芽的农场 12 步队列执行
+    // 验证林芽的农场 8 步队列执行
     const farmSample = response.items.find(item => item.id === 'local-feed-farm-queue-sample-1');
-    assert.ok(farmSample, '未找到农场经营 12 步 mock 数据');
+    assert.ok(farmSample, '未找到农场经营 8 步 mock 数据');
     assert.equal(farmSample.title, '农场经营');
     assert.equal(farmSample.detail, '已执行 6 项操作');
     assert.ok(farmSample.reason?.includes('凌晨有两批草莓陆续成熟了'));
-    assert.ok(farmSample.steps && farmSample.steps.length === 12);
+    assert.ok(farmSample.steps && farmSample.steps.length === 8);
 
     assert.equal(farmSample.steps[0].title, '队列状态');
     assert.equal(farmSample.steps[0].detail, '活动时段已截止，未播种项目失效；在田作物继续生长');
@@ -112,14 +112,13 @@ test('本地 Mock daily-feed 能正确返回符合图片样式的农场经营 12
     assert.equal(farmSample.steps[3].title, '按队列自动执行 · 收获');
     assert.equal(farmSample.steps[3].detail, '1 个目标 · 草莓 ★1 × 3 · 种植经验 +28 · 体力 -2 · 来源计划 2026-10-22');
 
-    assert.equal(farmSample.steps[7].title, '按队列自动执行 · 播种并浇水');
-    assert.equal(farmSample.steps[7].detail, '草莓 · 4 个目标 · 体力 -2');
+    assert.equal(farmSample.steps[4].title, '按队列自动执行 · 播种并浇水');
+    assert.equal(farmSample.steps[4].detail, '草莓 · 4 个目标 · 体力 -2');
 
-    assert.equal(farmSample.steps[8].title, '按队列自动执行 · 施肥');
-    assert.equal(farmSample.steps[8].detail, '4 个目标 · 体力 -2');
+    assert.equal(farmSample.steps[5].title, '按队列自动执行 · 施肥');
+    assert.equal(farmSample.steps[5].detail, '4 个目标 · 体力 -2');
 
-    assert.equal(farmSample.steps[11].title, '队列状态');
-    assert.equal(farmSample.steps[11].detail, '居民正在执行其他任务，下一轮重试');
+    assert.ok(farmSample.steps.every(step => !/下一轮重试|条件具备|启动当天种植队列|等待地块/.test(step.detail)));
 });
 
 test('本地 Mock daily-feed 能返回可解析的探索结算样例', async () => {

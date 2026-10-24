@@ -1,3 +1,4 @@
+import {requestPhaseName} from '../../utils/tokenUsageLabels';
 import {Activity, CheckCircle2, Cpu, Zap} from 'lucide-react';
 import type {TokenRequest} from '../../types/api/tokenUsage';
 import {knownTokens, clockTime} from '../../utils/tokenObservatory';
@@ -108,9 +109,9 @@ export default function ObservationOverview({requests, selected, onSelect, unava
                                     <button
                                         type="button"
                                         key={row.id}
-                                        aria-label={`${row.phase || '模型请求'}，输入 ${tokenNumber(row.inputTokens)}，输出 ${tokenNumber(row.outputTokens)}`}
+                                        aria-label={`${requestPhaseName(row)}，输入 ${tokenNumber(row.inputTokens)}，输出 ${tokenNumber(row.outputTokens)}`}
                                         aria-pressed={isSelected}
-                                        title={`#${idx + 1} ${row.phase || row.taskName || '请求'} (${clockTime(row.startedAt)})\n入: ${tokenNumber(row.inputTokens)} / 出: ${tokenNumber(row.outputTokens)}`}
+                                        title={`#${idx + 1} ${requestPhaseName(row)} (${clockTime(row.startedAt)})\n入: ${tokenNumber(row.inputTokens)} / 出: ${tokenNumber(row.outputTokens)}`}
                                         onClick={() => onSelect(row)}
                                         className={`group relative flex h-full min-w-0 flex-1 items-end justify-center gap-px rounded-xs transition-all ${
                                             isSelected

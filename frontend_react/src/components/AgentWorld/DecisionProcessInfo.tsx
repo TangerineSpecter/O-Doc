@@ -7,7 +7,7 @@ import {DecisionProcessSteps} from './DecisionProcessSteps';
 
 export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
     const [open, setOpen] = useState(false);
-    // 同一入口展示完整领域流程，包括市场日规划和小时补饵的独立决策。
+    // 同一入口展示完整领域流程，包括独立决策、过期收尾与中断恢复边界。
     const guide = decisionProcessGuides[kind];
     return <>
         <button type="button" aria-label={`查看${guide.title}`} title={`${guide.title}：${guide.subtitle}`}

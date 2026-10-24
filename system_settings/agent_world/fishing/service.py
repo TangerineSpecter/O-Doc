@@ -253,7 +253,7 @@ def finish(identity: str, reason: str, *, cancelled: bool = False) -> FishingTri
     trip.ended_at = local_time()
     trip.next_tick_at = None
     trip.save()
-    FishingRuntime.objects.filter(pk=trip.pk).update(authorized=False)
+    FishingRuntime.objects.filter(pk=trip.pk).update(authorized=False, token='', until=None)
     report = f"{trip.actor_name}出钓结束，抛竿{trip.state['casts']}次；{reason}"
     record = AgentRunRecord.objects.filter(pk=trip.record_id).first()
     if record:

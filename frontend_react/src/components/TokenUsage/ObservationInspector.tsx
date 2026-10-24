@@ -1,3 +1,4 @@
+import {requestPhaseName} from '../../utils/tokenUsageLabels';
 import {useEffect, useMemo, useState} from 'react';
 import {
     AlertTriangle,
@@ -89,7 +90,7 @@ export default function ObservationInspector({current, previous, refresh, initia
                             {isDecision ? '结构化决策' : '大语言模型'}
                         </span>
                         <h4 className="text-sm font-bold text-slate-900">
-                            {current.phase || current.purpose || '模型请求'}
+                            {requestPhaseName(current)}
                         </h4>
                         <span className="text-xs text-slate-400">·</span>
                         <span className="font-mono text-xs text-slate-600">
@@ -199,7 +200,7 @@ export default function ObservationInspector({current, previous, refresh, initia
             ) : !body?.available ? (
                 <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-4 text-xs text-amber-800">
                     <p className="font-semibold">{body?.message || '正文未记录或不可用'}</p>
-                    <p className="mt-1 text-amber-700/80">请求已确认的用量数据不受影响。本地正文文件通常按 30 天周期保留。</p>
+                    <p className="mt-1 text-amber-700/80">请求已确认的用量数据不受影响。正文单独保存在发起请求的服务器，统计同步不会携带正文；当天缺失需核对采集、存储与部署挂载。</p>
                 </div>
             ) : (
                 <div className="min-h-0 flex-1">

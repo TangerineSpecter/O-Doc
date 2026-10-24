@@ -166,7 +166,7 @@ class TokenReportTests(TestCase):
         self.assertEqual(value['requests'][0]['content']['request']['messages'][0]['content'], '分析持仓')
         self.assertEqual(value['requests'][0]['content']['response']['choices'][0]['message']['tool_calls'][0]['id'], 'tool-1')
         self.assertEqual(value['summary']['total_tokens'], 825)
-        with patch('system_settings.token_usage.content.details.read') as read:
+        with patch('system_settings.token_usage.content.details.read_result') as read:
             self.assertNotIn('content', self.report()['requests'][0])
             read.assert_not_called()
         response = self.api(params)

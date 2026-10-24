@@ -1,3 +1,4 @@
+import {requestPhaseName} from '../../utils/tokenUsageLabels';
 import {Check, Cpu, FileText, Sparkles} from 'lucide-react';
 import type {ObservedActivity} from '../../utils/tokenObservatory';
 import {clockTime, knownTokens} from '../../utils/tokenObservatory';
@@ -119,7 +120,7 @@ export default function ObservationTimeline({activities, selected, onSelect}: {
                                         {hasRequests ? (
                                             <>
                                                 <span className="truncate text-slate-400">
-                                                    {item.requests[0]?.agentName || item.requests[0]?.phase || '模型任务'}
+                                                    {item.requests[0]?.agentName || (item.requests[0] ? requestPhaseName(item.requests[0]) : '模型任务')}
                                                 </span>
                                                 <span
                                                     className={`font-mono font-medium tabular-nums ${

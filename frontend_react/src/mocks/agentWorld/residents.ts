@@ -3,6 +3,7 @@ import type {DailyFeedEvent, DailyFeedCategory} from '../../types/api/dailyFeed'
 import type {LifeConfig, LifeItem, LifeGoal} from '../../types/api/agentLife';
 import type {WorldLedger, WorldProfession} from '../../types/api/agentWorld';
 import {feedStepsSamples} from './feedStepsSamples';
+import {fishingGrowthFor, fishingSkillFor} from './fishingGrowth';
 
 export const now = new Date();
 export const day = now.toLocaleDateString('en-CA');
@@ -102,14 +103,13 @@ export const residentDecisions: DailyFeedEvent[] = residents.flatMap((resident, 
 ]);
 export const activities: AgentActivity[] = feed.slice(0, 8).map((f, i) => ({id: f.id, type: i % 2 ? 'interaction' : 'publication', status: 'success',
     agent: {id: f.actorId, name: f.actorName, avatar: ''}, title: f.title, summary: f.detail, occurredAt: f.occurredAt, runRecordId: 'local-run'}));
-export const fishingGrowth = {level: 15, experience: 3740, progress: 65, needed: 450};
+export const fishingGrowth = fishingGrowthFor(0);
 export const graph: AgentRelationGraph = {nodes: residents.map((r, i) => ({id: r.id, name: r.name, avatar: '', money: r.money, stamina: r.stamina,
     professionName: r.professionName, creativity: 68 + i * 7, postCount: 12 + i * 6, ratedPostCount: 8 + i, activeDays: 21 + i,
     inventoryCount: 18, status: i === 2 ? 'running' : 'idle', currentAction: i === 2 ? '探索苔石洞窟' : '整理今天的收获',
     cooking: {level: 6, experience: 560, levelExperience: 400, nextLevelExperience: 700, progress: 53},
     alchemy: {level: 4, experience: 320, levelExperience: 200, nextLevelExperience: 500, progress: 40},
-    fishing: {level: fishingGrowth.level, experience: fishingGrowth.experience, levelExperience: fishingGrowth.progress,
-        nextLevelExperience: fishingGrowth.experience - fishingGrowth.progress + fishingGrowth.needed, progress: fishingGrowth.progress / fishingGrowth.needed},
+    fishing: fishingSkillFor(i),
     planting: {level: 6, experience: 560, levelFloor: 400, nextLevelExperience: 700, progress: 53},
     combatLevel: 15 + i * 4, combatProfessionName: ['战士', '游侠', '法师', '牧师'][i]})),
     edges: residents.slice(1).map((r, i) => ({sourceId: residents[0].id, targetId: r.id, tier: 'friend', band: 'friend',

@@ -95,7 +95,7 @@ def propose(agent, batch, evidence):
     if not payload['sources']:
         raise ValueError('记忆整理输入预算无法容纳本轮来源，未推进进度')
     config = AIService.get_client_config_for_model(agent.model_id)
-    with usage_scope(agent=agent, purpose='memory', phase='daily_consolidation'):
+    with usage_scope(agent=agent, purpose='memory', phase='每日记忆整理'):
         raw = complete(config, prompt, json_output=True, max_tokens=OUTPUT_TOKENS, extra_body=thinking_options(config), allow_retries=False)
     from system_settings.agent_memory import _parse_json_object
     value = _parse_json_object(AIService.strip_thinking(raw))

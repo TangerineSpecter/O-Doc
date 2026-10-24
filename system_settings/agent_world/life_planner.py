@@ -129,6 +129,7 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
                    'goals': list(LifeGoal.objects.filter(owner_id=owner, actor_id=agent.pk,
                                                         status='active').values('id', 'title', 'progress')[:20]),
                    'needs_market': needs_market}
+        context.pop('planning_retry_at', None)
         if activity == 'lottery':
             from .lottery_service import validate_plan, maximum, check_open
             from .lottery_models import LotteryRound
@@ -169,7 +170,8 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         if not skip_unchanged or before != after:
             revision_reason = reason + ('；' + detail['budget_reason'] if detail.get('budget_reason') else '')
             revise(item, revision_reason, activity=activity, intent=reason, budget=budget,
-                   task_id=task_id, status='pending', context=context)
+                   task_id=task_id, status='pending', context=context,
+                   result={} if item.result.get('reason') == '居民正在执行其他任务，请稍后重试' else item.result)
     # 主观目标只能引用已经完成的实际经历；客观目标由检查器核实。
     for update in proposal.get('goal_updates',[])[:20]:
         goal = LifeGoal.objects.filter(pk=update.get('id'),owner_id=owner,actor_id=agent.pk,status='active').first()

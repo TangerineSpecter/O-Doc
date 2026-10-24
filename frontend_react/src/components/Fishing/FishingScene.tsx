@@ -4,8 +4,9 @@ import type {FishingTrip} from '../../types/api/fishing';
 import {fishingSpotLabels} from './presentation';
 import {toFishingSceneState, type FishingSpot} from './scene/sceneModel';
 import {useFishingScene} from './useFishingScene';
+import {Select} from '../common/Select';
+import {fishingSpots, fishingSpotOptions} from './spotVisuals';
 
-const descriptions: Record<FishingSpot, string> = {pond: '苇叶轻摇，等一圈水纹', river: '顺着流水，等一尾银光', lake: '树影落在湖心，浮漂轻轻摇晃'};
 const modeLabels = {idle: '静候出发', preparing: '岸边准备', fishing: '正在垂钓', duel: '鱼王拉锯', paused: '等待继续', returned: '本次已返程'};
 export function FishingScene({trips, enabled}: {trips: FishingTrip[]; enabled: boolean}) {
     const [observation, setObservation] = useState<{trip?: FishingTrip; released: Set<string>}>(() => ({trip: trips[0], released: new Set()}));
@@ -38,12 +39,12 @@ function FishingSceneView({trip: initialTrip, trips, spot, enabled, onSelect, on
     return <section aria-label="像素钓场" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
             <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-700"><Waves className="h-4 w-4 text-teal-600"/>像素钓场<span className="ml-1 text-[9px] font-normal tracking-widest text-slate-400">水边观察</span></h3>
-            {!trip && <div className="flex rounded-full bg-slate-100 p-0.5" aria-label="钓场景观">{(['pond', 'river', 'lake'] as const).map(value => <button key={value} type="button" aria-pressed={spot === value} onClick={() => onSpot(value)} className={`rounded-full px-2.5 py-1 text-[10px] transition-colors ${spot === value ? 'bg-white font-semibold text-teal-800 shadow-sm' : 'text-slate-500 hover:text-teal-700'}`}>{fishingSpotLabels[value]}</button>)}</div>}
+            {!trip && <div className="w-44 min-w-0 max-w-full" aria-label="钓场景观"><Select value={spot} onChange={onSpot} options={fishingSpotOptions} menuPortal={true} accentClassName="text-teal-700 bg-teal-50" buttonClassName="!min-h-8 !py-1 !text-[10px]"/></div>}
             {trip && <span className="text-[10px] text-slate-400">已抛 {trip.casts} 竿<span className="mx-2 text-slate-200">/</span>收获 {caught} 条</span>}
         </div>
         <div className="relative m-2 overflow-hidden rounded-xl border border-[#d0dfc8] bg-[#b9cd83] sm:m-3">
             <canvas ref={canvasRef} role="img" aria-label={`${fishingSpotLabels[view.spot]}像素场景，${trip ? `${trip.actorName}${modeLabels[view.mode]}` : '此刻无人出钓'}`} className="block aspect-[16/9] w-full" style={{imageRendering: 'pixelated'}}/>
-            <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 rounded-full border border-white/60 bg-[#fffdf3]/95 px-2.5 py-1.5 text-[10px] text-[#456455] shadow-sm sm:left-3 sm:top-3"><MapPin className="h-3 w-3"/><span className="font-bold">{fishingSpotLabels[view.spot]}</span><span className="hidden text-[#819382] sm:inline">· {descriptions[view.spot]}</span></div>
+            <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 rounded-full border border-white/60 bg-[#fffdf3]/95 px-2.5 py-1.5 text-[10px] text-[#456455] shadow-sm sm:left-3 sm:top-3"><MapPin className="h-3 w-3"/><span className="font-bold">{fishingSpotLabels[view.spot]}</span><span className="hidden text-[#819382] sm:inline">· {fishingSpots[view.spot].description}</span></div>
             {cue && <div role="status" className="pointer-events-none absolute bottom-3 left-1/2 max-w-[90%] -translate-x-1/2 text-center rounded-xl border border-white/60 bg-[#fffdf3]/95 px-4 py-2 text-xs font-semibold text-teal-900 shadow-sm">{cue.label}</div>}
             {failed && <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-50/95 text-xs text-slate-500">像素场景暂时无法显示<button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-teal-700" onClick={retry}>重新加载场景</button></div>}
         </div>

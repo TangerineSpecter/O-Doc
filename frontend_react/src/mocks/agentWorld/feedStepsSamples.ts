@@ -218,7 +218,7 @@ export const feedStepsSamples: DailyFeedEvent[] = [
         ],
     },
 
-    // 样本 8：精确匹配用户最新截图：农场经营 12 步自动队列执行明细
+    // 样本 8：精确匹配用户最新截图：农场经营 8 步自动队列执行明细
     {
         id: 'local-feed-farm-queue-sample-1',
         actorId: 'local-resident-2',
@@ -226,7 +226,7 @@ export const feedStepsSamples: DailyFeedEvent[] = [
         actorIds: ['local-resident-2'],
         category: 'farm',
         source: 'execution',
-        occurredAt: atTime(11, 28),
+        occurredAt: atTime(11, 25),
         title: '农场经营',
         detail: '已执行 6 项操作',
         reason: '凌晨有两批草莓陆续成熟了，放到中午正好一起收。上午去农场把果实领回来，顺便启动今天的种植队列，让空出来的地按计划重新种上。农场的事一天一次，放在上午最稳妥——该收的按时收，该种的按时种，事情按规矩转，才不会乱。',
@@ -264,27 +264,6 @@ export const feedStepsSamples: DailyFeedEvent[] = [
                 amount: null,
             },
             {
-                id: 'step-farm-q5',
-                title: '队列状态',
-                detail: '条件具备，按种植队列执行',
-                occurredAt: atTime(11, 25),
-                amount: null,
-            },
-            {
-                id: 'step-farm-q6',
-                title: '队列状态',
-                detail: '个人农场日程到点，启动当天种植队列',
-                occurredAt: atTime(11, 25),
-                amount: null,
-            },
-            {
-                id: 'step-farm-q7',
-                title: '队列状态',
-                detail: '等待地块收获腾空',
-                occurredAt: atTime(11, 25),
-                amount: null,
-            },
-            {
                 id: 'step-farm-q8',
                 title: '按队列自动执行 · 播种并浇水',
                 detail: '草莓 · 4 个目标 · 体力 -2',
@@ -310,13 +289,6 @@ export const feedStepsSamples: DailyFeedEvent[] = [
                 title: '按队列自动执行 · 施肥',
                 detail: '4 个目标 · 体力 -2',
                 occurredAt: atTime(11, 25),
-                amount: null,
-            },
-            {
-                id: 'step-farm-q12',
-                title: '队列状态',
-                detail: '居民正在执行其他任务，下一轮重试',
-                occurredAt: atTime(11, 28),
                 amount: null,
             },
         ],

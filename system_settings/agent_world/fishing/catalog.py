@@ -1,7 +1,10 @@
-"""版本化首版内容；进行中的出钓使用自己的完整快照。"""
+"""版本化内置内容；已创建的出钓始终使用自己的完整快照。"""
 from copy import deepcopy
+from .catalog_expansion import SPOTS as EXPANSION_SPOTS, FISH_ROWS as EXPANSION_FISH
 
-VERSION = 'fishing-1.1.0'
+VERSION = 'fishing-1.2.0'
+MAX_LEVEL = 99
+OLD_BUILTIN_VERSIONS = frozenset({'fishing-1.0.0', 'fishing-1.1.0'})
 BAITS = {
     'worm': {'name': '蚯蚓', 'price': '1'},
     'dough': {'name': '面团', 'price': '1'},
@@ -13,6 +16,7 @@ SPOTS = {
     'pond': {'name': '青苇池塘', 'required_level': 1},
     'river': {'name': '流光河湾', 'required_level': 10},
     'lake': {'name': '镜月湖畔', 'required_level': 20},
+    **EXPANSION_SPOTS,
 }
 # id, 名称, 钓点, 等级, 偏好饵, 可接受饵, 活跃时段, 重量公斤范围, 回收价, 鱼王
 FISH_ROWS = [
@@ -31,6 +35,7 @@ FISH_ROWS = [
     ('perch', '湖鲈', 'lake', 26, 'shrimp', 'minnow', [[5,9],[17,21]], [.5,5], '14', False),
     ('yellowcheek', '鳡鱼', 'lake', 30, 'minnow', 'shrimp', [[0,24]], [3,15], '16', False),
     ('moon_king', '镜月鱼王', 'lake', 35, 'shrimp', 'minnow', [[17,21]], [15,35], '160', True),
+    *EXPANSION_FISH,
 ]
 
 
@@ -38,19 +43,19 @@ def builtin() -> dict:
     return {'version': VERSION, 'spots': deepcopy(SPOTS), 'baits': deepcopy(BAITS),
             'rod': {'id': 'ordinary', 'name': '普通钓竿', 'bonus': 0},
             'interval_seconds': 60, 'energy_cost': 2, 'durations': [30,60,120],
-            'max_level': 50, 'empty_probability': .15, 'junk_probability': .20,
+            'max_level': MAX_LEVEL, 'empty_probability': .15, 'junk_probability': .20,
             'king_probability': .01,
             'fish': {row[0]: {'name': row[1], 'spot': row[2], 'level': row[3],
                 'preferred': [row[4]], 'accepted': [row[5], *(['corn'] if row[0] == 'crucian' else [])], 'hours': row[6],
                 'weight_range': row[7], 'value': row[8], 'king': row[9], 'weight': 1}
-                for row in FISH_ROWS}}
+                for row in deepcopy(FISH_ROWS)}}
 
 
 def current(owner: str) -> dict:
     from .models import FishingConfig
     row = FishingConfig.objects.select_related('catalog').filter(pk=owner).first()
-    # 旧目录仍供历史出钓重放；新出钓使用一分钟规则。查询不写库。
-    return deepcopy(row.catalog.rules) if row and row.catalog_id != 'fishing-1.0.0' else builtin()
+    # 查询只投影新内置目录；自定义目录不覆盖，历史出钓继续读取自身快照。
+    return deepcopy(row.catalog.rules) if row and row.catalog_id not in OLD_BUILTIN_VERSIONS else builtin()
 
 
 def install():
@@ -63,6 +68,6 @@ def install():
 
 def upgrade_config(config) -> None:
     """仅切换内置旧目录；不可变目录与已有出钓快照保持原样。"""
-    if config.catalog_id == 'fishing-1.0.0':
+    if config.catalog_id in OLD_BUILTIN_VERSIONS:
         config.catalog = install()
         config.save(update_fields=['catalog', 'updated_at'])

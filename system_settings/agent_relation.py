@@ -188,7 +188,7 @@ def relation_graph(owner_id=None, include_departed=False):
     next_times = next_activity_times(owner_id, [agent.pk for agent in agents if not agent.archived])
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
     running_ids = set(AgentActivity.objects.filter(status='running').exclude(agent_id=None).values_list('agent_id', flat=True))
-    from .agent_world.combat.queries import resident_presence
+    from .agent_world.life_presence import resident_presence
     exploring=resident_presence(owner_id)
     nodes = []
     inventory = AgentInventoryItem.objects.all()

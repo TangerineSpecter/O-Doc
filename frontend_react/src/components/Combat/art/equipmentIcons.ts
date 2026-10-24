@@ -1,4 +1,3 @@
-import head from '../../../assets/combat/equipment-head-v1.png';
 import body from '../../../assets/combat/equipment-body-v1.png';
 import hands from '../../../assets/combat/equipment-hands-v1.png';
 import feet from '../../../assets/combat/equipment-feet-v1.png';
@@ -13,7 +12,6 @@ import starRift from '../../../assets/combat/equipment-boss-star-rift-v1.png';
 
 /** Built-in inventory art uses catalog IDs so each regional charm keeps its identity. */
 const equipmentIcons: Readonly<Record<string, string>> = {
-    'equip.head': head,
     'equip.body': body,
     'equip.hands': hands,
     'equip.feet': feet,

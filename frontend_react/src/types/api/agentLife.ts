@@ -57,4 +57,5 @@ export interface LifeItem {
     retryAvailable?: boolean; retryBlockedReason?: string;
     revisions?: Array<{id: string; before: Record<string, unknown>; after: Record<string, unknown>; reason: string; createdAt: string}>;
 }
-export interface LifeSchedule {counts?: {main: number; interleaved: number}; items: LifeItem[]; total: number; page: number}
+export type LifeScheduleSource = 'all' | 'main' | 'interleaved';
+export interface LifeSchedule {counts?: {main: number; interleaved: number}; summary?: Record<string, number>; items: LifeItem[]; total: number; page: number}

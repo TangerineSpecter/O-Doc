@@ -6,7 +6,7 @@ import os
 import re
 import shutil
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone as datetime_timezone
 from pathlib import Path
 from threading import Lock
 
@@ -63,17 +63,13 @@ def jsonable(value):
 
 
 def _started_day(value) -> date:
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
     if isinstance(value, datetime):
-        if timezone.is_aware(value):
-            value = timezone.localtime(value)
-        return value.date()
+        from system_settings.agent_world.life_time import local_time
+        return local_time(value).date()
     if isinstance(value, date):
         return value
-    if isinstance(value, str):
-        try:
-            return date.fromisoformat(value[:10])
-        except ValueError:
-            pass
     raise ValueError('Token request start time is invalid')
 
 
@@ -143,15 +139,39 @@ def write(entry: dict) -> None:
     maintain()
 
 
-def read(request_id: str, started_at) -> dict | None:
+def read_result(request_id: str, started_at) -> tuple[dict | None, str | None]:
+    """保留可定位的读取原因，不将当天文件缺失误报为过期。"""
     if not enabled():
-        return None
+        return None, 'disabled'
     try:
         path = _path(request_id, started_at)
-        if path.parent.is_symlink() or path.is_symlink() or not path.is_file():
-            return None
-        with path.open('r', encoding='utf-8') as stream:
-            payload = json.load(stream)
-        return payload if payload.get('id') == request_id else None
-    except (OSError, ValueError, json.JSONDecodeError):
-        return None
+        candidates = [path]
+        # 旧版按 ISO 字符串前十位保存；带 UTC 偏移的凌晨请求可能落在前一天。
+        moment = datetime.fromisoformat(started_at) if isinstance(started_at, str) else started_at
+        if isinstance(moment, datetime) and timezone.is_aware(moment):
+            for day in (moment.date(), moment.astimezone(datetime_timezone.utc).date()):
+                legacy = path.parent.parent / day.isoformat() / path.name
+                if legacy not in candidates:
+                    candidates.append(legacy)
+        for candidate in candidates:
+            if candidate.parent.is_symlink() or candidate.is_symlink():
+                return None, 'unreadable'
+            try:
+                with candidate.open('r', encoding='utf-8') as stream:
+                    payload = json.load(stream)
+            except FileNotFoundError:
+                continue
+            if not isinstance(payload, dict) or payload.get('id') != request_id:
+                return None, 'invalid'
+            return payload, None
+        from system_settings.agent_world.life_time import local_time
+        reason = 'expired' if _started_day(started_at) < local_time().date() - timedelta(days=29) else 'not_found'
+        return None, reason
+    except OSError:
+        return None, 'unreadable'
+    except (ValueError, TypeError):
+        return None, 'invalid'
+
+
+def read(request_id: str, started_at) -> dict | None:
+    return read_result(request_id, started_at)[0]

@@ -29,12 +29,29 @@ export const observationRequests: TokenRequest[] = residents.flatMap((actor, a) 
     const persona = '喜欢研究行情，关注预算与生活目标。'.repeat(4);
     const messages: unknown[] = [{role: 'system', content: persona}, {role: 'user', content: JSON.stringify({account: {cash: '8430', reserved: '1500'}, role_prompt: persona, farm: {plots: 32, queue: Array.from({length: 8}, (_, n) => ({crop: '草莓', plot: n + 1}))}})}];
     if (investment && i >= 2) messages.push({role: 'assistant', content: null, tool_calls: [{id: 'quotes-1', type: 'function', function: {name: 'get_quotes', arguments: '{"codes":["600000"]}'}}]}, {role: 'tool', tool_call_id: 'quotes-1', content: JSON.stringify({quote: {code: '600000', price: 12.31}, indicators: {macd: .12}, history: Array.from({length: i >= 3 ? 100 : 20}, (_, n) => ({day: n + 1, close: 12 + n / 100, volume: 1800000}))})});
-    bodies.set(row.id, i === 8 ? {available: false, message: '本地样例：正文未记录或已超过保留期'} : {
+    bodies.set(row.id, i === 8 ? {available: false, reason: 'not_found', message: '当前服务器未找到该请求的输入输出正文文件'} : {
         available: true, status: row.status, request: {model: row.modelName, messages, tools: [{type: 'function', function: {name: 'get_quotes', description: '读取报价与行情时点', parameters: {type: 'object', properties: {codes: {type: 'array', items: {type: 'string'}}}}}}]},
         response: {choices: [{message: i === 1 || i === 5 ? {role: 'assistant', content: '先读取当前状态。', tool_calls: [{id: 'quotes-1', type: 'function', function: {name: 'get_quotes', arguments: '{"codes":["600000"]}'}}]} : {role: 'assistant', content: i === 3 ? '{"action":"buy","quantity":"待定"}' : i === 4 ? '{"action":"hold","reason":"保留旅行预算"}' : '{"choice":"ready","reason":"结合库存与资金安排"}'}}]},
     });
     return row;
 }));
+
+// 兼容真实历史中的英文阶段；凌晨样例完整保留输入输出，不能按时间误判为过期。
+for (const actor of residents) {
+    const base = observationRequests.find(row => row.agentKey === actor.id)!;
+    for (const [index, phase] of ['daily_consolidation', 'life_interleaving', 'combat_preparation'].entries()) {
+        const row: TokenRequest = {...base, id: `local-legacy-${actor.id}-${index}`, taskKey: '', taskName: '',
+            recordKey: index === 0 ? '' : `local-interleaving-${actor.id}`, purpose: index === 0 ? 'memory' : 'planning', phase,
+            modelType: index === 0 ? 'large_model' : 'decision_model',
+            startedAt: at(index === 0 ? 3 : 6, index), endedAt: at(index === 0 ? 3 : 6, index + 1)};
+        observationRequests.push(row);
+        bodies.set(row.id, {available: true, status: 'success',
+            request: index === 0 ? {messages: [{role: 'user', content: '整理今天已发生的经历，只保留重要事件与稳定偏好。'}]}
+                : {state: {available_minutes: 60, energy: 80}, questions: [{id: phase, options: {explore: '迷宫探索', rest: '暂不活动'}}]},
+            response: index === 0 ? {choices: [{message: {content: '今天完成了种植计划，为下一次探索保留体力。'}}]}
+                : {choice: 'explore', confidence: .9}});
+    }
+}
 
 // Forging requests share one stable execution id with their frozen output facts.
 export function addBlacksmithObservation(activity: BlacksmithActivity) {

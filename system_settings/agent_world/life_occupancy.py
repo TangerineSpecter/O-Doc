@@ -20,7 +20,7 @@ def occupied(item) -> bool:
             or item.actor_id in occupied_ids() or item.actor_id in travelling_ids()
             or AgentExecutionLease.objects.filter(agent_id=item.actor_id, until__gt=timezone.now()).exists()
             or LifeItem.objects.filter(actor_id=item.actor_id, status='running').exclude(pk=item.pk).exists()
-            or MarketSession.objects.filter(actor_id=item.actor_id, status='active').exists())
+            or MarketSession.objects.filter(actor_id=item.actor_id, status='active', expires_at__gt=timezone.now()).exists())
 
 
 @guarded
@@ -50,5 +50,11 @@ def defer_busy(item, config) -> None:
             cancel(item, '前一活动仍在持续，跨日后重新准备队列')
             context.pop('farm_plan_id')
         context['planned_on'] = candidate.date().isoformat()
-    revise(item, '前一活动仍在持续，移至可用空档等待执行', status='deferred',
-           scheduled_at=candidate, context=context)
+    reason = '前一活动仍在持续，移至可用空档等待执行'
+    last = item.revisions.order_by('-created_at').first()
+    if (item.status == 'deferred' and last and last.reason == reason
+            and candidate.date() == local_time(item.scheduled_at).date() and not item.context.get('farm_plan_id')):
+        item.scheduled_at, item.context = candidate, context
+        item.save()
+    else:
+        revise(item, reason, status='deferred', scheduled_at=candidate, context=context)

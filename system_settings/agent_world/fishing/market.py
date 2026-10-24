@@ -26,7 +26,7 @@ def needs(owner: str, agent, supplies: list[dict]) -> list[dict]:
         return []
     rules = current(owner)
     profile = FishingProfile.objects.filter(pk=agent.pk, owner_id=owner).first()
-    level = level_for(profile.experience if profile else 0)[0]
+    level = level_for(profile.experience if profile else 0, rules['max_level'])[0]
     stock = inventory(owner, agent.pk)
     # A twelve-cast outing is a planning reference, never a shop purchase limit.
     usable = {bait for bait in rules['baits'] if any(preference(fish, bait) and

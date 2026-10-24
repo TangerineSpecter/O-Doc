@@ -1,10 +1,11 @@
 import type {FishingEvent, FishingTrip} from '../../../types/api/fishing';
+import {fishingSpots, type FishingSpot} from '../spotVisuals';
 
-export type FishingSpot = 'pond' | 'river' | 'lake';
+export type {FishingSpot} from '../spotVisuals';
 export type SceneMode = 'idle' | 'preparing' | 'fishing' | 'duel' | 'paused' | 'returned';
 export interface FishingSceneState {spot: FishingSpot; mode: SceneMode; actorId: string}
 export interface FishingSceneCue {id: string; kind: 'catch' | 'empty' | 'escaped' | 'junk'; fishId?: string; label: string}
-export const toFishingSpot = (spot?: string): FishingSpot => spot === 'river' || spot === 'lake' ? spot : 'pond';
+export const toFishingSpot = (spot?: string): FishingSpot => spot && Object.prototype.hasOwnProperty.call(fishingSpots, spot) ? spot as FishingSpot : 'pond';
 export function toFishingSceneState(trip?: FishingTrip, spot: FishingSpot = 'pond'): FishingSceneState {
     if (!trip) return {spot, mode: 'idle', actorId: ''};
     const mode: SceneMode = trip.status === 'completed' || trip.status === 'cancelled' ? 'returned'

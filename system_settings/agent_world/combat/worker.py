@@ -63,6 +63,8 @@ def promote_one(identity):
 
 def advance():
     recover_stopped_process()
+    from ..life_activity_recovery import reconcile
+    reconcile(domain='exploration')
     with execution_lease(CombatRuntime,{'pk':'combat-worker'}) as token:
         if not token:return
         CombatRuntime.objects.filter(pk='combat-worker',token=token).update(requests={'process_id':os.getpid()})

@@ -200,3 +200,30 @@ class ResidentDailyFeedTests(TestCase):
         ])
         self.assertEqual([step['detail'].split(' × ')[0] for step in item['steps'][3:7]],
                          ['居民挂牌', '商店商品', '蚯蚓鱼饵', '增产肥'])
+
+
+class FarmFeedPollingTests(ResidentDailyFeedTests):
+    def test_polling_does_not_hide_actions_or_advance_card_time(self):
+        from .farm_models import AgentFarm, FarmOperation
+        quiet_codes = ['busy', 'recovered', 'resumed', 'activated', 'land', 'seeds',
+                       'fertilizer', 'stamina', 'travel', 'paused', 'mcp-disabled',
+                       'investment-stamina', 'investment-protected']
+        visible_codes = ['planned', 'completed', 'expired', 'cancelled',
+                         'investment-skipped', 'investment-blocked', 'market-adjusted-2']
+        codes = visible_codes + quiet_codes
+        farm = AgentFarm.objects.create(id=self.actor.pk, owner_id=self.owner, actor_name=self.actor.name,
+            state={'planting_plans': {'p': {'versions': [{'reason': '种植安排'}], 'events': [
+                {'id': str(i), 'code': code, 'detail': code, 'at': (self.today + timedelta(minutes=i)).timestamp()}
+                for i, code in enumerate(codes)]}}})
+        FarmOperation.objects.create(id='harvest', farm=farm, opportunity_id='',
+            operation={'kind': 'harvest', 'targets': ['plot']}, result={},
+            created_at=storage_time(self.today))
+        response = self.client.get('/api/settings/agent-world/daily-feed/', {'category': 'farm', 'actor_id': self.actor.pk})
+        self.assertEqual(response.status_code, 200)
+        card = response.data['data']['items'][0]
+        self.assertEqual(len(card['steps']), len(visible_codes) + 1)
+        self.assertTrue(all(step['detail'] not in quiet_codes for step in card['steps']))
+        self.assertIn('已执行 1 项操作', card['detail'])
+        self.assertEqual(card['occurredAt'], (self.today + timedelta(minutes=len(visible_codes)-1)).isoformat())
+        farm.refresh_from_db()
+        self.assertEqual(len(farm.state['planting_plans']['p']['events']), len(codes))

@@ -26,6 +26,7 @@ import LifeScheduleListView from './LifeScheduleListView';
 import LifeScheduleTodayTimeline from './LifeScheduleTodayTimeline';
 import LifeScheduleHelp from './LifeScheduleHelp';
 import {statusLabels} from './lifeLabels';
+import type {LifeScheduleSource} from '../../types/api/agentLife';
 
 const scheduleHelp = <LifeScheduleHelp />;
 
@@ -48,6 +49,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
     const [agents, setAgents] = useState<AgentConfig[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [source, setSource] = useState<LifeScheduleSource>('main');
     const [setupError, setSetupError] = useState('');
 
     const end = dayjs(start).add(7, 'day').format('YYYY-MM-DD');
@@ -56,7 +58,9 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
     const scheduleStart = mode === 'today' ? today : start;
     const scheduleEnd = mode === 'today' ? dayjs(today).add(1, 'day').format('YYYY-MM-DD') : end;
 
-    const schedule = useAgentLifeSchedule(scheduleStart, scheduleEnd, actorId, status, page, mode === 'week' ? 'week' : 'list');
+    const schedule = useAgentLifeSchedule(scheduleStart, scheduleEnd, actorId, mode === 'today' ? '' : status,
+        page, mode === 'today' ? 'today' : mode === 'week' ? 'week' : 'list', source);
+    const changeSource = (value: LifeScheduleSource) => {setSource(value); setPage(1);};
 
     const hasFailedItems = schedule.data.items.some(
         (i) => i.status === 'failed' && !i.recordId && !(i as {record_id?: string}).record_id && i.activity !== 'market_prepare'
@@ -180,7 +184,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                         </div>
 
                         {/* 状态筛选 */}
-                        {mode !== 'profile' && (
+                        {mode !== 'profile' && mode !== 'today' && (
                             <div className="flex-1 sm:w-32 min-w-[100px]">
                                 <Select
                                     menuPortal
@@ -200,6 +204,12 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                 />
                             </div>
                         )}
+
+                        {mode !== 'profile' && mode !== 'today' && <div className="flex-1 sm:w-32 min-w-[100px]">
+                            <Select menuPortal value={source}
+                                options={[{value: 'all', label: '全部来源'}, {value: 'main', label: '主日程'}, {value: 'interleaved', label: '自由活动'}]}
+                                onChange={value => changeSource(value as LifeScheduleSource)} buttonClassName="!py-1.5 text-xs" />
+                        </div>}
 
                         {/* 刷新按钮 */}
                         <button
@@ -379,8 +389,10 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                     items={schedule.data.items}
                                     agents={agents}
                                     total={schedule.data.total}
-                                    page={page}
-                                    onPageChange={setPage}
+                                    counts={schedule.data.counts}
+                                    summary={schedule.data.summary}
+                                    source={source}
+                                    onSourceChange={changeSource}
                                     onSelectItem={setSelected}
                                 />
                             ) : (
