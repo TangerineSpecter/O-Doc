@@ -54,14 +54,41 @@ def state(item, agent, row, selected=None):
             'pool': str(pool(row)), 'price': str(price(row.rules)), 'budget': str(item.budget)}
 
 
+def number_state(item, agent, row, selected) -> dict:
+    context = state(item, agent, row, selected)
+    counts = {str(n): 0 for n in range(1, 11)}
+    ticket_count = 0
+    # Count issued tickets only; this purchase's unsold picks remain in selected_numbers.
+    for ticket_numbers in row.tickets.filter(owner_id=item.owner_id).values_list('numbers', flat=True).iterator():
+        ticket_count += 1
+        for number in ticket_numbers:
+            counts[str(number)] += 1
+    context.update(sold_ticket_count=ticket_count, number_bet_counts=counts)
+    recent = [
+        {'sequence': previous.sequence, 'winning_numbers': previous.result['winning_numbers']}
+        for previous in LotteryRound.objects.filter(
+            owner_id=item.owner_id, status='settled', sequence__lt=row.sequence,
+        ).order_by('-sequence')[:3]
+    ]
+    if recent:
+        context['recent_draws'] = recent
+    return context
+
+
 def choose(item, agent, scene, context, candidates):
     if not enabled(item.owner_id):
         raise LotteryDecisionUnavailable('大乐透决策连接尚未启用，不调用普通模型')
     from .life_scope import check_item_authorization
     check_item_authorization(item)
+    instructions = '结合人物性格和已有号码，从本题合法选项中选择一个；不预测中奖号码。'
+    if scene == 'lottery_number':
+        instructions += (
+            'sold_ticket_count为本期全体居民（含自己）已出票张数，'
+            'number_bet_counts为这些票中各数字出现次数，不含本次尚未出票的selected_numbers；'
+            'recent_draws若存在为最近最多三期开奖号码，按期次由近到远排列。')
     value = choose_scene(item.owner_id, agent, scene, context, candidates,
         deadline=time.monotonic() + 60, include_role=False,
-        instructions='结合人物性格和已有号码，从本题合法选项中选择一个；不预测中奖号码。')
+        instructions=instructions)
     if value not in candidates:
         raise LotteryDecisionUnavailable('大乐透决策连接暂不可用或选择无效，不调用普通模型')
     check_item_authorization(LifeItem.objects.get(pk=item.pk))
@@ -108,7 +135,7 @@ def pick_numbers(item, agent):
             picks.append([])
         check_open(item.owner_id, row)
         partial = picks[-1]
-        digit = choose(item, agent, 'lottery_number', state(item, agent, row, picks),
+        digit = choose(item, agent, 'lottery_number', number_state(item, agent, row, picks),
                        {str(n): n for n in range(1, 11) if n not in partial})
         picks[-1].append(digit)
         with farm_gate(), transaction.atomic():

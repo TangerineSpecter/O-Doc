@@ -14,7 +14,7 @@ from .life_time import SHANGHAI, local_time
 from .lottery_models import LotteryConfig, LotteryRound, LotteryTicket
 from .lottery_rules import RULES, RULES_V1, known_rules, numbers, price, settlement
 from .lottery_service import configure, current_round, purchase, draw, maximum, tick
-from .lottery_decision import prepare, pick_numbers, LotteryDecisionUnavailable, defer
+from .lottery_decision import prepare, pick_numbers, number_state, LotteryDecisionUnavailable, defer
 from .lottery_sync import checkpoint_all, database_data, validate_source, validate_conflicts, refresh_merged
 from .models import WorldLedger
 from utils.sync_manager import SyncError
@@ -259,6 +259,55 @@ class LotteryTests(TestCase):
             self.assertFalse(call.kwargs['include_role'])
             self.assertNotIn('外貌', str(call.args[3]))
             self.assertNotIn('goals', call.args[3])
+            self.assertEqual(call.args[3]['sold_ticket_count'], 0)
+            self.assertEqual(call.args[3]['number_bet_counts'], {str(n): 0 for n in range(1, 11)})
+            self.assertNotIn('recent_draws', call.args[3])
+
+    def test_number_context_counts_issued_tickets_including_self_only_this_round(self):
+        item = self.item(selected=[[8, 9]])
+        for index, (actor, picks) in enumerate([
+            (self.agent.pk, [1, 2, 3]), ('another-resident', [1, 2, 4]),
+        ]):
+            LotteryTicket.objects.create(pk=f'issued-{index}', owner_id='admin', round=self.round,
+                actor_id=actor, actor_name='居民', life_item_id='issued', purchase_key='issued',
+                ordinal=index, numbers=picks)
+        foreign = LotteryRound.objects.create(pk='foreign', owner_id='other', sequence=1,
+            opens_at=self.round.opens_at, closes_at=self.round.closes_at, draws_at=self.round.draws_at)
+        LotteryTicket.objects.create(pk='foreign-ticket', owner_id='other', round=foreign,
+            actor_id=self.agent.pk, actor_name='居民', life_item_id='foreign', purchase_key='foreign',
+            ordinal=1, numbers=[8, 9, 10])
+        context = number_state(item, self.agent, self.round, [[8, 9]])
+        self.assertEqual(context['sold_ticket_count'], 2)
+        self.assertEqual(context['number_bet_counts'],
+            {'1': 2, '2': 2, '3': 1, '4': 1, **{str(n): 0 for n in range(5, 11)}})
+        self.assertEqual(context['held_numbers'], [[1, 2, 3]])
+        self.assertEqual(context['selected_numbers'], [[8, 9]])
+
+    def test_number_context_recent_draws_omit_missing_and_limit_to_three(self):
+        item = self.item()
+        self.round.sequence = 6
+        self.round.save(update_fields=['sequence'])
+        self.assertNotIn('recent_draws', number_state(item, self.agent, self.round, []))
+        for sequence in range(1, 6):
+            LotteryRound.objects.create(pk=f'history-{sequence}', owner_id='admin', sequence=sequence,
+                opens_at=self.round.opens_at - timedelta(days=3 * (6 - sequence)),
+                closes_at=self.round.closes_at - timedelta(days=3 * (6 - sequence)),
+                draws_at=self.round.draws_at - timedelta(days=3 * (6 - sequence)),
+                status='settled', result={'winning_numbers': [sequence, sequence + 1, 10], 'carry_out': '0.00'})
+            if sequence == 2:
+                self.assertEqual(number_state(item, self.agent, self.round, [])['recent_draws'], [
+                    {'sequence': 2, 'winning_numbers': [2, 3, 10]},
+                    {'sequence': 1, 'winning_numbers': [1, 2, 10]},
+                ])
+        for key, owner, sequence, status in [
+            ('foreign-history', 'other', 5, 'settled'),
+            ('future', 'admin', 7, 'settled'), ('unsettled', 'admin', 0, 'open'),
+        ]:
+            LotteryRound.objects.create(pk=key, owner_id=owner, sequence=sequence, status=status,
+                opens_at=self.round.opens_at, closes_at=self.round.closes_at, draws_at=self.round.draws_at,
+                result={'winning_numbers': [7, 8, 9]})
+        self.assertEqual(number_state(item, self.agent, self.round, [])['recent_draws'], [
+            {'sequence': n, 'winning_numbers': [n, n + 1, 10]} for n in (5, 4, 3)])
 
     def test_partial_checkpoint_retries_only_remaining_digit(self):
         item = self.item(selected=[[1, 2]])
@@ -280,6 +329,8 @@ class LotteryTests(TestCase):
              patch('system_settings.agent_world.lottery_decision.choose_scene', return_value='3') as choose:
             self.assertEqual(prepare(item, self.agent)['quantity'], 3)
         self.assertEqual(set(choose.call_args.args[4]), {'1', '2', '3'})
+        for field in ('sold_ticket_count', 'number_bet_counts', 'recent_draws'):
+            self.assertNotIn(field, choose.call_args.args[3])
 
     def test_three_failures_end_and_release(self):
         item = self.item(quantity=10)
