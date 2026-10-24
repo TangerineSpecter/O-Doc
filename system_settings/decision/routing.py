@@ -170,7 +170,7 @@ def complete_json(agent, prompt: str, validate: Callable, *, task=None, decision
 
 
 def choose_connections(owner, state, choices, *, deadline, instructions=None, question_id='next_action',
-                       max_probability=False, scene='决策选择'):
+                       max_probability=False, weighted_random=False, scene='决策选择'):
     """Try decision connections in failover order. Each call owns its own minute.
 
     The caller deadline only decides whether the chain starts. A hang does not
@@ -193,7 +193,7 @@ def choose_connections(owner, state, choices, *, deadline, instructions=None, qu
             result, confidence = choose(
                 owner, state, choices, deadline=time.monotonic() + REQUEST_TIMEOUT_SECONDS,
                 instructions=prompt, question_id=question_id, connection_id=connection_id,
-                max_probability=max_probability)
+                max_probability=max_probability, weighted_random=weighted_random)
         except (DecisionUnavailable, TimeoutError) as exc:
             last = exc
             if connection_id == sticky_id:

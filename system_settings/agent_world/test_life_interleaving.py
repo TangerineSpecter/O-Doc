@@ -216,6 +216,10 @@ class IdleSchedulingTests(TestCase):
             for _ in range(2):
                 self.assertEqual(checkpoint_choice(item, self.agent, 'recipe', 'cooking_recipe', {}, {'x': 'X', 'y': 'Y'}), 'x')
             self.assertEqual(provider.call_count, 1)
+            self.assertFalse(provider.call_args.kwargs['weighted_random'])
+        with patch('system_settings.decision.routing.choose_connections', return_value=('wait', .1)) as provider:
+            self.assertEqual(choose('admin', self.agent, 'life_interleaving', {}, {'x': 'X', 'wait': 'Wait'}), 'wait')
+            self.assertTrue(provider.call_args.kwargs['weighted_random'])
         with patch('system_settings.decision.routing.choose_connections', side_effect=DecisionUnavailable('offline')):
             with self.assertRaises(DecisionUnavailable):
                 choose('admin', self.agent, 'life_interleaving', {}, {'x': 'X', 'wait': 'Wait'})

@@ -1,5 +1,6 @@
 """Isolated credential/API/usage tests; no real provider requests."""
 from types import SimpleNamespace
+from random import Random
 from unittest.mock import patch, Mock
 import time
 from django.contrib.auth.models import User
@@ -265,6 +266,32 @@ class DecisionTests(TestCase):
             with self.assertRaises(DecisionUnavailable):
                 choose('admin', {}, {'buy': '买', 'wait': '等待'}, deadline=time.monotonic() + 300)
         self.assertEqual(AgentTokenUsage.objects.filter(status='failed').count(), 1)
+
+    @patch('system_settings.decision.jev.requests.post')
+    def test_weighted_choice_draws_minor_option_and_normalizes_rounded_totals(self, post):
+        save_key('admin', 'safe-secret')
+        answer = {'type': 'choice', 'choice': 'buy',
+                  'probabilities': {'buy': .899, 'wait': .1, 'never': 0}, 'confidence': .99}
+        post.return_value = Mock(status_code=200, text='{}')
+        post.return_value.json.return_value = {'model': 'jev-1.13.0', 'answers': {'next_action': answer}}
+        options = {'buy': '买', 'wait': '等待', 'never': '不可抽中'}
+        # Seeded draws exercise the real weighted sampler without a flaky test.
+        with patch('system_settings.decision.jev.random.choices', wraps=Random(42).choices):
+            results = [choose('admin', {}, options, deadline=time.monotonic() + 60,
+                              weighted_random=True) for _ in range(200)]
+        waits = results.count(('wait', .1))
+        self.assertGreater(waits, 10)
+        self.assertLess(waits, 35)
+        self.assertTrue(all(result in [('buy', .899), ('wait', .1)] for result in results))
+        with patch('system_settings.decision.jev.random.choices') as roll:
+            self.assertEqual(choose('admin', {}, options, deadline=time.monotonic() + 60), ('buy', .99))
+            self.assertEqual(choose('admin', {}, options, deadline=time.monotonic() + 60,
+                                    max_probability=True), ('buy', .899))
+            roll.assert_not_called()
+        answer['probabilities']['buy'] = -1
+        with patch('system_settings.decision.jev.random.choices') as roll, self.assertRaises(DecisionUnavailable):
+            choose('admin', {}, options, deadline=time.monotonic() + 60, weighted_random=True)
+        roll.assert_not_called()
 
     @patch('system_settings.decision.jev.requests.post')
     def test_failed_request_is_not_retried_and_unknown_usage_stays_null(self, post):

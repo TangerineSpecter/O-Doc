@@ -1,6 +1,7 @@
 """Decision-connection failover, sticky preference, and expiry back to the primary."""
 import json
 import time
+from random import Random
 from unittest.mock import Mock, patch
 
 import requests
@@ -74,6 +75,22 @@ class FailoverBehaviorTests(TestCase):
     def _sticky(self):
         row = SystemSetting.objects.filter(pk=STICKY_KEY).values_list('value', flat=True).first() or {}
         return row.get('owner')
+
+    def test_free_activity_weighted_draw_survives_connection_failover(self):
+        from .routing import choose_connections
+        response = _answer('reply', self.criteria, question_id='life_interleaving')
+        answer = response.json.return_value['choices'][0]['message']
+        answer['content'] = json.dumps({'life_interleaving': {
+            'type': 'choice', 'choice': 'reply',
+            'probabilities': {'reply': .9, 'rest': .1}, 'confidence': .9,
+        }})
+        with patch('system_settings.decision.jev.requests.post', side_effect=[requests.Timeout(), response]) as post, \
+             patch('system_settings.decision.jev.random.choices', wraps=Random(2).choices) as roll:
+            result = choose_connections('owner', {}, self.criteria, deadline=time.monotonic() + 60,
+                                        scene='life_interleaving', question_id='life_interleaving', weighted_random=True)
+        self.assertEqual(result, ('rest', .1))
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(roll.call_count, 1)
 
     def test_failover_sticks_then_expiry_returns_to_primary(self):
         started = self.clock['now']

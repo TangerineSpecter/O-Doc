@@ -6,7 +6,7 @@ export function DecisionProcessSteps({guide}: {guide: DecisionProcessGuide}) {
         <p className="text-sm leading-6 text-slate-600">{guide.introduction}</p>
         <div className="flex flex-wrap gap-2 text-xs text-slate-500">
             <span className="rounded-full bg-orange-50 px-3 py-1 text-orange-700">模型选择：有限选项或内容生成</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">系统判断 / 执行：过滤、验证与业务结算</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">系统判断 / 执行：过滤、概率抽签、验证与业务结算</span>
         </div>
         <ol aria-label="执行步骤" className="space-y-3">
             {guide.steps.map((step, index) => <li key={`${index}-${step.title}`} className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -31,6 +31,6 @@ export function DecisionProcessSteps({guide}: {guide: DecisionProcessGuide}) {
             {guide.notes.map(note => <div key={note.title}><h4 className="text-xs font-semibold text-slate-700">{note.title}</h4><p className="mt-1 text-xs leading-6 text-slate-600">{note.detail}</p></div>)}
             {guide.upcoming && <p className="border-t border-slate-200 pt-3 text-xs leading-6 text-slate-600">当前限制：{guide.upcoming}</p>}
         </section>
-        <p className="text-xs text-slate-500">流程按代码核对：2026-10-24。冒险方式与每次模型选择独立列出；系统自动执行、跳过条件与循环上限按对应步骤说明。</p>
+        <p className="text-xs text-slate-500">流程按代码核对：2026-10-24。自由活动的模型概率与系统抽签、冒险方式与每次模型选择独立列出；系统自动执行、跳过条件与循环上限按对应步骤说明。</p>
     </div>;
 }

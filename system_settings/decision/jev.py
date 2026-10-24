@@ -1,5 +1,6 @@
 """Decision connection dispatch, shared validation and compatibility exports."""
 import math
+import random
 import re
 import time
 
@@ -121,7 +122,10 @@ class _JsonDecisionError(ValueError):
 
 def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: float,
            instructions: str | None = None, question_id: str = 'next_action',
-           connection_id: str | None = None, max_probability: bool = False) -> tuple[str, float]:
+           connection_id: str | None = None, max_probability: bool = False,
+           weighted_random: bool = False) -> tuple[str, float]:
+    if max_probability and weighted_random:
+        raise ValueError('最高概率与加权随机不能同时启用')
     connection_id = connection_id or selected_connection_id(owner)
     try:
         profile = connection(owner, connection_id)
@@ -144,6 +148,11 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
             question_id=question_id, capture=capture, set_stage=update_stage)
         if max_probability:
             selected = max(criteria, key=probabilities.__getitem__)
+            confidence = probabilities[selected]
+        elif weighted_random:
+            # Validation permits small rounding errors in the total; choices
+            # normalizes weights and never draws a zero-probability option.
+            selected = random.choices(list(criteria), weights=[probabilities[key] for key in criteria], k=1)[0]
             confidence = probabilities[selected]
         stage = 'usage'
         if capture.row:
