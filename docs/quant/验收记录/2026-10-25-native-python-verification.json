@@ -1,0 +1,78 @@
+{
+  "backend_full": {
+    "tests": 536,
+    "passed": true,
+    "log": "/private/tmp/odoc-native-backend-all-final.log"
+  },
+  "native_final_scope": {
+    "tests": 30,
+    "scope": "native Python + ordinary and structured execution feedback",
+    "passed": true,
+    "log": "/private/tmp/odoc-native-backend-http-final.log",
+    "old_complete_snapshot_prunes_new_native_facts_and_jobs": true,
+    "literal_parameter_names_survive_http_camel_case": true
+  },
+  "frontend": {
+    "tests": 122,
+    "passed": true,
+    "log": "/private/tmp/odoc-native-frontend-pass.log"
+  },
+  "type_check": {
+    "passed": true,
+    "log": "/private/tmp/odoc-native-types-ready.log"
+  },
+  "scoped_lint": {
+    "passed": true,
+    "log": "/private/tmp/odoc-native-lint-ready.log"
+  },
+  "build": {
+    "passed": true,
+    "log": "/private/tmp/odoc-native-build-ready.log",
+    "existing_chunk_size_warning": true
+  },
+  "migration_check": {
+    "passed": true,
+    "log": "/private/tmp/odoc-native-migrations.log"
+  },
+  "native_container_smoke": {
+    "passed": true,
+    "artifact": "2026-10-25-native-python-runtime-smoke.json"
+  },
+  "offline_replay": {
+    "passed": true,
+    "command": "python -m quant.acceptance.native_replay"
+  },
+  "browser": {
+    "mode": "local_only",
+    "actual_code_or_model_execution": false,
+    "widths_without_horizontal_overflow": [
+      390,
+      791,
+      1440
+    ],
+    "native_select_elements": 0,
+    "actual_parameters_distinct_from_defaults": true,
+    "direct_ai_report_navigation": true,
+    "same_record_reselection": true,
+    "loading_observed": true,
+    "empty_and_error_scenarios": true,
+    "screenshots": [
+      "/private/tmp/odoc-native-python-ui.png",
+      "/private/tmp/odoc-native-python-390-details.png",
+      "/private/tmp/odoc-native-python-1440.png"
+    ],
+    "console_expected_error_entries": 10,
+    "console_unexpected_error_entries": 0,
+    "missing_mock_501": 0,
+    "restored_scenario": "sample",
+    "handoff_tab": "2"
+  },
+  "business_database_migrated": false,
+  "deployed": false,
+  "remote_multi_device_sync": false,
+  "model_quality_release": false,
+  "known_model_text_issues": [
+    "one hypothesis reverses left and right",
+    "one next-step phrase uses separate AND tolerances rather than the actual composite rule"
+  ]
+}

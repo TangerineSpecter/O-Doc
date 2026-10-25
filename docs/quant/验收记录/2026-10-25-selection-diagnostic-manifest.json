@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "date": "2026-10-25",
+  "app_version": "1.5.46",
+  "quant_schema": 49,
+  "model_alias": "deepseek-flash",
+  "provider_calls": 1,
+  "environment": "isolated_in_memory_read_only_provider_config",
+  "original_source_execution": false,
+  "search_reexecuted": false,
+  "final_holdout_used_for_diagnostic": false,
+  "production_deployment": false,
+  "remote_sync_verified": false,
+  "actual_request_candidate_budget": 16,
+  "diagnostic_implementation_candidate_cap": 32,
+  "artifact_hashes": {
+    "2026-10-25-selection-diagnostic-review-evidence.json": "8ac2d617af26bf6ad559f328deb4e8f82cc4e2cf5744c811480d5977c1160046",
+    "2026-10-25-selection-diagnostic-report.md": "7aa310a7df5b6faf1bca0c92a2301e87270eede202e3e7733c9589815f70c699",
+    "2026-10-25-selection-diagnostic-report.json": "6f919d564c40b65aa2c3000204b79a9427384a7e255fb313fa94d97a5fc86f72",
+    "2026-10-25-selection-diagnostic-summary.json": "3c7600f139b47b3fb9b2fb835008dcaaad202fd3ad438ec674852c5ecc3d4baf",
+    "2026-10-25-selection-diagnostic-snapshot.json": "c01801551abcc0cbe757f9f5c479f757abb99804e5a411fdf8838196e6900f1c",
+    "2026-10-25-selection-diagnostic-prompt.txt": "73019a90bd89d28c1db45845225ebb4fe04e7c625075a9ab0467de35ca98491a"
+  },
+  "current_source_hashes": {
+    "quant/search_diagnostics/core.py": "d9b53cd1263c4e89c328b3ea156d2055e38a7eae134d0de426aebc9c516c9016",
+    "quant/search_diagnostics/calculation.py": "0c286a4f962ce53a52bc744ba8d1f34c56bc92db689c7e4055a17e09ee2ab557",
+    "quant/search_diagnostics/services.py": "9221dd7a6ef23d55a87b978dce5ad3f9204b93f9b14b6c9aa04a94f159d0d4a8",
+    "quant/search_diagnostics/evidence.py": "93936adb986211e60e68592ce2f4cce74bd49dff7916ef7f6c180769e6e80f1e",
+    "quant/search_diagnostics/sync.py": "fb438b83c10d106a6df911bec3a460e881e88ec69d17ac148575b20063cf5ade",
+    "quant/experiments/review_contract.py": "4465a6ae0541ab0d39c0a08cae9d8620eb4612b9a270bf39556fc41ebeae0c08",
+    "quant/migrations/0025_selection_diagnostic.py": "138f9367f1b1dc1690c71dca173536f809dc3f7190c812dd004392f28a32f07e"
+  },
+  "source_hash_scope": "current_after_budget_guard_and_prompt_clarification_not_claimed_identical_model_run",
+  "model_run_evidence_hash": "eaef0b3e22da60cefbd0a0e5b226bec04f45751a45bca50c219dc3e18d2aad8b"
+}

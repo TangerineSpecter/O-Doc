@@ -1,0 +1,2625 @@
+{
+  "request": {
+    "version": 2,
+    "engine_version": "quant-local-search-2",
+    "name": "close_relative_rolling_mean_deviation_period_sensitivity",
+    "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+    "seeds": [
+      {
+        "id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "candidate": {
+          "name": "close_relative_rolling_mean_deviation",
+          "role": "factor",
+          "family": "mean_reversion",
+          "summary": "在 bar t 计算 close 相对其过去 period 个 bar 滚动均值的相对偏离。该模块是第 5–6 行可分离的连续数值计算，剥离了第 7–8 行未来收益项后可作为 t 时刻因子候选；机制分类为均值回归/价格结构提议，不证明有效。",
+          "formula": "s_t = close_t / mean_t - 1；mean_t = 过去 period 个 bar 的 close 算术均值（rolling mean）。",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "frame[\"close\"] 价格序列字段；源码只引用单一 close 字段，资产范围、数据频率与复权口径未声明。",
+              "availability": "bar t 的 close 在数据发布后可得；具体发布延迟、频率、复权口径未知。",
+              "missing_policy": "源码未声明 close 缺失处理；expression 的 sma 缺失策略依赖平台，pandas rolling 的 min_periods 默认行为未声明且未验证。"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+          "timeframe": "计算窗口为 period 个 bar；适用周期与数据频率未声明，无法换算为自然时间；period 默认 14 仅为函数默认值，不是最优或运行配置。",
+          "parameters": [
+            {
+              "name": "period",
+              "type": "int",
+              "default_value": "14",
+              "category": "signal",
+              "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+              "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+              "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+              "suggestion": "待验证：先确认 frame 的数据频率与复权口径，再对 period 做敏感性检查（例如在多个候选窗口上比较信号自相关与换手）；建议范围仅为验证起点，非实证最优，且不得以默认值14冒充实际运行配置。",
+              "evidence": "第1行默认值 period=14；第5行使用 rolling(period).mean() 构造滚动均值。"
+            }
+          ],
+          "dependencies": [
+            "frame[\"close\"] 为外部传入的 DataFrame 列；源码 imports 为空，.rolling/.mean 的运行时依赖未验证",
+            "参数 period",
+            "滚动均值 min_periods 的缺失语义未在源码中声明"
+          ],
+          "limitations": "本候选是剥离第 7–8 行未来收益项后的 t 时刻模块，不等同于原函数返回值。源码未声明 frame 的数据频率、复权口径、资产范围与 close 数据源；period 的合法下限与取值范围未声明。expression 仅在假设滚动均值可由 sma(close, period) 表达时给出；pandas .rolling(period).mean() 的 min_periods 默认行为未声明，平台 sma 语义可能不同，前 period-1 个 bar 的缺失结果依赖运行时。若 mean 为 0 或 close 缺失，可能出现 inf/NaN，具体行为未验证。未回测，不证明有效、稳健或参数最优。原第 7–8 行若被当作因子使用会引入未来信息泄漏，本候选未包含该部分。",
+          "tags": [
+            "mechanism:mean_reversion",
+            "mechanism:price_structure",
+            "structure:time_series",
+            "data:price",
+            "usage:factor",
+            "usage:signal",
+            "tunability:signal"
+          ],
+          "expression": {
+            "op": "sub",
+            "args": [
+              {
+                "op": "div",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "sma",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "close"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "period"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 1
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "def indicator(frame, period=14, horizon=1):"
+            },
+            {
+              "field": "code",
+              "quote": "    mean = frame[\"close\"].rolling(period).mean()"
+            },
+            {
+              "field": "code",
+              "quote": "    signal = frame[\"close\"] / mean - 1"
+            }
+          ]
+        },
+        "bindings": {
+          "close": "close"
+        },
+        "parameters": {
+          "period": 14
+        },
+        "variants": [
+          {
+            "period": 5
+          },
+          {
+            "period": 10
+          },
+          {
+            "period": 20
+          },
+          {
+            "period": 30
+          },
+          {
+            "period": 60
+          }
+        ]
+      }
+    ],
+    "config": {
+      "seed": 42,
+      "max_candidates": 16,
+      "generations": 2,
+      "threshold": 0,
+      "fee_bps": 5,
+      "slippage_bps": 5,
+      "gap": 2,
+      "seconds": 30
+    },
+    "proposal_id": "f8883f26e3bc059d2a551860d871925b29ba9010",
+    "proposal_hash": "af8cc2c23766c48b4648cae981eeb8b93be3624d7b15f0efd8a1d30e4d744dd2",
+    "proposal_adapted": false
+  },
+  "outcome": {
+    "version": 1,
+    "status": "completed",
+    "error": "",
+    "output": {
+      "engine_version": "quant-local-search-2",
+      "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+      "config": {
+        "seed": 42,
+        "max_candidates": 16,
+        "generations": 2,
+        "threshold": 0,
+        "fee_bps": 5,
+        "slippage_bps": 5,
+        "gap": 2,
+        "seconds": 30
+      },
+      "partitions": {
+        "train": [
+          1,
+          445
+        ],
+        "validation": [
+          448,
+          594
+        ],
+        "holdout": [
+          597,
+          743
+        ]
+      },
+      "seed_plan": [
+        {
+          "id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+          "source_hash": "a6e3dd4dbc2c0413f36c51a01c7bff817889e7327677b4b8c2503cfc3dd561a7",
+          "bindings": {
+            "close": "close"
+          },
+          "parameters": {
+            "period": 14
+          },
+          "variants": [
+            {
+              "period": 5
+            },
+            {
+              "period": 10
+            },
+            {
+              "period": 20
+            },
+            {
+              "period": 30
+            },
+            {
+              "period": 60
+            }
+          ]
+        }
+      ],
+      "attempts": [
+        {
+          "id": "attempt-1",
+          "parents": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ],
+          "operation": "source_candidate",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 14
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.07943964229767975,
+              "max_drawdown": 0.14005590449953964,
+              "entries": 36,
+              "turnover": 72,
+              "exposure_fraction": 0.481981981981982,
+              "missing_signals": 13,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.04621550370321381,
+              "max_drawdown": 0.05838280722151701,
+              "entries": 14,
+              "turnover": 28,
+              "exposure_fraction": 0.4863013698630137,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 14
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "df97be29179c353c5158f339a1cc7ef1277c69133a6a2e40ab3598aa99ca58ee",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-2",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 5
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.12884303402492758,
+              "max_drawdown": 0.18167547858591138,
+              "entries": 64,
+              "turnover": 128,
+              "exposure_fraction": 0.509009009009009,
+              "missing_signals": 4,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.03709650333789538,
+              "max_drawdown": 0.04973862289041531,
+              "entries": 19,
+              "turnover": 38,
+              "exposure_fraction": 0.4794520547945205,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 5
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "f090310c567095a5ff5cd4ad792b0408ff8c9d97bfacc9e3c1b3854df6d15c28",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-3",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 10
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.09873471101430864,
+              "max_drawdown": 0.16004006842922447,
+              "entries": 44,
+              "turnover": 88,
+              "exposure_fraction": 0.5045045045045045,
+              "missing_signals": 9,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.03224830092913766,
+              "max_drawdown": 0.04459378221832477,
+              "entries": 13,
+              "turnover": 26,
+              "exposure_fraction": 0.5,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 10
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "21769c93e57cbdddf8d34104183327c6c46b3bcf9ed1aa12d2822767ac33e848",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-4",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 20
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.142351947689367,
+              "max_drawdown": 0.1835436455812952,
+              "entries": 37,
+              "turnover": 74,
+              "exposure_fraction": 0.47297297297297297,
+              "missing_signals": 19,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.023408871633885164,
+              "max_drawdown": 0.03671887966155163,
+              "entries": 10,
+              "turnover": 20,
+              "exposure_fraction": 0.4931506849315068,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 20
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "86974b7c6353331c919fe67960bd20700840090c569793276e8b2e42f66e1129",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-5",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 30
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.12190800994649753,
+              "max_drawdown": 0.14018175071745198,
+              "entries": 28,
+              "turnover": 56,
+              "exposure_fraction": 0.4594594594594595,
+              "missing_signals": 29,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.04017772007400522,
+              "max_drawdown": 0.04017772007400522,
+              "entries": 8,
+              "turnover": 16,
+              "exposure_fraction": 0.5684931506849316,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 30
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "0c31c19026bfce4d822ccb0793892a1e36da43df6c54088c592ad6630fa5766a",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-6",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 60
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.14758619076917323,
+              "max_drawdown": 0.1572284953956823,
+              "entries": 21,
+              "turnover": 42,
+              "exposure_fraction": 0.38063063063063063,
+              "missing_signals": 59,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.03817700622572817,
+              "max_drawdown": 0.042424961476121736,
+              "entries": 5,
+              "turnover": 10,
+              "exposure_fraction": 0.363013698630137,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 60
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "8fb40843fbc49edc849af3e9883f11ac92ee0d341eb7c6d4556d326afc68ce7f",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-7",
+          "parents": [
+            "attempt-1",
+            "attempt-6"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.12204613680617205,
+              "max_drawdown": 0.13609688527370312,
+              "entries": 24,
+              "turnover": 48,
+              "exposure_fraction": 0.3738738738738739,
+              "missing_signals": 59,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.05799074127044723,
+              "max_drawdown": 0.05799074127044723,
+              "entries": 12,
+              "turnover": 24,
+              "exposure_fraction": 0.4041095890410959,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "b_p0": 60
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "b_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "b_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "b6f2489ebfe7b4d87ceea2269c40f9a2b8fe56614ed9c0b920e49894031e69bd",
+          "complexity": 17
+        },
+        {
+          "id": "attempt-8",
+          "parents": [
+            "attempt-1",
+            "attempt-5"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.14161022332765372,
+              "max_drawdown": 0.15163859212128927,
+              "entries": 30,
+              "turnover": 60,
+              "exposure_fraction": 0.4436936936936937,
+              "missing_signals": 29,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.03786671430450106,
+              "max_drawdown": 0.03786671430450106,
+              "entries": 10,
+              "turnover": 20,
+              "exposure_fraction": 0.5136986301369864,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "b_p0": 30
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "b_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "b_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "6b3433f8ff50839b401dc6a43d16fd5d6267f6fb2c4fdc1e81c453efa161e65e",
+          "complexity": 17
+        },
+        {
+          "id": "attempt-9",
+          "parents": [
+            "attempt-5",
+            "attempt-6"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.12193529796226132,
+              "max_drawdown": 0.1376942632638113,
+              "entries": 21,
+              "turnover": 42,
+              "exposure_fraction": 0.3536036036036036,
+              "missing_signals": 59,
+              "bars": 444,
+              "start": "2024-01-01T01:00:00+00:00",
+              "end": "2024-01-19T13:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.06782670695078807,
+              "max_drawdown": 0.06782670695078807,
+              "entries": 13,
+              "turnover": 26,
+              "exposure_fraction": 0.4863013698630137,
+              "missing_signals": 0,
+              "bars": 146,
+              "start": "2024-01-19T16:00:00+00:00",
+              "end": "2024-01-25T18:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 30,
+              "b_p0": 60
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "b_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "b_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "f0cb4413d885a794118f1a55a04f0821bfd84a039a4a6c3426c8d6a3f748880c",
+          "complexity": 17
+        }
+      ],
+      "selection_rule": "train_pareto_then_validation_return_minus_drawdown_v1",
+      "frontier_ids": [
+        "attempt-5",
+        "attempt-6",
+        "attempt-1",
+        "attempt-7",
+        "attempt-9"
+      ],
+      "selected_id": "attempt-5",
+      "holdout_status": "excluded_from_this_batch_selection_prior_usage_unattested",
+      "holdout": {
+        "total_return": 0.021634484889545558,
+        "max_drawdown": 0.029735127304473696,
+        "entries": 7,
+        "turnover": 14,
+        "exposure_fraction": 0.7191780821917808,
+        "missing_signals": 0,
+        "bars": 146,
+        "start": "2024-01-25T21:00:00+00:00",
+        "end": "2024-01-31T23:00:00+00:00",
+        "curve": [
+          {
+            "timestamp": "2024-01-25T21:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-25T22:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-25T23:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-26T00:00:00+00:00",
+            "equity": 0.9991192609829934
+          },
+          {
+            "timestamp": "2024-01-26T01:00:00+00:00",
+            "equity": 0.9974901109511587
+          },
+          {
+            "timestamp": "2024-01-26T02:00:00+00:00",
+            "equity": 0.9964926208402075
+          },
+          {
+            "timestamp": "2024-01-26T03:00:00+00:00",
+            "equity": 0.9964926208402075
+          },
+          {
+            "timestamp": "2024-01-26T04:00:00+00:00",
+            "equity": 0.9935921420314231
+          },
+          {
+            "timestamp": "2024-01-26T05:00:00+00:00",
+            "equity": 0.9956188780452376
+          },
+          {
+            "timestamp": "2024-01-26T06:00:00+00:00",
+            "equity": 0.9944570943397781
+          },
+          {
+            "timestamp": "2024-01-26T07:00:00+00:00",
+            "equity": 0.9919882109733842
+          },
+          {
+            "timestamp": "2024-01-26T08:00:00+00:00",
+            "equity": 0.9911738464720548
+          },
+          {
+            "timestamp": "2024-01-26T09:00:00+00:00",
+            "equity": 0.9901826726255827
+          },
+          {
+            "timestamp": "2024-01-26T10:00:00+00:00",
+            "equity": 0.9878625177086747
+          },
+          {
+            "timestamp": "2024-01-26T11:00:00+00:00",
+            "equity": 1.0029666743250338
+          },
+          {
+            "timestamp": "2024-01-26T12:00:00+00:00",
+            "equity": 1.0176781982903287
+          },
+          {
+            "timestamp": "2024-01-26T13:00:00+00:00",
+            "equity": 1.01399316956085
+          },
+          {
+            "timestamp": "2024-01-26T14:00:00+00:00",
+            "equity": 1.0110759064987063
+          },
+          {
+            "timestamp": "2024-01-26T15:00:00+00:00",
+            "equity": 1.0250349461678943
+          },
+          {
+            "timestamp": "2024-01-26T16:00:00+00:00",
+            "equity": 1.0209676366839897
+          },
+          {
+            "timestamp": "2024-01-26T17:00:00+00:00",
+            "equity": 1.0342321133834984
+          },
+          {
+            "timestamp": "2024-01-26T18:00:00+00:00",
+            "equity": 1.033098827175342
+          },
+          {
+            "timestamp": "2024-01-26T19:00:00+00:00",
+            "equity": 1.0377776379820907
+          },
+          {
+            "timestamp": "2024-01-26T20:00:00+00:00",
+            "equity": 1.0367789264302314
+          },
+          {
+            "timestamp": "2024-01-26T21:00:00+00:00",
+            "equity": 1.0346272107718573
+          },
+          {
+            "timestamp": "2024-01-26T22:00:00+00:00",
+            "equity": 1.035159347553808
+          },
+          {
+            "timestamp": "2024-01-26T23:00:00+00:00",
+            "equity": 1.032879712029833
+          },
+          {
+            "timestamp": "2024-01-27T00:00:00+00:00",
+            "equity": 1.0308396489709142
+          },
+          {
+            "timestamp": "2024-01-27T01:00:00+00:00",
+            "equity": 1.029913647169252
+          },
+          {
+            "timestamp": "2024-01-27T02:00:00+00:00",
+            "equity": 1.0307250386867053
+          },
+          {
+            "timestamp": "2024-01-27T03:00:00+00:00",
+            "equity": 1.0312115778287019
+          },
+          {
+            "timestamp": "2024-01-27T04:00:00+00:00",
+            "equity": 1.030630146300855
+          },
+          {
+            "timestamp": "2024-01-27T05:00:00+00:00",
+            "equity": 1.0313510819595886
+          },
+          {
+            "timestamp": "2024-01-27T06:00:00+00:00",
+            "equity": 1.0293356662736177
+          },
+          {
+            "timestamp": "2024-01-27T07:00:00+00:00",
+            "equity": 1.0278950273247982
+          },
+          {
+            "timestamp": "2024-01-27T08:00:00+00:00",
+            "equity": 1.0280456227735115
+          },
+          {
+            "timestamp": "2024-01-27T09:00:00+00:00",
+            "equity": 1.0221268026337413
+          },
+          {
+            "timestamp": "2024-01-27T10:00:00+00:00",
+            "equity": 1.0270508548013237
+          },
+          {
+            "timestamp": "2024-01-27T11:00:00+00:00",
+            "equity": 1.0289615191522647
+          },
+          {
+            "timestamp": "2024-01-27T12:00:00+00:00",
+            "equity": 1.0293043641099737
+          },
+          {
+            "timestamp": "2024-01-27T13:00:00+00:00",
+            "equity": 1.029028067059225
+          },
+          {
+            "timestamp": "2024-01-27T14:00:00+00:00",
+            "equity": 1.0288414864460074
+          },
+          {
+            "timestamp": "2024-01-27T15:00:00+00:00",
+            "equity": 1.0294219320789362
+          },
+          {
+            "timestamp": "2024-01-27T16:00:00+00:00",
+            "equity": 1.0306050059804477
+          },
+          {
+            "timestamp": "2024-01-27T17:00:00+00:00",
+            "equity": 1.0305108530157858
+          },
+          {
+            "timestamp": "2024-01-27T18:00:00+00:00",
+            "equity": 1.0297494956654174
+          },
+          {
+            "timestamp": "2024-01-27T19:00:00+00:00",
+            "equity": 1.0302015284852866
+          },
+          {
+            "timestamp": "2024-01-27T20:00:00+00:00",
+            "equity": 1.0329832309962155
+          },
+          {
+            "timestamp": "2024-01-27T21:00:00+00:00",
+            "equity": 1.0366670273570469
+          },
+          {
+            "timestamp": "2024-01-27T22:00:00+00:00",
+            "equity": 1.038901311714797
+          },
+          {
+            "timestamp": "2024-01-27T23:00:00+00:00",
+            "equity": 1.0390223303159725
+          },
+          {
+            "timestamp": "2024-01-28T00:00:00+00:00",
+            "equity": 1.0381628764212703
+          },
+          {
+            "timestamp": "2024-01-28T01:00:00+00:00",
+            "equity": 1.0349641403600587
+          },
+          {
+            "timestamp": "2024-01-28T02:00:00+00:00",
+            "equity": 1.03765440111735
+          },
+          {
+            "timestamp": "2024-01-28T03:00:00+00:00",
+            "equity": 1.0377088718115655
+          },
+          {
+            "timestamp": "2024-01-28T04:00:00+00:00",
+            "equity": 1.0409039107668348
+          },
+          {
+            "timestamp": "2024-01-28T05:00:00+00:00",
+            "equity": 1.0529439059782795
+          },
+          {
+            "timestamp": "2024-01-28T06:00:00+00:00",
+            "equity": 1.0490525787372245
+          },
+          {
+            "timestamp": "2024-01-28T07:00:00+00:00",
+            "equity": 1.0453756836408186
+          },
+          {
+            "timestamp": "2024-01-28T08:00:00+00:00",
+            "equity": 1.0447730553722363
+          },
+          {
+            "timestamp": "2024-01-28T09:00:00+00:00",
+            "equity": 1.0472937422036441
+          },
+          {
+            "timestamp": "2024-01-28T10:00:00+00:00",
+            "equity": 1.0493623962151828
+          },
+          {
+            "timestamp": "2024-01-28T11:00:00+00:00",
+            "equity": 1.0499788270126162
+          },
+          {
+            "timestamp": "2024-01-28T12:00:00+00:00",
+            "equity": 1.046822730906605
+          },
+          {
+            "timestamp": "2024-01-28T13:00:00+00:00",
+            "equity": 1.0454686042368333
+          },
+          {
+            "timestamp": "2024-01-28T14:00:00+00:00",
+            "equity": 1.0449793538838124
+          },
+          {
+            "timestamp": "2024-01-28T15:00:00+00:00",
+            "equity": 1.0422881072316033
+          },
+          {
+            "timestamp": "2024-01-28T16:00:00+00:00",
+            "equity": 1.0415486860431586
+          },
+          {
+            "timestamp": "2024-01-28T17:00:00+00:00",
+            "equity": 1.0428882707628908
+          },
+          {
+            "timestamp": "2024-01-28T18:00:00+00:00",
+            "equity": 1.0393343660574963
+          },
+          {
+            "timestamp": "2024-01-28T19:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-28T20:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-28T21:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-28T22:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-28T23:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-29T00:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-29T01:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-29T02:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-29T03:00:00+00:00",
+            "equity": 1.0382950316914388
+          },
+          {
+            "timestamp": "2024-01-29T04:00:00+00:00",
+            "equity": 1.0395560728016424
+          },
+          {
+            "timestamp": "2024-01-29T05:00:00+00:00",
+            "equity": 1.0367763883212293
+          },
+          {
+            "timestamp": "2024-01-29T06:00:00+00:00",
+            "equity": 1.035739611932908
+          },
+          {
+            "timestamp": "2024-01-29T07:00:00+00:00",
+            "equity": 1.035739611932908
+          },
+          {
+            "timestamp": "2024-01-29T08:00:00+00:00",
+            "equity": 1.035739611932908
+          },
+          {
+            "timestamp": "2024-01-29T09:00:00+00:00",
+            "equity": 1.035739611932908
+          },
+          {
+            "timestamp": "2024-01-29T10:00:00+00:00",
+            "equity": 1.035739611932908
+          },
+          {
+            "timestamp": "2024-01-29T11:00:00+00:00",
+            "equity": 1.0351266008339919
+          },
+          {
+            "timestamp": "2024-01-29T12:00:00+00:00",
+            "equity": 1.0335063861686502
+          },
+          {
+            "timestamp": "2024-01-29T13:00:00+00:00",
+            "equity": 1.029976798792605
+          },
+          {
+            "timestamp": "2024-01-29T14:00:00+00:00",
+            "equity": 1.0289468219938123
+          },
+          {
+            "timestamp": "2024-01-29T15:00:00+00:00",
+            "equity": 1.0289468219938123
+          },
+          {
+            "timestamp": "2024-01-29T16:00:00+00:00",
+            "equity": 1.0289468219938123
+          },
+          {
+            "timestamp": "2024-01-29T17:00:00+00:00",
+            "equity": 1.0413752363962856
+          },
+          {
+            "timestamp": "2024-01-29T18:00:00+00:00",
+            "equity": 1.0364708904981057
+          },
+          {
+            "timestamp": "2024-01-29T19:00:00+00:00",
+            "equity": 1.0372466184460212
+          },
+          {
+            "timestamp": "2024-01-29T20:00:00+00:00",
+            "equity": 1.0364571501335837
+          },
+          {
+            "timestamp": "2024-01-29T21:00:00+00:00",
+            "equity": 1.0401120870963856
+          },
+          {
+            "timestamp": "2024-01-29T22:00:00+00:00",
+            "equity": 1.0408034443849565
+          },
+          {
+            "timestamp": "2024-01-29T23:00:00+00:00",
+            "equity": 1.039232221648936
+          },
+          {
+            "timestamp": "2024-01-30T00:00:00+00:00",
+            "equity": 1.0438509126004782
+          },
+          {
+            "timestamp": "2024-01-30T01:00:00+00:00",
+            "equity": 1.0404594531538578
+          },
+          {
+            "timestamp": "2024-01-30T02:00:00+00:00",
+            "equity": 1.047148600085713
+          },
+          {
+            "timestamp": "2024-01-30T03:00:00+00:00",
+            "equity": 1.0513825608306444
+          },
+          {
+            "timestamp": "2024-01-30T04:00:00+00:00",
+            "equity": 1.0490818934798345
+          },
+          {
+            "timestamp": "2024-01-30T05:00:00+00:00",
+            "equity": 1.0467144527786292
+          },
+          {
+            "timestamp": "2024-01-30T06:00:00+00:00",
+            "equity": 1.045353192454863
+          },
+          {
+            "timestamp": "2024-01-30T07:00:00+00:00",
+            "equity": 1.0447662137248523
+          },
+          {
+            "timestamp": "2024-01-30T08:00:00+00:00",
+            "equity": 1.0451895133757347
+          },
+          {
+            "timestamp": "2024-01-30T09:00:00+00:00",
+            "equity": 1.0469699753469295
+          },
+          {
+            "timestamp": "2024-01-30T10:00:00+00:00",
+            "equity": 1.044374010688414
+          },
+          {
+            "timestamp": "2024-01-30T11:00:00+00:00",
+            "equity": 1.0481731009491815
+          },
+          {
+            "timestamp": "2024-01-30T12:00:00+00:00",
+            "equity": 1.0495167639639984
+          },
+          {
+            "timestamp": "2024-01-30T13:00:00+00:00",
+            "equity": 1.0460645576426502
+          },
+          {
+            "timestamp": "2024-01-30T14:00:00+00:00",
+            "equity": 1.0434869134701636
+          },
+          {
+            "timestamp": "2024-01-30T15:00:00+00:00",
+            "equity": 1.047980012668796
+          },
+          {
+            "timestamp": "2024-01-30T16:00:00+00:00",
+            "equity": 1.0456055812558163
+          },
+          {
+            "timestamp": "2024-01-30T17:00:00+00:00",
+            "equity": 1.0485833834126221
+          },
+          {
+            "timestamp": "2024-01-30T18:00:00+00:00",
+            "equity": 1.0461554368957156
+          },
+          {
+            "timestamp": "2024-01-30T19:00:00+00:00",
+            "equity": 1.0455125324715109
+          },
+          {
+            "timestamp": "2024-01-30T20:00:00+00:00",
+            "equity": 1.0497636084073378
+          },
+          {
+            "timestamp": "2024-01-30T21:00:00+00:00",
+            "equity": 1.0500796367913394
+          },
+          {
+            "timestamp": "2024-01-30T22:00:00+00:00",
+            "equity": 1.0497173250742118
+          },
+          {
+            "timestamp": "2024-01-30T23:00:00+00:00",
+            "equity": 1.0444552475804114
+          },
+          {
+            "timestamp": "2024-01-31T00:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T01:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T02:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T03:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T04:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T05:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T06:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T07:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T08:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T09:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T10:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T11:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T12:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T13:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T14:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T15:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T16:00:00+00:00",
+            "equity": 1.043410792332831
+          },
+          {
+            "timestamp": "2024-01-31T17:00:00+00:00",
+            "equity": 1.045100641166028
+          },
+          {
+            "timestamp": "2024-01-31T18:00:00+00:00",
+            "equity": 1.050875583644841
+          },
+          {
+            "timestamp": "2024-01-31T19:00:00+00:00",
+            "equity": 1.046027833987107
+          },
+          {
+            "timestamp": "2024-01-31T20:00:00+00:00",
+            "equity": 1.041730822922345
+          },
+          {
+            "timestamp": "2024-01-31T21:00:00+00:00",
+            "equity": 1.022657142031577
+          },
+          {
+            "timestamp": "2024-01-31T22:00:00+00:00",
+            "equity": 1.0216344848895456
+          },
+          {
+            "timestamp": "2024-01-31T23:00:00+00:00",
+            "equity": 1.0216344848895456
+          }
+        ],
+        "returns": [
+          0.0,
+          0.0,
+          -0.0008807390170065821,
+          -0.0016305861526799692,
+          -0.0010000000000000009,
+          0.0,
+          -0.002910687694143488,
+          0.002039806806111377,
+          -0.0011668960192282585,
+          -0.002482644430258696,
+          -0.0008209417131382901,
+          -0.0010000000000000009,
+          -0.002343158470704987,
+          0.015289735510355174,
+          0.014668008760306384,
+          -0.003621015695992602,
+          -0.002877004648273007,
+          0.01380612432703221,
+          -0.00396797153024897,
+          0.012992063825441713,
+          -0.0010957754970968292,
+          0.0045289092230809125,
+          -0.0009623560147250521,
+          -0.0020753852181224497,
+          0.0005143270700889158,
+          -0.002202207350358143,
+          -0.001975121628548182,
+          -0.0008982985885210848,
+          0.0007878248042283431,
+          0.00047203582307120406,
+          -0.0005638333978670307,
+          0.0006995095780200078,
+          -0.001954150939698973,
+          -0.0013995812989118228,
+          0.00014650858765730135,
+          -0.005757351627841301,
+          0.00481745724199234,
+          0.0018603405488724079,
+          0.0003331951208354056,
+          -0.0002684308552288739,
+          -0.00018131732184012428,
+          0.0005641740157018571,
+          0.0011492604389360395,
+          -9.135698363149647e-05,
+          -0.0007388154604488495,
+          0.0004389735773331349,
+          0.0027001537408111176,
+          0.003566172470465645,
+          0.0021552574730252516,
+          0.00011648710018064001,
+          -0.0008271755761407595,
+          -0.003081150495612195,
+          0.0025993758163982417,
+          5.2494061757668575e-05,
+          0.0030789357613292268,
+          0.011566865189866382,
+          -0.003695664335926385,
+          -0.003504967406716575,
+          -0.0005764705244371005,
+          0.002412664471433734,
+          0.001975237632171778,
+          0.0005874336641533695,
+          -0.0030058664277935465,
+          -0.0012935587180065156,
+          -0.00046797230546968827,
+          -0.00257540653047994,
+          -0.000709421112372266,
+          0.0012861470017511145,
+          -0.0034077521101995023,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0012145306215607388,
+          -0.0026739149076603352,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -0.0005918583125078536,
+          -0.0015652333386431128,
+          -0.0034151577806208477,
+          -0.001000000000000112,
+          0.0,
+          0.0,
+          0.012078772329934928,
+          -0.004709489650581267,
+          0.0007484319675805651,
+          -0.0007611191961466313,
+          0.0035263753666330278,
+          0.0006646949854232087,
+          -0.0015096248427088899,
+          0.004444330011451836,
+          -0.0032489883427619937,
+          0.006429031820105013,
+          0.004043323693107892,
+          -0.0021882304657899754,
+          -0.002256678640551568,
+          -0.0013005078129499914,
+          -0.000561512352233895,
+          0.00040516207867513643,
+          0.001703482429176173,
+          -0.002479502487791163,
+          0.003637672157566607,
+          0.0012819094609470838,
+          -0.003289329375082417,
+          -0.002464134888859437,
+          0.00430585102758041,
+          -0.002265722040760032,
+          0.0028479210614287265,
+          -0.002315453930811673,
+          -0.0006145400592787453,
+          0.004066021022031796,
+          0.0003010471895488198,
+          -0.0003450326093692446,
+          -0.005012851906038951,
+          -0.0009999999999998899,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.001619543180513494,
+          0.005525728577077338,
+          -0.00461305765704445,
+          -0.004107931859120062,
+          -0.01830960596640585,
+          -0.0010000000000000009,
+          0.0
+        ]
+      },
+      "buy_hold_baseline": {
+        "total_return": 0.06858978711616603,
+        "max_drawdown": 0.028211068860247046,
+        "entries": 1,
+        "turnover": 2,
+        "exposure_fraction": 1.0,
+        "missing_signals": 0,
+        "bars": 146,
+        "start": "2024-01-25T21:00:00+00:00",
+        "end": "2024-01-31T23:00:00+00:00",
+        "curve": [
+          {
+            "timestamp": "2024-01-25T21:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-25T22:00:00+00:00",
+            "equity": 1.0012894726933628
+          },
+          {
+            "timestamp": "2024-01-25T23:00:00+00:00",
+            "equity": 1.001959513332647
+          },
+          {
+            "timestamp": "2024-01-26T00:00:00+00:00",
+            "equity": 1.0020791276234176
+          },
+          {
+            "timestamp": "2024-01-26T01:00:00+00:00",
+            "equity": 1.0004451512740251
+          },
+          {
+            "timestamp": "2024-01-26T02:00:00+00:00",
+            "equity": 1.0014943466463175
+          },
+          {
+            "timestamp": "2024-01-26T03:00:00+00:00",
+            "equity": 1.0066733695965941
+          },
+          {
+            "timestamp": "2024-01-26T04:00:00+00:00",
+            "equity": 1.0047480058135008
+          },
+          {
+            "timestamp": "2024-01-26T05:00:00+00:00",
+            "equity": 1.006797497634186
+          },
+          {
+            "timestamp": "2024-01-26T06:00:00+00:00",
+            "equity": 1.0056226696420276
+          },
+          {
+            "timestamp": "2024-01-26T07:00:00+00:00",
+            "equity": 1.003126066122299
+          },
+          {
+            "timestamp": "2024-01-26T08:00:00+00:00",
+            "equity": 1.0023025580910827
+          },
+          {
+            "timestamp": "2024-01-26T09:00:00+00:00",
+            "equity": 1.0064098169349591
+          },
+          {
+            "timestamp": "2024-01-26T10:00:00+00:00",
+            "equity": 1.0050566959433507
+          },
+          {
+            "timestamp": "2024-01-26T11:00:00+00:00",
+            "equity": 1.020423746997236
+          },
+          {
+            "timestamp": "2024-01-26T12:00:00+00:00",
+            "equity": 1.0353913314574161
+          },
+          {
+            "timestamp": "2024-01-26T13:00:00+00:00",
+            "equity": 1.0316421631947144
+          },
+          {
+            "timestamp": "2024-01-26T14:00:00+00:00",
+            "equity": 1.0286741238958486
+          },
+          {
+            "timestamp": "2024-01-26T15:00:00+00:00",
+            "equity": 1.0428761267423556
+          },
+          {
+            "timestamp": "2024-01-26T16:00:00+00:00",
+            "equity": 1.0387380239618655
+          },
+          {
+            "timestamp": "2024-01-26T17:00:00+00:00",
+            "equity": 1.0522333746670913
+          },
+          {
+            "timestamp": "2024-01-26T18:00:00+00:00",
+            "equity": 1.0510803631179035
+          },
+          {
+            "timestamp": "2024-01-26T19:00:00+00:00",
+            "equity": 1.0558406106686276
+          },
+          {
+            "timestamp": "2024-01-26T20:00:00+00:00",
+            "equity": 1.0548245161063596
+          },
+          {
+            "timestamp": "2024-01-26T21:00:00+00:00",
+            "equity": 1.0526353488979194
+          },
+          {
+            "timestamp": "2024-01-26T22:00:00+00:00",
+            "equity": 1.05317674775279
+          },
+          {
+            "timestamp": "2024-01-26T23:00:00+00:00",
+            "equity": 1.0508574341776626
+          },
+          {
+            "timestamp": "2024-01-27T00:00:00+00:00",
+            "equity": 1.0487818629308976
+          },
+          {
+            "timestamp": "2024-01-27T01:00:00+00:00",
+            "equity": 1.0478397436637603
+          },
+          {
+            "timestamp": "2024-01-27T02:00:00+00:00",
+            "equity": 1.048665257804675
+          },
+          {
+            "timestamp": "2024-01-27T03:00:00+00:00",
+            "equity": 1.049160265372769
+          },
+          {
+            "timestamp": "2024-01-27T04:00:00+00:00",
+            "equity": 1.048568713775437
+          },
+          {
+            "timestamp": "2024-01-27T05:00:00+00:00",
+            "equity": 1.049302197633935
+          },
+          {
+            "timestamp": "2024-01-27T06:00:00+00:00",
+            "equity": 1.0472517027584005
+          },
+          {
+            "timestamp": "2024-01-27T07:00:00+00:00",
+            "equity": 1.045785988859966
+          },
+          {
+            "timestamp": "2024-01-27T08:00:00+00:00",
+            "equity": 1.0459392054881858
+          },
+          {
+            "timestamp": "2024-01-27T09:00:00+00:00",
+            "equity": 1.0399173657008454
+          },
+          {
+            "timestamp": "2024-01-27T10:00:00+00:00",
+            "equity": 1.0449271231453146
+          },
+          {
+            "timestamp": "2024-01-27T11:00:00+00:00",
+            "equity": 1.0468710434431183
+          },
+          {
+            "timestamp": "2024-01-27T12:00:00+00:00",
+            "equity": 1.0472198557669374
+          },
+          {
+            "timestamp": "2024-01-27T13:00:00+00:00",
+            "equity": 1.0469387496454412
+          },
+          {
+            "timestamp": "2024-01-27T14:00:00+00:00",
+            "equity": 1.0467489215152248
+          },
+          {
+            "timestamp": "2024-01-27T15:00:00+00:00",
+            "equity": 1.0473394700577077
+          },
+          {
+            "timestamp": "2024-01-27T16:00:00+00:00",
+            "equity": 1.0485431358767812
+          },
+          {
+            "timestamp": "2024-01-27T17:00:00+00:00",
+            "equity": 1.04844734413868
+          },
+          {
+            "timestamp": "2024-01-27T18:00:00+00:00",
+            "equity": 1.0476727350313635
+          },
+          {
+            "timestamp": "2024-01-27T19:00:00+00:00",
+            "equity": 1.0481326356797347
+          },
+          {
+            "timestamp": "2024-01-27T20:00:00+00:00",
+            "equity": 1.0509627549368314
+          },
+          {
+            "timestamp": "2024-01-27T21:00:00+00:00",
+            "equity": 1.0547106693809718
+          },
+          {
+            "timestamp": "2024-01-27T22:00:00+00:00",
+            "equity": 1.0569838424330347
+          },
+          {
+            "timestamp": "2024-01-27T23:00:00+00:00",
+            "equity": 1.0571069674157776
+          },
+          {
+            "timestamp": "2024-01-28T00:00:00+00:00",
+            "equity": 1.056232554350963
+          },
+          {
+            "timestamp": "2024-01-28T01:00:00+00:00",
+            "equity": 1.0529781428926428
+          },
+          {
+            "timestamp": "2024-01-28T02:00:00+00:00",
+            "equity": 1.0557152288124738
+          },
+          {
+            "timestamp": "2024-01-28T03:00:00+00:00",
+            "equity": 1.0557706475928936
+          },
+          {
+            "timestamp": "2024-01-28T04:00:00+00:00",
+            "equity": 1.059021297595529
+          },
+          {
+            "timestamp": "2024-01-28T05:00:00+00:00",
+            "equity": 1.071270854178014
+          },
+          {
+            "timestamp": "2024-01-28T06:00:00+00:00",
+            "equity": 1.067311796688111
+          },
+          {
+            "timestamp": "2024-01-28T07:00:00+00:00",
+            "equity": 1.063570903627915
+          },
+          {
+            "timestamp": "2024-01-28T08:00:00+00:00",
+            "equity": 1.0629577863513244
+          },
+          {
+            "timestamp": "2024-01-28T09:00:00+00:00",
+            "equity": 1.065522346837088
+          },
+          {
+            "timestamp": "2024-01-28T10:00:00+00:00",
+            "equity": 1.0676270066744806
+          },
+          {
+            "timestamp": "2024-01-28T11:00:00+00:00",
+            "equity": 1.0682541667189605
+          },
+          {
+            "timestamp": "2024-01-28T12:00:00+00:00",
+            "equity": 1.0650431373828693
+          },
+          {
+            "timestamp": "2024-01-28T13:00:00+00:00",
+            "equity": 1.0636654415474545
+          },
+          {
+            "timestamp": "2024-01-28T14:00:00+00:00",
+            "equity": 1.063167675578525
+          },
+          {
+            "timestamp": "2024-01-28T15:00:00+00:00",
+            "equity": 1.060429586603845
+          },
+          {
+            "timestamp": "2024-01-28T16:00:00+00:00",
+            "equity": 1.059677295466924
+          },
+          {
+            "timestamp": "2024-01-28T17:00:00+00:00",
+            "equity": 1.0610401962433125
+          },
+          {
+            "timestamp": "2024-01-28T18:00:00+00:00",
+            "equity": 1.0574244342755579
+          },
+          {
+            "timestamp": "2024-01-28T19:00:00+00:00",
+            "equity": 1.0524971780924375
+          },
+          {
+            "timestamp": "2024-01-28T20:00:00+00:00",
+            "equity": 1.0478389913726227
+          },
+          {
+            "timestamp": "2024-01-28T21:00:00+00:00",
+            "equity": 1.0518306481451254
+          },
+          {
+            "timestamp": "2024-01-28T22:00:00+00:00",
+            "equity": 1.0526957829525845
+          },
+          {
+            "timestamp": "2024-01-28T23:00:00+00:00",
+            "equity": 1.0490451648288193
+          },
+          {
+            "timestamp": "2024-01-29T00:00:00+00:00",
+            "equity": 1.0539862130161164
+          },
+          {
+            "timestamp": "2024-01-29T01:00:00+00:00",
+            "equity": 1.052491159763342
+          },
+          {
+            "timestamp": "2024-01-29T02:00:00+00:00",
+            "equity": 1.0572250771242735
+          },
+          {
+            "timestamp": "2024-01-29T03:00:00+00:00",
+            "equity": 1.059164734438968
+          },
+          {
+            "timestamp": "2024-01-29T04:00:00+00:00",
+            "equity": 1.0615126350772988
+          },
+          {
+            "timestamp": "2024-01-29T05:00:00+00:00",
+            "equity": 1.0586742406176957
+          },
+          {
+            "timestamp": "2024-01-29T06:00:00+00:00",
+            "equity": 1.056824356712007
+          },
+          {
+            "timestamp": "2024-01-29T07:00:00+00:00",
+            "equity": 1.0573010585291025
+          },
+          {
+            "timestamp": "2024-01-29T08:00:00+00:00",
+            "equity": 1.054547923731684
+          },
+          {
+            "timestamp": "2024-01-29T09:00:00+00:00",
+            "equity": 1.0562882238950946
+          },
+          {
+            "timestamp": "2024-01-29T10:00:00+00:00",
+            "equity": 1.0606276899365674
+          },
+          {
+            "timestamp": "2024-01-29T11:00:00+00:00",
+            "equity": 1.061061009631434
+          },
+          {
+            "timestamp": "2024-01-29T12:00:00+00:00",
+            "equity": 1.0594002015648245
+          },
+          {
+            "timestamp": "2024-01-29T13:00:00+00:00",
+            "equity": 1.055782182723659
+          },
+          {
+            "timestamp": "2024-01-29T14:00:00+00:00",
+            "equity": 1.053375854140361
+          },
+          {
+            "timestamp": "2024-01-29T15:00:00+00:00",
+            "equity": 1.052000415178357
+          },
+          {
+            "timestamp": "2024-01-29T16:00:00+00:00",
+            "equity": 1.0693003529267047
+          },
+          {
+            "timestamp": "2024-01-29T17:00:00+00:00",
+            "equity": 1.0832994879299553
+          },
+          {
+            "timestamp": "2024-01-29T18:00:00+00:00",
+            "equity": 1.0781977002030694
+          },
+          {
+            "timestamp": "2024-01-29T19:00:00+00:00",
+            "equity": 1.0790046578292731
+          },
+          {
+            "timestamp": "2024-01-29T20:00:00+00:00",
+            "equity": 1.0781834066714677
+          },
+          {
+            "timestamp": "2024-01-29T21:00:00+00:00",
+            "equity": 1.0819854860774665
+          },
+          {
+            "timestamp": "2024-01-29T22:00:00+00:00",
+            "equity": 1.0827046764043629
+          },
+          {
+            "timestamp": "2024-01-29T23:00:00+00:00",
+            "equity": 1.081070198527546
+          },
+          {
+            "timestamp": "2024-01-30T00:00:00+00:00",
+            "equity": 1.0858748312553481
+          },
+          {
+            "timestamp": "2024-01-30T01:00:00+00:00",
+            "equity": 1.082346836586901
+          },
+          {
+            "timestamp": "2024-01-30T02:00:00+00:00",
+            "equity": 1.0893052788397082
+          },
+          {
+            "timestamp": "2024-01-30T03:00:00+00:00",
+            "equity": 1.0937096926826684
+          },
+          {
+            "timestamp": "2024-01-30T04:00:00+00:00",
+            "equity": 1.0913164038124104
+          },
+          {
+            "timestamp": "2024-01-30T05:00:00+00:00",
+            "equity": 1.0888536533938433
+          },
+          {
+            "timestamp": "2024-01-30T06:00:00+00:00",
+            "equity": 1.0874375907104457
+          },
+          {
+            "timestamp": "2024-01-30T07:00:00+00:00",
+            "equity": 1.086826981070978
+          },
+          {
+            "timestamp": "2024-01-30T08:00:00+00:00",
+            "equity": 1.087267322149789
+          },
+          {
+            "timestamp": "2024-01-30T09:00:00+00:00",
+            "equity": 1.0891194629288887
+          },
+          {
+            "timestamp": "2024-01-30T10:00:00+00:00",
+            "equity": 1.0864189885110547
+          },
+          {
+            "timestamp": "2024-01-30T11:00:00+00:00",
+            "equity": 1.090371024617013
+          },
+          {
+            "timestamp": "2024-01-30T12:00:00+00:00",
+            "equity": 1.0917687815494121
+          },
+          {
+            "timestamp": "2024-01-30T13:00:00+00:00",
+            "equity": 1.0881775944254637
+          },
+          {
+            "timestamp": "2024-01-30T14:00:00+00:00",
+            "equity": 1.085496178049765
+          },
+          {
+            "timestamp": "2024-01-30T15:00:00+00:00",
+            "equity": 1.090170162883455
+          },
+          {
+            "timestamp": "2024-01-30T16:00:00+00:00",
+            "equity": 1.087700140317231
+          },
+          {
+            "timestamp": "2024-01-30T17:00:00+00:00",
+            "equity": 1.0907978244553596
+          },
+          {
+            "timestamp": "2024-01-30T18:00:00+00:00",
+            "equity": 1.0882721323450035
+          },
+          {
+            "timestamp": "2024-01-30T19:00:00+00:00",
+            "equity": 1.0876033455242808
+          },
+          {
+            "timestamp": "2024-01-30T20:00:00+00:00",
+            "equity": 1.0920255635908147
+          },
+          {
+            "timestamp": "2024-01-30T21:00:00+00:00",
+            "equity": 1.092354314817649
+          },
+          {
+            "timestamp": "2024-01-30T22:00:00+00:00",
+            "equity": 1.0919774169580516
+          },
+          {
+            "timestamp": "2024-01-30T23:00:00+00:00",
+            "equity": 1.086503495882102
+          },
+          {
+            "timestamp": "2024-01-31T00:00:00+00:00",
+            "equity": 1.076806964654615
+          },
+          {
+            "timestamp": "2024-01-31T01:00:00+00:00",
+            "equity": 1.0766088613218925
+          },
+          {
+            "timestamp": "2024-01-31T02:00:00+00:00",
+            "equity": 1.0728376258525074
+          },
+          {
+            "timestamp": "2024-01-31T03:00:00+00:00",
+            "equity": 1.0753502782498237
+          },
+          {
+            "timestamp": "2024-01-31T04:00:00+00:00",
+            "equity": 1.076530121516228
+          },
+          {
+            "timestamp": "2024-01-31T05:00:00+00:00",
+            "equity": 1.0773471096909242
+          },
+          {
+            "timestamp": "2024-01-31T06:00:00+00:00",
+            "equity": 1.0777824354954892
+          },
+          {
+            "timestamp": "2024-01-31T07:00:00+00:00",
+            "equity": 1.077680123900868
+          },
+          {
+            "timestamp": "2024-01-31T08:00:00+00:00",
+            "equity": 1.0795380322453507
+          },
+          {
+            "timestamp": "2024-01-31T09:00:00+00:00",
+            "equity": 1.077732282753028
+          },
+          {
+            "timestamp": "2024-01-31T10:00:00+00:00",
+            "equity": 1.069406676740723
+          },
+          {
+            "timestamp": "2024-01-31T11:00:00+00:00",
+            "equity": 1.062854973229278
+          },
+          {
+            "timestamp": "2024-01-31T12:00:00+00:00",
+            "equity": 1.0694565787194723
+          },
+          {
+            "timestamp": "2024-01-31T13:00:00+00:00",
+            "equity": 1.0688251556918833
+          },
+          {
+            "timestamp": "2024-01-31T14:00:00+00:00",
+            "equity": 1.0733667372854754
+          },
+          {
+            "timestamp": "2024-01-31T15:00:00+00:00",
+            "equity": 1.0753269572245792
+          },
+          {
+            "timestamp": "2024-01-31T16:00:00+00:00",
+            "equity": 1.0873392913352216
+          },
+          {
+            "timestamp": "2024-01-31T17:00:00+00:00",
+            "equity": 1.090190474744152
+          },
+          {
+            "timestamp": "2024-01-31T18:00:00+00:00",
+            "equity": 1.0962145714049032
+          },
+          {
+            "timestamp": "2024-01-31T19:00:00+00:00",
+            "equity": 1.09115767038252
+          },
+          {
+            "timestamp": "2024-01-31T20:00:00+00:00",
+            "equity": 1.0866752690250325
+          },
+          {
+            "timestamp": "2024-01-31T21:00:00+00:00",
+            "equity": 1.066778673035746
+          },
+          {
+            "timestamp": "2024-01-31T22:00:00+00:00",
+            "equity": 1.065422793643302
+          },
+          {
+            "timestamp": "2024-01-31T23:00:00+00:00",
+            "equity": 1.068589787116166
+          }
+        ],
+        "returns": [
+          0.0012894726933627698,
+          0.0006691777528451404,
+          0.00011938036335679136,
+          -0.0016305861526800802,
+          0.0010487285294513704,
+          0.005171295242573759,
+          -0.0019126002944380716,
+          0.002039806806111377,
+          -0.0011668960192283695,
+          -0.002482644430258696,
+          -0.0008209417131384011,
+          0.0040978233675257325,
+          -0.0013445029736786074,
+          0.015289735510355174,
+          0.014668008760306384,
+          -0.00362101569599238,
+          -0.002877004648273229,
+          0.01380612432703221,
+          -0.0039679715302490814,
+          0.012992063825441713,
+          -0.0010957754970969402,
+          0.0045289092230809125,
+          -0.0009623560147250521,
+          -0.0020753852181223387,
+          0.0005143270700889158,
+          -0.002202207350358032,
+          -0.001975121628548293,
+          -0.0008982985885209738,
+          0.0007878248042283431,
+          0.00047203582307120406,
+          -0.0005638333978669197,
+          0.0006995095780200078,
+          -0.001954150939698862,
+          -0.0013995812989120449,
+          0.00014650858765730135,
+          -0.005757351627841301,
+          0.00481745724199234,
+          0.0018603405488724079,
+          0.0003331951208354056,
+          -0.0002684308552288739,
+          -0.00018131732184012428,
+          0.0005641740157018571,
+          0.0011492604389360395,
+          -9.135698363149647e-05,
+          -0.0007388154604490715,
+          0.0004389735773331349,
+          0.0027001537408111176,
+          0.003566172470465645,
+          0.0021552574730252516,
+          0.00011648710018064001,
+          -0.0008271755761408706,
+          -0.003081150495612195,
+          0.0025993758163982417,
+          5.2494061757668575e-05,
+          0.0030789357613292268,
+          0.011566865189866382,
+          -0.003695664335926385,
+          -0.003504967406716464,
+          -0.0005764705244373225,
+          0.002412664471433734,
+          0.001975237632171778,
+          0.0005874336641533695,
+          -0.0030058664277936575,
+          -0.0012935587180067376,
+          -0.00046797230546968827,
+          -0.002575406530480051,
+          -0.000709421112372155,
+          0.0012861470017511145,
+          -0.0034077521101995023,
+          -0.004659676874684715,
+          -0.004425842478986364,
+          0.003809418055033209,
+          0.000822503897357274,
+          -0.0034678756986429304,
+          0.004710043335554026,
+          -0.0014184751511086002,
+          0.004497821494287901,
+          0.00183466828082679,
+          0.002216747368929628,
+          -0.0026739149076604463,
+          -0.0017473589464208628,
+          0.00045107005158229185,
+          -0.002603927022686081,
+          0.0016502807736344938,
+          0.004108221547212576,
+          0.0004085502377297878,
+          -0.0015652333386431128,
+          -0.0034151577806208477,
+          -0.002279190369636974,
+          -0.0013057437728402066,
+          0.01644480125553427,
+          0.01309186419412911,
+          -0.004709489650581156,
+          0.0007484319675805651,
+          -0.0007611191961465202,
+          0.0035263753666330278,
+          0.0006646949854232087,
+          -0.0015096248427086678,
+          0.004444330011451836,
+          -0.0032489883427619937,
+          0.006429031820105013,
+          0.004043323693107892,
+          -0.0021882304657899754,
+          -0.002256678640551568,
+          -0.0013005078129498804,
+          -0.000561512352234117,
+          0.00040516207867513643,
+          0.001703482429176173,
+          -0.002479502487791274,
+          0.003637672157566607,
+          0.0012819094609470838,
+          -0.003289329375082417,
+          -0.002464134888859326,
+          0.00430585102758041,
+          -0.002265722040760032,
+          0.0028479210614287265,
+          -0.002315453930811673,
+          -0.0006145400592787453,
+          0.004066021022031796,
+          0.0003010471895488198,
+          -0.00034503260936946667,
+          -0.00501285190603884,
+          -0.008924528328014936,
+          -0.00018397293036276352,
+          -0.0035028835493278176,
+          0.0023420621506629047,
+          0.0010971711174190268,
+          0.0007589087925803373,
+          0.00040407200302405855,
+          -9.49278734294623e-05,
+          0.0017239886894802048,
+          -0.0016727057670834489,
+          -0.007725115175206132,
+          -0.006126484576861824,
+          0.006211200640230841,
+          -0.0005904148332465109,
+          0.004249134266167465,
+          0.001826235033201451,
+          0.011170866711689431,
+          0.002622165345859351,
+          0.005525728577077338,
+          -0.00461305765704445,
+          -0.004107931859120062,
+          -0.018309605966405962,
+          -0.0012710034674630055,
+          0.0029725227315948732
+        ]
+      },
+      "stop_reason": "generation_complete",
+      "limitations": [
+        "只验证受控表达式，未验证原平台源码等价性",
+        "固定阈值/布尔条件做多或空仓，下一根开盘成交，区间末平仓",
+        "未模拟涨跌停、停牌、流动性、成交量约束、T+1、融资与公司行动；净值回撤按开盘区间采样",
+        "留出数据在本批选择后才评价，跨批次使用历史需由持久化工作流另行检查",
+        "单位比较使用原始声明，尚未证明经济含义或尺度可比"
+      ]
+    },
+    "checkpoint_hashes": [
+      "7ed77a51ca51ae7e356a61fc6f17f9cecc03ce455de3fab20f3097260e834d6e",
+      "4f8ecba58e0215df2aa203f936b62906c1eacd1ba73e288e48763b44c7bab00a",
+      "2c5d70e1e92040829900153936c58cdd0fa026cad7c7ad04091f653197bac66c",
+      "e0eb8030ae4a86890f524870f5a67b5bc4f58152f870aef27840e06aa9ae2cd4",
+      "00533eb40ea99a1f5fdb4e929c4a5db49c26d71d7bdb2e4565f6154e697f5a02",
+      "0aecaa12d0b89f9b57af3a439cf6dbb64a7fcfbeb69e550a4294eafb298f31ad",
+      "5d3c24cab147a7c28eb92a13cd55dda22c4f46ede2360454b9f8487c0d45c8ef",
+      "4c7e38d68ab642f044fe81fc51418afb7122a791d7476b02234632d7412f8644",
+      "e690f0610b6906a73481919e0ea13eaaad447a604d4de1b839b22eaaff6c5fd0"
+    ],
+    "overlap_audit": {
+      "scope": "same_collection_symbol_timeframe_requested_ranges",
+      "request_ids": [],
+      "total": 0,
+      "independent_holdout_proven": false
+    }
+  }
+}

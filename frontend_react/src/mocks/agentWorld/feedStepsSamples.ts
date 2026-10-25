@@ -17,6 +17,14 @@ const atTime = (hour: number, minute = 0) => {
  * 精确覆盖用户截图中的全部样本，并补充小橘、林芽、星河、白露等居民的日常制作、农场与市场交互。
  */
 export const feedStepsSamples: DailyFeedEvent[] = [
+    ...([1, 3] as const).map(count => ({
+        id: `local-feed-exploration-party-${count}`, actorId: 'local-resident-1', actorName: '小橘',
+        category: 'exploration' as const, source: 'exploration', occurredAt: now.toISOString(),
+        title: '迷宫探索 · 24 分钟',
+        detail: `小橘探索24分钟，击败14只怪物，获得1283经验；消耗20体力。${count === 1 ? '角色倒地' : '全队倒地 本人参与击败14只，离队时队伍累计击败20只。'}消耗药剂 0 瓶，返回 Lv.12。`,
+        status: 'failed', amount: null, explorationParty: {min: count, max: count, final: count},
+        target: {kind: 'exploration', id: 'local-exploration'},
+    })),
     // 样本 1：精确匹配用户图片 1（市场活动 7 步：进入市场、居民上架、装备上架、出售装备、离开市场）
     {
         id: 'local-feed-market-step-sample-1',

@@ -288,7 +288,7 @@ export interface AgentActivity {
     rating?: number | null;
     id: string;
     type: AgentActivityType;
-    status: AgentRunStatus;
+    status: AgentRunStatus | 'deferred' | 'paused';
     agent: Pick<AgentConfig, 'id' | 'name' | 'avatar'>;
     title: string;
     summary: string;

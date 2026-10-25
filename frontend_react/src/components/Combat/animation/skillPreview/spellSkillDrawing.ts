@@ -32,7 +32,21 @@ export function drawSpellSkill(ground:EffectContext,rear:EffectContext,front:Eff
         ellipse(front,a.emitterX,a.emitterY,12+9*p,12+9*p,color,.7,2);
     }
     if(time<skill.release)return;
-    if(shape==='armor'||shape==='holyshield') {
+    if(shape==='music') {
+        const source=a.sourceX,travel=clamp(age/.5),destination=skill.target==='self'?source:a.targetX;
+        for(let i=0;i<3;i++) {
+            const nx=source+(destination-source)*travel+(i-1)*18;
+            const ny=-95+Math.sin(age*5+i)*22-i*16;
+            ellipse(front,nx,ny,7,4,color,fade);
+            path(front,[nx+6,ny,nx+6,ny-27,nx+20,ny-32,nx+20,ny-5],light,3,fade);
+            ellipse(front,nx+20,ny-5,6,4,color,fade);
+        }
+        if(skill.target==='self'||hit>=0) {
+            const wave=skill.target==='self'?grow:clamp(hit/.5);
+            for(let i=0;i<(skill.id==='skill.player.093'?3:2);i++)ellipse(rear,destination,-110,(35+i*20)+wave*70,70+wave*80,color,fade*.55,3);
+            runeRing(ground,destination,5,65*grow,time,color,fade*.4);
+        }
+    } else if(shape==='armor'||shape==='holyshield') {
         shield(front,x,color,light,grow,fade,shape==='holyshield');
         runeRing(ground,x,3,80*grow,time,color,fade);
         if(shape==='armor')for(const side of [-1,1])crystal(rear,x+side*81,-10,19,115*grow,color,light,fade*.75);

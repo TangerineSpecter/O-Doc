@@ -44,6 +44,20 @@ export const atlasSkillProfiles:AtlasSkillProfile[]=[
     profile(55,'审判之光','judgment',3,'holy_staff','#e5bf75','#fffcdf'),
     profile(57,'回春术','renew',3,'holy_staff','#a8ce7b','#f0f8c9','self'),
     profile(59,'森林结界','forest',3,'holy_staff','#7bbf9c','#e4f8c5','self'),
+    profile(76,'音刃','music',1,'instrument','#9cd6ca','#effff4'),
+    profile(77,'鼓舞小调','music',1,'instrument','#d8c58b','#fff8d7','self'),
+    profile(81,'奋进乐章','music',2,'instrument','#d3ae70','#fff3ce','self'),
+    profile(82,'宁静乐章','music',2,'instrument','#8fc6c0','#e6fff4','self'),
+    profile(84,'蚀心音波','music',2,'instrument','#ae85bf','#f0d9f6'),
+    profile(85,'破音','music',2,'instrument','#8ac7ce','#e2fff5'),
+    profile(87,'英雄战歌','music',3,'instrument','#e2b877','#fff6d5','self'),
+    profile(89,'凯旋终章','music',3,'instrument','#e4d49a','#ffffe4'),
+    profile(90,'镇魂曲','music',3,'instrument','#8ab7c0','#e0f6ee'),
+    profile(92,'封声乐句','music',3,'instrument','#91c9c5','#e5fff0'),
+    {...profile(93,'回旋琴音','music',3,'instrument','#bbd4b5','#f4ffe9'),duration:3.1},
+    profile(95,'华彩乐章','music',3,'instrument','#ead5a0','#fffbea'),
+    profile(96,'共鸣音爆','music',3,'instrument','#b088c7','#f3ddff'),
+    profile(98,'毁灭终曲','music',3,'instrument','#c083cc','#ffe0ff'),
 ];
 export const getAtlasSkill=(id:string)=>atlasSkillProfiles.find(skill=>skill.id===id);
 export function sampleAtlasSkillHit(skill:AtlasSkillProfile,time:number) {

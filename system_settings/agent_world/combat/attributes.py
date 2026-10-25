@@ -47,11 +47,15 @@ def initial() -> dict:
 
 
 def has_equipment_type(equipment: list[dict], equipment_type: str) -> bool:
+    if equipment_type.endswith('_armor_set'):
+        family = equipment_type.removesuffix('_set')
+        return all(any(item.get('slot') == slot and item.get('equipment_type') == family
+                       for item in equipment) for slot in ('head', 'body', 'hands', 'feet'))
     if equipment_type.endswith('_armor'):
         required_slot = 'body'
     elif equipment_type in {'magic_shield', 'small_shield', 'large_shield'}:
         required_slot = 'offhand'
-    elif equipment_type in {'mage_staff', 'two_handed_staff', 'holy_staff'}:
+    elif equipment_type in {'mage_staff', 'two_handed_staff', 'holy_staff', 'two_handed_sword', 'instrument'}:
         required_slot = 'weapon'
     else:
         required_slot = ''
@@ -67,6 +71,14 @@ def passives(catalog: Catalog, learned: dict, equipment: list[dict] | None = Non
         if catalog.row('skills', sid)['kind'] != 'passive':
             continue
         for effect in catalog.skill(sid, rank)[1]:
+            if effect['code'] == 'passive_equipment_duration':
+                if not has_equipment_type(equipped, effect['group']):
+                    continue
+                effect = {**effect, 'code': 'passive_music_duration'}
+            if effect['code'] == 'passive_equipment_lifesteal':
+                if not has_equipment_type(equipped, effect['group']):
+                    continue
+                effect = {**effect, 'code': 'passive_lifesteal'}
             if effect['code'] in ('passive_equipment_percent', 'passive_equipment_flat'):
                 if not has_equipment_type(equipped, effect['group']):
                     continue

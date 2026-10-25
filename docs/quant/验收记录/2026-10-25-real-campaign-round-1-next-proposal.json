@@ -1,0 +1,313 @@
+{
+  "library_retrieval": {
+    "method": "related-library-v1",
+    "scanned": 0,
+    "eligible": 0,
+    "scan_limit": 2000,
+    "omitted_for_size": 0,
+    "candidates": [],
+    "claim": "semantic_and_contract_relevance_only_not_performance"
+  },
+  "version": 1,
+  "name": "BTCUSDT 1h 均值回归偏离：2024-04 新数据上的单/双窗口否证性复核",
+  "hypothesis": "在未参与本轮选择的 2024-04 BTCUSDT 1h 数据上，单窗口 period∈{12,18,24} 与双窗口 (20,60)/(14,30) 不会同时满足训练与验证段正收益、回撤不高于买入持有基线、信号覆盖率≥90%；若成立，说明该偏离信号在此口径下无增量价值。",
+  "falsification": "若任一变体在 2024-04 的训练与验证两段同时取得正收益、且“收益-回撤”优于同区间买入持有基线并保持≥90% 信号覆盖，则上述“无增量价值”判断被否证；该单次结果仍只支持继续研究，不构成稳健或可执行结论。",
+  "data_requirement": "2024-04-01T00:00:00Z 至 2024-04-30T23:00:00Z 的 BTCUSDT 1h spot 原始价（720 根，UTC），需在查看结果前登记；不得复用 2024-01/02/03 已查看行情，也不得把本批留出结果当作未见样本。",
+  "evidence_refs": [
+    "attempt-6",
+    "holdout",
+    "baseline",
+    "parameter_sensitivity",
+    "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697"
+  ],
+  "seeds": [
+    {
+      "id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+      "candidate": {
+        "name": "close_relative_rolling_mean_deviation",
+        "role": "factor",
+        "family": "mean_reversion",
+        "summary": "在 bar t 计算 close 相对其过去 period 个 bar 滚动均值的相对偏离。该模块是第 5–6 行可分离的连续数值计算，剥离了第 7–8 行未来收益项后可作为 t 时刻因子候选；机制分类为均值回归/价格结构提议，不证明有效。",
+        "formula": "s_t = close_t / mean_t - 1；mean_t = 过去 period 个 bar 的 close 算术均值（rolling mean）。",
+        "inputs": [
+          {
+            "name": "close",
+            "meaning": "frame[\"close\"] 价格序列字段；源码只引用单一 close 字段，资产范围、数据频率与复权口径未声明。",
+            "availability": "bar t 的 close 在数据发布后可得；具体发布延迟、频率、复权口径未知。",
+            "missing_policy": "源码未声明 close 缺失处理；expression 的 sma 缺失策略依赖平台，pandas rolling 的 min_periods 默认行为未声明且未验证。"
+          }
+        ],
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "timeframe": "计算窗口为 period 个 bar；适用周期与数据频率未声明，无法换算为自然时间；period 默认 14 仅为函数默认值，不是最优或运行配置。",
+        "parameters": [
+          {
+            "name": "period",
+            "type": "int",
+            "default_value": "14",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "待验证：先确认 frame 的数据频率与复权口径，再对 period 做敏感性检查（例如在多个候选窗口上比较信号自相关与换手）；建议范围仅为验证起点，非实证最优，且不得以默认值14冒充实际运行配置。",
+            "evidence": "第1行默认值 period=14；第5行使用 rolling(period).mean() 构造滚动均值。"
+          }
+        ],
+        "dependencies": [
+          "frame[\"close\"] 为外部传入的 DataFrame 列；源码 imports 为空，.rolling/.mean 的运行时依赖未验证",
+          "参数 period",
+          "滚动均值 min_periods 的缺失语义未在源码中声明"
+        ],
+        "limitations": "本候选是剥离第 7–8 行未来收益项后的 t 时刻模块，不等同于原函数返回值。源码未声明 frame 的数据频率、复权口径、资产范围与 close 数据源；period 的合法下限与取值范围未声明。expression 仅在假设滚动均值可由 sma(close, period) 表达时给出；pandas .rolling(period).mean() 的 min_periods 默认行为未声明，平台 sma 语义可能不同，前 period-1 个 bar 的缺失结果依赖运行时。若 mean 为 0 或 close 缺失，可能出现 inf/NaN，具体行为未验证。未回测，不证明有效、稳健或参数最优。原第 7–8 行若被当作因子使用会引入未来信息泄漏，本候选未包含该部分。",
+        "tags": [
+          "mechanism:mean_reversion",
+          "mechanism:price_structure",
+          "structure:time_series",
+          "data:price",
+          "usage:factor",
+          "usage:signal",
+          "tunability:signal"
+        ],
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "close"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "close"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "period"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "field": "code",
+            "quote": "def indicator(frame, period=14, horizon=1):"
+          },
+          {
+            "field": "code",
+            "quote": "    mean = frame[\"close\"].rolling(period).mean()"
+          },
+          {
+            "field": "code",
+            "quote": "    signal = frame[\"close\"] / mean - 1"
+          }
+        ]
+      },
+      "bindings": {
+        "close": "close"
+      },
+      "parameters": {
+        "period": 14
+      },
+      "variants": [
+        {
+          "period": 12
+        },
+        {
+          "period": 18
+        },
+        {
+          "period": 24
+        }
+      ]
+    },
+    {
+      "id": "6c07f295a922f4ceaaa07f630201d478f68a7cf8",
+      "candidate": {
+        "name": "均值组合 · close_relative_rolling_mean_deviation_period_sensitivity · attempt-7",
+        "role": "factor",
+        "family": "mean_reversion",
+        "summary": "由 1 个父代经均值组合产生。训练与验证段筛选后归档，尚待独立验证。",
+        "formula": "{\"args\":[{\"args\":[{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"a_p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"},{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"b_p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"}],\"op\":\"add\"},{\"op\":\"constant\",\"value\":2}],\"op\":\"div\"}",
+        "expression": {
+          "op": "div",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "close"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "close"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "a_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "close"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "close"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "b_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 2
+            }
+          ]
+        },
+        "inputs": [
+          {
+            "name": "close",
+            "meaning": "实验行情 close 列",
+            "availability": "完整收盘后可得，用于下一根开盘信号",
+            "missing_policy": "缺失传播，滚动窗口需完整；不填补缺失值"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "a_p0",
+            "type": "int",
+            "default_value": "14",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+            "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-7 的实际计算参数"
+          },
+          {
+            "name": "b_p0",
+            "type": "int",
+            "default_value": "60",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+            "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-7 的实际计算参数"
+          }
+        ],
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "timeframe": "本轮行情周期：1h；其他周期未验证",
+        "dependencies": [
+          "quant-local-search-2"
+        ],
+        "limitations": "仅在本机受限表达式引擎中计算过；未验证原平台等价性或实盘有效性。参数是所记录尝试的实际值，不是推荐最优值。父代数据和已查看的留出结果会影响后续研究，需使用新的验证数据。",
+        "tags": [
+          "实验衍生",
+          "待独立验证"
+        ],
+        "evidence": [],
+        "derivation": {
+          "version": "experiment-derived-v1",
+          "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+          "checkpoint_id": "bffd5a10b762030170966553a1d657e36683b7fb",
+          "attempt_id": "attempt-7",
+          "parent_candidate_ids": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ],
+          "parent_attempt_ids": [
+            "attempt-1",
+            "attempt-6"
+          ],
+          "operation": "mean",
+          "engine_version": "quant-local-search-2",
+          "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+          "selection_rule": "derived_frontier_first_three_v1"
+        }
+      },
+      "bindings": {
+        "close": "close"
+      },
+      "parameters": {
+        "a_p0": 14,
+        "b_p0": 60
+      },
+      "variants": [
+        {
+          "a_p0": 20,
+          "b_p0": 60
+        },
+        {
+          "a_p0": 14,
+          "b_p0": 30
+        }
+      ]
+    }
+  ],
+  "config": {
+    "seed": 42,
+    "max_candidates": 16,
+    "generations": 2,
+    "threshold": 0,
+    "fee_bps": 5,
+    "slippage_bps": 5,
+    "gap": 2,
+    "seconds": 30
+  },
+  "evidence_hash": "e5f386b4782dbb9289b0ce13ce38460aec39d046f4956209f0f9c27299d57f79",
+  "status": "unverified_requires_fresh_validation",
+  "constraint_status": "engine_types_and_windows_checked_other_constraints_require_review"
+}

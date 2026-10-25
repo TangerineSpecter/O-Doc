@@ -140,7 +140,7 @@ class JobReselectTests(TestCase):
         view = profile_view('admin', self.agent)
         self.assertEqual(view['reselect_blocked'], '')
         self.assertEqual({row['id'] for row in view['reselect_options']},
-                         {'job.warrior', 'job.mage', 'job.ranger', 'job.priest'})
+                         {'job.warrior', 'job.mage', 'job.ranger', 'job.priest', 'job.bard'})
         profiles.reselect('admin', self.agent, 'reselect-priest', 'job.priest')
         fact = CombatFact.objects.get(pk='reselect-priest')
         self.assertEqual(fact.kind, 'reselect')

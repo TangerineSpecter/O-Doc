@@ -21,44 +21,6 @@ function ring(g:EquipmentPixelPainter,p:EquipmentPalette) {
     for(const [x,y]of [[17,13],[29,12],[16,19],[29,19]])g.rivet(x,y,p);
 }
 
-function feather(g:EquipmentPixelPainter,p:EquipmentPalette,x:number,y:number,mirror=false) {
-    const s=mirror?-1:1,pt=(a:number,b:number):readonly[number,number]=>[x+a*s,y+b];
-    g.bevel([pt(0,18),pt(-2,11),pt(1,5),pt(8,0),pt(8,7),pt(5,14)],{...p,base:p.lit,lit:p.shine,shade:p.base},false);
-    g.line(pt(0,19),pt(6,4),p.goldShade);g.line(pt(2,13),pt(6,10),p.shine);
-}
-function head(g:EquipmentPixelPainter,p:EquipmentPalette,t:number) {
-    // Each named headpiece has its own silhouette; no helmet/crown stand-in for every tier.
-    if(t===0) {
-        g.bevel([[6,23],[10,19],[18,17],[29,17],[38,20],[42,24],[38,29],[31,32],[16,32],[8,29]],p);
-        g.poly([[11,24],[17,21],[29,21],[36,24],[31,26],[17,26]],p.deep);
-        g.trim([8,25],[17,29],p);g.trim([17,29],[30,29],p);g.trim([30,29],[39,25],p);
-        g.gem(24,28,5,p);g.rivet(12,27,p);g.rivet(34,27,p);
-        g.poly([[7,25],[5,29],[9,32],[9,27]],p.goldShade);
-    } else if(t===1) {
-        feather(g,p,12,5);feather(g,p,35,10,true);
-        g.bevel([[7,25],[14,22],[24,21],[34,23],[41,26],[37,33],[28,36],[17,35],[9,31]],p,false);
-        g.poly([[12,26],[19,24],[29,24],[36,27],[31,29],[18,28]],p.deep);
-        g.trim([9,29],[19,32],p);g.trim([19,32],[29,33],p);g.trim([29,33],[38,29],p);
-        g.gem(24,32,4,p);g.rivet(12,30,p);g.rivet(35,31,p);
-    } else if(t===2) {
-        g.bevel([[6,27],[9,20],[13,23],[17,12],[24,18],[31,12],[35,23],[39,20],[42,28],[36,35],[13,35]],p);
-        g.poly([[12,27],[18,24],[24,26],[30,24],[36,27],[32,29],[18,29]],p.deep);
-        g.trim([9,29],[17,32],p);g.trim([17,32],[32,32],p);g.trim([32,32],[39,28],p);
-        g.gem(24,30,5,p);g.gem(17,19,2,p);g.gem(31,19,2,p);
-        g.line([14,26],[16,24],p.goldLight);g.line([34,26],[32,24],p.goldLight);
-    } else {
-        const sky=t===4;
-        if(sky) {feather(g,p,8,8);feather(g,p,40,8,true);}
-        g.bevel([[6,25],[8,14],[14,21],[16,10],[21,18],[24,5],[27,18],[32,10],[34,21],[40,14],[42,25],[37,34],[11,34]],p);
-        g.poly([[11,25],[16,23],[24,26],[32,23],[37,25],[34,29],[14,29]],p.deep);
-        g.trim([10,29],[16,32],p);g.trim([16,32],[32,32],p);g.trim([32,32],[38,29],p);
-        g.gem(24,28,sky?6:5,p);g.gem(24,13,3,p);
-        g.gem(13,27,2,p);g.gem(35,27,2,p);
-        g.line([16,14],[18,20],p.goldLight);g.line([32,14],[30,20],p.goldLight);
-        if(sky) {g.trim([21,20],[24,17],p);g.trim([24,17],[27,20],p);g.rect(23,7,2,2,p.shine);}
-    }
-}
-
 function shield(g:EquipmentPixelPainter,p:EquipmentPalette,style:'small'|'large'|'magic') {
     if(style==='small') {
         // Oak round shield, iron hoop, visible plank grain and a domed steel boss.
@@ -94,24 +56,56 @@ function shield(g:EquipmentPixelPainter,p:EquipmentPalette,style:'small'|'large'
     g.rivet(23,7,p);g.rivet(12,16,p);g.rivet(34,16,p);
 }
 
-function greatsword(g:EquipmentPixelPainter,p:EquipmentPalette) {
-    // Long two-hand grip and broad, bevelled blade, posed like the approved longsword.
-    g.bevel([[14,29],[31,7],[42,3],[39,15],[22,35]],p);
-    g.poly([[18,29],[33,9],[39,6],[36,14],[21,32]],p.lit);
-    g.poly([[17,29],[33,9],[39,6],[22,30]],p.shine);
-    g.poly([[22,29],[36,12],[38,7],[38,14],[23,33]],p.shade);
-    g.line([23,25],[32,14],p.base,2);
-    g.line([22,26],[27,20],p.gem,2);g.line([23,25],[27,20],p.gemLight);
-    const gold={...p,base:p.gold,shade:p.goldShade,lit:p.goldLight};
-    g.bevel([[8,24],[12,24],[15,28],[21,32],[26,34],[27,38],[23,40],[18,35],[12,31],[7,28]],gold);
-    g.bevel([[6,38],[13,29],[18,34],[10,43]],{...p,base:'#79503d',shade:'#4b3030',lit:'#ac7850',shine:'#d6a36d'},false);
-    for(let i=0;i<4;i++)g.line([8+i*2,38-i*2],[11+i*2,40-i*2],p.deep);
-    g.bevel([[3,40],[6,37],[12,41],[11,45],[6,46],[2,43]],gold);
-    g.gem(7,42,2,p);g.gem(17,31,3,p);
+function trainingSword(g:EquipmentPixelPainter,p:EquipmentPalette) {
+    const wood={...p,base:'#bb884c',shade:'#795032',lit:'#e1b975',shine:'#f6db9b'};
+    // One diagonal axis (x+y=46); the tang overlaps both blade and guard.
+    // Paint the grip first so the crossguard sits over a continuous handle.
+    g.bevel([[15,27],[19,31],[9,41],[5,37]],{...wood,base:'#79513c',lit:'#bc8a5b',shade:'#503432'},false);
+    for(let i=0;i<3;i++)g.line([7+i*2,36-i*2],[10+i*2,38-i*2],wood.shade);
+    g.bevel([[5,36],[11,42],[8,45],[2,39]],wood,false);
+    g.bevel([[13,25],[31,7],[42,4],[39,15],[21,33]],wood,false);
+    // Straight double bevels meet at a pointed tip, with a raised wooden ridge.
+    g.poly([[15,25],[32,8],[40,6],[18,28]],wood.lit);
+    g.poly([[18,28],[40,6],[38,14],[21,31]],wood.base);
+    g.line([19,27],[37,9],wood.shine);
+    g.line([23,28],[37,14],wood.shade);
+    g.line([27,21],[31,17],'#a57540');
+    g.bevel([[10,22],[24,36],[21,39],[7,25]],wood,false);
+    g.line([10,24],[21,35],wood.lit);
+    g.rect(15,29,2,2,wood.shine);
 }
-export function drawEquipmentRelic(g:EquipmentPixelPainter,p:EquipmentPalette,profile:Exclude<EquipmentArtProfile,{kind:'armor'}>) {
-    if(profile.kind==='ring')ring(g,p);
-    else if(profile.kind==='head')head(g,p,profile.tier);
+
+function greatsword(g:EquipmentPixelPainter,p:EquipmentPalette) {
+    // Asymmetric hooked cleaver: toothed back, open heel notch and one sweeping edge.
+    const steel={...p,base:'#858c89',shade:'#4d595b',lit:'#c3c7b8',shine:'#eee7cc'};
+    const ferrule={...p,base:'#82745b',shade:'#4d4138',lit:'#c2af7f'};
+    g.bevel([[18,27],[23,32],[10,44],[5,39]],{...p,base:'#6d4938',shade:'#382b2b',lit:'#ad8057'},false);
+    for(let i=0;i<4;i++)g.line([8+i*2,37-i*2],[11+i*2,40-i*2],p.deep);
+    g.bevel([[5,38],[11,44],[8,46],[2,40]],ferrule);
+    g.bevel([[18,31],[14,27],[17,23],[20,23],[22,25],[25,24],[26,21],[24,18],[21,18],
+        [25,13],[21,14],[28,8],[24,9],[31,4],[38,2],[44,2],
+        [39,5],[37,8],[37,11],[40,14],[45,16],[42,21],[35,26],[29,31],[25,37]],steel);
+    g.poly([[30,7],[37,4],[34,9],[35,13],[40,17],[35,22],[29,26],[28,20],[26,17]],steel.base);
+    // Wide cutting bevel follows the convex front; the tip curls back into a hook.
+    g.poly([[38,12],[40,14],[44,16],[41,20],[34,25],[28,30],[25,35],[24,32],[28,27],[34,22],[39,17],[36,13]],steel.lit);
+    g.line([40,19],[34,24],steel.shine);
+    g.line([33,25],[28,29],steel.shine);
+    g.line([32,5],[38,3],steel.lit);
+    // Offset engraved spine and sparse forged-metal facets, no central sword ridge.
+    g.line([29,12],[31,9],steel.shade,2);
+    g.line([28,15],[33,19],steel.shade);
+    g.line([30,15],[34,18],steel.lit);
+    g.rect(29,22,2,2,steel.shade);g.rect(32,20,2,1,steel.lit);
+    g.rect(33,7,2,1,steel.lit);
+    // Socket is an off-centre reinforced heel, not a symmetric crossguard.
+    g.bevel([[17,27],[21,28],[26,33],[23,37],[16,31]],ferrule);
+    g.poly([[19,29],[23,32],[22,34],[18,31]],steel.shade);
+    g.rivet(19,30,p);g.rivet(22,33,p);
+
+}
+export function drawEquipmentRelic(g:EquipmentPixelPainter,p:EquipmentPalette,profile:Exclude<EquipmentArtProfile,{kind:'armor'|'head'|'instrument'}>) {
+    if(profile.kind==='trainingSword')trainingSword(g,p);
+    else if(profile.kind==='ring')ring(g,p);
     else if(profile.kind==='shield')shield(g,p,profile.style);
     else greatsword(g,p);
 }

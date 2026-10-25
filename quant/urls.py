@@ -1,7 +1,71 @@
+from .strategy_exports.views import StrategyExportView
 from django.urls import path
 from . import views
+from .research.views import IntakeView, ReportView
+from .research.supplements.views import SourceSupplementView
+from .factors.views import FactorView
+from .retrieval.views import FactorSearchView
+from .graph.views import GraphView, IndexView
+from .validation_studies.views import ValidationView
+from .experiments.views import DatasetView, ExperimentView
+
+from .experiments.campaigns.views import CampaignView
+from .feedback.views import FeedbackView, ExecutionPreviewView
+from .parameters.views import ConfigurationPreviewView
+from .intake.views import BatchView
+
+from .workflows.views import WorkflowEvidenceView
+from .comparisons.views import ComparisonView, MergeView
+from .source_changes.views import SourceImpactView
+from .factors.versions.views import FormulaView
+from .taxonomy.views import VocabularyView
+from .verification.views import VerificationView
+from .native_python.views import NativeView
 
 urlpatterns = [
+    path('<str:coll_id>/factors/<str:factor_id>/native-python/options/',NativeView.as_view(),{'action':'options'}),
+    path('<str:coll_id>/factors/<str:factor_id>/native-python/',NativeView.as_view()),
+    path('<str:coll_id>/native-python/<str:native_id>/',NativeView.as_view()),
+    path('<str:coll_id>/native-python/<str:native_id>/cancel/',NativeView.as_view(),{'action':'cancel'}),
+    path('<str:coll_id>/entries/<str:entry_id>/sources/<str:source_id>/supplements/', SourceSupplementView.as_view()),
+    path('<str:coll_id>/experiments/<str:experiment_id>/strategy-export/', StrategyExportView.as_view()),
+    path('<str:coll_id>/factors/<str:factor_id>/verification/', VerificationView.as_view()),
+    path('<str:coll_id>/vocabulary/', VocabularyView.as_view()),
+    path('<str:coll_id>/factors/<str:factor_id>/formula-versions/', FormulaView.as_view()),
+    path('<str:coll_id>/factors/<str:factor_id>/formula-versions/select/', FormulaView.as_view(), {'action': 'select'}),
+    path('<str:coll_id>/entries/<str:entry_id>/source-impact/', SourceImpactView.as_view()),
+    path('<str:coll_id>/comparisons/', ComparisonView.as_view()),
+    path('<str:coll_id>/comparisons/<str:comparison_id>/', ComparisonView.as_view()),
+    path('<str:coll_id>/factor-merges/', MergeView.as_view()),
+    path('<str:coll_id>/factor-merges/<str:merge_id>/withdraw/', MergeView.as_view(), {'action': 'withdraw'}),
+    path('<str:coll_id>/entries/<str:entry_id>/runs/<str:run_id>/workflow/<str:stage>/', WorkflowEvidenceView.as_view()),
+    path('<str:coll_id>/intake-batches/', BatchView.as_view()),
+    path('<str:coll_id>/intake-batches/<str:batch_id>/', BatchView.as_view()),
+    path('<str:coll_id>/intake-batches/<str:batch_id>/<str:action>/', BatchView.as_view()),
+    path('<str:coll_id>/entries/<str:entry_id>/parameters/preview/', ConfigurationPreviewView.as_view()),
+    path('<str:coll_id>/entries/<str:entry_id>/feedback/', FeedbackView.as_view()),
+    path('<str:coll_id>/entries/<str:entry_id>/feedback/preview/', ExecutionPreviewView.as_view()),
+    path('<str:coll_id>/campaigns/', CampaignView.as_view()),
+    path('<str:coll_id>/campaigns/<str:campaign_id>/', CampaignView.as_view()),
+    path('<str:coll_id>/campaigns/<str:campaign_id>/cancel/', CampaignView.as_view(), {'action': 'cancel'}),
+    path('<str:coll_id>/validations/', ValidationView.as_view()),
+    path('<str:coll_id>/validations/<str:validation_id>/', ValidationView.as_view()),
+    path('<str:coll_id>/validations/<str:validation_id>/<str:action>/', ValidationView.as_view()),
+    path('<str:coll_id>/experiments/', ExperimentView.as_view()),
+    path('<str:coll_id>/experiments/<str:experiment_id>/', ExperimentView.as_view()),
+    path('<str:coll_id>/experiments/<str:experiment_id>/cancel/', ExperimentView.as_view(), {'action': 'cancel'}),
+    path('<str:coll_id>/datasets/', DatasetView.as_view()),
+    path('<str:coll_id>/datasets/<str:dataset_id>/', DatasetView.as_view()),
+    path('<str:coll_id>/graph/', GraphView.as_view()),
+    path('<str:coll_id>/graph/index/', IndexView.as_view()),
+    path('<str:coll_id>/graph/index/<str:job_id>/cancel/', IndexView.as_view()),
+    path('<str:coll_id>/factors/search/', FactorSearchView.as_view()),
+    path('<str:coll_id>/factors/', FactorView.as_view()),
+    path('<str:coll_id>/factors/<str:factor_id>/', FactorView.as_view()),
+    path('<str:coll_id>/factors/<str:factor_id>/occurrences/', FactorView.as_view(), {'action': 'occurrences'}),
+    path('<str:coll_id>/factors/<str:factor_id>/export/', FactorView.as_view(), {'action': 'export'}),
+    path('<str:coll_id>/intake/', IntakeView.as_view()),
+    path('<str:coll_id>/entries/<str:entry_id>/reports/<str:report_id>/', ReportView.as_view()),
     path('models/', views.ModelsView.as_view()),
     path('<str:coll_id>/entries/', views.EntryView.as_view()),
     path('<str:coll_id>/entries/<str:entry_id>/', views.EntryView.as_view()),

@@ -1,12 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 56" shape-rendering="crispEdges">
-  <path d="M7 49 10 53 27 15 23 12Z" fill="#30263e" stroke="#20212e" stroke-width="2" stroke-linejoin="miter"/>
-  <path d="M10 49 12 50 25 17 23 16Z" fill="#79598b"/>
-  <path d="M13 42 16 43 17 41 14 40ZM18 30 21 31 22 29 19 28Z" fill="#b59ac8"/>
-  <path d="M9 47 13 49 12 52 8 50Z" fill="#c09a5e" stroke="#20212e" stroke-width="1"/>
-  <path d="M16 7h3V4h3V2h5v3h3v6h-3v4h-4v3h-4v-4h-3v-4h-3V8h3Z" fill="#76558f" stroke="#20212e" stroke-width="2" stroke-linejoin="miter"/>
-  <path d="M20 6h4v3h3v3h-3v3h-3v-3h-3V9h2Z" fill="#c7a4e3"/>
-  <path d="M22 7h2v2h2v2h-2v2h-2v-2h-2V9h2Z" fill="#8653b2"/>
-  <path d="M27 15h3v3h-3v3h-3v-3h3Z" fill="#56c9d4" stroke="#20212e" stroke-width="1"/>
-  <path d="M24 17h2v1h-2Z" fill="#d1f3e9"/>
-  <path d="M14 19h3v2h-3ZM11 26h3v2h-3Z" fill="#c09a5e" stroke="#20212e" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="56" viewBox="0 0 32 56" shape-rendering="crispEdges">
+  <!-- Crystal, socket, shaft and pommel share the x=16 axis. -->
+  <path fill="#30263e" d="M13 17h6v34h-1v3h-4v-3h-1z"/>
+  <path fill="#76558f" d="M14 19h3v32h-3z"/>
+  <path fill="#b59ac8" d="M14 20h1v28h-1z"/>
+  <path fill="#4b365e" d="M17 20h1v31h-1z"/>
+  <path fill="#c09a5e" d="M13 28h6v2h-6zm0 11h6v2h-6zm0 11h6v2h-6z"/>
+  <path fill="#efcf89" d="M13 28h3v1h-3zm0 11h3v1h-3zm1 11h2v1h-2z"/>
+  <path fill="#30263e" d="M12 2h8v2h3v3h2v7h-2v3h-3v3h-8v-3H9v-3H7V7h2V4h3z"/>
+  <path fill="#77518d" d="M12 4h8v2h3v7h-3v3h-8v-3H9V7h3z"/>
+  <path fill="#c8a5e5" d="M13 4h5v2h-2v4h-5V7h2z"/>
+  <path fill="#9d72bd" d="M16 6h4v2h2v5h-3v2h-3z"/>
+  <path fill="#583568" d="M12 12h4V9h2v6h-6z"/>
+  <path fill="#eedcf6" d="M13 5h2v3h-2z"/>
+  <path fill="#c09a5e" d="M9 14h3v2h8v-2h3v3h-3v2h-8v-2H9z"/>
+  <path fill="#efcf89" d="M10 14h2v2h4v1h-5v-1h-1z"/>
+  <path fill="#30263e" d="M12 19h8v4h-8z"/>
+  <path fill="#c09a5e" d="M13 20h6v2h-6z"/>
+  <path fill="#6bd1d3" d="M15 20h2v2h-2z"/>
 </svg>

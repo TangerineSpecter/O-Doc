@@ -1,6 +1,27 @@
+import {resolveValidationRoute} from './validations';
+import {validateMockAudit,mockNativeReviewEvidence} from './nativeReviews';
+import {resolveNativePython} from './nativePython';
+import {supplementMockSource} from './sourceSupplements';
+import {resolveStrategyExport} from './strategyExports';
+import {resolveVocabularyRoute} from './vocabulary';
+import {workflowEvidence, interruptWorkflow} from './workflows';
+import {collectMockFeedback} from './feedback';
+import {resolveBatchRoute} from './intake';
+import {mockConfiguration} from './parameters';
+import {resolveCampaignRoute} from './campaigns';
+import {resolveComparisonRoute, resolveFactorMergeRoute} from './comparisons';
+import {captureMockVersion, presentMockEntry, setMockMaterialCurrent} from './sourceSnapshots';
+import {mockSourceImpact} from './sourceImpact';
+import {previewMockExecution} from './platformEvidence';
 import {HttpResponse} from 'msw';
 import type {QuantAttachment, QuantBacktest, QuantBacktestInput, QuantEntryDetail, QuantEntryInput, QuantImplementationInput, QuantRunInput, QuantVersionInput, QuantVerificationInput} from '../../types/api/quant';
 import {quantModels} from './fixtures';
+import {detectQuantLanguage} from '../../utils/quantLanguage';
+import {ensureSources, acquireMockSources, publishMockReport} from './research';
+import {resolveGraphRoute, queueMockIndex} from './graph';
+import {resolveExperimentRoute} from './experiments';
+import {resolveDatasetRoute} from './datasets';
+import {resolveFactorRoute} from './factorRoutes';
 import {resolveQuantAnthology} from './anthology';
 import {resolveQuantResources} from './resources';
 import {adoptRun, advanceRun, createRun, newImplementation, newVersion} from './runs';
@@ -9,6 +30,14 @@ const fail = (status: number, msg: string) => HttpResponse.json({code: status, m
 const findVersion = (entry: QuantEntryDetail, id?: string | null) => entry.implementations.flatMap(row => row.versions).find(row => row.id === id);
 const touch = (entry: QuantEntryDetail) => {entry.updatedAt = new Date().toISOString(); persistQuantState();};
 const languages = ['python', 'pine', 'mql4'];
+const advanceEntry = (entry: QuantEntryDetail) => {
+    acquireMockSources(entry);
+    entry.runs.forEach(run => advanceRun(run, entry.sources?.find(source => source.id === (run.resolvedSourceId || run.sourceId))));
+    const count = entry.reports?.length || 0;
+    publishMockReport(entry);
+    if ((entry.reports?.length || 0) > count) queueMockIndex(entry.collId, [entry]);
+    persistQuantState();
+};
 
 export async function resolveQuantRoute(request: Request): Promise<unknown> {
     const url = new URL(request.url), path = url.pathname;
@@ -25,15 +54,57 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     const state = quantState();
     const collection = state.collections.find(row => row.collId === collId && row.type === 'quant');
     if (!collection) return fail(404, '量化文集不存在或无权访问');
-    if (domain !== 'entries') return undefined;
+    if (domain==='native-python')return resolveNativePython(request,collId,entryId,section);
+    if (domain === 'validations') return resolveValidationRoute(request, collId, entryId, section);
+    if (domain === 'vocabulary') return resolveVocabularyRoute(request, collId);
+    if (domain === 'comparisons') return resolveComparisonRoute(request, collId, entryId);
+    if (domain === 'factor-merges') return resolveFactorMergeRoute(request, collId, entryId, section);
+    if (domain === 'campaigns') return resolveCampaignRoute(request, collId, entryId, section);
+    if (domain === 'intake-batches') return resolveBatchRoute(request, collId, entryId, section);
+    if (domain === 'experiments' && section === 'strategy-export') return resolveStrategyExport(request, collId, entryId);
+    if (domain === 'experiments') return resolveExperimentRoute(request, collId, entryId, section);
+    if (domain === 'datasets') return resolveDatasetRoute(request, collId, entryId);
+    if (domain === 'graph') {
+        const entries = state.entries.filter(row => row.collId === collId && row.isValid);
+        entries.forEach(advanceEntry);
+        return resolveGraphRoute(request, collId, entries, entryId, section, id);
+    }
+    if (domain === 'factors') {
+        const entries = state.entries.filter(row => row.collId === collId && row.isValid);
+        entries.forEach(advanceEntry);
+        if (section==='native-python')return resolveNativePython(request,collId,entryId,section,id);
+        return resolveFactorRoute(request, entries, entryId, section, id);
+    }
+    if (domain !== 'entries' && domain !== 'intake') return undefined;
     const writing = !['GET', 'HEAD', 'DELETE'].includes(request.method);
     const rawBody = writing ? await request.text() : '';
     const body: Record<string, unknown> = rawBody ? JSON.parse(rawBody) as Record<string, unknown> : {};
+    if (domain === 'intake' && request.method === 'POST') {
+        if (![body.code, body.description, body.url].some(value => typeof value === 'string' && value.trim())) return fail(400, '请粘贴代码、说明或来源网址');
+        if (typeof body.requestKey !== 'string' || !/^[a-zA-Z0-9_-]{16,64}$/.test(body.requestKey)) return fail(400, '请求标识无效');
+        if (body.url && !/^https?:\/\//i.test(String(body.url))) return fail(400, '来源网址只支持 HTTP/HTTPS');
+        const identity = `intake-${collId}-${body.requestKey}`;
+        const fingerprint = JSON.stringify(['title', 'code', 'description', 'url', 'language', 'platform', 'modelId', 'analyze'].map(key => body[key] ?? (key === 'analyze' ? true : key === 'language' ? 'auto' : '')));
+        const existing = state.entries.find(row => row.id === identity);
+        if (existing) {
+            if (!existing.isValid || existing.sources?.[0]?.payload.requestFingerprint !== fingerprint) return fail(409, '收集请求内容发生变化或资料已删除');
+            return {entry: presentMockEntry(existing), notice: ''};
+        }
+        const now = new Date().toISOString();
+        const created: QuantEntryDetail = {id: identity, collId, title: String(body.title || '待分析资料'), kind: 'factor', content: '', sourceUrl: String(body.url || ''), tags: [], isValid: true, createdAt: now, updatedAt: now, implementations: [], backtests: [], attachments: [], runs: [], reports: [], sources: [{id: identity, materialId: identity, codeVersionId: null, createdAt: now, payload: {title: String(body.title || ''), code: String(body.code || ''), description: String(body.description || ''), url: String(body.url || ''), language: String(body.language || 'text'), fetchStatus: 'not_fetched'}}]};
+        state.entries.unshift(created);
+        created.sources![0].payload.requestFingerprint = fingerprint;
+        if (!body.language || body.language === 'auto') created.sources![0].payload.language = detectQuantLanguage(String(body.code || ''));
+        setMockMaterialCurrent(created.sources![0]);
+        const unavailable = body.modelId && !quantModels.models.some(row => row.id === body.modelId);
+        if (body.analyze !== false && !unavailable) createRun(created, {kind: 'analyze', sourceId: identity, requestKey: body.requestKey, modelId: String(body.modelId || '')});
+        touch(created); return {entry: presentMockEntry(created), notice: body.analyze !== false && unavailable ? '请选择已配置的对话模型' : ''};
+    }
     if (!entryId) {
         if (request.method === 'GET') {
             const query = (url.searchParams.get('q') || '').toLowerCase();
             const kind = url.searchParams.get('kind'), language = url.searchParams.get('language');
-            return state.entries.filter(row => row.collId === collId && row.isValid && (!kind || row.kind === kind) && (!language || row.implementations.some(impl => impl.language === language)) && (!query || `${row.title} ${row.tags.join(' ')}`.toLowerCase().includes(query))).map(({implementations: _implementations, backtests: _backtests, attachments: _attachments, runs: _runs, ...entry}) => entry);
+            return state.entries.filter(row => row.collId === collId && row.isValid && (!kind || row.kind === kind) && (!language || row.implementations.some(impl => impl.language === language) || row.sources?.some(source => source.payload.language === language)) && (!query || `${row.title} ${row.tags.join(' ')}`.toLowerCase().includes(query))).map(({implementations: _implementations, backtests: _backtests, attachments: _attachments, runs: _runs, sources: _sources, reports: _reports, ...entry}) => entry);
         }
         if (request.method === 'POST') {
             if (typeof body.title !== 'string' || !body.title.trim()) return fail(400, '请填写研究标题');
@@ -46,14 +117,33 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     }
     const entry = state.entries.find(row => row.collId === collId && row.id === entryId && row.isValid);
     if (!entry) return fail(404, '研究条目不存在或已删除');
+    if (section === 'source-impact') return mockSourceImpact(request, entry);
+    if (section === 'feedback' && id === 'preview') return request.method === 'POST' ? previewMockExecution(body as unknown as import('./platformEvidence').MockExecutionInput) : fail(405, '只支持执行证据预览');
+    ensureSources(entry);
+    if (section==='sources' && action==='supplements' && id) return request.method==='POST' ? supplementMockSource(entry,id,body as unknown as import('../../types/api/quantSourceSupplement').QuantSourceSupplementInput) : fail(405,'只支持补充依赖源码');
     if (!section) {
-        if (request.method === 'GET') {entry.runs.forEach(advanceRun); return entry;}
+        if (request.method === 'GET') {advanceEntry(entry); return presentMockEntry(entry);}
         if (request.method === 'DELETE') {entry.isValid = false; touch(entry); return null;}
         if (request.method === 'PATCH') {
             if (body.title !== undefined && (typeof body.title !== 'string' || !body.title.trim())) return fail(400, '请填写研究标题');
             for (const key of ['title', 'kind', 'content', 'sourceUrl', 'tags'] as const) if (body[key] !== undefined) Object.assign(entry, {[key]: body[key]});
             touch(entry); return entry;
         }
+    }
+    if (section === 'feedback' && !id && request.method === 'POST') return collectMockFeedback(entry, body as unknown as import('../../types/api/quantFeedback').QuantFeedbackInput);
+    if (section === 'parameters' && id === 'preview' && request.method === 'POST') {
+        const target = entry.sources?.find(row => row.id === body.targetSourceId && row.payload.provenance !== 'external_feedback');
+        if (!target || typeof body.document !== 'string') return fail(400, '配置必须关联当前研究的原始来源');
+        try {return mockConfiguration(body.document, target);} catch (error) {return fail(400, error instanceof Error ? error.message : '配置无法解析');}
+    }
+    if (section === 'reports' && id && request.method === 'PATCH') {
+        const report = entry.reports?.find(row => row.id === id);
+        if (!report) return fail(404, '报告不存在');
+        if (typeof body.markdown !== 'string' || body.markdown.length > 200000) return fail(400, '报告正文无效');
+        if (body.expectedRevisionId !== report.currentRevisionId) return fail(409, '报告已有新的修订，请刷新');
+        const revision = {id: quantId('revision'), markdown: body.markdown, createdAt: new Date().toISOString()};
+        report.revisions.push(revision); report.markdown = revision.markdown; report.currentRevisionId = revision.id;
+        touch(entry); return report;
     }
     if (section === 'implementations') {
         if (!id && request.method === 'POST') {
@@ -66,7 +156,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         if (action === 'versions' && request.method === 'POST') {
             if (!String(body.code || '').trim()) return fail(400, '代码内容不能为空');
             if (body.sourceVersionId && !findVersion(entry, String(body.sourceVersionId))) return fail(400, '来源版本必须属于当前研究');
-            const version = newVersion(implementation, body as unknown as QuantVersionInput); touch(entry); return version;
+            const version = newVersion(implementation, body as unknown as QuantVersionInput); captureMockVersion(entry, implementation, version); touch(entry); return version;
         }
     }
     if (section === 'versions' && action === 'verification' && request.method === 'PATCH') {
@@ -121,11 +211,16 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         }
     }
     if (section === 'runs') {
-        if (!id && request.method === 'GET') {entry.runs.forEach(advanceRun); return entry.runs;}
+        if (!id && request.method === 'GET') {advanceEntry(entry); return entry.runs;}
         if (!id && request.method === 'POST') {
             const input = body as unknown as QuantRunInput;
-            if (!findVersion(entry, input.sourceVersionId)) return fail(400, '请选择当前研究的来源代码版本');
-            if (!['explain', 'convert'].includes(input.kind) || !input.requestKey) return fail(400, 'AI 任务参数不完整');
+            const auditError=validateMockAudit(entry,input);if(auditError)return fail(400,auditError);
+            if (['analyze', 'experiment_review', 'feedback_review'].includes(input.kind) && !entry.sources?.some(row => row.id === input.sourceId)) return fail(404, '当前研究中不存在该来源');
+            if (!['analyze', 'experiment_review', 'feedback_review'].includes(input.kind) && !findVersion(entry, input.sourceVersionId)) return fail(400, '请选择当前研究的来源代码版本');
+            if (!['explain', 'convert', 'analyze', 'experiment_review', 'feedback_review'].includes(input.kind) || !input.requestKey) return fail(400, 'AI 任务参数不完整');
+            if (input.kind === 'experiment_review' && !state.experiments.some(row => row.collection === collId && row.data.reviewContext?.entryId === entry.id && row.data.reviewContext?.sourceId === input.sourceId && row.data.reviewContext?.experimentResultId === input.experimentResultId)) return fail(400, '实验解读来源无效');
+            const feedbackSource = entry.sources?.find(row => row.id === input.sourceId)?.payload.provenance === 'external_feedback';
+            if ((input.kind === 'feedback_review') !== feedbackSource && ['feedback_review', 'analyze'].includes(input.kind)) return fail(400, '外部反馈须使用反馈分析');
             if (input.kind === 'convert' && !languages.includes(input.targetLanguage || '')) return fail(400, '请选择目标语言');
             if (input.modelId && !quantModels.models.some(row => row.id === input.modelId)) return fail(400, '模型不存在');
             const key = `${entry.id}:${input.requestKey}`, previous = state.requestKeys[key];
@@ -133,16 +228,33 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
                 if (JSON.stringify(previous.input) !== JSON.stringify(input)) return fail(409, '请求键已用于其他任务');
                 return entry.runs.find(row => row.id === previous.runId);
             }
+            if (input.restartStage && !input.resumeRunId) return fail(400, '指定重跑阶段时须选择原研究任务');
+            if (input.resumeRunId) {
+                const old = entry.runs.find(row => row.id === input.resumeRunId && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(row.workflow?.version || 0));
+                if (!old) return fail(404, '阶段研究不存在');
+                const allowed = input.restartStage ? ['completed', 'failed', 'cancelled', 'interrupted'] : ['failed', 'cancelled', 'interrupted'];
+                const crossSource = old.sourceId !== input.sourceId;
+                const baseline = entry.sources?.find(row => row.id === (old.resolvedSourceId || old.sourceId));
+                const target = entry.sources?.find(row => row.id === input.sourceId);
+                if (input.kind !== 'analyze' || (crossSource ? input.restartStage || old.status !== 'completed' || !target || target.materialId !== baseline?.materialId : !allowed.includes(old.status))) return fail(400, '继续须使用相同来源；跨源码研究须选择同材料的已完成基准');
+                if (input.restartStage && !old.workflow?.stages.some(row => row.stage === input.restartStage && row.stepId)) return fail(400, '只能从原研究已开始的阶段重新执行');
+            }
             const run = createRun(entry, input); state.requestKeys[key] = {input, runId: run.id}; touch(entry); return run;
         }
         const run = entry.runs.find(row => row.id === id); if (!run) return fail(404, 'AI 任务不存在');
-        if (!action && request.method === 'GET') {advanceRun(run); return run;}
+        if (action === 'workflow' && request.method === 'GET') {
+            advanceEntry(entry);
+            const detail = run.nativeReviewWorkflow?mockNativeReviewEvidence(run,route[6]):workflowEvidence(run, route[6], entry.sources?.find(row => row.id === (run.resolvedSourceId || run.sourceId)));
+            return detail || fail(404, '阶段尚未开始');
+        }
+        if (!action && request.method === 'GET') {advanceEntry(entry); return run;}
         if (action === 'cancel' && request.method === 'POST') {
-            if (run.status === 'pending' || run.status === 'running') {run.status = 'cancelled'; run.preview = ''; run.updatedAt = new Date().toISOString(); touch(entry);} return run;
+            if (run.status === 'pending' || run.status === 'running') {run.status = 'cancelled'; interruptWorkflow(run); run.preview = ''; run.updatedAt = new Date().toISOString(); touch(entry);} return run;
         }
         if (action === 'adopt' && request.method === 'POST') {
-            advanceRun(run);
+            advanceEntry(entry);
             if (run.status !== 'completed' || (run.kind === 'convert' && !run.result.code)) return fail(409, '只有完整完成的任务结果可以采用');
+            if (['analyze', 'experiment_review', 'feedback_review'].includes(run.kind)) return fail(400, '分析报告已自动保存');
             const adopted = adoptRun(entry, run); touch(entry); return adopted;
         }
     }

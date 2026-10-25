@@ -62,7 +62,7 @@ def finish_running(config, now):
 
 def due_item(config, now):
     due = main_items(LifeItem.objects.filter(
-        owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lte=timezone.now(),
+        owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lte=timezone.now(), context__adventure_reservation_id__isnull=True,
     )).exclude(actor_id__in=config.paused_agents).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at')
     for item in due:
         retry = item.context.get('planning_retry_at')
@@ -287,6 +287,10 @@ def tick_life(scheduler) -> None:
                     logger.warning('生活规划锁被占用，本轮跳过重新规划 owner=%s',config.pk)
                 else:
                     _plan_cycle(config,scheduler,now)
+            from .combat.reservation_planning import coordinated
+            from .combat.reservation_execution import tick as tick_reservations
+            ready_for_idle = coordinated(config, local_time())
+            tick_reservations(config, local_time())
             if ran or world_execution_busy():
                 if not ran and world_execution_busy():
                     logger.warning('世界执行位忙碌，到期生活安排留到下一轮 owner=%s',config.pk)
@@ -294,7 +298,8 @@ def tick_life(scheduler) -> None:
             due=due_item(config,now)
             if due:execute_item(due,scheduler)
             from .life_interleaving import tick as tick_interleaving
-            tick_interleaving(config, scheduler)
+            if ready_for_idle:
+                tick_interleaving(config, scheduler)
             from .life_goal_results import update as update_result_goals
             completed = LifeItem.objects.filter(owner_id=config.pk, status='completed', updated_at__gte=storage_time(local_time() - timedelta(days=1))).exclude(record_id='').order_by('-updated_at')
             for finished in completed:

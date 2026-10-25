@@ -25,9 +25,9 @@ export class PartyBattleScene {
     private resizeObserver=new ResizeObserver(()=>this.resize());
     private onVisibility=()=>this.sync();
     private reduced=matchMedia('(prefers-reduced-motion: reduce)');
-    constructor(private host:HTMLElement,private snapshot:AdventurePartySnapshot,private onError:()=>void) {}
+    constructor(private host:HTMLElement,private snapshot:AdventurePartySnapshot) {}
     async init() {
-        await this.app.init({width:720,height:423,antialias:false,autoDensity:true,resolution:Math.min(devicePixelRatio||1,2),autoStart:false,background:0x304642});
+        await this.app.init({width:720,height:423,antialias:false,autoDensity:true,resolution:Math.min(devicePixelRatio||1,2),autoStart:false,preference:'webgl',background:0x304642});
         this.initialized=true;
         if(this.disposed){this.app.destroy(true,{children:true});return;}
         const sources=[...new Set([identitySheet,...outfitArts.map(v=>v.body.url),...independentWeapons.map(v=>v.art.url)])];
@@ -42,7 +42,7 @@ export class PartyBattleScene {
         this.app.ticker.add(ticker=>{this.clock+=Math.min(ticker.deltaMS/1000,.05);this.draw();});
         document.addEventListener('visibilitychange',this.onVisibility);
         this.resizeObserver.observe(this.host);
-        this.resize();try{await this.update(this.snapshot);}catch{this.onError();}this.sync();
+        this.resize();await this.update(this.snapshot);this.sync();
     }
     async update(snapshot:AdventurePartySnapshot) {
         this.snapshot=snapshot;

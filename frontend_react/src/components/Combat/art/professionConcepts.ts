@@ -1,3 +1,5 @@
+import bardOutfits from '../../../assets/combat/player-bard-outfits-v1.svg';
+import instrumentSheet from '../../../assets/combat/equipment-instruments-v1.svg';
 import warriorSheet from '../../../assets/combat/player-warrior-concept-v1.png';
 import rangerSheet from '../../../assets/combat/player-ranger-concept-v1.png';
 import priestSheet from '../../../assets/combat/player-priest-concept-v1.png';
@@ -7,11 +9,11 @@ import mageStaffIcon from '../../../assets/combat/equipment-mage-staff-v1.svg';
 import {playerSheetUrl, playerSheetSize, playerPortraitRegion, crystalStaffRegion} from './playerVisuals';
 import type {PlayerArtRegion, PlayerJob} from './playerVisuals';
 
-export type ConceptFamily = 'novice' | 'warrior' | 'mage' | 'ranger' | 'priest';
+export type ConceptFamily = 'novice' | 'warrior' | 'mage' | 'ranger' | 'priest' | 'bard';
 export interface ConceptArt {url: string; size: {width: number; height: number}; region: PlayerArtRegion}
 export interface ProfessionConcept {id: string; name: string; family: ConceptFamily; stage: number; level: number; parent: string; description: string; approved?: boolean; art: ConceptArt}
 export interface WeaponConcept {id: string; name: string; description: string; approved?: boolean; art: ConceptArt}
-export const familyNames: Record<ConceptFamily, string> = {novice: '新手', warrior: '战士系', mage: '法师系', ranger: '游侠系', priest: '牧师系'};
+export const familyNames: Record<ConceptFamily, string> = {novice: '新手', warrior: '战士系', mage: '法师系', ranger: '游侠系', priest: '牧师系', bard:'吟游诗人系'};
 
 function sheetArt(url: string, width: number, height: number, region: readonly number[]): ConceptArt {
     const [x, y, regionWidth, regionHeight] = region;
@@ -61,7 +63,16 @@ const approved: ProfessionConcept[] = [
     {id:'job.elementalist',name:'元素师',family:'mage',stage:2,level:30,parent:'法师',description:'已确认的青绿分层披肩与元素胸扣。',approved:true,art:approvedArt('job.elementalist')},
     {id:'job.pyromancer',name:'炎术师',family:'mage',stage:3,level:70,parent:'元素师',description:'已确认的赤红短袍与火焰形披风。',approved:true,art:approvedArt('job.pyromancer')},
 ];
-export const professionConcepts = [...approved.slice(0,1), ...warriors, ...approved.slice(1), ...newMages, ...rangers, ...priests];
+const bards:ProfessionConcept[]=[
+    ['bard','吟游诗人',1,'新手','绿褐皮衣、斜襟披肩与竖琴胸扣'],
+    ['musician','乐师',2,'吟游诗人','蓝色演奏服、浅色肩领与金色琴徽'],
+    ['cursesinger','咒歌者',2,'吟游诗人','紫色错层披肩与暗纹琴徽'],
+    ['battleconductor','战歌指挥',3,'乐师','赤金肩饰、指挥绶带与高阶演奏服'],
+    ['requiemsinger','镇魂歌者',3,'乐师','深蓝层叠披肩与银色安魂纹饰'],
+    ['virtuoso','琴圣',3,'咒歌者','象牙金色演奏服与精细弦纹垂带'],
+    ['sonomancer','魔音术士',3,'咒歌者','深紫长襟、棱形咒纹与金边'],
+].map(([id,name,stage,parent,description],i)=>({id:`job.${id}`,name:String(name),family:'bard',stage:Number(stage),level:Number(stage)===1?10:Number(stage)===2?30:50,parent:String(parent),description:String(description),art:sheetArt(bardOutfits,2618,190,[i*374,0,374,190])}));
+export const professionConcepts = [...approved.slice(0,1), ...warriors, ...approved.slice(1), ...newMages, ...rangers, ...priests, ...bards];
 const weaponOutfits = [
     ['sword','长剑','银色直刃、金色护手与青色晶饰。'],
     ['axe','战斧','厚实的双刃钢斧，红色绑带与木柄。'],
@@ -72,4 +83,6 @@ const weaponOutfits = [
 const weaponRegions = [[29,165,409,469],[539,188,382,440],[1014,84,251,576],[1375,296,266,338],[1758,115,400,534]];
 export const weaponConcepts: WeaponConcept[] = weaponOutfits.map(([id,name,description],i)=>({id:`equip.${id}`,name,description,art:sheetArt(weaponSheet,2172,724,weaponRegions[i])}));
 weaponConcepts.splice(4,0,{id:'equip.staff',name:'秘法杖',description:'元素师路线双手水晶杖，青色晶石与深色木柄。',approved:true,art:{url:playerSheetUrl,size:playerSheetSize,region:crystalStaffRegion}});
-weaponConcepts.splice(4,0,{id:'equip.mage_staff',name:'法杖',description:'法师路线单手法杖，紫晶月牙杖头与深色木柄。',approved:true,art:sheetArt(mageStaffIcon,32,56,[0,0,32,56])});
+weaponConcepts.splice(4,0,{id:'equip.mage_staff',name:'法杖',description:'法师路线单手法杖，中轴对齐的紫晶杖头与深色直柄。',approved:true,art:sheetArt(mageStaffIcon,32,56,[0,0,32,56])});
+
+for(const [i,level] of [10,30,50].entries())weaponConcepts.push({id:`equip.instrument${level===10?'':'.'+level}`,name:['旅人竖琴','吟风竖琴','月弦竖琴'][i],description:'双手持握的独立竖琴，琴弦与中空琴身清晰可见。',art:sheetArt(instrumentSheet,240,48,[i*48,0,48,48])});

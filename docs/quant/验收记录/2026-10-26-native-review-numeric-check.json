@@ -1,0 +1,26 @@
+{
+  "method": "fixed-hash-source-specific-decimal-check-not-generic-code-execution",
+  "original_source_sha256": "d747c01d535430877b7d024e77671b59f3d07dd29ab65e8d9db3f1c65dcedee8",
+  "left_first_valid_index": 20,
+  "right_first_valid_index": 20,
+  "missing_mismatch_indices": [
+    199
+  ],
+  "first_difference_right_over_left": "-0.00206596695886934157086196400211752249867654855",
+  "historical_train_attempts": 12,
+  "historical_negative_train_attempt_ids": [
+    "attempt-1",
+    "attempt-3",
+    "attempt-5",
+    "attempt-7",
+    "attempt-9"
+  ],
+  "historical_double_window_attempts": 4,
+  "historical_double_window_negative_ids": [
+    "attempt-9"
+  ],
+  "manual_conclusion": "Final report claim that different missing counts imply unsynchronized starting points is unsupported; both start at index 20, additional missing value is at index 199. Retain rejection. Other model issue classifications are not all independently certified.",
+  "expert_acceptance": false,
+  "new_source_executions": 0,
+  "new_model_calls": 0
+}

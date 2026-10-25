@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "Real bounded continuation on March and April 2024",
+  "proposal_id": "fb3feef09bc221ab632b0ffcca06331d37241d31",
+  "dataset_ids": [
+    "8eec5657b9b3070954bacfcdb3e8f53831d71bc6",
+    "450d2db5d1996ac41af964929e7993e7dd9f8e6f"
+  ],
+  "max_rounds": 2,
+  "max_attempts": 32,
+  "compute_seconds": 60,
+  "wall_seconds": 600,
+  "model_id": "mod_MfktgXYteQ"
+}

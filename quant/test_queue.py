@@ -120,7 +120,11 @@ class QueueWaitTests(TestCase):
     def test_failed_submission_releases_queue_owner(self):
         run = self.run_for()
         with patch.object(self.executor, 'submit', side_effect=RuntimeError('executor stopped')):
-            with self.assertRaisesRegex(RuntimeError, 'executor stopped'):
-                worker.dispatch(run.pk)
-        self.expire(run)
-        self.assertEqual(worker.recover(run).status, 'interrupted')
+            worker.dispatch(run.pk)
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'failed')
+        self.assertTrue(run.error)
+        job = Job.objects.get(run=run)
+        self.assertTrue(job.cancelled)
+        self.assertIsNone(job.lease_until)
+        self.assertEqual(worker.recover(run).status, 'failed')

@@ -1,0 +1,10 @@
+{
+  "remaining_rounds": 0,
+  "remaining_candidate_budget": 0,
+  "remaining_compute_seconds": 0,
+  "remaining_wall_seconds": 532,
+  "ordered_datasets": [],
+  "unavailable_ids": [],
+  "omitted_for_size": 0,
+  "scope": "preselected_metadata_only_not_independent_evidence"
+}

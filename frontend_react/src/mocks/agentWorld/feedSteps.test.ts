@@ -15,6 +15,15 @@ after(() => {
 register('../../../scripts/raw-json-test-loader.mjs', import.meta.url);
 const {resolveLocalRoute} = await import('./routes');
 
+test('自由活动等待重试保留记录入口且不显示执行中', async () => {
+    const request = new Request('http://localhost/api/settings/agent-world/daily-feed/?category=record');
+    const response = await resolveLocalRoute(request) as DailyFeedResult;
+    const waiting = response.items.find(row => row.id === 'run:local-idle-waiting');
+    assert.equal(waiting?.status, 'deferred');
+    assert.equal(waiting?.title, '自由活动 · 等待重试');
+    assert.equal(waiting?.target?.kind, 'run');
+});
+
 test('本地 Mock daily-feed 能正确返回符合图片样式的炼金制作执行明细', async () => {
     const request = new Request('http://localhost/api/settings/agent-world/daily-feed/?category=alchemy', {method: 'GET'});
     const response = (await resolveLocalRoute(request)) as DailyFeedResult;
@@ -125,6 +134,14 @@ test('本地 Mock daily-feed 能返回可解析的探索结算样例', async () 
     const request = new Request('http://localhost/api/settings/agent-world/daily-feed/?category=exploration', {method: 'GET'});
     const response = (await resolveLocalRoute(request)) as DailyFeedResult;
     assert.ok(response && Array.isArray(response.items));
+    const solo = response.items.find(item => item.id === 'local-feed-exploration-party-1');
+    const party = response.items.find(item => item.id === 'local-feed-exploration-party-3');
+    assert.deepEqual(solo?.explorationParty, {min: 1, max: 1, final: 1});
+    assert.match(solo!.detail, /角色倒地/);
+    assert.doesNotMatch(solo!.detail, /全队|队伍|按怪物去重/);
+    assert.deepEqual(party?.explorationParty, {min: 3, max: 3, final: 3});
+    assert.match(party!.detail, /全队倒地/);
+    assert.doesNotMatch(party!.detail, /按怪物去重/);
 
     // 截图态：银月 30 分钟探索，含战利品与返还药水
     const sample = response.items.find(item => item.id === 'local-feed-exploration-yinyue-1');

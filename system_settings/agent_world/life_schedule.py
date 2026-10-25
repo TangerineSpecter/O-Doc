@@ -125,6 +125,9 @@ def item_state(item: LifeItem) -> dict:
 @transaction.atomic
 def revise(item: LifeItem, reason: str, **changes) -> None:
     before = item_state(item)
+    if not item.context.get('adventure_reservation_id') and (any(k in changes for k in ('scheduled_at', 'activity')) or changes.get('status') == 'cancelled'):
+        from .combat.reservation_views import invalidate_for_item
+        invalidate_for_item(item, reason)
     for key, value in changes.items():
         setattr(item, key, value)
     item.save()

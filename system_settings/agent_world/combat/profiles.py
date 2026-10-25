@@ -82,6 +82,9 @@ def _job_loadout(profile, catalog, job):
         if equipment_snapshot.permitted(item.snapshot, item.rules, job, profile.progression['level']):
             loadout[slot] = identity
     weapon = EquipmentInstance.objects.filter(pk=loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
+    if 'job.bard' in catalog.path(job) and (not weapon or weapon.snapshot.get('equipment_type')!='instrument'):
+        loadout.pop('weapon',None)
+        loadout.pop('offhand',None)
     if two_handed(weapon, catalog):
         loadout.pop('offhand', None)
     return loadout

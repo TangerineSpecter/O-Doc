@@ -1,0 +1,12 @@
+import {StrategyLedger} from './StrategyResults';
+import {TemporalSummary} from './TemporalSettings';
+import {percent, type Readout} from './readout';
+
+export function TemporalResults({value, select}: {value: Readout; select: (id: string) => void}) {
+    if (!value.walkForward) return null;
+    return <section className="space-y-3 border-t border-slate-100 pt-4" aria-label="滚动验证结果"><h4 className="text-sm font-semibold">滚动验证 · 各折独立搜索与评价</h4><TemporalSummary policy={value.walkForward}/>
+        {value.temporal && <><p className="text-sm leading-7 text-slate-700">已评价 {value.temporal.tested} / {value.walkForward.folds} 折；测试收益均值 {percent(value.temporal.mean)}，最差折 {percent(value.temporal.worst)}，测试最大回撤 {percent(value.temporal.drawdown)}。</p><p className="text-xs leading-6 text-slate-500">各折独立空仓开始；上述均值不代表连续组合收益。下方单条曲线与回库候选对应最后一折，未按测试收益挑选折。</p><div className="overflow-x-auto scrollbar-hide"><table className="w-full text-left text-xs"><thead><tr>{['折 / 选择', '测试区间', '方案收益', '买入持有', '最大回撤', '尝试 / 额度'].map(title => <th className="whitespace-nowrap border-b border-slate-200 px-2 py-3 font-medium text-slate-500" key={title}>{title}</th>)}</tr></thead><tbody>{value.temporal.folds.map(fold => <tr key={fold.number}><td className="whitespace-nowrap border-b border-slate-100 px-2 py-3">第 {fold.number} 折{fold.selectedId && <button className="ml-2 text-orange-700 hover:underline" onClick={() => select(fold.selectedId)}>{fold.selectedId}</button>}</td><td className="whitespace-nowrap border-b border-slate-100 px-2">{fold.final ? `${fold.final.start.slice(0, 10)} — ${fold.final.end.slice(0, 10)}` : fold.stopReason === 'cancelled' ? '已停止，未发布测试' : fold.stopReason === 'time_budget' ? '预算停止，未评价测试' : '无可评价方案'}</td>{[percent(fold.final?.totalReturn), percent(fold.baseline?.totalReturn), percent(fold.final?.maxDrawdown), `${fold.attempts} / ${fold.budget}`].map((text, i) => <td key={i} className="whitespace-nowrap border-b border-slate-100 px-2 text-right tabular-nums">{text}</td>)}</tr>)}</tbody></table></div></>}
+        {value.strategy && value.temporal?.folds.map(fold => <details key={fold.number}><summary className="cursor-pointer text-xs text-orange-700">第 {fold.number} 折执行记录</summary><div className="mt-3 space-y-3"><StrategyLedger execution={fold.final?.execution} label={`第${fold.number}折测试`}/><StrategyLedger execution={fold.baseline?.execution} label={`第${fold.number}折对照`}/></div></details>)}
+        {!value.temporal && <p className="text-xs text-slate-500">实验尚未发布逐折汇总；已完成的尝试会先出现在下方。</p>}
+    </section>;
+}

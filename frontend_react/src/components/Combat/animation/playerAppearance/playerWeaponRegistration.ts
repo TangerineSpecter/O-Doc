@@ -7,8 +7,9 @@ export interface PlayerWeaponRegistration {
 
 /** Grips refer to opaque handle pixels in each item's own texture frame. */
 export function getPlayerWeaponRegistration(id: string, width: number, height: number): PlayerWeaponRegistration {
+    if(id==='equip.instrument'||id.startsWith('equip.instrument.'))return {grip:{x:36,y:30},height:240,rotation:-.08,mirrored:false};
     if (id === 'equip.mage_staff') {
-        return {grip: {x: 11, y: 48}, height: 420, rotation: -.02, mirrored: false};
+        return {grip: {x: 16, y: 48}, height: 420, rotation: -.02, mirrored: false};
     }
     if (id === 'equip.staff') {
         return {grip: {x: 54, y: 169}, height: 420, rotation: -.02, mirrored: false};

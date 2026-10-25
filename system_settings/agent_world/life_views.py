@@ -52,6 +52,9 @@ def item_data(item, detail=False, settled_exploration_ids=None, facts=None):
     value['budget']=effective_budget(item)
     value['original_at']=local_time(item.original_at).isoformat()
     value['scheduled_at']=local_time(item.scheduled_at).isoformat()
+    if item.context.get('adventure_reservation_id'):
+        from .combat.reservation_views import summary
+        value['reservation'] = summary(item)
     if detail:
         from .life_interleaving_usage import summary as usage_summary
         value['activity_usage'] = usage_summary(item)
@@ -231,6 +234,8 @@ class LifeScheduleView(APIView):
             view=request.query_params.get('view','list')
             if view not in ('today','week','list'):raise ValueError('日程视图无效')
             from .life_facts import batch_actuals
+            from .combat.reservation_views import planning_summary
+            exploration_planning = planning_summary(owner_of(request), start, end, request.query_params.get('actor_id', ''))
             ordered=qs.order_by('scheduled_at','id')
             if view in ('today', 'week'):
                 limit = 1 if view == 'today' else 7
@@ -240,11 +245,11 @@ class LifeScheduleView(APIView):
                 settled_ids=settled_exploration_item_ids(rows)
                 facts = batch_actuals(rows)
                 items=[item_data(i,settled_exploration_ids=settled_ids, facts=facts[i.pk]) for i in rows]
-                return success_result({'total':len(items),'items':items,'page':1,'counts':counts,'summary':summary})
+                return success_result({'total':len(items),'items':items,'page':1,'counts':counts,'summary':summary,'exploration_planning':exploration_planning})
             rows=list(ordered[(page-1)*100:page*100])
             settled_ids=settled_exploration_item_ids(rows)
             facts = batch_actuals(rows)
-            return success_result({'total':qs.count(),'items':[item_data(i,settled_exploration_ids=settled_ids,facts=facts[i.pk]) for i in rows],'page':page,'counts':counts,'summary':summary})
+            return success_result({'total':qs.count(),'items':[item_data(i,settled_exploration_ids=settled_ids,facts=facts[i.pk]) for i in rows],'page':page,'counts':counts,'summary':summary,'exploration_planning':exploration_planning})
         except ValueError as exc:return valid_result(str(exc),status=400)
 
     @guarded
@@ -290,6 +295,11 @@ class LifeScheduleView(APIView):
                 return success_result({'count':count})
             item=LifeItem.objects.select_for_update().filter(pk=identity,owner_id=owner).first()
             if not item:return valid_result('安排不存在',status=404)
+            if item.context.get('adventure_reservation_id'):
+                from .combat.reservation_views import change
+                change(item, action, reason)
+                item.refresh_from_db()
+                return success_result(item_data(item, True))
             if action not in ('cancel','replan','retry'):raise ValueError('无效的日程操作')
             if item.status=='running':
                 from system_settings.models import AgentExecutionLease

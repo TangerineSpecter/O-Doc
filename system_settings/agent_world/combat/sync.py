@@ -21,8 +21,12 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>14:
+    if meta and meta.get('combat_schema_version',0)>15:
         raise SyncError('战斗快照版本过新，请升级所有设备')
+    if meta is not None and meta.get('combat_schema_version', 0) < 15 and any(row['model'] in (LABEL+'adventureplanningday', LABEL+'adventurereservation') for row in data):
+        raise SyncError('组队探索预约需要战斗同步15')
+    from .reservation_sync import validate_snapshot as validate_reservations
+    validate_reservations(data)
     from .history_snapshot import normalize_source, compact_source, aggregate_frame, verify_chain
     if meta is None or meta.get('combat_schema_version', 0) < 8:
         data = compact_source(normalize_source(data))
@@ -52,6 +56,13 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                     raise ValueError('转职层级无效')
                 validate_tables(row['tables'], expected_promotion_level=next(iter(gates)), catalog_version=row['id'])
             except (ValueError,KeyError,TypeError,IndexError) as exc:raise SyncError('战斗目录业务规则无效') from exc
+        if model==RUN:
+            from .bard_state import validate_unit
+            try:
+                for unit in (row['state'].get('player'),row['state'].get('enemy')):
+                    if unit is not None:validate_unit(unit)
+            except (ValueError,TypeError,KeyError) as exc:
+                raise SyncError('个人冒险音律状态无效') from exc
         if model==LABEL+'combatconfig' and (type(row['daily_minutes']) is not int or not MIN_DAILY_EXPLORATION_MINUTES<=row['daily_minutes']<=MAX_DAILY_EXPLORATION_MINUTES):
             raise SyncError('每日探索额度无效')
         if model in (GEAR,RUN,FACT,ENCOUNTER) and row['actor_id'] and row['actor_id'] not in profiles:raise SyncError('战斗事实缺少居民档案')
@@ -369,5 +380,5 @@ def metadata(data=None):
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
     # 12: forge receipts establish equipment provenance and consume maze materials.
-    return {'combat_schema_version':14,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+    return {'combat_schema_version':15,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

@@ -5,6 +5,10 @@ from .life_budget import money
 
 
 def validate_life_output(value, instruction, context):
+    offer = context.get('exploration_offer')
+    if offer and 'exploration_intent' in value:
+        from .combat.reservation_planning import validate_intent
+        validate_intent(value['exploration_intent'], offer['dungeons'])
     slots = context.get('slots', [])
     ids = {row['id'] for row in slots}
     if 'activities' in context:

@@ -5,7 +5,7 @@ export function UnsavedDialog({ guard, error }: { guard: ReturnType<typeof useQu
     if (!guard.pending) return null;
     return (
         <QuantModal title="还有未保存的修改" close={guard.cancel} busy={guard.saving}>
-            <p className="text-sm leading-7 text-slate-600">保存后再离开，可以保留刚写下的研究说明、代码或实验资料。</p>
+            <p className="text-sm leading-7 text-slate-600">{guard.canSave ? '保存后再离开，可以保留刚写下的研究说明、代码或实验资料。' : '实验尚未启动。返回继续设置，或放弃本次配置后离开；离开不会自动启动实验。'}</p>
             {error && (
                 <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-600">
                     {error}
@@ -18,9 +18,9 @@ export function UnsavedDialog({ guard, error }: { guard: ReturnType<typeof useQu
                 <QuantButton danger disabled={guard.saving} onClick={guard.discard}>
                     放弃修改
                 </QuantButton>
-                <QuantButton primary disabled={guard.saving} onClick={() => void guard.saveAndContinue()}>
+                {guard.canSave && <QuantButton primary disabled={guard.saving} onClick={() => void guard.saveAndContinue()}>
                     {guard.saving ? '保存中…' : '保存并继续'}
-                </QuantButton>
+                </QuantButton>}
             </div>
         </QuantModal>
     );

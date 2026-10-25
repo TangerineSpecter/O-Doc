@@ -1,3 +1,4 @@
+import {drawBardAura} from './bardAuraDrawing';
 import type {ProfessionAuraProfile} from '../../art/professionAuras';
 import {auraArc, auraSpark, drawAuraAtmosphere, tau} from './auraDrawingPrimitives';
 import type {AuraContext} from './auraDrawingPrimitives';
@@ -15,7 +16,8 @@ const wild = new Set(['ranger', 'archer', 'assassin', 'sharpshooter', 'hunter', 
 export function drawProfessionMotif(rear: AuraContext, floor: AuraContext, p: ProfessionAuraProfile, time: number) {
     if (p.id === 'cryomancer') {drawCryomancerSnow(rear, floor, time, p.color, p.light); return;}
     drawAuraAtmosphere(rear, floor, p, time);
-    if (martial.has(p.id)) drawWarriorAura(rear, floor, p, time);
+    if(['bard','musician','cursesinger','battleconductor','requiemsinger','virtuoso','sonomancer'].includes(p.id))drawBardAura(rear,floor,p,time);
+    else if (martial.has(p.id)) drawWarriorAura(rear, floor, p, time);
     else if (arcane.has(p.id)) drawArcaneAura(rear, floor, p, time);
     else if (wild.has(p.id)) drawRangerAura(rear, floor, p, time);
     else if (p.id !== 'novice') drawHolyNatureAura(rear, floor, p, time);

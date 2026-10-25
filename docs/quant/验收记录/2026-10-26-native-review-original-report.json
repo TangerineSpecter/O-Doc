@@ -1,0 +1,301 @@
+{
+  "title": "原始函数含未来收益乘法、候选仅保留均值偏离：固定样本对照 fail 的语义与参数边界复核",
+  "summary": "本机固定样本对照（200 行 BTCUSDT 1h 现货原始价，2024-04-01T00:00Z 至 2024-04-09T07:00Z，period=21，horizon 以字面量 1 传入）判定 fail：179 个共同有效行全部超容差，0 行在容差内，最大绝对误差 0.03596081001825296945，最大相对误差约 1.0345，首个差异出现在索引 20（21 根均线首次可用的时刻），左侧 0.001239943866119697 对右侧 -2.561683058256356e-06。核心原因先落在语义范围：原函数 indicator 返回 signal * future_return（第 7–8 行含 shift(-horizon) 未来收益），候选仅保留第 5–6 行 close/mean-1，两者不是同一输出量，因此 fail 不能直接推断均值偏离公式错误。实际参数 period=21 与源码默认 14 不同；horizon 全程显式 1，未用源码默认替换。本对照不证明平台等价、不含收益、未评估经济有效性，故不给收益搜索方案，feedback_proposal 置 null。",
+  "reported_parameters": [],
+  "reported_metrics": [],
+  "supporting_evidence": [],
+  "counter_evidence": [],
+  "comparison": "先查平台/数据/成本/成交时点：本对照为受控表达式与存储 Python 文本在同一行情行号、同一时间戳上逐行比较，无成本与成交时点语义，两侧单位沿用候选声明而非独立认证，因此差异不能归因于费用或成交假设。再查语义：原函数输出为 signal 乘未来收益（horizon=1 前视项），候选输出为纯信号，定义不同，未形成可比较定义前无法判断公式对错。参数层面：本次实际 period=21，源码默认 14，历史固定验证与本地实验多用 period=30 或 14，均非本次运行值。历史方面：period=30 的 2024-02 固定验证收益 0.13958330972060828 低于其基线 0.4349843396904649 且回撤更大，另一份同参数验证在计算前被取消；2024-03 本地搜索中 period 7/12/14/18/24 的训练段多为负或接近零。上述均为已曝光历史，不是本次对照的独立证据。",
+  "hypotheses": [
+    "主因假设：fail 由输出定义不同造成——左侧仍乘 shift(-1) 未来收益，右侧不含该乘子，而非均线公式本身不一致。",
+    "次要假设：右侧在索引 20–25 的数值量级约 1e-6、左侧约 1e-3 至 1e-2，除乘子外可能还存在滚动均值预热/min_periods 或尺度处理差异（平台 sma 语义未知）。",
+    "参数假设：period=21 与源码默认 14、历史上常用的 30 具有不同灵敏度，但当前无同定义、同数据、同参数的信号级对照，无法比较。",
+    "缺失差异假设：left_missing 20 与 right_missing 21 差 1 行，可能源于缺失传播或 min_periods 边界处理不同，需专门定位该行。"
+  ],
+  "unknowns": [
+    "原函数第 7–8 行的 future_return 若单独被当作因子使用会引入前视，是否已有隔离定义未知。",
+    "平台 sma 的缺失策略与 min_periods 默认值未声明；pandas rolling 默认行为虽在运行时生效但未在源码声明。",
+    "数据频率以外的复权口径细节（现货原始价、无股权调整已声明）与是否覆盖全部中间柱未知。",
+    "period 的合法取值范围与下限未声明；period=21 的选择依据未知。",
+    "horizon 除本对照字面量 1 外的语义与取值范围未知。",
+    "缺失行索引位置、差异行的具体成因未定位。",
+    "未验证平台等价性，未评估经济有效性；无交易成本、滑点、成交时点信息。"
+  ],
+  "next_steps": "1) 只对第 5–6 行做隔离复核：以同一份行情、同一 period=21、两侧都显式不乘未来收益，python 文本用 pandas rolling(21).mean()，受控表达式用 sma(close,21)；可否证条件为所有共同有效行满足 |diff|≤1e-9 且相对误差≤1e-8，若不满足则定位 min_periods/缺失语义差异并记录首个差异行。2) 单独记录原函数（含 shift(-horizon)、horizon=1 字面量）的冻结输出，标注为含前视、仅用于语义边界，不作为因子候选，不与信号级对照混算。3) 精确定位 left_missing 20 与 right_missing 21 相差的那一行索引与时间戳，给出缺失原因。4) 在结论中显式写明 period=21 为本次实际值、14 为源码默认值，二者不得互换。5) 以上均为输出复核与定义修订，不构成参数搜索、收益验证或执行授权。",
+  "native_review_version": 1,
+  "native_review": {
+    "verdict": "fail",
+    "actual_parameters": {
+      "period": 21
+    },
+    "interpretation": "判定为 fail：200 行中 compared_rows 200、warmup_rows 0、common_valid 179，within_tolerance 0，value_mismatches 179，missing_mismatches 1（left_missing 20、right_missing 21、both_missing 20），max_abs_error 0.03596081001825296945，max_relative_error 1.0345162320481352557227235390289695957846968957582。首个差异在索引 20、时间戳 2024-04-01T20:00:00+00:00，左侧 0.001239943866119697、右侧 -2.561683058256356e-06；索引 20 正是 period=21 的滚动均值首次可用的位置，说明两侧在数据起点后同步开始产出，不存在整体移位。最可能的系统性原因是输出定义不同：左侧为原函数返回值，包含第 7–8 行的 signal 乘未来收益（shift(-horizon)，horizon 以字面量 1 传入）；右侧为剥离未来收益项后的候选信号 close/mean-1。两者不是同一物理量，符号与量级都不可比，因此 fail 主要反映语义范围差异，而不是把第 5–6 行均线偏离判为错误。索引 20–25 右侧量级约 1e-6 而左侧约 1e-3，提示除乘子外还可能有预热或缺失语义差异，但当前对照未隔离该因素，属待验证假设。",
+    "parameter_assessment": "本次实际参数为 period=21，全部参数显式传入（argument_policy=all_explicit_no_source_default_substitution）：frame 传 DataFrame 仅含 close 列，period 走参数，horizon 传字面量 1。候选声明中 period 的默认值是 14，源码第 1 行亦为 period=14；本次 21 与 14 不同，不能把 14 当作运行值，也不能把 21 当作默认值或推荐值。历史固定验证使用 period 30（2024-02，其中一版在计算前取消、一版完成），2024-03 本地搜索的源候选实际参数为 period 14，变体为 7/12/18/24，与本次 21 均不一致。由于左侧输出含未来收益乘子，当前任何参数比较都混入了定义差异；在有条件且待验证的假设下，只有先固定信号级定义（第 5–6 行，无 shift），再比较 period=21 与 14、30 的输出与信号统计，才可能讨论参数效应。参数与输入映射的其余边界（period 下限、是否允许 0/负值、horizon 取值范围）源码未声明，均为未知。",
+    "limitations": [
+      "样本仅 200 行 BTCUSDT 1h 现货原始价（无股权调整），区间 2024-04-01T00:00Z 至 2024-04-09T07:00Z，单标的单频率。",
+      "对照策略 warmup_bars=0，未显式排除 21 根预热，前 20 行以缺失形式出现，缺失语义未分离。",
+      "容差 1e-9/1e-8 作用于十进制文本精确分数；误差摘要为 50 位十进制。",
+      "运行环境为 arm64 单核 256MiB、无网络只读容器，Python 3.11.17、pandas 2.3.3、numpy 2.3.4；平台等价性 unverified，非独立验证。",
+      "左侧含未来收益乘子、右侧不含，二者定义不同，本对照不能用于判断均线偏离公式正确性，也不评估经济有效性。",
+      "输出单位与用途取自候选声明，非独立认证。"
+    ]
+  },
+  "native_review_facts": {
+    "id": "1b766d7734b103a428c711a6f67af29899c5efc4",
+    "content_hash": "faa373174303cffc5e9e236433b9c5e6c906f36e8b64922c4606267258a8161b",
+    "source": {
+      "id": "d523c6388cdf3c3e26b5a3aa65e1980f60db1d39",
+      "hash": "3c402f2cdaca2d0e3f7210dd0f153c9652b46bc8d44ac9a256d528f95988fe20",
+      "main": "__source__.py",
+      "files": [
+        {
+          "path": "__source__.py",
+          "role": "primary",
+          "sha256": "d747c01d535430877b7d024e77671b59f3d07dd29ab65e8d9db3f1c65dcedee8"
+        }
+      ],
+      "text_encoding": "utf-8",
+      "original_binary_encoding_attested": false
+    },
+    "dataset": {
+      "id": "450d2db5d1996ac41af964929e7993e7dd9f8e6f",
+      "hash": "d66f409f5c0d8e2706f3a12b47f9e8c9bb85f0c04521604e5dc49e31849dcd15",
+      "offset": 0,
+      "row_count": 200,
+      "sample_hash": "89dc396e42ca04a3c638418db97769fad4b01c7a58beaacaf03bea6409811fe7",
+      "start": "2024-04-01T00:00:00+00:00",
+      "end": "2024-04-09T07:00:00+00:00",
+      "market": {
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "timezone": "UTC",
+        "source": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip",
+        "price_adjustment": "spot raw; no equity adjustment"
+      }
+    },
+    "parameters": {
+      "period": 21
+    },
+    "bindings": {
+      "close": "close"
+    },
+    "native": {
+      "entrypoint": "indicator",
+      "arguments": [
+        {
+          "name": "frame",
+          "kind": "dataframe",
+          "columns": [
+            "close"
+          ]
+        },
+        {
+          "name": "period",
+          "kind": "parameter",
+          "parameter": "period"
+        },
+        {
+          "name": "horizon",
+          "kind": "literal",
+          "value": 1
+        }
+      ],
+      "index": "range",
+      "output_column": "",
+      "seconds": 10,
+      "output_type": "numeric_series",
+      "argument_policy": "all_explicit_no_source_default_substitution"
+    },
+    "policy": {
+      "version": 1,
+      "absolute_tolerance": 1e-09,
+      "relative_tolerance": 1e-08,
+      "warmup_bars": 0
+    },
+    "environment": {
+      "image_id": "sha256:b321c15f8cdfb8f92cd9fd90599e0198f097cb6b5a2f45e09eb68cd9f2e7ec9e",
+      "os": "linux",
+      "architecture": "arm64",
+      "runtime": {
+        "protocol": "python-source-process-v1",
+        "python": "3.11.17",
+        "machine": "aarch64",
+        "numpy": "2.3.4",
+        "pandas": "2.3.3",
+        "supervisor_sha256": "3b04678a205680a69a4a11f51e0954c8c7b4aa39c8403674c4cd93a5e206412f",
+        "child_sha256": "104370ff79884024fb5d5109fe0e2e2f1b22f33cd022e4b4422fc9740ef701a2"
+      },
+      "limits": {
+        "memory_mib": 256,
+        "cpus": 1,
+        "pids": 32,
+        "tmp_mib": 32,
+        "maximum_seconds": 30,
+        "network": "none",
+        "root_filesystem": "read_only",
+        "source_uid": 65532,
+        "host_mounts": false
+      }
+    },
+    "status": "completed",
+    "reason": "",
+    "verdict": "fail",
+    "comparison": {
+      "version": 1,
+      "method": "controlled-output-comparison-v1",
+      "claim": "stored_python_text_process_outputs_fixed_sample_not_platform_global_or_financial_equivalence",
+      "status": "fail",
+      "evaluation_status": "completed",
+      "counts": {
+        "total_rows": 200,
+        "warmup_rows": 0,
+        "compared_rows": 200,
+        "common_valid": 179,
+        "left_missing": 20,
+        "right_missing": 21,
+        "both_missing": 20,
+        "missing_mismatches": 1,
+        "value_mismatches": 179,
+        "within_tolerance": 0
+      },
+      "start": "2024-04-01T00:00:00+00:00",
+      "end": "2024-04-09T07:00:00+00:00",
+      "comparison_start": "2024-04-01T00:00:00+00:00",
+      "output_hashes": {
+        "left": "668256278f9745cd1ab9a4c6e0260fd92d5e076fd5f727892847611c09c4b4b0",
+        "right": "2b1803abda1a91757040a8e1cf2e745b86fd78b27b6e2ba3798d298b25b8557e"
+      },
+      "classification_hash": "c9fc2ac0e56bf20892b9d33a1e4984ed5e0b129a6dff6695be521a2592113996",
+      "max_abs_error": "0.03596081001825296945",
+      "max_relative_error": "1.0345162320481352557227235390289695957846968957582",
+      "first_difference": {
+        "index": 20,
+        "timestamp": "2024-04-01T20:00:00+00:00",
+        "left": 0.001239943866119697,
+        "right": -2.561683058256356e-06,
+        "kind": "value_mismatch"
+      },
+      "differences": [
+        {
+          "index": 20,
+          "timestamp": "2024-04-01T20:00:00+00:00",
+          "left": 0.001239943866119697,
+          "right": -2.561683058256356e-06,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 21,
+          "timestamp": "2024-04-01T21:00:00+00:00",
+          "left": 0.00024301979308050115,
+          "right": 4.393047419250455e-07,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 22,
+          "timestamp": "2024-04-01T22:00:00+00:00",
+          "left": 0.0028113218985459376,
+          "right": -2.4999192316081468e-06,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 23,
+          "timestamp": "2024-04-01T23:00:00+00:00",
+          "left": 0.002755661230629869,
+          "right": -1.1897843859925288e-05,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 24,
+          "timestamp": "2024-04-02T00:00:00+00:00",
+          "left": -0.0007250714581796824,
+          "right": -4.395444626211683e-07,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 25,
+          "timestamp": "2024-04-02T01:00:00+00:00",
+          "left": 0.0005939512335961794,
+          "right": -2.0500958604081917e-05,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 26,
+          "timestamp": "2024-04-02T02:00:00+00:00",
+          "left": -0.03250019681234961,
+          "right": 0.00014166565877232168,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 27,
+          "timestamp": "2024-04-02T03:00:00+00:00",
+          "left": -0.03478526904146906,
+          "right": 5.834920699697506e-05,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 28,
+          "timestamp": "2024-04-02T04:00:00+00:00",
+          "left": -0.0344063912858269,
+          "right": -8.916241907738485e-05,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 29,
+          "timestamp": "2024-04-02T05:00:00+00:00",
+          "left": -0.0301469066417126,
+          "right": -4.620156755978145e-05,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 30,
+          "timestamp": "2024-04-02T06:00:00+00:00",
+          "left": -0.02695897641759626,
+          "right": 0.00016589371443850984,
+          "kind": "value_mismatch"
+        },
+        {
+          "index": 31,
+          "timestamp": "2024-04-02T07:00:00+00:00",
+          "left": -0.030865811971403256,
+          "right": 0.00010008148555947595,
+          "kind": "value_mismatch"
+        }
+      ],
+      "limitations": [
+        "比较固定存储Python文本函数与受控表达式在本次实际参数、输入和容差下的输出；不证明平台、全局或经济等价。",
+        "按同一行情行号和时间戳逐行比较，只排除显式共同预热段；不自动移位或分别删除缺失值。",
+        "误差文本为50位十进制摘要；容差判定使用输入十进制文本的精确分数。",
+        "输出单位和用途取候选的声明，不是原函数单位的独立认证。"
+      ]
+    }
+  },
+  "feedback_planning_note": "本轮不做收益搜索：当前唯一可核算事实是固定样本输出对照 fail，且左侧输出含 shift(-horizon) 未来收益乘子、右侧为纯信号，尚未形成可比较定义。若后续要提方案，必须先具备三条前提：其一，信号级隔离复核通过（两侧均为 close/rolling(period).mean()-1，period=21，共同有效行满足绝对误差≤1e-9、相对误差≤1e-8）；其二，缺失语义（min_periods、预热 21 根、left_missing 20 与 right_missing 21 的第 1 行差异）有明确解释；其三，明确定价与成本假设——本材料未含费用、滑点或成交时点，任何引入 fee_bps/slippage_bps 的实验都是新假设，不能回填为已验证事实。历史中的 fee 5bps、slippage 5bps 与 threshold 0 仅为当时配置，不是本轮推荐。参数假设只能在不含前视的信号级定义上讨论 period 21 与 14、30 的差异，并须以预先声明可否证条件的数据区间复核；历史固定验证与 2024-03 搜索的区间已被查看，不能作为新公式的未见样本外证据。因此 feedback_proposal 置 null，缺的是可比较定义与独立的信号级复核结果，而非参数取值范围。",
+  "feedback_planning_version": 1,
+  "feedback_proposal": null,
+  "memory_note": "同来源有界历史共 3 条可用记录（实验 3、固定验证 2，比较 0，反馈 0），另有 2 条因体积省略、不可当作不存在失败。三份记录均围绕 close_relative_rolling_mean_deviation 的 period 邻域，但实际参数与本次 native_check 的 period=21 不同：period=30（2024-02）、period=14 及其 7/12/18/24 变体（2024-03），因此不能直接与本次对照数值等同。db8395139fd6602f97e1c426248d0dc38ce79d07 为 2024-02 全月完成记录：策略 total_return 0.13958330972060828、max_drawdown 0.11122691520353123、entries 41、turnover 82，基线 total_return 0.4349843396904649、max_drawdown 0.04258372517559572、entries 1；策略收益低于基线且回撤更大，属负面证据，并已 historical_evaluation_exposed，不能作为未见样本外证据或有效性支持。c6aef2399d994b9515ec5ee561cbcb6eca7c4575 为同参数复制验证，状态 cancelled，计算前停止，无收益事实，不能记为零收益或视为通过；其数据预约仍保留，说明该区间存在使用痕迹。3bcade44045d30027fe12365b9a4e61a081cba72 为 2024-03 BTCUSDT 1h 本地搜索：12 次尝试全部保留，period 7/12/14/18/24 训练段 total_return 分别为 0.0993（仅验证段）、0.003455725313070257、-0.021964135938445373、-0.018307615425237955、0.00832982531969173，双窗口均值组合训练段亦多为负；验证段普遍为正但选择后才评价，historical_holdout_exposed=true、independent_holdout_proven=false，属开发线索而非独立留出。以上历史均不构成本轮指标，也不改变当前参数判断；缺口是缺少与 period=21、信号级定义（不含 shift）严格同口径的对照。",
+  "memory_assessment": [
+    {
+      "action": "investigate",
+      "rationale": "该固定验证为 period=30、2024-02 全月的复制尝试，状态 cancelled 且错误文本说明计算前停止，没有任何收益、回撤或成交事实。不能把取消解释为零收益或通过，也不能作为当前 period=21 的参数证据；需补齐同口径（信号级定义）重跑或明确放弃，才能判断该区间是否提供信息。",
+      "evidence_refs": [
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    },
+    {
+      "action": "reject",
+      "rationale": "该 period=30 固定验证虽完成，但策略收益 0.13958330972060828 明显低于其自身基线 0.4349843396904649，最大回撤 0.11122691520353123 高于基线 0.04258372517559572，换手 82 对 2。作为有效性或优于基线的支持证据应予以否定，并保留为负面证据；同时该结果已曝光、非独立验证，不能用于当前 period=21 的推广。",
+      "evidence_refs": [
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    },
+    {
+      "action": "investigate",
+      "rationale": "该 2024-03 本地搜索保留全部 12 次尝试及成本配置（fee 5bps、slippage 5bps、threshold 0），单窗口 period 7/12/14/18/24 的训练段收益多为负或接近零，双窗口均值组合验证段为正但留出已曝光。可复用其失败条件与参数网格作为后续可否证对照的参照，不可用作当前候选的表现分或独立留出，需在信号级同口径、period=21 及邻域上重做并预先声明判定。",
+      "evidence_refs": [
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72"
+      ]
+    }
+  ],
+  "feedback_version": 1,
+  "evidence_status": "external_report_unverified",
+  "evidence_hash": "6f4231c5992c35e2e1092fd5c79108dce29cc0f6f16e41a028a03c2762be9778"
+}

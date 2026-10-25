@@ -1,0 +1,43 @@
+{
+  "artifact_hashes": {
+    "2026-10-25-native-python-snapshot.json": "a589154f05b74d09bd931314274803abfd94763925c1f77574ac6046608205c6",
+    "2026-10-25-native-python-verification.json": "3ad73af95afde8627e681775d31fd61ce3c3fa1f99726119526416857354ffa4",
+    "2026-10-25-native-python-report.json": "126fdb9cb7880891e6e5122db485b9f23dc01716da31d160bb79a3e4c2e9da78",
+    "2026-10-25-native-python-attempt-1.json": "ad4c78bfa0ae402e096ceab5955f411fdc8a33ad545ab3d54b9155a350616d2d",
+    "2026-10-25-native-python-review-evidence.json": "495b9f6697fabbbc23c8663adc4c5e50b22c3443b09722e5b5f33b0e73f4da22",
+    "2026-10-25-native-python-prompt.txt": "f0b1bd09b790382f2d0065a753d9c0ba61b0f522059f5baefe7e8bc629397e19",
+    "2026-10-25-native-python-attempt-3.json": "eb53e8d55dc9cea9a59bd31d9e49dcd65d5ca68ac5620d920889ee89471640f5",
+    "2026-10-25-native-python-summary.json": "2b6020d1d4349530470db377a31aae07edf9e62a814d7c4c42fb34b7b479252a",
+    "2026-10-25-native-python-attempt-2.json": "b9b9c881e2d2c9e4212dd1be6784cf712c0b42c186af495f5c614bd6e2928dc9",
+    "2026-10-25-native-python-attempt-4.json": "3d3dc4d20503cc6ea4fbb7e1719184e6101a093af5d02d92bdcd773bd0678421",
+    "2026-10-25-native-python-runtime-smoke.json": "41c273d0d7efb0a71f32bd3e3ac5d07742bf5a8b7e8b18a2db23ce3f18d1cee0",
+    "2026-10-25-native-python-report-preview.md": "fc7e8b21ad2cb217b24db805b6795dd7ca9849a3f9e4ab7d02328dc61d3bcd90",
+    "2026-10-25-native-python-report.md": "50a0ddd2200307d2231c245b61d462f5a8e96736988549e9c198e5439a294719"
+  },
+  "archived_source_hashes": {
+    "quant/native_python/sync.py": "73290f92df0654bf333ac62a9f5da2211e9a77a2c68ba76dcfeccb66fd3ff5c4",
+    "quant/native_python/build.py": "f14993be25099b7422ba5985eae89761a739eec6f583de214eb02940dae2f5d3",
+    "quant/native_python/worker.py": "a673de089d9a0137f2889b8f399944897b1c3065c19bf3775cbfb705596caa6c",
+    "quant/native_python/services.py": "2edd14d043c5601960d687bd0ce6b76ee02ad2b8f2c297a103befbefaf2bf6e6",
+    "quant/native_python/feedback.py": "a698380c07f29d5ab1f71524414ef8d365be2bfc5827b2e5fdd659297859046f",
+    "quant/native_python/calculation.py": "168944ebb19d51a2751ada60118113dec39ede2522f6838915991027b2524128",
+    "quant/native_python/__init__.py": "0f24872656530e5914f5c70126cbcbe218790810624101382086318f82a0fce0",
+    "quant/native_python/runtime.py": "6f9dc5437fc0302642ff61d537c789859c215eb3e630089a817356864ea8283d",
+    "quant/native_python/contracts.py": "1037ef5edf1b307df398b12e84811c9b2d7382a4725f026fc630750a4bf951ab",
+    "quant/native_python/evidence.py": "ecd46edeea68e8d1bd89b7e2a7345b3eed9473c8278b3f3c239dfadc6b32e3cc",
+    "quant/native_python/views.py": "0dd20ad9f1db37912b916a355e338d0086792254efa18b2769d94def6c042d0a",
+    "quant/feedback/sync.py": "7b6ca154d7ebcf6796ea516e72352994ea6a7744c847b5851db55dd892caa218",
+    "quant/feedback/services.py": "8d3c61564500548a05c12122eaa6bac00c8b672a9970b583f6dd1174cb9b958c",
+    "quant/feedback/execution.py": "512e93dc6f84814b0cb748e23a3d3dd07ff394e9fb354f07dfec3d6ca2b36b3c",
+    "quant/feedback/execution_analysis.py": "720507b8e270b59fc394fa365bd1b6e9dc1d7749b71374228814a39f95cb51f5",
+    "quant/feedback/memory.py": "e0f6c3fec462166ec86a5abb358fb38aaf8ce433a00b7ee71e930f937cf20e54",
+    "quant/feedback/native_analysis.py": "141d720c9bab62191cae2484c06dc378476743705ede9c1cbab69ed4c851b8f7",
+    "quant/feedback/__init__.py": "6cac1d8c08acdd17f8cbd95679613a450794a4db96431b21eea00a99f3a763cd",
+    "quant/feedback/contracts.py": "3cd3378d81c3afc871198600a2d4b8b4d93686d3cece65d856eb49ea2a7d6aa5",
+    "quant/feedback/planning.py": "afbc391fc371970ead998c40f05c0710ccf9af7888d3d77baf07af68c67e3141",
+    "quant/feedback/evidence.py": "bd968536659b74117da8baecd0338ee90e6cdc3eecccd4ebc904735fc09b548c",
+    "quant/feedback/views.py": "c554a9bc2de84d20e457cbe6edbd4b94d39a6226d969a92b84564594dbb79aba"
+  },
+  "scope": "archive-time source hashes; exact model prompts and original outputs are separate immutable artifacts",
+  "model_quality_release": false
+}

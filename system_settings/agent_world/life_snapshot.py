@@ -6,7 +6,7 @@ from django.core import serializers
 from django.core.serializers.json import DjangoJSONEncoder
 from utils.sync_datetime import normalize_datetime_fraction
 
-MODELS = ('LifeConfig', 'LifeProfile', 'LifeGoal', 'LifeCycle', 'LifeItem', 'LifeRevision', 'LifeInterleavingState')
+MODELS = ('LifeConfig', 'LifeProfile', 'LifeGoal', 'LifeCycle', 'LifeItem', 'LifeRevision', 'LifeInterleavingState', 'AdventurePlanningDay', 'AdventureReservation')
 LABELS = {'system_settings.' + name.lower(): name for name in MODELS}
 INTEGRITY = 'system_settings.lifeintegrity'
 
@@ -57,9 +57,14 @@ def validate_source(data: list[dict]) -> dict[str, dict[str, str]]:
     expected = {row['pk']: dict(row['fields']['hashes']) for row in data if row['model'] == INTEGRITY}
     from .life_interleaving_sync import validate_snapshot
     validate_snapshot(data)
+    from .combat.reservation_sync import validate_snapshot as validate_reservations
+    validate_reservations(data)
     normalized = snapshot_hashes(data)
     # Legacy snapshots have no checkpoint rows or hash; only an empty table may be added.
     for owner, hashes in expected.items():
+        for name in ('AdventurePlanningDay', 'AdventureReservation'):
+            if name not in hashes and normalized.get(owner, {}).get(name) == hash_rows([], ()):
+                hashes[name] = hash_rows([], ())
         if 'LifeInterleavingState' not in hashes and normalized.get(owner, {}).get('LifeInterleavingState') == hash_rows([], ()):
             hashes['LifeInterleavingState'] = hash_rows([], ())
     if expected != normalized:
@@ -91,6 +96,8 @@ def refresh_merged_integrity(data: list[dict], revisions: dict) -> None:
     from utils.sync_manager import canonical_hash, get_device_id
     from .life_interleaving_sync import validate_snapshot
     validate_snapshot(data)
+    from .combat.reservation_sync import validate_snapshot as validate_reservations
+    validate_reservations(data)
     hashes = snapshot_hashes(data)
     checkpoints = {row['pk']: row for row in data if row['model'] == INTEGRITY}
     for owner, fingerprint in hashes.items():

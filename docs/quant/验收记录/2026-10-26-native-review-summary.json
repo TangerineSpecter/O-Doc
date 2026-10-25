@@ -1,0 +1,16 @@
+{
+  "real_provider_calls": 7,
+  "input_tokens": 170676,
+  "output_tokens": 71189,
+  "total_tokens": 241865,
+  "billing_amount": null,
+  "billing_reason": "provider billing/currency not captured; token counts are usage evidence, not a price quote",
+  "source_calls": 0,
+  "published_reports": 0,
+  "old_report_unchanged": true,
+  "independent_review": false,
+  "model_quality_release": false,
+  "raw_only_attempts": [
+    3
+  ]
+}

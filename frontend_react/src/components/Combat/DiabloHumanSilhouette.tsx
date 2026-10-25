@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject} from 'react';
+import {loadPlayerStill} from './art/playerStillArt';
 import warriorHeroImg from '../../assets/combat/loadout-hero-warrior-v1.png';
 import mageHeroImg from '../../assets/combat/loadout-hero-mage-v1.png';
 import archerHeroImg from '../../assets/combat/loadout-hero-archer-v1.png';
@@ -17,6 +18,7 @@ interface HeroVisualMeta {
 }
 
 const HERO_VISUAL_META: Record<LoadoutHeroArchetype, HeroVisualMeta> = {
+    bard: {image:'',alt:'吟游诗人中心立绘',aura:'radial-gradient(circle, rgba(120,165,137,.22), transparent 75%)',footAura:'radial-gradient(ellipse, rgba(120,165,137,.32), transparent 78%)'},
     warrior: {
         image: warriorHeroImg,
         alt: '战士中心立绘',
@@ -141,6 +143,8 @@ export function DiabloHumanSilhouette({
     stageRef?: RefObject<HTMLDivElement | null>;
     className?: string;
 }) {
+    const [bardImage,setBardImage]=useState('');
+    useEffect(()=>{let alive=true;if(archetype==='bard')void loadPlayerStill('job.bard').then(url=>{if(alive)setBardImage(url);});return()=>{alive=false;};},[archetype]);
     const heroImgRef = useRef<HTMLImageElement | null>(null);
     const [geometry, setGeometry] = useState(() => buildFallbackGeometry(archetype));
 
@@ -221,7 +225,8 @@ export function DiabloHumanSilhouette({
         };
     }, [measureConduits, stageRef]);
 
-    const visual = HERO_VISUAL_META[archetype] || HERO_VISUAL_META.warrior;
+    const meta = HERO_VISUAL_META[archetype] || HERO_VISUAL_META.warrior;
+    const visual = archetype==='bard'?{...meta,image:bardImage}:meta;
 
     return (
         <div
@@ -276,8 +281,8 @@ export function DiabloHumanSilhouette({
                     animation: 'loadoutHeroBreathe 4.2s ease-in-out infinite',
                 }}
             >
-                <img
-                    style={imageUrl ? {transform: `translate(${imageOffsetX}%, ${imageOffsetY}%) scale(${imageScale})`, transformOrigin: '50% 95.7%'} : undefined}
+                {(imageUrl||visual.image)&&<img
+                    style={imageUrl ? {transform: `translate(${imageOffsetX}%, ${imageOffsetY}%) scale(${imageScale})`, transformOrigin: '50% 95.7%'} : archetype==='bard'?{imageRendering:'pixelated'}:undefined}
                     ref={heroImgRef}
                     data-loadout-hero-img={archetype}
                     src={imageUrl || visual.image}
@@ -285,7 +290,7 @@ export function DiabloHumanSilhouette({
                     onLoad={measureConduits}
                     onError={event => {if (event.currentTarget.getAttribute('src') !== visual.image) event.currentTarget.src = visual.image;}}
                     className="w-full h-full object-contain select-none"
-                />
+                />}
             </div>
 
             {/* 5. 解剖对位折线引线与靶心锚点 SVG 叠层 */}

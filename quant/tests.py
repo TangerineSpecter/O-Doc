@@ -20,9 +20,9 @@ from assets.models import Asset
 from system_settings.models import AIModel, AIProvider, SystemSetting
 from utils.bounded_completion import AIOutputTruncated, AIRequestTimeout
 from utils.sync_manager import SyncError, SyncManager
-from .models import AIRun, Attachment, Backtest, CodeVersion, Entry, Implementation, Job
+from .models import AIRun, Attachment, Backtest, CodeVersion, Entry, Implementation, Job, ResearchReport
 from .services import create_implementation, parse_result, save_version
-from .sync import metadata, reset_execution, validate
+from .sync import SCHEMA_VERSION, metadata, reset_execution, validate
 from .worker import execute, prompt, recover
 
 
@@ -356,6 +356,9 @@ class QuantTests(TestCase):
         self.assertEqual(response.data['data']['explanation'], '代码的解释')
         self.entry.refresh_from_db()
         self.assertEqual(self.entry.content, 'private-unrelated-entry-note')
+        report = ResearchReport.objects.get(run=run)
+        self.assertEqual(report.data['evidence_status'], 'unverified')
+        self.assertIn('代码的解释', report.markdown)
         self.assertEqual(Implementation.objects.count(), 1)
 
     def test_truncation_timeout_and_invalid_result_never_publish(self):
@@ -422,7 +425,7 @@ class QuantTests(TestCase):
                 validate(changed, meta)
         validate([], {})
         with self.assertRaises(SyncError):
-            validate(data, {'quant_schema_version': 2})
+            validate(data, {'quant_schema_version': SCHEMA_VERSION + 1})
         changed = deepcopy(data)
         code_row = next(row for row in changed if row['model'] == 'quant.codeversion')
         code_row['fields']['code'] = 'different-but-hashed()'

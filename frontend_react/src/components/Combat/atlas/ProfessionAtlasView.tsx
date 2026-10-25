@@ -5,7 +5,7 @@ import {AtlasGridCard} from './AtlasGridCard';
 import {PlayerPortrait} from './PlayerPortrait';
 import {hasProfessionArt,auraNames,getProfessionAura} from '../art/professionAuras';
 import {getProfessionVisual} from './atlasIcons';
-import {effectText, elementNotes} from '../presentation';
+import {effectText, elementNotes, skillDescription} from '../presentation';
 import {getAtlasSkill} from '../animation/skillPreview/atlasSkillProfiles';
 import {SkillPreviewDialog} from './SkillPreviewDialog';
 
@@ -109,6 +109,8 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
         if (!selected) return [];
         return skills
             .filter(s => s.professionId === selected.id)
+            .sort((a, b) => Number(a.kind === 'passive') - Number(b.kind === 'passive')
+                || Number(a.learnLevel) - Number(b.learnLevel))
             .map(skill => {
                 const ranks: SkillRankItem[] = skillLevels
                     .filter(r => r.skillId === skill.id)
@@ -124,7 +126,7 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                             costRankFactor: String(rank.costRankFactor || '1'),
                             unlockCost: 0,
                             cooldownRounds: String(rank.cooldownRounds || '0'),
-                            description: String(rank.description || ''),
+                            description: skillDescription(String(rank.description || '')),
                             effectsText: effects.map(effectText).join('；'),
                         };
                         item.unlockCost = skillCostAtUnlockLevel(item);

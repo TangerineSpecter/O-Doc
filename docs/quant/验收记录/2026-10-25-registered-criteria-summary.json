@@ -1,0 +1,222 @@
+{
+  "plan_id": "dfb2e99ab50257aba4d00f6d0592af08d5467977",
+  "request_id": "6e873da2eff6abf557f6b277c554bb491d7ffebc",
+  "result_id": "93a7b2a03b084fc18e904fe294fbe83b6b79a212",
+  "review_id": "0e7ffe37e3b0474c851bbffa8b255252",
+  "review_status": "completed",
+  "review_error": "",
+  "criteria": {
+    "version": 1,
+    "min_total_return": 0.0,
+    "max_drawdown": 0.2,
+    "min_excess_return": 0.0,
+    "min_signal_coverage": 1.0,
+    "min_entries": 1,
+    "logic": "all",
+    "fraction_tolerance": 1e-12,
+    "scope": "registered_recipe_parameters_and_interval_only"
+  },
+  "assessment": {
+    "version": 1,
+    "status": "not_met",
+    "rules": [
+      {
+        "criterion": "min_total_return",
+        "metric": "total_return",
+        "relation": "gte",
+        "unit": "fraction",
+        "threshold": 0.0,
+        "observed": 0.05928778508763588,
+        "tolerance": 1e-12,
+        "status": "met"
+      },
+      {
+        "criterion": "max_drawdown",
+        "metric": "max_drawdown",
+        "relation": "lte",
+        "unit": "fraction",
+        "threshold": 0.2,
+        "observed": 0.07868910601563839,
+        "tolerance": 1e-12,
+        "status": "met"
+      },
+      {
+        "criterion": "min_excess_return",
+        "metric": "excess_return",
+        "relation": "gte",
+        "unit": "fraction",
+        "threshold": 0.0,
+        "observed": -0.051184217892318085,
+        "tolerance": 1e-12,
+        "status": "not_met"
+      },
+      {
+        "criterion": "min_signal_coverage",
+        "metric": "signal_coverage",
+        "relation": "gte",
+        "unit": "fraction",
+        "threshold": 1.0,
+        "observed": 1.0,
+        "tolerance": 1e-12,
+        "status": "met"
+      },
+      {
+        "criterion": "min_entries",
+        "metric": "entries",
+        "relation": "gte",
+        "unit": "count",
+        "threshold": 1,
+        "observed": 25,
+        "tolerance": 0,
+        "status": "met"
+      }
+    ],
+    "eligibility": "criteria_not_met",
+    "checks": {
+      "calculation_completed": true,
+      "all_registered_rules_met": false,
+      "fresh_mode": true,
+      "imported_after_registration": true,
+      "authorization_audit_complete": true,
+      "authorization_no_known_reuse": true,
+      "publication_audit_complete": true,
+      "publication_no_known_reuse": true
+    },
+    "scope": "registered_recipe_parameters_and_interval_only",
+    "independent_validation": false,
+    "unknown_requirements": [
+      "external_prior_data_use",
+      "native_platform_equivalence",
+      "cross_market_robustness"
+    ],
+    "claim": "registered_thresholds_and_publication_time_tracked_scope_not_financial_certification"
+  },
+  "recipe": {
+    "expression": {
+      "op": "div",
+      "args": [
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p1"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "constant",
+          "value": 2
+        }
+      ]
+    },
+    "bindings": {
+      "i0": "close"
+    },
+    "parameters": {
+      "p0": 14,
+      "p1": 60
+    },
+    "parameter_names": {
+      "p0": "a_p0",
+      "p1": "b_p0"
+    },
+    "output_type": "numeric_series",
+    "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+  },
+  "registered_at_utc": "2026-10-25T13:27:49.729217+00:00",
+  "download_started_utc": "2026-10-25T13:27:51.357372+00:00",
+  "dataset_id": "0e4164c6314bc069668130ad20d5fe3773467a08",
+  "dataset_hash": "f402290d16bdfc90aeb68013a5633454d9001ec526c6a382b375ab691a84ed1f",
+  "archive_sha256": "077c71eec71a8ecf2edb6e3a3927b600b8f358fd37066ce120c19fb5302a9ab8",
+  "official_checksum_match": true,
+  "rows": 804,
+  "warmup_rows": 60,
+  "new_rows": 744,
+  "final": {
+    "total_return": 0.05928778508763588,
+    "max_drawdown": 0.07868910601563839,
+    "entries": 25,
+    "turnover": 50,
+    "exposure_fraction": 0.5612382234185733,
+    "missing_signals": 0,
+    "bars": 743,
+    "start": "2024-05-01T00:00:00+00:00",
+    "end": "2024-05-31T23:00:00+00:00"
+  },
+  "baseline": {
+    "total_return": 0.11047200297995396,
+    "max_drawdown": 0.07338911889906086,
+    "entries": 1,
+    "turnover": 2,
+    "exposure_fraction": 1.0,
+    "missing_signals": 0,
+    "bars": 743,
+    "start": "2024-05-01T00:00:00+00:00",
+    "end": "2024-05-31T23:00:00+00:00"
+  },
+  "decimal_reference_match": true,
+  "fixed_plan_and_result_unchanged": true,
+  "prior_reports_and_results_unchanged": true,
+  "provider_calls": 1,
+  "snapshot_roundtrip": true,
+  "restored_execution_jobs": false
+}

@@ -15,6 +15,7 @@ from utils.bounded_completion import AIOutputTruncated, AIRequestTimeout, comple
 from utils.token_usage import usage_scope
 from .locking import collection_lock
 from .models import AIRun, Job
+from .native_reviews.errors import NativeReviewStopped
 from . import queue_liveness
 from .services import model_config, parse_result, touch
 
@@ -35,9 +36,16 @@ def dispatch(run_id: str) -> None:
         return  # Another executor already owns this exact request.
     try:
         future = executor.submit(execute, run_id)
-    except BaseException:
+    except Exception:
         lease.close()
-        raise
+        with collection_lock(job.run.entry.anthology_id), transaction.atomic():
+            active = Job.objects.filter(run_id=run_id, lease_token=job.lease_token, run__status='pending').first()
+            if active:
+                AIRun.objects.filter(pk=run_id).update(status='failed', error='本机模型执行器暂不可用，资料已保留，可重新生成', updated_at=timezone.now())
+                active.cancelled, active.lease_until = True, None
+                active.stage = '本机模型执行器暂不可用'
+                active.save(update_fields=['cancelled', 'lease_until', 'stage'])
+        return
     future.add_done_callback(lambda _future: lease.close())
 
 
@@ -49,6 +57,17 @@ def interrupt(run_id: str) -> None:
 
 
 def prompt(run: AIRun) -> str:
+    if run.kind == 'feedback_review':
+        from .feedback.evidence import for_run as feedback_context
+        from .feedback.contracts import prompt as feedback_prompt
+        return feedback_prompt(feedback_context(run), run.requirements)
+    if run.kind == 'experiment_review':
+        from .experiments.review_evidence import for_run
+        from .experiments.review_contract import review_prompt
+        return review_prompt(for_run(run), run.requirements)
+    if run.kind == 'analyze':
+        from .research.analysis import analysis_prompt
+        return analysis_prompt((run.resolved_source or run.source).payload, run.requirements)
     version = run.source_version
     instruction = ('解释因子/指标/策略代码的逻辑、参数、适用条件和潜在问题。'
         if run.kind == 'explain' else
@@ -128,12 +147,48 @@ def execute(run_id: str) -> None:
                     stage=title[:100], preview=title[:100], lease_until=timezone.now() + timedelta(minutes=3))
                 last_flush = time.monotonic()
 
+        if run.kind == 'analyze' and not run.workflow_version:
+            from .research.acquisition import acquire_source
+            progress('stage', '正在整理来源与获取网页正文', 'info', {})
+            acquire_source(run, check_cancel)
+            if len(prompt(run)) > 210000:
+                from .research.web_source import SourceFetchError
+                raise SourceFetchError('原材料与网页正文合计超过分析上限，请拆分资料；来源快照已保存')
+        check_cancel()
         config = model_config(run.model_id)
         with usage_scope(owner_id=run.entry.anthology.user_id, record=run, purpose='quant', phase=run.kind), observe_ai(progress, check_cancel):
-            output = complete(config, prompt(run), json_output=True, max_tokens=32000,
-                extra_body=AIService._thinking_options(config), deadline_seconds=120, allow_retries=False)
-            check_cancel()
-            result = parse_result(run.kind, output)
+            if run.kind == 'analyze' and run.workflow_version:
+                from .workflows.runner import execute as execute_stages
+                result = execute_stages(run, config, complete, check_cancel, progress)
+            elif run.kind=='feedback_review' and run.feedback_workflow_version:
+                from .native_reviews.runner import execute as execute_native_review
+                result=execute_native_review(run,config,complete,check_cancel,progress)
+            else:
+                output = complete(config, prompt(run), json_output=True, max_tokens=32000,
+                    extra_body=AIService._thinking_options(config), deadline_seconds=120, allow_retries=False)
+                check_cancel()
+                result = parse_result(run.kind, output)
+            if run.kind == 'feedback_review':
+                from .feedback.evidence import for_run as feedback_context
+                from .feedback.contracts import validate_analysis
+                result = validate_analysis(result, feedback_context(run))
+            if run.kind == 'experiment_review':
+                from .experiments.review_evidence import for_run
+                from .experiments.review_contract import validate_review
+                result = validate_review(result, for_run(run))
+            if run.kind == 'analyze':
+                from .research.findings import validate_admission
+                validate_admission(result, run.workflow_version)
+                from .research.analysis import validate_source_evidence
+                from quant.experiments.initial_planning import validate_strategy_admission
+                validate_strategy_admission(result, run.workflow_version)
+                if 'source_memory_version' in result and run.workflow_version not in (12,13,14,15):
+                    raise ValidationError('历史源码工作流不能追加未冻结的研究记忆')
+                if 'factor_repair' in result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15):
+                    raise ValidationError('此历史工作流不接受 AI 定义修订成果')
+                if result.get('extraction_version') != 1:
+                    raise ValidationError('新分析需要完整的候选提取结果；没有候选应明确说明原因')
+                validate_source_evidence(result, (run.resolved_source or run.source).payload)
         with collection_lock(coll_id), transaction.atomic():
             check_cancel()
             run.refresh_from_db()
@@ -141,6 +196,11 @@ def execute(run_id: str) -> None:
             run.status = 'completed'
             run.model_name = config['model_name']
             run.save(update_fields=['result', 'status', 'model_name', 'updated_at'])
+            from .research.services import publish_report
+            publish_report(run)
+            if run.kind == 'analyze' and run.workflow_version:
+                from .workflows.runner import finish
+                finish(run)
             Job.objects.filter(run=run, lease_token=token).update(stage='已完成', preview='', lease_until=None)
             touch(run.entry)
     except Exception as exc:
@@ -154,10 +214,15 @@ def execute(run_id: str) -> None:
                     return
                 cancelled = job.cancelled or event.is_set()
                 run.status = 'cancelled' if cancelled else 'interrupted' if isinstance(exc, InterruptedError) else 'failed'
-                if isinstance(exc, AIOutputTruncated):
+                from .research.web_source import SourceFetchError
+                if isinstance(exc, SourceFetchError):
+                    run.error = str(exc)[:300]
+                elif isinstance(exc, AIOutputTruncated):
                     run.error = '模型输出被截断，本次未采用，请调整要求后重试'
                 elif isinstance(exc, AIRequestTimeout):
                     run.error = '模型调用超过 120 秒时限，本次未采用，请手动重试'
+                elif isinstance(exc,NativeReviewStopped):
+                    run.error=exc.safe_user_message
                 elif isinstance(exc, ValidationError):
                     run.error = '模型未返回完整有效的结果，本次未采用，请调整要求后重试'
                 else:

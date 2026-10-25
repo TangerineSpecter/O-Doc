@@ -28,6 +28,7 @@ const wrists: Record<string, [number, number, number, number]> = {
 };
 
 export function getPlayerHandAnchors(outfitId: string): PlayerHandAnchors {
+    if(['bard','musician','cursesinger','battleconductor','requiemsinger','virtuoso','sonomancer'].includes(outfitId.replace(/^job\./,'')))return {left:{x:170,y:430},right:{x:300,y:417}};
     const row = wrists[outfitId.replace(/^job\./, '')];
     return row ? {left: {x: row[0], y: row[1]}, right: {x: row[2], y: row[3]}} : noviceHandAnchors;
 }

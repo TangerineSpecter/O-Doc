@@ -4,6 +4,7 @@ import type {CombatEvent, CombatSnapshot} from '../../types/api/combat';
 import {observationLoot} from './observationRecords';
 import {ObservationEvents, ObservationKills} from './CombatObservationFeed';
 import {ObservationLootGrid, ObservationLootDetails} from './CombatObservationLoot';
+import {usePartyObservationRecords} from './usePartyObservationRecords';
 import CombatFoodSummary from './CombatFoodSummary';
 
 const tabs = [
@@ -14,11 +15,12 @@ const tabs = [
 
 export default function CombatObservationSidebar({
     snapshot,
-    events,
+    events: personalEvents,
 }: {
     snapshot: CombatSnapshot;
     events: CombatEvent[];
 }) {
+    const {events, loading, error, loadOlder, hasOlder} = usePartyObservationRecords(snapshot.party, personalEvents);
     const [tab, setTab] = useState<'events' | 'drops' | 'kills'>('events');
     const [selected, setSelected] = useState<string | null>(null);
     const list = useRef<HTMLDivElement>(null);
@@ -94,7 +96,14 @@ export default function CombatObservationSidebar({
                 className="scrollbar-hide min-h-0 flex-1 overflow-y-auto p-3"
             >
                 {tab === 'events' && (
-                    <ObservationEvents events={events} playerName={snapshot.player?.name} />
+                    <>
+                        {hasOlder && <button type="button" disabled={loading} onClick={() => {
+                            following.current = false;
+                            void loadOlder();
+                        }} className="mb-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 disabled:opacity-50">{loading ? '加载中…' : '加载更早战斗动态'}</button>}
+                        {error && <p role="alert" className="mb-3 text-xs text-rose-700">{error}</p>}
+                        <ObservationEvents events={events} playerName={snapshot.player?.name} partyPlayers={snapshot.party?.players} />
+                    </>
                 )}
                 {tab === 'drops' && <ObservationLootGrid slots={slots} onSelect={setSelected} />}
                 {tab === 'kills' && (

@@ -14,8 +14,8 @@ normal_equipment_chance,0.2
 normal_gold_chance,0.02
 elite_gold_chance,0.05
 boss_gold_chance,0.15
-weapon_sale_base,10
-weapon_sale_per_level,0.5
+weapon_sale_base,20
+weapon_sale_per_level,2
 equipment_per_hour_limit,12
 potion_carry_cap,20
 defeat_rest_seconds,1800

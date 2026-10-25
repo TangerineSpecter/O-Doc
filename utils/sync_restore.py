@@ -11,7 +11,7 @@ from django.contrib.auth.models import Group
 from django.core import serializers
 from django.core.management.color import no_style
 from django.db import connection, transaction
-from django.db.models import PROTECT
+from django.db.models import PROTECT, CASCADE
 from utils.sync_datetime import SyncJSONEncoder
 from system_settings.sync_state import LOCAL_ONLY_SYSTEM_SETTING_KEYS, is_tracking_suspended, suspend_tracking
 from novel.chapters import enforce_revision_retention as enforce_novel_revision_retention
@@ -93,20 +93,20 @@ class SnapshotRestorer:
 
 
     def _models_for_stale_cleanup(self):
-        """先删引用方，再删被 PROTECT 的记录，避免图书正文资源删不掉。"""
+        """先删引用方；CASCADE 父记录也需等其被 PROTECT 的后代引用解除。"""
         models = list(self.models.iter_target_models())
         model_set = set(models)
         blockers = {model: set() for model in models}
 
         for model in models:
             for field in model._meta.get_fields():
-                if not getattr(field, 'many_to_one', False):
+                if not (getattr(field, 'many_to_one', False) or getattr(field, 'one_to_one', False)):
                     continue
                 remote = getattr(field, 'remote_field', None)
-                if remote is None or remote.on_delete is not PROTECT:
+                if remote is None or getattr(remote, 'on_delete', None) not in (PROTECT, CASCADE):
                     continue
                 target = field.related_model
-                if target in model_set:
+                if target in model_set and target is not model:
                     blockers[target].add(model)
 
         remaining = set(models)
@@ -242,6 +242,8 @@ class SnapshotRestorer:
         if not full_overwrite:
             from system_settings.agent_world.combat.party_sync import complete_legacy_fields
             complete_legacy_fields(data_list)
+            from quant.sync import complete_legacy_fields as complete_quant_fields
+            complete_quant_fields(data_list)
             self._fill_missing_snapshot_fields_from_local(data_list, model_map)
 
         # PromptTemplate points at PromptResultImage, while the result image in
@@ -364,7 +366,7 @@ class SnapshotRestorer:
             from novel.sync import reset_execution as reset_novel_execution
             reset_novel_execution()
             from quant.sync import reset_execution as reset_quant_execution
-            reset_quant_execution()
+            reset_quant_execution(upgrade_legacy=(remote_meta or {}).get('quant_schema_version', 0) < 2)
             from system_settings.agent_world.market_sync import reconcile_market
             guard('市场', reconcile_market)
             from system_settings.agent_world.combat.sync import revoke as revoke_combat

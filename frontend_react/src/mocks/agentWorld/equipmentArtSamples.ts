@@ -4,7 +4,7 @@ import type {MarketItem} from '../../types/api/market';
 
 /** Complete built-in artwork coverage. IDs come from the same typed local catalog as the atlas. */
 export const equipmentArtTemplates = catalog.combat.tables.equipmentTemplates.filter(row =>
-    /^equip\.(armor\.|head(?:\.|$)|ring$|offhand\.|two_handed_sword$)/.test(row.id));
+    /^equip\.(armor\.|instrument(?:\.|$)|head(?:\.|$)|ring$|offhand\.|two_handed_sword$|training_sword$)/.test(row.id));
 // Display fixtures retain each template's real stat categories; they do not simulate random rolls.
 function templateStats(row:CombatRow):Record<string,number> {
     const stats:Record<string,number>={};

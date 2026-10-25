@@ -1,0 +1,5 @@
+*
+!Dockerfile
+!requirements.lock
+!supervisor.py
+!source_child.py

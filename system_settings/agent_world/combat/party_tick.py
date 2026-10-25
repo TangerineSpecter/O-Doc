@@ -3,7 +3,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from django.db import transaction
 from .party_models import AdventureParty, AdventureMember, AdventureWave
-from .models import Exploration, CombatProfile, CombatRuntime, CombatEncounter, CombatConfig
+from .models import Exploration, CombatProfile, CombatRuntime, CombatEncounter
 from .party_sessions import rng_for, wave, admit_waiting
 from .party_facts import append as shared_fact
 from .facts import append
@@ -31,9 +31,9 @@ def account(run, party, now):
     last = local_time(datetime.fromisoformat(run.state['accounted_at']))
     seconds = max(0, int((now-last).total_seconds()))
     profile = CombatProfile.objects.select_for_update().get(pk=run.actor_id)
-    config = CombatConfig.objects.get(pk=run.owner_id)
     credits = day_parts(last, seconds)
-    if any(profile.loot_progress.get('days', {}).get(day, 0)+amount > config.daily_minutes*60 for day, amount in credits.items()):
+    from .reservation_resources import quota_remaining
+    if any(amount > quota_remaining(profile, day, exclude_item=run.life_item_id) for day, amount in credits.items()):
         raise ValueError('今日探索额度耗尽')
     elapsed = min(run.duration_seconds, run.elapsed_seconds+seconds)
     charged = run.state.get('energy_blocks', 1)
@@ -260,9 +260,10 @@ def tick(identity, revision=None, now=None):
             'events': personal.get(run.actor_id, []), 'consumption': charges.get(run.actor_id, []),
             'potions': {sid: before[run.actor_id]['potions'][sid]-player['potions'].get(sid, 0) for sid in before[run.actor_id]['potions']} if 'before' in locals() else {}}, run)
     dead = not alive(party.state['players'])
+    fallen_reason = '全队倒地' if len(runs) > 1 else '角色倒地'
     for run in runs:
         if run.state['player']['hp']<=0 and (dead or party.state['phase']=='searching'):
-            finish(run.pk, 'fallen', '全队倒地' if dead else '清场救援后仍倒地，返回休整', now)
+            finish(run.pk, 'fallen', fallen_reason if dead else '清场救援后仍倒地，返回休整', now)
         elif party.state['phase']=='searching' and (run.state.get('leave_after_wave') or attributes.promotion_options(catalog,CombatProfile.objects.get(pk=run.actor_id).progression)):
             finish(run.pk,'recalled' if run.state.get('leave_after_wave') else 'completed',
                    '本波结束，已离队' if run.state.get('leave_after_wave') else '达到转职等级，返回处理转职',now)

@@ -1,7 +1,7 @@
 {
-  "version": "combat-1.0.22",
+  "version": "combat-1.0.30",
   "status": "released",
-  "engine_schema": 6,
+  "engine_schema": 9,
   "files": {
     "affix_slots.csv": {
       "sha256": "ca5e40a69c952caa39245bb4c91e1c50633980f2efb932f66930232290b95d40",
@@ -28,20 +28,20 @@
       "rows": 7
     },
     "equipment_affixes.csv": {
-      "sha256": "7b1713d28f6254f66f532d998786cc6a536d8bb45e39eba362e070f0ee23b388",
-      "rows": 1675
+      "sha256": "b49db5f372a1a6c1ab055d95e4c88a3360becb1b2576ceedef8fd89d513a2ef0",
+      "rows": 2048
     },
     "equipment_pools.csv": {
-      "sha256": "78464f1bb2c25c97707419f1d9212efaac32cdce59ab71924f0cd7c344bbd5de",
-      "rows": 637
+      "sha256": "10ea7f9256cf2b002c9955892e84dd6efc3164187f83ca713ee7595e5c77bc8a",
+      "rows": 798
     },
     "equipment_professions.csv": {
-      "sha256": "1b8557caeb7b0bc3b51f7f3bbbaab807d2fd4d3e03dd0c54c99fecc23909bdc3",
-      "rows": 1034
+      "sha256": "81b43d7126fb2ac4248edb99d3cd6dc63f8f98bd41f6f931b080db17b1769159",
+      "rows": 1262
     },
     "equipment_templates.csv": {
-      "sha256": "2c644e4bb5b47ad9913a0bceab41f63026e1018bc03d4974f8816de5c6ae197a",
-      "rows": 97
+      "sha256": "13b789337653ab9702dd5ba32ac2904efb829a1bed87c980f7e56991384bc5f1",
+      "rows": 120
     },
     "level_experience.csv": {
       "sha256": "9ae76cef16a9fd170835d3577e4ab030f00017eb237c7b9672ee76d603facccd",
@@ -76,28 +76,28 @@
       "rows": 8
     },
     "professions.csv": {
-      "sha256": "fb8c889c02723db27154ba4e09d4cfefea25a294ef75af0b5431c91c63271d28",
-      "rows": 29
+      "sha256": "ea447bd9e18f8d49f10a827ae6b88683bbe108c2a22e0a6d3ce3e0b7411199dd",
+      "rows": 36
     },
     "qualities.csv": {
       "sha256": "4ece67b17ba754fc2a54795b002030bd4e9ebc5b5e88b5aefeea52b0e2e9052e",
       "rows": 3
     },
     "rules.csv": {
-      "sha256": "9f16c9dbcec7641890434add1d9d1a781a8851f0b99097ef24b9af4fa76daeb7",
+      "sha256": "9c690e36491ca5d891216fad0d488ca3ae1031b959d80505fc5693fbcbf8544f",
       "rows": 69
     },
     "skill_effects.csv": {
-      "sha256": "6415b27771effdd71dae6b0b1867bcd4a8a2861f8494bc12e0c3d76ede6a124c",
-      "rows": 414
+      "sha256": "ab2ee0b945551421c7ba653279337dae22856b8e608f897cf83f9f6a813f7888",
+      "rows": 483
     },
     "skill_levels.csv": {
-      "sha256": "42997d5dd4dae5c74817ee384ee7fd07127d963371f2d3b68c1d00a3a86c6b91",
-      "rows": 236
+      "sha256": "d36b3ffb4b3a6917bf780fdd15fb44e35eeee6f99c4ecca3a193b3836853e37b",
+      "rows": 305
     },
     "skills.csv": {
-      "sha256": "001ad21f0ff5857f11272496f5575d4b514c12318f5f8d3f72832ba9f3b202f4",
-      "rows": 86
+      "sha256": "ebd9556685e54132db9bbed2f16d6a9dac861bea109c825d45f3263b17a0e53b",
+      "rows": 109
     },
     "styles.csv": {
       "sha256": "014218d4b261193d9ac5e729c08497ddf5e0197ad34a8092b8f5cf3ce23267ea",

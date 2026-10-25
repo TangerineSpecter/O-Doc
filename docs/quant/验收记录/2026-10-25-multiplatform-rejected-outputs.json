@@ -1,0 +1,2480 @@
+[
+  {
+    "case_id": "pine_bands",
+    "run_id": "682d182fe71942beaae1a00b3ea15433",
+    "source_hash": "8bb3aaeb6adb81af8b02ce3b9efd19c57ea4dde31ae0234aa21cb60a62cd6cb2",
+    "stage": "extract",
+    "original_output": {
+      "extraction_version": 1,
+      "extraction_note": "提取范围：仅基于提供的 18 行 Pine v2 源码、参数表、先前识别结果与词法解析结构（status=partial，仅表示语法树可读）。边界：(1) 只提取可独立识别、可分离的计算／条件／执行／显示模块，逐项标注 role，不把条件或订单声明统称收益因子；(2) `rsi`、`crossover`、`crossunder`、`strategy.entry`、`plot` 不在受支持算子集内，相关表达式置 null 并说明平台依赖；`sma`、`stdev`、`lag` 可用于声明式表达，但 Pine v2 的 stdev 自由度与 crossover 等号处理未验证，已在 limitations 标注；(3) `RSIoverSold`、`RSIoverBought`、`BBmult` 第 6–8 行为固定赋值、非 input，作为常量参数保留但不视为可配置输入；(4) 未提供资产、频率、样本区间、成本、成交模型与绩效，一律记为未知，不补造；(5) 全部候选未经编译、加载、回测，不声明有效、最优或已验证；(6) 作者 description/url 为空，无任何绩效主张，故无基于作者主张的候选。",
+      "factors": [
+        {
+          "name": "rsi_series",
+          "role": "factor",
+          "family": "momentum",
+          "summary": "用 close 与 RSIlength 计算的 RSI 序列 r（源码第 9 行），是后续多空条件的第一分支输入。",
+          "formula": "r_t = RSI(close_t, RSIlength)；平滑方式按平台内建实现，未验证",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "K 线收盘价，第 9 行 rsi 的唯一价格输入",
+              "availability": "每根 bar 收盘后可得（AI 推断；源码未声明数据时点、bar 闭合规则或是否用实时价）",
+              "missing_policy": "源码未见 na/预热处理；前若干 bar 的取值与信号有效性未知"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "未声明；RSI 常规为 0–100 无量纲指数（AI 推断，源码无范围说明）",
+          "timeframe": "计算窗口 RSIlength=6 个 bar；适用周期未声明，资产与频率未知",
+          "parameters": [
+            {
+              "name": "RSIlength",
+              "type": "int",
+              "default_value": "6",
+              "category": "signal",
+              "meaning": "RSI 计算窗口长度，按第 9 行 `rsi(close, RSIlength)` 使用；原文未写单位，按 bar 数理解属于推断，未验证。",
+              "constraints": "第 3 行仅声明 `minval=1`；未声明最大值、步长或枚举。整数类型由整数默认值和 minval 推断。",
+              "effect": "增大窗口通常使 RSI 更平滑、交叉事件可能减少；减小窗口更敏感。该影响是机制推断，未经回测验证。",
+              "suggestion": "无实证依据，不提出最优值或收益优化区间；只能在源码声明的下界 1 以上做敏感性检查。",
+              "evidence": "第 3 行：`RSIlength = input(6, minval=1)`；第 9 行：`r = rsi(close, RSIlength)`",
+              "domain": {
+                "version": 1,
+                "minimum": 1,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIlength = input(6, minval=1)"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "close 价格序列",
+            "平台内建 rsi 函数（未加载、未编译验证）"
+          ],
+          "limitations": "rsi 不在受支持算子集，无法给出声明式表达式；Pine v2 的 rsi 平滑方式、预热期与 na 行为未知；未见成交量或截面分组。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:momentum",
+            "usage:factor",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "r = rsi(close, RSIlength)"
+            }
+          ],
+          "expression": null
+        },
+        {
+          "name": "rsi_cross_up_center",
+          "role": "signal",
+          "family": "momentum",
+          "summary": "RSI 自下方上穿固定阈值 RSIoverSold（第 6 行取值 50）的布尔事件，第 14 行多空条件的第一分支。",
+          "formula": "crossover(r_t, RSIoverSold) ：按常见语义 r_t > 50 且 r_{t-1} <= 50",
+          "inputs": [
+            {
+              "name": "r",
+              "meaning": "RSI 序列，由第 9 行计算",
+              "availability": "依赖 close 与 RSIlength，逐 bar 计算（时点未声明）",
+              "missing_policy": "源码未见处理；r 为 na 时的比较结果未声明"
+            }
+          ],
+          "output_type": "boolean_series",
+          "units": "布尔（真/假）",
+          "timeframe": "依赖 RSIlength=6 个 bar 的 RSI 窗口；适用周期未声明",
+          "parameters": [
+            {
+              "name": "RSIlength",
+              "type": "int",
+              "default_value": "6",
+              "category": "signal",
+              "meaning": "RSI 计算窗口长度，按第 9 行使用；单位按 bar 数理解属于推断。",
+              "constraints": "第 3 行仅声明 `minval=1`；无最大值、步长或枚举。",
+              "effect": "改变 RSI 平滑度，从而改变穿越阈值的发生频率（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 3 行：`RSIlength = input(6, minval=1)`；第 9 行：`r = rsi(close, RSIlength)`",
+              "domain": {
+                "version": 1,
+                "minimum": 1,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIlength = input(6, minval=1)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "RSIoverSold",
+              "type": "int",
+              "default_value": "50",
+              "category": "constant",
+              "meaning": "固定多头 RSI 阈值，第 14 行 `crossover(r, RSIoverSold)` 使用；名称含 overSold 但数值为 50。",
+              "constraints": "第 6 行固定赋值 50，不是 input；原文未声明可配置范围。",
+              "effect": "改变该常量会改变 RSI 上穿阈值；当前与 RSIoverBought 同为 50。",
+              "suggestion": "当前不可配置；改为 input 属于新设计，需另行验证。",
+              "evidence": "第 6 行：`RSIoverSold = 50`；第 14 行：`if crossover(r, RSIoverSold) and crossover(close, lower)`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIoverSold = 50"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "rsi_series",
+            "RSIoverSold 常量"
+          ],
+          "limitations": "crossover 不在受支持算子集且 Pine v2 的等号边界处理未验证，故表达式为 null；阈值 50 与常见 30/70 超买超卖惯例不同，原文无解释。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:momentum",
+            "usage:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            }
+          ],
+          "expression": null
+        },
+        {
+          "name": "rsi_cross_down_center",
+          "role": "signal",
+          "family": "momentum",
+          "summary": "RSI 自上方下穿固定阈值 RSIoverBought（第 7 行取值 50）的布尔事件，第 16 行空头条件的第一分支。",
+          "formula": "crossunder(r_t, RSIoverBought) ：按常见语义 r_t < 50 且 r_{t-1} >= 50",
+          "inputs": [
+            {
+              "name": "r",
+              "meaning": "RSI 序列，由第 9 行计算",
+              "availability": "依赖 close 与 RSIlength，逐 bar 计算（时点未声明）",
+              "missing_policy": "源码未见处理；na 比较结果未声明"
+            }
+          ],
+          "output_type": "boolean_series",
+          "units": "布尔（真/假）",
+          "timeframe": "依赖 RSIlength=6 个 bar 的 RSI 窗口；适用周期未声明",
+          "parameters": [
+            {
+              "name": "RSIlength",
+              "type": "int",
+              "default_value": "6",
+              "category": "signal",
+              "meaning": "RSI 计算窗口长度，按第 9 行使用；单位按 bar 数理解属于推断。",
+              "constraints": "第 3 行仅声明 `minval=1`；无最大值、步长或枚举。",
+              "effect": "改变 RSI 平滑度，从而改变下穿事件频率（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 3 行：`RSIlength = input(6, minval=1)`；第 9 行：`r = rsi(close, RSIlength)`",
+              "domain": {
+                "version": 1,
+                "minimum": 1,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIlength = input(6, minval=1)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "RSIoverBought",
+              "type": "int",
+              "default_value": "50",
+              "category": "constant",
+              "meaning": "固定空头 RSI 阈值，第 16 行 `crossunder(r, RSIoverBought)` 使用；名称含 overBought 但数值为 50。",
+              "constraints": "第 7 行固定赋值 50，不是 input；原文未声明可配置范围。",
+              "effect": "改变该常量会改变 RSI 下穿阈值；当前与 RSIoverSold 同为 50。",
+              "suggestion": "当前不可配置；改为 input 属于新设计，需另行验证。",
+              "evidence": "第 7 行：`RSIoverBought = 50`；第 16 行：`if crossunder(r, RSIoverBought) and crossunder(close, upper)`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIoverBought = 50"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "rsi_series",
+            "RSIoverBought 常量"
+          ],
+          "limitations": "crossunder 不在受支持算子集，Pine v2 等号边界处理未验证，表达式为 null；与上穿共用阈值 50 使多空对称，原文无解释。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:momentum",
+            "usage:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossunder(r, RSIoverBought) and crossunder(close, upper)"
+            }
+          ],
+          "expression": null
+        },
+        {
+          "name": "bb_middle_sma",
+          "role": "factor",
+          "family": "trend",
+          "summary": "close 的 BBlength 期简单移动平均 b（第 10 行），既作布林带中轨，也是第 18 行唯一绘制的序列。",
+          "formula": "b_t = SMA(close_t, BBlength) = (1/BBlength) * sum_{i=0}^{BBlength-1} close_{t-i}",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "K 线收盘价，第 10 行 sma 的唯一价格输入",
+              "availability": "每根 bar 收盘后可得（AI 推断；源码未声明数据时点）",
+              "missing_policy": "源码未处理 na；BBlength 默认 200 的预热期行为未知"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "价格单位（与 close 相同，AI 推断）",
+          "timeframe": "窗口 BBlength=200 个 bar；适用周期未声明",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "SMA 与 stdev 的窗口长度，第 10–11 行同时用于中轨和标准差；原文未写单位，按 bar 数理解属于推断。",
+              "constraints": "第 4 行仅声明 `minval=2`；未声明最大值、步长或枚举。",
+              "effect": "改变中轨平滑度与带宽；增大窗口通常更平滑、交叉可能减少，未经回测验证。",
+              "suggestion": "无实证依据，不提出最优值；只能在 ≥2 做敏感性检查。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 10 行：`b = sma(close, BBlength)`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "close 价格序列",
+            "sma 窗口算子"
+          ],
+          "limitations": "200 bar 窗口意味着长预热，源码未丢弃前 200 bar；未声明价格还原/复权方式；中轨同时承担显示与带构造两种用途。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:trend",
+            "usage:factor",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "b = sma(close, BBlength)"
+            }
+          ],
+          "expression": {
+            "op": "sma",
+            "args": [
+              {
+                "op": "input",
+                "name": "close"
+              },
+              {
+                "op": "parameter",
+                "name": "BBlength"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bb_band_half_width",
+          "role": "factor",
+          "family": "volatility",
+          "summary": "带宽半值 d = BBmult * stdev(close, BBlength)（第 11 行），衡量 close 的滚动离散度，并决定上下轨距离。",
+          "formula": "d_t = BBmult * stdev(close_t, BBlength)；若按总体标准差理解则 d_t = BBmult * sqrt((1/BBlength) * sum (close_{t-i} - b_t)^2)，自由度设置未知",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "K 线收盘价，第 11 行 stdev 的唯一价格输入",
+              "availability": "每根 bar 收盘后可得（AI 推断；源码未声明数据时点）",
+              "missing_policy": "源码未处理 na；预热期与样本不足时的取值未知"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "价格单位（BBmult 无量纲，AI 推断）",
+          "timeframe": "窗口 BBlength=200 个 bar；适用周期未声明",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "SMA 与 stdev 的窗口长度，第 11 行用于标准差；单位按 bar 数理解属于推断。",
+              "constraints": "第 4 行仅声明 `minval=2`；无最大值、步长或枚举。",
+              "effect": "改变带宽与轨道位置，进而影响 close 对上下轨的穿越频率（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 11 行：`d = BBmult * stdev(close, BBlength)`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "布林带标准差乘数，第 11 行 `d = BBmult * stdev(close, BBlength)` 使用。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input；原文未声明可配置范围。",
+              "effect": "按比例缩放带宽，并影响 close 对轨道的交叉及 entry 的 stop 价格；未经回测验证。",
+              "suggestion": "当前不可配置；改为 input 属于新设计，需另行验证。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 11 行：`d = BBmult * stdev(close, BBlength)`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "close 价格序列",
+            "std 窗口算子",
+            "BBmult 常量"
+          ],
+          "limitations": "Pine v2 的 stdev 使用总体还是样本标准差（自由度）未确认，表达式按 std 窗口算子给出但可能与平台数值存在差异；BBmult 为硬编码常量。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:volatility",
+            "usage:factor",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "d = BBmult * stdev(close, BBlength)"
+            }
+          ],
+          "expression": {
+            "op": "mul",
+            "args": [
+              {
+                "op": "parameter",
+                "name": "BBmult"
+              },
+              {
+                "op": "std",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "parameter",
+                    "name": "BBlength"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "bb_lower_band",
+          "role": "factor",
+          "family": "price_structure",
+          "summary": "布林带下轨 lower = b - d（第 12 行），作为价格相对位置的参照与该方向的 stop 价。",
+          "formula": "lower_t = b_t - d_t = SMA(close_t,BBlength) - BBmult*stdev(close_t,BBlength)",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "K 线收盘价，经第 10–11 行进入中轨与标准差",
+              "availability": "每根 bar 收盘后可得（AI 推断；源码未声明数据时点）",
+              "missing_policy": "源码未处理 na；预热期下轨可能无定义，行为未知"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "价格单位（与 close 相同，AI 推断）",
+          "timeframe": "窗口 BBlength=200 个 bar；适用周期未声明",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "中轨与标准差的窗口长度，第 10–12 行共同决定下轨。",
+              "constraints": "第 4 行仅声明 `minval=2`；无最大值、步长或枚举。",
+              "effect": "改变下轨位置与带宽，影响穿越判定和 stop 价格（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 12 行：`lower = b - d`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "标准差乘数，决定下轨相对中轨的距离。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input。",
+              "effect": "放大则下轨更低、穿越更难触发；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 12 行：`lower = b - d`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "bb_middle_sma",
+            "bb_band_half_width",
+            "减法"
+          ],
+          "limitations": "继承 stdev 自由度未验证的差异；下轨是相对位置的中间量，本身不含方向或收益含义，不应直接当作收益因子。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:price_structure",
+            "usage:factor",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "lower = b - d"
+            }
+          ],
+          "expression": {
+            "op": "sub",
+            "args": [
+              {
+                "op": "sma",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "parameter",
+                    "name": "BBlength"
+                  }
+                ]
+              },
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "op": "parameter",
+                    "name": "BBmult"
+                  },
+                  {
+                    "op": "std",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "close"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "BBlength"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "bb_upper_band",
+          "role": "factor",
+          "family": "price_structure",
+          "summary": "布林带上轨 upper = b + d（第 13 行），作为价格相对位置的参照与该方向的 stop 价。",
+          "formula": "upper_t = b_t + d_t = SMA(close_t,BBlength) + BBmult*stdev(close_t,BBlength)",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "K 线收盘价，经第 10–11 行进入中轨与标准差",
+              "availability": "每根 bar 收盘后可得（AI 推断；源码未声明数据时点）",
+              "missing_policy": "源码未处理 na；预热期上轨可能无定义，行为未知"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "价格单位（与 close 相同，AI 推断）",
+          "timeframe": "窗口 BBlength=200 个 bar；适用周期未声明",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "中轨与标准差的窗口长度，第 10–11、13 行共同决定上轨。",
+              "constraints": "第 4 行仅声明 `minval=2`；无最大值、步长或枚举。",
+              "effect": "改变上轨位置与带宽，影响穿越判定和 stop 价格（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 13 行：`upper = b + d`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "标准差乘数，决定上轨相对中轨的距离。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input。",
+              "effect": "放大则上轨更高、穿越更难触发；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 13 行：`upper = b + d`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "bb_middle_sma",
+            "bb_band_half_width",
+            "加法"
+          ],
+          "limitations": "继承 stdev 自由度未验证的差异；源码第 18 行只绘制中轨，上轨未显示；上轨仅为相对位置中间量。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:price_structure",
+            "usage:factor",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "upper = b + d"
+            }
+          ],
+          "expression": {
+            "op": "add",
+            "args": [
+              {
+                "op": "sma",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "parameter",
+                    "name": "BBlength"
+                  }
+                ]
+              },
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "op": "parameter",
+                    "name": "BBmult"
+                  },
+                  {
+                    "op": "std",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "close"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "BBlength"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_cross_above_lower",
+          "role": "signal",
+          "family": "mean_reversion",
+          "summary": "close 自下轨下方回到下轨上方的布尔事件（第 14 行第二个 crossover），是价格修复型确认条件，可与 RSI 分支分离单独研究。",
+          "formula": "crossover(close_t, lower_t)：close_t > lower_t 且 close_{t-1} <= lower_{t-1}，其中 lower = b - d",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "K 线收盘价",
+              "availability": "每根 bar 收盘后可得（AI 推断；源码未声明数据时点）",
+              "missing_policy": "源码未处理 na；lower 为 na 时比较结果未声明"
+            },
+            {
+              "name": "lower",
+              "meaning": "布林带下轨，由第 12 行计算",
+              "availability": "依赖 BBlength=200 与 BBmult=2.0 及当前 close；预热期可能不可用",
+              "missing_policy": "未知"
+            }
+          ],
+          "output_type": "boolean_series",
+          "units": "布尔（真/假）",
+          "timeframe": "依赖 BBlength=200 个 bar 的带宽窗口；适用周期未声明",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "下轨窗口长度，决定 lower 的位置。",
+              "constraints": "第 4 行仅声明 `minval=2`；无最大值、步长或枚举。",
+              "effect": "改变下轨位置，从而改变穿越事件数量（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 14 行：`if crossover(r, RSIoverSold) and crossover(close, lower)`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "标准差乘数，决定下轨距离，从而影响穿越阈值。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input。",
+              "effect": "放大带宽使穿越更难触发；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 12 行：`lower = b - d`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "bb_lower_band",
+            "lag 算子",
+            "crossover 平台语义（未验证）"
+          ],
+          "limitations": "表达式用 gt + (lt 或 eq) 复现常见 Pine crossover 语义，但平台对等号边界（前值恰等于阈值）与 na 的处理未验证，可能与实际信号不一致；该条件是入场组合的一部分，本身不是完整策略。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:mean_reversion",
+            "mechanism:price_structure",
+            "usage:signal",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            }
+          ],
+          "expression": {
+            "op": "and",
+            "args": [
+              {
+                "op": "gt",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "sub",
+                    "args": [
+                      {
+                        "op": "sma",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "parameter",
+                            "name": "BBlength"
+                          }
+                        ]
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "parameter",
+                            "name": "BBmult"
+                          },
+                          {
+                            "op": "std",
+                            "args": [
+                              {
+                                "op": "input",
+                                "name": "close"
+                              },
+                              {
+                                "op": "parameter",
+                                "name": "BBlength"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "or",
+                "args": [
+                  {
+                    "op": "lt",
+                    "args": [
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      },
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "sub",
+                            "args": [
+                              {
+                                "op": "sma",
+                                "args": [
+                                  {
+                                    "op": "input",
+                                    "name": "close"
+                                  },
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBlength"
+                                  }
+                                ]
+                              },
+                              {
+                                "op": "mul",
+                                "args": [
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBmult"
+                                  },
+                                  {
+                                    "op": "std",
+                                    "args": [
+                                      {
+                                        "op": "input",
+                                        "name": "close"
+                                      },
+                                      {
+                                        "op": "parameter",
+                                        "name": "BBlength"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "op": "eq",
+                    "args": [
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      },
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "sub",
+                            "args": [
+                              {
+                                "op": "sma",
+                                "args": [
+                                  {
+                                    "op": "input",
+                                    "name": "close"
+                                  },
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBlength"
+                                  }
+                                ]
+                              },
+                              {
+                                "op": "mul",
+                                "args": [
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBmult"
+                                  },
+                                  {
+                                    "op": "std",
+                                    "args": [
+                                      {
+                                        "op": "input",
+                                        "name": "close"
+                                      },
+                                      {
+                                        "op": "parameter",
+                                        "name": "BBlength"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_cross_below_upper",
+          "role": "signal",
+          "family": "mean_reversion",
+          "summary": "close 自上轨上方回到上轨下方的布尔事件（第 16 行第二个 crossunder），为空头确认条件，可与 RSI 分支分离单独研究。",
+          "formula": "crossunder(close_t, upper_t)：close_t < upper_t 且 close_{t-1} >= upper_{t-1}，其中 upper = b + d",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "K 线收盘价",
+              "availability": "每根 bar 收盘后可得（AI 推断；源码未声明数据时点）",
+              "missing_policy": "源码未处理 na；upper 为 na 时比较结果未声明"
+            },
+            {
+              "name": "upper",
+              "meaning": "布林带上轨，由第 13 行计算",
+              "availability": "依赖 BBlength=200 与 BBmult=2.0 及当前 close；预热期可能不可用",
+              "missing_policy": "未知"
+            }
+          ],
+          "output_type": "boolean_series",
+          "units": "布尔（真/假）",
+          "timeframe": "依赖 BBlength=200 个 bar 的带宽窗口；适用周期未声明",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "上轨窗口长度，决定 upper 的位置。",
+              "constraints": "第 4 行仅声明 `minval=2`；无最大值、步长或枚举。",
+              "effect": "改变上轨位置，从而改变穿越事件数量（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 16 行：`if crossunder(r, RSIoverBought) and crossunder(close, upper)`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "标准差乘数，决定上轨距离，从而影响穿越阈值。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input。",
+              "effect": "放大带宽使穿越更难触发；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 13 行：`upper = b + d`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "bb_upper_band",
+            "lag 算子",
+            "crossunder 平台语义（未验证）"
+          ],
+          "limitations": "表达式复现常见 crossunder 语义，等号边界与 na 处理未验证；该条件是入场组合的一部分，不是完整策略；上轨在源码中未绘制。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:mean_reversion",
+            "mechanism:price_structure",
+            "usage:signal",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossunder(r, RSIoverBought) and crossunder(close, upper)"
+            }
+          ],
+          "expression": {
+            "op": "and",
+            "args": [
+              {
+                "op": "lt",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "add",
+                    "args": [
+                      {
+                        "op": "sma",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "parameter",
+                            "name": "BBlength"
+                          }
+                        ]
+                      },
+                      {
+                        "op": "mul",
+                        "args": [
+                          {
+                            "op": "parameter",
+                            "name": "BBmult"
+                          },
+                          {
+                            "op": "std",
+                            "args": [
+                              {
+                                "op": "input",
+                                "name": "close"
+                              },
+                              {
+                                "op": "parameter",
+                                "name": "BBlength"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "or",
+                "args": [
+                  {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      },
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "add",
+                            "args": [
+                              {
+                                "op": "sma",
+                                "args": [
+                                  {
+                                    "op": "input",
+                                    "name": "close"
+                                  },
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBlength"
+                                  }
+                                ]
+                              },
+                              {
+                                "op": "mul",
+                                "args": [
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBmult"
+                                  },
+                                  {
+                                    "op": "std",
+                                    "args": [
+                                      {
+                                        "op": "input",
+                                        "name": "close"
+                                      },
+                                      {
+                                        "op": "parameter",
+                                        "name": "BBlength"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "op": "eq",
+                    "args": [
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      },
+                      {
+                        "op": "lag",
+                        "args": [
+                          {
+                            "op": "add",
+                            "args": [
+                              {
+                                "op": "sma",
+                                "args": [
+                                  {
+                                    "op": "input",
+                                    "name": "close"
+                                  },
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBlength"
+                                  }
+                                ]
+                              },
+                              {
+                                "op": "mul",
+                                "args": [
+                                  {
+                                    "op": "parameter",
+                                    "name": "BBmult"
+                                  },
+                                  {
+                                    "op": "std",
+                                    "args": [
+                                      {
+                                        "op": "input",
+                                        "name": "close"
+                                      },
+                                      {
+                                        "op": "parameter",
+                                        "name": "BBlength"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "op": "constant",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "long_entry_condition",
+          "role": "signal",
+          "family": "mean_reversion",
+          "summary": "第 14 行多头入场条件的合取：RSI 上穿 50 且 close 上穿下轨；两者同时为真才在下一行声明订单。",
+          "formula": "long_trigger_t = crossover(r_t, RSIoverSold) and crossover(close_t, lower_t)",
+          "inputs": [
+            {
+              "name": "r",
+              "meaning": "RSI 序列（第 9 行）",
+              "availability": "依赖 close 与 RSIlength=6，逐 bar 计算（时点未声明）",
+              "missing_policy": "未知"
+            },
+            {
+              "name": "close",
+              "meaning": "K 线收盘价",
+              "availability": "每根 bar 收盘后可得（AI 推断）",
+              "missing_policy": "未知"
+            },
+            {
+              "name": "lower",
+              "meaning": "布林带下轨（第 12 行）",
+              "availability": "依赖 BBlength=200 与 BBmult=2.0，预热期可能不可用",
+              "missing_policy": "未知"
+            }
+          ],
+          "output_type": "boolean_series",
+          "units": "布尔（真/假）",
+          "timeframe": "混合窗口：RSIlength=6 bar 与 BBlength=200 bar；适用周期未声明",
+          "parameters": [
+            {
+              "name": "RSIlength",
+              "type": "int",
+              "default_value": "6",
+              "category": "signal",
+              "meaning": "RSI 分支窗口长度。",
+              "constraints": "第 3 行仅声明 `minval=1`。",
+              "effect": "改变 RSI 分支灵敏度，从而改变合取条件触发频率（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 3 行：`RSIlength = input(6, minval=1)`；第 14 行：`if crossover(r, RSIoverSold) and crossover(close, lower)`",
+              "domain": {
+                "version": 1,
+                "minimum": 1,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIlength = input(6, minval=1)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "下轨窗口长度，决定价格分支的阈值位置。",
+              "constraints": "第 4 行仅声明 `minval=2`。",
+              "effect": "改变下轨位置，从而改变价格分支触发频率（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 12 行：`lower = b - d`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "标准差乘数，决定下轨距离。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input。",
+              "effect": "改变下轨位置，影响价格分支触发；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 12 行：`lower = b - d`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "RSIoverSold",
+              "type": "int",
+              "default_value": "50",
+              "category": "constant",
+              "meaning": "多头 RSI 阈值，第 14 行使用；名称与数值 50 不一致。",
+              "constraints": "第 6 行固定赋值 50，不是 input。",
+              "effect": "改变阈值会改变多头上穿事件；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 6 行：`RSIoverSold = 50`；第 14 行：`if crossover(r, RSIoverSold) and crossover(close, lower)`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIoverSold = 50"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "rsi_cross_up_center",
+            "close_cross_above_lower",
+            "逻辑与"
+          ],
+          "limitations": "含 rsi 分支，无法用受支持算子表达，表达式为 null；crossover 语义与 na 处理未验证；该条件不包含退出、仓位、成本，不能视为完整策略或收益因子。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:mean_reversion",
+            "usage:signal",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            }
+          ],
+          "expression": null
+        },
+        {
+          "name": "short_entry_condition",
+          "role": "signal",
+          "family": "mean_reversion",
+          "summary": "第 16 行空头入场条件的合取：RSI 下穿 50 且 close 下穿上轨；与多头条件结构对称。",
+          "formula": "short_trigger_t = crossunder(r_t, RSIoverBought) and crossunder(close_t, upper_t)",
+          "inputs": [
+            {
+              "name": "r",
+              "meaning": "RSI 序列（第 9 行）",
+              "availability": "依赖 close 与 RSIlength=6，逐 bar 计算（时点未声明）",
+              "missing_policy": "未知"
+            },
+            {
+              "name": "close",
+              "meaning": "K 线收盘价",
+              "availability": "每根 bar 收盘后可得（AI 推断）",
+              "missing_policy": "未知"
+            },
+            {
+              "name": "upper",
+              "meaning": "布林带上轨（第 13 行）",
+              "availability": "依赖 BBlength=200 与 BBmult=2.0，预热期可能不可用",
+              "missing_policy": "未知"
+            }
+          ],
+          "output_type": "boolean_series",
+          "units": "布尔（真/假）",
+          "timeframe": "混合窗口：RSIlength=6 bar 与 BBlength=200 bar；适用周期未声明",
+          "parameters": [
+            {
+              "name": "RSIlength",
+              "type": "int",
+              "default_value": "6",
+              "category": "signal",
+              "meaning": "RSI 分支窗口长度。",
+              "constraints": "第 3 行仅声明 `minval=1`。",
+              "effect": "改变 RSI 分支灵敏度，从而改变合取条件触发频率（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 3 行：`RSIlength = input(6, minval=1)`；第 16 行：`if crossunder(r, RSIoverBought) and crossunder(close, upper)`",
+              "domain": {
+                "version": 1,
+                "minimum": 1,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIlength = input(6, minval=1)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "上轨窗口长度，决定价格分支的阈值位置。",
+              "constraints": "第 4 行仅声明 `minval=2`。",
+              "effect": "改变上轨位置，从而改变价格分支触发频率（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 13 行：`upper = b + d`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "标准差乘数，决定上轨距离。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input。",
+              "effect": "改变上轨位置，影响价格分支触发；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 13 行：`upper = b + d`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "RSIoverBought",
+              "type": "int",
+              "default_value": "50",
+              "category": "constant",
+              "meaning": "空头 RSI 阈值，第 16 行使用；名称与数值 50 不一致。",
+              "constraints": "第 7 行固定赋值 50，不是 input。",
+              "effect": "改变阈值会改变空头下穿事件；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 7 行：`RSIoverBought = 50`；第 16 行：`if crossunder(r, RSIoverBought) and crossunder(close, upper)`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "RSIoverBought = 50"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "rsi_cross_down_center",
+            "close_cross_below_upper",
+            "逻辑与"
+          ],
+          "limitations": "含 rsi 分支，表达式为 null；crossunder 语义与 na 处理未验证；不含退出、仓位与成本，不构成完整策略；源码未说明多空是否互斥或反手。",
+          "tags": [
+            "platform:tradingview",
+            "data:price",
+            "structure:time_series",
+            "mechanism:mean_reversion",
+            "usage:signal",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossunder(r, RSIoverBought) and crossunder(close, upper)"
+            }
+          ],
+          "expression": null
+        },
+        {
+          "name": "band_stop_entry_orders",
+          "role": "execution",
+          "family": "other",
+          "summary": "第 15/17 行使用 strategy.entry 以 stop=lower / stop=upper 声明多头与空头入场订单；属于订单声明，不是实盘执行权限或成交证据。",
+          "formula": "多头：strategy.entry(\"L\", strategy.long, stop=lower_t)；空头：strategy.entry(\"S\", strategy.short, stop=upper_t)",
+          "inputs": [
+            {
+              "name": "lower",
+              "meaning": "多头的 stop 价格（第 12 行下轨）",
+              "availability": "依赖第 12 行计算，逐 bar 可得（时点未声明）",
+              "missing_policy": "未知"
+            },
+            {
+              "name": "upper",
+              "meaning": "空头的 stop 价格（第 13 行上轨）",
+              "availability": "依赖第 13 行计算，逐 bar 可得（时点未声明）",
+              "missing_policy": "未知"
+            }
+          ],
+          "output_type": "platform_specific",
+          "units": "未声明（订单/成交，非数值序列）",
+          "timeframe": "订单在条件 bar 评估；触发与成交时点（盘中或收盘）未知",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "决定 stop 价所依赖的上下轨窗口长度。",
+              "constraints": "第 4 行仅声明 `minval=2`。",
+              "effect": "改变 stop 价格水平，从而可能改变成交与否（机制推断，未验证）。",
+              "suggestion": "无实证依据，不提出最优值。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 15 行：`strategy.entry(\"L\", strategy.long, stop=lower)`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BBmult",
+              "type": "float",
+              "default_value": "2.0",
+              "category": "constant",
+              "meaning": "决定 stop 价相对中轨的距离。",
+              "constraints": "第 8 行固定赋值 2.0，不是 input。",
+              "effect": "改变 stop 价水平，影响触发概率；未经回测验证。",
+              "suggestion": "当前不可配置。",
+              "evidence": "第 8 行：`BBmult = 2.0`；第 17 行：`strategy.entry(\"S\", strategy.short, stop=upper)`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBmult = 2.0"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "long_entry_condition",
+            "short_entry_condition",
+            "strategy.entry 平台语义（未加载验证）"
+          ],
+          "limitations": "strategy.entry 与 stop 参数语义无法用受支持算子表达，表达式为 null；未提供仓位规模、初始资金、滑点、佣金、成交模型、反手与退出规则；源码未见 strategy.close；不构成可回测的完整执行规则。",
+          "tags": [
+            "platform:tradingview",
+            "usage:execution"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"L\", strategy.long, stop=lower)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"S\", strategy.short, stop=upper)"
+            }
+          ],
+          "expression": null
+        },
+        {
+          "name": "mid_band_display",
+          "role": "display",
+          "family": "trend",
+          "summary": "第 18 行仅在 ShowBands 为 true 时绘制中轨 b，否则返回 na；只影响显示，不影响第 14–17 行交易条件。",
+          "formula": "plot_t = ShowBands ? b_t : na",
+          "inputs": [
+            {
+              "name": "b",
+              "meaning": "布林带中轨（第 10 行 SMA）",
+              "availability": "依赖 close 与 BBlength=200，逐 bar 可得（时点未声明）",
+              "missing_policy": "false 时输出 na（源码显式写出）；前端如何渲染 na 未知"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "价格单位（与 close 相同，AI 推断）",
+          "timeframe": "窗口 BBlength=200 个 bar；显示周期未声明",
+          "parameters": [
+            {
+              "name": "BBlength",
+              "type": "int",
+              "default_value": "200",
+              "category": "signal",
+              "meaning": "所绘制中轨的窗口长度。",
+              "constraints": "第 4 行仅声明 `minval=2`。",
+              "effect": "仅改变被绘制曲线的平滑度。",
+              "suggestion": "无实证依据。",
+              "evidence": "第 4 行：`BBlength = input(200, minval=2)`；第 18 行：`plot(ShowBands ? b : na)`",
+              "domain": {
+                "version": 1,
+                "minimum": 2,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "BBlength = input(200, minval=2)"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "ShowBands",
+              "type": "bool",
+              "default_value": "true",
+              "category": "display",
+              "meaning": "控制第 18 行是否绘制中轨 b：true 绘制，false 返回 na；源码未见 lower/upper 的 plot 调用。",
+              "constraints": "第 5 行为布尔 input，无 minval/maxval；原文未声明其他约束或枚举限制。",
+              "effect": "仅影响显示，不影响第 14–17 行交易条件。",
+              "suggestion": "显示开关，不应进入收益优化。",
+              "evidence": "第 5 行：`ShowBands = input(true)`；第 18 行：`plot(ShowBands ? b : na)`",
+              "domain": {
+                "version": 1,
+                "minimum": null,
+                "maximum": null,
+                "step": null,
+                "step_origin": null,
+                "choices": [],
+                "relations": [],
+                "evidence": [
+                  {
+                    "field": "code",
+                    "quote": "ShowBands = input(true)"
+                  }
+                ]
+              }
+            }
+          ],
+          "dependencies": [
+            "bb_middle_sma",
+            "ShowBands 布尔参数"
+          ],
+          "limitations": "plot 为平台绘图调用，表达式以 gate 表达“不显示则缺失”的语义，但具体渲染行为与 na 处理由平台决定；源码未绘制上下轨，存在显示与交易逻辑不一致；显示模块本身不产生收益信息。",
+          "tags": [
+            "platform:tradingview",
+            "usage:display"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "plot(ShowBands ? b : na)"
+            }
+          ],
+          "expression": {
+            "op": "gate",
+            "args": [
+              {
+                "op": "sma",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "parameter",
+                    "name": "BBlength"
+                  }
+                ]
+              },
+              {
+                "op": "parameter",
+                "name": "ShowBands"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "pine_bands",
+    "run_id": "56979e8dec2d42b0a3d9e48f82943b5b",
+    "source_hash": "8bb3aaeb6adb81af8b02ce3b9efd19c57ea4dde31ae0234aa21cb60a62cd6cb2",
+    "stage": "review",
+    "original_output": {
+      "scores": [
+        {
+          "dimension": "逻辑清晰度",
+          "score": 3,
+          "reason": "源码18行结构线性：r/b/d→lower/upper→双条件→entry→plot（第9–18行），命名基本自解释。主要缺陷是策略逻辑不完整且关键语义未落地：第15/17行用 stop=lower/upper 挂在同根穿越条件之后，未说明成交时点；全文无出场/平仓；第6/7行阈值同为50且无滞回；前序对 crossover 的“前一根在另一侧、当前根穿越”解释属 AI 推断，原文未定义。故为基本可理解但有明显局限。",
+          "evidence": "源码第9–17行；第14/16行 `if crossover(r, RSIoverSold) and crossover(close, lower)` 与 `if crossunder(r, RSIoverBought) and crossunder(close, upper)`；第15/17行 `strategy.entry(\"L\", strategy.long, stop=lower)` 与 `strategy.entry(\"S\", strategy.short, stop=upper)`；description/url 为空，未见作者说明。"
+        },
+        {
+          "dimension": "实现质量",
+          "score": 2,
+          "reason": "作为 strategy，仅见 entry，未见 strategy.exit/strategy.close、qty、初始资金、pyramiding、手续费/滑点；`stop=lower/upper` 的撮合语义未证，可能导致立即成交/不成交/时点错配；parser=lexical-v1/status=partial，未调用原平台编译器；portable_qualification 对多数因子 expression=missing，automatic_experiment_ready=false。指标计算本身短小，但策略实现不完整。",
+          "evidence": "第15/17行 entry；第18行 `plot(ShowBands ? b : na)` 为末行；source_structure diagnostics“仅词法结构候选，未调用原平台编译器；宏、类型、重载、作用域和实际执行依赖未解析。”；portable_qualification factor:0/2/3/4 checks status=missing。"
+        },
+        {
+          "dimension": "数据与时序可靠性",
+          "score": 2,
+          "reason": "仅使用 close（第9–13行），无资产、频率、数据源、回测区间、成本或成交模型；BBlength 默认200意味着长暖机；未收盘 bar 上 close 及 lower/upper 可能变化，源码未说明实时/历史一致性；stop=lower/upper 是否在同一根 bar 回填未证。未发现明确的未来收益作为信号，但时点可靠性证据不足。",
+          "evidence": "第9–13行仅引用 close；第4行 `BBlength = input(200, minval=2)`；第14–17行信号与 entry；材料无资产/频率/回测/成本字段。"
+        },
+        {
+          "dimension": "参数可解释性",
+          "score": 3,
+          "reason": "RSIlength、BBlength、ShowBands 三个 input 与 RSIoverSold/RSIoverBought/BBmult 三个写死常量均可逐字定位，含义基本清楚。缺陷是仅声明 minval（1/2），无 maxval/step，实际运行配置未知；BBmult 与两个 RSI 阈值写死，不能通过 input 调参；stdev 的 ddof 未知会改变 BBmult 对带宽的解释。",
+          "evidence": "第3–8行 input/常量；第9–13行使用；材料未给实际运行配置或 stdev 定义。"
+        },
+        {
+          "dimension": "复现与复用价值",
+          "score": 2,
+          "reason": "可作为最小规格样例复用，用于演示指标组合与口径拆分；但平台内置 rsi/stdev/crossover 语义、strategy.entry stop 撮合、出场、qty、数据与成本均缺失，复现必须追加假设。portable_qualification 仅 factor:1 与 factor:5 为 reusable，且只声明引用/类型检查通过，不证明与 Pine 等价；其余因子 expression missing，不能自动实验。",
+          "evidence": "portable_qualification items；第9–17行；未提供数据/回测/成本。"
+        }
+      ],
+      "source_findings_note": "审查范围：仅提供的18行 Pine v2 源码、previous 提取、source_structure lexical-v1 partial、portable_qualification、参数与 compare 元数据；未访问网页、未执行源码、未调用 TradingView 编译器、未加载行情或回测。未检查项：Pine v2 运行时语义、strategy.entry stop 精确撮合、内置 rsi/stdev/crossover 定义、未收盘 bar 行为、实际资产/周期/成本/仓位、任何收益或最优参数。未发现不等于不存在；本清单的 high 级问题以原文缺口和未证语义为依据，不把检索相似或前序 AI 推断当实证。本轮未给出 critical 级。",
+      "source_findings": [
+        {
+          "title": "策略无出场/平仓语句，持仓生命周期未定义",
+          "severity": "high",
+          "category": "implementation",
+          "certainty": "source_fact",
+          "impact": "源码只有两处 strategy.entry（第15、17行），未见 strategy.exit/strategy.close/strategy.close_all；持仓如何退出、反向信号是否平仓、默认 pyramiding 下同向 entry 是否被忽略均未定义。作为策略无法评估风险与收益，只能作为信号骨架。",
+          "recommendation": "显式加入出场/平仓规则或声明外部退出；同时声明 pyramiding、qty 与持仓状态转换；在新合同中验证首笔开仓后后续信号行为。",
+          "affected_dimensions": [
+            "实现质量",
+            "复现与复用价值"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"L\", strategy.long, stop=lower)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"S\", strategy.short, stop=upper)"
+            },
+            {
+              "field": "code",
+              "quote": "plot(ShowBands ? b : na)"
+            }
+          ]
+        },
+        {
+          "title": "strategy.entry 的 stop=lower/upper 撮合语义与时点未证",
+          "severity": "high",
+          "category": "execution",
+          "certainty": "hypothesis",
+          "impact": "第14/16行条件在 close 穿越轨道时成立，而第15/17行把 lower/upper 作为 stop 价；多头 stop 价位于中轨下方、空头 stop 价位于中轨上方，可能与当前价关系不利，造成立即成交、不成交或成交价偏离。若平台用同根 bar 的 close 派生 stop 进行 bar 内撮合，还可能产生时点错配。材料未给出 Pine v2 的 stop 触发规则。",
+          "recommendation": "在目标平台核验 stop 单方向与触发规则；用 next-bar open/market 或显式 stop/limit 假设做对照；报告每种成交假设下的成交率与价格，不默认按条件价成交。",
+          "affected_dimensions": [
+            "实现质量",
+            "数据与时序可靠性",
+            "复现与复用价值"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"L\", strategy.long, stop=lower)"
+            },
+            {
+              "field": "code",
+              "quote": "if crossunder(r, RSIoverBought) and crossunder(close, upper)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"S\", strategy.short, stop=upper)"
+            }
+          ]
+        },
+        {
+          "title": "内置 rsi/stdev/crossover/crossunder 语义未锁定，跨平台复现不等价",
+          "severity": "high",
+          "category": "dependency",
+          "certainty": "source_fact",
+          "impact": "材料明确未提供 RSI 平滑/初值、stdev 的 ddof（总体/样本）、crossover/crossunder 的相等边界与 na 规则；这些会改变 r、lower/upper 和触发时点。即使受控表达式通过引用/类型检查，也不能证明与 Pine v2 实现等价。",
+          "recommendation": "固定 TradingView/Pine v2 版本或按官方定义重实现；对 RSI 平滑、stdev ddof、cross 边界做对照实验；在复现报告中把未锁定项列为阻断项。",
+          "affected_dimensions": [
+            "复现与复用价值",
+            "参数可解释性"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "r = rsi(close, RSIlength)"
+            },
+            {
+              "field": "code",
+              "quote": "d = BBmult * stdev(close, BBlength)"
+            },
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            },
+            {
+              "field": "code",
+              "quote": "if crossunder(r, RSIoverBought) and crossunder(close, upper)"
+            }
+          ]
+        },
+        {
+          "title": "解析状态为 partial/lexical，未调用原平台编译器",
+          "severity": "medium",
+          "category": "dependency",
+          "certainty": "source_fact",
+          "impact": "source_structure 明确“仅词法结构候选，未调用原平台编译器”；calls 只是句法同名候选，不证明运行时依赖、input minval 生效方式、int 取整或 strategy.entry 可解析。任何“可编译/可运行”主张缺证据。",
+          "recommendation": "如条件允许在 TradingView 编译；否则明确只做词法/规格审查，不把 parsed 当编译或回测证据。",
+          "affected_dimensions": [
+            "实现质量",
+            "复现与复用价值"
+          ],
+          "evidence": [
+            {
+              "field": "description",
+              "quote": "仅词法结构候选，未调用原平台编译器；宏、类型、重载、作用域和实际执行依赖未解析。"
+            },
+            {
+              "field": "code",
+              "quote": "//@version=2"
+            }
+          ]
+        },
+        {
+          "title": "未声明资产、周期、数据源、回测区间与成本，无法评估数据可靠性或绩效",
+          "severity": "high",
+          "category": "other",
+          "certainty": "source_fact",
+          "impact": "源码只引用 close；材料无资产/频率/数据源/回测区间/手续费/滑点/初始资金/成交模型。无法判断 close 的含义、暖机是否足够、成本是否吞噬信号，也不能支持任何收益、胜率或最优参数主张。",
+          "recommendation": "补齐资产、频率、数据供应商、日期范围、暖机、成本、初始资金与 qty；将信号研究与执行/成本研究分开；在补齐前不进入收益评估。",
+          "affected_dimensions": [
+            "数据与时序可靠性",
+            "复现与复用价值"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "r = rsi(close, RSIlength)"
+            },
+            {
+              "field": "code",
+              "quote": "BBlength = input(200, minval=2)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"L\", strategy.long, stop=lower)"
+            }
+          ]
+        },
+        {
+          "title": "BBlength 默认200带来长暖机，na 期信号/stop 行为未定义",
+          "severity": "medium",
+          "category": "other",
+          "certainty": "source_fact",
+          "impact": "sma/stdev 需要 BBlength 根 close 才有值；默认200意味着前199根左右 lower/upper 可能为 na。源码未定义 na 时第14/16行条件与第15/17行 stop 取何值，可能造成静默无信号或异常下单。",
+          "recommendation": "保证历史长度≥BBlength并明确 na 处理；报告有效信号窗口；不要用暖机期做统计。",
+          "affected_dimensions": [
+            "数据与时序可靠性",
+            "参数可解释性"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "BBlength = input(200, minval=2)"
+            },
+            {
+              "field": "code",
+              "quote": "b = sma(close, BBlength)"
+            },
+            {
+              "field": "code",
+              "quote": "d = BBmult * stdev(close, BBlength)"
+            },
+            {
+              "field": "code",
+              "quote": "lower = b - d"
+            }
+          ]
+        },
+        {
+          "title": "RSIoverSold 与 RSIoverBought 同为50，无滞回且缺乏依据",
+          "severity": "medium",
+          "category": "parameter",
+          "certainty": "source_fact",
+          "impact": "多空阈值均为50，crossover(r,50) 与 crossunder(r,50) 共享中线，缺少滞回带；RSI 在50附近抖动时可能频繁切换。源码未说明为何两方向同值，也没有证据表明50是推荐或最优。",
+          "recommendation": "记录阈值设计理由；若调参，先声明范围和滞回规则，并报告信号频率/换手；不得把50写成实证最优。",
+          "affected_dimensions": [
+            "参数可解释性",
+            "逻辑清晰度"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "RSIoverSold = 50"
+            },
+            {
+              "field": "code",
+              "quote": "RSIoverBought = 50"
+            },
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            },
+            {
+              "field": "code",
+              "quote": "if crossunder(r, RSIoverBought) and crossunder(close, upper)"
+            }
+          ]
+        },
+        {
+          "title": "BBmult 写死为2.0，非 input，参数研究需改源码",
+          "severity": "low",
+          "category": "parameter",
+          "certainty": "source_fact",
+          "impact": "BBmult 直接决定带宽 d，但第8行写死2.0，不是 input；无法通过界面调参，任何带宽敏感度研究都要改源码并重新审查合同。2.0只是源码默认常量，不是推荐值。",
+          "recommendation": "若研究带宽，显式暴露为 input 并声明范围；否则在规格中标注为固定常量，不纳入自动优化。",
+          "affected_dimensions": [
+            "参数可解释性"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "BBmult = 2.0"
+            },
+            {
+              "field": "code",
+              "quote": "d = BBmult * stdev(close, BBlength)"
+            }
+          ]
+        },
+        {
+          "title": "ShowBands 仅绘制中轨 b，不绘制 lower/upper",
+          "severity": "low",
+          "category": "implementation",
+          "certainty": "source_fact",
+          "impact": "变量名 ShowBands 暗示显示布林带，但第18行只绘制 b（中轨）；lower/upper 未显示。视觉 QA 可能看不到轨道穿越，显示层与命名不一致；不影响信号。",
+          "recommendation": "改名或分别 plot lower/upper；保持 ShowBands 仅作显示开关。",
+          "affected_dimensions": [
+            "逻辑清晰度"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "plot(ShowBands ? b : na)"
+            },
+            {
+              "field": "code",
+              "quote": "b = sma(close, BBlength)"
+            }
+          ]
+        },
+        {
+          "title": "同根 bar 双条件合取可能非常稀疏，未做事件计数",
+          "severity": "medium",
+          "category": "other",
+          "certainty": "hypothesis",
+          "impact": "第14/16行要求 RSI 穿越阈值与 close 穿越轨道在同一根 bar 同时成立；两个事件频率不同，合取后可能极少触发。源码未给事件数、稀疏度或与单条件版本的比较，后续参数优化容易过拟合小样本。",
+          "recommendation": "先统计 LongSignal/ShortSignal 次数、与单条件版本的比值、Jaccard；样本过稀时只做结构研究，不进入收益优化。",
+          "affected_dimensions": [
+            "逻辑清晰度",
+            "复现与复用价值"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            },
+            {
+              "field": "code",
+              "quote": "if crossunder(r, RSIoverBought) and crossunder(close, upper)"
+            }
+          ]
+        },
+        {
+          "title": "未收盘 bar 上 close 与轨道可变，存在重绘/实时不一致风险",
+          "severity": "high",
+          "category": "repainting",
+          "certainty": "hypothesis",
+          "impact": "源码所有输入均为 close，第14/16行在未收盘 bar 上会随价格变化；lower/upper 与 stop 价也随之变化。若用于实时信号，可能出现信号闪烁、回测与实盘不一致。材料未说明已确认 bar 或实时处理机制。",
+          "recommendation": "在目标平台使用已确认 bar 或等价机制；明确实时/历史口径；用已确认 bar 重跑对照。",
+          "affected_dimensions": [
+            "数据与时序可靠性"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "r = rsi(close, RSIlength)"
+            },
+            {
+              "field": "code",
+              "quote": "b = sma(close, BBlength)"
+            },
+            {
+              "field": "code",
+              "quote": "if crossover(r, RSIoverSold) and crossover(close, lower)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"L\", strategy.long, stop=lower)"
+            }
+          ]
+        },
+        {
+          "title": "portable_qualification 多数因子为 candidate/missing，不能自动实验或主张等价",
+          "severity": "high",
+          "category": "dependency",
+          "certainty": "source_fact",
+          "impact": "factor:0/2/3/4 的 checks 为 expression missing；factor:1/5 仅通过声明引用/类型检查，且 external_dependencies 标记 declared_unverified_original_context；automatic_experiment_ready 对 factor:0/2/3/4/5 为 false。该状态是提取/映射限制，不证明原 Pine 源码有缺陷，但阻断自动实验与等价性主张。",
+          "recommendation": "补齐 rsi/stdev/crossover 语义或回原平台验证；区分原代码缺陷与本次提取表达式缺陷；不要把 reusable 当等价或有效。",
+          "affected_dimensions": [
+            "复现与复用价值",
+            "实现质量"
+          ],
+          "evidence": [
+            {
+              "field": "description",
+              "quote": "尚无受控表达式；保留原平台片段，需要补齐计算语义后才能检查引用和类型。"
+            },
+            {
+              "field": "code",
+              "quote": "r = rsi(close, RSIlength)"
+            },
+            {
+              "field": "code",
+              "quote": "d = BBmult * stdev(close, BBlength)"
+            }
+          ]
+        },
+        {
+          "title": "无 qty、初始资金、pyramiding 与风险控制声明",
+          "severity": "medium",
+          "category": "risk",
+          "certainty": "source_fact",
+          "impact": "strategy.entry 未给 qty，材料无初始资金、仓位规模、pyramiding、止损/止盈/最大持仓；无法评估单笔风险、回撤或资金曲线。默认 pyramiding 下同向重复 entry 可能被忽略，具体平台行为未证。",
+          "recommendation": "声明 qty、资金、pyramiding、风险上限；若目标是 EA，再核查成交、滑点与风控；当前只能作为信号骨架。",
+          "affected_dimensions": [
+            "实现质量",
+            "复现与复用价值"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"L\", strategy.long, stop=lower)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"S\", strategy.short, stop=upper)"
+            }
+          ]
+        },
+        {
+          "title": "无手续费/滑点/成交模型，任何收益推断均无依据",
+          "severity": "medium",
+          "category": "execution",
+          "certainty": "source_fact",
+          "impact": "源码与材料未见手续费、滑点、点差、成交价规则；stop 单在跳空或快速行情中可能显著偏离。没有这些参数，无法判断策略经济价值，也不应生成收益或最优参数结论。",
+          "recommendation": "显式声明成本模型并做敏感性；若成本未知，只报告信号结构统计，不报告绩效。",
+          "affected_dimensions": [
+            "数据与时序可靠性",
+            "复现与复用价值"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"L\", strategy.long, stop=lower)"
+            },
+            {
+              "field": "code",
+              "quote": "strategy.entry(\"S\", strategy.short, stop=upper)"
+            }
+          ]
+        }
+      ],
+      "memory_note": "扫描 research_memory：experiments=0, feedback=0, comparisons=0, fixed_validations=0；scan_limits 未触及预算，omitted_for_size=0。因此无历史实验、外部反馈、固定样本对照或固定公式验证可引用；没有历史收益、失败、成本或参数记录可比较。本轮评分仅基于静态源码与提取元数据，不借用历史表现，也不把检索相似或前序 AI 分析当实证。若后续需要实证，应以新数据、明确资产/频率/成本和独立对照重新检验；在 stop 撮合、出场、qty 与内置函数语义未锁定前，不建议进入收益评估。",
+      "memory_assessment": []
+    }
+  },
+  {
+    "case_id": "tick_ea",
+    "run_id": "fb30243c94ab443295e43198cd3ae61c",
+    "source_hash": "79b9bdd65de399ab34c9dd4dec0564f020d28b7b1cc81dfa09c9bce1a8992ef0",
+    "stage": "repair",
+    "original_output": {
+      "items": [
+        {
+          "factor_index": 3,
+          "status": "unresolved",
+          "summary": "无法将 OrderSend 的市价买入、订单票据返回值、滑点与手数执行语义用受支持的受控算子等价表达；该候选的核心是平台副作用而非可计算的数值/布尔序列。因此不把执行动作改写成伪表达式，也不猜测 OrderSend、Ask、Symbol、账户订单接受规则或返回值处理。保留原候选的平台执行语义为未解析。",
+          "definition": null,
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "OrderSend(Symbol(), OP_BUY, Lots, Ask, Slippage, 0, 0, \"QA\", Magic, 0, clrBlue);"
+            },
+            {
+              "field": "code",
+              "quote": "input double Lots = 0.1;"
+            },
+            {
+              "field": "code",
+              "quote": "input int Slippage = 3;"
+            },
+            {
+              "field": "code",
+              "quote": "input int Magic = 731;"
+            },
+            {
+              "field": "code",
+              "quote": "if(OrdersTotal() != 0) return;"
+            },
+            {
+              "field": "code",
+              "quote": "if(f > s)"
+            }
+          ],
+          "remaining_unknowns": [
+            "源码未逐字声明 Slippage 的单位；按 MT4 平台语义解释为点仍属平台推断，未经原文确认。",
+            "源码未声明 OrderSend 的返回值、错误码、拒单、重新报价、部分成交或失败重试处理。",
+            "源码未声明 Symbol() 返回品种的实际资产类别、合约大小、最小/最大手数和手数步长。",
+            "源码未声明 Ask 报价不可用、断连或报价异常时的行为。",
+            "源码未声明账户级 OrdersTotal() 闸门是否包含挂单、其他品种、其他 EA 或手工单；该计入范围属平台语义未知。",
+            "源码未声明 Magic 是否被外部订单管理或统计使用；所示代码未用 Magic 筛选订单。",
+            "源码未声明账户/服务器订单接受规则、保证金检查及执行延迟。",
+            "受控算子不支持平台下单副作用、订单票据和错误处理，无法构造等价的受控表达式。"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "channel",
+    "run_id": "1a14502dad174761a34695115fe65ec1",
+    "source_hash": "779cf3ddca61aa92fa19d7379721bb38db92f7c82985048025eea9ea9b7fd003",
+    "stage": "parameters",
+    "original_output": {
+      "parameters": [
+        {
+          "name": "N",
+          "type": "int",
+          "default_value": "20",
+          "category": "constant",
+          "meaning": "均线窗口长度，单位为K线根数；用于 BASE:=MA(C,N)。",
+          "constraints": "源码第2行写死为20。第1行作者注释逐字声明“N=20, M=5 are internal constants, not external parameter declarations.”，即作者主张N为内部常量而非外部参数。是否存在平台外部可调入口未知；未声明取值范围或约束。",
+          "effect": "改变N会改变BASE均线，进而改变DEV偏离度和第7行BUY条件；具体影响未回测验证。",
+          "suggestion": "作者声明为内部常量。若要研究周期敏感性，需先把N显式改写为可调输入再测试；当前材料不提供取值建议或最优值。",
+          "evidence": "第1行：{N=20, M=5 are internal constants, not external parameter declarations.}；第2行：N:=20;"
+        },
+        {
+          "name": "M",
+          "type": "int",
+          "default_value": "5",
+          "category": "constant",
+          "meaning": "DEV的平滑窗口长度，单位为K线根数；仅用于 SMOOTH:MA(DEV,M)。",
+          "constraints": "源码第3行写死为5。第1行作者注释声明M为内部常量而非外部参数；是否存在外部可调入口未知，未声明取值范围。",
+          "effect": "按源码，M只改变SMOOTH显示曲线；第7行BUY使用未平滑的DEV，因此M不进入BUY信号计算。",
+          "suggestion": "若希望平滑后的偏离度参与信号，需要先明确改写第7行并验证；当前不把M当作信号优化参数。",
+          "evidence": "第1行：{N=20, M=5 are internal constants, not external parameter declarations.}；第3行：M:=5;"
+        },
+        {
+          "name": "BASE",
+          "type": "number",
+          "default_value": "",
+          "category": "state",
+          "meaning": "N周期收盘价均线，作为偏离度的分母基准。",
+          "constraints": "由第4行MA(C,N)计算；MA实现未加载，均线类型、是否含当前K线及样本不足时的边界处理未知。",
+          "effect": "内部中间量，不是用户可调输入；其口径直接决定DEV。",
+          "suggestion": "",
+          "evidence": "第4行：BASE:=MA(C,N);"
+        },
+        {
+          "name": "DEV",
+          "type": "number",
+          "default_value": "",
+          "category": "state",
+          "meaning": "收盘价相对BASE的偏离度，公式为C/BASE-1，以小数比例表示，不是百分数。",
+          "constraints": "由第5行计算；BASE=0时存在除零风险。C与BASE的数据口径及MA边界未知。",
+          "effect": "内部计算量，不是用户可调输入；第7行BUY直接使用其当前值与前一值。",
+          "suggestion": "",
+          "evidence": "第5行：DEV:=C/BASE-1;"
+        },
+        {
+          "name": "SMOOTH",
+          "type": "number",
+          "default_value": "",
+          "category": "state",
+          "meaning": "DEV的M周期平滑值；使用冒号输出，作为显示列。",
+          "constraints": "由第6行MA(DEV,M)计算；MA口径未知。该输出名不是用户可调显示开关。",
+          "effect": "仅供显示或中间观察；按源码未被第7行BUY引用。",
+          "suggestion": "",
+          "evidence": "第6行：SMOOTH:MA(DEV,M);"
+        },
+        {
+          "name": "BUY",
+          "type": "bool",
+          "default_value": "",
+          "category": "state",
+          "meaning": "条件输出信号：DEV>0且REF(DEV,1)<=0，即偏离度由非正转为正、上穿零轴。",
+          "constraints": "由第7行条件计算；REF与比较的运行时语义、历史不足时行为未知。该输出名不是用户可调信号参数。",
+          "effect": "输出布尔信号结果；材料未包含仓位、止损、手续费、滑点或下单接口，不能据此视为可执行策略。",
+          "suggestion": "",
+          "evidence": "第7行：BUY:DEV>0 AND REF(DEV,1)<=0;"
+        }
+      ],
+      "risks": "源码结构解析为 lexical-v1、status=partial，仅词法候选，未调用通达信编译器；不能证明编译、运行或实际依赖。MA、REF仅有同名语法候选，未加载原平台实现，均线类型、是否包含当前K线、样本不足时的边界处理均未知，直接影响BASE、DEV、SMOOTH、BUY。第5行DEV:=C/BASE-1在BASE=0时存在除零风险，源码无保护；这属实现/数据异常风险。第7行BUY使用当前K线DEV，若在未收盘K线上计算，信号可能随实时价格变化（末根变动或重绘风险，属AI推断）；REF(DEV,1)依赖前一K线，历史不足时行为未知。M仅作用于SMOOTH显示列，而BUY使用未平滑DEV，存在展示曲线与信号口径不一致的误读风险。材料无仓位、止损、资金管理、手续费、滑点或下单接口，不能视为可执行策略。标的、市场、资产类别与数据频率均未声明。",
+      "unknowns": [
+        "N、M在通达信平台是否存在参数表等外部可调入口；源码与作者注释均指向内部常量，但未验证平台实际配置。",
+        "MA函数的具体口径：简单/指数/其他均线、是否包含当前K线、样本不足时返回何值。",
+        "REF(DEV,1)在首根K线或历史不足时的返回值与比较行为。",
+        "C与BASE的数据来源、复权方式、频率（日线/分钟等）及标的市场均未声明。",
+        "SMOOTH与BUY是否在其它公式、模板或界面中被引用；本材料仅含7行代码。",
+        "实际运行配置、样本区间、回测与风险指标均缺失，无法评估参数影响或有效性。"
+      ]
+    }
+  },
+  {
+    "case_id": "vendor_indicator",
+    "run_id": "7d7e1037e26b41b7941e24362c9a202c",
+    "source_hash": "afc3a3419d581f5bfa3528428d2afaa8c10f9a052cb7ef5645af4507219694e7",
+    "stage": "extract",
+    "original_output": {
+      "extraction_version": 1,
+      "extraction_note": "提取范围仅限本材料源码第1-14行、previous 参数记录和词法结构候选；未取得 MissingVendor 指标文件/算法、资产、频率、运行配置、回测或收益材料。源码事实：第12行只给 Buffer[0] 赋值，未见遍历 rates_total 或 prev_calculated 的循环；第7行 SetIndexBuffer 仅为词法候选，运行时绑定未验证。提取两个候选：外部指标值透传（role=factor）和 ShowSignal 显示门控（role=display）；不把 Buffer、indicator_buffers、MissingVendor 常量或 Period 本身另列为因子。二者 expression 均为 null，因为 iCustom、EMPTY_VALUE、平台缓冲区/三元语义不在支持算子内，且外部指标语义未定义。参数记录未提供 domain，故不另建 domain、不写范围；默认值不代表部署值或优化区间。候选未经实测，不声明有效、最优、编译通过或已验证。",
+      "factors": [
+        {
+          "name": "vendor_indicator_value",
+          "role": "factor",
+          "family": "other",
+          "summary": "外部指标 MissingVendor 的数值透传候选：第12行通过 iCustom(NULL,0,\"MissingVendor\",Period,0,0) 取得数值并写入 Buffer[0]（仅在 ShowSignal 为真时）。该数值的算法、单位和预测含义未提供，不能视为已验证因子。",
+          "formula": "iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)；源码仅在 ShowSignal 为真时把该返回值写入 Buffer[0]。",
+          "inputs": [],
+          "output_type": "platform_specific",
+          "units": "未知；取决于 MissingVendor 返回值，材料未说明。",
+          "timeframe": "每次 OnCalculate 调用、仅 Buffer[0]；Period 的窗口/单位由外部指标定义，材料未知；图表周期和适用资产未声明。",
+          "parameters": [
+            {
+              "name": "Period",
+              "type": "int",
+              "default_value": "14",
+              "category": "signal",
+              "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+              "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+              "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+              "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+              "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+            }
+          ],
+          "dependencies": [
+            "MetaTrader 4 iCustom",
+            "外部指标 MissingVendor（文件/算法未提供）",
+            "Buffer[0] 写入",
+            "ShowSignal 显示门控（控制是否写入）",
+            "SetIndexBuffer(0, Buffer) 运行时绑定未验证"
+          ],
+          "limitations": "只写索引0，未见遍历 rates_total 或 prev_calculated 的循环；历史 bars 是否逐根填充未知。iCustom 加载失败、返回空值或重绘/滞后行为未知。expression=null，因为 iCustom 不是支持算子，且 MissingVendor 的 mode/shift/参数顺序和返回单位未定义，不能编造等价公式。候选未经编译、运行或回测验证。",
+          "tags": [
+            "platform:mt4",
+            "usage:factor",
+            "mechanism:other",
+            "tunability:signal"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+            },
+            {
+              "field": "code",
+              "quote": "input int Period = 14;"
+            }
+          ],
+          "expression": null
+        },
+        {
+          "name": "show_signal_display_gate",
+          "role": "display",
+          "family": "other",
+          "summary": "显示门控候选：ShowSignal 为真时把外部指标值写入 Buffer[0]，为假时写入 EMPTY_VALUE。它是显示/隐藏开关性质，不是独立收益因子；源码只影响索引0。",
+          "formula": "Buffer[0] = ShowSignal ? vendor_value : EMPTY_VALUE;",
+          "inputs": [
+            {
+              "name": "vendor_value",
+              "meaning": "iCustom(NULL,0,\"MissingVendor\",Period,0,0) 返回的外部指标数值；语义由 MissingVendor 定义",
+              "availability": "仅在 OnCalculate 调用且 MissingVendor 可用时可得；材料未提供该外部指标",
+              "missing_policy": "未知；源码未检查 iCustom 失败或空值，EMPTY_VALUE 仅作为 ShowSignal=false 的分支"
+            }
+          ],
+          "output_type": "platform_specific",
+          "units": "布尔门控；Buffer[0] 的数值单位继承 vendor_value，EMPTY_VALUE 为平台空值。",
+          "timeframe": "每次 OnCalculate 调用、仅 Buffer[0]；历史 bars 和图表周期未声明。",
+          "parameters": [
+            {
+              "name": "ShowSignal",
+              "type": "bool",
+              "default_value": "true",
+              "category": "display",
+              "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+              "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+              "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+              "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+              "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+            }
+          ],
+          "dependencies": [
+            "vendor_indicator_value 候选",
+            "ShowSignal 参数",
+            "EMPTY_VALUE 平台常量",
+            "Buffer[0] 写入",
+            "SetIndexBuffer 绑定未验证"
+          ],
+          "limitations": "ShowSignal=false 时只把 Buffer[0] 置为 EMPTY_VALUE，是否等同隐藏全部历史输出未知；未见清除 B[1..] 的循环。expression=null，因为 EMPTY_VALUE、iCustom 和平台三元/缓冲区语义不在支持算子内，且外部值未定义。候选未经运行验证。",
+          "tags": [
+            "platform:mt4",
+            "usage:display",
+            "tunability:other"
+          ],
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "extern bool ShowSignal = true;"
+            },
+            {
+              "field": "code",
+              "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+            }
+          ],
+          "expression": null
+        }
+      ]
+    }
+  }
+]

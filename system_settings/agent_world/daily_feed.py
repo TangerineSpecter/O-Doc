@@ -480,12 +480,17 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     run_scope = Q(agent_id__in=actors)
     runs = AgentRunRecord.objects.filter(started_at__gte=start, started_at__lt=end).filter(
         run_scope).exclude(pk__in=recorded_runs)
+    runs = list(runs)
+    from .daily_feed_idle import waiting_runs
+    idle_waiting = waiting_runs(owner, [row.pk for row in runs if row.status == 'running'])
     for row in runs:
         event = _event('record', 'run', row.pk, row.started_at, row.agent_id,
                        row.agent_name or names.get(row.agent_id), row.task_name, row.summary,
                        status='success' if row.pk in settled_exploration_records else row.status,
                        target={'kind': 'run', 'id': row.pk})
         event['outputPreview'] = str(row.output or '')[:300]
+        if row.pk in idle_waiting:
+            event.update(idle_waiting[row.pk])
         events.append(event)
     completed_runs = AgentRunRecord.objects.filter(updated_at__gte=start, updated_at__lt=end,
                                                     status__in=('success', 'failed')).filter(run_scope)
@@ -497,11 +502,16 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         event['outputPreview'] = str(row.output or '')[:300]
         events.append(event)
 
-    for run in Exploration.objects.filter(owner_id=owner,updated_at__gte=start,updated_at__lt=end):
+    exploration_runs = list(Exploration.objects.filter(owner_id=owner,updated_at__gte=start,updated_at__lt=end))
+    from .combat.participation import participation, display_report
+    rosters = participation(exploration_runs, owner)
+    for run in exploration_runs:
         when=run.ended_at or run.updated_at
         events.append(_event('exploration','exploration',run.pk,when,run.actor_id,run.actor_name,
-            f'迷宫探索 · {run.elapsed_seconds//60} 分钟',run.result.get('report') or f'击败 {run.result.get("kills",0)} 只怪物，经验 {run.result.get("experience",0)}',
+            f'迷宫探索 · {run.elapsed_seconds//60} 分钟',display_report(run.result.get('report') or f'击败 {run.result.get("kills",0)} 只怪物，经验 {run.result.get("experience",0)}', rosters.get(run.pk)),
             status='success' if execution_completed(run.status) else 'paused' if run.status=='paused' else 'running' if run.status in ('preparing','active','settling') else 'failed',target={'kind':'exploration','id':run.pk}))
+        if run.pk in rosters:
+            events[-1]['explorationParty'] = rosters[run.pk]
     from .cooking_models import CookingOperation
     day_cookings = CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
     cooking_opp_ids = day_cookings.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
@@ -780,6 +790,14 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         if row.kind in ('market', 'farm') or (row.kind == 'investment' and row.pk in covered_investment_charges) or (row.kind in ('travel', 'souvenir') and (row.pk in covered_travel_charges or snapshot.get('journey_id') in owned_travel_ids)):
             entry['_finance_only'] = True
         events.append(entry)
+
+    from .combat.reservation_models import AdventureReservation
+    for appointment in AdventureReservation.objects.filter(owner_id=owner, updated_at__gte=start, updated_at__lt=end):
+        for actor_id, member in appointment.snapshot.get('members', {}).items():
+            events.append(_event('record', 'adventure-reservation', appointment.pk+':'+actor_id, appointment.updated_at, actor_id, names.get(actor_id),
+                '组队探索预约：'+{'reserved':'已确认','preparing':'准备中','active':'已出发','completed':'已结束','cancelled':'已取消'}.get(appointment.status, appointment.status),
+                '队友：'+'、'.join(m['name'] for m in appointment.snapshot['members'].values())+'；出发 '+local_time(appointment.starts_at).strftime('%H:%M')+'，返回 '+local_time(appointment.ends_at).strftime('%H:%M'),
+                status=appointment.status, target={'kind':'life','id':member['item_id']}))
 
     revisions = list(LifeRevision.objects.filter(item__owner_id=owner, created_at__gte=start,
                                                   created_at__lt=end).select_related('item'))

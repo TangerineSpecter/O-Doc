@@ -1,5 +1,6 @@
 """Read personal shared kill receipts; keep frozen solo encounters as the legacy source."""
 from dataclasses import dataclass
+from django.db.models.fields.json import KeyTextTransform
 from ..combat.models import CombatFact, CombatEncounter, Exploration
 from ..combat.party_models import AdventureEvent
 
@@ -26,7 +27,9 @@ def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None
     if start is not None and end is not None:
         # All members' copies of one kill belong to the same shared event time.
         events = AdventureEvent.objects.filter(owner_id=owner, kind='round', created_at__gte=start, created_at__lt=end)
-        facts = facts.filter(payload__shared_event_id__in=events.values('pk'))
+        # PostgreSQL cannot compare a JSONB value directly with a varchar ID subquery.
+        facts = facts.alias(shared_event_id_text=KeyTextTransform('shared_event_id', 'payload')).filter(
+            shared_event_id_text__in=events.values('pk'))
         encounters = encounters.filter(ended_at__gte=start, ended_at__lt=end)
     seen = set()
     for fact in facts.order_by('actor_id', 'sequence', 'pk').iterator():

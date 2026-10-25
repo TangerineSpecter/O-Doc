@@ -1,0 +1,372 @@
+{
+  "title": "BTCUSDT 1h 收盘相对滚动均值偏离：单/双窗口参数邻域与组合的本轮复核",
+  "summary": "本轮 12 个尝试全部完成评估，选中 attempt-6（单窗口 period=24）。验证段表现普遍为正（+5.2%~+9.9%），但训练段大多为负，且所选方案在本批选择后计算的留出段总收益 -2.79%、回撤 3.99%，同区间买入持有基线 -0.11%/3.75%，即留出段跑输基线。参数敏感度未得到任何受支持区段（单轴 5 点因训练收益极差 4.94pp 超 2pp 容差被拒；双窗口轴仅 2 点不足），联合敏感度两组均为不完整网格。历史记录（2024-01 同 seed 九个尝试全负、2024-02 period=30 固定验证跑输基线）进一步提示月份/区间依赖强。结论：方向可继续作为研究线索，但当前证据不支持稳健或可执行结论，优先级 investigate、证据与参数稳定性评分低。",
+  "findings": [
+    {
+      "text": "事实：本轮 12 个尝试状态均为 evaluated，无失败或未执行；选中规则为 train_pareto_then_validation_return_minus_drawdown_v1，选中 attempt-6。该规则直接使用验证段排序，因此验证段排名本身带择优偏差，不能当作样本外证据。",
+      "evidence_refs": [
+        "execution",
+        "attempt-6"
+      ]
+    },
+    {
+      "text": "事实：单窗口族 period=7/12/14/18/24 的训练收益分别为 -4.11%、+0.35%、-2.20%、-1.83%、+0.83%，验证收益分别为 +9.93%、+9.41%、+7.42%、+9.59%、+9.56%。方向不一致：训练段多数为负，验证段普遍为正，说明结果对区间切分敏感，不构成稳定信号证据。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-3",
+        "attempt-4",
+        "attempt-1",
+        "attempt-5",
+        "attempt-6"
+      ]
+    },
+    {
+      "text": "事实：period 增大伴随交易频率下降（entries 45→21，turnover 90→42）与训练回撤下降（12.93%→6.66%）；但这是同一轴上的联合变化，不能单独归因于某一机制，也不证明该数值区间连续有效。",
+      "evidence_refs": [
+        "attempt-3",
+        "attempt-6",
+        "parameter_sensitivity"
+      ]
+    },
+    {
+      "text": "事实：双窗口均值 attempt-2（a_p0=14,b_p0=60）训练 +4.72%、验证 +5.16%，但训练段 missing_signals=59（预热约 60 bar），触发“训练段信号覆盖不足 90%”而未进入可比区段；attempt-8（20,60）同样覆盖不足。覆盖率差异使双窗口与单窗口的横截比较受限。",
+      "evidence_refs": [
+        "attempt-2",
+        "attempt-8",
+        "parameter_sensitivity"
+      ]
+    },
+    {
+      "text": "事实：attempt-9 至 attempt-12 为嵌套均值组合，训练收益 -1.51%~+5.04%，验证 +5.27%~+8.80%；因同时改变多个参数（或多个父代结构），被参数敏感度分析排除，只能作为组合探索记录，不能用于单参数归因。",
+      "evidence_refs": [
+        "attempt-9",
+        "attempt-10",
+        "attempt-11",
+        "attempt-12",
+        "parameter_joint_sensitivity"
+      ]
+    },
+    {
+      "text": "事实：本批选择后计算的留出段（对应选中方案 attempt-6）总收益 -2.79%、最大回撤 3.99%、10 次进场、敞口 56.2%；同区间买入持有基线 -0.11%、回撤 3.75%、1 次进场。即留出段方案不仅为负，也弱于基线。留出仅在本批选择后计算，跨批独立性未证明。",
+      "evidence_refs": [
+        "holdout",
+        "baseline",
+        "execution"
+      ]
+    },
+    {
+      "text": "历史（推断来源已冻结）：2024-01 同 seed 的九个尝试在 period=5/10/20/30/60 及组合下，训练与验证收益全部为负（约 -2.3%~-14.7%），与本轮 2024-03 验证全正方向相反，提示该偏离信号存在强月度区间依赖，而非参数单调有效。",
+      "evidence_refs": [
+        "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697"
+      ]
+    },
+    {
+      "text": "历史固定验证（2024-02，period=30，fresh）：final +13.96%/回撤 11.12%，同期基线 +43.50%/回撤 4.26%，即收益大幅跑输买入持有且回撤更高。该结果已暴露，只能作为开发线索，不能当未见样本或平台等价证据。",
+      "evidence_refs": [
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    },
+    {
+      "text": "另一份固定验证（attempt-5，period=30）状态为 cancelled，error 明示计算前停止、数据预约保留，final 与 baseline 均为 null；不产生任何收益或��撤事实，既不能作负证据也不能作正证据。",
+      "evidence_refs": [
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    }
+  ],
+  "parameter_assessment": [
+    {
+      "text": "实际参数与默认值：seed 源码默认 period=14；本轮实际评估 7/12/14/18/24，选中值 24 是参数变体，不是源码默认值；双窗口候选记录的默认与实际值为 a_p0=14、b_p0=60。所有变体均未超出 int 与 1–2000 的实现约束，源码未声明取值范围与步长，因此 7/24 等边界外的行为仍是未知。",
+      "evidence_refs": [
+        "seed:8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "seed:6c07f295a922f4ceaaa07f630201d478f68a7cf8",
+        "execution"
+      ]
+    },
+    {
+      "text": "单轴 period 共 5 个可比点（含实际基线 attempt-1），区段为空（no_supported_region）：period=7 训练负收益且训练回撤较基线增加 2.78pp；period=14、18 训练收益不为正；仅 12 与 24 单点合格，但训练收益极差 4.94pp、训练回撤极差 6.27pp 均超 2pp 容差。因此不推荐任何“最佳值”，也不把 12–24 之间未测值视为已验证。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-3",
+        "attempt-1",
+        "attempt-5",
+        "attempt-6"
+      ]
+    },
+    {
+      "text": "双窗口 a_p0 轴只有 14 与 20 两个可比点（insufficient_comparison），attempt-7（a_p0=10,b_p0=30）因同时改两个参数被排除，无法构成单轴敏感性；b_p0=60 之外任一取值在本轮均无同轴对照（只记录不执行，不推断）。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-2",
+        "attempt-8",
+        "attempt-7"
+      ]
+    },
+    {
+      "text": "联合参数敏感度：两个族均为 incomplete_grid，comparison_cells 与 regions 为空，缺少构成 ≥2 维完整笛卡尔积的至少 4 个可比点；因此不存在可推荐的联合抽样组合，也不能把各轴区间任意组合。",
+      "evidence_refs": [
+        "parameter_joint_sensitivity"
+      ]
+    },
+    {
+      "text": "前 period-1 根 bar 的缺失在参数间不一致（单窗口 13~23，双窗口 59），不同窗口的预热长度不同，跨点比较受覆盖率影响；本轮未做统一预热重算，不能把覆盖差异当作收益差异来源。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-2",
+        "attempt-6"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "text": "选择偏差：选中方案由训练帕累托+验证收益减回撤规则产生，验证段已被用于排序；留出段随后计算，也已被查看，因此下一轮不能再用 2024-01/02/03 的同一区间声称样本外确认。",
+      "evidence_refs": [
+        "execution",
+        "holdout",
+        "partition:holdout"
+      ]
+    },
+    {
+      "text": "成本与换手：设置为 5bps 手续费+5bps 滑点（单侧），period=7 的 turnover=90，粗算成本量级约 0.9% 名义，与训练收益（-4.11%~+0.83%）同量级，削弱净收益解读。",
+      "evidence_refs": [
+        "execution",
+        "attempt-3"
+      ]
+    },
+    {
+      "text": "平台语义风险：滚动均值以 sma 表达，pandas rolling 的 min_periods 与平台 sma 语义可能不同；未验证原平台源码等价性，引擎为 quant-local-search-2 且为收盘信号下一根开盘成交、区间末平仓。",
+      "evidence_refs": [
+        "execution",
+        "seed:8ad1fb3c214f382be9696ef1c10849a8be940581"
+      ]
+    },
+    {
+      "text": "样本与稳定性风险：单标的单月 744 根 bar，训练 444、验证 146，进场次数 5–45 次；参数与组合结论都是小样本，跨月份方向翻转（2024-01 全负 vs 2024-03 验证全正）。",
+      "evidence_refs": [
+        "dataset",
+        "partition:train",
+        "partition:validation",
+        "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697"
+      ]
+    },
+    {
+      "text": "历史复用风险：本次三项历史共享同一 entry_id（d523c6388…）的同一研究记录，不应计为多个独立样本；固定验证结果已暴露，属开发线索；cancelled 项的数据预约冲突计数为 1，区间状态为 reused。",
+      "evidence_refs": [
+        "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697",
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07",
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    }
+  ],
+  "unknowns": [
+    "2024-04 及之后行情上该偏离信号是否仍表现为验证正、留出负的方向翻转，未知。",
+    "双窗口 b_p0 轴与 a_p0 轴在本轮均无完整网格，平滑是否带来覆盖率或换手改善未知。",
+    "嵌套组合（attempt-9~12）是否比其父代有增量，本轮无单轴对照，未知。",
+    "sma/min_periods 语义与原平台滚动均值是否等价，未知。",
+    "period 小于 7 或大于 24 的邻域、以及其他标的/周期是否有效，未知。",
+    "留出段表现与跨批独立性未证明；本批留出结果不能再作为未见证据。"
+  ],
+  "scores": [
+    {
+      "dimension": "参数稳定性",
+      "score": 1,
+      "reason": "同轴有 5 个可比点（含实际基线），但受支持区段为空：训练收益极差 4.94pp、回撤极差 6.27pp 超 2pp 容差；双窗口轴仅 2 点不足，联合网格不完整。",
+      "evidence": "period=7/12/14/18/24 的训练收益 -4.11%~+0.83%、验证 +7.42%~+9.93%，仅 12 与 24 单点合格；attempt-7 因双参数同改被排除，联合组为 incomplete_grid。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "parameter_joint_sensitivity",
+        "attempt-1",
+        "attempt-3",
+        "attempt-6"
+      ]
+    },
+    {
+      "dimension": "验证表现",
+      "score": 1,
+      "reason": "验证段多数方案为正收益且回撤 3.4%~6.8%，但选中方案留出段 -2.79% 并弱于基线 -0.11%，且历史 1 月全负，方向不稳定。",
+      "evidence": "attempt-6 验证 +9.56%/回撤 3.52%，留出 -2.79%/回撤 3.99%，基线 -0.11%/回撤 3.75%；2024-01 同 seed 全部尝试训练与验证均为负。",
+      "evidence_refs": [
+        "attempt-6",
+        "holdout",
+        "baseline",
+        "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697"
+      ]
+    },
+    {
+      "dimension": "风险与成本",
+      "score": 2,
+      "reason": "成本口径明确（5+5bps 单侧）且可计算，但 turnover 12~90 与训练收益同量级，训练回撤最高 12.93%，样本仅 444/146 bar。",
+      "evidence": "period=7 时 turnover=90、entries=45、训练回撤 12.93%；period=24 时 turnover=42、训练回撤 6.66%；未模拟流动性/成交量约束。",
+      "evidence_refs": [
+        "execution",
+        "attempt-3",
+        "attempt-6"
+      ]
+    },
+    {
+      "dimension": "证据充分度",
+      "score": 1,
+      "reason": "单标的单月、无受支持参数区段、无独立留出证明，复用范围为 0，且历史结果已暴露。",
+      "evidence": "partition:holdout 仅 146 个收益区间；reuse.total=0 且 independent_holdout_proven=false；参数与联合敏感度均无 regions。",
+      "evidence_refs": [
+        "partition:holdout",
+        "reuse",
+        "parameter_sensitivity"
+      ]
+    },
+    {
+      "dimension": "复现价值",
+      "score": 2,
+      "reason": "表达式、绑定与参数合同清晰可复现，但仅本机受限引擎、平台等价未验证，且本批留出已查看，只能作开发线索。",
+      "evidence": "execution.semantics 明示不等价于原平台；limitations 列明只验证受控表达式；固定验证自称 one_frozen_recipe_not_parameter_optimality_or_platform_equivalence。",
+      "evidence_refs": [
+        "execution",
+        "seed:8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    }
+  ],
+  "next_hypotheses": [
+    {
+      "text": "假设 H1：该均值回归偏离信号在 2024-04 新数据上仍表现为训练段非正、验证段为正的方向翻转，即月度区间依赖而非稳定优势。",
+      "evidence_refs": [
+        "attempt-6",
+        "holdout",
+        "partition:validation",
+        "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697"
+      ],
+      "test": "在 2024-04 BTCUSDT 1h 上按同分区比例重跑单窗口 period=12/18/24 与双窗口 (20,60)/(14,30)，与同期买入持有基线比较收益与回撤。",
+      "falsification": "若 2024-04 训练与验证段同时为正收益、回撤不高于基线，且信号覆盖率≥90%，则 H1 被否证（方向翻转不是普遍现象）。",
+      "data_requirement": "2024-04-01 至 2024-04-30 BTCUSDT 1h（720 根），须在查看结果前登记为新一轮评价区间。"
+    },
+    {
+      "text": "假设 H2：双窗口平滑仅在覆盖率下降不显著时才有增量；b_p0=60 相对更短窗口的收益差不小于 2pp 才能被视为参数效应。",
+      "evidence_refs": [
+        "attempt-2",
+        "attempt-8",
+        "attempt-7",
+        "parameter_joint_sensitivity"
+      ],
+      "test": "补齐 (a_p0,b_p0) 的至少 2×2 完整网格（如 a_p0∈{14,20}×b_p0∈{30,60}），逐轴比较收益、回撤与 missing_signals。",
+      "falsification": "若在同等覆盖率下各点训练与验证收益极差均小于 2pp，则双窗口平滑不构成可测参数效应，H2 被否证。",
+      "data_requirement": "同一新登记区间（2024-04 或更晚月份）上的完整网格评估，不可与 2024-01/03 结果混合归因。"
+    },
+    {
+      "text": "假设 H3：扣除 5+5bps 成本后，该信号相对买入持有基线无增量；基线在多月上收益更高且回撤更低。",
+      "evidence_refs": [
+        "baseline",
+        "holdout",
+        "execution",
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ],
+      "test": "在 2024-04 上并列报告各变体与基线的收益、回撤、turnover，比较净收益差。",
+      "falsification": "若存在变体在训练与验证两段同时净收益高于基线且回撤不劣于基线，则 H3 被否证。",
+      "data_requirement": "2024-04 及后续一份未查看月份的行情，用于避免只用单月判定。"
+    }
+  ],
+  "priority": "investigate",
+  "planning_version": 2,
+  "planning_note": "剩余轮数 1、候选预算 16、计算 30s，与下一份可用行情 2024-04 BTCUSDT 1h（720 根）匹配，故提出一个可执行 proposal。选择两个已有父代：单窗口 seed（period 轴已有 5 点可比，问题集中在是否可复制而非扩窗）与双窗口 seed（其 a_p0 轴只有 2 点、b_p0 轴无同轴对照，最缺完整网格）。变体只改实际参与公式的 signal 参数：单窗口取 12/18/24（参考本轮但不宣称最优，属开发线索），双窗口取 (20,60) 与 (14,30) 以形成与基线 (14,60) 的单轴对照。2 父代 + 5 参数组 = 7，低于 16 的预算，保留组合尝试余量；若后续需要组合，再在同一数据集上增加嵌套组合对照。未采用 cda8ca12…（三参数嵌套）作为父代，因为其参数组在本轮被排除出可比较网格，先补单轴对照更可证伪；也未引入任何新算子。所有变体在本批留出已查看之后提出，必须用 2024-04 新登记区间检验，不能声称独立留出或最优。",
+  "proposal": {
+    "name": "BTCUSDT 1h 均值回归偏离：2024-04 新数据上的单/双窗口否证性复核",
+    "hypothesis": "在未参与本轮选择的 2024-04 BTCUSDT 1h 数据上，单窗口 period∈{12,18,24} 与双窗口 (20,60)/(14,30) 不会同时满足训练与验证段正收益、回撤不高于买入持有基线、信号覆盖率≥90%；若成立，说明该偏离信号在此口径下无增量价值。",
+    "falsification": "若任一变体在 2024-04 的训练与验证两段同时取得正收益、且“收益-回撤”优于同区间买入持有基线并保持≥90% 信号覆盖，则上述“无增量价值”判断被否证；该单次结果仍只支持继续研究，不构成稳健或可执行结论。",
+    "data_requirement": "2024-04-01T00:00:00Z 至 2024-04-30T23:00:00Z 的 BTCUSDT 1h spot 原始价（720 根，UTC），需在查看结果前登记；不得复用 2024-01/02/03 已查看行情，也不得把本批留出结果当作未见样本。",
+    "evidence_refs": [
+      "attempt-6",
+      "holdout",
+      "baseline",
+      "parameter_sensitivity",
+      "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697"
+    ],
+    "seeds": [
+      {
+        "candidate_id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "variants": [
+          [
+            {
+              "name": "period",
+              "value": 12
+            }
+          ],
+          [
+            {
+              "name": "period",
+              "value": 18
+            }
+          ],
+          [
+            {
+              "name": "period",
+              "value": 24
+            }
+          ]
+        ]
+      },
+      {
+        "candidate_id": "6c07f295a922f4ceaaa07f630201d478f68a7cf8",
+        "variants": [
+          [
+            {
+              "name": "a_p0",
+              "value": 20
+            },
+            {
+              "name": "b_p0",
+              "value": 60
+            }
+          ],
+          [
+            {
+              "name": "a_p0",
+              "value": 14
+            },
+            {
+              "name": "b_p0",
+              "value": 30
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "memory_note": "历史覆盖同一私密研究库（cutoff 2026-10-25T12:14:45Z，扫描 1 个实验、2 份固定验证、0 对照、0 反馈，未受预算或大小限制截断）。三项共享同一 entry_id d523c6388cdf3c3e26b5a3aa65e1980f60db1d39，属同一研究记录的不同形态，不重复计为独立样本。影响：(1) 2024-01 同 seed 的九个尝试训练与验证全负（-2.3%~-14.7%），使我把 2024-03 的验证正收益降级为区间依赖的开发线索，并要求下一轮只用新月份；(2) 2024-02 period=30 固定验证已完成，final +13.96%/回撤 11.12% 明显跑输基线 +43.50%/回撤 4.26%，支持“扣除成本后无增量”的竞争假设，故下一轮必须并列报告基线；(3) attempt-5 固定验证被取消、无 final/baseline，不能作为胜负证据，只提示数据预约冲突（conflict_count=1）。缺口：历史中没有任何对照（comparison）记录，也无外部反馈，因此无法核对跨平台等价；历史行情已查看，不再提供新的独立留出；历史里没有 b_p0 轴与其他窗口的完整网格，双窗口组仍是不完整证据。",
+  "memory_assessment": [
+    {
+      "action": "reject",
+      "rationale": "2024-01 同 seed 的 period=5/10/20/30/60 及组合在训练与验证段全部为负收益，说明该均值回归模块存在强区间依赖，不能用 2024-03 的验证正收益推断稳健；后续仍可作对照但不能当支持证据。",
+      "evidence_refs": [
+        "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697"
+      ]
+    },
+    {
+      "action": "investigate",
+      "rationale": "2024-02 period=30 固定验证已完成但跑输基线（+13.96%/回撤 11.12% vs 基线 +43.50%/回撤 4.26%），且结果已暴露、独立验证标记为 false；只能作为开发线索，需在 2024-04 新登记区间用同一冻结参数与基线并列复核，不能声称样本外确认或平台等价。",
+      "evidence_refs": [
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    },
+    {
+      "action": "reject",
+      "rationale": "该固定验证状态为 cancelled，在计算前停止，final 与 baseline 均为 null，不提供任何收益或回撤事实；既不能当作负证据也不能当作正证据，仅保留其数据预约冲突与 reused 区间状态提示。",
+      "evidence_refs": [
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    },
+    {
+      "action": "apply",
+      "rationale": "三项历史同属 entry_id d523c6388…，按同一份证据处理，不重复计入独立样本；沿用其费用/成交与信号构造口径（5+5bps、收盘信号下一根开盘、区间末平仓）以便下一轮结果可比，同时保留失败与取消项不做正面利用。",
+      "evidence_refs": [
+        "memory:experiment:4f9f5d00ee9594a53850718f645df87086c78697",
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07",
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    }
+  ],
+  "evidence_hash": "e5f386b4782dbb9289b0ce13ce38460aec39d046f4956209f0f9c27299d57f79",
+  "total_score": 28,
+  "format": "experiment_review",
+  "rubric_version": "experiment-research-v1",
+  "evidence_status": "local_simulation_unverified_platform",
+  "independent_holdout_proven": false,
+  "next_hypotheses_status": "unverified_requires_fresh_validation"
+}

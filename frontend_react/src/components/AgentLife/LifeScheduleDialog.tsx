@@ -347,13 +347,14 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                         </div>
                                     ) : (
                                         <span className="text-slate-500">
-                                            主日程 <strong className="font-semibold text-slate-700">{schedule.data.counts?.main ?? schedule.data.items.filter(i => i.source !== 'interleaved').length}</strong> · 自由 {schedule.data.counts?.interleaved ?? schedule.data.items.filter(i => i.source === 'interleaved').length}
+                                            主日程 <strong className="font-semibold text-slate-700">{schedule.data.counts?.main ?? schedule.data.items.filter(i => i.source !== 'interleaved' && i.source !== 'reservation').length}</strong> · 自由 {schedule.data.counts?.interleaved ?? schedule.data.items.filter(i => i.source === 'interleaved').length}
                                         </span>
                                     )}
                                 </div>
                             </div>
                         )}
 
+                        {schedule.data.explorationPlanning && schedule.data.explorationPlanning.length > 0 && <details className="mb-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"><summary className="cursor-pointer font-medium">每日组队探索意向</summary><div className="mt-2 space-y-1">{schedule.data.explorationPlanning.map(row => <p key={`${row.day}:${row.actorId}`}>{row.name} · {row.day} · {row.status === 'planning' ? '等待统一配队' : row.participate ? '已完成配队检查' : '本日不预约'}：{row.reason}</p>)}</div></details>}
                         {schedule.error && mode !== 'today' && (
                             <div
                                 role="alert"

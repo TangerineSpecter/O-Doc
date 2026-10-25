@@ -28,3 +28,10 @@ job.highpriest,神官,job.cleric,3,50,18,30,1,1,1,5,3,9,1
 job.inquisitor,审判者,job.cleric,3,50,20,28,1,1,1,6,3,8,1
 job.druid,德鲁伊,job.naturalist,3,50,26,22,1,1,2,3,6,7,1
 job.warden,守望者,job.naturalist,3,50,26,22,1,1,2,3,5,8,1
+job.bard,吟游诗人,job.novice,1,10,10,10,1,1,3,3,1,3,1
+job.musician,乐师,job.bard,2,30,12,20,1,1,4,5,1,4,1
+job.cursesinger,咒歌者,job.bard,2,30,10,22,1,1,4,6,1,3,1
+job.battleconductor,战歌指挥,job.musician,3,50,20,28,1,1,5,6,2,5,1
+job.requiemsinger,镇魂歌者,job.musician,3,50,18,30,1,1,4,6,2,6,1
+job.virtuoso,琴圣,job.cursesinger,3,50,18,28,1,1,6,7,1,4,1
+job.sonomancer,魔音术士,job.cursesinger,3,50,14,32,1,1,4,9,1,4,1

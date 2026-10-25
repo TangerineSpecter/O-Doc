@@ -4,7 +4,7 @@ import { guardNovelNavigation } from '../utils/novelNavigation';
 
 export interface QuantDraft {
     dirty: boolean;
-    save: () => Promise<boolean>;
+    save?: () => Promise<boolean>;
     discard?: () => void;
 }
 export type QuantRegisterDraft = (key: string, draft: QuantDraft | null) => void;
@@ -14,6 +14,7 @@ export function useQuantNavigation() {
     const { navigator } = useContext(UNSAFE_NavigationContext);
     const drafts = useRef(new Map<string, QuantDraft>());
     const [dirty, setDirty] = useState(false);
+    const [canSave, setCanSave] = useState(true);
     const [resetEpoch, setResetEpoch] = useState(0);
     const [pending, setPending] = useState<{ proceed: () => void } | null>(null);
     const [saving, setSaving] = useState(false);
@@ -21,6 +22,7 @@ export function useQuantNavigation() {
         if (draft) drafts.current.set(key, draft);
         else drafts.current.delete(key);
         setDirty([...drafts.current.values()].some((value) => value.dirty));
+        setCanSave([...drafts.current.values()].every(value => !value.dirty || !!value.save));
     }, []);
     const request = useCallback((proceed: () => void) => {
         if ([...drafts.current.values()].some((value) => value.dirty)) setPending({ proceed });
@@ -40,10 +42,10 @@ export function useQuantNavigation() {
         }
     };
     const saveAndContinue = async () => {
-        if (!pending || saving) return;
+        if (!pending || saving || !canSave) return;
         setSaving(true);
         try {
-            for (const draft of drafts.current.values()) if (draft.dirty && !(await draft.save())) return;
+            for (const draft of drafts.current.values()) if (draft.dirty && (!draft.save || !(await draft.save()))) return;
             drafts.current.clear();
             setDirty(false);
             setPending(null);
@@ -54,6 +56,7 @@ export function useQuantNavigation() {
     };
     return {
         dirty,
+        canSave,
         resetEpoch,
         resetEditors: () => setResetEpoch((value) => value + 1),
         pending: !!pending,
@@ -71,7 +74,7 @@ export function useQuantNavigation() {
 export function useQuantDraftRegistration(
     key: string,
     dirty: boolean,
-    save: () => Promise<boolean>,
+    save: (() => Promise<boolean>) | undefined,
     register: QuantRegisterDraft,
     discard?: () => void,
 ) {

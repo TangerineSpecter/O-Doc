@@ -1,0 +1,21 @@
+{
+  "run_id": null,
+  "old_report_id": "c7c40cf320c94f4e81da145a9555bd93",
+  "new_report_id": null,
+  "status": "failed",
+  "error": "16 findings exceeded the then-current 12-issue contract; no report published",
+  "model": "deepseek-flash",
+  "provider_calls": 1,
+  "source_calls": 0,
+  "old_report_unchanged": true,
+  "schema_version": 51,
+  "decisions": [
+    null,
+    null
+  ],
+  "raw_capture_only": true,
+  "snapshot_capture_failed": true,
+  "snapshot_failure": "unsorted JSON keys in previously captured full prompts were falsely treated as changed input; fixed via canonical prompts and legacy semantic JSON comparison; full snapshot for this original process was not recovered",
+  "manual_quality_review": "not accepted; findings themselves include questionable classifications; protocol failure retained",
+  "independent_review": false
+}

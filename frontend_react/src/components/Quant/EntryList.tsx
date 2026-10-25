@@ -42,7 +42,7 @@ export function EntryList({
                     </span>
                     <QuantButton primary disabled={busy} onClick={create}>
                         <Plus size={15} />
-                        新建研究
+                        收集并分析
                     </QuantButton>
                 </div>
                 <label className="relative block">
@@ -63,7 +63,7 @@ export function EntryList({
                     />
                     <Select
                         value={language}
-                        options={[{ value: '', label: '全部语言' }, ...languageOptions]}
+                        options={[{ value: '', label: '全部语言' }, ...languageOptions, { value: 'tongdaxin', label: '通达信公式' }, { value: 'text', label: '其他 / 纯文本' }]}
                         onChange={setLanguage}
                     />
                 </div>
@@ -107,10 +107,10 @@ export function EntryList({
                     <div className="px-4 py-14 text-center">
                         <FlaskConical className="mx-auto mb-3 text-orange-200" size={30} />
                         <p className="text-sm text-slate-500">
-                            {entries.length ? '没有匹配的研究' : '你的研究，从一个想法开始'}
+                            {entries.length ? '没有匹配的研究' : '先收集一份研究资料'}
                         </p>
                         <p className="mt-2 text-xs leading-5 text-slate-400">
-                            {entries.length ? '试试其他关键词或筛选条件' : '保存因子逻辑、不同语言代码和回测证据'}
+                            {entries.length ? '试试其他关键词或筛选条件' : '贴入代码、说明或网址，让 AI 分析并积累候选'}
                         </p>
                     </div>
                 )}

@@ -34,7 +34,7 @@ class CodeVersionSerializer(serializers.ModelSerializer):
         model = CodeVersion
         fields = ['id', 'implementation_id', 'code', 'note', 'language', 'language_version', 'dependencies',
                   'parameters', 'compile_check', 'run_check', 'result_check', 'verification_notes',
-                  'source_version_id', 'created_at']
+                  'source_version_id', 'strategy_artifact_id', 'created_at']
         read_only_fields = fields
 
 

@@ -11,9 +11,12 @@ from utils.ai_service import AIAuthenticationError, AIService
 class ModelAuthenticationContextTests(SimpleTestCase):
     def get_config(self, settings, simple):
         provider = SimpleNamespace(api_key='private-test-key', base_url='https://example.invalid/v1', type='test', id='provider-test', name='测试提供商')
-        model = SimpleNamespace(name='test-chat', provider=provider)
-        with patch('utils.ai_service.SystemSetting.objects.get', return_value=SimpleNamespace(value=settings)), patch('utils.ai_service.AIModel.objects.get', return_value=model) as lookup:
+        def resolve_model(*, id):
+            return SimpleNamespace(pk=id, name='test-chat', provider=provider, type='chat',
+                                   thinking_mode='default', thinking_protocol='auto')
+        with patch('utils.ai_service.SystemSetting.objects.get', return_value=SimpleNamespace(value=settings)), patch('utils.ai_service.AIModel.objects.get', side_effect=resolve_model) as lookup:
             config = AIService.get_default_client_config(use_simple_model=simple)
+        self.assertEqual(config['model_id'], lookup.call_args.kwargs['id'])
         return config, lookup.call_args.kwargs['id']
 
     def test_simple_role_is_actual_selected_model(self):

@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "suite_hash": "79700b7af5fb108db25ca1cafed20252eff177fc117b016346ab3f3bfb9f53f4",
+  "records": [
+    {
+      "case_id": "unfetched_url",
+      "repeat": 1,
+      "run_id": "bc69bfe0db1448e18dcc4354fa4431ce",
+      "source_hash": "464eee8df582b1cc7bb4f84ff5820059791e6c1129aa30fd21791f00fd41ac10",
+      "status": "failed",
+      "origin": "unverified",
+      "block_reason": "source_acquisition_failed",
+      "fresh_model_calls": false,
+      "context": {
+        "model_key": "53b1111698adb87da87c205db488979834a22379810838283b6c960235896ab8",
+        "configuration_hash": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6",
+        "workflow_version": 14,
+        "evidence_context_hash": "7000f8d96483afee78cb620696264bbb8689eb67fc9a5e196ac53cb8349166d3"
+      }
+    },
+    {
+      "case_id": "unfetched_url",
+      "repeat": 2,
+      "run_id": "e6a9e6918c6c4a8884cff5781dc215dc",
+      "source_hash": "464eee8df582b1cc7bb4f84ff5820059791e6c1129aa30fd21791f00fd41ac10",
+      "status": "failed",
+      "origin": "unverified",
+      "block_reason": "source_acquisition_failed",
+      "fresh_model_calls": false,
+      "context": {
+        "model_key": "53b1111698adb87da87c205db488979834a22379810838283b6c960235896ab8",
+        "configuration_hash": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6",
+        "workflow_version": 14,
+        "evidence_context_hash": "7000f8d96483afee78cb620696264bbb8689eb67fc9a5e196ac53cb8349166d3"
+      }
+    },
+    {
+      "case_id": "unfetched_url",
+      "repeat": 3,
+      "run_id": "b57b8b3becf64ca08ab13c65589398ed",
+      "source_hash": "464eee8df582b1cc7bb4f84ff5820059791e6c1129aa30fd21791f00fd41ac10",
+      "status": "failed",
+      "origin": "unverified",
+      "block_reason": "source_acquisition_failed",
+      "fresh_model_calls": false,
+      "context": {
+        "model_key": "53b1111698adb87da87c205db488979834a22379810838283b6c960235896ab8",
+        "configuration_hash": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6",
+        "workflow_version": 14,
+        "evidence_context_hash": "7000f8d96483afee78cb620696264bbb8689eb67fc9a5e196ac53cb8349166d3"
+      }
+    }
+  ]
+}

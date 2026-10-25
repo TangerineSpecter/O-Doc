@@ -1,0 +1,200 @@
+{
+  "native_request_id": "db0ab4c41816cd4ee11b5860f334416263c9eab5",
+  "native_result_id": "1b766d7734b103a428c711a6f67af29899c5efc4",
+  "native_status": "completed",
+  "comparison": {
+    "version": 1,
+    "method": "controlled-output-comparison-v1",
+    "claim": "stored_python_text_process_outputs_fixed_sample_not_platform_global_or_financial_equivalence",
+    "status": "fail",
+    "evaluation_status": "completed",
+    "counts": {
+      "total_rows": 200,
+      "warmup_rows": 0,
+      "compared_rows": 200,
+      "common_valid": 179,
+      "left_missing": 20,
+      "right_missing": 21,
+      "both_missing": 20,
+      "missing_mismatches": 1,
+      "value_mismatches": 179,
+      "within_tolerance": 0
+    },
+    "start": "2024-04-01T00:00:00+00:00",
+    "end": "2024-04-09T07:00:00+00:00",
+    "comparison_start": "2024-04-01T00:00:00+00:00",
+    "output_hashes": {
+      "left": "668256278f9745cd1ab9a4c6e0260fd92d5e076fd5f727892847611c09c4b4b0",
+      "right": "2b1803abda1a91757040a8e1cf2e745b86fd78b27b6e2ba3798d298b25b8557e"
+    },
+    "classification_hash": "c9fc2ac0e56bf20892b9d33a1e4984ed5e0b129a6dff6695be521a2592113996",
+    "max_abs_error": "0.03596081001825296945",
+    "max_relative_error": "1.0345162320481352557227235390289695957846968957582",
+    "first_difference": {
+      "index": 20,
+      "timestamp": "2024-04-01T20:00:00+00:00",
+      "left": 0.001239943866119697,
+      "right": -2.561683058256356e-06,
+      "kind": "value_mismatch"
+    },
+    "differences": [
+      {
+        "index": 20,
+        "timestamp": "2024-04-01T20:00:00+00:00",
+        "left": 0.001239943866119697,
+        "right": -2.561683058256356e-06,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 21,
+        "timestamp": "2024-04-01T21:00:00+00:00",
+        "left": 0.00024301979308050115,
+        "right": 4.393047419250455e-07,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 22,
+        "timestamp": "2024-04-01T22:00:00+00:00",
+        "left": 0.0028113218985459376,
+        "right": -2.4999192316081468e-06,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 23,
+        "timestamp": "2024-04-01T23:00:00+00:00",
+        "left": 0.002755661230629869,
+        "right": -1.1897843859925288e-05,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 24,
+        "timestamp": "2024-04-02T00:00:00+00:00",
+        "left": -0.0007250714581796824,
+        "right": -4.395444626211683e-07,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 25,
+        "timestamp": "2024-04-02T01:00:00+00:00",
+        "left": 0.0005939512335961794,
+        "right": -2.0500958604081917e-05,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 26,
+        "timestamp": "2024-04-02T02:00:00+00:00",
+        "left": -0.03250019681234961,
+        "right": 0.00014166565877232168,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 27,
+        "timestamp": "2024-04-02T03:00:00+00:00",
+        "left": -0.03478526904146906,
+        "right": 5.834920699697506e-05,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 28,
+        "timestamp": "2024-04-02T04:00:00+00:00",
+        "left": -0.0344063912858269,
+        "right": -8.916241907738485e-05,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 29,
+        "timestamp": "2024-04-02T05:00:00+00:00",
+        "left": -0.0301469066417126,
+        "right": -4.620156755978145e-05,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 30,
+        "timestamp": "2024-04-02T06:00:00+00:00",
+        "left": -0.02695897641759626,
+        "right": 0.00016589371443850984,
+        "kind": "value_mismatch"
+      },
+      {
+        "index": 31,
+        "timestamp": "2024-04-02T07:00:00+00:00",
+        "left": -0.030865811971403256,
+        "right": 0.00010008148555947595,
+        "kind": "value_mismatch"
+      }
+    ],
+    "limitations": [
+      "比较固定存储Python文本函数与受控表达式在本次实际参数、输入和容差下的输出；不证明平台、全局或经济等价。",
+      "按同一行情行号和时间戳逐行比较，只排除显式共同预热段；不自动移位或分别删除缺失值。",
+      "误差文本为50位十进制摘要；容差判定使用输入十进制文本的精确分数。",
+      "输出单位和用途取候选的声明，不是原函数单位的独立认证。"
+    ]
+  },
+  "environment": {
+    "image_id": "sha256:b321c15f8cdfb8f92cd9fd90599e0198f097cb6b5a2f45e09eb68cd9f2e7ec9e",
+    "os": "linux",
+    "architecture": "arm64",
+    "runtime": {
+      "protocol": "python-source-process-v1",
+      "python": "3.11.17",
+      "machine": "aarch64",
+      "numpy": "2.3.4",
+      "pandas": "2.3.3",
+      "supervisor_sha256": "3b04678a205680a69a4a11f51e0954c8c7b4aa39c8403674c4cd93a5e206412f",
+      "child_sha256": "104370ff79884024fb5d5109fe0e2e2f1b22f33cd022e4b4422fc9740ef701a2"
+    },
+    "limits": {
+      "memory_mib": 256,
+      "cpus": 1,
+      "pids": 32,
+      "tmp_mib": 32,
+      "maximum_seconds": 30,
+      "network": "none",
+      "root_filesystem": "read_only",
+      "source_uid": 65532,
+      "host_mounts": false
+    }
+  },
+  "actual_parameters": {
+    "period": 21
+  },
+  "function_arguments": [
+    {
+      "name": "frame",
+      "kind": "dataframe",
+      "columns": [
+        "close"
+      ]
+    },
+    {
+      "name": "period",
+      "kind": "parameter",
+      "parameter": "period"
+    },
+    {
+      "name": "horizon",
+      "kind": "literal",
+      "value": 1
+    }
+  ],
+  "source_default_period": 14,
+  "independent_decimal_native_outputs": true,
+  "independent_decimal_comparison_counts": true,
+  "provider_calls": 4,
+  "review_status": "completed",
+  "review_error": "",
+  "review_id": "4b97eec2e8e14739994211c86851d4db",
+  "prior_reports_and_results_unchanged": true,
+  "snapshot_roundtrip": true,
+  "source_executed_on_restore": false,
+  "business_database_migrated": false,
+  "global_independent_validation": false,
+  "platform_equivalence": "unverified",
+  "first_review_failed": true,
+  "first_failure": "proposal reference factor:<id> was not an allowed exact reference",
+  "native_source_reexecuted_for_retry": false,
+  "second_review_failed": true,
+  "second_failure": "provider returned JSON missing final root closing brace; rejected without repair",
+  "third_review_failed": true,
+  "third_failure": "model quote did not exactly match machine-generated JSON document; rejected"
+}

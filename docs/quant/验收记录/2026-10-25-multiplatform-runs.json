@@ -1,0 +1,628 @@
+{
+  "application_version": "1.5.41",
+  "workflow_version": 14,
+  "sampling_kind": "debugging_across_prompt_fixes_not_fixed_code_baseline",
+  "runs": [
+    {
+      "model": "deepseek-flash",
+      "status": "failed",
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "workflow_version": 14,
+      "provider_calls": 4,
+      "elapsed_seconds": 188.86,
+      "report_created": false,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "failed"
+        }
+      ],
+      "usage": {
+        "request_count": 4,
+        "input_tokens": 24427,
+        "output_tokens": 36817,
+        "total_tokens": 61244
+      },
+      "run_id": "682d182fe71942beaae1a00b3ea15433",
+      "close_warning": true,
+      "runtime_transport": "sdk_default_httpx2"
+    },
+    {
+      "model": "deepseek-flash",
+      "status": "failed",
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "workflow_version": 14,
+      "provider_calls": 6,
+      "elapsed_seconds": 302.06,
+      "report_created": false,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "failed"
+        }
+      ],
+      "usage": {
+        "request_count": 6,
+        "input_tokens": 68614,
+        "output_tokens": 57840,
+        "total_tokens": 126454
+      },
+      "run_id": "56979e8dec2d42b0a3d9e48f82943b5b",
+      "close_warning": true,
+      "runtime_transport": "sdk_default_httpx2"
+    },
+    {
+      "model": "deepseek-flash",
+      "status": "completed",
+      "error": "",
+      "workflow_version": 14,
+      "provider_calls": 7,
+      "elapsed_seconds": 250.87,
+      "report_created": true,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "completed"
+        },
+        {
+          "stage": "plan",
+          "status": "completed"
+        },
+        {
+          "stage": "publish",
+          "status": "completed"
+        }
+      ],
+      "usage": {
+        "request_count": 7,
+        "input_tokens": 93805,
+        "output_tokens": 45665,
+        "total_tokens": 139470
+      },
+      "run_id": "9f52034ecea8480ea334ab25077902a0",
+      "close_warning": true,
+      "runtime_transport": "sdk_default_httpx2"
+    },
+    {
+      "case_id": "future_return",
+      "model": "deepseek-flash",
+      "status": "completed",
+      "error": "",
+      "workflow_version": 14,
+      "provider_calls": 6,
+      "elapsed_seconds": 219.92,
+      "report_created": true,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "completed"
+        },
+        {
+          "stage": "plan",
+          "status": "completed"
+        },
+        {
+          "stage": "publish",
+          "status": "completed"
+        }
+      ],
+      "usage": {
+        "request_count": 6,
+        "input_tokens": 46192,
+        "output_tokens": 36365,
+        "total_tokens": 82557
+      },
+      "run_id": "e876704812c24e7da605ccfb9e8390f3",
+      "close_warning": true,
+      "runtime_transport": "sdk_default_httpx2"
+    },
+    {
+      "case_id": "tick_ea",
+      "model": "deepseek-flash",
+      "status": "failed",
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "workflow_version": 14,
+      "provider_calls": 5,
+      "elapsed_seconds": 156.13,
+      "report_created": false,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "failed"
+        }
+      ],
+      "usage": {
+        "request_count": 5,
+        "input_tokens": 32827,
+        "output_tokens": 26260,
+        "total_tokens": 59087
+      },
+      "run_id": "fb30243c94ab443295e43198cd3ae61c",
+      "close_warning": true,
+      "runtime_transport": "sdk_default_httpx2"
+    },
+    {
+      "case_id": "tick_ea",
+      "restart_stage": "parameters",
+      "resumed": true,
+      "model": "deepseek-flash",
+      "status": "completed",
+      "error": "",
+      "workflow_version": 14,
+      "provider_calls": 5,
+      "elapsed_seconds": 254.19,
+      "report_created": true,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "completed"
+        },
+        {
+          "stage": "plan",
+          "status": "completed"
+        },
+        {
+          "stage": "publish",
+          "status": "completed"
+        }
+      ],
+      "usage": {
+        "request_count": 5,
+        "input_tokens": 63114,
+        "output_tokens": 46399,
+        "total_tokens": 109513
+      },
+      "run_id": "b34d6c0291f44631ad77a335157ba61b",
+      "close_warning": false,
+      "runtime_transport": "explicit_httpx"
+    },
+    {
+      "case_id": "channel",
+      "restart_stage": "",
+      "resumed": false,
+      "model": "deepseek-flash",
+      "status": "completed",
+      "error": "",
+      "workflow_version": 14,
+      "provider_calls": 7,
+      "elapsed_seconds": 203.82,
+      "report_created": true,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "completed"
+        },
+        {
+          "stage": "plan",
+          "status": "completed"
+        },
+        {
+          "stage": "publish",
+          "status": "completed"
+        }
+      ],
+      "usage": {
+        "request_count": 7,
+        "input_tokens": 60891,
+        "output_tokens": 35089,
+        "total_tokens": 95980
+      },
+      "run_id": "802364a7ab7a4ebdb1949b14d10af7fa",
+      "close_warning": false,
+      "runtime_transport": "explicit_httpx"
+    },
+    {
+      "case_id": "channel",
+      "restart_stage": "parameters",
+      "resumed": true,
+      "model": "deepseek-flash",
+      "status": "failed",
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "workflow_version": 14,
+      "provider_calls": 1,
+      "elapsed_seconds": 25.35,
+      "report_created": false,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "failed"
+        }
+      ],
+      "usage": {
+        "request_count": 1,
+        "input_tokens": 4620,
+        "output_tokens": 4044,
+        "total_tokens": 8664
+      },
+      "run_id": "1a14502dad174761a34695115fe65ec1",
+      "close_warning": false,
+      "runtime_transport": "explicit_httpx"
+    },
+    {
+      "case_id": "channel",
+      "restart_stage": "parameters",
+      "resumed": true,
+      "model": "deepseek-flash",
+      "status": "completed",
+      "error": "",
+      "workflow_version": 14,
+      "provider_calls": 6,
+      "elapsed_seconds": 171.77,
+      "report_created": true,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "completed"
+        },
+        {
+          "stage": "plan",
+          "status": "completed"
+        },
+        {
+          "stage": "publish",
+          "status": "completed"
+        }
+      ],
+      "usage": {
+        "request_count": 6,
+        "input_tokens": 64519,
+        "output_tokens": 29502,
+        "total_tokens": 94021
+      },
+      "run_id": "c2a6322aee434b4f8d72f7532b3ae496",
+      "close_warning": false,
+      "runtime_transport": "explicit_httpx"
+    },
+    {
+      "case_id": "vendor_indicator",
+      "restart_stage": "",
+      "resumed": false,
+      "model": "deepseek-flash",
+      "status": "failed",
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "workflow_version": 14,
+      "provider_calls": 4,
+      "elapsed_seconds": 124.26,
+      "report_created": false,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "failed"
+        }
+      ],
+      "usage": {
+        "request_count": 4,
+        "input_tokens": 19723,
+        "output_tokens": 21748,
+        "total_tokens": 41471
+      },
+      "run_id": "7d7e1037e26b41b7941e24362c9a202c",
+      "close_warning": false,
+      "runtime_transport": "explicit_httpx"
+    },
+    {
+      "case_id": "vendor_indicator",
+      "restart_stage": "extract",
+      "resumed": true,
+      "model": "deepseek-flash",
+      "status": "completed",
+      "error": "",
+      "workflow_version": 14,
+      "provider_calls": 4,
+      "elapsed_seconds": 131.6,
+      "report_created": true,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "completed"
+        },
+        {
+          "stage": "plan",
+          "status": "completed"
+        },
+        {
+          "stage": "publish",
+          "status": "completed"
+        }
+      ],
+      "usage": {
+        "request_count": 4,
+        "input_tokens": 41920,
+        "output_tokens": 22460,
+        "total_tokens": 64380
+      },
+      "run_id": "2c441b89c1cf437b91d5f382251f75ec",
+      "close_warning": false,
+      "runtime_transport": "explicit_httpx"
+    }
+  ],
+  "completion_calls": 55,
+  "recorded_http_requests": 55,
+  "negative_controls": 3,
+  "native_compilation": false,
+  "production_writes": false,
+  "human_expert_review": false,
+  "source_controls_fake_model": true,
+  "harness_errors_before_provider": [
+    "initial_snapshot_restore_without_tracking_suspension",
+    "initial_control_collection_title_collision"
+  ]
+}

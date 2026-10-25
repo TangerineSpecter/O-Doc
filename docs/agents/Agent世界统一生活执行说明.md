@@ -291,3 +291,7 @@ node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test
 # 另启动 VITE_LOCAL_MODE=true 的本机Vite服务后，使用安装了Playwright和Chrome的Python运行：
 python3 scripts/test-life-recovery-browser.py --base http://127.0.0.1:5177
 ```
+
+## 日程组队探索预约（2026-10-25）
+
+整日请求额外保存独立探索意向，不把探索放入主日程六类活动。逐个规划完成后统一配队，未完成协调前暂缓新自由活动选择；预约单独占用时间并预留体力、每日探索时长，临近出发准备、共同入队后才生成首波。来源`reservation`不计主日程或自由活动次数，取消释放未用预留。完整当前规则与同步边界见[组队探索预约](./Agent组队探索预约说明.md)。

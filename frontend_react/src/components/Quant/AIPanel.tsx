@@ -152,17 +152,18 @@ export function AIHistory({
     select: (id: string) => void;
     appendExplanation: (text: string) => void;
 }) {
-    const run = entry.runs.find((item) => item.id === selectedId);
+    const codeRuns = entry.runs.filter(item => ['explain', 'convert'].includes(item.kind));
+    const run = codeRuns.find((item) => item.id === selectedId);
     return (
         <section className={cardClass}>
             <div className="mb-4 flex items-center gap-2">
                 <Sparkles size={17} className="text-orange-500" />
                 <h3 className="text-sm font-bold text-slate-800">AI 研究记录</h3>
-                <span className="ml-auto text-xs text-slate-400">{entry.runs.length} 次任务</span>
+                <span className="ml-auto text-xs text-slate-400">{codeRuns.length} 次任务</span>
             </div>
-            {entry.runs.length ? (
+            {codeRuns.length ? (
                 <div className="space-y-2">
-                    {entry.runs.map((item) => (
+                    {codeRuns.map((item) => (
                         <button
                             type="button"
                             key={item.id}
@@ -189,7 +190,7 @@ export function AIHistory({
                                 </p>
                                 <p className="mt-1 truncate text-[11px] text-slate-400">
                                     {item.modelName || '默认模型'} · {quantDate(item.createdAt)} ·{' '}
-                                    {item.sourceVersionId.slice(0, 8)}
+                                    {(item.sourceVersionId || item.sourceId || '').slice(0, 8)}
                                 </p>
                             </div>
                             <ArrowRight size={15} className="shrink-0 text-slate-300" />
@@ -310,7 +311,7 @@ function AIRunModal({
                     {running && <Loader2 className="mr-1 inline animate-spin" size={12} />} {statusLabels[run.status]}
                 </span>
                 <span className="text-slate-400">
-                    {run.modelName} · 来源 {run.sourceVersionId.slice(0, 8)}
+                    {run.modelName} · 来源 {(run.sourceVersionId || run.sourceId || '').slice(0, 8)}
                 </span>
                 <span className="ml-auto text-slate-400">
                     <Clock3 size={12} className="mr-1 inline" />

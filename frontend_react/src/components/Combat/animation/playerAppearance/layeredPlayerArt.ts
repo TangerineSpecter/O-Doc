@@ -15,6 +15,7 @@ export const identityParts = {
 export interface OutfitArt {id:string;name:string;family:string;body:ConceptArt;original:boolean}
 export const outfitArts: OutfitArt[] = professionConcepts.map(concept=>{
     const original = concept.approved === true;
+    if(concept.family==='bard')return {id:concept.id,name:concept.name,family:concept.family,original:false,body:concept.art};
     if (original) {
         const job = concept.id as PlayerJob;
         return {id:concept.id,name:concept.name,family:concept.family,original,body:{url:playerSheetUrl,size:playerSheetSize,region:{x:playerSheetColumns[playerJobDetails[job].index],y:405,width:374,height:190}}};

@@ -1,3 +1,5 @@
+import {reservationItems} from './reservations';
+import {bardProfiles,bardSnapshot,bardParty} from './bardSamples';
 import type {AgentTaskConfig} from '../../types/api/setting';
 import type {LotteryConfig} from '../../types/api/lottery';
 import {blacksmithActivities, blacksmithFacts, blacksmithLifeItems, resolveBlacksmithRoute, runMockBlacksmith} from './blacksmith';
@@ -28,11 +30,11 @@ const page = <T,>(items: T[], url: URL) => {
 const actor = (url: URL) => url.searchParams.get('actor_id') || url.searchParams.get('actorId') || url.searchParams.get('agentId') || url.searchParams.get('agent') || url.searchParams.get('seller_id') || '';
 const forActor = <T extends {actorId?: string; agentId?: string}>(rows: T[], url: URL) => rows.filter(r => !actor(url) || (r.actorId || r.agentId) === actor(url));
 const resource = new Map<string, unknown>();
-lifeItems.push(...blacksmithLifeItems);
+lifeItems.push(...blacksmithLifeItems, ...reservationItems);
 for (const item of lifeItems) {
     if (item.source === 'interleaved') item.activityUsage = {requests: 4, inputTokens: 860, outputTokens: 32, totalTokens: 892, usageComplete: true};
     if (item.activity === 'fishing') item.domainDetail = {kind: 'fishing', id: fishingTrip.id};
-    if (item.activity === 'exploration') item.domainDetail = {kind: 'exploration', id: exploration.id};
+    if (item.activity === 'exploration' && item.source !== 'reservation') item.domainDetail = {kind: 'exploration', id: exploration.id};
     item.context = {...item.context, dailyChoice: {time: at(7), plan: {id: `choice-${item.id}`, activity: item.activity, reason: '结合当前体力、库存和生活偏好安排今天的行动。', offeredActivities: ['farm', 'cooking', 'alchemy', 'blacksmith', 'exploration', 'travel']}}};
     if (item.activity === 'cooking') {
         const recipe = cooking.recipes[4];
@@ -168,6 +170,10 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     }
     const lifeMatch = path.match(/\/life\/schedule\/([^/]+)\/$/);
     if (lifeMatch) {const item = lifeItems.find(r => r.id === lifeMatch[1])!; if (!item) return null;
+        if (writing && item.reservation) {
+            if (body.action === 'cancel') for (const member of lifeItems.filter(r => r.reservation?.id === item.reservation!.id)) {member.status='cancelled'; member.reservation={...member.reservation!,status:'cancelled',reason:String(body.reason||'人工取消')};}
+            return item;
+        }
         if (writing) {item.status = body.action === 'cancel' ? 'cancelled' : 'pending'; item.result = {reason: String(body.reason || '本地模拟操作')};} return item satisfies LifeItem;}
     if (path.includes('/life/profiles/')) return {id: path.split('/').slice(-2)[0], preferences: '喜欢旅行、农场和制作美食。', direction: '攒钱探索新的目的地。', ...body};
     if (path === `${base}/farms/`) return list(farms);
@@ -180,14 +186,16 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (path.endsWith('/sessions/')) return page(forActor(sessions, url), url);
         if (path.endsWith('/automation/')) return {date: day, plans: list(forActor(marketPlans, url))};
     }
+    if(path===`${base}/combat/parties/local-bard-party/events/`)return {events:[],hasMore:false};
     if (new RegExp(`^${base}/combat/parties/[^/]+/events/$`).test(path)) return {events:emptyScenario()?[]:[...localOlderPartyEvents,...localParty.events].filter(e=>e.sequence<Number(url.searchParams.get('before')||100)),hasMore:false};
+    if(path===`${base}/combat/explorations/local-bard-exploration/`)return emptyScenario()?{...bardSnapshot,party:{...bardParty,players:[],enemies:[],events:[]},events:[]}:structuredClone(bardSnapshot);
     if (path.startsWith(`${base}/combat/agents/`)) {
-        const id = path.split('/')[6], profile = combatProfiles.find(r => r.actorId === id) || combatProfiles[0];
+        const id = path.split('/')[6], profile = bardProfiles.find(r=>r.actorId===id) || combatProfiles.find(r => r.actorId === id) || combatProfiles[0];
         if (path.endsWith('/adventure-options/')) return {solo:true,parties:emptyScenario()?[]:localAdventureOptions.parties};
         if (body.operation==='prepare') return localCombatPreparation.prepare(id,body,emptyScenario());
         if (path.endsWith('/history/')) return {list: list([{id: exploration.id, status: exploration.status, elapsedSeconds: exploration.elapsedSeconds, result: exploration.result, createdAt: at(12)}]), total: emptyScenario() ? 0 : 1, page: 1};
         if (body.operation === 'preview_equip') return {attributes: profile.attributes};
-        return {...profile,activeExplorationId:localCombatPreparation.active(id)};
+        return {...profile,...(emptyScenario()?{skills:[],equipment:[],loadout:{}}:{}),activeExplorationId:id.startsWith('local-bard-')?profile.activeExplorationId:localCombatPreparation.active(id)};
     }
     if (request.method === 'GET' || request.method === 'POST') {
         if (new RegExp(`^${base}/combat/explorations/[^/]+/$`).test(path)) {

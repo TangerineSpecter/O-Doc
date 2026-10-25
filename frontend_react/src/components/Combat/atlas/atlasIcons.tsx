@@ -27,6 +27,7 @@ import {
     Hand,
     HeartPulse,
     BookOpen,
+    Music,
 } from 'lucide-react';
 
 export interface VisualConfig {
@@ -296,6 +297,8 @@ export function getProfessionVisual(id: string, _name: string = '', _parentId: s
         color = 'text-slate-600';
         bgGradient = 'from-slate-50 to-slate-100/40';
         border = 'border-slate-200';
+    } else if (['bard','musician','cursesinger','battleconductor','requiemsinger','virtuoso','sonomancer'].some(job=>id===`job.${job}`)) {
+        icon=Music; color='text-teal-600'; bgGradient='from-teal-50 to-amber-50/30'; border='border-teal-200';
     } else if (id.includes('spellblade')) {
         icon = Shield;
         color = 'text-slate-600';

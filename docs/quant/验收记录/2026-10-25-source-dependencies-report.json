@@ -1,0 +1,643 @@
+{
+  "title": "MT4 指标 __source__ 封装 MissingVendor 的均值偏离缓冲",
+  "kind": "indicator",
+  "summary": "结论：该材料是一个 MT4 图表指标“显示壳”，主文件不自行计算偏离，而是在第13行通过 iCustom 调用写死名称 MissingVendor 的子指标，并把返回值写入唯一缓冲 Buffer[0]；子指标源码第35-40行按 Period 个收盘价计算简单均值并输出 close/mean−1。研究价值在于它给出了一个可讨论的价格相对均值偏离度候选特征，但材料未提供编译、运行、回测、资产、频率或样本区间，无法判断有效性或最优参数。有材料依据的分类提议可包括 platform:mt4、usage:display、data:price、structure:time_series、tunability:signal、tunability:other；mechanism:mean_reversion 属 AI 推断分类，不构成作者主张或有效性证据。source_structure.status=partial，仅为词法候选，不是编译或回测证据。",
+  "principle": "源码事实：主文件第4行声明 `#property indicator_buffers 1`，第5行 `input int Period = 14;`，第6行 `extern bool ShowSignal = true;`，第7-8行声明 Buffer 并绑定 index 0；第13行写入 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`，第14行返回 rates_total。主文件 OnCalculate 体内无循环，未使用 prev_calculated，也未对 Buffer 调用 ArraySetAsSeries，因此历史柱如何填充、Buffer[0] 对应哪根柱均未知。依赖文件事实：第22行声明独立 Period=14，第23-26行声明 Result、绑定 index 0 并设序列方向；第33行在 Period<1 或 rates_total<Period 时直接返回0；第34行对 close 调用 ArraySetAsSeries(close,true)；第35-40行对 shift 从 rates_total−Period 到0、内层 j=0 到 Period−1 累加 close[shift+j] 求均值，第39行写 `Result[shift] = mean > 0.0 ? close[shift] / mean - 1.0 : EMPTY_VALUE;`。AI 推断：若 close 的序列方向 true 生效，则窗口是以 shift 为最新端、向更早柱取 Period 根收盘价的简单均值，Result 是价格相对该均值的归一化偏离；若方向未生效，窗口方向可能相反。数据可得时点：源码未声明计算时点；若平台按常规每 tick 调用且 close[0] 是当前未完成柱，则 shift=0 的值会随当前柱变化；历史柱在每次调用中整段重算；主文件只写 Buffer[0] 且无历史循环，当前柱与历史柱行为不一致的风险为 AI 推断，未运行验证。iCustom 末尾两个 0 按 MT4 惯例解释为缓冲序号和 shift 属 AI 推断；dependency_submission_reason 明示无法确认补交源码与终端 EX4 同版，运行时加载未知。",
+  "formula": "计算步骤：1）子指标先执行第33行守卫：若 Period<1 或 rates_total<Period，则返回0且不写入 Result。2）第26行将 Result 设为序列方向，第34行尝试将 close 设为序列方向（平台是否接受或生效未知）。3）对每个 shift，从第35行循环，初始化 mean=0，第37行对 j=0..Period−1 累加 close[shift+j]，第38行 mean=mean/Period 得到简单均值。4）第39行输出 Result[shift]=close[shift]/mean−1.0（当 mean>0.0），否则输出 EMPTY_VALUE；该式是无量纲的比率偏离，不是 z-score，也未除以波动率。5）主文件第13行：当 ShowSignal=true 时，Buffer[0] 取 iCustom(NULL,0,\"MissingVendor\",Period,0,0) 的返回值；当 ShowSignal=false 时写 EMPTY_VALUE。iCustom 的 symbol=NULL 表示当前品种、timeframe=0 表示当前周期；末尾 0,0 对应缓冲序号和 shift 只是 AI 推断，未经编译或运行验证。主文件 Period 是否确实映射到子指标第22行同名 input、以及取的是否为 Result 缓冲0，均未知。",
+  "usage": "源码事实支持 usage:display：`#property indicator_chart_window`、SetIndexBuffer 和 ShowSignal 表明它是图表展示模块；源码中没有 OrderSend 等交易执行调用，不能视为完整策略或交易信号。AI 推断的候选用途是价格相对简单均值偏离度的可视化、过滤条件或因子候选，适用于价格围绕局部均值波动的区间/震荡情景假设；在持续趋势中该偏离可能长期同号，不能仅凭本指标判定反转。资产类别、品种、图表周期和时间长度均未在材料中声明，无法判断 Period=14 对应的小时、日或其他周期；也没有回测、收益、回撤或参数搜索材料，默认 Period=14 与 ShowSignal=true 不能当作实际运行配置或最优参数。mechanism:mean_reversion 仅是对公式形态的 AI 推断分类，不证明交易含义或有效性。",
+  "risks": "【重绘与历史一致性】主文件 OnCalculate（第9-15行）无循环、未使用 prev_calculated、也未对 Buffer 调用 ArraySetAsSeries，只写 Buffer[0]，因此历史柱是否被填充、当前柱值是否随 tick 变化未定（AI 推断，未运行验证）；依赖文件则对整段 shift 重算（第35-40行），两者计算粒度不一致。\n【序列方向】依赖文件第34行对形参 `const double &close[]` 调用 ArraySetAsSeries(close, true)，平台是否接受或用何种语义生效未知；若方向未生效，第37行 close[shift+j] 的窗口方向相反，公式含义改变。第26行 Result 设为序列方向，与主文件未设方向的 Buffer 混用，下标0的时间含义可能不对齐。\n【外部依赖与版本】第13行 iCustom 依赖写死的 \"MissingVendor\"；source_structure.reference_semantics 明示为 syntactic_name_candidates_not_runtime_dependencies，dependency_submission_reason 明示无法确认补交源码与终端 EX4 同版；两文件均标注 not executed，运行时加载与参数顺序（末尾 0,0 为缓冲序号/shift）均为推断。\n【计算实现细节】第33行 `if(Period < 1 || rates_total < Period) return(0);` 使数据不足时整段无输出；第38行 mean 为 double 累加后除法，无零值防护外的其他检查；第39行仅在 mean>0 时计算比值，mean<=0 或缺失价格会得到 EMPTY_VALUE 空洞，可能被误读为 0 或信号缺失。第36-39行公式为 close/mean−1（无量纲），未经数值验证。\n【参数识别定位】两个文件的 input Period 为同名但各自独立的声明（第5行、第22行），材料未证明主文件 Period 的实参位置确实对应依赖文件该输入；材料 parameters 字段为空，参数仅见于源码。\n【范围与证据边界】源码未声明 Period 的上下限、步长或枚举，未提供回测、样本区间或参数搜索结果；除依赖文件第33行守卫隐含 Period≥1 外，无机器可读范围声明，default=14 不能当作实际运行配置或最优值。",
+  "validation_plan": "复现计划：第一步先做版本与来源核对，确认终端存在与 MissingVendor.mq4 同版的编译指标，记录平台、品种、图表周期和用户实际参数；材料对这些字段未知，需补充后才能定义 Period 的时间长度。第二步做运行时校验：加载主指标后核对 iCustom 是否返回非 EMPTY_VALUE、Buffer[0] 与子指标 Result 的对应关系，确认 iCustom 末尾两个 0 的缓冲序号/shift 语义；同时检查第34行对 close 的序列方向是否被平台接受，以及 Buffer 与 Result 的下标0是否对齐。第三步做公式复现：用外部表格或独立脚本按已收盘收盘价重算 close/mean−1，与子指标历史柱逐点比对；必须区分 shift=0 的当前未完成柱与 shift>=1 的已收盘柱，避免把随 tick 变化的值当作稳定历史值，并检查 mean<=0、rates_total<Period 时的 EMPTY_VALUE/无输出行为。第四步做敏感度实验设计：在确认参数映射有效后，围绕默认14做小范围整数对照，观察平滑程度、极值、空洞比例和方向稳定性；源码只给出 Period>=1 的下限，未给上限或步长，实验区间不得表述为推荐或最优。第五步做样本外验证：先固定参数并定义资产、频率、目标变量和评估口径，按时间切分样本，比较该偏离度作为展示特征、过滤条件或候选因子时的稳定性；若后续转为策略研究，还需计入交易成本、滑点和未收盘柱处理。由于材料没有回测结果，本计划不预设收益结论，也不宣称任何参数优于其他参数。",
+  "source_facts": [
+    "平台与语言（来源声明）：材料元数据 platform=\"MetaTrader 4\"、language=\"mql4\"；源码以 `#property strict`（第2行）与 `#property indicator_chart_window`（第3、20行）标注为图表窗口指标；language_version、dependencies、parameters、description、url、extraction_* 字段为空，频率、资产类别、周期未在材料中声明——未知。",
+    "文件构成（来源事实）：source_files 列出两个文件，__source__.mq4 角色 primary（第2-15行）、MissingVendor.mq4 角色 dependency（第19-42行）；第1行注释 `// SOURCE FILE: __source__.mq4 (primary; from parent snapshot; not executed)`，第18行注释 `// SOURCE FILE: MissingVendor.mq4 (dependency; user supplied; not executed)`。dependency_submission_reason 明示“无法确认它与原终端的 EX4 是同一版本”。",
+    "解析状态（非编译证据）：source_structure.parser=\"lexical-v1\"、status=\"partial\"，diagnostics 称“仅词法结构候选，未调用原平台编译器；宏、类型、重载、作用域和实际执行依赖未解析”；reference_semantics=\"syntactic_name_candidates_not_runtime_dependencies\"。节点仅列出两文件的 OnInit/OnCalculate 及参数 Period、ShowSignal 与变量 Buffer、Result；调用候选为 SetIndexBuffer(8、25)、iCustom(13)、ArraySetAsSeries(26、34)。",
+    "主文件声明与参数（原文定位）：第4行 `#property indicator_buffers 1`，第7行 `double Buffer[];`，第8行 `int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第5行 `input int Period = 14;`，第6行 `extern bool ShowSignal = true;`。元数据 parameters 字段为空，参数仅见于源码。",
+    "主文件计算逻辑（原文定位）：第13行 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`，第14行 `return(rates_total);`；OnCalculate 体内无循环，仅写 Buffer 下标 0，未使用 prev_calculated，也未对 Buffer 调用 ArraySetAsSeries。iCustom 末尾两个 0 参数按 MT4 惯例分别解释为缓冲序号与 shift，属 AI 推断，未经编译或运行验证。",
+    "依赖文件计算逻辑（原文定位）：第33行 `if(Period < 1 || rates_total < Period) return(0);`；第34行 `ArraySetAsSeries(close, true);`；第35-40行以 `for(int shift = rates_total - Period; shift >= 0; shift--)` 与内层 `for(int j = 0; j < Period; j++) mean += close[shift + j];` 求 Period 个收盘价均值，第39行 `Result[shift] = mean > 0.0 ? close[shift] / mean - 1.0 : EMPTY_VALUE;`，第41行 `return(rates_total);`。第26行对 Result 设 `ArraySetAsSeries(Result, true)`。",
+    "机制与用途判断（AI 推断，非作者主张）：按第36-39行公式，依赖文件输出的是收盘价相对 Period 周期简单均值的归一化偏离 close/mean − 1，可归为价格相对均值位置的度量，故建议 mechanism:mean_reversion 与 structure:time_series；作者未在源码或描述中说明机制、用途或交易含义，该归类不构成有效性证据。",
+    "数据依赖（来源事实）：OnCalculate 形参含 time/open/high/low/close/tick_volume/volume/spread（第10-12、30-32行），但依赖文件实际仅引用 close[]（第37、39行），主文件未引用任何价格数组，故数据标签仅取 data:price；成交量、盘口、基本面均无使用证据。",
+    "可调项：Period（第5、22行，默认14）为窗口长度类信号参数（tunability:signal）；ShowSignal（第6行，默认true）为显示开关类参数（tunability:other）。材料未给出取值范围、优化结果或推荐参数，不得视为最优参数。",
+    "用途线索（来源事实）：`#property indicator_chart_window` 与 SetIndexBuffer 表明输出为图表指标缓冲，ShowSignal 控制是否取子指标值否则写 EMPTY_VALUE，故建议 usage:display；源码中无 OrderSend 等交易执行调用，也无风险或过滤模块证据。",
+    "执行与运行时未知：两个文件均标注“not executed”，iCustom 对 \"MissingVendor\" 的运行时加载未被证明（reference_semantics 明示为语法名候选）；第34行对 `const double &close[]` 调用 ArraySetAsSeries 是否被平台接受或生效未知；主文件 Buffer 未设序列方向，下标0的时间含义未确认；无回测、收益、样本区间或参数搜索结果材料。"
+  ],
+  "assumptions": [
+    "AI 推断：第13行 iCustom 末尾两个 0 分别为子指标缓冲序号和 shift；依据是 MT4 常见调用惯例及第25行 SetIndexBuffer(0, Result)，但材料未编译或运行验证，若缓冲序号并非0则取值来源不同。",
+    "AI 推断：主文件第5行 Period 作为 iCustom 第4个实参传入，并对应依赖文件第22行同名 input Period；依据是参数位置相邻，但两文件未合并执行，source_files_claim 明示同名符号不证明导入已解析或同版。",
+    "AI 推断：第34行 ArraySetAsSeries(close,true) 若生效，则 close[0] 为最新柱、close[shift+j] 向更早柱取数，第37-39行窗口为截至 shift 的过去 Period 根收盘价简单均值；若平台不接受对 const 形参调用或方向未生效，窗口方向可能相反，公式含义改变。",
+    "AI 推断：第39行 mean>0 的防护使正常正价格得到有限比值，mean<=0 或缺失价格得到 EMPTY_VALUE 空洞；该空洞可能被误读为0或信号缺失，需运行核对。",
+    "AI 推断：主文件只写 Buffer[0] 且未调用 ArraySetAsSeries(Buffer,true)，所以 Buffer 下标0的时间含义、历史柱是否被填充、当前柱是否随 tick 变化均未知；不能假定主图曲线与子指标历史序列一致。",
+    "AI 推断：mechanism:mean_reversion、structure:time_series 和因子候选用途来自 close/mean−1 的公式形态，不是作者在源码或描述中的主张；材料没有机制说明、交易规则或有效性证据。",
+    "未知：终端中 MissingVendor 的 EX4 版本是否与补交源码一致、运行时 iCustom 是否成功加载、用户实际保存的 Period/ShowSignal、平台频率、资产和图表周期均未提供，不能补造。",
+    "未知：材料没有编译、运行、回测、样本区间或参数搜索结果；除第33行守卫隐含 Period>=1 外，源码未声明取值范围、步长或上限，不能给出最优参数或推荐区间。"
+  ],
+  "unknowns": [
+    "实际运行配置未知：终端中用户是否修改过 Period/ShowSignal 及其保存值，材料未提供（不能用默认 14/true 冒充）",
+    "平台频率、资产类别、品种与图表周期均未在材料中声明，无法确定 Period 对应的时间长度",
+    "MissingVendor 在终端的 EX4 版本与补交源码是否一致未知，运行时 iCustom 是否成功加载未证明",
+    "iCustom 末尾两个 0 是否为缓冲序号与 shift 未经验证；若缓冲序号非 0 则取值来源不同",
+    "主文件 Buffer 的序列方向、下标 0 的时间含义及历史柱填充方式未知（未调用 ArraySetAsSeries、无循环、未用 prev_calculated）",
+    "对 const double &close[] 调用 ArraySetAsSeries 能否被平台接受或生效未知",
+    "未进行编译、运行或回测：无收益、回撤、样本区间、参数搜索结果，任何优化区间或最优参数均缺失",
+    "依赖文件第39行公式 close/mean−1 的经济含义与有效性无作者主张支持，mechanism:mean_reversion 属 AI 推断分类",
+    "两个同名 Period 在运行时是否取同一数值未知，材料未给出 iCustom 参数位置与子指标形参的对应声明"
+  ],
+  "parameters": [
+    {
+      "name": "Period",
+      "type": "int",
+      "default_value": "14",
+      "category": "signal",
+      "meaning": "__source__.mq4 第5行 `input int Period = 14;`，窗口长度类信号参数。主文件自身不做窗口计算，唯一用途是作为第13行 iCustom 的第4个实参传给子指标（按 MT4 iCustom 形参顺序把该位置对应为子指标输入，属 AI 推断，未编译/运行验证），单位推断为 bar 数。",
+      "constraints": "源码未声明取值范围、上限或步长；材料 parameters 字段为空，无优化或回测结果。该值是否真正落到依赖文件同名 input 未经验证（两文件未合并执行，source_files_claim 明示同名符号不证明导入已解析）。",
+      "effect": "数值增大时，若确实传入依赖文件，则第37行求均值的窗口变长，偏离度量更平滑、对短周期波动不敏感；该影响为代码结构推断，未经运行验证。",
+      "suggestion": "仅在确认真实 iCustom 参数映射且依赖库与终端同版后，才可把依赖文件第33行守卫（Period≥1）当作下限做敏感性扫描；材料未给出任何推荐值或最优区间，默认14不可视为实证最优，也不能据此宣称哪段区间更优。",
+      "evidence": "5: input int Period = 14;"
+    },
+    {
+      "name": "MissingVendor.Period",
+      "type": "int",
+      "default_value": "14",
+      "category": "signal",
+      "meaning": "依赖文件 MissingVendor.mq4 第22行 `input int Period = 14;` 声明的同名独立输入；用于第37行内层循环窗口长度，决定第39行 close[shift]/mean−1 的平均周期。名字前的文件名限定是本报告的区分写法，源码变量名仍为 Period。",
+      "constraints": "第33行守卫 `if(Period < 1 || rates_total < Period) return(0);` 表示 Period<1 时子指标直接返回0、不产生输出；源码未声明上限或步长。与主文件 Period 是否同一运行时值未知。",
+      "effect": "增大→参与均值的收盘价个数变多，Result 更平滑；减小→更贴近短窗均值偏离。周期与数据频率的关系未在材料中声明。",
+      "suggestion": "可在确认有效窗口后做小范围敏感性对照（例如围绕默认14上下取若干整数），仅作为待验证实验设计；下限依据为第33行守卫，上限与步长源码未声明，材料无最优参数证据。",
+      "evidence": "22: input int Period = 14;",
+      "domain": {
+        "version": 1,
+        "minimum": 1,
+        "maximum": null,
+        "step": null,
+        "step_origin": null,
+        "choices": [],
+        "relations": [],
+        "evidence": [
+          {
+            "field": "code",
+            "quote": "if(Period < 1 || rates_total < Period) return(0);"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ShowSignal",
+      "type": "bool",
+      "default_value": "true",
+      "category": "display",
+      "meaning": "第6行 `extern bool ShowSignal = true;`，显示开关：第13行三元表达式在 true 时把 iCustom 取值写入 Buffer[0]，false 时写入 EMPTY_VALUE，属于展示层控制，不进入子指标的均值与偏离计算。",
+      "constraints": "布尔型，仅 true/false；源码未声明与其他参数的依赖或取值范围。终端中用户实际保存值未知。",
+      "effect": "设为 false 后主指标缓冲全部为 EMPTY_VALUE、图表不显示偏离值，但不改变依赖文件第35-40行的计算逻辑；对信号数值本身无影响（由于主文件仅写 Buffer[0]，实际可见范围另受第13行实现限制）。",
+      "suggestion": "显示用途，不进入收益优化；需要对比图中隐藏曲线时置 false 即可，无需调参。",
+      "evidence": "6: extern bool ShowSignal = true;"
+    },
+    {
+      "name": "indicator_buffers",
+      "type": "int",
+      "default_value": "1",
+      "category": "constant",
+      "meaning": "#property 编译期属性，主文件（第4行）与依赖文件（第21行）各写死为 1 个指标缓冲区；非 input/extern。",
+      "constraints": "写死属性，终端用户不可通过输入修改；改动需重新编译。与 SetIndexBuffer(0, …) 的配对关系为平台规则，未编译验证。",
+      "effect": "改动只影响可用缓冲数量与声明；源码中仅绑定 index 0，增加声明不会自动新增输出。",
+      "suggestion": "源码写死的编译期常量，不是可调参数，无调参建议",
+      "evidence": "4: #property indicator_buffers 1"
+    },
+    {
+      "name": "iCustom_indicator_name",
+      "type": "string",
+      "default_value": "MissingVendor",
+      "category": "constant",
+      "meaning": "第13行写死的子指标名称字符串 `\"MissingVendor\"`，主文件通过它以 iCustom 调用依赖指标，无法通过 input/extern 替换为其他指标。",
+      "constraints": "写死字符串，无枚举或可替换配置。运行时能否加载该指标（终端是否存在同版 EX4）未知，两文件均标注 not executed，dependency_submission_reason 明示无法确认与终端 EX4 同版。",
+      "effect": "若终端缺少同名编译指标或版本不一致，iCustom 返回值将失真（平台行为，未验证），Buffer[0] 随之失真；ShowSignal=false 时该名称不生效。",
+      "suggestion": "写死常量，不是可调参数，无调参建议；复现前应先确认终端中存在同版本编译产物",
+      "evidence": "13:     Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+    },
+    {
+      "name": "iCustom_fixed_args",
+      "type": "string",
+      "default_value": "NULL, 0, 0, 0",
+      "category": "constant",
+      "meaning": "第13行 iCustom 中除 Period 外的固定实参：symbol=NULL（当前品种）、timeframe=0（当前周期），末尾两个 0 按 MT4 惯例分别解释为缓冲序号与 shift（AI 推断，非源码注释声明），因此输出的是子指标缓冲0在其序列方向下的某个下标值。",
+      "constraints": "全部为字面量，无 input 可改；末尾两 0 的语义未经编译或运行验证；缓冲序号若与依赖文件 SetIndexBuffer(0, Result) 不一致则取错缓冲（推断）。",
+      "effect": "任何一项被改动都会改变取数来源（品种/周期/缓冲/位移）；在当前写法下主指标只反映单一取值，而非整段历史序列。",
+      "suggestion": "写死常量，不是可调参数，无调参建议；确认缓冲序号与 shift 语义应通过平台运行核对，而非在此设优化区间",
+      "evidence": "13:     Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+    },
+    {
+      "name": "Buffer",
+      "type": "double[]",
+      "default_value": "",
+      "category": "state",
+      "meaning": "主文件唯一指标缓冲（第7行声明 `double Buffer[];`，第8行 SetIndexBuffer(0, Buffer) 绑定 index 0）；作为计算输出承载，OnCalculate 只写 Buffer[0]。不是用户可调输入。",
+      "constraints": "源码未对其调用 ArraySetAsSeries，序列方向与下标0对应的时间未确认；OnCalculate 无循环、未使用 prev_calculated，历史柱填充行为未知。",
+      "effect": "作为状态/输出容器，取值由第13行三元表达式决定；本身不构成可调参数。",
+      "suggestion": "计算状态，不是可调参数，无调参建议",
+      "evidence": "7: double Buffer[];"
+    },
+    {
+      "name": "Result",
+      "type": "double[]",
+      "default_value": "",
+      "category": "state",
+      "meaning": "依赖文件缓冲（第23行声明 `double Result[];`，第25行 SetIndexBuffer(0, Result)，第26行 ArraySetAsSeries(Result, true)）；第39行写入 close[shift]/mean−1，或在 mean<=0 时写 EMPTY_VALUE。不是用户可调输入。",
+      "constraints": "序列方向设为 true；写入范围由第35行循环 shift=rates_total−Period 至 0 决定，第33行 rates_total<Period 时不写任何值。数值范围与单位（无量纲比值）为公式推断。",
+      "effect": "作为状态/输出容器承载归一化偏离；不构成可调参数。",
+      "suggestion": "计算状态，不是可调参数，无调参建议",
+      "evidence": "23: double Result[];"
+    }
+  ],
+  "scores": [
+    {
+      "dimension": "逻辑清晰度",
+      "score": 3,
+      "reason": "两段代码较短，依赖文件 close/mean−1 的公式可读；但主文件仅写 Buffer[0]，依赖文件却对整段历史重算，计算粒度不一致；iCustom 参数映射、末尾 0,0 语义、close/Result 序列方向均未声明，从主图输出到因子公式的逻辑链存在断点。依据限于源码与词法候选，未经编译运行。",
+      "evidence": "source.code 第13-14、33-39行逐字可见；source_structure.status=partial；source.description 与 web_markdown 为空；无编译、运行或回测材料。"
+    },
+    {
+      "dimension": "实现质量",
+      "score": 2,
+      "reason": "代码短但实现缺陷明显：主 OnCalculate 只写 Buffer[0]，无 prev_calculated、无历史循环、未对 Buffer 调用 ArraySetAsSeries；依赖文件每次全历史重算；对 const close 调用 ArraySetAsSeries 的接受/生效未验证；外部 MissingVendor 运行时版本未知。没有证据表明原平台可编译运行。",
+      "evidence": "source.code 第7-14、23-41行；portable_qualification 仅声明受控表达式引用/类型检查通过且 automatic_experiment_ready=false，不能替代原平台编译或运行验证。"
+    },
+    {
+      "dimension": "数据与时序可靠性",
+      "score": 2,
+      "reason": "未发现作者将未来收益直接作为时点信号，但时点语义未证实：close 序列方向设置可能无效；Result 设 series 而 Buffer 未设；循环包含 shift=0 的当前柱；主文件只写下标0。因此历史柱对齐、当前柱稳定性及是否存在窗口反向/前视风险均未知，若用于信号须先证伪。",
+      "evidence": "source.code 第26、34、35-39行为序列方向与窗口公式；第7、13-14行为 Buffer 单点写入；材料无行情、运行或回测证据。"
+    },
+    {
+      "dimension": "参数可解释性",
+      "score": 3,
+      "reason": "Period 作为窗口长度的含义清楚，ShowSignal 为显示开关；但主/依赖两个独立同名 Period 的 iCustom 映射未声明，末尾 0,0 的缓冲序号/shift 语义未验证，源码未给上限、步长或推荐区间。默认14不能视为实际运行配置或最优参数。",
+      "evidence": "source.code 第5、6、13、22、33行；元数据 parameters 字段为空；portable_qualification 列出 inputs_requiring_mapping=[rates_total] 且自动实验未就绪。"
+    },
+    {
+      "dimension": "复现与复用价值",
+      "score": 2,
+      "reason": "依赖文件公式可独立抽出为待研究因子假设，但原指标复现受 MissingVendor 运行时版本、iCustom 参数/缓冲映射、序列方向及未编译未运行限制。portable_qualification 的 automatic_experiment_ready=false 表明还需补齐输入映射和外部依赖，复用价值不等于收益证据。",
+      "evidence": "source.code 第13、18、33-39行；source.dependencies 声明无法确认补交源码与终端 EX4 同版；portable_qualification 仅检查声明与类型，不证明原平台等价。"
+    }
+  ],
+  "tags": [
+    "platform:mt4",
+    "usage:display",
+    "data:price",
+    "structure:time_series",
+    "tunability:signal",
+    "tunability:other",
+    "mechanism:mean_reversion"
+  ],
+  "total_score": 48,
+  "evidence_status": "static_unverified",
+  "rubric_version": "research-quality-v1",
+  "source_findings_version": 1,
+  "source_findings": [
+    {
+      "title": "主指标仅写 Buffer[0]，未形成可核对的历史序列",
+      "severity": "high",
+      "category": "implementation",
+      "certainty": "source_fact",
+      "impact": "主文件 OnCalculate 只给缓冲下标0赋值，无循环、未使用 prev_calculated、未对 Buffer 调用 ArraySetAsSeries；因此图表历史柱是否填充、下标0对应哪根柱均未知，不能把主图输出当作完整时序。",
+      "recommendation": "先在目标平台核对缓冲填充与序列方向；若需历史序列，应按 prev_calculated 显式填充并统一序列方向；在此之前仅按单点输出研究。",
+      "affected_dimensions": [
+        "实现质量",
+        "数据与时序可靠性"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "double Buffer[];"
+        },
+        {
+          "field": "code",
+          "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+        },
+        {
+          "field": "code",
+          "quote": "return(rates_total);"
+        }
+      ]
+    },
+    {
+      "title": "外部 iCustom 依赖 MissingVendor 的运行时版本未证明",
+      "severity": "high",
+      "category": "dependency",
+      "certainty": "source_fact",
+      "impact": "第13行写死子指标名 MissingVendor，依赖源码为补交文件且材料两文件均标注 not executed；若终端缺少同版编译指标或参数/缓冲不匹配，主文件输出无法复现。",
+      "recommendation": "复现前确认终端存在与补交源码同版的编译指标，并核对 iCustom 参数顺序、缓冲序号和 shift 语义。",
+      "affected_dimensions": [
+        "复现与复用价值",
+        "实现质量"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+        },
+        {
+          "field": "code",
+          "quote": "// SOURCE FILE: MissingVendor.mq4 (dependency; user supplied; not executed)"
+        }
+      ]
+    },
+    {
+      "title": "主/依赖同名 Period 的运行时映射未声明",
+      "severity": "medium",
+      "category": "parameter",
+      "certainty": "hypothesis",
+      "impact": "两文件各有独立 Period 输入，但主文件第13行第4实参是否对应依赖文件同名 input 仅能按 iCustom 位置推断；若映射不成立，主文件 Period 与子指标窗口不一致，参数解释和敏感性实验会落在错误参数上。",
+      "recommendation": "通过平台运行或文档确认 iCustom 形参到子指标输入的映射，禁止仅凭同名符号推断。",
+      "affected_dimensions": [
+        "参数可解释性",
+        "复现与复用价值"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "input int Period = 14;"
+        },
+        {
+          "field": "code",
+          "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+        }
+      ]
+    },
+    {
+      "title": "close 序列方向设置未验证，窗口可能反向或含未来柱",
+      "severity": "high",
+      "category": "temporal_leakage",
+      "certainty": "hypothesis",
+      "impact": "第34行对 const double &close[] 调用 ArraySetAsSeries(close,true)，平台是否接受或生效未知。若未生效，第37行 close[shift+j] 的 j>0 可能指向相对输出更晚的柱，均值窗口方向与第39行输出时点不一致，存在时点错配/前视风险；若生效，窗口才可解释为截至 shift 的过去 Period 根。",
+      "recommendation": "在目标平台编译运行并逐柱比对 close 序列方向；未证实前不得把 Result 当作时点安全的收盘信号。",
+      "affected_dimensions": [
+        "数据与时序可靠性",
+        "实现质量"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "const double &low[], const double &close[], const long &tick_volume[],"
+        },
+        {
+          "field": "code",
+          "quote": "ArraySetAsSeries(close, true);"
+        },
+        {
+          "field": "code",
+          "quote": "for(int j = 0; j < Period; j++) mean += close[shift + j];"
+        },
+        {
+          "field": "code",
+          "quote": "Result[shift] = mean > 0.0 ? close[shift] / mean - 1.0 : EMPTY_VALUE;"
+        }
+      ]
+    },
+    {
+      "title": "Result 与 Buffer 序列方向/下标含义可能不对齐",
+      "severity": "high",
+      "category": "temporal_leakage",
+      "certainty": "source_fact",
+      "impact": "依赖文件第26行把 Result 设为 series，主文件未对 Buffer 调用 ArraySetAsSeries；主文件又把 iCustom 返回值写入 Buffer[0]。两缓冲下标0的时间含义可能不同，主图输出与子指标 Result[shift] 不能直接逐柱对齐，历史回看可能错位。",
+      "recommendation": "确认两缓冲序列方向一致，并逐柱核对 iCustom 返回值与 Result 的对应关系后再做时序研究。",
+      "affected_dimensions": [
+        "数据与时序可靠性",
+        "复现与复用价值"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "ArraySetAsSeries(Result, true);"
+        },
+        {
+          "field": "code",
+          "quote": "double Buffer[];"
+        },
+        {
+          "field": "code",
+          "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+        }
+      ]
+    },
+    {
+      "title": "依赖文件全历史重算，未使用 prev_calculated",
+      "severity": "medium",
+      "category": "implementation",
+      "certainty": "source_fact",
+      "impact": "第35行从 rates_total−Period 到0整段重算，未使用 prev_calculated；每次 OnCalculate 成本随历史长度增长，且与主文件只写 Buffer[0] 的粒度不一致。",
+      "recommendation": "若复用该计算，明确增量计算口径和更新频率；本评价不据此判断收益。",
+      "affected_dimensions": [
+        "实现质量"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "int OnCalculate(const int rates_total, const int prev_calculated,"
+        },
+        {
+          "field": "code",
+          "quote": "for(int shift = rates_total - Period; shift >= 0; shift--) {"
+        }
+      ]
+    },
+    {
+      "title": "当前柱 shift=0 参与计算，输出随 tick 变化",
+      "severity": "medium",
+      "category": "repainting",
+      "certainty": "hypothesis",
+      "impact": "循环包含 shift=0，第39行使用 close[0]；若 close[0] 是当前未完成柱，Result[0] 会随 tick 变化。若把该值当历史信号使用，实时观察与事后回看可能不同。",
+      "recommendation": "在信号评估中区分未完成柱与已收盘柱；使用 bar close 后数据复算并标注更新时点。",
+      "affected_dimensions": [
+        "数据与时序可靠性",
+        "复现与复用价值"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "for(int shift = rates_total - Period; shift >= 0; shift--) {"
+        },
+        {
+          "field": "code",
+          "quote": "Result[shift] = mean > 0.0 ? close[shift] / mean - 1.0 : EMPTY_VALUE;"
+        }
+      ]
+    },
+    {
+      "title": "iCustom 末尾 0,0 的缓冲序号/shift 语义未验证",
+      "severity": "medium",
+      "category": "parameter",
+      "certainty": "hypothesis",
+      "impact": "第13行末尾两个 0 的具体语义未在源码中说明；若第一个0不是缓冲0或第二个0不是预期 shift，主图取数来源或时点会不同。该映射仅能作为 AI 推断，未经编译运行验证。",
+      "recommendation": "用平台文档或运行时逐柱核对 iCustom 缓冲序号和 shift；确认前不把 Buffer[0] 等同于 Result 的特定时点。",
+      "affected_dimensions": [
+        "参数可解释性",
+        "数据与时序可靠性"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+        },
+        {
+          "field": "code",
+          "quote": "SetIndexBuffer(0, Result);"
+        }
+      ]
+    },
+    {
+      "title": "mean<=0 写 EMPTY_VALUE，缺失语义未定义",
+      "severity": "low",
+      "category": "implementation",
+      "certainty": "source_fact",
+      "impact": "第39行仅当 mean>0 时输出 close/mean−1，否则写 EMPTY_VALUE；若下游把空值当0或忽略，会改变分布和信号计数。",
+      "recommendation": "明确缺失值处理与统计口径；保留缺失标记，避免默认填0。",
+      "affected_dimensions": [
+        "数据与时序可靠性",
+        "实现质量"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "Result[shift] = mean > 0.0 ? close[shift] / mean - 1.0 : EMPTY_VALUE;"
+        }
+      ]
+    },
+    {
+      "title": "参数范围与默认值仅有源码默认，无优化证据",
+      "severity": "low",
+      "category": "parameter",
+      "certainty": "source_fact",
+      "impact": "Period 只有默认14和第33行守卫隐含的 Period>=1，未声明上限、步长或推荐区间；默认值不能当作实际运行配置或最优参数。",
+      "recommendation": "将参数敏感性作为待验证实验设计，不输出最优参数或推荐区间。",
+      "affected_dimensions": [
+        "参数可解释性"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "input int Period = 14;"
+        },
+        {
+          "field": "code",
+          "quote": "if(Period < 1 || rates_total < Period) return(0);"
+        }
+      ]
+    },
+    {
+      "title": "材料未提供编译/运行/回测证据",
+      "severity": "info",
+      "category": "other",
+      "certainty": "source_fact",
+      "impact": "两文件头部均标注 not executed，材料无编译、运行、样本区间或回测结果；因此无法判断该指标的有效性、收益或原平台执行表现，也不能据此否定原平台实现。",
+      "recommendation": "补充编译环境、终端版本、图表周期/资产及样本外验证材料；在此之前不生成盈利或放行结论。",
+      "affected_dimensions": [
+        "复现与复用价值"
+      ],
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "// SOURCE FILE: __source__.mq4 (primary; from parent snapshot; not executed)"
+        },
+        {
+          "field": "code",
+          "quote": "// SOURCE FILE: MissingVendor.mq4 (dependency; user supplied; not executed)"
+        }
+      ]
+    }
+  ],
+  "source_findings_note": "审查范围：逐字核对 source.code、source_structure 词法候选、前序识别/参数/研究结果与 portable_qualification。未检查：未编译、未运行、未加载终端 MissingVendor EX4、未核对版本、未取得图表周期/资产/频率/用户实际参数、未做回测或参数扫描；source.description 与 web_markdown 为空，不能引用作者描述。source_structure.status=partial 仅表示词法结构可读候选，不是编译或运行证据；portable_qualification 只对受控表达式做声明引用/类型检查，automatic_experiment_ready=false 且存在 inputs_requiring_mapping，不能据此认定与原平台等价或时序安全。前序 AI 推断与原文未发现直接矛盾，但 iCustom 末尾 0,0 语义、序列方向、主/依赖 Period 映射仍为未知。research_memory 扫描 0 条，无历史实验、反馈、对照或固定验证可用；无历史不代表不存在失败或反例。",
+  "extraction_version": 1,
+  "extraction_note": "本阶段仅提取材料中可独立复用的数值计算模块。提取依赖文件 MissingVendor.mq4 第35-39行的 close/mean−1 均值偏离为 role=factor；主文件 __source__.mq4 的 iCustom 封装与 ShowSignal 属于平台调用/显示门控，因运行时参数映射、缓冲序号和版本未知且不构成独立计算，未列为独立因子；未发现 filter、risk、execution 模块。未执行源码，不补造行情、回测、收益或最优参数；频率、资产、图表周期和运行时配置未知。expression 采用依赖文件自身 Period 与 close 序列方向为 true 的假设，并明确该假设未验证。",
+  "factors": [
+    {
+      "name": "Close相对Period简单均值的归一化偏离（MissingVendor.Result）",
+      "role": "factor",
+      "family": "mean_reversion",
+      "summary": "依赖文件 MissingVendor.mq4 第35-39行对每个 shift 计算 Period 根收盘价简单均值，并输出 close[shift]/mean−1；这是价格相对局部均值的归一化偏离，可独立复用为待研究数值特征。AI 推断其可能用于均值回归/价格结构研究，作者未声明机制、用途或有效性；未经编译、运行或回测。",
+      "formula": "对每个 shift：mean = (1/Period) * Σ_{j=0}^{Period-1} close[shift+j]；Result[shift] = mean > 0 ? close[shift] / mean - 1 : EMPTY_VALUE。第33行守卫：Period < 1 或 rates_total < Period 时直接返回0且不写 Result。若第34行 ArraySetAsSeries(close,true) 生效，则窗口为截至 shift 的 Period 根 bar，表达式按 close / SMA(close, Period) - 1 表示，并以 SMA(close, Period) > 0 作为保留条件；若序列方向未生效，窗口方向可能相反。主文件第13行仅通过 iCustom 取回单个值写入 Buffer[0]，其参数映射和缓冲序号含义未知，不属于本因子公式的可验证部分。",
+      "inputs": [
+        {
+          "name": "close",
+          "meaning": "依赖文件 OnCalculate 形参 close[]，第37、39行使用；第34行尝试 ArraySetAsSeries(close,true)，是否被平台接受或生效未知。",
+          "availability": "平台在 OnCalculate 调用时提供；材料未声明具体调用时点、历史柱填充或当前柱更新行为——未知。",
+          "missing_policy": "未知；第39行仅对 mean>0 防护，缺失价格如何表现未说明。"
+        },
+        {
+          "name": "rates_total",
+          "meaning": "OnCalculate 形参 rates_total，第33行用于守卫 rates_total < Period；expression 未使用，因可用算子无 gte/not，无法忠实表达该守卫。",
+          "availability": "平台在 OnCalculate 调用时提供；材料未声明调用时点与历史柱行为——未知。",
+          "missing_policy": "未知；材料未说明缺失处理。"
+        }
+      ],
+      "output_type": "numeric_series",
+      "units": "无量纲比率（close/mean−1）；源码未声明单位",
+      "timeframe": "窗口为 Period 根 bar 的收盘价简单均值；Period 默认 14，单位按 bar 数推断；图表周期、资产类别和频率材料未声明——未知。",
+      "parameters": [
+        {
+          "name": "MissingVendor.Period",
+          "type": "int",
+          "default_value": "14",
+          "category": "signal",
+          "meaning": "依赖文件 MissingVendor.mq4 第22行 input int Period = 14; 声明的同名独立输入；用于第37行内层循环窗口长度，决定第39行 close[shift]/mean−1 的平均周期。名字前的文件名限定是本报告的区分写法，源码变量名仍为 Period。",
+          "constraints": "第33行守卫 if(Period < 1 || rates_total < Period) return(0); 表示 Period<1 时子指标直接返回0、不产生输出；源码未声明上限或步长。与主文件 Period 是否同一运行时值未知。",
+          "effect": "增大→参与均值的收盘价个数变多，Result 更平滑；减小→更贴近短窗均值偏离。周期与数据频率的关系未在材料中声明。",
+          "suggestion": "可在确认有效窗口后做小范围敏感性对照（例如围绕默认14上下取若干整数），仅作为待验证实验设计；下限依据为第33行守卫，上限与步长源码未声明，材料无最优参数证据。",
+          "evidence": "input int Period = 14;",
+          "domain": {
+            "version": 1,
+            "minimum": 1,
+            "maximum": null,
+            "step": null,
+            "step_origin": null,
+            "choices": [],
+            "relations": [],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "if(Period < 1 || rates_total < Period) return(0);"
+              }
+            ]
+          }
+        }
+      ],
+      "dependencies": [
+        "close 价格序列：依赖文件第34、37、39行使用 close[]，但第34行对 const double &close[] 调用 ArraySetAsSeries(close,true) 是否被平台接受或生效未知。",
+        "MT4 图表指标运行上下文：OnCalculate 的 rates_total 与平台调用时点；材料未声明历史柱填充、当前柱更新和重绘行为。",
+        "依赖文件 Result 缓冲：第23、25、26行声明并绑定 SetIndexBuffer(0, Result) 且设序列方向 true，承载第39行输出。",
+        "主文件 iCustom 到 MissingVendor 的运行时加载、参数位置映射和缓冲序号/shift 语义未知；dependency_submission_reason 明示无法确认补交源码与终端 EX4 同版。"
+      ],
+      "limitations": "作者未在源码或描述中声明机制、交易用途、适用资产、频率或有效性；mean_reversion 仅为 AI 依据公式形态的分类，不是作者主张。表达式依赖第34行 close 序列方向为 true 的推断；若平台不接受对 const 形参调用或方向未生效，第37行窗口方向可能相反，公式含义改变。第33行 rates_total < Period 守卫未在 expression 中表达（可用算子无 gte/not），数据不足时原文无输出。mean<=0 时原文写 EMPTY_VALUE，expression 用 gate 返回缺失而非0。主文件 OnCalculate 无循环、未使用 prev_calculated、未对 Buffer 调用 ArraySetAsSeries，且只写 Buffer[0]，不能把主图曲线当作完整历史序列；iCustom 末尾 0,0 为缓冲序号/shift 属 AI 推断。两文件均标注 not executed，未编译、运行或回测，无收益、回撤、样本区间或参数搜索证据；Period 实际运行值、终端中 EX4 版本、图表周期和资产均未知。默认 Period=14 不是最优参数。单位按公式推断为无量纲比率，未经数值验证。",
+      "tags": [
+        "platform:mt4",
+        "usage:factor",
+        "data:price",
+        "structure:time_series",
+        "mechanism:mean_reversion",
+        "tunability:signal"
+      ],
+      "expression": {
+        "op": "gate",
+        "args": [
+          {
+            "op": "sub",
+            "args": [
+              {
+                "op": "div",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "sma",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "close"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "MissingVendor.Period"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "op": "gt",
+            "args": [
+              {
+                "op": "sma",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "parameter",
+                    "name": "MissingVendor.Period"
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "field": "code",
+          "quote": "for(int j = 0; j < Period; j++) mean += close[shift + j];"
+        },
+        {
+          "field": "code",
+          "quote": "mean /= Period;"
+        },
+        {
+          "field": "code",
+          "quote": "Result[shift] = mean > 0.0 ? close[shift] / mean - 1.0 : EMPTY_VALUE;"
+        },
+        {
+          "field": "code",
+          "quote": "if(Period < 1 || rates_total < Period) return(0);"
+        },
+        {
+          "field": "code",
+          "quote": "ArraySetAsSeries(close, true);"
+        },
+        {
+          "field": "code",
+          "quote": "input int Period = 14;"
+        }
+      ]
+    }
+  ],
+  "factor_repair": {
+    "version": 1,
+    "selected": [],
+    "omitted": [],
+    "items": []
+  },
+  "source_memory_version": 1,
+  "research_memory": {
+    "version": 3,
+    "method": "library-history-v3",
+    "scope": "same_collection",
+    "cutoff": "2026-10-25T12:39:29.130000+00:00",
+    "scan_limit": 2000,
+    "scanned": {
+      "experiments": 0,
+      "feedback": 0,
+      "comparisons": 0,
+      "fixed_validations": 0
+    },
+    "eligible": {
+      "fixed_validations": 0,
+      "comparisons": 0,
+      "experiments": 0,
+      "feedback": 0
+    },
+    "omitted_for_size": 0,
+    "items": [],
+    "scan_limits": {
+      "seconds": 5,
+      "max_chars": 20000000,
+      "chars_read": 0,
+      "budget_limited": false,
+      "size_limited": false
+    }
+  },
+  "memory_note": "research_memory 冻结扫描结果为 experiments=0、feedback=0、comparisons=0、fixed_validations=0，scan_limits 未显示预算受限。本次请求前无私密研究库历史记录可用于复用、拒绝或补证；无历史不代表不存在外部失败，也不能据此提升当前源码的静态证据等级。未将任何历史收益、前序 AI 分析或审查结论当作实证。",
+  "memory_assessment": [],
+  "initial_proposal": null,
+  "initial_planning_version": 1,
+  "initial_planning_note": "源码事实：依赖文件第22行 `input int Period = 14;` 给出 signal 参数默认14；第33行 `if(Period < 1 || rates_total < Period) return(0);` 给出 Period<1 或无足够 bar 时无输出的守卫；第35-39行对窗口求简单均值并写 `Result[shift] = mean > 0.0 ? close[shift] / mean - 1.0 : EMPTY_VALUE;`；第34行 `ArraySetAsSeries(close, true);` 试图设置 close 序列方向；主文件第13行通过 iCustom 调用写死名称 MissingVendor 并只写 Buffer[0]。作者未在材料中声明机制、交易用途、适用资产、频率、样本区间、收益或最优参数；mean_reversion 是 AI 依据公式形态的推断分类，不是作者主张。两文件均标注 not executed，材料无编译、运行、回测或参数搜索证据。可检验范围：本机受控表达式为 gate(close/SMA(close,MissingVendor.Period)-1, SMA(close,MissingVendor.Period)>0)，close 可映射到 OHLCV 的 close；Period 为整数窗口，源码默认14，约束仅有 Period>=1，实验可用1–2000整数范围但不得把14当作最优。若只在受控表达式层面，可比较不同 Period 的取值分布与以 threshold=0 触发的路径，检验正偏离阈值是否具有可重复信号语义，并用已收盘 bar 避免当前柱重绘。阻碍：portable_qualification 的 automatic_experiment_ready=false，inputs_requiring_mapping=[rates_total]；expression 未使用 rates_total，因此未表达第33行 rates_total<Period 的无输出守卫，数据不足时的缺失语义需由实验层补齐。close 序列方向是否被平台接受或生效未知，若未生效第37行窗口方向可能相反甚至包含相对输出更晚的柱；shift=0 是否为当前未完成柱未知；主文件 Buffer 未设序列方向且只写下标0，不能把主图曲线当作完整历史序列。原平台 iCustom 的参数位置映射、末尾0,0的缓冲序号与 shift 语义、终端 MissingVendor EX4 版本均未知，故不能声称受控表达式与原平台等价。实际图表周期、资产类别、品种、用户保存的 Period 与 ShowSignal 未知。由于缺少 rates_total 的行情长度映射和 close 时序语义验证，且没有合理执行假设能把 mean_reversion 方向与旧做多/空仓模型一致表达，本次 initial_proposal 置 null，不编造可执行配置。若后续补齐这些映射，首轮设计草案为：基线 Period=14（服务端读取源码默认值），变体 Period=7、10、21、28（仅 AI 敏感性假设，覆盖默认值约0.5x、0.7x、1.5x、2x，不宣称最优）；threshold=0，因为因子是无量纲 close/mean-1，0对应均值线且非原始价格大于0；fee_bps=5、slippage_bps=5、gap=2、seed=42、max_candidates=16、seconds=30均为实验假设，不假装适配实际账户；省略 strategy，因旧做多/空仓模型在因子大于0时做多对应价格高于均值，可能与均值回归标签方向相反，需另行提出反向执行或新数据需求；不启用 evolution，因无明确新公式假设；不启用 walk_forward，因行情长度与周期未知。数据要求：同一品种、同一图表周期的已收盘 close，复权与分红口径明确，至少覆盖最大 Period 28 加 warmup 与评估样本，初步建议不少于200根已收盘 bar 但待用户授权；不得使用未完成柱。失败标准：若不同 Period 的路径或分布差异完全由缺失、重绘、序列方向或 rates_total 守卫未表达导致，或样本外无可重复差异，则假设失败。以上不声称已运行、最优或获利。"
+}

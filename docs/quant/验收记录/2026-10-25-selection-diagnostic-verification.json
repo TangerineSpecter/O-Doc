@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-25",
+  "backend_quant_tests": {
+    "passed": 524,
+    "seconds": 139.931
+  },
+  "frontend_quant_tests": {
+    "passed": 118
+  },
+  "scoped_lint": true,
+  "build": true,
+  "build_existing_chunk_warning": true,
+  "isolated_migration_check": true,
+  "business_database_migrated": false,
+  "production_deployment": false,
+  "offline_replay": {
+    "artifact_hashes": true,
+    "candidates": 16,
+    "development_intervals": 571,
+    "used_intervals": 568,
+    "decimal_development_metrics_and_blocks": true,
+    "independent_rank_counts": {
+      "reversal": 20,
+      "retained": 50,
+      "ambiguous": 0
+    },
+    "review_contract": true,
+    "snapshot_graph_and_replay": true,
+    "final_holdout_used": false,
+    "independent_validation": false,
+    "provider_calls": 0
+  },
+  "local_browser": {
+    "artificial_metrics_only": true,
+    "new_experiment_and_diagnostic": true,
+    "widths": [
+      390,
+      768,
+      1440
+    ],
+    "horizontal_overflow": false,
+    "console_errors": 0,
+    "viewport_reset": true
+  },
+  "remote_sync_verified": false,
+  "type_check": true,
+  "final_budget_guard_tests": {
+    "passed": 7,
+    "seconds": 1.018
+  }
+}

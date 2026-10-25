@@ -1,0 +1,165 @@
+{
+  "application_version": "1.5.40",
+  "workflow_version": 14,
+  "case_id": "pine_bands",
+  "source_file": "../../../quant/quality/corpus/pine_bands.pine",
+  "runs": [
+    {
+      "model": "deepseek-flash",
+      "status": "failed",
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "workflow_version": 14,
+      "provider_calls": 4,
+      "elapsed_seconds": 188.86,
+      "report_created": false,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "failed"
+        }
+      ],
+      "prompt_revision": "before_extraction_instructions",
+      "usage": {
+        "request_count": 4,
+        "input_tokens": 24427,
+        "output_tokens": 36817,
+        "total_tokens": 61244
+      }
+    },
+    {
+      "model": "deepseek-flash",
+      "status": "failed",
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "workflow_version": 14,
+      "provider_calls": 6,
+      "elapsed_seconds": 302.06,
+      "report_created": false,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "failed"
+        }
+      ],
+      "prompt_revision": "after_extraction_instructions",
+      "usage": {
+        "request_count": 6,
+        "input_tokens": 68614,
+        "output_tokens": 57840,
+        "total_tokens": 126454
+      }
+    },
+    {
+      "model": "deepseek-flash",
+      "status": "completed",
+      "error": "",
+      "workflow_version": 14,
+      "provider_calls": 7,
+      "elapsed_seconds": 250.87,
+      "report_created": true,
+      "database": "isolated_in_memory",
+      "production_database": "read_only_configuration_lookup",
+      "steps": [
+        {
+          "stage": "normalize",
+          "status": "completed"
+        },
+        {
+          "stage": "identify",
+          "status": "completed"
+        },
+        {
+          "stage": "parameters",
+          "status": "completed"
+        },
+        {
+          "stage": "research",
+          "status": "completed"
+        },
+        {
+          "stage": "extract",
+          "status": "completed"
+        },
+        {
+          "stage": "repair",
+          "status": "completed"
+        },
+        {
+          "stage": "compare",
+          "status": "completed"
+        },
+        {
+          "stage": "review",
+          "status": "completed"
+        },
+        {
+          "stage": "plan",
+          "status": "completed"
+        },
+        {
+          "stage": "publish",
+          "status": "completed"
+        }
+      ],
+      "prompt_revision": "after_source_evidence_instructions",
+      "usage": {
+        "request_count": 7,
+        "input_tokens": 93805,
+        "output_tokens": 45665,
+        "total_tokens": 139470
+      }
+    }
+  ],
+  "provider_calls_total": 17,
+  "quality_baseline_complete": false,
+  "human_expert_review": false,
+  "native_platform_execution": false,
+  "observed_transport_issue": "Async HTTP response cleanup emitted generator-close warnings; completed reports still required stop and all admission contracts."
+}

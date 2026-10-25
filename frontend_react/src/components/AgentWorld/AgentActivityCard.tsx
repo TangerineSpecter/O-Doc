@@ -1,6 +1,6 @@
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
 import {useState} from 'react';
-import {ArrowUpRight, BookOpenText, CircleAlert, LoaderCircle, MessageCircle, Sparkles, Terminal} from 'lucide-react';
+import {ArrowUpRight, BookOpenText, CircleAlert, Clock, LoaderCircle, MessageCircle, Sparkles, Terminal} from 'lucide-react';
 import type {AgentActivity} from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 import AgentActivitySummary from './AgentActivitySummary';
@@ -28,28 +28,33 @@ export default function AgentActivityCard({
     const isWork = activity.type === 'work';
     const isPublication = activity.type === 'publication';
     const isInteraction = activity.type === 'interaction';
+    const isWaiting = activity.status === 'deferred' || activity.status === 'paused';
 
     // 头像右下角微角标图标
     const avatarBadgeIcon = isPublication
         ? <BookOpenText className="h-2.5 w-2.5 text-orange-600"/>
         : isInteraction
             ? <MessageCircle className="h-2.5 w-2.5 text-violet-600"/>
-            : activity.status === 'running'
-                ? <LoaderCircle className="h-2.5 w-2.5 text-blue-600 animate-spin"/>
-                : activity.status === 'failed'
-                    ? <CircleAlert className="h-2.5 w-2.5 text-red-600"/>
-                    : <Sparkles className="h-2.5 w-2.5 text-emerald-600"/>;
+            : isWaiting
+                ? <Clock className="h-2.5 w-2.5 text-slate-500"/>
+                : activity.status === 'running'
+                    ? <LoaderCircle className="h-2.5 w-2.5 text-blue-600 animate-spin"/>
+                    : activity.status === 'failed'
+                        ? <CircleAlert className="h-2.5 w-2.5 text-red-600"/>
+                        : <Sparkles className="h-2.5 w-2.5 text-emerald-600"/>;
 
     // 动态类型胶囊徽章配置
     const typeBadge = isPublication
         ? {label: '作品发布', className: 'bg-orange-50 text-orange-700 border-orange-200/80'}
         : isInteraction
             ? {label: '文章批注', className: 'bg-violet-50 text-violet-700 border-violet-200/80'}
-            : activity.status === 'running'
-                ? {label: '任务执行中', className: 'bg-blue-50 text-blue-700 border-blue-200/80'}
-                : activity.status === 'failed'
-                    ? {label: '执行失败', className: 'bg-red-50 text-red-700 border-red-200/80'}
-                    : {label: '任务完成', className: 'bg-emerald-50 text-emerald-700 border-emerald-200/80'};
+            : isWaiting
+                ? {label: activity.status === 'deferred' ? '等待重试' : '已暂停', className: 'bg-slate-50 text-slate-600 border-slate-200/80'}
+                : activity.status === 'running'
+                    ? {label: '任务执行中', className: 'bg-blue-50 text-blue-700 border-blue-200/80'}
+                    : activity.status === 'failed'
+                        ? {label: '执行失败', className: 'bg-red-50 text-red-700 border-red-200/80'}
+                        : {label: '任务完成', className: 'bg-emerald-50 text-emerald-700 border-emerald-200/80'};
 
     // 提取目标文章标题
     const targetArticleTitle = activity.artifact?.title || (() => {
@@ -63,9 +68,11 @@ export default function AgentActivityCard({
             ? '发布了新作品'
             : isInteraction
                 ? '留下了文章批注'
-                : activity.status === 'running'
-                    ? '正在执行任务'
-                    : '完成了任务'
+                : isWaiting
+                    ? '等待后续安排'
+                    : activity.status === 'running'
+                        ? '正在执行任务'
+                        : '完成了任务'
     );
 
     const [expanded, setExpanded] = useState(false);

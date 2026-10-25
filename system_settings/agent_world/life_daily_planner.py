@@ -23,8 +23,10 @@ INSTRUCTION = (
     '不能新增时间点、任务或游戏能力；次数是上限，任何时段均可填rest表示不安排。farm每天最多一次。'
     '旅行必须从travel.candidates选择destination_id；报价与预算是上限参考，不是已扣款。'
     '现在只安排活动意向，不生成种植、菜谱、路线、交易和正文细节；计划不能当成实际成果。'
+    '另返回独立字段exploration_intent:{participate:布尔值,dungeon_id:地点ID,duration_seconds:1800或3600或7200,reason:理由}。'
+    '仅exploration_offer非空时回答该意向，只从其中候选选择；为空则跳过，不重问已确认意向。不参加时无需地点和时长，不选择出发时间，不占plans时段。'
     '只返回 {"plans":[{"id":"时段ID","activity":"活动kind","reason":"规划理由",'
-    '"destination_id":"仅旅行必填的地点ID"}]}。'
+    '"destination_id":"仅旅行必填的地点ID"}],"exploration_intent":{"participate":false,"reason":"理由"}}；参加时补充合法dungeon_id和duration_seconds。'
 )
 
 
@@ -99,10 +101,13 @@ def select_day(config, agent, items: list, ask) -> None:
         candidate['required_budget'] = selected_plan(quotes, candidate['id'])['budget']
     if quotes.get('candidates') and 'travel' in context:
         context['travel']['candidates'] = quotes['candidates']
+    from .combat.reservation_planning import intent_context
+    exploration_offer = intent_context(config, agent, local_time(missing[0].scheduled_at).date())
+    context['exploration_offer'] = exploration_offer
     context['daily_planning'] = True
     context['travel_budget_ceiling'] = str(max(Decimal(0), cash - saved_travel))
     versions = {item.pk: item.updated_at.isoformat() for item in missing}
-    if any(slot['allowed_activities'] for slot in context['slots']):
+    if any(slot['allowed_activities'] for slot in context['slots']) or (exploration_offer and exploration_offer['dungeons']):
         result = ask(agent, INSTRUCTION, context, include_profile=False, include_memory=False)
         from .life_output_validation import validate_life_output
         validate_life_output(result, INSTRUCTION, context)
@@ -121,6 +126,13 @@ def select_day(config, agent, items: list, ask) -> None:
             plan['travel_plan'] = selected_plan(quotes, choice['destination_id'])
         plans.append(plan)
     checkpoint(missing, plans, versions)
+    if exploration_offer is not None:
+        from .combat.reservation_planning import save_intent
+        intention = result.get('exploration_intent') if 'result' in locals() else None
+        if not exploration_offer['dungeons']:
+            intention = {'participate': False, 'reason': '当前没有可用的探索能力或合法地点'}
+        if intention is not None:
+            save_intent(config, agent, local_time(missing[0].scheduled_at).date(), intention, exploration_offer['dungeons'])
 
 
 def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:

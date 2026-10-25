@@ -1,0 +1,39 @@
+{
+  "code_version": "1.5.42",
+  "business_schema": 46,
+  "full_regressions": {
+    "tests": 604,
+    "passed": true,
+    "seconds": 130.263
+  },
+  "targeted_tests": {
+    "tests": 34,
+    "passed": true,
+    "overlap_with_full": true
+  },
+  "offline_replay": {
+    "pinned_data": true,
+    "intervals": 695,
+    "decimal_complete_paths": true,
+    "review_contract": true,
+    "snapshot_graph_and_replay": true,
+    "independent_validation": false,
+    "provider_calls": 0
+  },
+  "tamper_probes": [
+    "modified_price_rejected",
+    "rehashed_recipe_drift_rejected"
+  ],
+  "source_hashes": {
+    "quant/experiments/review_contract.py": "7b037bf50638abca616b48511ee1fac7349668bb76960360bf42409b5f127cc1",
+    "quant/test_experiment_reviews.py": "c9bed5e51e5682237c0ab68e96bd7668f3155274f662e27b38d89bca86b9f75f",
+    "quant/acceptance/fixed_replay.py": "5495b8dc462257e8ba5a06e70dad6bc393cf2675d3dc06ee697613622b775ed4",
+    "quant/acceptance/plan_reference.py": "4628155688e4940079fe0065f846481e78127752fa7ff3dd8c57ccaf4fd566f7"
+  },
+  "not_claimed": [
+    "global_independence",
+    "provider_identity_attestation",
+    "native_platform_equivalence",
+    "complete_goal"
+  ]
+}

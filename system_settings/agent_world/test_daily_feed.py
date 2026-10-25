@@ -14,6 +14,50 @@ from .market_models import MarketSession, MarketTransaction
 
 
 class ResidentDailyFeedTests(TestCase):
+    def test_legacy_solo_exploration_feed_corrects_historical_team_wording(self):
+        from .combat.models import Exploration
+        run = Exploration.objects.create(id='solo-history', owner_id=self.owner, actor_id=self.actor.pk,
+            actor_name=self.actor.name, catalog_id='frozen-history', status='fallen',
+            result={'report': f'{self.actor.name}探索24分钟，击败14只怪物，获得1283经验；消耗20体力。全队倒地 本人参与击败14只，离队时队伍累计击败14只（按怪物去重）。'})
+        response = self.client.get('/api/settings/agent-world/daily-feed/', {'category': 'exploration'})
+        event = next(row for row in response.data['data']['items'] if row['target']['id'] == run.pk)
+        self.assertEqual(event['explorationParty'], {'min': 1, 'max': 1, 'final': 1})
+        self.assertIn('角色倒地', event['detail'])
+        self.assertNotIn('全队', event['detail'])
+        self.assertNotIn('队伍累计', event['detail'])
+        self.assertNotIn('按怪物去重', event['detail'])
+        run.refresh_from_db()
+        self.assertIn('全队倒地', run.result['report'])  # Read-only correction preserves historical facts.
+
+    def test_idle_waiting_uses_schedule_without_changing_run_or_retry(self):
+        from system_settings.models import AgentRunRecord
+        from .life_models import LifeItem
+        from .life_schedule import revise
+        record = AgentRunRecord.objects.create(agent=self.actor, agent_name=self.actor.name,
+            task_name='空档穿插决策', status='running', summary='正在选择空档活动')
+        item = LifeItem.objects.create(id='idle-waiting', owner_id=self.owner, actor_id=self.actor.pk,
+            original_at=storage_time(self.today), scheduled_at=storage_time(self.today), activity='cooking',
+            context={'interleaving': {'selection_record_id': record.pk}})
+        revise(item, '体力不足，顺延', status='deferred')
+        url = '/api/settings/agent-world/daily-feed/'
+        params = {'category': 'record', 'actor_id': self.actor.pk}
+        response = self.client.get(url, params)
+        event = next(row for row in response.data['data']['items'] if row['id'] == f'run:{record.pk}')
+        self.assertEqual(event['status'], 'deferred')
+        self.assertEqual(event['title'], '自由活动 · 等待重试')
+        self.assertIn('体力不足，顺延', event['detail'])
+        self.assertIn('重试', event['detail'])
+        self.assertEqual(event['target'], {'kind': 'run', 'id': record.pk})
+        record.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(record.status, 'running')
+        self.assertEqual(item.status, 'deferred')
+        # Recovery resumes the original run; the projection must not hide real execution.
+        revise(item, '恢复执行', status='running')
+        response = self.client.get(url, params)
+        event = next(row for row in response.data['data']['items'] if row['id'] == f'run:{record.pk}')
+        self.assertEqual(event['status'], 'running')
+
     def setUp(self):
         self.user = User.objects.create_superuser(username='admin', password='test')
         self.owner = self.user.username

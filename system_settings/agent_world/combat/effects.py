@@ -66,14 +66,19 @@ def value(fighter: dict, stat: str) -> float:
     modifiers = [s for s in fighter['states'] if s['code'] == 'modifier' and
                  (s['stat'] == stat or (s['stat'] == 'attack' and stat in ('physical_attack', 'magic_attack')) or
                   (s['stat'] == 'defense' and stat in ('physical_defense', 'magic_defense')))]
-    total = sum(s['value'] for s in modifiers)
-    if stat in ('accuracy', 'evasion', 'reduction', 'damage_taken', 'critical', 'critical_damage'):
+    # Music attack/guard buffs share one strongest contribution, including echo.
+    music = [s for s in modifiers if s['group'].startswith(('bard_attack','bard_guard')) and s['value'] > 0]
+    total = sum(s['value'] for s in modifiers if s not in music) + max((s['value'] for s in music), default=0)
+    if stat in ('accuracy', 'evasion', 'reduction', 'damage_taken', 'critical', 'critical_damage', 'outgoing_reduction'):
         return base + total
     return base * (1 + clamp(total, -.9, 2))
 
 
 def reduction(fighter: dict) -> float:
     extra = sum(float(e['value']) for e in fighter['passives'] if e['code'] == 'passive_low_hp') if fighter['hp'] < fighter['stats']['hp_max'] * .3 else 0
+    hp, maximum = fighter['hp'] * 100, fighter['stats']['hp_max']
+    tier = 4 if hp < maximum * 10 else 2 if hp < maximum * 30 else 1 if hp < maximum * 50 else 0
+    extra += tier * sum(float(e['value']) for e in fighter['passives'] if e['code'] == 'passive_tiered_reduction')
     return clamp(value(fighter, 'reduction') + (.35 if fighter.get('defending') else 0) + extra, 0, .6)
 
 
@@ -83,14 +88,14 @@ def hit(attacker: dict, target: dict, rng, bonus=0) -> bool:
     return rng.random() < probability
 
 
-def damage(raw, kind: str, attacker_level: int, target: dict, *, penetration=0, variation=1, critical=1, extra=1, element_factor=1) -> int:
+def damage(raw, kind: str, attacker_level: int, target: dict, *, penetration=0, variation=1, critical=1, extra=1, element_factor=1, incoming_reduction=0) -> int:
     if raw <= 0:
         return 0
     # Fraction avoids an exact 100 becoming 99 through floating point truncation.
     defense = Fraction(str(max(0, value(target, kind + '_defense')))) * (1 - Fraction(str(clamp(penetration, 0, .6))))
     scale = Fraction(60 + 6 * attacker_level)
     factor = max(Fraction(1, 4), scale / (scale + defense))
-    result = Fraction(str(raw)) * factor * (1 - Fraction(str(reduction(target)))) * Fraction(str(variation)) * Fraction(str(critical)) * Fraction(str(extra)) * Fraction(str(element_factor))
+    result = Fraction(str(raw)) * factor * (1 - Fraction(str(clamp(reduction(target) + incoming_reduction, 0, .6)))) * Fraction(str(variation)) * Fraction(str(critical)) * Fraction(str(extra)) * Fraction(str(element_factor))
     return max(1, math.floor(result))
 
 
@@ -196,7 +201,7 @@ def _shield_break(catalog: Catalog, bearer: dict, opponent: dict, shield: dict, 
               'hits': 1, 'damage_type': retribution['damage_type'] or 'magic',
               'element': retribution.get('element') or 'light'}
     return apply(catalog, bearer, opponent, [effect], '圣盾（Holy Aegis）·圣光十字波·圣光十字裁决圣柱', tick, rng,
-                 allow_reflect=False)
+                 allow_reflect=False, allow_lifesteal=False)
 
 
 def _reflect_damage(catalog: Catalog, bearer: dict, attacker: dict, raw_by_type: dict[str, float], tick: int,
@@ -252,10 +257,30 @@ def upkeep(fighter: dict, tick: int, events: list[dict], *, opponent=None, catal
                 return
 
 
+def _lifesteal(catalog: Catalog, attacker: dict, dealt: int) -> list[dict]:
+    if dealt <= 0 or attacker['hp'] <= 0 or attacker['hp'] >= attacker['stats']['hp_max']:
+        return []
+    sources = [fx for fx in attacker['passives'] if fx['code'] == 'passive_lifesteal']
+    if not sources:
+        return []
+    rate = clamp(sum(float(fx['value']) for fx in sources))
+    restored = min(attacker['stats']['hp_max'] - attacker['hp'], math.floor(Fraction(dealt) * Fraction(str(rate))))
+    if restored <= 0:
+        return []
+    attacker['hp'] += restored
+    level = catalog.row('skill_levels', sources[0]['skill_level_id'])
+    name = catalog.row('skills', level['skill_id'])['name']
+    return [{'actor': attacker['name'], 'target': attacker['name'], 'actor_id': attacker.get('id'),
+             'target_id': attacker.get('id'), 'action': f'{name}·吸血', 'kind': 'heal', 'healing': restored}]
+
+
 def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], name: str, tick: int, rng,
-          *, allow_reflect: bool = True) -> list[dict]:
+          *, allow_reflect: bool = True, allow_lifesteal: bool = True, allies: dict | None = None) -> list[dict]:
     events = []
     reflected_raw = {}
+    lifesteal_damage = 0
+    echo_damage = 0
+    from .bard_combat import passive, resonance, echo
     parameter = lambda code: sum(float(f['value']) for f in effects if f['code'] == code)
     direct = [f for f in effects if f['code'] in ('damage', 'summon')]
     shared = bool(parameter('shared_hit'))
@@ -291,10 +316,15 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
             extra = (1 + parameter('missing_hp_damage') * (1 - attacker['hp'] / attacker['stats']['hp_max'])) * (1 + clamp(passive_bonus + group_bonus, 0, 2)) * (1 + clamp(value(target, 'damage_taken'), 0, 1))
             element = attack_element(effect, attacker)
             factor = element_multiplier(attacker, target, element, catalog.rules) if landed else 1
-            amount = damage(raw, effect['damage_type'], attacker['level'], target, penetration=penetration,
+            amount = damage(raw, effect['damage_type'], attacker['level'], target, penetration=penetration + (passive(attacker, 'passive_magic_penetration') if effect['damage_type']=='magic' else 0),
                             variation=rng.uniform(.95, 1.05), critical=value(attacker, 'critical_damage') if critical else 1,
-                            extra=extra, element_factor=factor) if landed else 0
+                            extra=extra*(1+passive(attacker,'passive_bard_resonance') if not summon and resonance(attacker,target,tick) else 1), element_factor=factor,
+                            incoming_reduction=max((s['value'] for s in attacker['states'] if s.get('stat')=='outgoing_reduction'),default=0)) if landed else 0
             taken, absorbed, broken = hurt(target, amount)
+            if not summon and attacker is not target:
+                echo_damage += taken
+            if not summon and effect['damage_type'] == 'physical' and attacker is not target:
+                lifesteal_damage += taken
             event = {'actor': attacker['name'], 'target': target['name'], 'actor_id':attacker.get('id'), 'target_id':target.get('id'), 'action': action_name, 'kind': 'damage',
                      'damage': taken, 'absorbed': absorbed, 'hit': landed, 'critical': landed and critical}
             if landed and element and abs(factor - 1) > 1e-9:
@@ -305,6 +335,10 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
         if variant and variant_successful:
             events.extend(_apply_summon_aftermath(attacker, target, variant, effect, action_name,
                                                    tick, passive_bonus, group_bonus, catalog.rules))
+    # Settle once per action so healing does not weaken later hits' missing-HP bonus.
+    if allow_lifesteal:
+        events.extend(echo(catalog, attacker, allies, echo_damage, tick, rng))
+        events.extend(_lifesteal(catalog, attacker, lifesteal_damage))
     if allow_reflect and reflected_raw:
         events.extend(_reflect_damage(catalog, target, attacker, reflected_raw, tick, rng))
     enemy_status = [f for f in effects if f.get('target') == 'enemy' and f['code'] in ('modifier', 'dot')]

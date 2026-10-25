@@ -25,6 +25,12 @@ def validate_source(data, meta=None):
         if ref and ((EVENT,ref) not in rows or rows[(EVENT,ref)]['owner_id']!=fact['owner_id']):
             raise SyncError('个人结算引用的共同战斗事实缺失')
     for identity, party in parties.items():
+        from .bard_state import validate_unit
+        try:
+            for unit in [*party['state'].get('players',{}).values(), *party['state'].get('enemies',{}).values()]:
+                validate_unit(unit)
+        except (ValueError,TypeError,KeyError) as exc:
+            raise SyncError('组队音律状态无效') from exc
         version = party.get('frame_version', 1)
         if version == 2 and meta is not None and meta.get('combat_schema_version', 0) < 14:
             raise SyncError('波次内容指纹需要战斗同步14')

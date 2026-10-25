@@ -7,14 +7,14 @@ import {equipmentArtLayers} from '../src/components/Combat/art/equipmentArtDrawi
 const csv=readFileSync(new URL('../../system_settings/agent_world/combat/data/equipment_templates.csv',import.meta.url),'utf8').trim().split(/\r?\n/).map(line=>line.split(','));
 const header=csv.shift();
 const rows=csv.map(values=>Object.fromEntries(header.map((key,i)=>[key,values[i]])));
-const targets=rows.filter(row=>/^equip\.(armor\.|head(?:\.|$)|ring$|offhand\.|two_handed_sword$)/.test(row.id));
+const targets=rows.filter(row=>/^equip\.(armor\.|instrument(?:\.|$)|head(?:\.|$)|ring$|offhand\.|two_handed_sword$|training_sword$)/.test(row.id));
 function raster(id) {
  const output=Array(48*48).fill('');
  for(const layer of equipmentArtLayers(id)||[])for(const key of layer.pixels){const[x,y]=key.split(',').map(Number);assert.ok(Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&x<48&&y>=0&&y<48);output[y*48+x]=layer.color;}
  return output;
 }
-test('all 79 requested catalog items resolve by stable ID with no snapshot metadata',()=>{
- assert.equal(targets.length,79);
+test('all 103 requested catalog items resolve by stable ID with no snapshot metadata',()=>{
+ assert.equal(targets.length,103);
  for(const row of targets)assert.ok(equipmentArtProfile(row.id),row.id);
  for(const id of ['equip.sword','equip.boss.star_rift','custom.plate','instance-123','equip.armor.cloth.body.999','equip.head.20'])assert.equal(equipmentArtProfile(id),undefined,id);
 });
@@ -38,6 +38,36 @@ test('five armour families, three shields and five headpieces have separate silh
 test('ring keeps an open centre and greatsword has a separate blade and long grip',()=>{
  const ring=raster('equip.ring');assert.equal(ring[28*48+23],'');
  const sword=raster('equip.two_handed_sword');
- assert.ok(sword[9*48+35]);assert.ok(sword[40*48+7]);
+ assert.ok(sword[10*48+35]&&sword[40*48+8]);
+ // A broad diagonal blade occupies the upper right, with a lower-left grip.
+ assert.ok(sword[20*48+34]);
+ assert.equal(sword[22*48+23],'','Heel notch stays open');
+ assert.equal(sword[8*48+40],'','Hook stays concave');
  assert.ok(sword.filter((c,i)=>c&&i%48<15&&Math.floor(i/48)>32).length>35);
+});
+test('all five head families have five distinct tier silhouettes and explicit family metadata',()=>{
+ const mask=id=>raster(id).map(c=>c?'1':'0').join('');
+ const families=['cloth','leather','light','heavy','plate'];
+ const idsFor=family=>['','30','50','70','90'].map(t=>`equip.head${family==='cloth'?'':'.'+family}${t?'.'+t:''}`);
+ for(const family of families){
+  const ids=idsFor(family);
+  assert.equal(new Set(ids.map(mask)).size,5,family);
+  for(const id of ids)assert.equal(equipmentArtProfile(id).family,family);
+ }
+ for(let tier=0;tier<5;tier++)assert.equal(new Set(families.map(f=>mask(idsFor(f)[tier]))).size,5,`tier ${tier}`);
+});
+
+test('training sword blade, crossguard and handle form one connected silhouette',()=>{
+ const pixels=raster('equip.training_sword');
+ const occupied=new Set(pixels.flatMap((color,i)=>color?[i]:[]));
+ const visited=new Set(),pending=[occupied.values().next().value];
+ while(pending.length){
+  const at=pending.pop();if(visited.has(at))continue;visited.add(at);
+  const x=at%48,y=Math.floor(at/48);
+  for(const [dx,dy] of [[-1,0],[1,0],[0,-1],[0,1]]){
+   const nx=x+dx,ny=y+dy,next=ny*48+nx;
+   if(nx>=0&&nx<48&&ny>=0&&ny<48&&occupied.has(next)&&!visited.has(next))pending.push(next);
+  }
+ }
+ assert.equal(visited.size,occupied.size,'No detached grip, guard or stray pixels');
 });

@@ -15,12 +15,12 @@ export interface CombatProfile {
     reselectOptions: CombatRow[]; reselectBlocked: string; restUntil: string | null;
     recovery?: CombatRecovery | null;
 }
-export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; skills?: Record<string, number>; rank?: string; states: {code: string; name: string; remaining?: number}[]}
+export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; skills?: Record<string, number>; rank?: string; bard?: {beats?: number; melody?: {skillId: string; expires: number; extended: boolean}}; states: {code: string; name: string; remaining?: number; value?: number; sourceId?: string; expires?: number; music?: boolean; melody?: boolean; echo?: boolean}[]}
 /** Derived from existing exploration state, never persisted as animation data. */
 export interface CombatVisualSnapshot {dungeonId:string;jobId:string;weaponId:string;monsterId:string;encounterId:string;headImageUrl?:string;headBehindBody?:boolean;characterImageUrl?:string;appearanceOverlays?:BattleAppearanceOverlays}
-export interface CombatAction {kind: string; actor?: string; target?: string; action?: string; name?: string; element?: string; hit?: boolean; critical?: boolean; damage?: number; absorbed?: number; healing?: number; restored?: number; experience?: number; monster?: {id?: string; name: string; level: number; rank?: string}; rewards?: CombatReward[]}
+export interface CombatAction {kind: string; music?: boolean; stacks?: number; value?: number; stat?: string; expires?: number; duration?: number; actor?: string; target?: string; action?: string; name?: string; element?: string; hit?: boolean; critical?: boolean; damage?: number; absorbed?: number; healing?: number; restored?: number; experience?: number; monster?: {id?: string; name: string; level: number; rank?: string}; rewards?: CombatReward[]}
 export interface CombatReward {id: string; kind: string; item: EquipmentSnapshot | CombatRow; equipmentId?: string; quantity?: number; elapsedSeconds: number}
-export interface CombatEvent {id: string; sequence: number; kind: string; elapsedSeconds: number; payload: {events?: CombatAction[]; report?: string; reason?: string}; createdAt: string}
+export interface CombatEvent {timelineLabel?: string; id: string; sequence: number; kind: string; elapsedSeconds: number; payload: {sharedEventId?: string; events?: PartyAction[]; report?: string; reason?: string}; createdAt: string}
 export interface CombatFood {
     recipeId: string; name: string; stars: number; quantity: number; version: number;
     effects: Record<string, number>; summary: string;
@@ -43,4 +43,4 @@ export interface AdventureOptions {solo:boolean;parties:AdventureOption[]}
 export interface PartyCombatant extends Combatant {visual?:CombatVisualSnapshot;id:string;jobId?:string;jobName?:string;templateId?:string;revived?:boolean;taunt?:{actorId:string;expires:number}}
 export interface PartyRoll {rewardId:string;winnerId:string;rounds:Record<string,number>[];reward:CombatReward}
 export interface PartyAction extends CombatAction {actorId?:string;targetId?:string;rolls?:PartyRoll[]}
-export interface AdventurePartySnapshot {id:string;version:number;leaderId:string;status:string;dungeonId:string;teamKills:number;players:PartyCombatant[];enemies:PartyCombatant[];wave:number;round:number;phase:string;roundSeconds:number;actionOrder:string[];endsAt:string;events:{id:string;sequence:number;kind:string;payload:{events?:PartyAction[];actionOrder?:string[]}}[]}
+export interface AdventurePartySnapshot {id:string;version:number;leaderId:string;status:string;dungeonId:string;teamKills:number;players:PartyCombatant[];enemies:PartyCombatant[];wave:number;round:number;phase:string;roundSeconds:number;actionOrder:string[];endsAt:string;events:{id:string;sequence:number;kind:string;payload:{round?:number;events?:PartyAction[];actionOrder?:string[]}}[]}

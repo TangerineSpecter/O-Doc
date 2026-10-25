@@ -1,0 +1,67 @@
+{
+  "bounds": {
+    "calculation_start": 0,
+    "start": 30,
+    "end": 725,
+    "start_timestamp": "2024-02-01T00:00:00+00:00",
+    "end_timestamp": "2024-02-29T23:00:00+00:00",
+    "rule": "earliest_supplied_bar_after_frozen_cutoff_no_test_selection"
+  },
+  "audit": {
+    "version": 1,
+    "scope": "same_owner_private_quant_exact_market_or_identical_rows_v1",
+    "complete_scan": true,
+    "totals": {
+      "dataset": 1,
+      "experiment": 1,
+      "comparison": 0,
+      "fixed_validation": 0
+    },
+    "manifest": [
+      {
+        "key": "dataset:21a976711ce532a16b2b5217e2b53c77c9963bee",
+        "kind": "dataset",
+        "id": "21a976711ce532a16b2b5217e2b53c77c9963bee",
+        "record_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+        "dataset_id": "21a976711ce532a16b2b5217e2b53c77c9963bee",
+        "collection_id": "coll_1mu6WceBd2",
+        "dataset_created_at": "2026-10-25T19:18:27.108",
+        "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+        "rows_hash": "41317c6e0695df288ca1ec3861c1da3139cce6242364c94f72f77409bf060d20",
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "start": "2024-01-01T00:00:00+00:00",
+        "end": "2024-01-31T23:00:00+00:00"
+      },
+      {
+        "key": "experiment:9ba6cabef693562fed04a892f332cfbcc141d892",
+        "kind": "experiment",
+        "id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+        "record_hash": "0078f3ed8d10dd1e27af42612190f5e4c20b4a6ca966152bed91be33aa1bbd43",
+        "dataset_id": "21a976711ce532a16b2b5217e2b53c77c9963bee",
+        "collection_id": "coll_1mu6WceBd2",
+        "dataset_created_at": "2026-10-25T19:18:27.108",
+        "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+        "rows_hash": "41317c6e0695df288ca1ec3861c1da3139cce6242364c94f72f77409bf060d20",
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "start": "2024-01-01T00:00:00+00:00",
+        "end": "2024-01-31T23:00:00+00:00"
+      }
+    ],
+    "conflict_count": 0,
+    "conflicts": [],
+    "omitted_conflicts": 0,
+    "range_status": "no_tracked_conflict",
+    "external_prior_use": "unattested",
+    "global_independent_validation": false,
+    "limitations": [
+      "包括已导入行情、实验预约、对照和固定验证；失败、取消、软删研究的已知数据使用不撤销。",
+      "同一所有者私密量化文集内按精确标的/周期或完整规范化行情哈希核对；别名、其他周期、外部研究和未同步设备的使用未知。",
+      "预热可引用旧历史；仅核对评分区间。登记后导入不证明文件曾未被外部查看或选择，无法证明导入文件覆盖了市场所有中间柱。"
+    ]
+  },
+  "imported_after_registration": true,
+  "fresh_allowed": true,
+  "claim": "registration_before_binding_and_tracked_range_only_external_use_unattested"
+}

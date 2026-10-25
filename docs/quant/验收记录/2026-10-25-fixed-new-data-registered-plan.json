@@ -1,0 +1,81 @@
+{
+  "id": "c7e42b181045e5d455858fe27e20fa993aced4d3",
+  "created_at": "2026-10-25T19:29:39.918302",
+  "data": {
+    "version": 1,
+    "engine_version": "quant-fixed-validation-1",
+    "name": "Registered period30 February whole month",
+    "recipe": {
+      "expression": {
+        "op": "sub",
+        "args": [
+          {
+            "op": "div",
+            "args": [
+              {
+                "op": "input",
+                "name": "i0"
+              },
+              {
+                "op": "sma",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "i0"
+                  },
+                  {
+                    "op": "parameter",
+                    "name": "p0"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "constant",
+            "value": 1
+          }
+        ]
+      },
+      "bindings": {
+        "i0": "close"
+      },
+      "parameters": {
+        "p0": 30
+      },
+      "parameter_names": {
+        "p0": "period"
+      },
+      "output_type": "numeric_series",
+      "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+    },
+    "config": {
+      "threshold": 0,
+      "fee_bps": 5,
+      "slippage_bps": 5
+    },
+    "intervals": 695,
+    "seconds": 30,
+    "required_history": 29,
+    "target": {
+      "symbol": "BTCUSDT",
+      "timeframe": "1h",
+      "after_timestamp": "2024-01-31T23:00:00+00:00"
+    },
+    "source": {
+      "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+      "result_id": "4f9f5d00ee9594a53850718f645df87086c78697",
+      "result_hash": "e468ce293566575589baf4a0d02d99c61291d38c5635c2eeade72371a986a544",
+      "dataset_id": "21a976711ce532a16b2b5217e2b53c77c9963bee",
+      "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+      "attempt_id": "attempt-5",
+      "attempt_hash": "00533eb40ea99a1f5fdb4e929c4a5db49c26d71d7bdb2e4565f6154e697f5a02",
+      "fold": null,
+      "parents": [
+        "8ad1fb3c214f382be9696ef1c10849a8be940581"
+      ]
+    },
+    "claim": "frozen_before_dataset_binding_not_global_independence_or_profitability"
+  },
+  "content_hash": "21f27e68ed556269958fb5221c6a5976bee6cce57de298ab82646d74d3fb980f"
+}

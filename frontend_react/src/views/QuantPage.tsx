@@ -17,21 +17,28 @@ import { useQuantViewport } from '../hooks/useQuantViewport';
 import { useQuantNavigation } from '../hooks/useQuantNavigation';
 import { quantApi } from '../api/quant';
 import { EntryList } from '../components/Quant/EntryList';
+import { ReportPanel } from '../components/Quant/ReportPanel';
+import { FactorGraph } from '../components/Quant/FactorGraph';
+import { FactorLibrary } from '../components/Quant/FactorLibrary';
 import { EntryEditor } from '../components/Quant/EntryEditor';
 import { CodePanel, type QuantCodeSeed } from '../components/Quant/CodePanel';
 import { BacktestsPanel } from '../components/Quant/BacktestsPanel';
+import { FeedbackPanel } from '../components/Quant/feedback/FeedbackPanel';
 import { AttachmentsPanel } from '../components/Quant/AttachmentsPanel';
 import { AIHistory, AIStartModal, type QuantAIRequest } from '../components/Quant/AIPanel';
 import { NewEntryModal } from '../components/Quant/NewEntryModal';
+import {BatchPanel} from '../components/Quant/intake/BatchPanel';
 import { UnsavedDialog } from '../components/Quant/UnsavedDialog';
 import { QuantButton, QuantEmpty } from '../components/Quant/ui';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import type { QuantCodeVersion } from '../types/api/quant';
 
 const tabs = [
-    { id: 'notes', label: '研究说明', icon: BookOpen },
+    { id: 'report', label: 'AI 研究报告', icon: FlaskConical },
+    { id: 'notes', label: '补充笔记', icon: BookOpen },
     { id: 'code', label: '代码实现', icon: Code2 },
     { id: 'backtests', label: '回测记录', icon: BarChart3 },
+    { id: 'feedback', label: '使用反馈', icon: FlaskConical },
     { id: 'attachments', label: '附件', icon: Paperclip },
 ];
 
@@ -45,8 +52,14 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
     const { attach: attachViewport, height: viewportHeight } = useQuantViewport();
     const controller = useQuant(collection, entryId);
     const guard = useQuantNavigation();
-    const [tab, setTab] = useState('notes');
+    const [tab, setTab] = useState('report');
+    const [library, setLibrary] = useState(false);
+    const [initialExperiment, setInitialExperiment] = useState<string>();
+    const [initialComparison, setInitialComparison] = useState<string>();
+    const [graph, setGraph] = useState<string | null>(null);
+    const [sourceReport, setSourceReport] = useState('');
     const [creating, setCreating] = useState(false);
+    const [batches, setBatches] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [seed, setSeed] = useState<QuantCodeSeed | null>(null);
     const [aiRequest, setAIRequest] = useState<QuantAIRequest | null>(null);
@@ -54,9 +67,12 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
     const [extra, setExtra] = useState('');
     const clearExtra = useCallback(() => setExtra(''), []);
     const clearSeed = useCallback(() => setSeed(null), []);
-    const selectEntry = (id: string) =>
+    const selectEntry = (id: string, report = '') =>
         guard.request(() => {
-            setTab('notes');
+            setGraph(null);
+            setLibrary(false);
+            setSourceReport(report);
+            setTab('report');
             setExtra('');
             setSeed(null);
             setSelectedRun('');
@@ -82,15 +98,20 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-500">
                     <FlaskConical size={22} />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[160px] flex-1">
                     <h1 className="truncate text-base font-bold text-slate-900">{controller.title || '量化研究库'}</h1>
-                    <p className="mt-0.5 text-[11px] text-slate-400">逻辑 · 代码 · 实验证据</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">收集资料 · AI 分析 · 研究积累</p>
                 </div>
                 <span className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-500 sm:inline-flex">
                     <LockKeyhole size={12} />
                     仅自己可见
                 </span>
                 {guard.dirty && <span className="text-xs text-orange-600">未保存</span>}
+                <QuantButton onClick={() => guard.request(() => setBatches(true))}>收集批次</QuantButton>
+                <QuantButton primary={library} onClick={() => guard.request(() => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(undefined); setLibrary(value => !value);})}>
+                    <FlaskConical size={15} />因子候选库
+                </QuantButton>
+                <QuantButton primary={graph !== null} onClick={() => guard.request(() => {setLibrary(false); setGraph('');})}>关系图谱</QuantButton>
                 <QuantButton
                     aria-label="刷新量化研究"
                     disabled={controller.busy || controller.loading}
@@ -106,7 +127,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                     <RefreshCw size={15} />
                 </QuantButton>
             </header>
-            {controller.error && (
+            {controller.error && !library && graph === null && (
                 <div
                     role="alert"
                     className="flex shrink-0 flex-wrap items-center gap-3 border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600"
@@ -130,7 +151,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
             )}
             <div className="flex min-h-0 flex-1">
                 <aside
-                    className={`${entryId ? 'hidden' : 'flex'} w-full min-w-0 shrink-0 flex-col border-r border-slate-200 bg-white md:flex md:w-80`}
+                    className={`${library || graph !== null ? 'hidden' : entryId ? 'hidden md:flex' : 'flex'} w-full min-w-0 shrink-0 flex-col border-r border-slate-200 bg-white md:w-80`}
                 >
                     <EntryList
                         entries={controller.entries}
@@ -143,8 +164,8 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                         setLanguage={(value) => controller.setLanguageFilter(value)}
                     />
                 </aside>
-                <main className={`${entryId ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
-                    {entryId && (
+                <main className={`${entryId || library || graph !== null ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
+                    {!library && graph === null && entryId && (
                         <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-4 py-3 md:hidden">
                             <QuantButton onClick={() => guard.request(() => navigate(`/quant/${collection}`))}>
                                 <List size={15} />
@@ -155,7 +176,14 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                             </span>
                         </div>
                     )}
-                    {controller.detailLoading ? (
+                    {graph !== null ? <FactorGraph key={graph} collection={collection} initialFocus={graph} openComparison={id => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(id); setLibrary(true);}} close={() => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(undefined); setLibrary(true);}} openSource={node => {
+                        setGraph(null); setLibrary(false); setSourceReport(node.reportId); setTab('report');
+                        navigate(`/quant/${collection}/entries/${node.entryId}`);
+                    }} /> : library ? <FactorLibrary initialComparison={initialComparison} initialExperiment={initialExperiment} collection={collection} openGraph={candidate => {setLibrary(false); setGraph(candidate.id);}} register={guard.register} request={guard.request} close={() => {setLibrary(false); setInitialExperiment(undefined); setInitialComparison(undefined);}} openSource={candidate => {
+                        setLibrary(false); setSourceReport(candidate.reportId); setTab('report');
+                        if (candidate.entryId === entryId) void controller.safe(controller.refresh, false);
+                        navigate(`/quant/${collection}/entries/${candidate.entryId}`);
+                    }} /> : controller.detailLoading ? (
                         <div className="m-6 space-y-5" aria-label="研究加载中">
                             <div className="h-16 animate-pulse rounded-2xl bg-slate-200/70" />
                             <div className="h-80 animate-pulse rounded-2xl bg-white" />
@@ -200,6 +228,8 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                             </nav>
                             <div className="min-h-0 flex-1 overflow-auto p-4 scrollbar-hide sm:p-6">
                                 <div key={`${entry.id}:${guard.resetEpoch}`} className="mx-auto max-w-5xl space-y-5">
+                                    {tab === 'report' && <ReportPanel key={`${entry.id}:${sourceReport}`} initialReportId={sourceReport} entry={entry} collection={collection} controller={controller} register={guard.register} request={guard.request} code={() => setTab('code')} openFactors={() => {setInitialExperiment(undefined); setInitialComparison(undefined); setLibrary(true);}} openExperiments={id => {setInitialComparison(undefined); setInitialExperiment(id || ''); setLibrary(true);}} />}
+                                    {tab === 'feedback' && <FeedbackPanel entry={entry} collection={collection} controller={controller} register={guard.register} request={guard.request} openReport={id => {setSourceReport(id); setTab('report');}}/>}
                                     {tab === 'notes' && (
                                         <EntryEditor
                                             key={entry.id}
@@ -270,17 +300,17 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                         <div className="flex flex-1 items-center justify-center p-6">
                             <div className="w-full max-w-xl">
                                 <QuantEmpty
-                                    title={entryId ? '无法打开这条研究' : '每个因子，都有自己的研究档案'}
+                                    title={entryId ? '无法打开这条研究' : '把你发现的代码，交给 AI 研究'}
                                     description={
                                         entryId
                                             ? '条目可能已删除，或当前账户没有访问权限。你可以从研究列表重新打开。'
-                                            : '从左侧选择一条研究，或记录一个新的想法。逻辑、多语言实现与回测结果会放在同一个地方。'
+                                            : '粘贴源码、说明或来源网址，自动整理原理、参数与研究评价。'
                                     }
                                 >
                                     {!entryId && (
                                         <QuantButton primary onClick={() => setCreating(true)}>
                                             <FlaskConical size={16} />
-                                            新建研究
+                                            收集并分析
                                         </QuantButton>
                                     )}
                                 </QuantEmpty>
@@ -297,7 +327,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                     close={() => guard.request(() => setCreating(false))}
                     created={(id) => {
                         setCreating(false);
-                        setTab('notes');
+                        setTab('report');
                         navigate(`/quant/${collection}/entries/${id}`);
                     }}
                 />
@@ -329,6 +359,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                     }
                 }}
             />
+            {batches && <BatchPanel collection={collection} models={controller.models} register={guard.register} request={guard.request} close={() => setBatches(false)} openSource={selectEntry} changed={() => void controller.safe(controller.reload, false)} />}
             <UnsavedDialog guard={guard} error={controller.error} />
         </div>
     );

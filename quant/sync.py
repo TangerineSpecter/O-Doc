@@ -3,11 +3,49 @@ import hashlib
 import json
 from datetime import date
 from django.core import serializers
+from rest_framework.exceptions import ValidationError as ResultValidationError
 from utils.sync_datetime import SyncJSONEncoder
 from system_settings.sync_state import canonical_hash
 
-SCHEMA_VERSION = 1
-LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'}
+from .research.sync import LABELS as RESEARCH_LABELS, validate_research
+
+from .intake.sync import LABELS as INTAKE_LABELS
+
+SCHEMA_VERSION = 51
+LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
+LABELS |= INTAKE_LABELS
+LABELS.add('quant.strategyartifact')
+LABELS.add('quant.selectiondiagnostic')
+LABELS |= {'quant.nativepythonrequest','quant.nativepythonresult'}
+from .validation_studies.sync import LABELS as VALIDATION_LABELS
+LABELS |= VALIDATION_LABELS
+from .workflows.sync import LABELS as WORKFLOW_LABELS
+LABELS |= WORKFLOW_LABELS
+from .comparisons.sync import LABELS as COMPARISON_LABELS
+LABELS |= COMPARISON_LABELS
+from .taxonomy.sync import LABELS as VOCABULARY_LABELS
+LABELS |= VOCABULARY_LABELS
+from .verification.sync import LABELS as VERIFICATION_LABELS
+LABELS |= VERIFICATION_LABELS
+
+
+def complete_legacy_fields(data: list) -> None:
+    """Missing version pointers in old complete backups mean no selection.
+
+    Do this before the generic local-field fill: borrowing today's pointer
+    into an older backup would leave it pointing at pruned history records.
+    """
+    for row in data:
+        if row.get('model') == 'quant.airun':
+            row['fields'].setdefault('validation_result', None)
+            row['fields'].setdefault('feedback_workflow_version',0)
+            row['fields'].setdefault('audit_report_id','')
+        if row.get('model') == 'quant.codeversion':
+            row['fields'].setdefault('strategy_artifact_id', '')
+        if row.get('model') == 'quant.factorcandidate':
+            row['fields'].setdefault('formula_version_id', '')
+            row['fields'].setdefault('formula_selection_id', '')
+            row['fields'].setdefault('qualification_version', 0)
 
 
 def manifest(data: list) -> dict:
@@ -18,9 +56,10 @@ def manifest(data: list) -> dict:
 def metadata(data=None) -> dict:
     if data is None:
         from django.apps import apps
+        from system_settings.sync_state import LOCAL_ONLY_MODEL_LABELS
         data = []
         for model in apps.get_app_config('quant').get_models():
-            if model._meta.model_name != 'job':
+            if model._meta.label_lower not in LOCAL_ONLY_MODEL_LABELS:
                 data += json.loads(serializers.serialize('json', model.objects.all(), cls=SyncJSONEncoder))
     return {'quant_schema_version': SCHEMA_VERSION, 'quant_manifest': manifest(data),
         'quant_record_hashes': {f"{row['model']}:{row['pk']}": canonical_hash(row['fields'])
@@ -56,6 +95,8 @@ def validate(data: list, meta=None) -> None:
                 fail('量化快照包含重复记录，拒绝恢复')
             rows[label][identity] = row['fields']
     anthologies = {str(row['pk']): row['fields'] for row in data if row.get('model') == 'anthology.anthology'}
+    from .experiments.sync import validate_datasets
+    from .experiments.snapshot import validate_experiments
     assets = {str(row['pk']): row['fields'] for row in data if row.get('model') == 'assets.asset'}
     entries, implementations, versions, backtests, runs = (rows.get('quant.' + name, {})
         for name in ('entry', 'implementation', 'codeversion', 'backtest', 'airun'))
@@ -103,7 +144,7 @@ def validate(data: list, meta=None) -> None:
         local = local_versions.get(identity)
         if local:
             for field in CodeVersion.SNAPSHOT_FIELDS:
-                incoming = fields.get('implementation' if field == 'implementation_id' else field)
+                incoming = fields.get('implementation' if field == 'implementation_id' else field, '' if field == 'strategy_artifact_id' else None)
                 if local[field] != incoming:
                     fail('同一量化代码版本的不可变内容发生冲突，拒绝覆盖')
     for fields in backtests.values():
@@ -143,8 +184,34 @@ def validate(data: list, meta=None) -> None:
     request_keys = set()
     for fields in runs.values():
         eid = str(fields.get('entry'))
-        if eid not in entries or version_entry(fields.get('source_version')) != eid or fields.get('kind') not in ('explain', 'convert') or fields.get('status') not in statuses:
+        if eid not in entries or fields.get('kind') not in ('explain', 'convert', 'analyze', 'experiment_review', 'feedback_review') or fields.get('status') not in statuses:
             fail()
+        if fields['kind'] in ('analyze', 'experiment_review', 'feedback_review'):
+            source = rows.get('quant.sourcerevision', {}).get(str(fields.get('source')), {})
+            material = rows.get('quant.sourcematerial', {}).get(str(source.get('material')), {})
+            if str(material.get('entry')) != eid or fields.get('source_version'):
+                fail('研究分析任务来源不属于当前研究')
+            resolved = fields.get('resolved_source')
+            if resolved:
+                resolved_source = rows.get('quant.sourcerevision', {}).get(str(resolved), {})
+                if (resolved_source.get('material') != source.get('material')
+                        or resolved_source.get('payload', {}).get('origin_source_id') != str(fields['source'])):
+                    fail('网页快照与原始分析来源不一致')
+        elif version_entry(fields.get('source_version')) != eid or fields.get('source') or fields.get('resolved_source'):
+            fail('代码任务来源无效')
+        if fields.get('kind')=='analyze' and fields.get('result',{}).get('source_memory_version') and fields.get('workflow_version') not in (12,13,14,15):
+            fail('历史源码分析不能追加未冻结的研究记忆')
+        if fields.get('kind') == 'analyze':
+            from .research.findings import validate_admission
+            validate_admission(fields.get('result', {}), fields.get('workflow_version', 0))
+        if type(fields.get('review_version', 1)) is not int or fields.get('review_version', 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) or (fields['kind'] != 'experiment_review' and fields.get('review_version', 1) != 1):
+            fail('实验解读输入版本无效')
+        if not isinstance(fields.get('planning_context', {}), dict) or (fields['kind'] != 'feedback_review' and (fields.get('review_version', 1) in (3, 4, 5, 6, 7, 8, 9, 10)) != bool(fields.get('planning_context'))):
+            fail('跨库研究上下文与解读版本不一致')
+        if fields.get('review_version') == 9 and not fields.get('validation_result') or fields.get('validation_result') and fields.get('review_version') not in (9,10):
+            fail('固定验证解读版本与结果引用不匹配')
+        if fields['kind'] != 'experiment_review' and fields.get('experiment_result'):
+            fail('非实验解读任务包含实验引用')
         request_key = (eid, fields.get('request_key'))
         if not request_key[1] or request_key in request_keys:
             fail('量化任务请求标识冲突，拒绝恢复')
@@ -153,7 +220,7 @@ def validate(data: list, meta=None) -> None:
             fail()
         if fields.get('status') == 'completed':
             try:
-                parse_result(fields['kind'], json.dumps(fields.get('result', {}), ensure_ascii=False))
+                parse_result(fields['kind'], json.dumps(fields.get('result', {}), ensure_ascii=False),model_output=False)
             except Exception as exc:
                 # Snapshot validation only; no provider calls or business writes.
                 raise SyncError('量化 AI 成果格式不完整，拒绝恢复') from exc
@@ -163,11 +230,64 @@ def validate(data: list, meta=None) -> None:
         if adopted and (fields.get('status') != 'completed' or fields.get('kind') != 'convert' or str(implementations.get(str(adopted), {}).get('entry')) != eid):
             fail()
 
+    try:
+        from .taxonomy.sync import validate_vocabularies
+        validate_vocabularies(rows, anthologies, fail)
+        from .workflows.sync import validate_workflows
+        validate_workflows(rows, fail)
+        validate_datasets(rows, anthologies, fail)
+        validate_experiments(rows, fail)
+        from .search_diagnostics.sync import validate_diagnostics
+        validate_diagnostics(rows,fail)
+        from .validation_studies.sync import validate_studies
+        validate_studies(rows, anthologies, fail)
+        from .experiments.review_sync import review_evidence_from_rows, validate_local_review_links
+        validate_local_review_links(rows, fail)
+        for identity, run in runs.items():
+            if run['kind'] == 'experiment_review':
+                review_evidence_from_rows(run, rows, fail)
+                if run['status'] == 'completed' and sum(report.get('run') == identity for report in rows.get('quant.researchreport', {}).values()) != 1:
+                    fail('已完成的实验解读缺少对应研究报告')
+        from .native_python.sync import validate_native
+        validate_native(rows,anthologies,fail)
+        from .feedback.sync import validate_feedback
+        validate_feedback(rows, fail)
+        validate_research(rows, fail)
+        from .strategy_exports.sync import validate_artifacts
+        validate_artifacts(rows, fail)
+        from .comparisons.sync import validate_comparisons
+        validate_comparisons(rows, anthologies, fail)
+        from .verification.sync import validate_verification
+        validate_verification(rows, fail)
+        from .experiments.proposal_sync import validate_proposals
+        validate_proposals(rows, fail)
+        from .experiments.campaigns.sync import validate_campaigns
+        validate_campaigns(rows, anthologies, fail)
+        from .intake.sync import validate_batches
+        validate_batches(rows, anthologies, fail)
+    except (ValueError, TypeError, KeyError, IndexError, OverflowError, ResultValidationError) as exc:
+        raise SyncError('研究快照数据格式无效') from exc
 
-def reset_execution() -> None:
-    from .models import AIRun, Job
+
+def reset_execution(*, upgrade_legacy=False) -> None:
+    from .models import NativePythonJob
+    NativePythonJob.objects.all().delete()
+    from .models import ValidationJob
+    ValidationJob.objects.all().delete()
+    from .models import IntakeBatchJob
+    IntakeBatchJob.objects.all().delete()
+    from .models import AIRun, Job, FactorVector, FactorIndexJob, ExperimentJob, ResearchCampaignJob
     Job.objects.all().delete()
+    ResearchCampaignJob.objects.all().delete()
+    ExperimentJob.objects.all().delete()
+    FactorIndexJob.objects.all().delete()
+    FactorVector.objects.all().delete()
     for run in AIRun.objects.filter(status__in=['pending', 'running']):
         run.status = 'interrupted'
         run.error = '数据已恢复，请手动重试；不会自动调用模型'
         run.save(update_fields=['status', 'error', 'updated_at'])
+
+    if upgrade_legacy:
+        from django.apps import apps
+        from .research.legacy_v1 import upgrade
+        upgrade(apps)

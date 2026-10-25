@@ -193,6 +193,10 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-semibold text-slate-800">{renderHighlightedTitle(event.title)}</h3>
+                    {event.explorationParty && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                        {event.explorationParty.max === 1 ? '单人探索 · 1人' : event.explorationParty.min === event.explorationParty.max
+                            ? `组队探索 · ${event.explorationParty.max}人` : `探索人数 · ${event.explorationParty.min}–${event.explorationParty.max}人`}
+                    </span>}
                     <PostRatingBadge rating={event.rating}/>
                 </div>
                 {showMainDetail && (
@@ -241,7 +245,7 @@ function RecordCard({event, residents, onOpen}: {event: DailyFeedEvent; resident
     const activity: AgentActivity = {
         id: event.id,
         type: 'work',
-        status: event.status === 'running' || event.status === 'failed' ? event.status : 'success',
+        status: event.status === 'running' || event.status === 'failed' || event.status === 'deferred' || event.status === 'paused' ? event.status : 'success',
         agent: {id: event.actorId, name: resident?.name || event.actorName, avatar: resident?.avatar || ''},
         title: event.title,
         summary: event.detail,

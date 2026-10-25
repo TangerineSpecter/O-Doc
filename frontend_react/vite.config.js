@@ -1,0 +1,36 @@
+// frontend_react/vite.config.ts
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+// https://vite.dev/config/
+export default defineConfig(function (_a) {
+    var mode = _a.mode;
+    var localMode = loadEnv(mode, process.cwd(), 'VITE_').VITE_LOCAL_MODE === 'true';
+    return {
+        plugins: [
+            react(),
+            // 移除 viteMockServe 配置
+        ],
+        // 根据模式动态设置base路径
+        base: mode === 'production' ? '/static/' : '/',
+        resolve: {
+            alias: {
+                '@': resolve(__dirname, 'src')
+            }
+        },
+        server: {
+            port: 43127,
+            strictPort: true,
+            proxy: localMode ? undefined : {
+                '/api': {
+                    target: process.env.ODOC_API_PROXY || 'http://localhost:11800',
+                    changeOrigin: true
+                },
+                '/media': {
+                    target: process.env.ODOC_API_PROXY || 'http://localhost:11800',
+                    changeOrigin: true
+                }
+            }
+        }
+    };
+});

@@ -117,9 +117,11 @@ export function useQuant(collection: string, entryId: string) {
         let timer: ReturnType<typeof setTimeout>;
         const poll = async () => {
             try {
-                const runs = await quantApi.runs(collection, entryId, controller.signal);
+                const currentDetail = await quantApi.detail(collection, entryId, controller.signal);
+                const runs = currentDetail.runs;
                 if (!controller.signal.aborted) {
-                    setDetail((current) => (current?.id === entryId ? { ...current, runs } : current));
+                    setDetail((current) => (current?.id === entryId ? { ...current, runs, reports: currentDetail.reports, sources: currentDetail.sources, title: currentDetail.title, kind: currentDetail.kind, tags: currentDetail.tags } : current));
+                    setEntries(current => current.map(row => row.id === entryId ? { ...row, title: currentDetail.title, kind: currentDetail.kind, tags: currentDetail.tags } : row));
                     setError((current) => (current.startsWith('AI 任务状态更新失败：') ? '' : current));
                 }
             } catch (error) {

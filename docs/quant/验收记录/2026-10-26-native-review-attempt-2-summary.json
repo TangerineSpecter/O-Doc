@@ -1,0 +1,21 @@
+{
+  "run_id": "ab8fc6c6d6af481e864551bff997adc8",
+  "old_report_id": "c7c40cf320c94f4e81da145a9555bd93",
+  "new_report_id": null,
+  "status": "failed",
+  "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+  "model": "deepseek-flash",
+  "provider_calls": 2,
+  "source_calls": 0,
+  "old_report_unchanged": true,
+  "restore_calls": 0,
+  "schema_version": 51,
+  "decisions": [
+    null,
+    "revise",
+    "reject"
+  ],
+  "manual_quality_review": "not accepted; final rejection contains a supported unresolved factual error; no new report",
+  "independent_review": false,
+  "harness_postcheck_error": "summary metadata key typo after successful validation and restore; recovered offline with zero calls"
+}

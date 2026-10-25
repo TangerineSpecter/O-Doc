@@ -1,0 +1,11 @@
+{
+  "archive_url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-02.zip",
+  "checksum_url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-02.zip.CHECKSUM",
+  "archive_sha256": "b83aa7319ef1d4baa7b923c0fe802b88dfaf241c7456af295f1f656a24379b33",
+  "combined_sha256": "c2344c490ba044de9e668ebb7c64d20352c1bfabc1177ceed293ce93f1f6cd90",
+  "february_rows": 696,
+  "warmup_rows": 30,
+  "downloaded_after_registration": true,
+  "downloaded_at": "2026-10-25T11:29:41.522234+00:00",
+  "warmup_source": "previously pinned January archive; final 30 original rows"
+}

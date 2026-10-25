@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-25",
+  "backend_quant_tests": {
+    "passed": 517,
+    "seconds": 143.216
+  },
+  "frontend_quant_tests": {
+    "passed": 115
+  },
+  "type_check": true,
+  "scoped_lint": true,
+  "production_build": true,
+  "build_existing_chunk_warning": true,
+  "new_database_migrations": false,
+  "full_repository_lint": {
+    "passed": false,
+    "error_count": 5,
+    "outside_current_change": [
+      "frontend_react/src/components/AgentPost/AgentPostShare.tsx",
+      "frontend_react/src/components/Cooking/RecipeAdventureEffects.tsx",
+      "frontend_react/vite.config.d.ts"
+    ]
+  },
+  "offline_replay": {
+    "artifact_hashes": true,
+    "preregistered_facts_unchanged": true,
+    "intervals": 743,
+    "decimal_complete_paths": true,
+    "criteria_status": "not_met",
+    "review_contract": true,
+    "snapshot_graph_and_replay": true,
+    "independent_validation": false,
+    "provider_calls": 0
+  },
+  "local_browser": {
+    "artificial_metrics_only": true,
+    "registration_and_empty_rule_rejection": true,
+    "new_import_and_frozen_metric_verdict": true,
+    "widths": [
+      390,
+      768,
+      1440
+    ],
+    "card_horizontal_overflow": false,
+    "mobile_modal_overflow": false,
+    "native_selects_in_modal": 0,
+    "escape_closes_modal": true,
+    "console_errors": 0,
+    "viewport_reset": true
+  },
+  "real_model_calls": 1,
+  "real_business_database_writes": false,
+  "production_deployment": false,
+  "remote_multi_device_sync": false
+}

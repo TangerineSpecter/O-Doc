@@ -1,0 +1,4140 @@
+{
+  "request": {
+    "version": 2,
+    "engine_version": "quant-local-search-2",
+    "name": "BTCUSDT 1h 均值回归偏离：2024-04 新数据上的单/双窗口否证性复核",
+    "dataset_hash": "d66f409f5c0d8e2706f3a12b47f9e8c9bb85f0c04521604e5dc49e31849dcd15",
+    "seeds": [
+      {
+        "id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "candidate": {
+          "name": "close_relative_rolling_mean_deviation",
+          "role": "factor",
+          "family": "mean_reversion",
+          "summary": "在 bar t 计算 close 相对其过去 period 个 bar 滚动均值的相对偏离。该模块是第 5–6 行可分离的连续数值计算，剥离了第 7–8 行未来收益项后可作为 t 时刻因子候选；机制分类为均值回归/价格结构提议，不证明有效。",
+          "formula": "s_t = close_t / mean_t - 1；mean_t = 过去 period 个 bar 的 close 算术均值（rolling mean）。",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "frame[\"close\"] 价格序列字段；源码只引用单一 close 字段，资产范围、数据频率与复权口径未声明。",
+              "availability": "bar t 的 close 在数据发布后可得；具体发布延迟、频率、复权口径未知。",
+              "missing_policy": "源码未声明 close 缺失处理；expression 的 sma 缺失策略依赖平台，pandas rolling 的 min_periods 默认行为未声明且未验证。"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+          "timeframe": "计算窗口为 period 个 bar；适用周期与数据频率未声明，无法换算为自然时间；period 默认 14 仅为函数默认值，不是最优或运行配置。",
+          "parameters": [
+            {
+              "name": "period",
+              "type": "int",
+              "default_value": "14",
+              "category": "signal",
+              "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+              "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+              "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+              "suggestion": "待验证：先确认 frame 的数据频率与复权口径，再对 period 做敏感性检查（例如在多个候选窗口上比较信号自相关与换手）；建议范围仅为验证起点，非实证最优，且不得以默认值14冒充实际运行配置。",
+              "evidence": "第1行默认值 period=14；第5行使用 rolling(period).mean() 构造滚动均值。"
+            }
+          ],
+          "dependencies": [
+            "frame[\"close\"] 为外部传入的 DataFrame 列；源码 imports 为空，.rolling/.mean 的运行时依赖未验证",
+            "参数 period",
+            "滚动均值 min_periods 的缺失语义未在源码中声明"
+          ],
+          "limitations": "本候选是剥离第 7–8 行未来收益项后的 t 时刻模块，不等同于原函数返回值。源码未声明 frame 的数据频率、复权口径、资产范围与 close 数据源；period 的合法下限与取值范围未声明。expression 仅在假设滚动均值可由 sma(close, period) 表达时给出；pandas .rolling(period).mean() 的 min_periods 默认行为未声明，平台 sma 语义可能不同，前 period-1 个 bar 的缺失结果依赖运行时。若 mean 为 0 或 close 缺失，可能出现 inf/NaN，具体行为未验证。未回测，不证明有效、稳健或参数最优。原第 7–8 行若被当作因子使用会引入未来信息泄漏，本候选未包含该部分。",
+          "tags": [
+            "mechanism:mean_reversion",
+            "mechanism:price_structure",
+            "structure:time_series",
+            "data:price",
+            "usage:factor",
+            "usage:signal",
+            "tunability:signal"
+          ],
+          "expression": {
+            "op": "sub",
+            "args": [
+              {
+                "op": "div",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "sma",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "close"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "period"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 1
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "def indicator(frame, period=14, horizon=1):"
+            },
+            {
+              "field": "code",
+              "quote": "    mean = frame[\"close\"].rolling(period).mean()"
+            },
+            {
+              "field": "code",
+              "quote": "    signal = frame[\"close\"] / mean - 1"
+            }
+          ]
+        },
+        "bindings": {
+          "close": "close"
+        },
+        "parameters": {
+          "period": 14
+        },
+        "variants": [
+          {
+            "period": 12
+          },
+          {
+            "period": 18
+          },
+          {
+            "period": 24
+          }
+        ]
+      },
+      {
+        "id": "6c07f295a922f4ceaaa07f630201d478f68a7cf8",
+        "candidate": {
+          "name": "均值组合 · close_relative_rolling_mean_deviation_period_sensitivity · attempt-7",
+          "role": "factor",
+          "family": "mean_reversion",
+          "summary": "由 1 个父代经均值组合产生。训练与验证段筛选后归档，尚待独立验证。",
+          "formula": "{\"args\":[{\"args\":[{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"a_p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"},{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"b_p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"}],\"op\":\"add\"},{\"op\":\"constant\",\"value\":2}],\"op\":\"div\"}",
+          "expression": {
+            "op": "div",
+            "args": [
+              {
+                "op": "add",
+                "args": [
+                  {
+                    "op": "sub",
+                    "args": [
+                      {
+                        "op": "div",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "sma",
+                            "args": [
+                              {
+                                "op": "input",
+                                "name": "close"
+                              },
+                              {
+                                "op": "parameter",
+                                "name": "a_p0"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "op": "constant",
+                        "value": 1
+                      }
+                    ]
+                  },
+                  {
+                    "op": "sub",
+                    "args": [
+                      {
+                        "op": "div",
+                        "args": [
+                          {
+                            "op": "input",
+                            "name": "close"
+                          },
+                          {
+                            "op": "sma",
+                            "args": [
+                              {
+                                "op": "input",
+                                "name": "close"
+                              },
+                              {
+                                "op": "parameter",
+                                "name": "b_p0"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "op": "constant",
+                        "value": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 2
+              }
+            ]
+          },
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "实验行情 close 列",
+              "availability": "完整收盘后可得，用于下一根开盘信号",
+              "missing_policy": "缺失传播，滚动窗口需完整；不填补缺失值"
+            }
+          ],
+          "parameters": [
+            {
+              "name": "a_p0",
+              "type": "int",
+              "default_value": "14",
+              "category": "signal",
+              "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+              "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+              "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+              "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+              "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-7 的实际计算参数"
+            },
+            {
+              "name": "b_p0",
+              "type": "int",
+              "default_value": "60",
+              "category": "signal",
+              "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+              "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+              "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+              "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+              "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-7 的实际计算参数"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+          "timeframe": "本轮行情周期：1h；其他周期未验证",
+          "dependencies": [
+            "quant-local-search-2"
+          ],
+          "limitations": "仅在本机受限表达式引擎中计算过；未验证原平台等价性或实盘有效性。参数是所记录尝试的实际值，不是推荐最优值。父代数据和已查看的留出结果会影响后续研究，需使用新的验证数据。",
+          "tags": [
+            "实验衍生",
+            "待独立验证"
+          ],
+          "evidence": [],
+          "derivation": {
+            "version": "experiment-derived-v1",
+            "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+            "checkpoint_id": "bffd5a10b762030170966553a1d657e36683b7fb",
+            "attempt_id": "attempt-7",
+            "parent_candidate_ids": [
+              "8ad1fb3c214f382be9696ef1c10849a8be940581"
+            ],
+            "parent_attempt_ids": [
+              "attempt-1",
+              "attempt-6"
+            ],
+            "operation": "mean",
+            "engine_version": "quant-local-search-2",
+            "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+            "selection_rule": "derived_frontier_first_three_v1"
+          }
+        },
+        "bindings": {
+          "close": "close"
+        },
+        "parameters": {
+          "a_p0": 14,
+          "b_p0": 60
+        },
+        "variants": [
+          {
+            "a_p0": 20,
+            "b_p0": 60
+          },
+          {
+            "a_p0": 14,
+            "b_p0": 30
+          }
+        ]
+      }
+    ],
+    "config": {
+      "seed": 42,
+      "max_candidates": 16,
+      "generations": 2,
+      "threshold": 0,
+      "fee_bps": 5,
+      "slippage_bps": 5,
+      "gap": 2,
+      "seconds": 30
+    },
+    "proposal_id": "cf2c2b44dbda43e00383761b7bea7d66cbc766c7",
+    "proposal_hash": "926e9005b55ba426010f8052837aa128918a81f07a8fa1bef3780f801a4f942c",
+    "proposal_adapted": false
+  },
+  "outcome": {
+    "version": 1,
+    "status": "completed",
+    "error": "",
+    "output": {
+      "engine_version": "quant-local-search-2",
+      "dataset_hash": "d66f409f5c0d8e2706f3a12b47f9e8c9bb85f0c04521604e5dc49e31849dcd15",
+      "config": {
+        "seed": 42,
+        "max_candidates": 16,
+        "generations": 2,
+        "threshold": 0,
+        "fee_bps": 5,
+        "slippage_bps": 5,
+        "gap": 2,
+        "seconds": 30
+      },
+      "partitions": {
+        "train": [
+          1,
+          431
+        ],
+        "validation": [
+          434,
+          575
+        ],
+        "holdout": [
+          578,
+          719
+        ]
+      },
+      "seed_plan": [
+        {
+          "id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+          "source_hash": "a6e3dd4dbc2c0413f36c51a01c7bff817889e7327677b4b8c2503cfc3dd561a7",
+          "bindings": {
+            "close": "close"
+          },
+          "parameters": {
+            "period": 14
+          },
+          "variants": [
+            {
+              "period": 12
+            },
+            {
+              "period": 18
+            },
+            {
+              "period": 24
+            }
+          ]
+        },
+        {
+          "id": "6c07f295a922f4ceaaa07f630201d478f68a7cf8",
+          "source_hash": "de99eddb7ea6842ada6bf9844094d973f0877899461b162b62624cce4be13ab0",
+          "bindings": {
+            "close": "close"
+          },
+          "parameters": {
+            "a_p0": 14,
+            "b_p0": 60
+          },
+          "variants": [
+            {
+              "a_p0": 20,
+              "b_p0": 60
+            },
+            {
+              "a_p0": 14,
+              "b_p0": 30
+            }
+          ]
+        }
+      ],
+      "attempts": [
+        {
+          "id": "attempt-1",
+          "parents": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ],
+          "operation": "source_candidate",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 14
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.09168082505172992,
+              "max_drawdown": 0.11672314137194184,
+              "entries": 31,
+              "turnover": 62,
+              "exposure_fraction": 0.513953488372093,
+              "missing_signals": 13,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.020531524406124713,
+              "max_drawdown": 0.03455325550653787,
+              "entries": 11,
+              "turnover": 22,
+              "exposure_fraction": 0.5460992907801419,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 14
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "df97be29179c353c5158f339a1cc7ef1277c69133a6a2e40ab3598aa99ca58ee",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-2",
+          "parents": [
+            "6c07f295a922f4ceaaa07f630201d478f68a7cf8"
+          ],
+          "operation": "source_candidate",
+          "generation": 0,
+          "requested_parameters": {
+            "a_p0": 14,
+            "b_p0": 60
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.01036495932726722,
+              "max_drawdown": 0.1012397209248258,
+              "entries": 10,
+              "turnover": 20,
+              "exposure_fraction": 0.43023255813953487,
+              "missing_signals": 59,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.013275068141533342,
+              "max_drawdown": 0.02671806400054,
+              "entries": 8,
+              "turnover": 16,
+              "exposure_fraction": 0.8226950354609929,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "p1"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 14,
+              "p1": 60
+            },
+            "parameter_names": {
+              "p0": "a_p0",
+              "p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "43ee08b6f9a0ce00851e3735ba588a8577ea72ba8ca9792159fbc7f63cba6f6c",
+          "complexity": 17
+        },
+        {
+          "id": "attempt-3",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 12
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.07815145476162488,
+              "max_drawdown": 0.10340820634405101,
+              "entries": 35,
+              "turnover": 70,
+              "exposure_fraction": 0.513953488372093,
+              "missing_signals": 11,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.022085852224907443,
+              "max_drawdown": 0.03180798876059743,
+              "entries": 11,
+              "turnover": 22,
+              "exposure_fraction": 0.5390070921985816,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 12
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "9974345224365c6c6ce6245a6436245c29d8c2fd33b089fc5428181fb31e2eed",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-4",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 18
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.0942548904146211,
+              "max_drawdown": 0.1235206123245155,
+              "entries": 31,
+              "turnover": 62,
+              "exposure_fraction": 0.4930232558139535,
+              "missing_signals": 17,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.0381984629330403,
+              "max_drawdown": 0.042286547081316184,
+              "entries": 11,
+              "turnover": 22,
+              "exposure_fraction": 0.5673758865248227,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 18
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "bf233f86c3c23235ec54f97ff66086ea35960d61c8e183d1d9e090d160df5072",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-5",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "period": 24
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.10146351255689146,
+              "max_drawdown": 0.12774725798506936,
+              "entries": 27,
+              "turnover": 54,
+              "exposure_fraction": 0.45348837209302323,
+              "missing_signals": 23,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.04361322150601721,
+              "max_drawdown": 0.04767829052296313,
+              "entries": 9,
+              "turnover": 18,
+              "exposure_fraction": 0.5815602836879432,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "sma",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 24
+            },
+            "parameter_names": {
+              "p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "ff805d51fe0942547c91c744c303ef152fc2b0efc22f410af95e2c53e776cc2b",
+          "complexity": 7
+        },
+        {
+          "id": "attempt-6",
+          "parents": [
+            "attempt-2"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "a_p0": 20,
+            "b_p0": 60
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.02006614560252351,
+              "max_drawdown": 0.11005008083102163,
+              "entries": 11,
+              "turnover": 22,
+              "exposure_fraction": 0.4232558139534884,
+              "missing_signals": 59,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.012439528050194437,
+              "max_drawdown": 0.029444452222456063,
+              "entries": 8,
+              "turnover": 16,
+              "exposure_fraction": 0.8156028368794326,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "p1"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 20,
+              "p1": 60
+            },
+            "parameter_names": {
+              "p0": "a_p0",
+              "p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "640db9cf6916f495618058841e12a7fb049a9d105b06ccc426ae5f5770dfb977",
+          "complexity": 17
+        },
+        {
+          "id": "attempt-7",
+          "parents": [
+            "attempt-2"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "a_p0": 14,
+            "b_p0": 30
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.060435763126011954,
+              "max_drawdown": 0.08654504173853916,
+              "entries": 27,
+              "turnover": 54,
+              "exposure_fraction": 0.4325581395348837,
+              "missing_signals": 29,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.048472236243550126,
+              "max_drawdown": 0.05251665228754976,
+              "entries": 11,
+              "turnover": 22,
+              "exposure_fraction": 0.624113475177305,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "p1"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 14,
+              "p1": 30
+            },
+            "parameter_names": {
+              "p0": "a_p0",
+              "p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+          },
+          "fingerprint": "9e0e8b956416101ea2617786d3b1a9fa40d69594f45dbc4e37343fcfef329ad6",
+          "complexity": 17
+        },
+        {
+          "id": "attempt-8",
+          "parents": [
+            "attempt-1",
+            "attempt-2"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.023771493932823073,
+              "max_drawdown": 0.09145035502417376,
+              "entries": 20,
+              "turnover": 40,
+              "exposure_fraction": 0.4232558139534884,
+              "missing_signals": 59,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.016101494254660564,
+              "max_drawdown": 0.029653224298453518,
+              "entries": 9,
+              "turnover": 18,
+              "exposure_fraction": 0.723404255319149,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "b_p0": 14,
+              "b_p1": 60
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "a_p0",
+              "b_p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "ee5b983f0dc3e5824e51f29766cc63f516bbe412d7540cb2a6cf24b2e51ce2fd",
+          "complexity": 27
+        },
+        {
+          "id": "attempt-9",
+          "parents": [
+            "attempt-3",
+            "attempt-5"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.09789465633748973,
+              "max_drawdown": 0.12261048485807535,
+              "entries": 31,
+              "turnover": 62,
+              "exposure_fraction": 0.45813953488372094,
+              "missing_signals": 23,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.030635877697330338,
+              "max_drawdown": 0.034756106195173775,
+              "entries": 10,
+              "turnover": 20,
+              "exposure_fraction": 0.5886524822695035,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 12,
+              "b_p0": 24
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "b_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "b_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "ead0a862bb78b7f8f1fb0b588f74bfd2132a03a4e77c9a03d75e3fddbfb9f689",
+          "complexity": 17
+        },
+        {
+          "id": "attempt-10",
+          "parents": [
+            "attempt-1",
+            "attempt-7"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.06680894135037396,
+              "max_drawdown": 0.10026260209841631,
+              "entries": 32,
+              "turnover": 64,
+              "exposure_fraction": 0.4627906976744186,
+              "missing_signals": 29,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.03499142224994478,
+              "max_drawdown": 0.039093137746969986,
+              "entries": 11,
+              "turnover": 22,
+              "exposure_fraction": 0.5886524822695035,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "b_p0": 14,
+              "b_p1": 30
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "a_p0",
+              "b_p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "c4a0eb3d5abdbc2919811b57a8b5856a9aab24a26a979336356597a7eb7a4d06",
+          "complexity": 27
+        },
+        {
+          "id": "attempt-11",
+          "parents": [
+            "attempt-1",
+            "attempt-5"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.08527714418576249,
+              "max_drawdown": 0.1135712469437784,
+              "entries": 31,
+              "turnover": 62,
+              "exposure_fraction": 0.44883720930232557,
+              "missing_signals": 23,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.029778843172568403,
+              "max_drawdown": 0.033902714448178495,
+              "entries": 9,
+              "turnover": 18,
+              "exposure_fraction": 0.5886524822695035,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "b_p0": 24
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "b_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "b_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "30f47f23ec09f09d099480450aa3461a9d11faf009720022734a961d60371102",
+          "complexity": 17
+        },
+        {
+          "id": "attempt-12",
+          "parents": [
+            "attempt-3",
+            "attempt-7"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.06114137289460109,
+              "max_drawdown": 0.10435475052320708,
+              "entries": 31,
+              "turnover": 62,
+              "exposure_fraction": 0.4604651162790698,
+              "missing_signals": 29,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.05632574228939613,
+              "max_drawdown": 0.060336777441042044,
+              "entries": 12,
+              "turnover": 24,
+              "exposure_fraction": 0.5673758865248227,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 12,
+              "b_p0": 14,
+              "b_p1": 30
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "a_p0",
+              "b_p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "3ccd2be6fdd4decaef709871d577650a4803f7e1290ccdf801f14c7ebef82166",
+          "complexity": 27
+        },
+        {
+          "id": "attempt-13",
+          "parents": [
+            "attempt-2",
+            "attempt-5"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.022790919595194525,
+              "max_drawdown": 0.08838796873469701,
+              "entries": 15,
+              "turnover": 30,
+              "exposure_fraction": 0.42093023255813955,
+              "missing_signals": 59,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.013660514771908217,
+              "max_drawdown": 0.02811872261288939,
+              "entries": 7,
+              "turnover": 14,
+              "exposure_fraction": 0.7446808510638298,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "a_p1": 60,
+              "b_p0": 24
+            },
+            "parameter_names": {
+              "a_p0": "a_p0",
+              "a_p1": "b_p0",
+              "b_p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "a_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "a_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "a_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "a_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "a_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "a_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "b_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "b_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "57ec7eed56861586bb23228b97e790ed6a6e62a35006833677ff98838e1bdd3e",
+          "complexity": 27
+        },
+        {
+          "id": "attempt-14",
+          "parents": [
+            "attempt-2",
+            "attempt-7"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.04545602606052068,
+              "max_drawdown": 0.11015957785637831,
+              "entries": 17,
+              "turnover": 34,
+              "exposure_fraction": 0.43023255813953487,
+              "missing_signals": 59,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.010600955751299046,
+              "max_drawdown": 0.02409912069043818,
+              "entries": 8,
+              "turnover": 16,
+              "exposure_fraction": 0.7446808510638298,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "a_p1": 60,
+              "b_p0": 14,
+              "b_p1": 30
+            },
+            "parameter_names": {
+              "a_p0": "a_p0",
+              "a_p1": "b_p0",
+              "b_p0": "a_p0",
+              "b_p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "a_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "a_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "a_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "a_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "a_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "a_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    },
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "a27f9ae23c0577a6afb5ede6eca2e2320e1c1caef6daf4266601bb3c7efb259c",
+          "complexity": 37
+        },
+        {
+          "id": "attempt-15",
+          "parents": [
+            "attempt-5",
+            "attempt-7"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.10354433227590576,
+              "max_drawdown": 0.13106727734871082,
+              "entries": 29,
+              "turnover": 58,
+              "exposure_fraction": 0.4418604651162791,
+              "missing_signals": 29,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.050664201407692566,
+              "max_drawdown": 0.054699300625199676,
+              "entries": 10,
+              "turnover": 20,
+              "exposure_fraction": 0.6312056737588653,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 24,
+              "b_p0": 14,
+              "b_p1": 30
+            },
+            "parameter_names": {
+              "a_p0": "period",
+              "b_p0": "a_p0",
+              "b_p1": "b_p0"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "a_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "a_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    },
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "b_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "b_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "b_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "4d579cc121bf2aec7016e5259ea0e4a15ff0f98d779ad5fcfede5794220608cf",
+          "complexity": 27
+        },
+        {
+          "id": "attempt-16",
+          "parents": [
+            "attempt-2",
+            "attempt-3"
+          ],
+          "operation": "mean",
+          "generation": 1,
+          "requested_parameters": null,
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.004126745690602895,
+              "max_drawdown": 0.07617570868373746,
+              "entries": 20,
+              "turnover": 40,
+              "exposure_fraction": 0.4186046511627907,
+              "missing_signals": 59,
+              "bars": 430,
+              "start": "2024-04-01T01:00:00+00:00",
+              "end": "2024-04-18T23:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.016101494254660564,
+              "max_drawdown": 0.029653224298453518,
+              "entries": 9,
+              "turnover": 18,
+              "exposure_fraction": 0.723404255319149,
+              "missing_signals": 0,
+              "bars": 141,
+              "start": "2024-04-19T02:00:00+00:00",
+              "end": "2024-04-24T23:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "bindings": {
+              "a_i0": "close",
+              "b_i0": "close"
+            },
+            "parameters": {
+              "a_p0": 14,
+              "a_p1": 60,
+              "b_p0": 12
+            },
+            "parameter_names": {
+              "a_p0": "a_p0",
+              "a_p1": "b_p0",
+              "b_p0": "period"
+            },
+            "output_type": "numeric_series",
+            "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+            "expression": {
+              "op": "div",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "add",
+                          "args": [
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "a_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "a_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "a_p0"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            },
+                            {
+                              "op": "sub",
+                              "args": [
+                                {
+                                  "op": "div",
+                                  "args": [
+                                    {
+                                      "op": "input",
+                                      "name": "a_i0"
+                                    },
+                                    {
+                                      "op": "sma",
+                                      "args": [
+                                        {
+                                          "op": "input",
+                                          "name": "a_i0"
+                                        },
+                                        {
+                                          "op": "parameter",
+                                          "name": "a_p1"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "op": "constant",
+                                  "value": 1
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 2
+                        }
+                      ]
+                    },
+                    {
+                      "op": "sub",
+                      "args": [
+                        {
+                          "op": "div",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "sma",
+                              "args": [
+                                {
+                                  "op": "input",
+                                  "name": "b_i0"
+                                },
+                                {
+                                  "op": "parameter",
+                                  "name": "b_p0"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "op": "constant",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          "fingerprint": "64bf7ff72ac2ef220ec9908732191be083effaf31bccdae8376e2e636865e9f9",
+          "complexity": 27
+        }
+      ],
+      "selection_rule": "train_pareto_then_validation_return_minus_drawdown_v1",
+      "frontier_ids": [
+        "attempt-2",
+        "attempt-13",
+        "attempt-16",
+        "attempt-3",
+        "attempt-1",
+        "attempt-5",
+        "attempt-7"
+      ],
+      "selected_id": "attempt-2",
+      "holdout_status": "excluded_from_this_batch_selection_prior_usage_unattested",
+      "holdout": {
+        "total_return": -0.03480231135847156,
+        "max_drawdown": 0.03735951129267168,
+        "entries": 9,
+        "turnover": 18,
+        "exposure_fraction": 0.2624113475177305,
+        "missing_signals": 0,
+        "bars": 141,
+        "start": "2024-04-25T02:00:00+00:00",
+        "end": "2024-04-30T23:00:00+00:00",
+        "curve": [
+          {
+            "timestamp": "2024-04-25T02:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T03:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T04:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T05:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T06:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T07:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T08:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T09:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T10:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T11:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T12:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T13:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T14:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T15:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T16:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T17:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T18:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T19:00:00+00:00",
+            "equity": 0.9991253690846578
+          },
+          {
+            "timestamp": "2024-04-25T20:00:00+00:00",
+            "equity": 0.9996659074656756
+          },
+          {
+            "timestamp": "2024-04-25T21:00:00+00:00",
+            "equity": 1.0003940362874066
+          },
+          {
+            "timestamp": "2024-04-25T22:00:00+00:00",
+            "equity": 0.9990929460455221
+          },
+          {
+            "timestamp": "2024-04-25T23:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T00:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T01:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T02:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T03:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T04:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T05:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T06:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T07:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T08:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T09:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T10:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T11:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T12:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T13:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T14:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T15:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T16:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T17:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T18:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T19:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T20:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T21:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T22:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-26T23:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T00:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T01:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T02:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T03:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T04:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T05:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T06:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T07:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T08:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T09:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T10:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T11:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T12:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T13:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T14:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T15:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T16:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T17:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T18:00:00+00:00",
+            "equity": 0.9980938530994766
+          },
+          {
+            "timestamp": "2024-04-27T19:00:00+00:00",
+            "equity": 0.9958825694854065
+          },
+          {
+            "timestamp": "2024-04-27T20:00:00+00:00",
+            "equity": 0.9948866869159211
+          },
+          {
+            "timestamp": "2024-04-27T21:00:00+00:00",
+            "equity": 0.9948866869159211
+          },
+          {
+            "timestamp": "2024-04-27T22:00:00+00:00",
+            "equity": 0.9948866869159211
+          },
+          {
+            "timestamp": "2024-04-27T23:00:00+00:00",
+            "equity": 0.9948866869159211
+          },
+          {
+            "timestamp": "2024-04-28T00:00:00+00:00",
+            "equity": 0.9948866869159211
+          },
+          {
+            "timestamp": "2024-04-28T01:00:00+00:00",
+            "equity": 0.9963130242802467
+          },
+          {
+            "timestamp": "2024-04-28T02:00:00+00:00",
+            "equity": 0.9961097416917272
+          },
+          {
+            "timestamp": "2024-04-28T03:00:00+00:00",
+            "equity": 1.0015349436554435
+          },
+          {
+            "timestamp": "2024-04-28T04:00:00+00:00",
+            "equity": 1.0026564433599028
+          },
+          {
+            "timestamp": "2024-04-28T05:00:00+00:00",
+            "equity": 0.9998612294616778
+          },
+          {
+            "timestamp": "2024-04-28T06:00:00+00:00",
+            "equity": 1.0015974319087713
+          },
+          {
+            "timestamp": "2024-04-28T07:00:00+00:00",
+            "equity": 1.0018032202919105
+          },
+          {
+            "timestamp": "2024-04-28T08:00:00+00:00",
+            "equity": 1.000994475078417
+          },
+          {
+            "timestamp": "2024-04-28T09:00:00+00:00",
+            "equity": 0.9977759385016342
+          },
+          {
+            "timestamp": "2024-04-28T10:00:00+00:00",
+            "equity": 0.9985488195296339
+          },
+          {
+            "timestamp": "2024-04-28T11:00:00+00:00",
+            "equity": 0.9975333462600189
+          },
+          {
+            "timestamp": "2024-04-28T12:00:00+00:00",
+            "equity": 0.9942366602135355
+          },
+          {
+            "timestamp": "2024-04-28T13:00:00+00:00",
+            "equity": 0.9932424235533219
+          },
+          {
+            "timestamp": "2024-04-28T14:00:00+00:00",
+            "equity": 0.9932424235533219
+          },
+          {
+            "timestamp": "2024-04-28T15:00:00+00:00",
+            "equity": 0.989631932082257
+          },
+          {
+            "timestamp": "2024-04-28T16:00:00+00:00",
+            "equity": 0.9886423001501747
+          },
+          {
+            "timestamp": "2024-04-28T17:00:00+00:00",
+            "equity": 0.9886423001501747
+          },
+          {
+            "timestamp": "2024-04-28T18:00:00+00:00",
+            "equity": 0.9886317709901357
+          },
+          {
+            "timestamp": "2024-04-28T19:00:00+00:00",
+            "equity": 0.9910430237509764
+          },
+          {
+            "timestamp": "2024-04-28T20:00:00+00:00",
+            "equity": 0.9880429496704112
+          },
+          {
+            "timestamp": "2024-04-28T21:00:00+00:00",
+            "equity": 0.9873532008416978
+          },
+          {
+            "timestamp": "2024-04-28T22:00:00+00:00",
+            "equity": 0.9869811178592495
+          },
+          {
+            "timestamp": "2024-04-28T23:00:00+00:00",
+            "equity": 0.9790597812320777
+          },
+          {
+            "timestamp": "2024-04-29T00:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T01:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T02:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T03:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T04:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T05:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T06:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T07:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T08:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T09:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T10:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T11:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T12:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T13:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T14:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T15:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T16:00:00+00:00",
+            "equity": 0.9780807214508457
+          },
+          {
+            "timestamp": "2024-04-29T17:00:00+00:00",
+            "equity": 0.973273222268453
+          },
+          {
+            "timestamp": "2024-04-29T18:00:00+00:00",
+            "equity": 0.9722999490461846
+          },
+          {
+            "timestamp": "2024-04-29T19:00:00+00:00",
+            "equity": 0.9688121584538109
+          },
+          {
+            "timestamp": "2024-04-29T20:00:00+00:00",
+            "equity": 0.9678433462953571
+          },
+          {
+            "timestamp": "2024-04-29T21:00:00+00:00",
+            "equity": 0.9665909082465892
+          },
+          {
+            "timestamp": "2024-04-29T22:00:00+00:00",
+            "equity": 0.9684851362015573
+          },
+          {
+            "timestamp": "2024-04-29T23:00:00+00:00",
+            "equity": 0.9807313045801179
+          },
+          {
+            "timestamp": "2024-04-30T00:00:00+00:00",
+            "equity": 0.9803627436952007
+          },
+          {
+            "timestamp": "2024-04-30T01:00:00+00:00",
+            "equity": 0.9913227098019075
+          },
+          {
+            "timestamp": "2024-04-30T02:00:00+00:00",
+            "equity": 0.9763718172283278
+          },
+          {
+            "timestamp": "2024-04-30T03:00:00+00:00",
+            "equity": 0.9790567395265729
+          },
+          {
+            "timestamp": "2024-04-30T04:00:00+00:00",
+            "equity": 0.9770162231403986
+          },
+          {
+            "timestamp": "2024-04-30T05:00:00+00:00",
+            "equity": 0.9732705945886017
+          },
+          {
+            "timestamp": "2024-04-30T06:00:00+00:00",
+            "equity": 0.9721349788340754
+          },
+          {
+            "timestamp": "2024-04-30T07:00:00+00:00",
+            "equity": 0.9711628438552413
+          },
+          {
+            "timestamp": "2024-04-30T08:00:00+00:00",
+            "equity": 0.9661638524940225
+          },
+          {
+            "timestamp": "2024-04-30T09:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T10:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T11:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T12:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T13:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T14:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T15:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T16:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T17:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T18:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T19:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T20:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T21:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T22:00:00+00:00",
+            "equity": 0.9651976886415284
+          },
+          {
+            "timestamp": "2024-04-30T23:00:00+00:00",
+            "equity": 0.9651976886415284
+          }
+        ],
+        "returns": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -0.0008746309153422338,
+          0.0005410115664594706,
+          0.0007283721654336439,
+          -0.0013005777670497265,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -0.002215506695290359,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0014336681584785627,
+          -0.00020403486009468175,
+          0.005446389826990972,
+          0.0011197809038654416,
+          -0.0027878082435277562,
+          0.0017364434142808083,
+          0.0002054601745005158,
+          -0.000807289492698815,
+          -0.0032153390022764405,
+          0.0007746037944755813,
+          -0.0010169490462103026,
+          -0.003304837937341487,
+          -0.0010000000000000009,
+          0.0,
+          -0.003635055637422724,
+          -0.0010000000000000009,
+          0.0,
+          -1.0650120915833838e-05,
+          0.0024389796399379993,
+          -0.003027188536386949,
+          -0.0006980959976927714,
+          -0.0003768489149891252,
+          -0.008025823882378824,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -0.004915237645479187,
+          -0.0010000000000000009,
+          -0.0035871549677598535,
+          -0.0010000000000000009,
+          -0.001294050378671141,
+          0.00195969974350807,
+          0.012644663217641794,
+          -0.0003758021011422974,
+          0.011179500829862521,
+          -0.015081761393892945,
+          0.0027498973760498036,
+          -0.0020841656094017225,
+          -0.003833742432400422,
+          -0.0011668037243088847,
+          -0.0010000000000000009,
+          -0.005147428562417233,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "buy_hold_baseline": {
+        "total_return": -0.056179677093193936,
+        "max_drawdown": 0.08490456256323842,
+        "entries": 1,
+        "turnover": 2,
+        "exposure_fraction": 1.0,
+        "missing_signals": 0,
+        "bars": 141,
+        "start": "2024-04-25T02:00:00+00:00",
+        "end": "2024-04-30T23:00:00+00:00",
+        "curve": [
+          {
+            "timestamp": "2024-04-25T02:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-04-25T03:00:00+00:00",
+            "equity": 1.002617376009455
+          },
+          {
+            "timestamp": "2024-04-25T04:00:00+00:00",
+            "equity": 1.0023373291404958
+          },
+          {
+            "timestamp": "2024-04-25T05:00:00+00:00",
+            "equity": 1.003210214648532
+          },
+          {
+            "timestamp": "2024-04-25T06:00:00+00:00",
+            "equity": 1.001422654901457
+          },
+          {
+            "timestamp": "2024-04-25T07:00:00+00:00",
+            "equity": 1.0024305741447486
+          },
+          {
+            "timestamp": "2024-04-25T08:00:00+00:00",
+            "equity": 0.9982203594962166
+          },
+          {
+            "timestamp": "2024-04-25T09:00:00+00:00",
+            "equity": 0.9971411811108793
+          },
+          {
+            "timestamp": "2024-04-25T10:00:00+00:00",
+            "equity": 0.9974101570846847
+          },
+          {
+            "timestamp": "2024-04-25T11:00:00+00:00",
+            "equity": 0.9895509130222442
+          },
+          {
+            "timestamp": "2024-04-25T12:00:00+00:00",
+            "equity": 0.9957761865168552
+          },
+          {
+            "timestamp": "2024-04-25T13:00:00+00:00",
+            "equity": 0.9890492923221099
+          },
+          {
+            "timestamp": "2024-04-25T14:00:00+00:00",
+            "equity": 0.9890358825054448
+          },
+          {
+            "timestamp": "2024-04-25T15:00:00+00:00",
+            "equity": 0.9883496429340145
+          },
+          {
+            "timestamp": "2024-04-25T16:00:00+00:00",
+            "equity": 1.0000593755165414
+          },
+          {
+            "timestamp": "2024-04-25T17:00:00+00:00",
+            "equity": 1.004885662091163
+          },
+          {
+            "timestamp": "2024-04-25T18:00:00+00:00",
+            "equity": 1.008917027208127
+          },
+          {
+            "timestamp": "2024-04-25T19:00:00+00:00",
+            "equity": 1.0090436408259416
+          },
+          {
+            "timestamp": "2024-04-25T20:00:00+00:00",
+            "equity": 1.0095895451066907
+          },
+          {
+            "timestamp": "2024-04-25T21:00:00+00:00",
+            "equity": 1.0103249020298593
+          },
+          {
+            "timestamp": "2024-04-25T22:00:00+00:00",
+            "equity": 1.0090108959247825
+          },
+          {
+            "timestamp": "2024-04-25T23:00:00+00:00",
+            "equity": 1.007342153390484
+          },
+          {
+            "timestamp": "2024-04-26T00:00:00+00:00",
+            "equity": 1.0057102098879642
+          },
+          {
+            "timestamp": "2024-04-26T01:00:00+00:00",
+            "equity": 1.0027273053204884
+          },
+          {
+            "timestamp": "2024-04-26T02:00:00+00:00",
+            "equity": 1.0042234354472492
+          },
+          {
+            "timestamp": "2024-04-26T03:00:00+00:00",
+            "equity": 1.0057350024559848
+          },
+          {
+            "timestamp": "2024-04-26T04:00:00+00:00",
+            "equity": 1.003884603684305
+          },
+          {
+            "timestamp": "2024-04-26T05:00:00+00:00",
+            "equity": 1.0012274329193098
+          },
+          {
+            "timestamp": "2024-04-26T06:00:00+00:00",
+            "equity": 1.0065781056967764
+          },
+          {
+            "timestamp": "2024-04-26T07:00:00+00:00",
+            "equity": 1.0038270662151256
+          },
+          {
+            "timestamp": "2024-04-26T08:00:00+00:00",
+            "equity": 1.0022581176653118
+          },
+          {
+            "timestamp": "2024-04-26T09:00:00+00:00",
+            "equity": 1.0043718789991698
+          },
+          {
+            "timestamp": "2024-04-26T10:00:00+00:00",
+            "equity": 1.0053462737007983
+          },
+          {
+            "timestamp": "2024-04-26T11:00:00+00:00",
+            "equity": 0.9994992817786231
+          },
+          {
+            "timestamp": "2024-04-26T12:00:00+00:00",
+            "equity": 1.0017449582857212
+          },
+          {
+            "timestamp": "2024-04-26T13:00:00+00:00",
+            "equity": 1.0001661862655595
+          },
+          {
+            "timestamp": "2024-04-26T14:00:00+00:00",
+            "equity": 1.005736249880791
+          },
+          {
+            "timestamp": "2024-04-26T15:00:00+00:00",
+            "equity": 0.9956656334934187
+          },
+          {
+            "timestamp": "2024-04-26T16:00:00+00:00",
+            "equity": 0.9901936486535635
+          },
+          {
+            "timestamp": "2024-04-26T17:00:00+00:00",
+            "equity": 0.9926772714424165
+          },
+          {
+            "timestamp": "2024-04-26T18:00:00+00:00",
+            "equity": 0.9980708244475911
+          },
+          {
+            "timestamp": "2024-04-26T19:00:00+00:00",
+            "equity": 0.9988755693755964
+          },
+          {
+            "timestamp": "2024-04-26T20:00:00+00:00",
+            "equity": 0.9939179913401375
+          },
+          {
+            "timestamp": "2024-04-26T21:00:00+00:00",
+            "equity": 0.9974157704963119
+          },
+          {
+            "timestamp": "2024-04-26T22:00:00+00:00",
+            "equity": 0.9988747897350925
+          },
+          {
+            "timestamp": "2024-04-26T23:00:00+00:00",
+            "equity": 0.9951633890808813
+          },
+          {
+            "timestamp": "2024-04-27T00:00:00+00:00",
+            "equity": 0.9943534985255509
+          },
+          {
+            "timestamp": "2024-04-27T01:00:00+00:00",
+            "equity": 0.9851849262010562
+          },
+          {
+            "timestamp": "2024-04-27T02:00:00+00:00",
+            "equity": 0.9760051270533071
+          },
+          {
+            "timestamp": "2024-04-27T03:00:00+00:00",
+            "equity": 0.9812552262057858
+          },
+          {
+            "timestamp": "2024-04-27T04:00:00+00:00",
+            "equity": 0.9836256451934893
+          },
+          {
+            "timestamp": "2024-04-27T05:00:00+00:00",
+            "equity": 0.9831043775526596
+          },
+          {
+            "timestamp": "2024-04-27T06:00:00+00:00",
+            "equity": 0.9821638192488951
+          },
+          {
+            "timestamp": "2024-04-27T07:00:00+00:00",
+            "equity": 0.9827836334494031
+          },
+          {
+            "timestamp": "2024-04-27T08:00:00+00:00",
+            "equity": 0.981829977185175
+          },
+          {
+            "timestamp": "2024-04-27T09:00:00+00:00",
+            "equity": 0.9825966756565957
+          },
+          {
+            "timestamp": "2024-04-27T10:00:00+00:00",
+            "equity": 0.9821045665706074
+          },
+          {
+            "timestamp": "2024-04-27T11:00:00+00:00",
+            "equity": 0.9791659455837465
+          },
+          {
+            "timestamp": "2024-04-27T12:00:00+00:00",
+            "equity": 0.9801972540421515
+          },
+          {
+            "timestamp": "2024-04-27T13:00:00+00:00",
+            "equity": 0.9828868578521042
+          },
+          {
+            "timestamp": "2024-04-27T14:00:00+00:00",
+            "equity": 0.9858880060073686
+          },
+          {
+            "timestamp": "2024-04-27T15:00:00+00:00",
+            "equity": 0.9843998282137466
+          },
+          {
+            "timestamp": "2024-04-27T16:00:00+00:00",
+            "equity": 0.9815946816811333
+          },
+          {
+            "timestamp": "2024-04-27T17:00:00+00:00",
+            "equity": 0.9784488322483667
+          },
+          {
+            "timestamp": "2024-04-27T18:00:00+00:00",
+            "equity": 0.9888370741769804
+          },
+          {
+            "timestamp": "2024-04-27T19:00:00+00:00",
+            "equity": 0.9876339329515416
+          },
+          {
+            "timestamp": "2024-04-27T20:00:00+00:00",
+            "equity": 0.9878374191230292
+          },
+          {
+            "timestamp": "2024-04-27T21:00:00+00:00",
+            "equity": 0.9866816800402204
+          },
+          {
+            "timestamp": "2024-04-27T22:00:00+00:00",
+            "equity": 0.9868622447808966
+          },
+          {
+            "timestamp": "2024-04-27T23:00:00+00:00",
+            "equity": 0.986401165386959
+          },
+          {
+            "timestamp": "2024-04-28T00:00:00+00:00",
+            "equity": 0.989550601166043
+          },
+          {
+            "timestamp": "2024-04-28T01:00:00+00:00",
+            "equity": 0.9919612496037418
+          },
+          {
+            "timestamp": "2024-04-28T02:00:00+00:00",
+            "equity": 0.9917588549289595
+          },
+          {
+            "timestamp": "2024-04-28T03:00:00+00:00",
+            "equity": 0.9971603602672728
+          },
+          {
+            "timestamp": "2024-04-28T04:00:00+00:00",
+            "equity": 0.9982769613967917
+          },
+          {
+            "timestamp": "2024-04-28T05:00:00+00:00",
+            "equity": 0.9954939566544858
+          },
+          {
+            "timestamp": "2024-04-28T06:00:00+00:00",
+            "equity": 0.9972225755794748
+          },
+          {
+            "timestamp": "2024-04-28T07:00:00+00:00",
+            "equity": 0.9974274651038693
+          },
+          {
+            "timestamp": "2024-04-28T08:00:00+00:00",
+            "equity": 0.9966222523915615
+          },
+          {
+            "timestamp": "2024-04-28T09:00:00+00:00",
+            "equity": 0.9934177739929103
+          },
+          {
+            "timestamp": "2024-04-28T10:00:00+00:00",
+            "equity": 0.9941872791701447
+          },
+          {
+            "timestamp": "2024-04-28T11:00:00+00:00",
+            "equity": 0.9931762413648382
+          },
+          {
+            "timestamp": "2024-04-28T12:00:00+00:00",
+            "equity": 0.9898939548439094
+          },
+          {
+            "timestamp": "2024-04-28T13:00:00+00:00",
+            "equity": 0.9915472604962329
+          },
+          {
+            "timestamp": "2024-04-28T14:00:00+00:00",
+            "equity": 0.9944380115561615
+          },
+          {
+            "timestamp": "2024-04-28T15:00:00+00:00",
+            "equity": 0.9918149890452321
+          },
+          {
+            "timestamp": "2024-04-28T16:00:00+00:00",
+            "equity": 0.990767152208147
+          },
+          {
+            "timestamp": "2024-04-28T17:00:00+00:00",
+            "equity": 0.9933458911384614
+          },
+          {
+            "timestamp": "2024-04-28T18:00:00+00:00",
+            "equity": 0.9943296415261357
+          },
+          {
+            "timestamp": "2024-04-28T19:00:00+00:00",
+            "equity": 0.9967547912772048
+          },
+          {
+            "timestamp": "2024-04-28T20:00:00+00:00",
+            "equity": 0.9937374265994616
+          },
+          {
+            "timestamp": "2024-04-28T21:00:00+00:00",
+            "equity": 0.993043702479195
+          },
+          {
+            "timestamp": "2024-04-28T22:00:00+00:00",
+            "equity": 0.992669475037379
+          },
+          {
+            "timestamp": "2024-04-28T23:00:00+00:00",
+            "equity": 0.9847024846573156
+          },
+          {
+            "timestamp": "2024-04-29T00:00:00+00:00",
+            "equity": 0.9841966538984609
+          },
+          {
+            "timestamp": "2024-04-29T01:00:00+00:00",
+            "equity": 0.986360935936964
+          },
+          {
+            "timestamp": "2024-04-29T02:00:00+00:00",
+            "equity": 0.9859644107767396
+          },
+          {
+            "timestamp": "2024-04-29T03:00:00+00:00",
+            "equity": 0.977768050160463
+          },
+          {
+            "timestamp": "2024-04-29T04:00:00+00:00",
+            "equity": 0.9711152218135771
+          },
+          {
+            "timestamp": "2024-04-29T05:00:00+00:00",
+            "equity": 0.9752055277526273
+          },
+          {
+            "timestamp": "2024-04-29T06:00:00+00:00",
+            "equity": 0.973691154038078
+          },
+          {
+            "timestamp": "2024-04-29T07:00:00+00:00",
+            "equity": 0.9698679529356242
+          },
+          {
+            "timestamp": "2024-04-29T08:00:00+00:00",
+            "equity": 0.9729910368656803
+          },
+          {
+            "timestamp": "2024-04-29T09:00:00+00:00",
+            "equity": 0.9729600071736297
+          },
+          {
+            "timestamp": "2024-04-29T10:00:00+00:00",
+            "equity": 0.9751121268202738
+          },
+          {
+            "timestamp": "2024-04-29T11:00:00+00:00",
+            "equity": 0.9728192040986464
+          },
+          {
+            "timestamp": "2024-04-29T12:00:00+00:00",
+            "equity": 0.9707459840709851
+          },
+          {
+            "timestamp": "2024-04-29T13:00:00+00:00",
+            "equity": 0.9761460860563914
+          },
+          {
+            "timestamp": "2024-04-29T14:00:00+00:00",
+            "equity": 0.9669725240326725
+          },
+          {
+            "timestamp": "2024-04-29T15:00:00+00:00",
+            "equity": 0.9797740651766977
+          },
+          {
+            "timestamp": "2024-04-29T16:00:00+00:00",
+            "equity": 0.9829562458569409
+          },
+          {
+            "timestamp": "2024-04-29T17:00:00+00:00",
+            "equity": 0.9791038861996455
+          },
+          {
+            "timestamp": "2024-04-29T18:00:00+00:00",
+            "equity": 0.9828653397741995
+          },
+          {
+            "timestamp": "2024-04-29T19:00:00+00:00",
+            "equity": 0.980319969457447
+          },
+          {
+            "timestamp": "2024-04-29T20:00:00+00:00",
+            "equity": 0.9821500975760286
+          },
+          {
+            "timestamp": "2024-04-29T21:00:00+00:00",
+            "equity": 0.9818610068772257
+          },
+          {
+            "timestamp": "2024-04-29T22:00:00+00:00",
+            "equity": 0.9837851596405636
+          },
+          {
+            "timestamp": "2024-04-29T23:00:00+00:00",
+            "equity": 0.9962247916627325
+          },
+          {
+            "timestamp": "2024-04-30T00:00:00+00:00",
+            "equity": 0.9958504082928156
+          },
+          {
+            "timestamp": "2024-04-30T01:00:00+00:00",
+            "equity": 1.006983518758744
+          },
+          {
+            "timestamp": "2024-04-30T02:00:00+00:00",
+            "equity": 0.9917964336012418
+          },
+          {
+            "timestamp": "2024-04-30T03:00:00+00:00",
+            "equity": 0.9945237720115774
+          },
+          {
+            "timestamp": "2024-04-30T04:00:00+00:00",
+            "equity": 0.9924510197682184
+          },
+          {
+            "timestamp": "2024-04-30T05:00:00+00:00",
+            "equity": 0.9886462181816539
+          },
+          {
+            "timestamp": "2024-04-30T06:00:00+00:00",
+            "equity": 0.9874926620922556
+          },
+          {
+            "timestamp": "2024-04-30T07:00:00+00:00",
+            "equity": 0.9887712725184606
+          },
+          {
+            "timestamp": "2024-04-30T08:00:00+00:00",
+            "equity": 0.9846663093379394
+          },
+          {
+            "timestamp": "2024-04-30T09:00:00+00:00",
+            "equity": 0.9654961967747078
+          },
+          {
+            "timestamp": "2024-04-30T10:00:00+00:00",
+            "equity": 0.9618894238761043
+          },
+          {
+            "timestamp": "2024-04-30T11:00:00+00:00",
+            "equity": 0.9633577988009303
+          },
+          {
+            "timestamp": "2024-04-30T12:00:00+00:00",
+            "equity": 0.9543487409235099
+          },
+          {
+            "timestamp": "2024-04-30T13:00:00+00:00",
+            "equity": 0.9547502557829584
+          },
+          {
+            "timestamp": "2024-04-30T14:00:00+00:00",
+            "equity": 0.9483637526321649
+          },
+          {
+            "timestamp": "2024-04-30T15:00:00+00:00",
+            "equity": 0.9550264044493985
+          },
+          {
+            "timestamp": "2024-04-30T16:00:00+00:00",
+            "equity": 0.94799389117717
+          },
+          {
+            "timestamp": "2024-04-30T17:00:00+00:00",
+            "equity": 0.9408183918365477
+          },
+          {
+            "timestamp": "2024-04-30T18:00:00+00:00",
+            "equity": 0.9413195447523797
+          },
+          {
+            "timestamp": "2024-04-30T19:00:00+00:00",
+            "equity": 0.9418631101116176
+          },
+          {
+            "timestamp": "2024-04-30T20:00:00+00:00",
+            "equity": 0.9245437081762673
+          },
+          {
+            "timestamp": "2024-04-30T21:00:00+00:00",
+            "equity": 0.9349233740593395
+          },
+          {
+            "timestamp": "2024-04-30T22:00:00+00:00",
+            "equity": 0.9383753103538915
+          },
+          {
+            "timestamp": "2024-04-30T23:00:00+00:00",
+            "equity": 0.9438203229068061
+          }
+        ],
+        "returns": [
+          0.002617376009454997,
+          -0.00027931579449957944,
+          0.000870850044849325,
+          -0.0017818396592992336,
+          0.0010064873591166812,
+          -0.004200006222001007,
+          -0.001081102358883812,
+          0.0002697471320016742,
+          -0.007879651121071585,
+          0.006291008792663311,
+          -0.006755427862033314,
+          -1.3558289530313239e-05,
+          -0.0006938469913668754,
+          0.011847763254879462,
+          0.004826000028377075,
+          0.0040117649888393725,
+          0.00012549457923705098,
+          0.0005410115664594706,
+          0.0007283721654336439,
+          -0.0013005777670497265,
+          -0.0016538399545914517,
+          -0.0016200488553239634,
+          -0.002965968266155028,
+          0.0014920608213442321,
+          0.0015052098520906831,
+          -0.001839847243221282,
+          -0.0026468886515872425,
+          0.005344113236954939,
+          -0.0027330611167490915,
+          -0.0015629669717209804,
+          0.002108998966036557,
+          0.0009701533087520531,
+          -0.005815898536781439,
+          0.0022468015215597603,
+          -0.001576021927640503,
+          0.00556913810096793,
+          -0.0100131782945736,
+          -0.005495805675903576,
+          0.0025082192682512883,
+          0.005433339878264221,
+          0.0008063004230693949,
+          -0.004963158763165998,
+          0.003519182856785097,
+          0.0014627994482727669,
+          -0.0037155814646152585,
+          -0.0008138267185234804,
+          -0.009220636663007653,
+          -0.00931784368965849,
+          0.005379171693830509,
+          0.0024157007518514906,
+          -0.000529945150756217,
+          -0.0009567227297938574,
+          0.0006310700805309821,
+          -0.0009703623786254667,
+          0.000780887209839376,
+          -0.0005008251077782688,
+          -0.002992167114263866,
+          0.0010532519672037388,
+          0.002743941384105275,
+          0.003053401448283477,
+          -0.001509479560106164,
+          -0.002849600794530227,
+          -0.00320483544937189,
+          0.010617051792828791,
+          -0.0012167234187090425,
+          0.0002060340017677742,
+          -0.0011699689244762945,
+          0.00018300202013366018,
+          -0.0004672175841927695,
+          0.0031928548846031912,
+          0.002436104262741212,
+          -0.00020403486009468175,
+          0.005446389826990972,
+          0.0011197809038654416,
+          -0.0027878082435277562,
+          0.0017364434142808083,
+          0.0002054601745005158,
+          -0.000807289492698926,
+          -0.0032153390022764405,
+          0.0007746037944755813,
+          -0.0010169490462103026,
+          -0.003304837937341487,
+          0.0016701846134459242,
+          0.0029153941270352313,
+          -0.0026376933307534767,
+          -0.0010564841716032003,
+          0.0026027699087187717,
+          0.0009903402193034427,
+          0.0024389796399379993,
+          -0.003027188536386949,
+          -0.0006980959976927714,
+          -0.0003768489149891252,
+          -0.008025823882378824,
+          -0.0005136889230361597,
+          0.0021990341360440535,
+          -0.0004020081754836369,
+          -0.008313039017117774,
+          -0.006804096683046712,
+          0.004211967691548857,
+          -0.001552876467014186,
+          -0.0039265028614035025,
+          0.0032201125118147544,
+          -3.189103586254127e-05,
+          0.0022119302240344307,
+          -0.0023514451913385637,
+          -0.002131146279726437,
+          0.005562837316885005,
+          -0.009397734780436262,
+          0.013238784790531088,
+          0.003247871926135515,
+          -0.003919156802281498,
+          0.003841730818936906,
+          -0.0025897447124723083,
+          0.0018668681406075471,
+          -0.0002943447233945129,
+          0.00195969974350807,
+          0.012644663217641794,
+          -0.0003758021011422974,
+          0.011179500829862521,
+          -0.015081761393892945,
+          0.0027498973760498036,
+          -0.0020841656094017225,
+          -0.003833742432400422,
+          -0.0011668037243088847,
+          0.0012948049897363312,
+          -0.004151580142559785,
+          -0.019468638645838365,
+          -0.0037356676397608535,
+          0.001526552728804198,
+          -0.009351725691777113,
+          0.0004207213173037516,
+          -0.006689187158746668,
+          0.007025418041064491,
+          -0.00736368464731918,
+          -0.007569140906290239,
+          0.000532677634897949,
+          0.0005774504123154944,
+          -0.018388449180579802,
+          0.011226798464235799,
+          0.003692213062942429,
+          0.005802595712861347
+        ]
+      },
+      "stop_reason": "candidate_budget",
+      "limitations": [
+        "只验证受控表达式，未验证原平台源码等价性",
+        "固定阈值/布尔条件做多或空仓，下一根开盘成交，区间末平仓",
+        "未模拟涨跌停、停牌、流动性、成交量约束、T+1、融资与公司行动；净值回撤按开盘区间采样",
+        "留出数据在本批选择后才评价，跨批次使用历史需由持久化工作流另行检查",
+        "单位比较使用原始声明，尚未证明经济含义或尺度可比"
+      ]
+    },
+    "checkpoint_hashes": [
+      "098b4585a59b53c4aff27dc4c87f73ed0812da0d8173c7530cad9a92dff5c8f5",
+      "f597262dd544f3ab2b1b029c6121cb45eb1ec508188975ba659d53142449cd93",
+      "1ce898f7dc08ebfc2ad191089e3f056f0665a0b0f269af61a4565c4e6d4a652f",
+      "c66ffdd09c809cbb169c2dc7cabe801738649585bc8ad0df031d4284b3e2d27d",
+      "1309e4eaf36c9fb87355b091bbf4f878f5b6e33d24b751b860e93eba89ad1376",
+      "72b67ba16b9975113d76c8b8865c6b85d85477a8d5521d5aef2013b043a0134d",
+      "b372a5ac99b44a1d65f74a70934b594dc63c1d98e46bf52e22d2d9bd5ce1477f",
+      "c551a07811b20084a0042aacaafaa3118ce36ce5a7561f0d0f9a8222046f0ed9",
+      "df0f3626c04eea66dde8135b435d242e1bae35454c6043613f287a3539a262ae",
+      "741bad91894d1c87e6c0db701c1dd1e7ea621a19fe400d1e2409712516ce77f4",
+      "f6f2c2ae9cc7129c4db04000e508ad31a87ee1c077ff8a5bc02500b28213f317",
+      "0f0e7efe52b0f9f8015c97abfc3366035ec3931964ceb7517f61148faebcb25e",
+      "b70d9b54737edbb4a7bf0d12d1a67470cb8591a4cb7cbe021f6dfe1ba04de310",
+      "b2c702270fb8790e9ac697b16fe902c5464cf800982bf7343e6dd2accb50d008",
+      "a1408d6ffd0f2f2a3e2ad19991c1b6f2f9a03e53f28affdd5c72f59195a8a9f5",
+      "499c3337ccc8d0657c56ef89d92beefca0f44cb1c2c0a5ea1b4e36f9adfd499c"
+    ],
+    "overlap_audit": {
+      "scope": "same_collection_symbol_timeframe_requested_ranges",
+      "request_ids": [],
+      "total": 0,
+      "independent_holdout_proven": false
+    }
+  }
+}

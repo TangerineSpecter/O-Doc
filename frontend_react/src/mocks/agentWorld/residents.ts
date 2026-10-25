@@ -86,7 +86,12 @@ const generatedFeed: DailyFeedEvent[] = Array.from({length: 48}, (_, i) => {
             ...(n === 1 ? {collId: 'local-world', articleId: 'local-post-0'} : {}), ...(n === 2 ? {artifactId: 'local-moment-0'} : {})}};
 });
 
-export const feed: DailyFeedEvent[] = [...feedStepsSamples, ...generatedFeed];
+export const feed: DailyFeedEvent[] = [{
+    id: 'run:local-idle-waiting', actorId: residents[0].id, actorName: residents[0].name,
+    category: 'record', source: 'run', occurredAt: now.toISOString(),
+    title: '自由活动 · 等待重试', detail: '体力不足，顺延；计划于 10/25 15:58 重试',
+    status: 'deferred', amount: null, target: {kind: 'run', id: 'local-run-0'},
+}, ...feedStepsSamples, ...generatedFeed];
 export const residentDecisions: DailyFeedEvent[] = residents.flatMap((resident, index) => [
     {id: `local-decision-plan-${index}`, actorId: resident.id, actorName: resident.name,
         category: 'decision', source: 'life-decision', occurredAt: new Date(now.getTime() - (index * 18 + 6) * 60000).toISOString(),

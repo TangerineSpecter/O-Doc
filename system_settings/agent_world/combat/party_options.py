@@ -1,7 +1,7 @@
 """Owner-scoped, read-only join admission and durable adventure-mode choices."""
 from datetime import timedelta
 from django.db import transaction
-from .models import Exploration, CombatProfile, CombatRuntime, CombatConfig
+from .models import Exploration, CombatProfile, CombatRuntime
 from .party_models import AdventureParty, AdventureMember
 from .party_rules import MIN_JOIN_SECONDS
 from .store import current
@@ -34,8 +34,8 @@ def duration_for(party, owner, agent, now=None, *, excluding=''):
     run = Exploration.objects.filter(pk=excluding).first() if excluding else None
     item_id = run.life_item_id if run else ''
     remaining = int((local_time(party.ends_at)-now).total_seconds())
-    cfg = CombatConfig.objects.filter(pk=owner).first()
-    quota = (cfg.daily_minutes if cfg else 120)*60-profile.loot_progress.get('days', {}).get(now.date().isoformat(), 0)
+    from .reservation_resources import quota_remaining
+    quota = quota_remaining(profile, now.date(), exclude_item=Exploration.objects.filter(pk=excluding).values_list('life_item_id', flat=True).first())
     remaining = min(remaining, quota)
     life = LifeConfig.objects.filter(pk=owner).first()
     if life:

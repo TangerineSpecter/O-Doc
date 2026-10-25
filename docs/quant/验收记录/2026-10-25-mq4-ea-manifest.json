@@ -1,0 +1,101 @@
+{
+  "case_id": "tick_ea",
+  "runtime_transport": "explicit_httpx_after_fix",
+  "failed_attempt": {
+    "case_id": "tick_ea",
+    "model": "deepseek-flash",
+    "status": "failed",
+    "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+    "workflow_version": 14,
+    "provider_calls": 5,
+    "elapsed_seconds": 156.13,
+    "report_created": false,
+    "database": "isolated_in_memory",
+    "production_database": "read_only_configuration_lookup",
+    "steps": [
+      {
+        "stage": "normalize",
+        "status": "completed"
+      },
+      {
+        "stage": "identify",
+        "status": "completed"
+      },
+      {
+        "stage": "parameters",
+        "status": "completed"
+      },
+      {
+        "stage": "research",
+        "status": "completed"
+      },
+      {
+        "stage": "extract",
+        "status": "completed"
+      },
+      {
+        "stage": "repair",
+        "status": "failed"
+      }
+    ]
+  },
+  "retry": {
+    "case_id": "tick_ea",
+    "restart_stage": "parameters",
+    "resumed": true,
+    "model": "deepseek-flash",
+    "status": "completed",
+    "error": "",
+    "workflow_version": 14,
+    "provider_calls": 5,
+    "elapsed_seconds": 254.19,
+    "report_created": true,
+    "database": "isolated_in_memory",
+    "production_database": "read_only_configuration_lookup",
+    "steps": [
+      {
+        "stage": "normalize",
+        "status": "completed"
+      },
+      {
+        "stage": "identify",
+        "status": "completed"
+      },
+      {
+        "stage": "parameters",
+        "status": "completed"
+      },
+      {
+        "stage": "research",
+        "status": "completed"
+      },
+      {
+        "stage": "extract",
+        "status": "completed"
+      },
+      {
+        "stage": "repair",
+        "status": "completed"
+      },
+      {
+        "stage": "compare",
+        "status": "completed"
+      },
+      {
+        "stage": "review",
+        "status": "completed"
+      },
+      {
+        "stage": "plan",
+        "status": "completed"
+      },
+      {
+        "stage": "publish",
+        "status": "completed"
+      }
+    ]
+  },
+  "fresh_quality_baseline": false,
+  "source": "../../../quant/quality/corpus/tick_ea.mq4",
+  "script_restore_failed_before_model": true
+}

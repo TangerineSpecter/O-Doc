@@ -1,0 +1,189 @@
+{
+  "campaign_id": "713207f64f98a180445f04981b52101b72c9eb9c",
+  "status": "completed",
+  "reason": "round_budget",
+  "rounds": [
+    {
+      "ordinal": 1,
+      "dataset_id": "8eec5657b9b3070954bacfcdb3e8f53831d71bc6",
+      "request_id": "f24f449bdeaabcd2d57a6cd47bae3748b7ee6685",
+      "proposal_id": "fb3feef09bc221ab632b0ffcca06331d37241d31",
+      "proposal_adapted": false,
+      "attempts": 12,
+      "evaluated": 12,
+      "selected_id": "attempt-6",
+      "selected_recipe": {
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "i0"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 24
+        },
+        "parameter_names": {
+          "p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "holdout_return": -0.0279216053359701,
+      "baseline_return": -0.001115387419840408,
+      "independent_holdout_proven": false,
+      "decimal_reference_matched": true,
+      "review_id": "d12991c8c7e748cdb748a750c687b6f5",
+      "review_status": "completed",
+      "review_error": "",
+      "next_proposal_id": "cf2c2b44dbda43e00383761b7bea7d66cbc766c7"
+    },
+    {
+      "ordinal": 2,
+      "dataset_id": "450d2db5d1996ac41af964929e7993e7dd9f8e6f",
+      "request_id": "b90cf881367dd5ced93e9afc58c1850247927c22",
+      "proposal_id": "cf2c2b44dbda43e00383761b7bea7d66cbc766c7",
+      "proposal_adapted": false,
+      "attempts": 16,
+      "evaluated": 16,
+      "selected_id": "attempt-2",
+      "selected_recipe": {
+        "expression": {
+          "op": "div",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "p1"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 2
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 14,
+          "p1": 60
+        },
+        "parameter_names": {
+          "p0": "a_p0",
+          "p1": "b_p0"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "holdout_return": -0.03480231135847156,
+      "baseline_return": -0.056179677093193936,
+      "independent_holdout_proven": false,
+      "decimal_reference_matched": true,
+      "review_id": "c9744544baa446e098d7cd40723c6df7",
+      "review_status": "completed",
+      "review_error": "",
+      "next_proposal_id": null
+    }
+  ],
+  "reserved_attempts": 32,
+  "reserved_compute_seconds": 60,
+  "actual_provider_calls": 2,
+  "elapsed_seconds": 132.58,
+  "snapshot_roundtrip": true,
+  "idempotent_replay_did_not_restart": true,
+  "restored_execution_jobs": false,
+  "old_reports_results_proposals_unchanged": true,
+  "purpose": "exploratory_research_not_fixed_independent_validation",
+  "database": "isolated_in_memory",
+  "business_database": "read_only_configuration_lookup"
+}

@@ -107,6 +107,8 @@ def commitments(owner, actor, now=None, *, exclude_item=None, exclude_bounty=Non
         result.append(Commitment(entry.key, entry.at, entry.energy - used, entry.kind))
     for bounty in Bounty.objects.filter(owner_id=owner, agent_id=actor, status='claimed').exclude(pk=exclude_bounty or ''):
         result.append(Commitment('bounty:' + bounty.pk, max(now, local_time(bounty.next_try_at or now)), Decimal(20), 'bounty'))
+    from .combat.reservation_resources import commitments as exploration_commitments
+    result.extend(exploration_commitments(owner, actor, now, exclude_item=exclude_item))
     return result
 
 
@@ -136,7 +138,7 @@ def require_energy(owner, agent, cost, *, item_id=None, manual=False, bounty_id=
         return
     # Main commitments are serviced first; subsequent main work already supports
     # deferral. Idle and independent automation must leave those commitments safe.
-    if item and not is_interleaved(item) and item.activity != 'market_prepare':
+    if item and not is_interleaved(item) and not item.context.get('adventure_reservation_id') and item.activity != 'market_prepare':
         return
     # A delayed worker must not spend against a historical balance that omits
     # manual actions committed since its original due time.

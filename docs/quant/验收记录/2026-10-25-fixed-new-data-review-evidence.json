@@ -1,0 +1,2575 @@
+{
+  "version": 2,
+  "metric_units": "return/drawdown/exposure are fractions; fees/slippage are bps per side; entries are counts",
+  "independent_holdout_proven": false,
+  "evidence": {
+    "dataset": {
+      "symbol": "BTCUSDT",
+      "timeframe": "1h",
+      "timezone": "UTC",
+      "price_adjustment": "spot raw; no equity adjustment",
+      "source": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01.zip",
+      "row_count": 744,
+      "start": "2024-01-01T00:00:00+00:00",
+      "end": "2024-01-31T23:00:00+00:00"
+    },
+    "execution": {
+      "engine_version": "quant-local-search-2",
+      "config": {
+        "seed": 42,
+        "max_candidates": 16,
+        "generations": 2,
+        "threshold": 0,
+        "fee_bps": 5,
+        "slippage_bps": 5,
+        "gap": 2,
+        "seconds": 30
+      },
+      "status": "completed",
+      "error": "",
+      "stop_reason": "generation_complete",
+      "selection_rule": "train_pareto_then_validation_return_minus_drawdown_v1",
+      "selected_id": "attempt-5",
+      "frontier_ids": [
+        "attempt-5",
+        "attempt-6",
+        "attempt-1",
+        "attempt-7",
+        "attempt-9"
+      ],
+      "limitations": [
+        "只验证受控表达式，未验证原平台源码等价性",
+        "固定阈值/布尔条件做多或空仓，下一根开盘成交，区间末平仓",
+        "未模拟涨跌停、停牌、流动性、成交量约束、T+1、融资与公司行动；净值回撤按开盘区间采样",
+        "留出数据在本批选择后才评价，跨批次使用历史需由持久化工作流另行检查",
+        "单位比较使用原始声明，尚未证明经济含义或尺度可比"
+      ],
+      "semantics": "收盘信号决定下一根开盘做多/空仓；末尾平仓，单侧费用及滑点，开盘净值采样；不等价于原平台"
+    },
+    "reuse": {
+      "scope": "same_collection_symbol_timeframe_requested_ranges",
+      "total": 0,
+      "independent_holdout_proven": false
+    },
+    "partition:train": {
+      "start": "2024-01-01T01:00:00+00:00",
+      "end": "2024-01-19T13:00:00+00:00",
+      "return_intervals": 444
+    },
+    "partition:validation": {
+      "start": "2024-01-19T16:00:00+00:00",
+      "end": "2024-01-25T18:00:00+00:00",
+      "return_intervals": 146
+    },
+    "partition:holdout": {
+      "start": "2024-01-25T21:00:00+00:00",
+      "end": "2024-01-31T23:00:00+00:00",
+      "return_intervals": 146
+    },
+    "seed:8ad1fb3c214f382be9696ef1c10849a8be940581": {
+      "name": "close_relative_rolling_mean_deviation",
+      "formula": "s_t = close_t / mean_t - 1；mean_t = 过去 period 个 bar 的 close 算术均值（rolling mean）。",
+      "expression": {
+        "op": "sub",
+        "args": [
+          {
+            "op": "div",
+            "args": [
+              {
+                "op": "input",
+                "name": "close"
+              },
+              {
+                "op": "sma",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "parameter",
+                    "name": "period"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "constant",
+            "value": 1
+          }
+        ]
+      },
+      "output_type": "numeric_series",
+      "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+      "parameters": [
+        {
+          "name": "period",
+          "type": "int",
+          "default_value": "14",
+          "category": "signal",
+          "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+          "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+          "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+          "suggestion": "待验证：先确认 frame 的数据频率与复权口径，再对 period 做敏感性检查（例如在多个候选窗口上比较信号自相关与换手）；建议范围仅为验证起点，非实证最优，且不得以默认值14冒充实际运行配置。",
+          "evidence": "第1行默认值 period=14；第5行使用 rolling(period).mean() 构造滚动均值。"
+        }
+      ],
+      "inputs": [
+        {
+          "name": "close",
+          "meaning": "frame[\"close\"] 价格序列字段；源码只引用单一 close 字段，资产范围、数据频率与复权口径未声明。",
+          "availability": "bar t 的 close 在数据发布后可得；具体发布延迟、频率、复权口径未知。",
+          "missing_policy": "源码未声明 close 缺失处理；expression 的 sma 缺失策略依赖平台，pandas rolling 的 min_periods 默认行为未声明且未验证。"
+        }
+      ],
+      "limitations": "本候选是剥离第 7–8 行未来收益项后的 t 时刻模块，不等同于原函数返回值。源码未声明 frame 的数据频率、复权口径、资产范围与 close 数据源；period 的合法下限与取值范围未声明。expression 仅在假设滚动均值可由 sma(close, period) 表达时给出；pandas .rolling(period).mean() 的 min_periods 默认行为未声明，平台 sma 语义可能不同，前 period-1 个 bar 的缺失结果依赖运行时。若 mean 为 0 或 close 缺失，可能出现 inf/NaN，具体行为未验证。未回测，不证明有效、稳健或参数最优。原第 7–8 行若被当作因子使用会引入未来信息泄漏，本候选未包含该部分。",
+      "bindings": {
+        "close": "close"
+      },
+      "actual_parameters": {
+        "period": 14
+      },
+      "planned_variants": [
+        {
+          "period": 5
+        },
+        {
+          "period": 10
+        },
+        {
+          "period": 20
+        },
+        {
+          "period": 30
+        },
+        {
+          "period": 60
+        }
+      ]
+    },
+    "attempt-1": {
+      "parents": [
+        "8ad1fb3c214f382be9696ef1c10849a8be940581"
+      ],
+      "operation": "source_candidate",
+      "generation": 0,
+      "requested_parameters": {
+        "period": 14
+      },
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 7,
+      "recipe": {
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "i0"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 14
+        },
+        "parameter_names": {
+          "p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.07943964229767975,
+          "max_drawdown": 0.14005590449953964,
+          "entries": 36,
+          "turnover": 72,
+          "exposure_fraction": 0.481981981981982,
+          "missing_signals": 13,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.04621550370321381,
+          "max_drawdown": 0.05838280722151701,
+          "entries": 14,
+          "turnover": 28,
+          "exposure_fraction": 0.4863013698630137,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-2": {
+      "parents": [
+        "attempt-1"
+      ],
+      "operation": "parameter_variant",
+      "generation": 0,
+      "requested_parameters": {
+        "period": 5
+      },
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 7,
+      "recipe": {
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "i0"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 5
+        },
+        "parameter_names": {
+          "p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.12884303402492758,
+          "max_drawdown": 0.18167547858591138,
+          "entries": 64,
+          "turnover": 128,
+          "exposure_fraction": 0.509009009009009,
+          "missing_signals": 4,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.03709650333789538,
+          "max_drawdown": 0.04973862289041531,
+          "entries": 19,
+          "turnover": 38,
+          "exposure_fraction": 0.4794520547945205,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-3": {
+      "parents": [
+        "attempt-1"
+      ],
+      "operation": "parameter_variant",
+      "generation": 0,
+      "requested_parameters": {
+        "period": 10
+      },
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 7,
+      "recipe": {
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "i0"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 10
+        },
+        "parameter_names": {
+          "p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.09873471101430864,
+          "max_drawdown": 0.16004006842922447,
+          "entries": 44,
+          "turnover": 88,
+          "exposure_fraction": 0.5045045045045045,
+          "missing_signals": 9,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.03224830092913766,
+          "max_drawdown": 0.04459378221832477,
+          "entries": 13,
+          "turnover": 26,
+          "exposure_fraction": 0.5,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-4": {
+      "parents": [
+        "attempt-1"
+      ],
+      "operation": "parameter_variant",
+      "generation": 0,
+      "requested_parameters": {
+        "period": 20
+      },
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 7,
+      "recipe": {
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "i0"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 20
+        },
+        "parameter_names": {
+          "p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.142351947689367,
+          "max_drawdown": 0.1835436455812952,
+          "entries": 37,
+          "turnover": 74,
+          "exposure_fraction": 0.47297297297297297,
+          "missing_signals": 19,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.023408871633885164,
+          "max_drawdown": 0.03671887966155163,
+          "entries": 10,
+          "turnover": 20,
+          "exposure_fraction": 0.4931506849315068,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-5": {
+      "parents": [
+        "attempt-1"
+      ],
+      "operation": "parameter_variant",
+      "generation": 0,
+      "requested_parameters": {
+        "period": 30
+      },
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 7,
+      "recipe": {
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "i0"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 30
+        },
+        "parameter_names": {
+          "p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.12190800994649753,
+          "max_drawdown": 0.14018175071745198,
+          "entries": 28,
+          "turnover": 56,
+          "exposure_fraction": 0.4594594594594595,
+          "missing_signals": 29,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.04017772007400522,
+          "max_drawdown": 0.04017772007400522,
+          "entries": 8,
+          "turnover": 16,
+          "exposure_fraction": 0.5684931506849316,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-6": {
+      "parents": [
+        "attempt-1"
+      ],
+      "operation": "parameter_variant",
+      "generation": 0,
+      "requested_parameters": {
+        "period": 60
+      },
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 7,
+      "recipe": {
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "i0"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "bindings": {
+          "i0": "close"
+        },
+        "parameters": {
+          "p0": 60
+        },
+        "parameter_names": {
+          "p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.14758619076917323,
+          "max_drawdown": 0.1572284953956823,
+          "entries": 21,
+          "turnover": 42,
+          "exposure_fraction": 0.38063063063063063,
+          "missing_signals": 59,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.03817700622572817,
+          "max_drawdown": 0.042424961476121736,
+          "entries": 5,
+          "turnover": 10,
+          "exposure_fraction": 0.363013698630137,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-7": {
+      "parents": [
+        "attempt-1",
+        "attempt-6"
+      ],
+      "operation": "mean",
+      "generation": 1,
+      "requested_parameters": null,
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 17,
+      "recipe": {
+        "bindings": {
+          "a_i0": "close",
+          "b_i0": "close"
+        },
+        "parameters": {
+          "a_p0": 14,
+          "b_p0": 60
+        },
+        "parameter_names": {
+          "a_p0": "period",
+          "b_p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "expression": {
+          "op": "div",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "a_i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "a_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "b_i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "b_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.12204613680617205,
+          "max_drawdown": 0.13609688527370312,
+          "entries": 24,
+          "turnover": 48,
+          "exposure_fraction": 0.3738738738738739,
+          "missing_signals": 59,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.05799074127044723,
+          "max_drawdown": 0.05799074127044723,
+          "entries": 12,
+          "turnover": 24,
+          "exposure_fraction": 0.4041095890410959,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-8": {
+      "parents": [
+        "attempt-1",
+        "attempt-5"
+      ],
+      "operation": "mean",
+      "generation": 1,
+      "requested_parameters": null,
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 17,
+      "recipe": {
+        "bindings": {
+          "a_i0": "close",
+          "b_i0": "close"
+        },
+        "parameters": {
+          "a_p0": 14,
+          "b_p0": 30
+        },
+        "parameter_names": {
+          "a_p0": "period",
+          "b_p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "expression": {
+          "op": "div",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "a_i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "a_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "b_i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "b_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.14161022332765372,
+          "max_drawdown": 0.15163859212128927,
+          "entries": 30,
+          "turnover": 60,
+          "exposure_fraction": 0.4436936936936937,
+          "missing_signals": 29,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.03786671430450106,
+          "max_drawdown": 0.03786671430450106,
+          "entries": 10,
+          "turnover": 20,
+          "exposure_fraction": 0.5136986301369864,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "attempt-9": {
+      "parents": [
+        "attempt-5",
+        "attempt-6"
+      ],
+      "operation": "mean",
+      "generation": 1,
+      "requested_parameters": null,
+      "status": "evaluated",
+      "reason": "",
+      "complexity": 17,
+      "recipe": {
+        "bindings": {
+          "a_i0": "close",
+          "b_i0": "close"
+        },
+        "parameters": {
+          "a_p0": 30,
+          "b_p0": 60
+        },
+        "parameter_names": {
+          "a_p0": "period",
+          "b_p0": "period"
+        },
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "expression": {
+          "op": "div",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "a_i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "a_i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "a_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "b_i0"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "b_i0"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "b_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "metrics": {
+        "train": {
+          "total_return": -0.12193529796226132,
+          "max_drawdown": 0.1376942632638113,
+          "entries": 21,
+          "turnover": 42,
+          "exposure_fraction": 0.3536036036036036,
+          "missing_signals": 59,
+          "bars": 444,
+          "start": "2024-01-01T01:00:00+00:00",
+          "end": "2024-01-19T13:00:00+00:00"
+        },
+        "validation": {
+          "total_return": -0.06782670695078807,
+          "max_drawdown": 0.06782670695078807,
+          "entries": 13,
+          "turnover": 26,
+          "exposure_fraction": 0.4863013698630137,
+          "missing_signals": 0,
+          "bars": 146,
+          "start": "2024-01-19T16:00:00+00:00",
+          "end": "2024-01-25T18:00:00+00:00"
+        }
+      }
+    },
+    "holdout": {
+      "total_return": 0.021634484889545558,
+      "max_drawdown": 0.029735127304473696,
+      "entries": 7,
+      "turnover": 14,
+      "exposure_fraction": 0.7191780821917808,
+      "missing_signals": 0,
+      "bars": 146,
+      "start": "2024-01-25T21:00:00+00:00",
+      "end": "2024-01-31T23:00:00+00:00"
+    },
+    "baseline": {
+      "total_return": 0.06858978711616603,
+      "max_drawdown": 0.028211068860247046,
+      "entries": 1,
+      "turnover": 2,
+      "exposure_fraction": 1.0,
+      "missing_signals": 0,
+      "bars": 146,
+      "start": "2024-01-25T21:00:00+00:00",
+      "end": "2024-01-31T23:00:00+00:00"
+    },
+    "parameter_sensitivity": {
+      "version": 1,
+      "rule": {
+        "version": 1,
+        "minimum_points": 3,
+        "return_spread_limit": 0.02,
+        "drawdown_spread_limit": 0.02,
+        "baseline_return_loss_limit": 0.02,
+        "baseline_drawdown_increase_limit": 0.02,
+        "requires_positive_return": true,
+        "requires_entries": true,
+        "minimum_signal_coverage": 0.9,
+        "maximum_missing_fraction_spread": 0.05,
+        "selection_partitions": [
+          "train",
+          "validation"
+        ],
+        "interpolation_allowed": false
+      },
+      "limitations": [
+        "仅比较同一来源、相同表达式/行情/成本下单个数值信号参数的取值，其他参数固定为本轮基线。",
+        "每个区段要求两段信号覆盖均至少 90%，点间缺失比例极差不超过 5 个百分点；预热仍按原实验记录计入，尚未做统一预热重算。",
+        "区段仅包含已抽样且通过规则的取值，不推断未测中间值；2 个百分点容差是固定筛选规则，不是统计显著性或最优参数证明。",
+        "训练与验证同时检查；不读取留出表现。结果仅适用于本次数据与成交假设，仍需新的独立数据检验。",
+        "无交易、信号覆盖不足、失败或未执行的取值不能连接成稳定区段；多参数联动不归因于单个参数。"
+      ],
+      "families": [
+        {
+          "seed_id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+          "name": "close_relative_rolling_mean_deviation",
+          "baseline_attempt_id": "attempt-1",
+          "baseline_parameters": {
+            "period": 14
+          },
+          "axes": [
+            {
+              "parameter": "period",
+              "baseline_value": 14,
+              "points": [
+                {
+                  "value": 5,
+                  "attempt_id": "attempt-2",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.12884303402492758,
+                      "max_drawdown": 0.18167547858591138,
+                      "turnover": 128,
+                      "entries": 64,
+                      "missing_signals": 4,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.03709650333789538,
+                      "max_drawdown": 0.04973862289041531,
+                      "turnover": 38,
+                      "entries": 19,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.049403391727247836,
+                      "max_drawdown": 0.041619574086371736,
+                      "turnover": 56,
+                      "entries": 28,
+                      "missing_signals": -9,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.00911900036531843,
+                      "max_drawdown": -0.0086441843311017,
+                      "turnover": 10,
+                      "entries": 5,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "训练段回撤较基线增加超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false
+                },
+                {
+                  "value": 10,
+                  "attempt_id": "attempt-3",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.09873471101430864,
+                      "max_drawdown": 0.16004006842922447,
+                      "turnover": 88,
+                      "entries": 44,
+                      "missing_signals": 9,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.03224830092913766,
+                      "max_drawdown": 0.04459378221832477,
+                      "turnover": 26,
+                      "entries": 13,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.019295068716628894,
+                      "max_drawdown": 0.01998416392968483,
+                      "turnover": 16,
+                      "entries": 8,
+                      "missing_signals": -4,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.013967202774076148,
+                      "max_drawdown": -0.013789025003192235,
+                      "turnover": -2,
+                      "entries": -1,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false
+                },
+                {
+                  "value": 14,
+                  "attempt_id": "attempt-1",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.07943964229767975,
+                      "max_drawdown": 0.14005590449953964,
+                      "turnover": 72,
+                      "entries": 36,
+                      "missing_signals": 13,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.04621550370321381,
+                      "max_drawdown": 0.05838280722151701,
+                      "turnover": 28,
+                      "entries": 14,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": 0.0,
+                      "max_drawdown": 0.0,
+                      "turnover": 0,
+                      "entries": 0,
+                      "missing_signals": 0,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.0,
+                      "max_drawdown": 0.0,
+                      "turnover": 0,
+                      "entries": 0,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false
+                },
+                {
+                  "value": 20,
+                  "attempt_id": "attempt-4",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.142351947689367,
+                      "max_drawdown": 0.1835436455812952,
+                      "turnover": 74,
+                      "entries": 37,
+                      "missing_signals": 19,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.023408871633885164,
+                      "max_drawdown": 0.03671887966155163,
+                      "turnover": 20,
+                      "entries": 10,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.06291230539168724,
+                      "max_drawdown": 0.04348774108175557,
+                      "turnover": 2,
+                      "entries": 1,
+                      "missing_signals": 6,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.022806632069328647,
+                      "max_drawdown": -0.02166392755996538,
+                      "turnover": -8,
+                      "entries": -4,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "训练段回撤较基线增加超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false
+                },
+                {
+                  "value": 30,
+                  "attempt_id": "attempt-5",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.12190800994649753,
+                      "max_drawdown": 0.14018175071745198,
+                      "turnover": 56,
+                      "entries": 28,
+                      "missing_signals": 29,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.04017772007400522,
+                      "max_drawdown": 0.04017772007400522,
+                      "turnover": 16,
+                      "entries": 8,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.042468367648817784,
+                      "max_drawdown": 0.00012584621791233985,
+                      "turnover": -16,
+                      "entries": -8,
+                      "missing_signals": 16,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.006037783629208593,
+                      "max_drawdown": -0.01820508714751179,
+                      "turnover": -12,
+                      "entries": -6,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false
+                },
+                {
+                  "value": 60,
+                  "attempt_id": "attempt-6",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.14758619076917323,
+                      "max_drawdown": 0.1572284953956823,
+                      "turnover": 42,
+                      "entries": 21,
+                      "missing_signals": 59,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.03817700622572817,
+                      "max_drawdown": 0.042424961476121736,
+                      "turnover": 10,
+                      "entries": 5,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.06814654847149348,
+                      "max_drawdown": 0.017172590896142648,
+                      "turnover": -30,
+                      "entries": -15,
+                      "missing_signals": 46,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.00803849747748564,
+                      "max_drawdown": -0.01595784574539527,
+                      "turnover": -18,
+                      "entries": -9,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段信号覆盖不足 90%（含预热）",
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false
+                }
+              ],
+              "compared_points": 6,
+              "spreads": {
+                "train": {
+                  "total_return": 0.06814654847149348,
+                  "max_drawdown": 0.04348774108175557
+                },
+                "validation": {
+                  "total_return": 0.022806632069328647,
+                  "max_drawdown": 0.02166392755996538
+                }
+              },
+              "regions": [],
+              "status": "no_supported_region"
+            }
+          ],
+          "excluded_variants": []
+        }
+      ],
+      "excluded_combination_ids": [
+        "attempt-7",
+        "attempt-8",
+        "attempt-9"
+      ]
+    },
+    "parameter_joint_sensitivity": {
+      "version": 1,
+      "rule": {
+        "version": 1,
+        "minimum_points": 4,
+        "return_spread_limit": 0.02,
+        "drawdown_spread_limit": 0.02,
+        "baseline_return_loss_limit": 0.02,
+        "baseline_drawdown_increase_limit": 0.02,
+        "requires_positive_return": true,
+        "requires_entries": true,
+        "minimum_signal_coverage": 0.9,
+        "maximum_missing_fraction_spread": 0.05,
+        "selection_partitions": [
+          "train",
+          "validation"
+        ],
+        "interpolation_allowed": false,
+        "minimum_dimensions": 2,
+        "complete_cartesian_grid": true,
+        "categorical_mode": "fixed_context"
+      },
+      "limitations": [
+        "仅比较同一来源、同式、同行情、同成本的参数组；公式交叉与组合不混入参数归因。",
+        "每个联合区域至少包含两个变化的数值参数及四个完整笛卡尔积采样点；失败、未执行或缺失的组合不能补齐。",
+        "数值轴按已规划或实际尝试的离散值排序；不证明声明范围中的其他值、未测中间值或连续区域。",
+        "字符串模式和布尔开关按固定配置分组；各组须有数值参数保持原基线的实际对照，不把模式选项当作连续数量。",
+        "训练与验证同时检查，固定容差不等于统计显著性；留出不参与区域筛选，候选区域仍须独立数据复核。"
+      ],
+      "families": [
+        {
+          "seed_id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+          "name": "close_relative_rolling_mean_deviation",
+          "contexts": [
+            {
+              "context_id": "44136fa355b3678a",
+              "fixed_parameters": {},
+              "axes": [
+                "period"
+              ],
+              "baseline_parameters": {
+                "period": 14
+              },
+              "baseline_attempt_id": "attempt-1",
+              "points": [
+                {
+                  "attempt_id": "attempt-2",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.12884303402492758,
+                      "max_drawdown": 0.18167547858591138,
+                      "turnover": 128,
+                      "entries": 64,
+                      "missing_signals": 4,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.03709650333789538,
+                      "max_drawdown": 0.04973862289041531,
+                      "turnover": 38,
+                      "entries": 19,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.049403391727247836,
+                      "max_drawdown": 0.041619574086371736,
+                      "turnover": 56,
+                      "entries": 28,
+                      "missing_signals": -9,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.00911900036531843,
+                      "max_drawdown": -0.0086441843311017,
+                      "turnover": 10,
+                      "entries": 5,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "训练段回撤较基线增加超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false,
+                  "parameters": {
+                    "period": 5
+                  }
+                },
+                {
+                  "attempt_id": "attempt-3",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.09873471101430864,
+                      "max_drawdown": 0.16004006842922447,
+                      "turnover": 88,
+                      "entries": 44,
+                      "missing_signals": 9,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.03224830092913766,
+                      "max_drawdown": 0.04459378221832477,
+                      "turnover": 26,
+                      "entries": 13,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.019295068716628894,
+                      "max_drawdown": 0.01998416392968483,
+                      "turnover": 16,
+                      "entries": 8,
+                      "missing_signals": -4,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.013967202774076148,
+                      "max_drawdown": -0.013789025003192235,
+                      "turnover": -2,
+                      "entries": -1,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false,
+                  "parameters": {
+                    "period": 10
+                  }
+                },
+                {
+                  "attempt_id": "attempt-1",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.07943964229767975,
+                      "max_drawdown": 0.14005590449953964,
+                      "turnover": 72,
+                      "entries": 36,
+                      "missing_signals": 13,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.04621550370321381,
+                      "max_drawdown": 0.05838280722151701,
+                      "turnover": 28,
+                      "entries": 14,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": 0.0,
+                      "max_drawdown": 0.0,
+                      "turnover": 0,
+                      "entries": 0,
+                      "missing_signals": 0,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.0,
+                      "max_drawdown": 0.0,
+                      "turnover": 0,
+                      "entries": 0,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false,
+                  "parameters": {
+                    "period": 14
+                  }
+                },
+                {
+                  "attempt_id": "attempt-4",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.142351947689367,
+                      "max_drawdown": 0.1835436455812952,
+                      "turnover": 74,
+                      "entries": 37,
+                      "missing_signals": 19,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.023408871633885164,
+                      "max_drawdown": 0.03671887966155163,
+                      "turnover": 20,
+                      "entries": 10,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.06291230539168724,
+                      "max_drawdown": 0.04348774108175557,
+                      "turnover": 2,
+                      "entries": 1,
+                      "missing_signals": 6,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.022806632069328647,
+                      "max_drawdown": -0.02166392755996538,
+                      "turnover": -8,
+                      "entries": -4,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "训练段回撤较基线增加超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false,
+                  "parameters": {
+                    "period": 20
+                  }
+                },
+                {
+                  "attempt_id": "attempt-5",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.12190800994649753,
+                      "max_drawdown": 0.14018175071745198,
+                      "turnover": 56,
+                      "entries": 28,
+                      "missing_signals": 29,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.04017772007400522,
+                      "max_drawdown": 0.04017772007400522,
+                      "turnover": 16,
+                      "entries": 8,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.042468367648817784,
+                      "max_drawdown": 0.00012584621791233985,
+                      "turnover": -16,
+                      "entries": -8,
+                      "missing_signals": 16,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.006037783629208593,
+                      "max_drawdown": -0.01820508714751179,
+                      "turnover": -12,
+                      "entries": -6,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false,
+                  "parameters": {
+                    "period": 30
+                  }
+                },
+                {
+                  "attempt_id": "attempt-6",
+                  "status": "evaluated",
+                  "reason": "",
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.14758619076917323,
+                      "max_drawdown": 0.1572284953956823,
+                      "turnover": 42,
+                      "entries": 21,
+                      "missing_signals": 59,
+                      "bars": 444
+                    },
+                    "validation": {
+                      "total_return": -0.03817700622572817,
+                      "max_drawdown": 0.042424961476121736,
+                      "turnover": 10,
+                      "entries": 5,
+                      "missing_signals": 0,
+                      "bars": 146
+                    }
+                  },
+                  "delta": {
+                    "train": {
+                      "total_return": -0.06814654847149348,
+                      "max_drawdown": 0.017172590896142648,
+                      "turnover": -30,
+                      "entries": -15,
+                      "missing_signals": 46,
+                      "bars": 0
+                    },
+                    "validation": {
+                      "total_return": 0.00803849747748564,
+                      "max_drawdown": -0.01595784574539527,
+                      "turnover": -18,
+                      "entries": -9,
+                      "missing_signals": 0,
+                      "bars": 0
+                    }
+                  },
+                  "comparable": true,
+                  "eligibility_reasons": [
+                    "训练段信号覆盖不足 90%（含预热）",
+                    "训练段收益不为正",
+                    "训练段收益较基线下降超过 2 个百分点",
+                    "验证段收益不为正"
+                  ],
+                  "eligible": false,
+                  "parameters": {
+                    "period": 60
+                  }
+                }
+              ],
+              "compared_points": 6,
+              "comparison_cells": [],
+              "regions": [],
+              "status": "incomplete_grid"
+            }
+          ],
+          "excluded_variants": []
+        }
+      ],
+      "excluded_combination_ids": [
+        "attempt-7",
+        "attempt-8",
+        "attempt-9"
+      ]
+    },
+    "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575": {
+      "id": "c6aef2399d994b9515ec5ee561cbcb6eca7c4575",
+      "kind": "fixed_validation",
+      "title": "固定新数据验证 · close_relative_rolling_mean_deviation_period_sensitivity · attempt-5",
+      "entry_id": "d523c6388cdf3c3e26b5a3aa65e1980f60db1d39",
+      "created_at": "2026-10-25T11:29:41.722000+00:00",
+      "content_hash": "0bcaa9ade3200681564c0b467e664415a1c9389e0b47d06d05a02b3307dd8028",
+      "evidence": {
+        "result_id": "c6aef2399d994b9515ec5ee561cbcb6eca7c4575",
+        "request_id": "3db445c82d82bc00fedab97e85fc58ddeb984824",
+        "plan_id": "05d002eb9895549e30657cf5019fbd31e4285b45",
+        "plan_hash": "8a947916b97013632826b871282785e183f6a95811121e94b5b40b6fec6ab42b",
+        "request_hash": "d7f2c19ffac04deb81b5b22b4b9b9d11878e341e3a04fc5bcb5be26e5900509e",
+        "source": {
+          "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+          "result_id": "4f9f5d00ee9594a53850718f645df87086c78697",
+          "result_hash": "e468ce293566575589baf4a0d02d99c61291d38c5635c2eeade72371a986a544",
+          "dataset_id": "21a976711ce532a16b2b5217e2b53c77c9963bee",
+          "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+          "attempt_id": "attempt-5",
+          "attempt_hash": "00533eb40ea99a1f5fdb4e929c4a5db49c26d71d7bdb2e4565f6154e697f5a02",
+          "fold": null,
+          "parents": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ]
+        },
+        "status": "cancelled",
+        "error": "固定验证在计算前停止；数据预约仍保留",
+        "mode": "replication",
+        "recipe": {
+          "expression": {
+            "op": "sub",
+            "args": [
+              {
+                "op": "div",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "i0"
+                  },
+                  {
+                    "op": "sma",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "i0"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "p0"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 1
+              }
+            ]
+          },
+          "bindings": {
+            "i0": "close"
+          },
+          "parameters": {
+            "p0": 30
+          },
+          "parameter_names": {
+            "p0": "period"
+          },
+          "output_type": "numeric_series",
+          "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+        },
+        "config": {
+          "threshold": 0,
+          "fee_bps": 5,
+          "slippage_bps": 5
+        },
+        "bounds": {
+          "calculation_start": 0,
+          "start": 30,
+          "end": 725,
+          "start_timestamp": "2024-02-01T00:00:00+00:00",
+          "end_timestamp": "2024-02-29T23:00:00+00:00",
+          "rule": "earliest_supplied_bar_after_frozen_cutoff_no_test_selection"
+        },
+        "dataset": {
+          "symbol": "BTCUSDT",
+          "timeframe": "1h",
+          "content_hash": "d97a22efe90f24442419e46f333f40c6c760ef2b9c98311fec95582381dc8536"
+        },
+        "final": null,
+        "baseline": null,
+        "authorization_audit": {
+          "scope": "same_owner_private_quant_exact_market_or_identical_rows_v1",
+          "complete_scan": true,
+          "totals": {
+            "dataset": 1,
+            "experiment": 1,
+            "comparison": 0,
+            "fixed_validation": 1
+          },
+          "conflict_count": 1,
+          "range_status": "reused",
+          "external_prior_use": "unattested",
+          "global_independent_validation": false,
+          "limitations": [
+            "包括已导入行情、实验预约、对照和固定验证；失败、取消、软删研究的已知数据使用不撤销。",
+            "同一所有者私密量化文集内按精确标的/周期或完整规范化行情哈希核对；别名、其他周期、外部研究和未同步设备的使用未知。",
+            "预热可引用旧历史；仅核对评分区间。登记后导入不证明文件曾未被外部查看或选择，无法证明导入文件覆盖了市场所有中间柱。"
+          ]
+        },
+        "publication_audit": null,
+        "historical_evaluation_exposed": true,
+        "independent_validation": false,
+        "scope": "historical_fixed_outcome_for_new_hypotheses_not_unseen_evidence",
+        "claim": "one_frozen_recipe_not_parameter_optimality_or_platform_equivalence"
+      },
+      "has_negative_evidence": true,
+      "reason": {
+        "shared_candidate_ids": [
+          "8ad1fb3c214f382be9696ef1c10849a8be940581"
+        ],
+        "shared_families": [
+          "mean_reversion"
+        ],
+        "shared_tags": [
+          "data:price",
+          "mechanism:mean_reversion",
+          "mechanism:price_structure",
+          "structure:time_series",
+          "tunability:signal",
+          "usage:factor",
+          "usage:signal"
+        ],
+        "same_market": true,
+        "rank_score": 15
+      }
+    },
+    "fixed_validation": {
+      "plan": {
+        "version": 1,
+        "engine_version": "quant-fixed-validation-1",
+        "name": "Registered period30 February whole month",
+        "recipe": {
+          "expression": {
+            "op": "sub",
+            "args": [
+              {
+                "op": "div",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "i0"
+                  },
+                  {
+                    "op": "sma",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "i0"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "p0"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 1
+              }
+            ]
+          },
+          "bindings": {
+            "i0": "close"
+          },
+          "parameters": {
+            "p0": 30
+          },
+          "parameter_names": {
+            "p0": "period"
+          },
+          "output_type": "numeric_series",
+          "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。"
+        },
+        "config": {
+          "threshold": 0,
+          "fee_bps": 5,
+          "slippage_bps": 5
+        },
+        "intervals": 695,
+        "seconds": 30,
+        "required_history": 29,
+        "target": {
+          "symbol": "BTCUSDT",
+          "timeframe": "1h",
+          "after_timestamp": "2024-01-31T23:00:00+00:00"
+        },
+        "source": {
+          "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+          "result_id": "4f9f5d00ee9594a53850718f645df87086c78697",
+          "result_hash": "e468ce293566575589baf4a0d02d99c61291d38c5635c2eeade72371a986a544",
+          "dataset_id": "21a976711ce532a16b2b5217e2b53c77c9963bee",
+          "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+          "attempt_id": "attempt-5",
+          "attempt_hash": "00533eb40ea99a1f5fdb4e929c4a5db49c26d71d7bdb2e4565f6154e697f5a02",
+          "fold": null,
+          "parents": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ]
+        },
+        "claim": "frozen_before_dataset_binding_not_global_independence_or_profitability"
+      },
+      "mode": "fresh",
+      "bounds": {
+        "calculation_start": 0,
+        "start": 30,
+        "end": 725,
+        "start_timestamp": "2024-02-01T00:00:00+00:00",
+        "end_timestamp": "2024-02-29T23:00:00+00:00",
+        "rule": "earliest_supplied_bar_after_frozen_cutoff_no_test_selection"
+      },
+      "imported_after_registration": true,
+      "authorization_audit": {
+        "scope": "same_owner_private_quant_exact_market_or_identical_rows_v1",
+        "complete_scan": true,
+        "totals": {
+          "dataset": 1,
+          "experiment": 1,
+          "comparison": 0,
+          "fixed_validation": 0
+        },
+        "conflict_count": 0,
+        "range_status": "no_tracked_conflict",
+        "external_prior_use": "unattested",
+        "global_independent_validation": false,
+        "limitations": [
+          "包括已导入行情、实验预约、对照和固定验证；失败、取消、软删研究的已知数据使用不撤销。",
+          "同一所有者私密量化文集内按精确标的/周期或完整规范化行情哈希核对；别名、其他周期、外部研究和未同步设备的使用未知。",
+          "预热可引用旧历史；仅核对评分区间。登记后导入不证明文件曾未被外部查看或选择，无法证明导入文件覆盖了市场所有中间柱。"
+        ]
+      },
+      "publication_audit": {
+        "scope": "same_owner_private_quant_exact_market_or_identical_rows_v1",
+        "complete_scan": true,
+        "totals": {
+          "dataset": 1,
+          "experiment": 1,
+          "comparison": 0,
+          "fixed_validation": 0
+        },
+        "conflict_count": 0,
+        "range_status": "no_tracked_conflict",
+        "external_prior_use": "unattested",
+        "global_independent_validation": false,
+        "limitations": [
+          "包括已导入行情、实验预约、对照和固定验证；失败、取消、软删研究的已知数据使用不撤销。",
+          "同一所有者私密量化文集内按精确标的/周期或完整规范化行情哈希核对；别名、其他周期、外部研究和未同步设备的使用未知。",
+          "预热可引用旧历史；仅核对评分区间。登记后导入不证明文件曾未被外部查看或选择，无法证明导入文件覆盖了市场所有中间柱。"
+        ]
+      },
+      "final": {
+        "total_return": 0.13958330972060828,
+        "max_drawdown": 0.11122691520353123,
+        "entries": 41,
+        "turnover": 82,
+        "exposure_fraction": 0.6316546762589929,
+        "missing_signals": 0,
+        "bars": 695,
+        "start": "2024-02-01T00:00:00+00:00",
+        "end": "2024-02-29T23:00:00+00:00"
+      },
+      "baseline": {
+        "total_return": 0.4349843396904649,
+        "max_drawdown": 0.04258372517559572,
+        "entries": 1,
+        "turnover": 2,
+        "exposure_fraction": 1.0,
+        "missing_signals": 0,
+        "bars": 695,
+        "start": "2024-02-01T00:00:00+00:00",
+        "end": "2024-02-29T23:00:00+00:00"
+      },
+      "selection": "fixed_registered_recipe_no_search_or_test_based_selection",
+      "independent_validation": false,
+      "scope": "one_frozen_formula_one_interval_no_search_not_parameter_stability_proof"
+    }
+  },
+  "planning_options": [
+    {
+      "id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+      "candidate": {
+        "name": "close_relative_rolling_mean_deviation",
+        "role": "factor",
+        "family": "mean_reversion",
+        "summary": "在 bar t 计算 close 相对其过去 period 个 bar 滚动均值的相对偏离。该模块是第 5–6 行可分离的连续数值计算，剥离了第 7–8 行未来收益项后可作为 t 时刻因子候选；机制分类为均值回归/价格结构提议，不证明有效。",
+        "formula": "s_t = close_t / mean_t - 1；mean_t = 过去 period 个 bar 的 close 算术均值（rolling mean）。",
+        "inputs": [
+          {
+            "name": "close",
+            "meaning": "frame[\"close\"] 价格序列字段；源码只引用单一 close 字段，资产范围、数据频率与复权口径未声明。",
+            "availability": "bar t 的 close 在数据发布后可得；具体发布延迟、频率、复权口径未知。",
+            "missing_policy": "源码未声明 close 缺失处理；expression 的 sma 缺失策略依赖平台，pandas rolling 的 min_periods 默认行为未声明且未验证。"
+          }
+        ],
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "timeframe": "计算窗口为 period 个 bar；适用周期与数据频率未声明，无法换算为自然时间；period 默认 14 仅为函数默认值，不是最优或运行配置。",
+        "parameters": [
+          {
+            "name": "period",
+            "type": "int",
+            "default_value": "14",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "待验证：先确认 frame 的数据频率与复权口径，再对 period 做敏感性检查（例如在多个候选窗口上比较信号自相关与换手）；建议范围仅为验证起点，非实证最优，且不得以默认值14冒充实际运行配置。",
+            "evidence": "第1行默认值 period=14；第5行使用 rolling(period).mean() 构造滚动均值。"
+          }
+        ],
+        "dependencies": [
+          "frame[\"close\"] 为外部传入的 DataFrame 列；源码 imports 为空，.rolling/.mean 的运行时依赖未验证",
+          "参数 period",
+          "滚动均值 min_periods 的缺失语义未在源码中声明"
+        ],
+        "limitations": "本候选是剥离第 7–8 行未来收益项后的 t 时刻模块，不等同于原函数返回值。源码未声明 frame 的数据频率、复权口径、资产范围与 close 数据源；period 的合法下限与取值范围未声明。expression 仅在假设滚动均值可由 sma(close, period) 表达时给出；pandas .rolling(period).mean() 的 min_periods 默认行为未声明，平台 sma 语义可能不同，前 period-1 个 bar 的缺失结果依赖运行时。若 mean 为 0 或 close 缺失，可能出现 inf/NaN，具体行为未验证。未回测，不证明有效、稳健或参数最优。原第 7–8 行若被当作因子使用会引入未来信息泄漏，本候选未包含该部分。",
+        "tags": [
+          "mechanism:mean_reversion",
+          "mechanism:price_structure",
+          "structure:time_series",
+          "data:price",
+          "usage:factor",
+          "usage:signal",
+          "tunability:signal"
+        ],
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "close"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "close"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "period"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "field": "code",
+            "quote": "def indicator(frame, period=14, horizon=1):"
+          },
+          {
+            "field": "code",
+            "quote": "    mean = frame[\"close\"].rolling(period).mean()"
+          },
+          {
+            "field": "code",
+            "quote": "    signal = frame[\"close\"] / mean - 1"
+          }
+        ]
+      },
+      "bindings": {
+        "close": "close"
+      },
+      "parameters": {
+        "period": 14
+      }
+    },
+    {
+      "id": "61cf3392f937933e73fc7b10e8b115ff73fc88de",
+      "candidate": {
+        "name": "参数变体 · close_relative_rolling_mean_deviation_period_sensitivity · attempt-5",
+        "role": "factor",
+        "family": "mean_reversion",
+        "summary": "由 1 个父代经参数变体产生。训练与验证段筛选后归档，尚待独立验证。",
+        "formula": "{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"}",
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "close"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "close"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "inputs": [
+          {
+            "name": "close",
+            "meaning": "实验行情 close 列",
+            "availability": "完整收盘后可得，用于下一根开盘信号",
+            "missing_policy": "缺失传播，滚动窗口需完整；不填补缺失值"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "p0",
+            "type": "int",
+            "default_value": "30",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+            "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-5 的实际计算参数"
+          }
+        ],
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "timeframe": "本轮行情周期：1h；其他周期未验证",
+        "dependencies": [
+          "quant-local-search-2"
+        ],
+        "limitations": "仅在本机受限表达式引擎中计算过；未验证原平台等价性或实盘有效性。参数是所记录尝试的实际值，不是推荐最优值。父代数据和已查看的留出结果会影响后续研究，需使用新的验证数据。",
+        "tags": [
+          "实验衍生",
+          "待独立验证"
+        ],
+        "evidence": [],
+        "derivation": {
+          "version": "experiment-derived-v1",
+          "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+          "checkpoint_id": "a65b1f0f92d67d267c8a4987a7d4bdf13efbe90d",
+          "attempt_id": "attempt-5",
+          "parent_candidate_ids": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ],
+          "parent_attempt_ids": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "engine_version": "quant-local-search-2",
+          "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+          "selection_rule": "derived_frontier_first_three_v1"
+        }
+      },
+      "bindings": {
+        "close": "close"
+      },
+      "parameters": {
+        "p0": 30
+      }
+    },
+    {
+      "id": "6c07f295a922f4ceaaa07f630201d478f68a7cf8",
+      "candidate": {
+        "name": "均值组合 · close_relative_rolling_mean_deviation_period_sensitivity · attempt-7",
+        "role": "factor",
+        "family": "mean_reversion",
+        "summary": "由 1 个父代经均值组合产生。训练与验证段筛选后归档，尚待独立验证。",
+        "formula": "{\"args\":[{\"args\":[{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"a_p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"},{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"b_p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"}],\"op\":\"add\"},{\"op\":\"constant\",\"value\":2}],\"op\":\"div\"}",
+        "expression": {
+          "op": "div",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "close"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "close"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "a_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "op": "sub",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "close"
+                        },
+                        {
+                          "op": "sma",
+                          "args": [
+                            {
+                              "op": "input",
+                              "name": "close"
+                            },
+                            {
+                              "op": "parameter",
+                              "name": "b_p0"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "constant",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 2
+            }
+          ]
+        },
+        "inputs": [
+          {
+            "name": "close",
+            "meaning": "实验行情 close 列",
+            "availability": "完整收盘后可得，用于下一根开盘信号",
+            "missing_policy": "缺失传播，滚动窗口需完整；不填补缺失值"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "a_p0",
+            "type": "int",
+            "default_value": "14",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+            "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-7 的实际计算参数"
+          },
+          {
+            "name": "b_p0",
+            "type": "int",
+            "default_value": "60",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+            "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-7 的实际计算参数"
+          }
+        ],
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "timeframe": "本轮行情周期：1h；其他周期未验证",
+        "dependencies": [
+          "quant-local-search-2"
+        ],
+        "limitations": "仅在本机受限表达式引擎中计算过；未验证原平台等价性或实盘有效性。参数是所记录尝试的实际值，不是推荐最优值。父代数据和已查看的留出结果会影响后续研究，需使用新的验证数据。",
+        "tags": [
+          "实验衍生",
+          "待独立验证"
+        ],
+        "evidence": [],
+        "derivation": {
+          "version": "experiment-derived-v1",
+          "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+          "checkpoint_id": "bffd5a10b762030170966553a1d657e36683b7fb",
+          "attempt_id": "attempt-7",
+          "parent_candidate_ids": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ],
+          "parent_attempt_ids": [
+            "attempt-1",
+            "attempt-6"
+          ],
+          "operation": "mean",
+          "engine_version": "quant-local-search-2",
+          "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+          "selection_rule": "derived_frontier_first_three_v1"
+        }
+      },
+      "bindings": {
+        "close": "close"
+      },
+      "parameters": {
+        "a_p0": 14,
+        "b_p0": 60
+      }
+    },
+    {
+      "id": "bb2925c2487c23a61ecd2594f7150b62d770b9f2",
+      "candidate": {
+        "name": "参数变体 · close_relative_rolling_mean_deviation_period_sensitivity · attempt-6",
+        "role": "factor",
+        "family": "mean_reversion",
+        "summary": "由 1 个父代经参数变体产生。训练与验证段筛选后归档，尚待独立验证。",
+        "formula": "{\"args\":[{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"args\":[{\"name\":\"close\",\"op\":\"input\"},{\"name\":\"p0\",\"op\":\"parameter\"}],\"op\":\"sma\"}],\"op\":\"div\"},{\"op\":\"constant\",\"value\":1}],\"op\":\"sub\"}",
+        "expression": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "op": "input",
+                  "name": "close"
+                },
+                {
+                  "op": "sma",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "close"
+                    },
+                    {
+                      "op": "parameter",
+                      "name": "p0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "constant",
+              "value": 1
+            }
+          ]
+        },
+        "inputs": [
+          {
+            "name": "close",
+            "meaning": "实验行情 close 列",
+            "availability": "完整收盘后可得，用于下一根开盘信号",
+            "missing_policy": "缺失传播，滚动窗口需完整；不填补缺失值"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "p0",
+            "type": "int",
+            "default_value": "60",
+            "category": "signal",
+            "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+            "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+            "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+            "suggestion": "保存值仅用于复现；后续调整应比较敏感度并使用新的验证数据。",
+            "evidence": "9ba6cabef693562fed04a892f332cfbcc141d892 / attempt-6 的实际计算参数"
+          }
+        ],
+        "output_type": "numeric_series",
+        "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+        "timeframe": "本轮行情周期：1h；其他周期未验证",
+        "dependencies": [
+          "quant-local-search-2"
+        ],
+        "limitations": "仅在本机受限表达式引擎中计算过；未验证原平台等价性或实盘有效性。参数是所记录尝试的实际值，不是推荐最优值。父代数据和已查看的留出结果会影响后续研究，需使用新的验证数据。",
+        "tags": [
+          "实验衍生",
+          "待独立验证"
+        ],
+        "evidence": [],
+        "derivation": {
+          "version": "experiment-derived-v1",
+          "request_id": "9ba6cabef693562fed04a892f332cfbcc141d892",
+          "checkpoint_id": "1c99af9315c82e4c2ab63f86c20cec8badc3e41d",
+          "attempt_id": "attempt-6",
+          "parent_candidate_ids": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ],
+          "parent_attempt_ids": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "engine_version": "quant-local-search-2",
+          "dataset_hash": "f29e3fbc33c25932cc75d4be125ac792317e8c6e8aa9873ab294fcca619cc199",
+          "selection_rule": "derived_frontier_first_three_v1"
+        }
+      },
+      "bindings": {
+        "close": "close"
+      },
+      "parameters": {
+        "p0": 60
+      }
+    }
+  ],
+  "library_retrieval": {
+    "method": "related-library-v1",
+    "scanned": 0,
+    "eligible": 0,
+    "scan_limit": 2000,
+    "omitted_for_size": 0,
+    "candidates": [],
+    "claim": "semantic_and_contract_relevance_only_not_performance"
+  },
+  "research_memory": {
+    "method": "library-history-v3",
+    "scope": "same_collection",
+    "cutoff": "2026-10-25T11:33:54.677000+00:00",
+    "scan_limit": 2000,
+    "scanned": {
+      "experiments": 0,
+      "feedback": 0,
+      "comparisons": 0,
+      "fixed_validations": 1
+    },
+    "eligible": {
+      "fixed_validations": 1,
+      "comparisons": 0,
+      "experiments": 0,
+      "feedback": 0
+    },
+    "omitted_for_size": 0,
+    "items": [
+      {
+        "id": "c6aef2399d994b9515ec5ee561cbcb6eca7c4575",
+        "kind": "fixed_validation",
+        "title": "固定新数据验证 · close_relative_rolling_mean_deviation_period_sensitivity · attempt-5",
+        "entry_id": "d523c6388cdf3c3e26b5a3aa65e1980f60db1d39",
+        "created_at": "2026-10-25T11:29:41.722000+00:00",
+        "content_hash": "0bcaa9ade3200681564c0b467e664415a1c9389e0b47d06d05a02b3307dd8028",
+        "reason": {
+          "shared_candidate_ids": [
+            "8ad1fb3c214f382be9696ef1c10849a8be940581"
+          ],
+          "shared_families": [
+            "mean_reversion"
+          ],
+          "shared_tags": [
+            "data:price",
+            "mechanism:mean_reversion",
+            "mechanism:price_structure",
+            "structure:time_series",
+            "tunability:signal",
+            "usage:factor",
+            "usage:signal"
+          ],
+          "same_market": true,
+          "rank_score": 15
+        },
+        "has_negative_evidence": true
+      }
+    ],
+    "claim": "historical_relevance_not_equivalence_or_independent_validation",
+    "scan_limits": {
+      "seconds": 5,
+      "max_chars": 20000000,
+      "chars_read": 149404,
+      "budget_limited": false,
+      "size_limited": false
+    }
+  }
+}

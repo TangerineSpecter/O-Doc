@@ -27,6 +27,10 @@ class ModelUnavailable(APIException):
     default_detail = '尚未配置可用的对话模型，请先检查模型设置'
 
 
+class QueueCapacity(Conflict):
+    default_detail = '当前已有多个量化任务，请等待完成或取消后再提交'
+
+
 def touch(entry: Entry) -> None:
     entry.save(update_fields=['updated_at'])
     anthology = entry.anthology
@@ -51,6 +55,8 @@ def save_version(implementation: Implementation, data: dict) -> CodeVersion:
         setattr(implementation, field, value)
     implementation.current_version_id = version.pk
     implementation.save()
+    from .research.services import capture_version
+    capture_version(version)
     touch(implementation.entry)
     return version
 
@@ -137,18 +143,78 @@ def model_config(model_id: str = '') -> dict:
         raise ModelUnavailable() from exc
 
 
-def _run_input(entry: Entry, data: dict) -> dict:
+def _run_input(entry: Entry, data: dict, existing=None) -> dict:
     from rest_framework import serializers
+    from .workflows.contracts import stages, VERSION, INCREMENTAL_VERSION
     class Input(serializers.Serializer):
-        kind = serializers.ChoiceField(choices=['explain', 'convert'])
-        source_version_id = serializers.CharField(max_length=40)
+        kind = serializers.ChoiceField(choices=['explain', 'convert', 'analyze', 'experiment_review', 'feedback_review'])
+        source_version_id = serializers.CharField(max_length=40, required=False, allow_null=True, default=None)
+        source_id = serializers.CharField(max_length=40, required=False, allow_null=True, default=None)
+        validation_result_id = serializers.CharField(max_length=40, required=False, allow_null=True, default=None)
+        experiment_result_id = serializers.CharField(max_length=40, required=False, allow_null=True, default=None)
         target_language = serializers.ChoiceField(choices=Implementation.LANGUAGES, required=False, allow_blank=True, default='')
         target_version = serializers.CharField(max_length=100, required=False, allow_blank=True, default='')
         requirements = serializers.CharField(max_length=8000, required=False, allow_blank=True, default='')
         model_id = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
+        resume_run_id = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
+        restart_stage = serializers.ChoiceField(choices=stages(INCREMENTAL_VERSION), required=False, allow_blank=True, default='')
+        audit_report_id=serializers.CharField(max_length=40,required=False,allow_blank=True,default='')
     serializer = Input(data=data)
     serializer.is_valid(raise_exception=True)
     values = dict(serializer.validated_data)
+    if values['kind']!='feedback_review' and values['audit_report_id']:
+        raise ValidationError('仅原始Python验证反馈支持复核已有报告')
+    if not values['audit_report_id']:values.pop('audit_report_id')
+    resume_id = values.pop('resume_run_id')
+    restart_stage = values.pop('restart_stage')
+    if restart_stage and not resume_id:
+        raise ValidationError('指定重跑阶段时须选择原研究任务')
+    if resume_id and existing and not existing.workflow_version:
+        raise Conflict('历史请求不能追加阶段恢复，请使用新的请求标识')
+    if resume_id and values['kind'] != 'analyze':
+        raise ValidationError('只有资料研究可继续已完成阶段')
+    if values['kind'] == 'experiment_review':
+        from .experiments.reviews import validate_input
+        return validate_input(entry, values, existing=existing)
+    if values.pop('validation_result_id') is not None:
+        raise ValidationError('只有固定验证解读可引用固定验证结果')
+    if values.pop('experiment_result_id') is not None:
+        raise ValidationError('只有实验解读可引用实验结果')
+    if values['kind'] == 'feedback_review':
+        from .feedback.services import validate_input
+        return validate_input(entry, values, existing=existing)
+    if values['kind'] == 'analyze':
+        from .models import SourceRevision
+        source = get_object_or_404(SourceRevision, pk=values['source_id'], material__entry=entry)
+        if source.payload.get('provenance') == 'external_feedback':
+            raise ValidationError('外部反馈请使用反馈分析，不作为源码研究输入')
+        if len(json.dumps(source.payload, ensure_ascii=False)) + len(values['requirements']) > 200000:
+            raise ValidationError('来源材料超过分析上限，请拆分后重试')
+        values.update(source_version_id=None, target_language='', target_version='')
+        if not existing or existing.workflow_version:
+            values.update(workflow_version=existing.workflow_version if existing else VERSION, resume_run_id=resume_id)
+            # Empty restart_stage is omitted from the fingerprint so pre-field
+            # idempotency keys continue to identify exactly the same request.
+            if restart_stage:
+                values['restart_stage'] = restart_stage
+        if resume_id:
+            previous = get_object_or_404(AIRun, pk=resume_id, entry=entry, kind='analyze', workflow_version__in=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
+            values['workflow_version'] = previous.workflow_version
+            from .worker import recover
+            allowed = ('failed', 'cancelled', 'interrupted', 'completed') if restart_stage else ('failed', 'cancelled', 'interrupted')
+            cross_source = previous.source_id != source.pk
+            if cross_source:
+                prior_source = previous.resolved_source or previous.source
+                if (restart_stage or recover(previous).status != 'completed'
+                        or prior_source.material_id != source.material_id):
+                    raise ValidationError('跨源码研究须明确选择同材料的已完成研究，不指定重跑阶段')
+                values['workflow_version'] = existing.workflow_version if existing else INCREMENTAL_VERSION
+            elif recover(previous).status not in allowed:
+                raise ValidationError('只能继续未完成的阶段研究')
+            if restart_stage and not previous.workflow_steps.filter(stage=restart_stage).exists():
+                raise ValidationError('只能从原研究已开始的阶段重新执行')
+        return values
+    values.pop('source_id')
     version = get_object_or_404(CodeVersion, pk=values['source_version_id'], implementation__entry=entry)
     if not version.code.strip():
         raise ValidationError('所选版本尚无代码，请先填写或导入脚本')
@@ -166,11 +232,16 @@ def queue(entry: Entry, data: dict) -> AIRun:
     key = data.get('request_key')
     if not isinstance(key, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{16,64}', key):
         raise ValidationError('缺少有效请求标识，请重新提交')
-    values = _run_input(entry, data)
+    existing = AIRun.objects.filter(entry=entry, request_key=key).first()
+    values = _run_input(entry, data, existing)
     fingerprint = canonical_hash(values)
     from .worker import dispatch, recover
-    existing = AIRun.objects.filter(entry=entry, request_key=key).first()
     if existing:
+        # Legacy review fingerprints predate the version field. A retry keeps
+        # its original contract instead of silently upgrading the same request.
+        if existing.kind == 'experiment_review' and existing.review_version == 1:
+            legacy_values = {name: value for name, value in values.items() if name != 'review_version'}
+            fingerprint = canonical_hash(legacy_values)
         if existing.input_hash != fingerprint:
             raise Conflict('请求标识已用于其他输入，请重新提交')
         return recover(existing)
@@ -181,7 +252,7 @@ def queue(entry: Entry, data: dict) -> AIRun:
         if recover(run).status in ('pending', 'running'):
             active_count += 1
     if active_count >= 4:
-        raise Conflict('当前已有多个量化任务，请等待完成或取消后再提交')
+        raise QueueCapacity()
     config = model_config(values['model_id'])
     values['model_id'] = str(config.get('model_id') or values['model_id'])
     run = AIRun.objects.create(entry=entry, request_key=key, input_hash=fingerprint,
@@ -195,6 +266,8 @@ def queue(entry: Entry, data: dict) -> AIRun:
 def adopt(run: AIRun) -> dict:
     if run.status != 'completed':
         raise Conflict('仅可采用完整完成的 AI 结果')
+    if run.kind in ('analyze', 'experiment_review', 'feedback_review'):
+        raise ValidationError('分析报告已自动保存，无需采用')
     if run.kind == 'explain':
         return {'explanation': run.result.get('explanation', '')}
     if run.adopted_implementation_id:
@@ -214,7 +287,7 @@ def adopt(run: AIRun) -> dict:
     return {'implementation': implementation}
 
 
-def parse_result(kind: str, output: str) -> dict:
+def parse_result(kind: str, output: str, *,model_output=True) -> dict:
     if len(output) > CODE_LIMIT + 100000:
         raise ValidationError('模型输出超过上限，本次未采用')
     text = output.strip()
@@ -224,6 +297,15 @@ def parse_result(kind: str, output: str) -> dict:
         value = json.loads(text)
     except (ValueError, TypeError) as exc:
         raise ValidationError('模型未返回完整有效的结果，请调整要求后重试') from exc
+    if kind == 'experiment_review':
+        from .experiments.review_contract import validate_review
+        return validate_review(value)
+    if kind == 'feedback_review':
+        from .feedback.contracts import validate_analysis
+        return validate_analysis(value, model_output=model_output)
+    if kind == 'analyze':
+        from .research.analysis import validate_analysis
+        return validate_analysis(value)
     fields = ('code', 'explanation', 'differences', 'assumptions', 'dependencies', 'limitations')
     if not isinstance(value, dict) or any(not isinstance(item, str) for key, item in value.items() if key in fields):
         raise ValidationError('模型结果格式无效，本次未采用')

@@ -1,0 +1,3720 @@
+[
+  {
+    "model": "anthology.anthology",
+    "pk": "coll_2V5txDkCnD",
+    "fields": {
+      "title": "隔离真实模型验收",
+      "description": "暂无简介",
+      "icon_id": "book",
+      "user_id": "user_1",
+      "type": "quant",
+      "permission": "private",
+      "is_top": false,
+      "hide_cover_content": false,
+      "is_valid": true,
+      "count": 1,
+      "rag_not_synced_count": 0,
+      "sort": 0,
+      "created_at": "2026-10-25T18:56:40.673",
+      "updated_at": "2026-10-25T19:06:01.493"
+    }
+  },
+  {
+    "model": "quant.entry",
+    "pk": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+    "fields": {
+      "created_at": "2026-10-25T18:56:40.675",
+      "updated_at": "2026-10-25T19:06:01.492",
+      "anthology": "coll_2V5txDkCnD",
+      "title": "质量样例 · vendor_indicator",
+      "kind": "factor",
+      "content": "",
+      "source_url": "",
+      "tags": [],
+      "is_valid": true
+    }
+  },
+  {
+    "model": "quant.airun",
+    "pk": "2c441b89c1cf437b91d5f382251f75ec",
+    "fields": {
+      "created_at": "2026-10-25T19:03:49.921",
+      "updated_at": "2026-10-25T19:06:01.475",
+      "entry": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+      "source_version": null,
+      "source": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+      "resolved_source": null,
+      "experiment_result": null,
+      "validation_result": null,
+      "review_version": 1,
+      "planning_context": {},
+      "workflow_version": 14,
+      "resume_run_id": "7d7e1037e26b41b7941e24362c9a202c",
+      "restart_stage": "extract",
+      "request_key": "manual_provider_retry_vendor_indicator_0002",
+      "input_hash": "0be61b1a241c3a27c6ad9fab62324d831cdde52e3670d4c4560db45f7d2c7a63",
+      "kind": "analyze",
+      "target_language": "",
+      "target_version": "",
+      "requirements": "",
+      "model_id": "mod_MfktgXYteQ",
+      "model_name": "deepseek-flash",
+      "status": "completed",
+      "result": {
+        "title": "MT4 MissingVendor 指标封装样例",
+        "kind": "indicator",
+        "summary": "研究结论：材料是 MT4 图表窗口的薄封装指标，源码只在 OnInit 中绑定 1 个缓冲区，并在 OnCalculate 中给 Buffer[0] 做三元赋值；实际信号来源是未提供的外部指标 \"MissingVendor\"。因此这批材料不足以支持因子定义、收益判断或参数优劣结论；研究价值是识别依赖缺失、历史填充和索引风险，并整理接入和验证步骤。既有分类 platform:mt4、usage:display、tunability:signal、tunability:other 只是候选分类，不证明适用性或有效性。",
+        "principle": "源码事实：第1-3行声明 `#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`；第4-6行声明 Period=14、ShowSignal=true、Buffer[]；第7行 OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 INIT_SUCCEEDED；第8-11行 OnCalculate 接收 rates_total、prev_calculated、OHLC、tick_volume、volume、spread；第12行只给 Buffer[0] 赋值 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；第13-14行返回 rates_total。数据可得时点：源码未使用 OHLCV 数组，输出取决于终端调用 OnCalculate 时 iCustom 对 \"MissingVendor\" 的查询；shift=0 按字面是当前 bar 的候选值（AI 推断，未运行验证），历史 bar 是否逐根可得未知。结构解析 parser=lexical-v1、status=partial，仅词法候选，未调用 MT4 编译器，不能当作运行时依赖或回测证据。",
+        "formula": "字面计算：若 ShowSignal=true，则 B[0] = iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)；否则 B[0] = EMPTY_VALUE。步骤：1) OnInit 尝试把 Buffer 绑定为 0 号指标缓冲区；2) 终端每次调用 OnCalculate；3) 计算三元表达式；4) 写入 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值。\"MissingVendor\" 的内部映射 F 及 mode=0、shift=0 的运行时语义未提供，不能写出可计算的因子公式。",
+        "usage": "候选用途是按 MT4 图表窗口显示外部指标 \"MissingVendor\" 的当前候选值，并由 ShowSignal 控制显示或 EMPTY_VALUE；不是完整交易策略，源码未见下单、止损、仓位或风险控制。适用情景假设：外部指标文件存在且 iCustom 参数契约匹配，只需显示当前候选值；对历史曲线、回测因子、跨资产或特定频率的适用性均无材料支持。",
+        "risks": "源码事实：第12行仅对 `Buffer[0]` 赋值，第13行直接 `return(rates_total);`，未见以 rates_total 或 prev_calculated 驱动的循环；AI推断：若按字面运行，历史每根 bar 的缓冲区可能不会被逐一填充，prev_calculated 也未用于增量计算，但未编译或运行验证。第12行依赖外部指标 `\"MissingVendor\"`，材料未提供该指标文件或加载证据，无法确认输入参数顺序、缓冲区/模式索引、重绘或滞后行为。第7行 `SetIndexBuffer` 仅被词法解析为候选，运行时绑定成功与否未证明。`ShowSignal=false` 时只把 `Buffer[0]` 置为 `EMPTY_VALUE`，是否等同隐藏全部历史输出未知。源码未显示价格/成交量计算、交易下单、止损、仓位或风险控制逻辑。",
+        "validation_plan": "1) 依赖核验：取得 \"MissingVendor\" 指标文件或源码及参数契约，确认 iCustom 参数个数、mode=0、shift=0 和缓冲区索引语义。2) 编译与静态检查：在 MT4 编译器验证第7行 SetIndexBuffer 与第3行 indicator_buffers 一致，检查 Buffer 的索引方向、ArraySetAsSeries 和逐根填充。3) 运行观察：在图表加载后记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等值和日志，验证是否只写索引0以及 ShowSignal=false 时是否只清空单点。4) 对照验证：将本封装输出与直接加载 MissingVendor 的输出逐 bar 对照，检查重绘或滞后。5) 敏感度：在外部指标参数契约允许范围内改变 Period、切换 ShowSignal、缺失依赖与存在依赖、不同 shift 候选；不给出最优参数。6) 样本外：仅在 MissingVendor 算法与数据口径明确后，按多个资产和时间框架划分样本内外验证显示数值一致性；当前材料不足以进行收益、风险或参数晋级验证。",
+        "source_facts": [
+          "材料元数据：title='质量样例 · vendor_indicator'，language='mql4'，platform='MetaTrader 4'，provenance='intake'，fetch_status='not_fetched'；description 与 url 为空，未提供资产、频率、回测或有效性声明。",
+          "源码事实（第1-3行）：`#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`，声明为图表窗口、1个指标缓冲区；这些是属性声明，未经原平台编译器验证。",
+          "源码事实（第4-6行）：`input int Period = 14;`、`extern bool ShowSignal = true;`、`double Buffer[];`；Period 与 ShowSignal 是输入/外部参数，Buffer 为数组。",
+          "源码事实（第7行）：OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 `INIT_SUCCEEDED`；source_structure 将该调用标为词法候选，未证明运行时绑定成功。",
+          "源码事实（第8-11行）：OnCalculate 形参包含 rates_total、prev_calculated、time/open/high/low/close、tick_volume、volume、spread；代码主体未显示对这些价格或成交量数组的计算。",
+          "源码事实（第12行）：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；仅写索引0，未显示遍历 rates_total 的循环；iCustom 引用名称 'MissingVendor'，未提供该外部指标文件或加载证据。",
+          "源码事实（第13-14行）：`return(rates_total);` 结束 OnCalculate；未见交易下单、止损、仓位或风险控制代码。",
+          "结构解析：parser='lexical-v1'，status='partial'，仅词法候选；未调用MT4编译器，宏、类型、重载、作用域及实际执行依赖未解析；imports为空且外部依赖未加载。",
+          "AI推断：由于只写 Buffer[0] 且未循环，若原样运行，历史 bars 的缓冲区可能不会被逐根填充；该推断未运行验证，不能当作编译、回测或收益结论。",
+          "未知：资产类别、数据频率、MissingVendor 的实际算法与可得性、参数最优值、收益与风险表现均无材料，不能补造。"
+        ],
+        "assumptions": [
+          "AI推断：作者意图是把外部指标 \"MissingVendor\" 封装为图表指标；依据是第12行 iCustom 调用和第2行 indicator_chart_window。",
+          "AI推断：当前源码可能只填充最新 bar 的缓冲区；依据是第12行仅写 Buffer[0]、未显示遍历 rates_total 的循环，且第13行直接 return(rates_total)。未编译或运行验证，不能视为确定缺陷。",
+          "AI推断：iCustom 的 shift=0 可能读取当前 bar；依据是字面参数 0，但源码未注释，运行时语义未知。",
+          "AI推断：SetIndexBuffer 可能成功绑定 0 号缓冲区；依据是第7行调用，但解析器仅给词法候选，未证明运行时成功。",
+          "AI推断：Period 影响外部指标计算；依据是第12行把 Period 传给 iCustom，但外部算法未提供，具体影响未知。",
+          "AI推断：ShowSignal 是显示开关而非信号参数；依据是第12行三元表达式在 false 时写 EMPTY_VALUE，且未改变传给 iCustom 的 Period。",
+          "AI推断：该材料当前不可独立复现或评估；依据是 MissingVendor 文件、资产、频率、运行配置和回测均未提供。"
+        ],
+        "unknowns": [
+          "实际运行配置未提供；`Period=14` 与 `ShowSignal=true` 仅为源码默认值，不能冒充部署参数。",
+          "Period 的允许范围、步长、单位及其在 MissingVendor 中的语义未声明。",
+          "MissingVendor 指标文件、算法、输入参数顺序、缓冲区/模式索引以及是否重绘未知。",
+          "`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)` 中 timeframe=0、mode=0、shift=0 的运行时语义与是否应固定为常量未知，源码未注释。",
+          "Buffer 的索引方向、是否逐根填充、SetIndexBuffer 运行时是否成功未知。",
+          "资产类别、数据频率、回测、收益、风险表现和最优参数均无材料。",
+          "结构解析为 partial 词法候选，未调用 MT4 编译器，宏、类型、重载、作用域和实际执行依赖未验证。"
+        ],
+        "parameters": [
+          {
+            "name": "Period",
+            "type": "int",
+            "default_value": "14",
+            "category": "signal",
+            "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+            "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+            "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+            "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+            "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+          },
+          {
+            "name": "ShowSignal",
+            "type": "bool",
+            "default_value": "true",
+            "category": "display",
+            "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+            "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+            "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+            "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+            "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+          },
+          {
+            "name": "Buffer",
+            "type": "double[]",
+            "default_value": "",
+            "category": "state",
+            "meaning": "指标输出缓冲区数组；第7行通过 SetIndexBuffer(0, Buffer) 尝试绑定为 0 号缓冲区，第12行只写 Buffer[0]。不是用户可调输入。",
+            "constraints": "非用户参数；长度与索引方向由终端/平台管理，源码未显示 ArraySetAsSeries 或显式长度设置。SetIndexBuffer 仅为词法候选，运行时绑定未证明。",
+            "effect": "承载显示输出；当前源码只写索引 0，若未逐根遍历，历史 bars 的缓冲区填充情况未知。",
+            "suggestion": "不应列入可调参数；应检查是否需要对 rates_total 逐根赋值以及缓冲区索引方向。",
+            "evidence": "第6行：`double Buffer[];`；第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ...`"
+          },
+          {
+            "name": "indicator_buffers",
+            "type": "int",
+            "default_value": "1",
+            "category": "constant",
+            "meaning": "编译属性声明指标缓冲区数量为 1；不是用户输入。",
+            "constraints": "源码硬编码属性 `#property indicator_buffers 1`，未声明可变范围；其与 SetIndexBuffer(0, Buffer) 的运行时绑定一致性未验证。",
+            "effect": "影响平台为指标分配/绑定的缓冲区数量；改动需与 SetIndexBuffer 调用匹配。",
+            "suggestion": "不作为优化参数；若修改应重新编译并核对缓冲区绑定。",
+            "evidence": "第3行：`#property indicator_buffers 1`"
+          },
+          {
+            "name": "MissingVendor",
+            "type": "string",
+            "default_value": "MissingVendor",
+            "category": "constant",
+            "meaning": "iCustom 调用的外部指标名称，属于硬编码依赖标识。",
+            "constraints": "字符串硬编码在第12行；材料未提供该指标文件、算法、输入参数个数或加载证据。",
+            "effect": "改变该名称会改变外部依赖与计算来源；当前名称可能导致依赖缺失，具体运行结果未知。",
+            "suggestion": "不应作为收益优化参数；需先提供并验证 MissingVendor 指标文件及其参数契约。",
+            "evidence": "第12行：`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`"
+          }
+        ],
+        "scores": [
+          {
+            "dimension": "逻辑清晰度",
+            "score": 3,
+            "reason": "封装控制流简单：OnInit 绑定缓冲区，OnCalculate 对 Buffer[0] 做三元赋值；前序说明能区分源码事实与 AI 推断，且未发现与原文直接矛盾。但核心计算完全外包给未提供的 MissingVendor，无法形成可计算、可检验的因子逻辑，因此只能给中等分。",
+            "evidence": "source.code 第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；source.description 与 url 为空，无回测或运行证据；检索相似性不是实证。"
+          },
+          {
+            "dimension": "实现质量",
+            "score": 2,
+            "reason": "有指标基本骨架，但可见代码只给 Buffer[0] 赋值，未见遍历 rates_total 的循环，prev_calculated 也未被使用；返回 rates_total 的终端语义未验证。外部依赖 MissingVendor 未提供，无法确认运行时能否计算。该对象是指标，不因没有下单、止损或仓位控制扣分。",
+            "evidence": "source.code 第12–13行仅见 `Buffer[0] = ...` 与 `return(rates_total);`；第7行 SetIndexBuffer 仅为词法候选；source.structure 为 partial，不能当作编译或运行证据。"
+          },
+          {
+            "dimension": "数据与时序可靠性",
+            "score": 2,
+            "reason": "可见代码未直接使用 OHLCV 数组，也未发现把未来收益作为时点信号的写法；但 iCustom 的 shift=0 时点语义和是否重绘未知，历史逐 bar 填充未证实，资产类别与频率未声明。不能仅凭形参声明推断数据使用时序。",
+            "evidence": "source.code 第8–11行声明 OHLCV 等形参，第12行只调用 iCustom(...Period, 0, 0)；无时间戳、数据频率、回测或终端日志证据；前序 AI 对单点写入的推断与原文一致，但运行影响仍属未验证假设。"
+          },
+          {
+            "dimension": "参数可解释性",
+            "score": 2,
+            "reason": "Period=14 只作为 iCustom 输入转发，其单位、合法范围、步长和外部参数契约均未知；ShowSignal 是显示门控，不是已证明的收益参数。缺少 MissingVendor 定义时，参数效果无法解释，更不能给出优化结论。",
+            "evidence": "source.code 第4行：`input int Period = 14;`；第5行：`extern bool ShowSignal = true;`；第12行把 Period 传给 MissingVendor；材料未提供参数契约或运行配置。"
+          },
+          {
+            "dimension": "复现与复用价值",
+            "score": 1,
+            "reason": "核心依赖 MissingVendor 文件/算法缺失，受控表达式为空，automatic_experiment_ready=false，输入映射仍未完成；无法独立复现或复用为因子。当前价值主要是依赖缺失与缓冲区实现风险的样例，而不是可检验因子。",
+            "evidence": "source.code 第12行硬编码 `iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`；portable_qualification 声明 expression missing、automatic_experiment_ready=false 且 external_dependencies 未验证；research_memory 无历史实验。"
+          }
+        ],
+        "tags": [
+          "platform:mt4",
+          "usage:display",
+          "tunability:signal",
+          "tunability:other"
+        ],
+        "total_score": 40,
+        "evidence_status": "static_unverified",
+        "rubric_version": "research-quality-v1",
+        "source_findings_version": 1,
+        "source_findings": [
+          {
+            "title": "外部指标 MissingVendor 缺失，核心计算不可复现",
+            "severity": "high",
+            "category": "dependency",
+            "certainty": "source_fact",
+            "impact": "第12行硬编码调用外部指标 MissingVendor；材料未提供该文件、算法、参数契约、返回单位或缺失行为，无法确认 mode/shift 语义，因而不具备独立复现前提。",
+            "recommendation": "先取得 MissingVendor 源码或可执行文件及参数契约，核对其缓冲区索引、输入顺序和缺失返回值；未取得前不建立因子有效性或参数结论。",
+            "affected_dimensions": [
+              "逻辑清晰度",
+              "参数可解释性",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "仅给 Buffer[0] 赋值，未证明逐历史 bar 填充",
+            "severity": "high",
+            "category": "implementation",
+            "certainty": "source_fact",
+            "impact": "可见代码只在第12行写索引0，未见遍历 rates_total 的循环；若按字面运行，历史缓冲区可能只得到单点或空值，图表历史曲线可能缺失。该运行后果仍需编译和终端观察，不能当作已确认缺陷。",
+            "recommendation": "在终端记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等历史索引，并与直接加载 MissingVendor 的输出逐 bar 对照；确认是否需要按 rates_total 循环填充。",
+            "affected_dimensions": [
+              "实现质量",
+              "数据与时序可靠性",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              },
+              {
+                "field": "code",
+                "quote": "return(rates_total);"
+              }
+            ]
+          },
+          {
+            "title": "OnCalculate 返回 rates_total 的终端语义未验证",
+            "severity": "medium",
+            "category": "implementation",
+            "certainty": "hypothesis",
+            "impact": "在 MT4 中返回 rates_total 可能让终端认为全部 bars 已计算；与仅写索引0结合，可能抑制历史重算。材料没有运行日志或编译结果，不能确定为源码缺陷。",
+            "recommendation": "在终端观察 prev_calculated 与返回值的增量语义，比较首次加载、新 tick、切周期后的 Buffer 历史；不能仅凭函数名或检索相似性推断。",
+            "affected_dimensions": [
+              "实现质量",
+              "数据与时序可靠性"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "return(rates_total);"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "iCustom 的 shift=0 当前 bar 值可能随 tick 变化",
+            "severity": "medium",
+            "category": "repainting",
+            "certainty": "hypothesis",
+            "impact": "若 shift=0 返回当前未收盘 bar，Buffer[0] 会随 tick 更新；是否重绘及其对历史显示的影响未知。不能据此宣称未来数据泄漏，也不能直接当作已确认重绘。",
+            "recommendation": "用已收盘 bar 对照、shift=1 候选、实时/回放日志和逐 tick 快照验证 Buffer[0] 是否变化；在因子使用时固定可得时点。",
+            "affected_dimensions": [
+              "数据与时序可靠性"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "ShowSignal=false 只把索引0置空，隐藏全部历史输出的语义未知",
+            "severity": "low",
+            "category": "implementation",
+            "certainty": "hypothesis",
+            "impact": "第12行三元表达式仅作用于 Buffer[0]；关闭开关是否清除全部历史缓冲区未证明，可能造成显示不一致。",
+            "recommendation": "检查关闭时是否需循环清空 Buffer 或依赖平台重绘；用图表历史输出验证，而不是仅凭单行赋值推断全部历史已隐藏。",
+            "affected_dimensions": [
+              "实现质量",
+              "数据与时序可靠性"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "extern bool ShowSignal = true;"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "Period 参数语义、范围与外部契约未知",
+            "severity": "medium",
+            "category": "parameter",
+            "certainty": "source_fact",
+            "impact": "第4行只声明默认值14，第12行原样传给 MissingVendor；没有最小值、最大值、步长、单位或外部参数顺序证据，不能解释其经济含义或给出优化区间。",
+            "recommendation": "取得 MissingVendor 参数契约后建立映射；在此之前仅记录默认值，不作最优参数、敏感度或收益结论。",
+            "affected_dimensions": [
+              "参数可解释性",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "input int Period = 14;"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "OHLCV 形参未被函数体引用，不能据此推断价格或量能输入",
+            "severity": "info",
+            "category": "other",
+            "certainty": "source_fact",
+            "impact": "第8–11行声明价格、成交量和点差数组，但第12行只调用 iCustom；若把该对象误标为 OHLCV 因子会缺乏源码依据。",
+            "recommendation": "保持 mechanism 未细分或待确认；待 MissingVendor 算法明确后再判定是否使用价格或量能，不据形参声明捏造数据因子。",
+            "affected_dimensions": [
+              "逻辑清晰度",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "int OnCalculate(const int rates_total, const int prev_calculated,"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          }
+        ],
+        "source_findings_note": "审查范围：source.code 第1–14行、source.description、url、source_structure、portable_qualification 与冻结 research_memory；description 为空，无 url/web_markdown，未引用这些字段。未检查项：未调用 MT4 编译器，未运行终端，未取得 MissingVendor 源码/算法/参数契约，未做回测、收益、风险、重绘或跨周期验证，未验证 SetIndexBuffer 运行时绑定。source_structure=partial 仅为词法候选，portable_qualification 的 expression missing、automatic_experiment_ready=false 与外部依赖未验证属于本机研究流程边界，不据此单独判源码缺陷。前序 AI 推断“只写 Buffer[0]”与原文第12–13行一致，但“历史 bar 不填充”及返回 rates_total 的终端后果仍是未运行验证的假设；未发现未来收益直接作为时点信号的写法，但不等于不存在未提供的 MissingVendor 内部时序问题。检索相似性、前序 AI 分析与本次审查本身都不是实证。",
+        "extraction_version": 1,
+        "extraction_note": "提取范围：仅第1–14行源码、既有 identify/parameters/research 记录与分类候选词表。边界：源码只有 1 次 SetIndexBuffer（第7行）与 1 次对 Buffer[0] 的三元赋值（第12行），无算术、无窗口函数、无循环、无过滤条件组合，唯一数值来源是黑箱平台函数 iCustom 调用外部指标 \"MissingVendor\"，其文件、算法、参数契约、mode/shift 语义均未提供，故只能给出 1 个待研究特征候选并 expression=null，不为凑数编造均线、RSI、区间或收益型因子。未列为候选的项及原因：ShowSignal 是同一三元表达式内的显示门控（原文 \"ShowSignal ? ... : EMPTY_VALUE\"），与宿主赋值不可分离，若单独建 display 候选会与同一变换重复；Buffer[]/indicator_buffers 是缓冲区与编译属性，不是可研究特征；OnCalculate 的 OHLC/tick_volume/volume/spread 形参在函数体内未被引用（第12行未用），不能据形参声明捏造价格或成交量因子。role 判断：该值在源码中的直接用途是图表窗口输出（第2行 indicator_chart_window），但它是唯一可复用的数值特征，故按「待研究特征」记为 role=factor、family=other；若下游按严格用途口径重判为 display，不改变其黑箱与未知性质。未执行编译、未访问终端、未运行回测；source_structure 为 lexical-v1/partial 词法候选，不代表编译或运行通过。材料未声明资产类别、数据频率、收益或参数最优值，本报告不作任何此类结论。",
+        "factors": [
+          {
+            "name": "MissingVendor 封装输出值（iCustom 直通，写 Buffer[0]）",
+            "role": "factor",
+            "family": "other",
+            "summary": "第12行把外部指标 \"MissingVendor\" 在 mode=0、shift=0 下的返回值（受 ShowSignal 门控）写入输出缓冲区第 0 个元素，是材料中唯一可辨识的数值输出，故作为待研究特征占位。外部指标算法、参数契约、单位与是否重绘均未知，机制无法归类，family 记 other；未经编译、运行或回测，不声明任何预测力、有效性或收益。",
+            "formula": "字面赋值（第12行）：B[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE。流程：1) OnInit 尝试 SetIndexBuffer(0, Buffer)（第7行，仅词法候选，运行时绑定未验证）；2) 终端调用 OnCalculate；3) 求三元表达式：ShowSignal 为真取 iCustom(NULL,0,\"MissingVendor\",Period,0,0)，为假取平台空值 EMPTY_VALUE；4) 写 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值，prev_calculated 未被使用。iCustom 内部映射 F（MissingVendor 算法、mode=0、shift=0 的运行时语义）未提供，无法写出等价可计算公式。",
+            "inputs": [
+              {
+                "name": "missingvendor_value",
+                "meaning": "external indicator \"MissingVendor\" 在 mode=0、shift=0 下返回的数值；其算法、缓冲区索引语义与返回单位材料未提供，文件未加载，属黑箱输出。",
+                "availability": "需要终端已安装该指标且 iCustom 参数契约（Period, 0, 0）匹配；材料无加载证据，实际可得时点未知。",
+                "missing_policy": "未知：源码未处理外部指标缺失或返回无效值的情况；ShowSignal=false 时写 EMPTY_VALUE，但外部指标本身缺失时的返回值材料未说明。"
+              },
+              {
+                "name": "chart_symbol",
+                "meaning": "iCustom 第一参数为 NULL；按 MQL4 字面为当前图表品种，材料未声明具体资产类别或代码。",
+                "availability": "图表加载时由终端上下文提供；具体品种未知。",
+                "missing_policy": "未知：材料未说明无图表上下文或品种不可用时的行为。"
+              },
+              {
+                "name": "chart_timeframe",
+                "meaning": "iCustom 第二参数为字面 0；按 MQL4 字面指当前图表周期，具体周期（分钟/小时/日等）材料未声明，源码无注释。",
+                "availability": "图表加载时由终端上下文提供；具体周期未知。",
+                "missing_policy": "未知：材料未说明周期不可用或切换周期时的行为。"
+              }
+            ],
+            "output_type": "platform_specific",
+            "units": "未知：外部指标返回值单位材料未声明；ShowSignal=false 时为平台空值标记 EMPTY_VALUE，不是数值 0。",
+            "timeframe": "计算窗口未知：源码无窗口计算、无循环，Period 的单位与语义由外部指标定义，材料未声明；iCustom 第二参数 0 按字面为当前图表周期，具体周期未知；未显示逐 bar 历史计算，AI 推断输出可能只对应单一索引 0（未运行验证）。",
+            "parameters": [
+              {
+                "name": "Period",
+                "type": "int",
+                "default_value": "14",
+                "category": "signal",
+                "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+                "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+                "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+                "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+                "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+              },
+              {
+                "name": "ShowSignal",
+                "type": "bool",
+                "default_value": "true",
+                "category": "display",
+                "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+                "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+                "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+                "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+                "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+              }
+            ],
+            "dependencies": [
+              "外部指标 \"MissingVendor\" 文件/算法：材料未提供，无加载证据（第12行字符串字面量）",
+              "MQL4 函数 iCustom 及其 symbol=NULL、timeframe=0、mode=0、shift=0 的运行时语义：材料未注释，未知",
+              "SetIndexBuffer(0, Buffer) 运行时绑定：source_structure 标为 lexical_candidate，未证明成功",
+              "终端对 OnCalculate 的调用与 rates_total/prev_calculated 驱动：源码未见循环或增量逻辑"
+            ],
+            "limitations": "expression=null 原因：核心依赖 iCustom（平台黑箱函数）不在支持算子集合内，其内部映射 F 与 mode/shift 语义未知，编造等价公式会伪造语义。其他边界：源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，历史 bar 填充情况未知（AI 推断，未运行验证）；ShowSignal=false 只把索引 0 置为 EMPTY_VALUE，是否等同隐藏全部历史输出未知；\"MissingVendor\" 为硬编码字符串常量，材料未给出可选值集合，故不作字符串枚举参数建模，仅记入 dependencies；Period 的合法范围、步长与单位未声明，不建 domain；未使用 OnCalculate 的 OHLC/tick_volume/volume/spread 形参，不能据此推断价格或量能输入；解析为 lexical-v1/partial，未编译、未运行、未回测；资产类别、频率、收益、风险与最优参数均无材料，本项不作有效性声明。",
+            "tags": [
+              "platform:mt4",
+              "usage:display",
+              "mechanism:other",
+              "tunability:signal"
+            ],
+            "expression": null,
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              },
+              {
+                "field": "code",
+                "quote": "int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }"
+              },
+              {
+                "field": "code",
+                "quote": "input int Period = 14;"
+              },
+              {
+                "field": "code",
+                "quote": "extern bool ShowSignal = true;"
+              },
+              {
+                "field": "code",
+                "quote": "return(rates_total);"
+              }
+            ]
+          }
+        ],
+        "factor_repair": {
+          "version": 1,
+          "selected": [
+            0
+          ],
+          "omitted": [],
+          "items": [
+            {
+              "factor_index": 0,
+              "status": "unresolved",
+              "summary": "无法修订为受控定义。源码第12行仅把 ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE 写入 Buffer[0]；iCustom 与外部指标 MissingVendor 的算法、参数契约、mode=0/shift=0 语义、返回单位及缺失行为均未提供，EMPTY_VALUE 的平台哨兵含义也未声明。受控算子不含 iCustom，不能把黑箱外部指标替换为等价表达式，也不能删除该依赖。源码未见遍历 rates_total 的循环，prev_calculated 未使用，输出是逐 bar 序列还是仅索引0未知；因此无法构造保留时点、单位与缺失规则的新定义。保持原候选，不发布伪造定义。",
+              "definition": null,
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "int OnCalculate(const int rates_total, const int prev_calculated,\n                const datetime &time[], const double &open[], const double &high[],\n                const double &low[], const double &close[], const long &tick_volume[],\n                const long &volume[], const int &spread[]) {\n    Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n    return(rates_total);\n}"
+                },
+                {
+                  "field": "code",
+                  "quote": "int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }"
+                },
+                {
+                  "field": "code",
+                  "quote": "input int Period = 14;"
+                },
+                {
+                  "field": "code",
+                  "quote": "extern bool ShowSignal = true;"
+                }
+              ],
+              "remaining_unknowns": [
+                "外部指标 \"MissingVendor\" 的文件、算法、内部缓冲区索引语义、参数契约与返回单位均未提供，无法展开为受控表达式。",
+                "MQL4 iCustom 在 symbol=NULL、timeframe=0、mode=0、shift=0 下的运行时语义、错误返回值及缺失值处理未给出，无法确认输入时点与缺失规则。",
+                "源码只写 Buffer[0]，且 OnCalculate 函数体内没有遍历 rates_total 的循环、prev_calculated 未被使用；历史 bar 是否填充、序列方向与索引含义未知。",
+                "EMPTY_VALUE 的平台哨兵表示、可比较性或是否等同缺失值未声明，无法在定义中安全表达 ShowSignal=false 分支。",
+                "SetIndexBuffer(0, Buffer) 仅为词法候选，运行时绑定是否成功、缓冲区数量与绘图属性未验证。",
+                "iCustom 中 symbol=NULL 与 timeframe=0 对应的实际图表品种和周期未在材料中具体化，资产类别与数据频率未知。",
+                "Period=14 与 ShowSignal=true 是源码默认值；其部署配置、合法范围、步长及传给 MissingVendor 后的语义未知。",
+                "无法判断该输出应建模为单点标量、最新 bar 值还是完整时间序列，也无法确认 ShowSignal 关闭时是否应清除全部历史缓冲区。"
+              ],
+              "before_hash": "efcac7d4a67c11d837b58941dd8452b69e69b9f9a7316201c048ad807c9ba964",
+              "after_hash": "",
+              "changed_fields": []
+            }
+          ]
+        },
+        "source_memory_version": 1,
+        "research_memory": {
+          "version": 3,
+          "method": "library-history-v3",
+          "scope": "same_collection",
+          "cutoff": "2026-10-25T11:03:49.921000+00:00",
+          "scan_limit": 2000,
+          "scanned": {
+            "experiments": 0,
+            "feedback": 0,
+            "comparisons": 0,
+            "fixed_validations": 0
+          },
+          "eligible": {
+            "fixed_validations": 0,
+            "comparisons": 0,
+            "experiments": 0,
+            "feedback": 0
+          },
+          "omitted_for_size": 0,
+          "items": [],
+          "scan_limits": {
+            "seconds": 5,
+            "max_chars": 20000000,
+            "chars_read": 0,
+            "budget_limited": false,
+            "size_limited": false
+          }
+        },
+        "memory_note": "冻结 research_memory 扫描结果为 experiments=0、feedback=0、comparisons=0、fixed_validations=0，items 为空；本轮没有历史实验、外部反馈、直接对照或固定验证可引用。未提供历史不等于不存在失败或反例，也不能据此补造表现、收益或最优参数。本轮不采用、不拒绝任何历史记录。",
+        "memory_assessment": [],
+        "initial_planning_note": "阻断项（据此 initial_proposal=null）：\n1) 无受控表达式。第12行 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;` 的唯一数值来源是平台黑箱 iCustom 与未提供的外部指标 \"MissingVendor\"（文件、算法、参数契约、返回单位、缺失行为均缺）。factor.expression=null，portable_qualification 该条 expression=missing、automatic_experiment_ready=false；lag/smooth/zscore/ts_rank 等受控算子无法承载该依赖，写成等价公式即伪造语义。\n2) 输入无法映射到 OHLCV。已声明输入为 missingvendor_value / chart_symbol / chart_timeframe；第8–11行 OHLCV 形参在函数体内未被引用（第12行只用 iCustom），不能据形参声明把它们映射为 open/high/low/close/volume。symbol=NULL、timeframe=0 对应品种与周期未具体化，资产类别与频率未知，data_requirement 无法写出。\n3) 参数默认值不足以成组：可表示为有限 JSON 的只有 Period=14（第4行 `input int Period = 14;`）与 ShowSignal=true（第5行 `extern bool ShowSignal = true;`）。但 Period 的合法范围、步长、单位与在 MissingVendor 内的语义未声明；ShowSignal 是显示门控（第12行 false 时写 EMPTY_VALUE），不应作为收益优化参数。缺少第二个可联动数值轴，也无可依据的枚举，故不做单轴对角线扫描。\n4) 输出形态与时序未知。源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，第13行 `return(rates_total);` 的终端语义未验证（AI 推断，未运行）。无法判断该输出是逐 bar 序列还是仅单点，因而窗口参数（1–2000整数）与滞后语义无从建立；EMPTY_VALUE 是否可比较、能否等同缺失未声明，gate/缺失处理也不能假定已消除缺失。\n5) 无可辩护的阈值与执行尺度。units 为 platform_specific 且未知；任何 threshold、direction、退出滞回、止损止盈、持仓上限都缺尺度依据，把该值>0 当多头信号属无意义转换。因此本批也省略 strategy，而非默认沿用做多/空仓模型。\n附带省略说明：evolution 需至少一个可计算父代与结构单位匹配的片段，crossover 需第二父代为布尔过滤条件，均不成立；walk_forward 需明确行情与口径、每折容纳基线与参数组，前提缺失时声明折数/窗口会暗示已验证，故一并省略。费用/滑点/间隔等假设在此不设定，避免被误读为已适配账户。\n补齐后可检验的范围（不声称已做）：a) 取得 MissingVendor 源码与参数契约，核对 mode=0、shift=0、缓冲区索引与缺失返回值；b) 与直接加载该指标逐 bar 对照，记录 rates_total、prev_calculated、Buffer[0]/[1]/[10]，判定是否逐根填充与是否重绘；c) 明确品种、周期与逐 bar 可得时点后，再讨论窗口与阈值，并将费用/滑点/隔离间隔明确标注为实验假设。\n证据边界：源码事实=第3–7行属性与声明、SetIndexBuffer(0,Buffer)、第12–13行赋值与返回；作者主张=无（description/url 为空）；AI 推断=历史 bar 可能未填充、shift=0 可能随 tick 变化；未知=品种、频率、外部算法、单位、收益与最优参数。本轮未运行、未回测，不声称有效或获利。",
+        "initial_proposal": null,
+        "initial_planning_version": 1
+      },
+      "error": "",
+      "adopted_implementation_id": null
+    }
+  },
+  {
+    "model": "quant.airun",
+    "pk": "7d7e1037e26b41b7941e24362c9a202c",
+    "fields": {
+      "created_at": "2026-10-25T18:56:40.679",
+      "updated_at": "2026-10-25T18:58:44.924",
+      "entry": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+      "source_version": null,
+      "source": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+      "resolved_source": null,
+      "experiment_result": null,
+      "validation_result": null,
+      "review_version": 1,
+      "planning_context": {},
+      "workflow_version": 14,
+      "resume_run_id": "",
+      "restart_stage": "",
+      "request_key": "manual_deepseek_smoke_20261025",
+      "input_hash": "c5185c538ca8e861050743de3c65e57a9ad4bb5160a0a01798875c637e10f89b",
+      "kind": "analyze",
+      "target_language": "",
+      "target_version": "",
+      "requirements": "",
+      "model_id": "mod_MfktgXYteQ",
+      "model_name": "deepseek-flash",
+      "status": "failed",
+      "result": {},
+      "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+      "adopted_implementation_id": null
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "db3a3c725d54bab10cb4a1ae029baa8136261c13",
+    "fields": {
+      "created_at": "2026-10-25T18:56:40.915",
+      "updated_at": "2026-10-25T18:56:40.915",
+      "run": "7d7e1037e26b41b7941e24362c9a202c",
+      "ordinal": 1,
+      "stage": "normalize",
+      "input": {
+        "version": 14,
+        "stage": "normalize",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {},
+        "dependencies": {},
+        "tool_version": "quant-research-stages-14",
+        "vocabulary_ref": {
+          "version": 1,
+          "builtin_version": 1,
+          "revision_id": "",
+          "content_hash": "c4c1388f71209826cf5bfe89da1ae7e10d3107e2f261a299a7b1fcd5e28eb80a"
+        }
+      },
+      "content_hash": "701a39fc2b587a00b1bf5ceb6684568c1015ad3802f3a9c03f127bf5d0a83423"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "a9e195cabaaeee1628995666f9c8a073550e9429",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.089",
+      "updated_at": "2026-10-25T19:03:50.089",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 1,
+      "stage": "normalize",
+      "input": {
+        "version": 14,
+        "stage": "normalize",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {},
+        "dependencies": {},
+        "tool_version": "quant-research-stages-14",
+        "vocabulary_ref": {
+          "version": 1,
+          "builtin_version": 1,
+          "revision_id": "",
+          "content_hash": "c4c1388f71209826cf5bfe89da1ae7e10d3107e2f261a299a7b1fcd5e28eb80a"
+        }
+      },
+      "content_hash": "701a39fc2b587a00b1bf5ceb6684568c1015ad3802f3a9c03f127bf5d0a83423"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "54100e51dcbc905ed3615358106a94309f52166e",
+    "fields": {
+      "created_at": "2026-10-25T18:56:40.977",
+      "updated_at": "2026-10-25T18:56:40.977",
+      "run": "7d7e1037e26b41b7941e24362c9a202c",
+      "ordinal": 2,
+      "stage": "identify",
+      "input": {
+        "version": 14,
+        "stage": "identify",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "0c5ed908660c19a01ad1ea60a0a1b01101a25f739227b93982153de92af88fd2"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "f817f32730a45b56a88e7def4d00ef839f93bfe2",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.094",
+      "updated_at": "2026-10-25T19:03:50.094",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 2,
+      "stage": "identify",
+      "input": {
+        "version": 14,
+        "stage": "identify",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "0c5ed908660c19a01ad1ea60a0a1b01101a25f739227b93982153de92af88fd2"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "9c5b34ad975cc85465a48aa81fdf5a6f23d893a2",
+    "fields": {
+      "created_at": "2026-10-25T18:57:04.832",
+      "updated_at": "2026-10-25T18:57:04.832",
+      "run": "7d7e1037e26b41b7941e24362c9a202c",
+      "ordinal": 3,
+      "stage": "parameters",
+      "input": {
+        "version": 14,
+        "stage": "parameters",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "f0973ce71b3b241b1af1693611f6d0a548b70a39a0e94e5f219af7d1d16da767"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "07b14d944bda2474245d1eaec66fa5b0b315d9d1",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.099",
+      "updated_at": "2026-10-25T19:03:50.099",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 3,
+      "stage": "parameters",
+      "input": {
+        "version": 14,
+        "stage": "parameters",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "f0973ce71b3b241b1af1693611f6d0a548b70a39a0e94e5f219af7d1d16da767"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "3cdbdaed25ac1c74652e15ddb7a39797a9b234c3",
+    "fields": {
+      "created_at": "2026-10-25T18:57:30.765",
+      "updated_at": "2026-10-25T18:57:30.765",
+      "run": "7d7e1037e26b41b7941e24362c9a202c",
+      "ordinal": 4,
+      "stage": "research",
+      "input": {
+        "version": 14,
+        "stage": "research",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0",
+          "parameters": "74660822236c5cd925635c52c7a11933e0bc46696454dd4fb7e70ce2905bd1e5"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "3c6878292b208c44cb69758709b704c0a1b0fde9ffb33ff5b5319fe50dfb9d29"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "91f99e5961e219839475245d748f9e1fafed7323",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.102",
+      "updated_at": "2026-10-25T19:03:50.102",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 4,
+      "stage": "research",
+      "input": {
+        "version": 14,
+        "stage": "research",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0",
+          "parameters": "74660822236c5cd925635c52c7a11933e0bc46696454dd4fb7e70ce2905bd1e5"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "3c6878292b208c44cb69758709b704c0a1b0fde9ffb33ff5b5319fe50dfb9d29"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "e3b5ffb8a82a96131ec230beda9af7f1b32c1118",
+    "fields": {
+      "created_at": "2026-10-25T18:57:53.721",
+      "updated_at": "2026-10-25T18:57:53.721",
+      "run": "7d7e1037e26b41b7941e24362c9a202c",
+      "ordinal": 5,
+      "stage": "extract",
+      "input": {
+        "version": 14,
+        "stage": "extract",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0",
+          "parameters": "74660822236c5cd925635c52c7a11933e0bc46696454dd4fb7e70ce2905bd1e5",
+          "research": "4fe3898dbf5793e19f7358a1504334176df17de55cab9948ff50ce24eb66c95d"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "e136e9ac1918ebf692d9ef6ea280bbc74b159d752ae7a81f74e5f6f8d905b71b"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "de9dab0aaa8e3f434e1d0356d02897c8261dc806",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.107",
+      "updated_at": "2026-10-25T19:03:50.107",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 5,
+      "stage": "extract",
+      "input": {
+        "version": 14,
+        "stage": "extract",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0",
+          "parameters": "74660822236c5cd925635c52c7a11933e0bc46696454dd4fb7e70ce2905bd1e5",
+          "research": "4fe3898dbf5793e19f7358a1504334176df17de55cab9948ff50ce24eb66c95d"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "e136e9ac1918ebf692d9ef6ea280bbc74b159d752ae7a81f74e5f6f8d905b71b"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "655f0cca5a184b9237f8e9beddfd3529fd9ea41b",
+    "fields": {
+      "created_at": "2026-10-25T19:04:31.230",
+      "updated_at": "2026-10-25T19:04:31.230",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 6,
+      "stage": "repair",
+      "input": {
+        "version": 14,
+        "stage": "repair",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "extract": "9302c61e5d3bf50124436dd8e2f69fbf0d2996bf2757f64e689b4292f2afcf98"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "acf65f81d5b86c2dae8d1594dbd0f04bf6ab7043092d3b8b6ebb22d24401d359"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "3cd7852681337b7a1e1ebd31b1c5d08179ccc5bf",
+    "fields": {
+      "created_at": "2026-10-25T19:04:48.348",
+      "updated_at": "2026-10-25T19:04:48.348",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 7,
+      "stage": "compare",
+      "input": {
+        "version": 14,
+        "stage": "compare",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {},
+        "dependencies": {
+          "repair": "9c32dc56c4333c27b2fa7003c699d15322d5122dd40f138311f62f0194c582e4",
+          "extract": "9302c61e5d3bf50124436dd8e2f69fbf0d2996bf2757f64e689b4292f2afcf98"
+        },
+        "tool_version": "quant-research-stages-14",
+        "library": {
+          "candidates": [],
+          "truncated": false,
+          "research_memory": {
+            "version": 3,
+            "method": "library-history-v3",
+            "scope": "same_collection",
+            "cutoff": "2026-10-25T11:03:49.921000+00:00",
+            "scan_limit": 2000,
+            "scanned": {
+              "experiments": 0,
+              "feedback": 0,
+              "comparisons": 0,
+              "fixed_validations": 0
+            },
+            "eligible": {
+              "fixed_validations": 0,
+              "comparisons": 0,
+              "experiments": 0,
+              "feedback": 0
+            },
+            "omitted_for_size": 0,
+            "items": [],
+            "scan_limits": {
+              "seconds": 5,
+              "max_chars": 20000000,
+              "chars_read": 0,
+              "budget_limited": false,
+              "size_limited": false
+            }
+          }
+        }
+      },
+      "content_hash": "c5f5555d8b3bd242afe5b19b79141de1eab7f5b3221ae595bcb169f8f0f00fce"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "e71dec12461bc984d44218b26d284e3bea48778c",
+    "fields": {
+      "created_at": "2026-10-25T19:04:48.355",
+      "updated_at": "2026-10-25T19:04:48.355",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 8,
+      "stage": "review",
+      "input": {
+        "version": 14,
+        "stage": "review",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "repair": "9c32dc56c4333c27b2fa7003c699d15322d5122dd40f138311f62f0194c582e4",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0",
+          "parameters": "74660822236c5cd925635c52c7a11933e0bc46696454dd4fb7e70ce2905bd1e5",
+          "research": "4fe3898dbf5793e19f7358a1504334176df17de55cab9948ff50ce24eb66c95d",
+          "extract": "9302c61e5d3bf50124436dd8e2f69fbf0d2996bf2757f64e689b4292f2afcf98",
+          "compare": "46143fcc44152925b1ec65bf3c98eb8c5308badfc6c2b26a5da7399997488820"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "b444b31ac8bf087faa483cff24f62bc842852475fcc3ede221eedce54b941e00"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "766a115c95ba66b2e14e203b018844246da5c871",
+    "fields": {
+      "created_at": "2026-10-25T19:05:49.006",
+      "updated_at": "2026-10-25T19:05:49.006",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 9,
+      "stage": "plan",
+      "input": {
+        "version": 14,
+        "stage": "plan",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {
+          "model_id": "mod_MfktgXYteQ",
+          "model_name": "deepseek-flash",
+          "provider_type": "DeepSeek",
+          "configuration_hash": "c4ffb4b7819c0af07c86691e93abf6fb4ac9eb348a06a99256ec2e7b97e73e30"
+        },
+        "dependencies": {
+          "normalize": "56afdf88d7abfd065d67f7dd15d286386494619d6a4ba9b5186cf9ed4d5e26d1",
+          "repair": "9c32dc56c4333c27b2fa7003c699d15322d5122dd40f138311f62f0194c582e4",
+          "parameters": "74660822236c5cd925635c52c7a11933e0bc46696454dd4fb7e70ce2905bd1e5",
+          "research": "4fe3898dbf5793e19f7358a1504334176df17de55cab9948ff50ce24eb66c95d",
+          "extract": "9302c61e5d3bf50124436dd8e2f69fbf0d2996bf2757f64e689b4292f2afcf98",
+          "review": "dfbaf8b126db8f58d3f4b440634273e669bdd0dbc020c64db54f4943a7f51bcc",
+          "compare": "46143fcc44152925b1ec65bf3c98eb8c5308badfc6c2b26a5da7399997488820"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "414deab8e4cd7643531695da3852754fd790f4288849d1fc268fb9b37e0894ab"
+    }
+  },
+  {
+    "model": "quant.workflowstep",
+    "pk": "301eefeab9af3f2cbadae30075f777eb7883df34",
+    "fields": {
+      "created_at": "2026-10-25T19:06:01.466",
+      "updated_at": "2026-10-25T19:06:01.466",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "ordinal": 10,
+      "stage": "publish",
+      "input": {
+        "version": 14,
+        "stage": "publish",
+        "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+        "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+        "requirements": "",
+        "model": {},
+        "dependencies": {
+          "repair": "9c32dc56c4333c27b2fa7003c699d15322d5122dd40f138311f62f0194c582e4",
+          "identify": "81764574467faed9347ceda747d05519d307d71f77c628f1bf2aa861b5a739c0",
+          "parameters": "74660822236c5cd925635c52c7a11933e0bc46696454dd4fb7e70ce2905bd1e5",
+          "research": "4fe3898dbf5793e19f7358a1504334176df17de55cab9948ff50ce24eb66c95d",
+          "extract": "9302c61e5d3bf50124436dd8e2f69fbf0d2996bf2757f64e689b4292f2afcf98",
+          "review": "dfbaf8b126db8f58d3f4b440634273e669bdd0dbc020c64db54f4943a7f51bcc",
+          "plan": "b440de00514433cff3c2fa652e4591056adac91eb2529c232f761dc52b4c3aa8"
+        },
+        "tool_version": "quant-research-stages-14"
+      },
+      "content_hash": "c550ec678a77d27c4f04f675b8129f7b99ba703c20cf5ec57160e37f661ee85d"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "30745b223db36e851802f7388bd7bd515494d9f1",
+    "fields": {
+      "created_at": "2026-10-25T18:56:40.975",
+      "updated_at": "2026-10-25T18:56:40.975",
+      "step": "db3a3c725d54bab10cb4a1ae029baa8136261c13",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+          "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+          "code_lines": 14,
+          "fields": [
+            "title",
+            "code",
+            "language",
+            "platform",
+            "provenance",
+            "fetch_status"
+          ],
+          "source_status": "not_fetched",
+          "structure": {
+            "version": 1,
+            "language": "mql4",
+            "parser": "lexical-v1",
+            "status": "partial",
+            "code_hash": "937ad903dbe8c46cde06ed1333f2214eb0add74a9f9cb0fe3008c9ff861b1360",
+            "line_count": 14,
+            "nodes": [
+              {
+                "id": "86e23235a4fd836e4bd25168",
+                "name": "<module>",
+                "kind": "module",
+                "parent_id": "",
+                "start_line": 1,
+                "end_line": 14,
+                "content_hash": "937ad903dbe8c46cde06ed1333f2214eb0add74a9f9cb0fe3008c9ff861b1360",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "19a292222d1bbb124a4ad4ce",
+                "name": "OnInit",
+                "kind": "function",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 7,
+                "end_line": 7,
+                "content_hash": "fef95472ca9ac7d6798bce5747829955f0b04c31b73aeda32fbee6b78da8a297",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "76eac2e61bc7f06fcc5852b4",
+                "name": "OnCalculate",
+                "kind": "function",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 8,
+                "end_line": 14,
+                "content_hash": "b5f2b515b03e8750ed7f7ff23edf9e39e5cd2b9c24d68193f2b30a42efbf57ce",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "deedb7806583fc2da50d01c7",
+                "name": "Period",
+                "kind": "parameter",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 4,
+                "end_line": 4,
+                "content_hash": "912541e5aa1ed5d8b68dc69279af0be20658792d8fadfcc15913feaa2e8dceac",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "f9c9b31ee4908b7267d3530e",
+                "name": "ShowSignal",
+                "kind": "parameter",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 5,
+                "end_line": 5,
+                "content_hash": "23ed877386464c0fd885b9a5f69cbc7858c186a9feedb7612decedc16809c95e",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "de5e7da4f181c06b4eed7dba",
+                "name": "Buffer",
+                "kind": "variable",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 6,
+                "end_line": 6,
+                "content_hash": "6401ade1a35c298daf0e163bce7a3146b625a040a52859aeabd50651b58e3057",
+                "basis": "lexical_candidate"
+              }
+            ],
+            "references": [
+              {
+                "from_id": "deedb7806583fc2da50d01c7",
+                "name": "input",
+                "line": 4,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "deedb7806583fc2da50d01c7",
+                "name": "int",
+                "line": 4,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "f9c9b31ee4908b7267d3530e",
+                "name": "extern",
+                "line": 5,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "f9c9b31ee4908b7267d3530e",
+                "name": "bool",
+                "line": 5,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "f9c9b31ee4908b7267d3530e",
+                "name": "true",
+                "line": 5,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "de5e7da4f181c06b4eed7dba",
+                "name": "double",
+                "line": 6,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "int",
+                "line": 7,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "SetIndexBuffer",
+                "line": 7,
+                "kind": "call",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "Buffer",
+                "line": 7,
+                "kind": "read",
+                "candidate_ids": [
+                  "de5e7da4f181c06b4eed7dba"
+                ]
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "INIT_SUCCEEDED",
+                "line": 7,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "rates_total",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "prev_calculated",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "datetime",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "time",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "open",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "high",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "low",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "close",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "long",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "tick_volume",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "long",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "volume",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "spread",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "Buffer",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": [
+                  "de5e7da4f181c06b4eed7dba"
+                ]
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "ShowSignal",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": [
+                  "f9c9b31ee4908b7267d3530e"
+                ]
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "iCustom",
+                "line": 12,
+                "kind": "call",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "NULL",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "Period",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": [
+                  "deedb7806583fc2da50d01c7"
+                ]
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "EMPTY_VALUE",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "rates_total",
+                "line": 13,
+                "kind": "read",
+                "candidate_ids": []
+              }
+            ],
+            "imports": [],
+            "slices": [
+              {
+                "id": "lines-1-3",
+                "start_line": 1,
+                "end_line": 3,
+                "content_hash": "2c132b3ee8af347f9eb4b54677f04bed333cdd9b25963ac59cf50142ca7c52f8"
+              },
+              {
+                "id": "lines-4-4",
+                "start_line": 4,
+                "end_line": 4,
+                "content_hash": "b039341c0606c3ffe395eae517beecc5a929d4c98f6e1dd9e97044d941db7f3f"
+              },
+              {
+                "id": "lines-5-5",
+                "start_line": 5,
+                "end_line": 5,
+                "content_hash": "cd265c5a0846e0b0f8b2eda2c745da2237c83e41b2b6b550e0dafffe1ae30208"
+              },
+              {
+                "id": "lines-6-6",
+                "start_line": 6,
+                "end_line": 6,
+                "content_hash": "72c490487e51492812c8a8661f672858f2db6e634344526363f26bb263d6d37e"
+              },
+              {
+                "id": "lines-7-7",
+                "start_line": 7,
+                "end_line": 7,
+                "content_hash": "1a7d7aab55f15d1a8e1edf6caeca2508147dd18041a1650915b252331072cfae"
+              },
+              {
+                "id": "lines-8-14",
+                "start_line": 8,
+                "end_line": 14,
+                "content_hash": "48ddd53a91eb0c4967be43d1589e63ecde0a5aa4dd103484e35932e55733b146"
+              }
+            ],
+            "diagnostics": [
+              {
+                "message": "仅词法结构候选，未调用原平台编译器；宏、类型、重载、作用域和实际执行依赖未解析。",
+                "line": null
+              }
+            ],
+            "reference_semantics": "syntactic_name_candidates_not_runtime_dependencies"
+          },
+          "vocabulary_ref": {
+            "version": 1,
+            "builtin_version": 1,
+            "revision_id": "",
+            "content_hash": "c4c1388f71209826cf5bfe89da1ae7e10d3107e2f261a299a7b1fcd5e28eb80a"
+          }
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 57,
+        "usage": {
+          "request_count": 0,
+          "event_ids": [],
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "content_hash": "8d9db7df87e5b53b93e476fe0eec8276a445c66ad19f95bccb02774edaff5866"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "dc5ee93f6ed6b42977f15d16ec97558d778a0273",
+    "fields": {
+      "created_at": "2026-10-25T18:57:04.830",
+      "updated_at": "2026-10-25T18:57:04.830",
+      "step": "54100e51dcbc905ed3615358106a94309f52166e",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "title": "MT4 MissingVendor 指标封装样例",
+          "kind": "indicator",
+          "tags": [
+            "platform:mt4",
+            "usage:display",
+            "tunability:signal",
+            "tunability:other"
+          ],
+          "source_facts": [
+            "材料元数据：title='质量样例 · vendor_indicator'，language='mql4'，platform='MetaTrader 4'，provenance='intake'，fetch_status='not_fetched'；description 与 url 为空，未提供资产、频率、回测或有效性声明。",
+            "源码事实（第1-3行）：`#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`，声明为图表窗口、1个指标缓冲区；这些是属性声明，未经原平台编译器验证。",
+            "源码事实（第4-6行）：`input int Period = 14;`、`extern bool ShowSignal = true;`、`double Buffer[];`；Period 与 ShowSignal 是输入/外部参数，Buffer 为数组。",
+            "源码事实（第7行）：OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 `INIT_SUCCEEDED`；source_structure 将该调用标为词法候选，未证明运行时绑定成功。",
+            "源码事实（第8-11行）：OnCalculate 形参包含 rates_total、prev_calculated、time/open/high/low/close、tick_volume、volume、spread；代码主体未显示对这些价格或成交量数组的计算。",
+            "源码事实（第12行）：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；仅写索引0，未显示遍历 rates_total 的循环；iCustom 引用名称 'MissingVendor'，未提供该外部指标文件或加载证据。",
+            "源码事实（第13-14行）：`return(rates_total);` 结束 OnCalculate；未见交易下单、止损、仓位或风险控制代码。",
+            "结构解析：parser='lexical-v1'，status='partial'，仅词法候选；未调用MT4编译器，宏、类型、重载、作用域及实际执行依赖未解析；imports为空且外部依赖未加载。",
+            "AI推断：由于只写 Buffer[0] 且未循环，若原样运行，历史 bars 的缓冲区可能不会被逐根填充；该推断未运行验证，不能当作编译、回测或收益结论。",
+            "未知：资产类别、数据频率、MissingVendor 的实际算法与可得性、参数最优值、收益与风险表现均无材料，不能补造。"
+          ]
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 23849,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "e802871f43924078b6c7d18b18c6e721"
+          ],
+          "input_tokens": 2670,
+          "output_tokens": 4079,
+          "total_tokens": 6749
+        }
+      },
+      "content_hash": "cf41dffeb831e74199ed7f3e1c7bc74051a43931f51c0630b2a77b91ddd31551"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "ae0b4b39cb97a21951473b58e9d04f178d26153d",
+    "fields": {
+      "created_at": "2026-10-25T18:57:30.762",
+      "updated_at": "2026-10-25T18:57:30.762",
+      "step": "9c5b34ad975cc85465a48aa81fdf5a6f23d893a2",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "parameters": [
+            {
+              "name": "Period",
+              "type": "int",
+              "default_value": "14",
+              "category": "signal",
+              "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+              "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+              "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+              "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+              "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+            },
+            {
+              "name": "ShowSignal",
+              "type": "bool",
+              "default_value": "true",
+              "category": "display",
+              "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+              "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+              "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+              "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+              "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+            },
+            {
+              "name": "Buffer",
+              "type": "double[]",
+              "default_value": "",
+              "category": "state",
+              "meaning": "指标输出缓冲区数组；第7行通过 SetIndexBuffer(0, Buffer) 尝试绑定为 0 号缓冲区，第12行只写 Buffer[0]。不是用户可调输入。",
+              "constraints": "非用户参数；长度与索引方向由终端/平台管理，源码未显示 ArraySetAsSeries 或显式长度设置。SetIndexBuffer 仅为词法候选，运行时绑定未证明。",
+              "effect": "承载显示输出；当前源码只写索引 0，若未逐根遍历，历史 bars 的缓冲区填充情况未知。",
+              "suggestion": "不应列入可调参数；应检查是否需要对 rates_total 逐根赋值以及缓冲区索引方向。",
+              "evidence": "第6行：`double Buffer[];`；第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ...`"
+            },
+            {
+              "name": "indicator_buffers",
+              "type": "int",
+              "default_value": "1",
+              "category": "constant",
+              "meaning": "编译属性声明指标缓冲区数量为 1；不是用户输入。",
+              "constraints": "源码硬编码属性 `#property indicator_buffers 1`，未声明可变范围；其与 SetIndexBuffer(0, Buffer) 的运行时绑定一致性未验证。",
+              "effect": "影响平台为指标分配/绑定的缓冲区数量；改动需与 SetIndexBuffer 调用匹配。",
+              "suggestion": "不作为优化参数；若修改应重新编译并核对缓冲区绑定。",
+              "evidence": "第3行：`#property indicator_buffers 1`"
+            },
+            {
+              "name": "MissingVendor",
+              "type": "string",
+              "default_value": "MissingVendor",
+              "category": "constant",
+              "meaning": "iCustom 调用的外部指标名称，属于硬编码依赖标识。",
+              "constraints": "字符串硬编码在第12行；材料未提供该指标文件、算法、输入参数个数或加载证据。",
+              "effect": "改变该名称会改变外部依赖与计算来源；当前名称可能导致依赖缺失，具体运行结果未知。",
+              "suggestion": "不应作为收益优化参数；需先提供并验证 MissingVendor 指标文件及其参数契约。",
+              "evidence": "第12行：`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`"
+            }
+          ],
+          "risks": "源码事实：第12行仅对 `Buffer[0]` 赋值，第13行直接 `return(rates_total);`，未见以 rates_total 或 prev_calculated 驱动的循环；AI推断：若按字面运行，历史每根 bar 的缓冲区可能不会被逐一填充，prev_calculated 也未用于增量计算，但未编译或运行验证。第12行依赖外部指标 `\"MissingVendor\"`，材料未提供该指标文件或加载证据，无法确认输入参数顺序、缓冲区/模式索引、重绘或滞后行为。第7行 `SetIndexBuffer` 仅被词法解析为候选，运行时绑定成功与否未证明。`ShowSignal=false` 时只把 `Buffer[0]` 置为 `EMPTY_VALUE`，是否等同隐藏全部历史输出未知。源码未显示价格/成交量计算、交易下单、止损、仓位或风险控制逻辑。",
+          "unknowns": [
+            "实际运行配置未提供；`Period=14` 与 `ShowSignal=true` 仅为源码默认值，不能冒充部署参数。",
+            "Period 的允许范围、步长、单位及其在 MissingVendor 中的语义未声明。",
+            "MissingVendor 指标文件、算法、输入参数顺序、缓冲区/模式索引以及是否重绘未知。",
+            "`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)` 中 timeframe=0、mode=0、shift=0 的运行时语义与是否应固定为常量未知，源码未注释。",
+            "Buffer 的索引方向、是否逐根填充、SetIndexBuffer 运行时是否成功未知。",
+            "资产类别、数据频率、回测、收益、风险表现和最优参数均无材料。",
+            "结构解析为 partial 词法候选，未调用 MT4 编译器，宏、类型、重载、作用域和实际执行依赖未验证。"
+          ]
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 25927,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "2fdf6ebb52b9447d8c063c75604e5ac4"
+          ],
+          "input_tokens": 4592,
+          "output_tokens": 4197,
+          "total_tokens": 8789
+        }
+      },
+      "content_hash": "e8c548a7182f316edecd54ec59d92a644afd2dbad9172cfb096051588a2af1e1"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "800ecde39308ee75e0d657f01e08c6ed80ea82b0",
+    "fields": {
+      "created_at": "2026-10-25T18:57:53.718",
+      "updated_at": "2026-10-25T18:57:53.718",
+      "step": "3cdbdaed25ac1c74652e15ddb7a39797a9b234c3",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "summary": "研究结论：材料是 MT4 图表窗口的薄封装指标，源码只在 OnInit 中绑定 1 个缓冲区，并在 OnCalculate 中给 Buffer[0] 做三元赋值；实际信号来源是未提供的外部指标 \"MissingVendor\"。因此这批材料不足以支持因子定义、收益判断或参数优劣结论；研究价值是识别依赖缺失、历史填充和索引风险，并整理接入和验证步骤。既有分类 platform:mt4、usage:display、tunability:signal、tunability:other 只是候选分类，不证明适用性或有效性。",
+          "principle": "源码事实：第1-3行声明 `#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`；第4-6行声明 Period=14、ShowSignal=true、Buffer[]；第7行 OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 INIT_SUCCEEDED；第8-11行 OnCalculate 接收 rates_total、prev_calculated、OHLC、tick_volume、volume、spread；第12行只给 Buffer[0] 赋值 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；第13-14行返回 rates_total。数据可得时点：源码未使用 OHLCV 数组，输出取决于终端调用 OnCalculate 时 iCustom 对 \"MissingVendor\" 的查询；shift=0 按字面是当前 bar 的候选值（AI 推断，未运行验证），历史 bar 是否逐根可得未知。结构解析 parser=lexical-v1、status=partial，仅词法候选，未调用 MT4 编译器，不能当作运行时依赖或回测证据。",
+          "formula": "字面计算：若 ShowSignal=true，则 B[0] = iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)；否则 B[0] = EMPTY_VALUE。步骤：1) OnInit 尝试把 Buffer 绑定为 0 号指标缓冲区；2) 终端每次调用 OnCalculate；3) 计算三元表达式；4) 写入 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值。\"MissingVendor\" 的内部映射 F 及 mode=0、shift=0 的运行时语义未提供，不能写出可计算的因子公式。",
+          "usage": "候选用途是按 MT4 图表窗口显示外部指标 \"MissingVendor\" 的当前候选值，并由 ShowSignal 控制显示或 EMPTY_VALUE；不是完整交易策略，源码未见下单、止损、仓位或风险控制。适用情景假设：外部指标文件存在且 iCustom 参数契约匹配，只需显示当前候选值；对历史曲线、回测因子、跨资产或特定频率的适用性均无材料支持。",
+          "assumptions": [
+            "AI推断：作者意图是把外部指标 \"MissingVendor\" 封装为图表指标；依据是第12行 iCustom 调用和第2行 indicator_chart_window。",
+            "AI推断：当前源码可能只填充最新 bar 的缓冲区；依据是第12行仅写 Buffer[0]、未显示遍历 rates_total 的循环，且第13行直接 return(rates_total)。未编译或运行验证，不能视为确定缺陷。",
+            "AI推断：iCustom 的 shift=0 可能读取当前 bar；依据是字面参数 0，但源码未注释，运行时语义未知。",
+            "AI推断：SetIndexBuffer 可能成功绑定 0 号缓冲区；依据是第7行调用，但解析器仅给词法候选，未证明运行时成功。",
+            "AI推断：Period 影响外部指标计算；依据是第12行把 Period 传给 iCustom，但外部算法未提供，具体影响未知。",
+            "AI推断：ShowSignal 是显示开关而非信号参数；依据是第12行三元表达式在 false 时写 EMPTY_VALUE，且未改变传给 iCustom 的 Period。",
+            "AI推断：该材料当前不可独立复现或评估；依据是 MissingVendor 文件、资产、频率、运行配置和回测均未提供。"
+          ],
+          "validation_plan": "1) 依赖核验：取得 \"MissingVendor\" 指标文件或源码及参数契约，确认 iCustom 参数个数、mode=0、shift=0 和缓冲区索引语义。2) 编译与静态检查：在 MT4 编译器验证第7行 SetIndexBuffer 与第3行 indicator_buffers 一致，检查 Buffer 的索引方向、ArraySetAsSeries 和逐根填充。3) 运行观察：在图表加载后记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等值和日志，验证是否只写索引0以及 ShowSignal=false 时是否只清空单点。4) 对照验证：将本封装输出与直接加载 MissingVendor 的输出逐 bar 对照，检查重绘或滞后。5) 敏感度：在外部指标参数契约允许范围内改变 Period、切换 ShowSignal、缺失依赖与存在依赖、不同 shift 候选；不给出最优参数。6) 样本外：仅在 MissingVendor 算法与数据口径明确后，按多个资产和时间框架划分样本内外验证显示数值一致性；当前材料不足以进行收益、风险或参数晋级验证。"
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 22951,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "b0fed24969014aa1aefd0e57590831e9"
+          ],
+          "input_tokens": 4750,
+          "output_tokens": 3787,
+          "total_tokens": 8537
+        }
+      },
+      "content_hash": "e937cc1bac07c430ddafda1c07f34b74bc13a4d220ffe0448cc5db075e7d8d6a"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "3805b78d6f9bf22a20e9ba3f061a6ca793ce1ae7",
+    "fields": {
+      "created_at": "2026-10-25T18:58:44.921",
+      "updated_at": "2026-10-25T18:58:44.921",
+      "step": "e3b5ffb8a82a96131ec230beda9af7f1b32c1118",
+      "data": {
+        "version": 1,
+        "status": "failed",
+        "output": {},
+        "error": "提取因子未完成：结果不符合阶段合同",
+        "reused_from": "",
+        "elapsed_ms": 51198,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "3cd59a37afb54ed5be4c984003190fa2"
+          ],
+          "input_tokens": 7711,
+          "output_tokens": 9685,
+          "total_tokens": 17396
+        }
+      },
+      "content_hash": "dc41c5d50ab37455049b9b43b721b91ebb7a2c8ed4866a58f720c0e133e37ab7"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "35e373fe0f9672bacf22a0105f2f00f950116ab1",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.092",
+      "updated_at": "2026-10-25T19:03:50.092",
+      "step": "a9e195cabaaeee1628995666f9c8a073550e9429",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+          "source_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195",
+          "code_lines": 14,
+          "fields": [
+            "title",
+            "code",
+            "language",
+            "platform",
+            "provenance",
+            "fetch_status"
+          ],
+          "source_status": "not_fetched",
+          "structure": {
+            "version": 1,
+            "language": "mql4",
+            "parser": "lexical-v1",
+            "status": "partial",
+            "code_hash": "937ad903dbe8c46cde06ed1333f2214eb0add74a9f9cb0fe3008c9ff861b1360",
+            "line_count": 14,
+            "nodes": [
+              {
+                "id": "86e23235a4fd836e4bd25168",
+                "name": "<module>",
+                "kind": "module",
+                "parent_id": "",
+                "start_line": 1,
+                "end_line": 14,
+                "content_hash": "937ad903dbe8c46cde06ed1333f2214eb0add74a9f9cb0fe3008c9ff861b1360",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "19a292222d1bbb124a4ad4ce",
+                "name": "OnInit",
+                "kind": "function",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 7,
+                "end_line": 7,
+                "content_hash": "fef95472ca9ac7d6798bce5747829955f0b04c31b73aeda32fbee6b78da8a297",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "76eac2e61bc7f06fcc5852b4",
+                "name": "OnCalculate",
+                "kind": "function",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 8,
+                "end_line": 14,
+                "content_hash": "b5f2b515b03e8750ed7f7ff23edf9e39e5cd2b9c24d68193f2b30a42efbf57ce",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "deedb7806583fc2da50d01c7",
+                "name": "Period",
+                "kind": "parameter",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 4,
+                "end_line": 4,
+                "content_hash": "912541e5aa1ed5d8b68dc69279af0be20658792d8fadfcc15913feaa2e8dceac",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "f9c9b31ee4908b7267d3530e",
+                "name": "ShowSignal",
+                "kind": "parameter",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 5,
+                "end_line": 5,
+                "content_hash": "23ed877386464c0fd885b9a5f69cbc7858c186a9feedb7612decedc16809c95e",
+                "basis": "lexical_candidate"
+              },
+              {
+                "id": "de5e7da4f181c06b4eed7dba",
+                "name": "Buffer",
+                "kind": "variable",
+                "parent_id": "86e23235a4fd836e4bd25168",
+                "start_line": 6,
+                "end_line": 6,
+                "content_hash": "6401ade1a35c298daf0e163bce7a3146b625a040a52859aeabd50651b58e3057",
+                "basis": "lexical_candidate"
+              }
+            ],
+            "references": [
+              {
+                "from_id": "deedb7806583fc2da50d01c7",
+                "name": "input",
+                "line": 4,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "deedb7806583fc2da50d01c7",
+                "name": "int",
+                "line": 4,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "f9c9b31ee4908b7267d3530e",
+                "name": "extern",
+                "line": 5,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "f9c9b31ee4908b7267d3530e",
+                "name": "bool",
+                "line": 5,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "f9c9b31ee4908b7267d3530e",
+                "name": "true",
+                "line": 5,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "de5e7da4f181c06b4eed7dba",
+                "name": "double",
+                "line": 6,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "int",
+                "line": 7,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "SetIndexBuffer",
+                "line": 7,
+                "kind": "call",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "Buffer",
+                "line": 7,
+                "kind": "read",
+                "candidate_ids": [
+                  "de5e7da4f181c06b4eed7dba"
+                ]
+              },
+              {
+                "from_id": "19a292222d1bbb124a4ad4ce",
+                "name": "INIT_SUCCEEDED",
+                "line": 7,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "rates_total",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "prev_calculated",
+                "line": 8,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "datetime",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "time",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "open",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "high",
+                "line": 9,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "low",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "double",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "close",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "long",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "tick_volume",
+                "line": 10,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "long",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "volume",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "const",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "int",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "spread",
+                "line": 11,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "Buffer",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": [
+                  "de5e7da4f181c06b4eed7dba"
+                ]
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "ShowSignal",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": [
+                  "f9c9b31ee4908b7267d3530e"
+                ]
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "iCustom",
+                "line": 12,
+                "kind": "call",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "NULL",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "Period",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": [
+                  "deedb7806583fc2da50d01c7"
+                ]
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "EMPTY_VALUE",
+                "line": 12,
+                "kind": "read",
+                "candidate_ids": []
+              },
+              {
+                "from_id": "76eac2e61bc7f06fcc5852b4",
+                "name": "rates_total",
+                "line": 13,
+                "kind": "read",
+                "candidate_ids": []
+              }
+            ],
+            "imports": [],
+            "slices": [
+              {
+                "id": "lines-1-3",
+                "start_line": 1,
+                "end_line": 3,
+                "content_hash": "2c132b3ee8af347f9eb4b54677f04bed333cdd9b25963ac59cf50142ca7c52f8"
+              },
+              {
+                "id": "lines-4-4",
+                "start_line": 4,
+                "end_line": 4,
+                "content_hash": "b039341c0606c3ffe395eae517beecc5a929d4c98f6e1dd9e97044d941db7f3f"
+              },
+              {
+                "id": "lines-5-5",
+                "start_line": 5,
+                "end_line": 5,
+                "content_hash": "cd265c5a0846e0b0f8b2eda2c745da2237c83e41b2b6b550e0dafffe1ae30208"
+              },
+              {
+                "id": "lines-6-6",
+                "start_line": 6,
+                "end_line": 6,
+                "content_hash": "72c490487e51492812c8a8661f672858f2db6e634344526363f26bb263d6d37e"
+              },
+              {
+                "id": "lines-7-7",
+                "start_line": 7,
+                "end_line": 7,
+                "content_hash": "1a7d7aab55f15d1a8e1edf6caeca2508147dd18041a1650915b252331072cfae"
+              },
+              {
+                "id": "lines-8-14",
+                "start_line": 8,
+                "end_line": 14,
+                "content_hash": "48ddd53a91eb0c4967be43d1589e63ecde0a5aa4dd103484e35932e55733b146"
+              }
+            ],
+            "diagnostics": [
+              {
+                "message": "仅词法结构候选，未调用原平台编译器；宏、类型、重载、作用域和实际执行依赖未解析。",
+                "line": null
+              }
+            ],
+            "reference_semantics": "syntactic_name_candidates_not_runtime_dependencies"
+          },
+          "vocabulary_ref": {
+            "version": 1,
+            "builtin_version": 1,
+            "revision_id": "",
+            "content_hash": "c4c1388f71209826cf5bfe89da1ae7e10d3107e2f261a299a7b1fcd5e28eb80a"
+          }
+        },
+        "error": "",
+        "reused_from": "30745b223db36e851802f7388bd7bd515494d9f1",
+        "elapsed_ms": 0,
+        "usage": {
+          "request_count": 0,
+          "event_ids": [],
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "content_hash": "34fc16b7e7bfe7a6cbdf439b932271a859252814772149bddf4690a147628965"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "39fba3a1b0e103b3ef7333fb18f85d9a9a56d61b",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.096",
+      "updated_at": "2026-10-25T19:03:50.096",
+      "step": "f817f32730a45b56a88e7def4d00ef839f93bfe2",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "title": "MT4 MissingVendor 指标封装样例",
+          "kind": "indicator",
+          "tags": [
+            "platform:mt4",
+            "usage:display",
+            "tunability:signal",
+            "tunability:other"
+          ],
+          "source_facts": [
+            "材料元数据：title='质量样例 · vendor_indicator'，language='mql4'，platform='MetaTrader 4'，provenance='intake'，fetch_status='not_fetched'；description 与 url 为空，未提供资产、频率、回测或有效性声明。",
+            "源码事实（第1-3行）：`#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`，声明为图表窗口、1个指标缓冲区；这些是属性声明，未经原平台编译器验证。",
+            "源码事实（第4-6行）：`input int Period = 14;`、`extern bool ShowSignal = true;`、`double Buffer[];`；Period 与 ShowSignal 是输入/外部参数，Buffer 为数组。",
+            "源码事实（第7行）：OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 `INIT_SUCCEEDED`；source_structure 将该调用标为词法候选，未证明运行时绑定成功。",
+            "源码事实（第8-11行）：OnCalculate 形参包含 rates_total、prev_calculated、time/open/high/low/close、tick_volume、volume、spread；代码主体未显示对这些价格或成交量数组的计算。",
+            "源码事实（第12行）：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；仅写索引0，未显示遍历 rates_total 的循环；iCustom 引用名称 'MissingVendor'，未提供该外部指标文件或加载证据。",
+            "源码事实（第13-14行）：`return(rates_total);` 结束 OnCalculate；未见交易下单、止损、仓位或风险控制代码。",
+            "结构解析：parser='lexical-v1'，status='partial'，仅词法候选；未调用MT4编译器，宏、类型、重载、作用域及实际执行依赖未解析；imports为空且外部依赖未加载。",
+            "AI推断：由于只写 Buffer[0] 且未循环，若原样运行，历史 bars 的缓冲区可能不会被逐根填充；该推断未运行验证，不能当作编译、回测或收益结论。",
+            "未知：资产类别、数据频率、MissingVendor 的实际算法与可得性、参数最优值、收益与风险表现均无材料，不能补造。"
+          ]
+        },
+        "error": "",
+        "reused_from": "dc5ee93f6ed6b42977f15d16ec97558d778a0273",
+        "elapsed_ms": 0,
+        "usage": {
+          "request_count": 0,
+          "event_ids": [],
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "content_hash": "a2fed435ca69adb31dc8126bbcdd99456f936836e2f390f25959b1609ca64adc"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "5168766e3f81643ad5b882804d7d5de2d6610955",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.101",
+      "updated_at": "2026-10-25T19:03:50.101",
+      "step": "07b14d944bda2474245d1eaec66fa5b0b315d9d1",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "parameters": [
+            {
+              "name": "Period",
+              "type": "int",
+              "default_value": "14",
+              "category": "signal",
+              "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+              "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+              "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+              "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+              "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+            },
+            {
+              "name": "ShowSignal",
+              "type": "bool",
+              "default_value": "true",
+              "category": "display",
+              "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+              "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+              "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+              "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+              "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+            },
+            {
+              "name": "Buffer",
+              "type": "double[]",
+              "default_value": "",
+              "category": "state",
+              "meaning": "指标输出缓冲区数组；第7行通过 SetIndexBuffer(0, Buffer) 尝试绑定为 0 号缓冲区，第12行只写 Buffer[0]。不是用户可调输入。",
+              "constraints": "非用户参数；长度与索引方向由终端/平台管理，源码未显示 ArraySetAsSeries 或显式长度设置。SetIndexBuffer 仅为词法候选，运行时绑定未证明。",
+              "effect": "承载显示输出；当前源码只写索引 0，若未逐根遍历，历史 bars 的缓冲区填充情况未知。",
+              "suggestion": "不应列入可调参数；应检查是否需要对 rates_total 逐根赋值以及缓冲区索引方向。",
+              "evidence": "第6行：`double Buffer[];`；第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ...`"
+            },
+            {
+              "name": "indicator_buffers",
+              "type": "int",
+              "default_value": "1",
+              "category": "constant",
+              "meaning": "编译属性声明指标缓冲区数量为 1；不是用户输入。",
+              "constraints": "源码硬编码属性 `#property indicator_buffers 1`，未声明可变范围；其与 SetIndexBuffer(0, Buffer) 的运行时绑定一致性未验证。",
+              "effect": "影响平台为指标分配/绑定的缓冲区数量；改动需与 SetIndexBuffer 调用匹配。",
+              "suggestion": "不作为优化参数；若修改应重新编译并核对缓冲区绑定。",
+              "evidence": "第3行：`#property indicator_buffers 1`"
+            },
+            {
+              "name": "MissingVendor",
+              "type": "string",
+              "default_value": "MissingVendor",
+              "category": "constant",
+              "meaning": "iCustom 调用的外部指标名称，属于硬编码依赖标识。",
+              "constraints": "字符串硬编码在第12行；材料未提供该指标文件、算法、输入参数个数或加载证据。",
+              "effect": "改变该名称会改变外部依赖与计算来源；当前名称可能导致依赖缺失，具体运行结果未知。",
+              "suggestion": "不应作为收益优化参数；需先提供并验证 MissingVendor 指标文件及其参数契约。",
+              "evidence": "第12行：`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`"
+            }
+          ],
+          "risks": "源码事实：第12行仅对 `Buffer[0]` 赋值，第13行直接 `return(rates_total);`，未见以 rates_total 或 prev_calculated 驱动的循环；AI推断：若按字面运行，历史每根 bar 的缓冲区可能不会被逐一填充，prev_calculated 也未用于增量计算，但未编译或运行验证。第12行依赖外部指标 `\"MissingVendor\"`，材料未提供该指标文件或加载证据，无法确认输入参数顺序、缓冲区/模式索引、重绘或滞后行为。第7行 `SetIndexBuffer` 仅被词法解析为候选，运行时绑定成功与否未证明。`ShowSignal=false` 时只把 `Buffer[0]` 置为 `EMPTY_VALUE`，是否等同隐藏全部历史输出未知。源码未显示价格/成交量计算、交易下单、止损、仓位或风险控制逻辑。",
+          "unknowns": [
+            "实际运行配置未提供；`Period=14` 与 `ShowSignal=true` 仅为源码默认值，不能冒充部署参数。",
+            "Period 的允许范围、步长、单位及其在 MissingVendor 中的语义未声明。",
+            "MissingVendor 指标文件、算法、输入参数顺序、缓冲区/模式索引以及是否重绘未知。",
+            "`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)` 中 timeframe=0、mode=0、shift=0 的运行时语义与是否应固定为常量未知，源码未注释。",
+            "Buffer 的索引方向、是否逐根填充、SetIndexBuffer 运行时是否成功未知。",
+            "资产类别、数据频率、回测、收益、风险表现和最优参数均无材料。",
+            "结构解析为 partial 词法候选，未调用 MT4 编译器，宏、类型、重载、作用域和实际执行依赖未验证。"
+          ]
+        },
+        "error": "",
+        "reused_from": "ae0b4b39cb97a21951473b58e9d04f178d26153d",
+        "elapsed_ms": 0,
+        "usage": {
+          "request_count": 0,
+          "event_ids": [],
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "content_hash": "86ab9fb0d152b88bbe4986b866b8f939e3f206afbf13c8585299a2112f7b15bf"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "b56e682a0784be92489b50a5afa89d9ea8a5ce34",
+    "fields": {
+      "created_at": "2026-10-25T19:03:50.104",
+      "updated_at": "2026-10-25T19:03:50.104",
+      "step": "91f99e5961e219839475245d748f9e1fafed7323",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "summary": "研究结论：材料是 MT4 图表窗口的薄封装指标，源码只在 OnInit 中绑定 1 个缓冲区，并在 OnCalculate 中给 Buffer[0] 做三元赋值；实际信号来源是未提供的外部指标 \"MissingVendor\"。因此这批材料不足以支持因子定义、收益判断或参数优劣结论；研究价值是识别依赖缺失、历史填充和索引风险，并整理接入和验证步骤。既有分类 platform:mt4、usage:display、tunability:signal、tunability:other 只是候选分类，不证明适用性或有效性。",
+          "principle": "源码事实：第1-3行声明 `#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`；第4-6行声明 Period=14、ShowSignal=true、Buffer[]；第7行 OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 INIT_SUCCEEDED；第8-11行 OnCalculate 接收 rates_total、prev_calculated、OHLC、tick_volume、volume、spread；第12行只给 Buffer[0] 赋值 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；第13-14行返回 rates_total。数据可得时点：源码未使用 OHLCV 数组，输出取决于终端调用 OnCalculate 时 iCustom 对 \"MissingVendor\" 的查询；shift=0 按字面是当前 bar 的候选值（AI 推断，未运行验证），历史 bar 是否逐根可得未知。结构解析 parser=lexical-v1、status=partial，仅词法候选，未调用 MT4 编译器，不能当作运行时依赖或回测证据。",
+          "formula": "字面计算：若 ShowSignal=true，则 B[0] = iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)；否则 B[0] = EMPTY_VALUE。步骤：1) OnInit 尝试把 Buffer 绑定为 0 号指标缓冲区；2) 终端每次调用 OnCalculate；3) 计算三元表达式；4) 写入 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值。\"MissingVendor\" 的内部映射 F 及 mode=0、shift=0 的运行时语义未提供，不能写出可计算的因子公式。",
+          "usage": "候选用途是按 MT4 图表窗口显示外部指标 \"MissingVendor\" 的当前候选值，并由 ShowSignal 控制显示或 EMPTY_VALUE；不是完整交易策略，源码未见下单、止损、仓位或风险控制。适用情景假设：外部指标文件存在且 iCustom 参数契约匹配，只需显示当前候选值；对历史曲线、回测因子、跨资产或特定频率的适用性均无材料支持。",
+          "assumptions": [
+            "AI推断：作者意图是把外部指标 \"MissingVendor\" 封装为图表指标；依据是第12行 iCustom 调用和第2行 indicator_chart_window。",
+            "AI推断：当前源码可能只填充最新 bar 的缓冲区；依据是第12行仅写 Buffer[0]、未显示遍历 rates_total 的循环，且第13行直接 return(rates_total)。未编译或运行验证，不能视为确定缺陷。",
+            "AI推断：iCustom 的 shift=0 可能读取当前 bar；依据是字面参数 0，但源码未注释，运行时语义未知。",
+            "AI推断：SetIndexBuffer 可能成功绑定 0 号缓冲区；依据是第7行调用，但解析器仅给词法候选，未证明运行时成功。",
+            "AI推断：Period 影响外部指标计算；依据是第12行把 Period 传给 iCustom，但外部算法未提供，具体影响未知。",
+            "AI推断：ShowSignal 是显示开关而非信号参数；依据是第12行三元表达式在 false 时写 EMPTY_VALUE，且未改变传给 iCustom 的 Period。",
+            "AI推断：该材料当前不可独立复现或评估；依据是 MissingVendor 文件、资产、频率、运行配置和回测均未提供。"
+          ],
+          "validation_plan": "1) 依赖核验：取得 \"MissingVendor\" 指标文件或源码及参数契约，确认 iCustom 参数个数、mode=0、shift=0 和缓冲区索引语义。2) 编译与静态检查：在 MT4 编译器验证第7行 SetIndexBuffer 与第3行 indicator_buffers 一致，检查 Buffer 的索引方向、ArraySetAsSeries 和逐根填充。3) 运行观察：在图表加载后记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等值和日志，验证是否只写索引0以及 ShowSignal=false 时是否只清空单点。4) 对照验证：将本封装输出与直接加载 MissingVendor 的输出逐 bar 对照，检查重绘或滞后。5) 敏感度：在外部指标参数契约允许范围内改变 Period、切换 ShowSignal、缺失依赖与存在依赖、不同 shift 候选；不给出最优参数。6) 样本外：仅在 MissingVendor 算法与数据口径明确后，按多个资产和时间框架划分样本内外验证显示数值一致性；当前材料不足以进行收益、风险或参数晋级验证。"
+        },
+        "error": "",
+        "reused_from": "800ecde39308ee75e0d657f01e08c6ed80ea82b0",
+        "elapsed_ms": 0,
+        "usage": {
+          "request_count": 0,
+          "event_ids": [],
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "content_hash": "8fd303070ddd568921f5cfdff804192e1fc2c09b523b5bc4b1ece63058636e85"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "56abcde9037e7fc15132f4c07e58d9cf9e275410",
+    "fields": {
+      "created_at": "2026-10-25T19:04:31.227",
+      "updated_at": "2026-10-25T19:04:31.227",
+      "step": "de9dab0aaa8e3f434e1d0356d02897c8261dc806",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "extraction_version": 1,
+          "extraction_note": "提取范围：仅第1–14行源码、既有 identify/parameters/research 记录与分类候选词表。边界：源码只有 1 次 SetIndexBuffer（第7行）与 1 次对 Buffer[0] 的三元赋值（第12行），无算术、无窗口函数、无循环、无过滤条件组合，唯一数值来源是黑箱平台函数 iCustom 调用外部指标 \"MissingVendor\"，其文件、算法、参数契约、mode/shift 语义均未提供，故只能给出 1 个待研究特征候选并 expression=null，不为凑数编造均线、RSI、区间或收益型因子。未列为候选的项及原因：ShowSignal 是同一三元表达式内的显示门控（原文 \"ShowSignal ? ... : EMPTY_VALUE\"），与宿主赋值不可分离，若单独建 display 候选会与同一变换重复；Buffer[]/indicator_buffers 是缓冲区与编译属性，不是可研究特征；OnCalculate 的 OHLC/tick_volume/volume/spread 形参在函数体内未被引用（第12行未用），不能据形参声明捏造价格或成交量因子。role 判断：该值在源码中的直接用途是图表窗口输出（第2行 indicator_chart_window），但它是唯一可复用的数值特征，故按「待研究特征」记为 role=factor、family=other；若下游按严格用途口径重判为 display，不改变其黑箱与未知性质。未执行编译、未访问终端、未运行回测；source_structure 为 lexical-v1/partial 词法候选，不代表编译或运行通过。材料未声明资产类别、数据频率、收益或参数最优值，本报告不作任何此类结论。",
+          "factors": [
+            {
+              "name": "MissingVendor 封装输出值（iCustom 直通，写 Buffer[0]）",
+              "role": "factor",
+              "family": "other",
+              "summary": "第12行把外部指标 \"MissingVendor\" 在 mode=0、shift=0 下的返回值（受 ShowSignal 门控）写入输出缓冲区第 0 个元素，是材料中唯一可辨识的数值输出，故作为待研究特征占位。外部指标算法、参数契约、单位与是否重绘均未知，机制无法归类，family 记 other；未经编译、运行或回测，不声明任何预测力、有效性或收益。",
+              "formula": "字面赋值（第12行）：B[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE。流程：1) OnInit 尝试 SetIndexBuffer(0, Buffer)（第7行，仅词法候选，运行时绑定未验证）；2) 终端调用 OnCalculate；3) 求三元表达式：ShowSignal 为真取 iCustom(NULL,0,\"MissingVendor\",Period,0,0)，为假取平台空值 EMPTY_VALUE；4) 写 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值，prev_calculated 未被使用。iCustom 内部映射 F（MissingVendor 算法、mode=0、shift=0 的运行时语义）未提供，无法写出等价可计算公式。",
+              "inputs": [
+                {
+                  "name": "missingvendor_value",
+                  "meaning": "external indicator \"MissingVendor\" 在 mode=0、shift=0 下返回的数值；其算法、缓冲区索引语义与返回单位材料未提供，文件未加载，属黑箱输出。",
+                  "availability": "需要终端已安装该指标且 iCustom 参数契约（Period, 0, 0）匹配；材料无加载证据，实际可得时点未知。",
+                  "missing_policy": "未知：源码未处理外部指标缺失或返回无效值的情况；ShowSignal=false 时写 EMPTY_VALUE，但外部指标本身缺失时的返回值材料未说明。"
+                },
+                {
+                  "name": "chart_symbol",
+                  "meaning": "iCustom 第一参数为 NULL；按 MQL4 字面为当前图表品种，材料未声明具体资产类别或代码。",
+                  "availability": "图表加载时由终端上下文提供；具体品种未知。",
+                  "missing_policy": "未知：材料未说明无图表上下文或品种不可用时的行为。"
+                },
+                {
+                  "name": "chart_timeframe",
+                  "meaning": "iCustom 第二参数为字面 0；按 MQL4 字面指当前图表周期，具体周期（分钟/小时/日等）材料未声明，源码无注释。",
+                  "availability": "图表加载时由终端上下文提供；具体周期未知。",
+                  "missing_policy": "未知：材料未说明周期不可用或切换周期时的行为。"
+                }
+              ],
+              "output_type": "platform_specific",
+              "units": "未知：外部指标返回值单位材料未声明；ShowSignal=false 时为平台空值标记 EMPTY_VALUE，不是数值 0。",
+              "timeframe": "计算窗口未知：源码无窗口计算、无循环，Period 的单位与语义由外部指标定义，材料未声明；iCustom 第二参数 0 按字面为当前图表周期，具体周期未知；未显示逐 bar 历史计算，AI 推断输出可能只对应单一索引 0（未运行验证）。",
+              "parameters": [
+                {
+                  "name": "Period",
+                  "type": "int",
+                  "default_value": "14",
+                  "category": "signal",
+                  "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+                  "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+                  "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+                  "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+                  "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+                },
+                {
+                  "name": "ShowSignal",
+                  "type": "bool",
+                  "default_value": "true",
+                  "category": "display",
+                  "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+                  "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+                  "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+                  "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+                  "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+                }
+              ],
+              "dependencies": [
+                "外部指标 \"MissingVendor\" 文件/算法：材料未提供，无加载证据（第12行字符串字面量）",
+                "MQL4 函数 iCustom 及其 symbol=NULL、timeframe=0、mode=0、shift=0 的运行时语义：材料未注释，未知",
+                "SetIndexBuffer(0, Buffer) 运行时绑定：source_structure 标为 lexical_candidate，未证明成功",
+                "终端对 OnCalculate 的调用与 rates_total/prev_calculated 驱动：源码未见循环或增量逻辑"
+              ],
+              "limitations": "expression=null 原因：核心依赖 iCustom（平台黑箱函数）不在支持算子集合内，其内部映射 F 与 mode/shift 语义未知，编造等价公式会伪造语义。其他边界：源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，历史 bar 填充情况未知（AI 推断，未运行验证）；ShowSignal=false 只把索引 0 置为 EMPTY_VALUE，是否等同隐藏全部历史输出未知；\"MissingVendor\" 为硬编码字符串常量，材料未给出可选值集合，故不作字符串枚举参数建模，仅记入 dependencies；Period 的合法范围、步长与单位未声明，不建 domain；未使用 OnCalculate 的 OHLC/tick_volume/volume/spread 形参，不能据此推断价格或量能输入；解析为 lexical-v1/partial，未编译、未运行、未回测；资产类别、频率、收益、风险与最优参数均无材料，本项不作有效性声明。",
+              "tags": [
+                "platform:mt4",
+                "usage:display",
+                "mechanism:other",
+                "tunability:signal"
+              ],
+              "expression": null,
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                },
+                {
+                  "field": "code",
+                  "quote": "int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }"
+                },
+                {
+                  "field": "code",
+                  "quote": "input int Period = 14;"
+                },
+                {
+                  "field": "code",
+                  "quote": "extern bool ShowSignal = true;"
+                },
+                {
+                  "field": "code",
+                  "quote": "return(rates_total);"
+                }
+              ]
+            }
+          ]
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 41117,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "d107d1f540994b2082f8338162fef935"
+          ],
+          "input_tokens": 7891,
+          "output_tokens": 7083,
+          "total_tokens": 14974
+        }
+      },
+      "content_hash": "1ce1d0463bd93d621dd130deb77e630e61345239458adf2ce4b1075934f5ddb9"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "3407a37614603517c0f0e85587294b189f87f105",
+    "fields": {
+      "created_at": "2026-10-25T19:04:48.332",
+      "updated_at": "2026-10-25T19:04:48.332",
+      "step": "655f0cca5a184b9237f8e9beddfd3529fd9ea41b",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "version": 1,
+          "selected": [
+            0
+          ],
+          "omitted": [],
+          "items": [
+            {
+              "factor_index": 0,
+              "status": "unresolved",
+              "summary": "无法修订为受控定义。源码第12行仅把 ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE 写入 Buffer[0]；iCustom 与外部指标 MissingVendor 的算法、参数契约、mode=0/shift=0 语义、返回单位及缺失行为均未提供，EMPTY_VALUE 的平台哨兵含义也未声明。受控算子不含 iCustom，不能把黑箱外部指标替换为等价表达式，也不能删除该依赖。源码未见遍历 rates_total 的循环，prev_calculated 未使用，输出是逐 bar 序列还是仅索引0未知；因此无法构造保留时点、单位与缺失规则的新定义。保持原候选，不发布伪造定义。",
+              "definition": null,
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "int OnCalculate(const int rates_total, const int prev_calculated,\n                const datetime &time[], const double &open[], const double &high[],\n                const double &low[], const double &close[], const long &tick_volume[],\n                const long &volume[], const int &spread[]) {\n    Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n    return(rates_total);\n}"
+                },
+                {
+                  "field": "code",
+                  "quote": "int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }"
+                },
+                {
+                  "field": "code",
+                  "quote": "input int Period = 14;"
+                },
+                {
+                  "field": "code",
+                  "quote": "extern bool ShowSignal = true;"
+                }
+              ],
+              "remaining_unknowns": [
+                "外部指标 \"MissingVendor\" 的文件、算法、内部缓冲区索引语义、参数契约与返回单位均未提供，无法展开为受控表达式。",
+                "MQL4 iCustom 在 symbol=NULL、timeframe=0、mode=0、shift=0 下的运行时语义、错误返回值及缺失值处理未给出，无法确认输入时点与缺失规则。",
+                "源码只写 Buffer[0]，且 OnCalculate 函数体内没有遍历 rates_total 的循环、prev_calculated 未被使用；历史 bar 是否填充、序列方向与索引含义未知。",
+                "EMPTY_VALUE 的平台哨兵表示、可比较性或是否等同缺失值未声明，无法在定义中安全表达 ShowSignal=false 分支。",
+                "SetIndexBuffer(0, Buffer) 仅为词法候选，运行时绑定是否成功、缓冲区数量与绘图属性未验证。",
+                "iCustom 中 symbol=NULL 与 timeframe=0 对应的实际图表品种和周期未在材料中具体化，资产类别与数据频率未知。",
+                "Period=14 与 ShowSignal=true 是源码默认值；其部署配置、合法范围、步长及传给 MissingVendor 后的语义未知。",
+                "无法判断该输出应建模为单点标量、最新 bar 值还是完整时间序列，也无法确认 ShowSignal 关闭时是否应清除全部历史缓冲区。"
+              ],
+              "before_hash": "efcac7d4a67c11d837b58941dd8452b69e69b9f9a7316201c048ad807c9ba964",
+              "after_hash": "",
+              "changed_fields": []
+            }
+          ]
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 17100,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "cab7b6b13b9e430b945cae9b894d9935"
+          ],
+          "input_tokens": 6611,
+          "output_tokens": 2860,
+          "total_tokens": 9471
+        }
+      },
+      "content_hash": "0fe94480ccc601822057225ae7ed046fbb3c1141f39a20bbf30d112343e272b9"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "79d2f6f1fa86cdcf33c8a117415098d7f8fb60dd",
+    "fields": {
+      "created_at": "2026-10-25T19:04:48.352",
+      "updated_at": "2026-10-25T19:04:48.352",
+      "step": "3cd7852681337b7a1e1ebd31b1c5d08179ccc5bf",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "research_memory": {
+            "version": 3,
+            "method": "library-history-v3",
+            "scope": "same_collection",
+            "cutoff": "2026-10-25T11:03:49.921000+00:00",
+            "scan_limit": 2000,
+            "scanned": {
+              "experiments": 0,
+              "feedback": 0,
+              "comparisons": 0,
+              "fixed_validations": 0
+            },
+            "eligible": {
+              "fixed_validations": 0,
+              "comparisons": 0,
+              "experiments": 0,
+              "feedback": 0
+            },
+            "omitted_for_size": 0,
+            "items": [],
+            "scan_limits": {
+              "seconds": 5,
+              "max_chars": 20000000,
+              "chars_read": 0,
+              "budget_limited": false,
+              "size_limited": false
+            }
+          },
+          "method": "bounded-structure-family-v1",
+          "scope_limit": 2000,
+          "scanned": 0,
+          "truncated": false,
+          "semantic_status": "not_requested",
+          "matches": [
+            {
+              "factor_index": 0,
+              "items": [],
+              "matched_in_scope": 0
+            }
+          ]
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 1,
+        "usage": {
+          "request_count": 0,
+          "event_ids": [],
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "content_hash": "5a286d2a8e9ee00cfaca105487b277b12c1ec717b92b903e7031b7831abdc9e4"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "005fb534853d3839d7be408d931532a2f0735de6",
+    "fields": {
+      "created_at": "2026-10-25T19:05:49.003",
+      "updated_at": "2026-10-25T19:05:49.003",
+      "step": "e71dec12461bc984d44218b26d284e3bea48778c",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "scores": [
+            {
+              "dimension": "逻辑清晰度",
+              "score": 3,
+              "reason": "封装控制流简单：OnInit 绑定缓冲区，OnCalculate 对 Buffer[0] 做三元赋值；前序说明能区分源码事实与 AI 推断，且未发现与原文直接矛盾。但核心计算完全外包给未提供的 MissingVendor，无法形成可计算、可检验的因子逻辑，因此只能给中等分。",
+              "evidence": "source.code 第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；source.description 与 url 为空，无回测或运行证据；检索相似性不是实证。"
+            },
+            {
+              "dimension": "实现质量",
+              "score": 2,
+              "reason": "有指标基本骨架，但可见代码只给 Buffer[0] 赋值，未见遍历 rates_total 的循环，prev_calculated 也未被使用；返回 rates_total 的终端语义未验证。外部依赖 MissingVendor 未提供，无法确认运行时能否计算。该对象是指标，不因没有下单、止损或仓位控制扣分。",
+              "evidence": "source.code 第12–13行仅见 `Buffer[0] = ...` 与 `return(rates_total);`；第7行 SetIndexBuffer 仅为词法候选；source.structure 为 partial，不能当作编译或运行证据。"
+            },
+            {
+              "dimension": "数据与时序可靠性",
+              "score": 2,
+              "reason": "可见代码未直接使用 OHLCV 数组，也未发现把未来收益作为时点信号的写法；但 iCustom 的 shift=0 时点语义和是否重绘未知，历史逐 bar 填充未证实，资产类别与频率未声明。不能仅凭形参声明推断数据使用时序。",
+              "evidence": "source.code 第8–11行声明 OHLCV 等形参，第12行只调用 iCustom(...Period, 0, 0)；无时间戳、数据频率、回测或终端日志证据；前序 AI 对单点写入的推断与原文一致，但运行影响仍属未验证假设。"
+            },
+            {
+              "dimension": "参数可解释性",
+              "score": 2,
+              "reason": "Period=14 只作为 iCustom 输入转发，其单位、合法范围、步长和外部参数契约均未知；ShowSignal 是显示门控，不是已证明的收益参数。缺少 MissingVendor 定义时，参数效果无法解释，更不能给出优化结论。",
+              "evidence": "source.code 第4行：`input int Period = 14;`；第5行：`extern bool ShowSignal = true;`；第12行把 Period 传给 MissingVendor；材料未提供参数契约或运行配置。"
+            },
+            {
+              "dimension": "复现与复用价值",
+              "score": 1,
+              "reason": "核心依赖 MissingVendor 文件/算法缺失，受控表达式为空，automatic_experiment_ready=false，输入映射仍未完成；无法独立复现或复用为因子。当前价值主要是依赖缺失与缓冲区实现风险的样例，而不是可检验因子。",
+              "evidence": "source.code 第12行硬编码 `iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`；portable_qualification 声明 expression missing、automatic_experiment_ready=false 且 external_dependencies 未验证；research_memory 无历史实验。"
+            }
+          ],
+          "source_memory_version": 1,
+          "research_memory": {
+            "version": 3,
+            "method": "library-history-v3",
+            "scope": "same_collection",
+            "cutoff": "2026-10-25T11:03:49.921000+00:00",
+            "scan_limit": 2000,
+            "scanned": {
+              "experiments": 0,
+              "feedback": 0,
+              "comparisons": 0,
+              "fixed_validations": 0
+            },
+            "eligible": {
+              "fixed_validations": 0,
+              "comparisons": 0,
+              "experiments": 0,
+              "feedback": 0
+            },
+            "omitted_for_size": 0,
+            "items": [],
+            "scan_limits": {
+              "seconds": 5,
+              "max_chars": 20000000,
+              "chars_read": 0,
+              "budget_limited": false,
+              "size_limited": false
+            }
+          },
+          "memory_note": "冻结 research_memory 扫描结果为 experiments=0、feedback=0、comparisons=0、fixed_validations=0，items 为空；本轮没有历史实验、外部反馈、直接对照或固定验证可引用。未提供历史不等于不存在失败或反例，也不能据此补造表现、收益或最优参数。本轮不采用、不拒绝任何历史记录。",
+          "memory_assessment": [],
+          "source_findings_version": 1,
+          "source_findings": [
+            {
+              "title": "外部指标 MissingVendor 缺失，核心计算不可复现",
+              "severity": "high",
+              "category": "dependency",
+              "certainty": "source_fact",
+              "impact": "第12行硬编码调用外部指标 MissingVendor；材料未提供该文件、算法、参数契约、返回单位或缺失行为，无法确认 mode/shift 语义，因而不具备独立复现前提。",
+              "recommendation": "先取得 MissingVendor 源码或可执行文件及参数契约，核对其缓冲区索引、输入顺序和缺失返回值；未取得前不建立因子有效性或参数结论。",
+              "affected_dimensions": [
+                "逻辑清晰度",
+                "参数可解释性",
+                "复现与复用价值"
+              ],
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                }
+              ]
+            },
+            {
+              "title": "仅给 Buffer[0] 赋值，未证明逐历史 bar 填充",
+              "severity": "high",
+              "category": "implementation",
+              "certainty": "source_fact",
+              "impact": "可见代码只在第12行写索引0，未见遍历 rates_total 的循环；若按字面运行，历史缓冲区可能只得到单点或空值，图表历史曲线可能缺失。该运行后果仍需编译和终端观察，不能当作已确认缺陷。",
+              "recommendation": "在终端记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等历史索引，并与直接加载 MissingVendor 的输出逐 bar 对照；确认是否需要按 rates_total 循环填充。",
+              "affected_dimensions": [
+                "实现质量",
+                "数据与时序可靠性",
+                "复现与复用价值"
+              ],
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                },
+                {
+                  "field": "code",
+                  "quote": "return(rates_total);"
+                }
+              ]
+            },
+            {
+              "title": "OnCalculate 返回 rates_total 的终端语义未验证",
+              "severity": "medium",
+              "category": "implementation",
+              "certainty": "hypothesis",
+              "impact": "在 MT4 中返回 rates_total 可能让终端认为全部 bars 已计算；与仅写索引0结合，可能抑制历史重算。材料没有运行日志或编译结果，不能确定为源码缺陷。",
+              "recommendation": "在终端观察 prev_calculated 与返回值的增量语义，比较首次加载、新 tick、切周期后的 Buffer 历史；不能仅凭函数名或检索相似性推断。",
+              "affected_dimensions": [
+                "实现质量",
+                "数据与时序可靠性"
+              ],
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "return(rates_total);"
+                },
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                }
+              ]
+            },
+            {
+              "title": "iCustom 的 shift=0 当前 bar 值可能随 tick 变化",
+              "severity": "medium",
+              "category": "repainting",
+              "certainty": "hypothesis",
+              "impact": "若 shift=0 返回当前未收盘 bar，Buffer[0] 会随 tick 更新；是否重绘及其对历史显示的影响未知。不能据此宣称未来数据泄漏，也不能直接当作已确认重绘。",
+              "recommendation": "用已收盘 bar 对照、shift=1 候选、实时/回放日志和逐 tick 快照验证 Buffer[0] 是否变化；在因子使用时固定可得时点。",
+              "affected_dimensions": [
+                "数据与时序可靠性"
+              ],
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                }
+              ]
+            },
+            {
+              "title": "ShowSignal=false 只把索引0置空，隐藏全部历史输出的语义未知",
+              "severity": "low",
+              "category": "implementation",
+              "certainty": "hypothesis",
+              "impact": "第12行三元表达式仅作用于 Buffer[0]；关闭开关是否清除全部历史缓冲区未证明，可能造成显示不一致。",
+              "recommendation": "检查关闭时是否需循环清空 Buffer 或依赖平台重绘；用图表历史输出验证，而不是仅凭单行赋值推断全部历史已隐藏。",
+              "affected_dimensions": [
+                "实现质量",
+                "数据与时序可靠性"
+              ],
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "extern bool ShowSignal = true;"
+                },
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                }
+              ]
+            },
+            {
+              "title": "Period 参数语义、范围与外部契约未知",
+              "severity": "medium",
+              "category": "parameter",
+              "certainty": "source_fact",
+              "impact": "第4行只声明默认值14，第12行原样传给 MissingVendor；没有最小值、最大值、步长、单位或外部参数顺序证据，不能解释其经济含义或给出优化区间。",
+              "recommendation": "取得 MissingVendor 参数契约后建立映射；在此之前仅记录默认值，不作最优参数、敏感度或收益结论。",
+              "affected_dimensions": [
+                "参数可解释性",
+                "复现与复用价值"
+              ],
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "input int Period = 14;"
+                },
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                }
+              ]
+            },
+            {
+              "title": "OHLCV 形参未被函数体引用，不能据此推断价格或量能输入",
+              "severity": "info",
+              "category": "other",
+              "certainty": "source_fact",
+              "impact": "第8–11行声明价格、成交量和点差数组，但第12行只调用 iCustom；若把该对象误标为 OHLCV 因子会缺乏源码依据。",
+              "recommendation": "保持 mechanism 未细分或待确认；待 MissingVendor 算法明确后再判定是否使用价格或量能，不据形参声明捏造数据因子。",
+              "affected_dimensions": [
+                "逻辑清晰度",
+                "复现与复用价值"
+              ],
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "int OnCalculate(const int rates_total, const int prev_calculated,"
+                },
+                {
+                  "field": "code",
+                  "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+                }
+              ]
+            }
+          ],
+          "source_findings_note": "审查范围：source.code 第1–14行、source.description、url、source_structure、portable_qualification 与冻结 research_memory；description 为空，无 url/web_markdown，未引用这些字段。未检查项：未调用 MT4 编译器，未运行终端，未取得 MissingVendor 源码/算法/参数契约，未做回测、收益、风险、重绘或跨周期验证，未验证 SetIndexBuffer 运行时绑定。source_structure=partial 仅为词法候选，portable_qualification 的 expression missing、automatic_experiment_ready=false 与外部依赖未验证属于本机研究流程边界，不据此单独判源码缺陷。前序 AI 推断“只写 Buffer[0]”与原文第12–13行一致，但“历史 bar 不填充”及返回 rates_total 的终端后果仍是未运行验证的假设；未发现未来收益直接作为时点信号的写法，但不等于不存在未提供的 MissingVendor 内部时序问题。检索相似性、前序 AI 分析与本次审查本身都不是实证。"
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 60644,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "5deb71f50c334728b70ff16bef9ddcdb"
+          ],
+          "input_tokens": 13047,
+          "output_tokens": 10555,
+          "total_tokens": 23602
+        }
+      },
+      "content_hash": "b505f9ab894c8e63777b0798c7797d07df1582a669b0c9d49df65e396e945c10"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "b034225197d686f346038586f3ffbbd29acfa016",
+    "fields": {
+      "created_at": "2026-10-25T19:06:01.464",
+      "updated_at": "2026-10-25T19:06:01.464",
+      "step": "766a115c95ba66b2e14e203b018844246da5c871",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "initial_planning_note": "阻断项（据此 initial_proposal=null）：\n1) 无受控表达式。第12行 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;` 的唯一数值来源是平台黑箱 iCustom 与未提供的外部指标 \"MissingVendor\"（文件、算法、参数契约、返回单位、缺失行为均缺）。factor.expression=null，portable_qualification 该条 expression=missing、automatic_experiment_ready=false；lag/smooth/zscore/ts_rank 等受控算子无法承载该依赖，写成等价公式即伪造语义。\n2) 输入无法映射到 OHLCV。已声明输入为 missingvendor_value / chart_symbol / chart_timeframe；第8–11行 OHLCV 形参在函数体内未被引用（第12行只用 iCustom），不能据形参声明把它们映射为 open/high/low/close/volume。symbol=NULL、timeframe=0 对应品种与周期未具体化，资产类别与频率未知，data_requirement 无法写出。\n3) 参数默认值不足以成组：可表示为有限 JSON 的只有 Period=14（第4行 `input int Period = 14;`）与 ShowSignal=true（第5行 `extern bool ShowSignal = true;`）。但 Period 的合法范围、步长、单位与在 MissingVendor 内的语义未声明；ShowSignal 是显示门控（第12行 false 时写 EMPTY_VALUE），不应作为收益优化参数。缺少第二个可联动数值轴，也无可依据的枚举，故不做单轴对角线扫描。\n4) 输出形态与时序未知。源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，第13行 `return(rates_total);` 的终端语义未验证（AI 推断，未运行）。无法判断该输出是逐 bar 序列还是仅单点，因而窗口参数（1–2000整数）与滞后语义无从建立；EMPTY_VALUE 是否可比较、能否等同缺失未声明，gate/缺失处理也不能假定已消除缺失。\n5) 无可辩护的阈值与执行尺度。units 为 platform_specific 且未知；任何 threshold、direction、退出滞回、止损止盈、持仓上限都缺尺度依据，把该值>0 当多头信号属无意义转换。因此本批也省略 strategy，而非默认沿用做多/空仓模型。\n附带省略说明：evolution 需至少一个可计算父代与结构单位匹配的片段，crossover 需第二父代为布尔过滤条件，均不成立；walk_forward 需明确行情与口径、每折容纳基线与参数组，前提缺失时声明折数/窗口会暗示已验证，故一并省略。费用/滑点/间隔等假设在此不设定，避免被误读为已适配账户。\n补齐后可检验的范围（不声称已做）：a) 取得 MissingVendor 源码与参数契约，核对 mode=0、shift=0、缓冲区索引与缺失返回值；b) 与直接加载该指标逐 bar 对照，记录 rates_total、prev_calculated、Buffer[0]/[1]/[10]，判定是否逐根填充与是否重绘；c) 明确品种、周期与逐 bar 可得时点后，再讨论窗口与阈值，并将费用/滑点/隔离间隔明确标注为实验假设。\n证据边界：源码事实=第3–7行属性与声明、SetIndexBuffer(0,Buffer)、第12–13行赋值与返回；作者主张=无（description/url 为空）；AI 推断=历史 bar 可能未填充、shift=0 可能随 tick 变化；未知=品种、频率、外部算法、单位、收益与最优参数。本轮未运行、未回测，不声称有效或获利。",
+          "initial_proposal": null,
+          "initial_planning_version": 1
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 12455,
+        "usage": {
+          "request_count": 1,
+          "event_ids": [
+            "124e5add71ad4756ae4a7a4b60c71d64"
+          ],
+          "input_tokens": 14371,
+          "output_tokens": 1962,
+          "total_tokens": 16333
+        }
+      },
+      "content_hash": "c3cf5e8177ce588200b095bdb32815982f07d2cc8d822051ba2a8cd12563ca36"
+    }
+  },
+  {
+    "model": "quant.workflowoutcome",
+    "pk": "50fae4decaa9252442c1bf37633e011154716822",
+    "fields": {
+      "created_at": "2026-10-25T19:06:01.491",
+      "updated_at": "2026-10-25T19:06:01.491",
+      "step": "301eefeab9af3f2cbadae30075f777eb7883df34",
+      "data": {
+        "version": 1,
+        "status": "completed",
+        "output": {
+          "report_result_hash": "51e8067e1212b2dad05859ce674661ed5d93791b5e03ce7637ed5d7f30135c2b"
+        },
+        "error": "",
+        "reused_from": "",
+        "elapsed_ms": 0,
+        "usage": {
+          "request_count": 0,
+          "event_ids": [],
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "content_hash": "fddc32459272a69619831de1f5781bed1d00d658844335e134d7393095d74654"
+    }
+  },
+  {
+    "model": "quant.sourcematerial",
+    "pk": "8116ced0128541eb8a3be8f66f6bfb3f",
+    "fields": {
+      "created_at": "2026-10-25T18:56:40.676",
+      "updated_at": "2026-10-25T18:56:40.676",
+      "entry": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+      "title": "质量样例 · vendor_indicator",
+      "current_revision_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b"
+    }
+  },
+  {
+    "model": "quant.sourcerevision",
+    "pk": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+    "fields": {
+      "created_at": "2026-10-25T18:56:40.677",
+      "updated_at": "2026-10-25T18:56:40.677",
+      "material": "8116ced0128541eb8a3be8f66f6bfb3f",
+      "code_version": null,
+      "payload": {
+        "title": "质量样例 · vendor_indicator",
+        "code": "#property strict\n#property indicator_chart_window\n#property indicator_buffers 1\ninput int Period = 14;\nextern bool ShowSignal = true;\ndouble Buffer[];\nint OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }\nint OnCalculate(const int rates_total, const int prev_calculated,\n                const datetime &time[], const double &open[], const double &high[],\n                const double &low[], const double &close[], const long &tick_volume[],\n                const long &volume[], const int &spread[]) {\n    Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n    return(rates_total);\n}\n",
+        "description": "",
+        "url": "",
+        "platform": "MetaTrader 4",
+        "language": "mql4",
+        "provenance": "intake",
+        "fetch_status": "not_fetched",
+        "request_fingerprint": "5ccd1c26c73c28f747ad20ea1b4916f1033debaf7c109aed1bd80700012822df"
+      },
+      "content_hash": "9100d4a3ff6181b17325df822c87f661bbf09c815cefab77dbfd11a3c42aa195"
+    }
+  },
+  {
+    "model": "quant.researchreport",
+    "pk": "6868df63f70346c685a9922482d21016",
+    "fields": {
+      "created_at": "2026-10-25T19:06:01.480",
+      "updated_at": "2026-10-25T19:06:01.480",
+      "entry": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+      "source": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+      "run": "2c441b89c1cf437b91d5f382251f75ec",
+      "schema_version": 3,
+      "data": {
+        "title": "MT4 MissingVendor 指标封装样例",
+        "kind": "indicator",
+        "summary": "研究结论：材料是 MT4 图表窗口的薄封装指标，源码只在 OnInit 中绑定 1 个缓冲区，并在 OnCalculate 中给 Buffer[0] 做三元赋值；实际信号来源是未提供的外部指标 \"MissingVendor\"。因此这批材料不足以支持因子定义、收益判断或参数优劣结论；研究价值是识别依赖缺失、历史填充和索引风险，并整理接入和验证步骤。既有分类 platform:mt4、usage:display、tunability:signal、tunability:other 只是候选分类，不证明适用性或有效性。",
+        "principle": "源码事实：第1-3行声明 `#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`；第4-6行声明 Period=14、ShowSignal=true、Buffer[]；第7行 OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 INIT_SUCCEEDED；第8-11行 OnCalculate 接收 rates_total、prev_calculated、OHLC、tick_volume、volume、spread；第12行只给 Buffer[0] 赋值 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；第13-14行返回 rates_total。数据可得时点：源码未使用 OHLCV 数组，输出取决于终端调用 OnCalculate 时 iCustom 对 \"MissingVendor\" 的查询；shift=0 按字面是当前 bar 的候选值（AI 推断，未运行验证），历史 bar 是否逐根可得未知。结构解析 parser=lexical-v1、status=partial，仅词法候选，未调用 MT4 编译器，不能当作运行时依赖或回测证据。",
+        "formula": "字面计算：若 ShowSignal=true，则 B[0] = iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)；否则 B[0] = EMPTY_VALUE。步骤：1) OnInit 尝试把 Buffer 绑定为 0 号指标缓冲区；2) 终端每次调用 OnCalculate；3) 计算三元表达式；4) 写入 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值。\"MissingVendor\" 的内部映射 F 及 mode=0、shift=0 的运行时语义未提供，不能写出可计算的因子公式。",
+        "usage": "候选用途是按 MT4 图表窗口显示外部指标 \"MissingVendor\" 的当前候选值，并由 ShowSignal 控制显示或 EMPTY_VALUE；不是完整交易策略，源码未见下单、止损、仓位或风险控制。适用情景假设：外部指标文件存在且 iCustom 参数契约匹配，只需显示当前候选值；对历史曲线、回测因子、跨资产或特定频率的适用性均无材料支持。",
+        "risks": "源码事实：第12行仅对 `Buffer[0]` 赋值，第13行直接 `return(rates_total);`，未见以 rates_total 或 prev_calculated 驱动的循环；AI推断：若按字面运行，历史每根 bar 的缓冲区可能不会被逐一填充，prev_calculated 也未用于增量计算，但未编译或运行验证。第12行依赖外部指标 `\"MissingVendor\"`，材料未提供该指标文件或加载证据，无法确认输入参数顺序、缓冲区/模式索引、重绘或滞后行为。第7行 `SetIndexBuffer` 仅被词法解析为候选，运行时绑定成功与否未证明。`ShowSignal=false` 时只把 `Buffer[0]` 置为 `EMPTY_VALUE`，是否等同隐藏全部历史输出未知。源码未显示价格/成交量计算、交易下单、止损、仓位或风险控制逻辑。",
+        "validation_plan": "1) 依赖核验：取得 \"MissingVendor\" 指标文件或源码及参数契约，确认 iCustom 参数个数、mode=0、shift=0 和缓冲区索引语义。2) 编译与静态检查：在 MT4 编译器验证第7行 SetIndexBuffer 与第3行 indicator_buffers 一致，检查 Buffer 的索引方向、ArraySetAsSeries 和逐根填充。3) 运行观察：在图表加载后记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等值和日志，验证是否只写索引0以及 ShowSignal=false 时是否只清空单点。4) 对照验证：将本封装输出与直接加载 MissingVendor 的输出逐 bar 对照，检查重绘或滞后。5) 敏感度：在外部指标参数契约允许范围内改变 Period、切换 ShowSignal、缺失依赖与存在依赖、不同 shift 候选；不给出最优参数。6) 样本外：仅在 MissingVendor 算法与数据口径明确后，按多个资产和时间框架划分样本内外验证显示数值一致性；当前材料不足以进行收益、风险或参数晋级验证。",
+        "source_facts": [
+          "材料元数据：title='质量样例 · vendor_indicator'，language='mql4'，platform='MetaTrader 4'，provenance='intake'，fetch_status='not_fetched'；description 与 url 为空，未提供资产、频率、回测或有效性声明。",
+          "源码事实（第1-3行）：`#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`，声明为图表窗口、1个指标缓冲区；这些是属性声明，未经原平台编译器验证。",
+          "源码事实（第4-6行）：`input int Period = 14;`、`extern bool ShowSignal = true;`、`double Buffer[];`；Period 与 ShowSignal 是输入/外部参数，Buffer 为数组。",
+          "源码事实（第7行）：OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 `INIT_SUCCEEDED`；source_structure 将该调用标为词法候选，未证明运行时绑定成功。",
+          "源码事实（第8-11行）：OnCalculate 形参包含 rates_total、prev_calculated、time/open/high/low/close、tick_volume、volume、spread；代码主体未显示对这些价格或成交量数组的计算。",
+          "源码事实（第12行）：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；仅写索引0，未显示遍历 rates_total 的循环；iCustom 引用名称 'MissingVendor'，未提供该外部指标文件或加载证据。",
+          "源码事实（第13-14行）：`return(rates_total);` 结束 OnCalculate；未见交易下单、止损、仓位或风险控制代码。",
+          "结构解析：parser='lexical-v1'，status='partial'，仅词法候选；未调用MT4编译器，宏、类型、重载、作用域及实际执行依赖未解析；imports为空且外部依赖未加载。",
+          "AI推断：由于只写 Buffer[0] 且未循环，若原样运行，历史 bars 的缓冲区可能不会被逐根填充；该推断未运行验证，不能当作编译、回测或收益结论。",
+          "未知：资产类别、数据频率、MissingVendor 的实际算法与可得性、参数最优值、收益与风险表现均无材料，不能补造。"
+        ],
+        "assumptions": [
+          "AI推断：作者意图是把外部指标 \"MissingVendor\" 封装为图表指标；依据是第12行 iCustom 调用和第2行 indicator_chart_window。",
+          "AI推断：当前源码可能只填充最新 bar 的缓冲区；依据是第12行仅写 Buffer[0]、未显示遍历 rates_total 的循环，且第13行直接 return(rates_total)。未编译或运行验证，不能视为确定缺陷。",
+          "AI推断：iCustom 的 shift=0 可能读取当前 bar；依据是字面参数 0，但源码未注释，运行时语义未知。",
+          "AI推断：SetIndexBuffer 可能成功绑定 0 号缓冲区；依据是第7行调用，但解析器仅给词法候选，未证明运行时成功。",
+          "AI推断：Period 影响外部指标计算；依据是第12行把 Period 传给 iCustom，但外部算法未提供，具体影响未知。",
+          "AI推断：ShowSignal 是显示开关而非信号参数；依据是第12行三元表达式在 false 时写 EMPTY_VALUE，且未改变传给 iCustom 的 Period。",
+          "AI推断：该材料当前不可独立复现或评估；依据是 MissingVendor 文件、资产、频率、运行配置和回测均未提供。"
+        ],
+        "unknowns": [
+          "实际运行配置未提供；`Period=14` 与 `ShowSignal=true` 仅为源码默认值，不能冒充部署参数。",
+          "Period 的允许范围、步长、单位及其在 MissingVendor 中的语义未声明。",
+          "MissingVendor 指标文件、算法、输入参数顺序、缓冲区/模式索引以及是否重绘未知。",
+          "`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)` 中 timeframe=0、mode=0、shift=0 的运行时语义与是否应固定为常量未知，源码未注释。",
+          "Buffer 的索引方向、是否逐根填充、SetIndexBuffer 运行时是否成功未知。",
+          "资产类别、数据频率、回测、收益、风险表现和最优参数均无材料。",
+          "结构解析为 partial 词法候选，未调用 MT4 编译器，宏、类型、重载、作用域和实际执行依赖未验证。"
+        ],
+        "parameters": [
+          {
+            "name": "Period",
+            "type": "int",
+            "default_value": "14",
+            "category": "signal",
+            "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+            "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+            "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+            "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+            "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+          },
+          {
+            "name": "ShowSignal",
+            "type": "bool",
+            "default_value": "true",
+            "category": "display",
+            "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+            "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+            "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+            "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+            "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+          },
+          {
+            "name": "Buffer",
+            "type": "double[]",
+            "default_value": "",
+            "category": "state",
+            "meaning": "指标输出缓冲区数组；第7行通过 SetIndexBuffer(0, Buffer) 尝试绑定为 0 号缓冲区，第12行只写 Buffer[0]。不是用户可调输入。",
+            "constraints": "非用户参数；长度与索引方向由终端/平台管理，源码未显示 ArraySetAsSeries 或显式长度设置。SetIndexBuffer 仅为词法候选，运行时绑定未证明。",
+            "effect": "承载显示输出；当前源码只写索引 0，若未逐根遍历，历史 bars 的缓冲区填充情况未知。",
+            "suggestion": "不应列入可调参数；应检查是否需要对 rates_total 逐根赋值以及缓冲区索引方向。",
+            "evidence": "第6行：`double Buffer[];`；第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ...`"
+          },
+          {
+            "name": "indicator_buffers",
+            "type": "int",
+            "default_value": "1",
+            "category": "constant",
+            "meaning": "编译属性声明指标缓冲区数量为 1；不是用户输入。",
+            "constraints": "源码硬编码属性 `#property indicator_buffers 1`，未声明可变范围；其与 SetIndexBuffer(0, Buffer) 的运行时绑定一致性未验证。",
+            "effect": "影响平台为指标分配/绑定的缓冲区数量；改动需与 SetIndexBuffer 调用匹配。",
+            "suggestion": "不作为优化参数；若修改应重新编译并核对缓冲区绑定。",
+            "evidence": "第3行：`#property indicator_buffers 1`"
+          },
+          {
+            "name": "MissingVendor",
+            "type": "string",
+            "default_value": "MissingVendor",
+            "category": "constant",
+            "meaning": "iCustom 调用的外部指标名称，属于硬编码依赖标识。",
+            "constraints": "字符串硬编码在第12行；材料未提供该指标文件、算法、输入参数个数或加载证据。",
+            "effect": "改变该名称会改变外部依赖与计算来源；当前名称可能导致依赖缺失，具体运行结果未知。",
+            "suggestion": "不应作为收益优化参数；需先提供并验证 MissingVendor 指标文件及其参数契约。",
+            "evidence": "第12行：`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`"
+          }
+        ],
+        "scores": [
+          {
+            "dimension": "逻辑清晰度",
+            "score": 3,
+            "reason": "封装控制流简单：OnInit 绑定缓冲区，OnCalculate 对 Buffer[0] 做三元赋值；前序说明能区分源码事实与 AI 推断，且未发现与原文直接矛盾。但核心计算完全外包给未提供的 MissingVendor，无法形成可计算、可检验的因子逻辑，因此只能给中等分。",
+            "evidence": "source.code 第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；source.description 与 url 为空，无回测或运行证据；检索相似性不是实证。"
+          },
+          {
+            "dimension": "实现质量",
+            "score": 2,
+            "reason": "有指标基本骨架，但可见代码只给 Buffer[0] 赋值，未见遍历 rates_total 的循环，prev_calculated 也未被使用；返回 rates_total 的终端语义未验证。外部依赖 MissingVendor 未提供，无法确认运行时能否计算。该对象是指标，不因没有下单、止损或仓位控制扣分。",
+            "evidence": "source.code 第12–13行仅见 `Buffer[0] = ...` 与 `return(rates_total);`；第7行 SetIndexBuffer 仅为词法候选；source.structure 为 partial，不能当作编译或运行证据。"
+          },
+          {
+            "dimension": "数据与时序可靠性",
+            "score": 2,
+            "reason": "可见代码未直接使用 OHLCV 数组，也未发现把未来收益作为时点信号的写法；但 iCustom 的 shift=0 时点语义和是否重绘未知，历史逐 bar 填充未证实，资产类别与频率未声明。不能仅凭形参声明推断数据使用时序。",
+            "evidence": "source.code 第8–11行声明 OHLCV 等形参，第12行只调用 iCustom(...Period, 0, 0)；无时间戳、数据频率、回测或终端日志证据；前序 AI 对单点写入的推断与原文一致，但运行影响仍属未验证假设。"
+          },
+          {
+            "dimension": "参数可解释性",
+            "score": 2,
+            "reason": "Period=14 只作为 iCustom 输入转发，其单位、合法范围、步长和外部参数契约均未知；ShowSignal 是显示门控，不是已证明的收益参数。缺少 MissingVendor 定义时，参数效果无法解释，更不能给出优化结论。",
+            "evidence": "source.code 第4行：`input int Period = 14;`；第5行：`extern bool ShowSignal = true;`；第12行把 Period 传给 MissingVendor；材料未提供参数契约或运行配置。"
+          },
+          {
+            "dimension": "复现与复用价值",
+            "score": 1,
+            "reason": "核心依赖 MissingVendor 文件/算法缺失，受控表达式为空，automatic_experiment_ready=false，输入映射仍未完成；无法独立复现或复用为因子。当前价值主要是依赖缺失与缓冲区实现风险的样例，而不是可检验因子。",
+            "evidence": "source.code 第12行硬编码 `iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`；portable_qualification 声明 expression missing、automatic_experiment_ready=false 且 external_dependencies 未验证；research_memory 无历史实验。"
+          }
+        ],
+        "tags": [
+          "platform:mt4",
+          "usage:display",
+          "tunability:signal",
+          "tunability:other"
+        ],
+        "total_score": 40,
+        "evidence_status": "static_unverified",
+        "rubric_version": "research-quality-v1",
+        "source_findings_version": 1,
+        "source_findings": [
+          {
+            "title": "外部指标 MissingVendor 缺失，核心计算不可复现",
+            "severity": "high",
+            "category": "dependency",
+            "certainty": "source_fact",
+            "impact": "第12行硬编码调用外部指标 MissingVendor；材料未提供该文件、算法、参数契约、返回单位或缺失行为，无法确认 mode/shift 语义，因而不具备独立复现前提。",
+            "recommendation": "先取得 MissingVendor 源码或可执行文件及参数契约，核对其缓冲区索引、输入顺序和缺失返回值；未取得前不建立因子有效性或参数结论。",
+            "affected_dimensions": [
+              "逻辑清晰度",
+              "参数可解释性",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "仅给 Buffer[0] 赋值，未证明逐历史 bar 填充",
+            "severity": "high",
+            "category": "implementation",
+            "certainty": "source_fact",
+            "impact": "可见代码只在第12行写索引0，未见遍历 rates_total 的循环；若按字面运行，历史缓冲区可能只得到单点或空值，图表历史曲线可能缺失。该运行后果仍需编译和终端观察，不能当作已确认缺陷。",
+            "recommendation": "在终端记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等历史索引，并与直接加载 MissingVendor 的输出逐 bar 对照；确认是否需要按 rates_total 循环填充。",
+            "affected_dimensions": [
+              "实现质量",
+              "数据与时序可靠性",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              },
+              {
+                "field": "code",
+                "quote": "return(rates_total);"
+              }
+            ]
+          },
+          {
+            "title": "OnCalculate 返回 rates_total 的终端语义未验证",
+            "severity": "medium",
+            "category": "implementation",
+            "certainty": "hypothesis",
+            "impact": "在 MT4 中返回 rates_total 可能让终端认为全部 bars 已计算；与仅写索引0结合，可能抑制历史重算。材料没有运行日志或编译结果，不能确定为源码缺陷。",
+            "recommendation": "在终端观察 prev_calculated 与返回值的增量语义，比较首次加载、新 tick、切周期后的 Buffer 历史；不能仅凭函数名或检索相似性推断。",
+            "affected_dimensions": [
+              "实现质量",
+              "数据与时序可靠性"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "return(rates_total);"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "iCustom 的 shift=0 当前 bar 值可能随 tick 变化",
+            "severity": "medium",
+            "category": "repainting",
+            "certainty": "hypothesis",
+            "impact": "若 shift=0 返回当前未收盘 bar，Buffer[0] 会随 tick 更新；是否重绘及其对历史显示的影响未知。不能据此宣称未来数据泄漏，也不能直接当作已确认重绘。",
+            "recommendation": "用已收盘 bar 对照、shift=1 候选、实时/回放日志和逐 tick 快照验证 Buffer[0] 是否变化；在因子使用时固定可得时点。",
+            "affected_dimensions": [
+              "数据与时序可靠性"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "ShowSignal=false 只把索引0置空，隐藏全部历史输出的语义未知",
+            "severity": "low",
+            "category": "implementation",
+            "certainty": "hypothesis",
+            "impact": "第12行三元表达式仅作用于 Buffer[0]；关闭开关是否清除全部历史缓冲区未证明，可能造成显示不一致。",
+            "recommendation": "检查关闭时是否需循环清空 Buffer 或依赖平台重绘；用图表历史输出验证，而不是仅凭单行赋值推断全部历史已隐藏。",
+            "affected_dimensions": [
+              "实现质量",
+              "数据与时序可靠性"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "extern bool ShowSignal = true;"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "Period 参数语义、范围与外部契约未知",
+            "severity": "medium",
+            "category": "parameter",
+            "certainty": "source_fact",
+            "impact": "第4行只声明默认值14，第12行原样传给 MissingVendor；没有最小值、最大值、步长、单位或外部参数顺序证据，不能解释其经济含义或给出优化区间。",
+            "recommendation": "取得 MissingVendor 参数契约后建立映射；在此之前仅记录默认值，不作最优参数、敏感度或收益结论。",
+            "affected_dimensions": [
+              "参数可解释性",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "input int Period = 14;"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          },
+          {
+            "title": "OHLCV 形参未被函数体引用，不能据此推断价格或量能输入",
+            "severity": "info",
+            "category": "other",
+            "certainty": "source_fact",
+            "impact": "第8–11行声明价格、成交量和点差数组，但第12行只调用 iCustom；若把该对象误标为 OHLCV 因子会缺乏源码依据。",
+            "recommendation": "保持 mechanism 未细分或待确认；待 MissingVendor 算法明确后再判定是否使用价格或量能，不据形参声明捏造数据因子。",
+            "affected_dimensions": [
+              "逻辑清晰度",
+              "复现与复用价值"
+            ],
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "int OnCalculate(const int rates_total, const int prev_calculated,"
+              },
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              }
+            ]
+          }
+        ],
+        "source_findings_note": "审查范围：source.code 第1–14行、source.description、url、source_structure、portable_qualification 与冻结 research_memory；description 为空，无 url/web_markdown，未引用这些字段。未检查项：未调用 MT4 编译器，未运行终端，未取得 MissingVendor 源码/算法/参数契约，未做回测、收益、风险、重绘或跨周期验证，未验证 SetIndexBuffer 运行时绑定。source_structure=partial 仅为词法候选，portable_qualification 的 expression missing、automatic_experiment_ready=false 与外部依赖未验证属于本机研究流程边界，不据此单独判源码缺陷。前序 AI 推断“只写 Buffer[0]”与原文第12–13行一致，但“历史 bar 不填充”及返回 rates_total 的终端后果仍是未运行验证的假设；未发现未来收益直接作为时点信号的写法，但不等于不存在未提供的 MissingVendor 内部时序问题。检索相似性、前序 AI 分析与本次审查本身都不是实证。",
+        "extraction_version": 1,
+        "extraction_note": "提取范围：仅第1–14行源码、既有 identify/parameters/research 记录与分类候选词表。边界：源码只有 1 次 SetIndexBuffer（第7行）与 1 次对 Buffer[0] 的三元赋值（第12行），无算术、无窗口函数、无循环、无过滤条件组合，唯一数值来源是黑箱平台函数 iCustom 调用外部指标 \"MissingVendor\"，其文件、算法、参数契约、mode/shift 语义均未提供，故只能给出 1 个待研究特征候选并 expression=null，不为凑数编造均线、RSI、区间或收益型因子。未列为候选的项及原因：ShowSignal 是同一三元表达式内的显示门控（原文 \"ShowSignal ? ... : EMPTY_VALUE\"），与宿主赋值不可分离，若单独建 display 候选会与同一变换重复；Buffer[]/indicator_buffers 是缓冲区与编译属性，不是可研究特征；OnCalculate 的 OHLC/tick_volume/volume/spread 形参在函数体内未被引用（第12行未用），不能据形参声明捏造价格或成交量因子。role 判断：该值在源码中的直接用途是图表窗口输出（第2行 indicator_chart_window），但它是唯一可复用的数值特征，故按「待研究特征」记为 role=factor、family=other；若下游按严格用途口径重判为 display，不改变其黑箱与未知性质。未执行编译、未访问终端、未运行回测；source_structure 为 lexical-v1/partial 词法候选，不代表编译或运行通过。材料未声明资产类别、数据频率、收益或参数最优值，本报告不作任何此类结论。",
+        "factors": [
+          {
+            "name": "MissingVendor 封装输出值（iCustom 直通，写 Buffer[0]）",
+            "role": "factor",
+            "family": "other",
+            "summary": "第12行把外部指标 \"MissingVendor\" 在 mode=0、shift=0 下的返回值（受 ShowSignal 门控）写入输出缓冲区第 0 个元素，是材料中唯一可辨识的数值输出，故作为待研究特征占位。外部指标算法、参数契约、单位与是否重绘均未知，机制无法归类，family 记 other；未经编译、运行或回测，不声明任何预测力、有效性或收益。",
+            "formula": "字面赋值（第12行）：B[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE。流程：1) OnInit 尝试 SetIndexBuffer(0, Buffer)（第7行，仅词法候选，运行时绑定未验证）；2) 终端调用 OnCalculate；3) 求三元表达式：ShowSignal 为真取 iCustom(NULL,0,\"MissingVendor\",Period,0,0)，为假取平台空值 EMPTY_VALUE；4) 写 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值，prev_calculated 未被使用。iCustom 内部映射 F（MissingVendor 算法、mode=0、shift=0 的运行时语义）未提供，无法写出等价可计算公式。",
+            "inputs": [
+              {
+                "name": "missingvendor_value",
+                "meaning": "external indicator \"MissingVendor\" 在 mode=0、shift=0 下返回的数值；其算法、缓冲区索引语义与返回单位材料未提供，文件未加载，属黑箱输出。",
+                "availability": "需要终端已安装该指标且 iCustom 参数契约（Period, 0, 0）匹配；材料无加载证据，实际可得时点未知。",
+                "missing_policy": "未知：源码未处理外部指标缺失或返回无效值的情况；ShowSignal=false 时写 EMPTY_VALUE，但外部指标本身缺失时的返回值材料未说明。"
+              },
+              {
+                "name": "chart_symbol",
+                "meaning": "iCustom 第一参数为 NULL；按 MQL4 字面为当前图表品种，材料未声明具体资产类别或代码。",
+                "availability": "图表加载时由终端上下文提供；具体品种未知。",
+                "missing_policy": "未知：材料未说明无图表上下文或品种不可用时的行为。"
+              },
+              {
+                "name": "chart_timeframe",
+                "meaning": "iCustom 第二参数为字面 0；按 MQL4 字面指当前图表周期，具体周期（分钟/小时/日等）材料未声明，源码无注释。",
+                "availability": "图表加载时由终端上下文提供；具体周期未知。",
+                "missing_policy": "未知：材料未说明周期不可用或切换周期时的行为。"
+              }
+            ],
+            "output_type": "platform_specific",
+            "units": "未知：外部指标返回值单位材料未声明；ShowSignal=false 时为平台空值标记 EMPTY_VALUE，不是数值 0。",
+            "timeframe": "计算窗口未知：源码无窗口计算、无循环，Period 的单位与语义由外部指标定义，材料未声明；iCustom 第二参数 0 按字面为当前图表周期，具体周期未知；未显示逐 bar 历史计算，AI 推断输出可能只对应单一索引 0（未运行验证）。",
+            "parameters": [
+              {
+                "name": "Period",
+                "type": "int",
+                "default_value": "14",
+                "category": "signal",
+                "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+                "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+                "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+                "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+                "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+              },
+              {
+                "name": "ShowSignal",
+                "type": "bool",
+                "default_value": "true",
+                "category": "display",
+                "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+                "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+                "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+                "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+                "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+              }
+            ],
+            "dependencies": [
+              "外部指标 \"MissingVendor\" 文件/算法：材料未提供，无加载证据（第12行字符串字面量）",
+              "MQL4 函数 iCustom 及其 symbol=NULL、timeframe=0、mode=0、shift=0 的运行时语义：材料未注释，未知",
+              "SetIndexBuffer(0, Buffer) 运行时绑定：source_structure 标为 lexical_candidate，未证明成功",
+              "终端对 OnCalculate 的调用与 rates_total/prev_calculated 驱动：源码未见循环或增量逻辑"
+            ],
+            "limitations": "expression=null 原因：核心依赖 iCustom（平台黑箱函数）不在支持算子集合内，其内部映射 F 与 mode/shift 语义未知，编造等价公式会伪造语义。其他边界：源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，历史 bar 填充情况未知（AI 推断，未运行验证）；ShowSignal=false 只把索引 0 置为 EMPTY_VALUE，是否等同隐藏全部历史输出未知；\"MissingVendor\" 为硬编码字符串常量，材料未给出可选值集合，故不作字符串枚举参数建模，仅记入 dependencies；Period 的合法范围、步长与单位未声明，不建 domain；未使用 OnCalculate 的 OHLC/tick_volume/volume/spread 形参，不能据此推断价格或量能输入；解析为 lexical-v1/partial，未编译、未运行、未回测；资产类别、频率、收益、风险与最优参数均无材料，本项不作有效性声明。",
+            "tags": [
+              "platform:mt4",
+              "usage:display",
+              "mechanism:other",
+              "tunability:signal"
+            ],
+            "expression": null,
+            "evidence": [
+              {
+                "field": "code",
+                "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+              },
+              {
+                "field": "code",
+                "quote": "int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }"
+              },
+              {
+                "field": "code",
+                "quote": "input int Period = 14;"
+              },
+              {
+                "field": "code",
+                "quote": "extern bool ShowSignal = true;"
+              },
+              {
+                "field": "code",
+                "quote": "return(rates_total);"
+              }
+            ]
+          }
+        ],
+        "factor_repair": {
+          "version": 1,
+          "selected": [
+            0
+          ],
+          "omitted": [],
+          "items": [
+            {
+              "factor_index": 0,
+              "status": "unresolved",
+              "summary": "无法修订为受控定义。源码第12行仅把 ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE 写入 Buffer[0]；iCustom 与外部指标 MissingVendor 的算法、参数契约、mode=0/shift=0 语义、返回单位及缺失行为均未提供，EMPTY_VALUE 的平台哨兵含义也未声明。受控算子不含 iCustom，不能把黑箱外部指标替换为等价表达式，也不能删除该依赖。源码未见遍历 rates_total 的循环，prev_calculated 未使用，输出是逐 bar 序列还是仅索引0未知；因此无法构造保留时点、单位与缺失规则的新定义。保持原候选，不发布伪造定义。",
+              "definition": null,
+              "evidence": [
+                {
+                  "field": "code",
+                  "quote": "int OnCalculate(const int rates_total, const int prev_calculated,\n                const datetime &time[], const double &open[], const double &high[],\n                const double &low[], const double &close[], const long &tick_volume[],\n                const long &volume[], const int &spread[]) {\n    Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n    return(rates_total);\n}"
+                },
+                {
+                  "field": "code",
+                  "quote": "int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }"
+                },
+                {
+                  "field": "code",
+                  "quote": "input int Period = 14;"
+                },
+                {
+                  "field": "code",
+                  "quote": "extern bool ShowSignal = true;"
+                }
+              ],
+              "remaining_unknowns": [
+                "外部指标 \"MissingVendor\" 的文件、算法、内部缓冲区索引语义、参数契约与返回单位均未提供，无法展开为受控表达式。",
+                "MQL4 iCustom 在 symbol=NULL、timeframe=0、mode=0、shift=0 下的运行时语义、错误返回值及缺失值处理未给出，无法确认输入时点与缺失规则。",
+                "源码只写 Buffer[0]，且 OnCalculate 函数体内没有遍历 rates_total 的循环、prev_calculated 未被使用；历史 bar 是否填充、序列方向与索引含义未知。",
+                "EMPTY_VALUE 的平台哨兵表示、可比较性或是否等同缺失值未声明，无法在定义中安全表达 ShowSignal=false 分支。",
+                "SetIndexBuffer(0, Buffer) 仅为词法候选，运行时绑定是否成功、缓冲区数量与绘图属性未验证。",
+                "iCustom 中 symbol=NULL 与 timeframe=0 对应的实际图表品种和周期未在材料中具体化，资产类别与数据频率未知。",
+                "Period=14 与 ShowSignal=true 是源码默认值；其部署配置、合法范围、步长及传给 MissingVendor 后的语义未知。",
+                "无法判断该输出应建模为单点标量、最新 bar 值还是完整时间序列，也无法确认 ShowSignal 关闭时是否应清除全部历史缓冲区。"
+              ],
+              "before_hash": "efcac7d4a67c11d837b58941dd8452b69e69b9f9a7316201c048ad807c9ba964",
+              "after_hash": "",
+              "changed_fields": []
+            }
+          ]
+        },
+        "source_memory_version": 1,
+        "research_memory": {
+          "version": 3,
+          "method": "library-history-v3",
+          "scope": "same_collection",
+          "cutoff": "2026-10-25T11:03:49.921000+00:00",
+          "scan_limit": 2000,
+          "scanned": {
+            "experiments": 0,
+            "feedback": 0,
+            "comparisons": 0,
+            "fixed_validations": 0
+          },
+          "eligible": {
+            "fixed_validations": 0,
+            "comparisons": 0,
+            "experiments": 0,
+            "feedback": 0
+          },
+          "omitted_for_size": 0,
+          "items": [],
+          "scan_limits": {
+            "seconds": 5,
+            "max_chars": 20000000,
+            "chars_read": 0,
+            "budget_limited": false,
+            "size_limited": false
+          }
+        },
+        "memory_note": "冻结 research_memory 扫描结果为 experiments=0、feedback=0、comparisons=0、fixed_validations=0，items 为空；本轮没有历史实验、外部反馈、直接对照或固定验证可引用。未提供历史不等于不存在失败或反例，也不能据此补造表现、收益或最优参数。本轮不采用、不拒绝任何历史记录。",
+        "memory_assessment": [],
+        "initial_planning_note": "阻断项（据此 initial_proposal=null）：\n1) 无受控表达式。第12行 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;` 的唯一数值来源是平台黑箱 iCustom 与未提供的外部指标 \"MissingVendor\"（文件、算法、参数契约、返回单位、缺失行为均缺）。factor.expression=null，portable_qualification 该条 expression=missing、automatic_experiment_ready=false；lag/smooth/zscore/ts_rank 等受控算子无法承载该依赖，写成等价公式即伪造语义。\n2) 输入无法映射到 OHLCV。已声明输入为 missingvendor_value / chart_symbol / chart_timeframe；第8–11行 OHLCV 形参在函数体内未被引用（第12行只用 iCustom），不能据形参声明把它们映射为 open/high/low/close/volume。symbol=NULL、timeframe=0 对应品种与周期未具体化，资产类别与频率未知，data_requirement 无法写出。\n3) 参数默认值不足以成组：可表示为有限 JSON 的只有 Period=14（第4行 `input int Period = 14;`）与 ShowSignal=true（第5行 `extern bool ShowSignal = true;`）。但 Period 的合法范围、步长、单位与在 MissingVendor 内的语义未声明；ShowSignal 是显示门控（第12行 false 时写 EMPTY_VALUE），不应作为收益优化参数。缺少第二个可联动数值轴，也无可依据的枚举，故不做单轴对角线扫描。\n4) 输出形态与时序未知。源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，第13行 `return(rates_total);` 的终端语义未验证（AI 推断，未运行）。无法判断该输出是逐 bar 序列还是仅单点，因而窗口参数（1–2000整数）与滞后语义无从建立；EMPTY_VALUE 是否可比较、能否等同缺失未声明，gate/缺失处理也不能假定已消除缺失。\n5) 无可辩护的阈值与执行尺度。units 为 platform_specific 且未知；任何 threshold、direction、退出滞回、止损止盈、持仓上限都缺尺度依据，把该值>0 当多头信号属无意义转换。因此本批也省略 strategy，而非默认沿用做多/空仓模型。\n附带省略说明：evolution 需至少一个可计算父代与结构单位匹配的片段，crossover 需第二父代为布尔过滤条件，均不成立；walk_forward 需明确行情与口径、每折容纳基线与参数组，前提缺失时声明折数/窗口会暗示已验证，故一并省略。费用/滑点/间隔等假设在此不设定，避免被误读为已适配账户。\n补齐后可检验的范围（不声称已做）：a) 取得 MissingVendor 源码与参数契约，核对 mode=0、shift=0、缓冲区索引与缺失返回值；b) 与直接加载该指标逐 bar 对照，记录 rates_total、prev_calculated、Buffer[0]/[1]/[10]，判定是否逐根填充与是否重绘；c) 明确品种、周期与逐 bar 可得时点后，再讨论窗口与阈值，并将费用/滑点/隔离间隔明确标注为实验假设。\n证据边界：源码事实=第3–7行属性与声明、SetIndexBuffer(0,Buffer)、第12–13行赋值与返回；作者主张=无（description/url 为空）；AI 推断=历史 bar 可能未填充、shift=0 可能随 tick 变化；未知=品种、频率、外部算法、单位、收益与最优参数。本轮未运行、未回测，不声称有效或获利。",
+        "initial_proposal": null,
+        "initial_planning_version": 1
+      },
+      "markdown": "# MT4 MissingVendor 指标封装样例\n\n研究结论：材料是 MT4 图表窗口的薄封装指标，源码只在 OnInit 中绑定 1 个缓冲区，并在 OnCalculate 中给 Buffer[0] 做三元赋值；实际信号来源是未提供的外部指标 \"MissingVendor\"。因此这批材料不足以支持因子定义、收益判断或参数优劣结论；研究价值是识别依赖缺失、历史填充和索引风险，并整理接入和验证步骤。既有分类 platform:mt4、usage:display、tunability:signal、tunability:other 只是候选分类，不证明适用性或有效性。\n\n## 问题清单与严重度\n\n审查范围：source.code 第1–14行、source.description、url、source_structure、portable_qualification 与冻结 research_memory；description 为空，无 url/web_markdown，未引用这些字段。未检查项：未调用 MT4 编译器，未运行终端，未取得 MissingVendor 源码/算法/参数契约，未做回测、收益、风险、重绘或跨周期验证，未验证 SetIndexBuffer 运行时绑定。source_structure=partial 仅为词法候选，portable_qualification 的 expression missing、automatic_experiment_ready=false 与外部依赖未验证属于本机研究流程边界，不据此单独判源码缺陷。前序 AI 推断“只写 Buffer[0]”与原文第12–13行一致，但“历史 bar 不填充”及返回 rates_total 的终端后果仍是未运行验证的假设；未发现未来收益直接作为时点信号的写法，但不等于不存在未提供的 MissingVendor 内部时序问题。检索相似性、前序 AI 分析与本次审查本身都不是实证。\n\n严重度独立于研究质量分；AI 静态判断不代表编译、运行或盈利验证。\n\n存在严重或高影响问题，研究总分不能视为通过结论。\n\n### 高 · 外部指标 MissingVendor 缺失，核心计算不可复现\n\nAI 判断：认为原文明示\n\n影响：第12行硬编码调用外部指标 MissingVendor；材料未提供该文件、算法、参数契约、返回单位或缺失行为，无法确认 mode/shift 语义，因而不具备独立复现前提。\n\n建议：先取得 MissingVendor 源码或可执行文件及参数契约，核对其缓冲区索引、输入顺序和缺失返回值；未取得前不建立因子有效性或参数结论。\n\n涉及研究维度：逻辑清晰度、参数可解释性、复现与复用价值\n\n原文依据（code）：\n\n> Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n\n### 高 · 仅给 Buffer[0] 赋值，未证明逐历史 bar 填充\n\nAI 判断：认为原文明示\n\n影响：可见代码只在第12行写索引0，未见遍历 rates_total 的循环；若按字面运行，历史缓冲区可能只得到单点或空值，图表历史曲线可能缺失。该运行后果仍需编译和终端观察，不能当作已确认缺陷。\n\n建议：在终端记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等历史索引，并与直接加载 MissingVendor 的输出逐 bar 对照；确认是否需要按 rates_total 循环填充。\n\n涉及研究维度：实现质量、数据与时序可靠性、复现与复用价值\n\n原文依据（code）：\n\n> Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n\n原文依据（code）：\n\n> return(rates_total);\n\n### 中 · OnCalculate 返回 rates_total 的终端语义未验证\n\nAI 判断：影响尚待验证的假设\n\n影响：在 MT4 中返回 rates_total 可能让终端认为全部 bars 已计算；与仅写索引0结合，可能抑制历史重算。材料没有运行日志或编译结果，不能确定为源码缺陷。\n\n建议：在终端观察 prev_calculated 与返回值的增量语义，比较首次加载、新 tick、切周期后的 Buffer 历史；不能仅凭函数名或检索相似性推断。\n\n涉及研究维度：实现质量、数据与时序可靠性\n\n原文依据（code）：\n\n> return(rates_total);\n\n原文依据（code）：\n\n> Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n\n### 中 · iCustom 的 shift=0 当前 bar 值可能随 tick 变化\n\nAI 判断：影响尚待验证的假设\n\n影响：若 shift=0 返回当前未收盘 bar，Buffer[0] 会随 tick 更新；是否重绘及其对历史显示的影响未知。不能据此宣称未来数据泄漏，也不能直接当作已确认重绘。\n\n建议：用已收盘 bar 对照、shift=1 候选、实时/回放日志和逐 tick 快照验证 Buffer[0] 是否变化；在因子使用时固定可得时点。\n\n涉及研究维度：数据与时序可靠性\n\n原文依据（code）：\n\n> Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n\n### 中 · Period 参数语义、范围与外部契约未知\n\nAI 判断：认为原文明示\n\n影响：第4行只声明默认值14，第12行原样传给 MissingVendor；没有最小值、最大值、步长、单位或外部参数顺序证据，不能解释其经济含义或给出优化区间。\n\n建议：取得 MissingVendor 参数契约后建立映射；在此之前仅记录默认值，不作最优参数、敏感度或收益结论。\n\n涉及研究维度：参数可解释性、复现与复用价值\n\n原文依据（code）：\n\n> input int Period = 14;\n\n原文依据（code）：\n\n> Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n\n### 低 · ShowSignal=false 只把索引0置空，隐藏全部历史输出的语义未知\n\nAI 判断：影响尚待验证的假设\n\n影响：第12行三元表达式仅作用于 Buffer[0]；关闭开关是否清除全部历史缓冲区未证明，可能造成显示不一致。\n\n建议：检查关闭时是否需循环清空 Buffer 或依赖平台重绘；用图表历史输出验证，而不是仅凭单行赋值推断全部历史已隐藏。\n\n涉及研究维度：实现质量、数据与时序可靠性\n\n原文依据（code）：\n\n> extern bool ShowSignal = true;\n\n原文依据（code）：\n\n> Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n\n### 提示 · OHLCV 形参未被函数体引用，不能据此推断价格或量能输入\n\nAI 判断：认为原文明示\n\n影响：第8–11行声明价格、成交量和点差数组，但第12行只调用 iCustom；若把该对象误标为 OHLCV 因子会缺乏源码依据。\n\n建议：保持 mechanism 未细分或待确认；待 MissingVendor 算法明确后再判定是否使用价格或量能，不据形参声明捏造数据因子。\n\n涉及研究维度：逻辑清晰度、复现与复用价值\n\n原文依据（code）：\n\n> int OnCalculate(const int rates_total, const int prev_calculated,\n\n原文依据（code）：\n\n> Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n\n## 研究质量评价\n\n研究质量分：40 / 100\n\n评价依据为静态材料，实证表现未评估。\n\n### 逻辑清晰度 · 3 / 5\n\n封装控制流简单：OnInit 绑定缓冲区，OnCalculate 对 Buffer[0] 做三元赋值；前序说明能区分源码事实与 AI 推断，且未发现与原文直接矛盾。但核心计算完全外包给未提供的 MissingVendor，无法形成可计算、可检验的因子逻辑，因此只能给中等分。\n\n依据：source.code 第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；source.description 与 url 为空，无回测或运行证据；检索相似性不是实证。\n\n### 实现质量 · 2 / 5\n\n有指标基本骨架，但可见代码只给 Buffer[0] 赋值，未见遍历 rates_total 的循环，prev_calculated 也未被使用；返回 rates_total 的终端语义未验证。外部依赖 MissingVendor 未提供，无法确认运行时能否计算。该对象是指标，不因没有下单、止损或仓位控制扣分。\n\n依据：source.code 第12–13行仅见 `Buffer[0] = ...` 与 `return(rates_total);`；第7行 SetIndexBuffer 仅为词法候选；source.structure 为 partial，不能当作编译或运行证据。\n\n### 数据与时序可靠性 · 2 / 5\n\n可见代码未直接使用 OHLCV 数组，也未发现把未来收益作为时点信号的写法；但 iCustom 的 shift=0 时点语义和是否重绘未知，历史逐 bar 填充未证实，资产类别与频率未声明。不能仅凭形参声明推断数据使用时序。\n\n依据：source.code 第8–11行声明 OHLCV 等形参，第12行只调用 iCustom(...Period, 0, 0)；无时间戳、数据频率、回测或终端日志证据；前序 AI 对单点写入的推断与原文一致，但运行影响仍属未验证假设。\n\n### 参数可解释性 · 2 / 5\n\nPeriod=14 只作为 iCustom 输入转发，其单位、合法范围、步长和外部参数契约均未知；ShowSignal 是显示门控，不是已证明的收益参数。缺少 MissingVendor 定义时，参数效果无法解释，更不能给出优化结论。\n\n依据：source.code 第4行：`input int Period = 14;`；第5行：`extern bool ShowSignal = true;`；第12行把 Period 传给 MissingVendor；材料未提供参数契约或运行配置。\n\n### 复现与复用价值 · 1 / 5\n\n核心依赖 MissingVendor 文件/算法缺失，受控表达式为空，automatic_experiment_ready=false，输入映射仍未完成；无法独立复现或复用为因子。当前价值主要是依赖缺失与缓冲区实现风险的样例，而不是可检验因子。\n\n依据：source.code 第12行硬编码 `iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`；portable_qualification 声明 expression missing、automatic_experiment_ready=false 且 external_dependencies 未验证；research_memory 无历史实验。\n\n## 原理与计算逻辑\n\n源码事实：第1-3行声明 `#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`；第4-6行声明 Period=14、ShowSignal=true、Buffer[]；第7行 OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 INIT_SUCCEEDED；第8-11行 OnCalculate 接收 rates_total、prev_calculated、OHLC、tick_volume、volume、spread；第12行只给 Buffer[0] 赋值 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；第13-14行返回 rates_total。数据可得时点：源码未使用 OHLCV 数组，输出取决于终端调用 OnCalculate 时 iCustom 对 \"MissingVendor\" 的查询；shift=0 按字面是当前 bar 的候选值（AI 推断，未运行验证），历史 bar 是否逐根可得未知。结构解析 parser=lexical-v1、status=partial，仅词法候选，未调用 MT4 编译器，不能当作运行时依赖或回测证据。\n\n## 公式\n\n字面计算：若 ShowSignal=true，则 B[0] = iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)；否则 B[0] = EMPTY_VALUE。步骤：1) OnInit 尝试把 Buffer 绑定为 0 号指标缓冲区；2) 终端每次调用 OnCalculate；3) 计算三元表达式；4) 写入 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值。\"MissingVendor\" 的内部映射 F 及 mode=0、shift=0 的运行时语义未提供，不能写出可计算的因子公式。\n\n## 用途与条件\n\n候选用途是按 MT4 图表窗口显示外部指标 \"MissingVendor\" 的当前候选值，并由 ShowSignal 控制显示或 EMPTY_VALUE；不是完整交易策略，源码未见下单、止损、仓位或风险控制。适用情景假设：外部指标文件存在且 iCustom 参数契约匹配，只需显示当前候选值；对历史曲线、回测因子、跨资产或特定频率的适用性均无材料支持。\n\n## 输入参数与建议\n\n### Period · int\n\n默认值：14；类别：signal\n\n含义：MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。\n\n约束：源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。\n\n变化影响：会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。\n\n候选建议（待验证）：不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。\n\n来源依据：第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`\n\n### ShowSignal · bool\n\n默认值：true；类别：display\n\n含义：MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。\n\n约束：源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。\n\n变化影响：切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。\n\n候选建议（待验证）：仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。\n\n来源依据：第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`\n\n### Buffer · double[]\n\n默认值：未知；类别：state\n\n含义：指标输出缓冲区数组；第7行通过 SetIndexBuffer(0, Buffer) 尝试绑定为 0 号缓冲区，第12行只写 Buffer[0]。不是用户可调输入。\n\n约束：非用户参数；长度与索引方向由终端/平台管理，源码未显示 ArraySetAsSeries 或显式长度设置。SetIndexBuffer 仅为词法候选，运行时绑定未证明。\n\n变化影响：承载显示输出；当前源码只写索引 0，若未逐根遍历，历史 bars 的缓冲区填充情况未知。\n\n候选建议（待验证）：不应列入可调参数；应检查是否需要对 rates_total 逐根赋值以及缓冲区索引方向。\n\n来源依据：第6行：`double Buffer[];`；第7行：`int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }`；第12行：`Buffer[0] = ...`\n\n### indicator_buffers · int\n\n默认值：1；类别：constant\n\n含义：编译属性声明指标缓冲区数量为 1；不是用户输入。\n\n约束：源码硬编码属性 `#property indicator_buffers 1`，未声明可变范围；其与 SetIndexBuffer(0, Buffer) 的运行时绑定一致性未验证。\n\n变化影响：影响平台为指标分配/绑定的缓冲区数量；改动需与 SetIndexBuffer 调用匹配。\n\n候选建议（待验证）：不作为优化参数；若修改应重新编译并核对缓冲区绑定。\n\n来源依据：第3行：`#property indicator_buffers 1`\n\n### MissingVendor · string\n\n默认值：MissingVendor；类别：constant\n\n含义：iCustom 调用的外部指标名称，属于硬编码依赖标识。\n\n约束：字符串硬编码在第12行；材料未提供该指标文件、算法、输入参数个数或加载证据。\n\n变化影响：改变该名称会改变外部依赖与计算来源；当前名称可能导致依赖缺失，具体运行结果未知。\n\n候选建议（待验证）：不应作为收益优化参数；需先提供并验证 MissingVendor 指标文件及其参数契约。\n\n来源依据：第12行：`iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)`\n\n## 来源事实\n\n- 材料元数据：title='质量样例 · vendor_indicator'，language='mql4'，platform='MetaTrader 4'，provenance='intake'，fetch_status='not_fetched'；description 与 url 为空，未提供资产、频率、回测或有效性声明。\n- 源码事实（第1-3行）：`#property strict`、`#property indicator_chart_window`、`#property indicator_buffers 1`，声明为图表窗口、1个指标缓冲区；这些是属性声明，未经原平台编译器验证。\n- 源码事实（第4-6行）：`input int Period = 14;`、`extern bool ShowSignal = true;`、`double Buffer[];`；Period 与 ShowSignal 是输入/外部参数，Buffer 为数组。\n- 源码事实（第7行）：OnInit 调用 `SetIndexBuffer(0, Buffer)` 并返回 `INIT_SUCCEEDED`；source_structure 将该调用标为词法候选，未证明运行时绑定成功。\n- 源码事实（第8-11行）：OnCalculate 形参包含 rates_total、prev_calculated、time/open/high/low/close、tick_volume、volume、spread；代码主体未显示对这些价格或成交量数组的计算。\n- 源码事实（第12行）：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`；仅写索引0，未显示遍历 rates_total 的循环；iCustom 引用名称 'MissingVendor'，未提供该外部指标文件或加载证据。\n- 源码事实（第13-14行）：`return(rates_total);` 结束 OnCalculate；未见交易下单、止损、仓位或风险控制代码。\n- 结构解析：parser='lexical-v1'，status='partial'，仅词法候选；未调用MT4编译器，宏、类型、重载、作用域及实际执行依赖未解析；imports为空且外部依赖未加载。\n- AI推断：由于只写 Buffer[0] 且未循环，若原样运行，历史 bars 的缓冲区可能不会被逐根填充；该推断未运行验证，不能当作编译、回测或收益结论。\n- 未知：资产类别、数据频率、MissingVendor 的实际算法与可得性、参数最优值、收益与风险表现均无材料，不能补造。\n\n## 分析假设\n\n- AI推断：作者意图是把外部指标 \"MissingVendor\" 封装为图表指标；依据是第12行 iCustom 调用和第2行 indicator_chart_window。\n- AI推断：当前源码可能只填充最新 bar 的缓冲区；依据是第12行仅写 Buffer[0]、未显示遍历 rates_total 的循环，且第13行直接 return(rates_total)。未编译或运行验证，不能视为确定缺陷。\n- AI推断：iCustom 的 shift=0 可能读取当前 bar；依据是字面参数 0，但源码未注释，运行时语义未知。\n- AI推断：SetIndexBuffer 可能成功绑定 0 号缓冲区；依据是第7行调用，但解析器仅给词法候选，未证明运行时成功。\n- AI推断：Period 影响外部指标计算；依据是第12行把 Period 传给 iCustom，但外部算法未提供，具体影响未知。\n- AI推断：ShowSignal 是显示开关而非信号参数；依据是第12行三元表达式在 false 时写 EMPTY_VALUE，且未改变传给 iCustom 的 Period。\n- AI推断：该材料当前不可独立复现或评估；依据是 MissingVendor 文件、资产、频率、运行配置和回测均未提供。\n\n## 缺失信息\n\n- 实际运行配置未提供；`Period=14` 与 `ShowSignal=true` 仅为源码默认值，不能冒充部署参数。\n- Period 的允许范围、步长、单位及其在 MissingVendor 中的语义未声明。\n- MissingVendor 指标文件、算法、输入参数顺序、缓冲区/模式索引以及是否重绘未知。\n- `iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0)` 中 timeframe=0、mode=0、shift=0 的运行时语义与是否应固定为常量未知，源码未注释。\n- Buffer 的索引方向、是否逐根填充、SetIndexBuffer 运行时是否成功未知。\n- 资产类别、数据频率、回测、收益、风险表现和最优参数均无材料。\n- 结构解析为 partial 词法候选，未调用 MT4 编译器，宏、类型、重载、作用域和实际执行依赖未验证。\n\n## 问题与限制\n\n源码事实：第12行仅对 `Buffer[0]` 赋值，第13行直接 `return(rates_total);`，未见以 rates_total 或 prev_calculated 驱动的循环；AI推断：若按字面运行，历史每根 bar 的缓冲区可能不会被逐一填充，prev_calculated 也未用于增量计算，但未编译或运行验证。第12行依赖外部指标 `\"MissingVendor\"`，材料未提供该指标文件或加载证据，无法确认输入参数顺序、缓冲区/模式索引、重绘或滞后行为。第7行 `SetIndexBuffer` 仅被词法解析为候选，运行时绑定成功与否未证明。`ShowSignal=false` 时只把 `Buffer[0]` 置为 `EMPTY_VALUE`，是否等同隐藏全部历史输出未知。源码未显示价格/成交量计算、交易下单、止损、仓位或风险控制逻辑。\n\n## 验证计划\n\n1) 依赖核验：取得 \"MissingVendor\" 指标文件或源码及参数契约，确认 iCustom 参数个数、mode=0、shift=0 和缓冲区索引语义。2) 编译与静态检查：在 MT4 编译器验证第7行 SetIndexBuffer 与第3行 indicator_buffers 一致，检查 Buffer 的索引方向、ArraySetAsSeries 和逐根填充。3) 运行观察：在图表加载后记录 rates_total、prev_calculated、Buffer[0]、Buffer[1]、Buffer[10] 等值和日志，验证是否只写索引0以及 ShowSignal=false 时是否只清空单点。4) 对照验证：将本封装输出与直接加载 MissingVendor 的输出逐 bar 对照，检查重绘或滞后。5) 敏感度：在外部指标参数契约允许范围内改变 Period、切换 ShowSignal、缺失依赖与存在依赖、不同 shift 候选；不给出最优参数。6) 样本外：仅在 MissingVendor 算法与数据口径明确后，按多个资产和时间框架划分样本内外验证显示数值一致性；当前材料不足以进行收益、风险或参数晋级验证。\n\n## 自动提取的研究候选\n\n提取范围：仅第1–14行源码、既有 identify/parameters/research 记录与分类候选词表。边界：源码只有 1 次 SetIndexBuffer（第7行）与 1 次对 Buffer[0] 的三元赋值（第12行），无算术、无窗口函数、无循环、无过滤条件组合，唯一数值来源是黑箱平台函数 iCustom 调用外部指标 \"MissingVendor\"，其文件、算法、参数契约、mode/shift 语义均未提供，故只能给出 1 个待研究特征候选并 expression=null，不为凑数编造均线、RSI、区间或收益型因子。未列为候选的项及原因：ShowSignal 是同一三元表达式内的显示门控（原文 \"ShowSignal ? ... : EMPTY_VALUE\"），与宿主赋值不可分离，若单独建 display 候选会与同一变换重复；Buffer[]/indicator_buffers 是缓冲区与编译属性，不是可研究特征；OnCalculate 的 OHLC/tick_volume/volume/spread 形参在函数体内未被引用（第12行未用），不能据形参声明捏造价格或成交量因子。role 判断：该值在源码中的直接用途是图表窗口输出（第2行 indicator_chart_window），但它是唯一可复用的数值特征，故按「待研究特征」记为 role=factor、family=other；若下游按严格用途口径重判为 display，不改变其黑箱与未知性质。未执行编译、未访问终端、未运行回测；source_structure 为 lexical-v1/partial 词法候选，不代表编译或运行通过。材料未声明资产类别、数据频率、收益或参数最优值，本报告不作任何此类结论。\n\n### MissingVendor 封装输出值（iCustom 直通，写 Buffer[0]）\n\n第12行把外部指标 \"MissingVendor\" 在 mode=0、shift=0 下的返回值（受 ShowSignal 门控）写入输出缓冲区第 0 个元素，是材料中唯一可辨识的数值输出，故作为待研究特征占位。外部指标算法、参数契约、单位与是否重绘均未知，机制无法归类，family 记 other；未经编译、运行或回测，不声明任何预测力、有效性或收益。\n\n字面赋值（第12行）：B[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE。流程：1) OnInit 尝试 SetIndexBuffer(0, Buffer)（第7行，仅词法候选，运行时绑定未验证）；2) 终端调用 OnCalculate；3) 求三元表达式：ShowSignal 为真取 iCustom(NULL,0,\"MissingVendor\",Period,0,0)，为假取平台空值 EMPTY_VALUE；4) 写 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值，prev_calculated 未被使用。iCustom 内部映射 F（MissingVendor 算法、mode=0、shift=0 的运行时语义）未提供，无法写出等价可计算公式。\n\n限制与待验证项：expression=null 原因：核心依赖 iCustom（平台黑箱函数）不在支持算子集合内，其内部映射 F 与 mode/shift 语义未知，编造等价公式会伪造语义。其他边界：源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，历史 bar 填充情况未知（AI 推断，未运行验证）；ShowSignal=false 只把索引 0 置为 EMPTY_VALUE，是否等同隐藏全部历史输出未知；\"MissingVendor\" 为硬编码字符串常量，材料未给出可选值集合，故不作字符串枚举参数建模，仅记入 dependencies；Period 的合法范围、步长与单位未声明，不建 domain；未使用 OnCalculate 的 OHLC/tick_volume/volume/spread 形参，不能据此推断价格或量能输入；解析为 lexical-v1/partial，未编译、未运行、未回测；资产类别、频率、收益、风险与最优参数均无材料，本项不作有效性声明。\n\n## AI 定义修订\n\n原始提取保留；以下是独立修订假设，不能把结构通过当作原平台修复、等价或收益证据。研究质量分仍评价原资料。\n\n### MissingVendor 封装输出值（iCustom 直通，写 Buffer[0]） · 尚未解决\n\n无法修订为受控定义。源码第12行仅把 ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE 写入 Buffer[0]；iCustom 与外部指标 MissingVendor 的算法、参数契约、mode=0/shift=0 语义、返回单位及缺失行为均未提供，EMPTY_VALUE 的平台哨兵含义也未声明。受控算子不含 iCustom，不能把黑箱外部指标替换为等价表达式，也不能删除该依赖。源码未见遍历 rates_total 的循环，prev_calculated 未使用，输出是逐 bar 序列还是仅索引0未知；因此无法构造保留时点、单位与缺失规则的新定义。保持原候选，不发布伪造定义。\n\n仍待核对：外部指标 \"MissingVendor\" 的文件、算法、内部缓冲区索引语义、参数契约与返回单位均未提供，无法展开为受控表达式。；MQL4 iCustom 在 symbol=NULL、timeframe=0、mode=0、shift=0 下的运行时语义、错误返回值及缺失值处理未给出，无法确认输入时点与缺失规则。；源码只写 Buffer[0]，且 OnCalculate 函数体内没有遍历 rates_total 的循环、prev_calculated 未被使用；历史 bar 是否填充、序列方向与索引含义未知。；EMPTY_VALUE 的平台哨兵表示、可比较性或是否等同缺失值未声明，无法在定义中安全表达 ShowSignal=false 分支。；SetIndexBuffer(0, Buffer) 仅为词法候选，运行时绑定是否成功、缓冲区数量与绘图属性未验证。；iCustom 中 symbol=NULL 与 timeframe=0 对应的实际图表品种和周期未在材料中具体化，资产类别与数据频率未知。；Period=14 与 ShowSignal=true 是源码默认值；其部署配置、合法范围、步长及传给 MissingVendor 后的语义未知。；无法判断该输出应建模为单点标量、最新 bar 值还是完整时间序列，也无法确认 ShowSignal 关闭时是否应清除全部历史缓冲区。\n\n原文依据（code）：\n\n> int OnCalculate(const int rates_total, const int prev_calculated,\n>                 const datetime &time[], const double &open[], const double &high[],\n>                 const double &low[], const double &close[], const long &tick_volume[],\n>                 const long &volume[], const int &spread[]) {\n>     Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;\n>     return(rates_total);\n> }\n\n原文依据（code）：\n\n> int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }\n\n原文依据（code）：\n\n> input int Period = 14;\n\n原文依据（code）：\n\n> extern bool ShowSignal = true;\n\n## 首轮实验规划\n\n阻断项（据此 initial_proposal=null）：\n1) 无受控表达式。第12行 `Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;` 的唯一数值来源是平台黑箱 iCustom 与未提供的外部指标 \"MissingVendor\"（文件、算法、参数契约、返回单位、缺失行为均缺）。factor.expression=null，portable_qualification 该条 expression=missing、automatic_experiment_ready=false；lag/smooth/zscore/ts_rank 等受控算子无法承载该依赖，写成等价公式即伪造语义。\n2) 输入无法映射到 OHLCV。已声明输入为 missingvendor_value / chart_symbol / chart_timeframe；第8–11行 OHLCV 形参在函数体内未被引用（第12行只用 iCustom），不能据形参声明把它们映射为 open/high/low/close/volume。symbol=NULL、timeframe=0 对应品种与周期未具体化，资产类别与频率未知，data_requirement 无法写出。\n3) 参数默认值不足以成组：可表示为有限 JSON 的只有 Period=14（第4行 `input int Period = 14;`）与 ShowSignal=true（第5行 `extern bool ShowSignal = true;`）。但 Period 的合法范围、步长、单位与在 MissingVendor 内的语义未声明；ShowSignal 是显示门控（第12行 false 时写 EMPTY_VALUE），不应作为收益优化参数。缺少第二个可联动数值轴，也无可依据的枚举，故不做单轴对角线扫描。\n4) 输出形态与时序未知。源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，第13行 `return(rates_total);` 的终端语义未验证（AI 推断，未运行）。无法判断该输出是逐 bar 序列还是仅单点，因而窗口参数（1–2000整数）与滞后语义无从建立；EMPTY_VALUE 是否可比较、能否等同缺失未声明，gate/缺失处理也不能假定已消除缺失。\n5) 无可辩护的阈值与执行尺度。units 为 platform_specific 且未知；任何 threshold、direction、退出滞回、止损止盈、持仓上限都缺尺度依据，把该值>0 当多头信号属无意义转换。因此本批也省略 strategy，而非默认沿用做多/空仓模型。\n附带省略说明：evolution 需至少一个可计算父代与结构单位匹配的片段，crossover 需第二父代为布尔过滤条件，均不成立；walk_forward 需明确行情与口径、每折容纳基线与参数组，前提缺失时声明折数/窗口会暗示已验证，故一并省略。费用/滑点/间隔等假设在此不设定，避免被误读为已适配账户。\n补齐后可检验的范围（不声称已做）：a) 取得 MissingVendor 源码与参数契约，核对 mode=0、shift=0、缓冲区索引与缺失返回值；b) 与直接加载该指标逐 bar 对照，记录 rates_total、prev_calculated、Buffer[0]/[1]/[10]，判定是否逐根填充与是否重绘；c) 明确品种、周期与逐 bar 可得时点后，再讨论窗口与阈值，并将费用/滑点/隔离间隔明确标注为实验假设。\n证据边界：源码事实=第3–7行属性与声明、SetIndexBuffer(0,Buffer)、第12–13行赋值与返回；作者主张=无（description/url 为空）；AI 推断=历史 bar 可能未填充、shift=0 可能随 tick 变化；未知=品种、频率、外部算法、单位、收益与最优参数。本轮未运行、未回测，不声称有效或获利。\n\n## 历史研究依据与判断\n\n冻结 research_memory 扫描结果为 experiments=0、feedback=0、comparisons=0、fixed_validations=0，items 为空；本轮没有历史实验、外部反馈、直接对照或固定验证可引用。未提供历史不等于不存在失败或反例，也不能据此补造表现、收益或最优参数。本轮不采用、不拒绝任何历史记录。",
+      "content_hash": "d2540c39b132c936cf4f68eafa9863d3e91ad95076c747b6b62c1991ee8731ab",
+      "current_revision_id": ""
+    }
+  },
+  {
+    "model": "quant.factorcandidate",
+    "pk": "f46365445c40936ce67305c890f7624e806ccca6",
+    "fields": {
+      "created_at": "2026-10-25T19:06:01.484",
+      "updated_at": "2026-10-25T19:06:01.484",
+      "report": "6868df63f70346c685a9922482d21016",
+      "ordinal": 0,
+      "data": {
+        "name": "MissingVendor 封装输出值（iCustom 直通，写 Buffer[0]）",
+        "role": "factor",
+        "family": "other",
+        "summary": "第12行把外部指标 \"MissingVendor\" 在 mode=0、shift=0 下的返回值（受 ShowSignal 门控）写入输出缓冲区第 0 个元素，是材料中唯一可辨识的数值输出，故作为待研究特征占位。外部指标算法、参数契约、单位与是否重绘均未知，机制无法归类，family 记 other；未经编译、运行或回测，不声明任何预测力、有效性或收益。",
+        "formula": "字面赋值（第12行）：B[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE。流程：1) OnInit 尝试 SetIndexBuffer(0, Buffer)（第7行，仅词法候选，运行时绑定未验证）；2) 终端调用 OnCalculate；3) 求三元表达式：ShowSignal 为真取 iCustom(NULL,0,\"MissingVendor\",Period,0,0)，为假取平台空值 EMPTY_VALUE；4) 写 B[0]；5) return(rates_total)。未见对 B[1..rates_total-1] 的循环或增量赋值，prev_calculated 未被使用。iCustom 内部映射 F（MissingVendor 算法、mode=0、shift=0 的运行时语义）未提供，无法写出等价可计算公式。",
+        "inputs": [
+          {
+            "name": "missingvendor_value",
+            "meaning": "external indicator \"MissingVendor\" 在 mode=0、shift=0 下返回的数值；其算法、缓冲区索引语义与返回单位材料未提供，文件未加载，属黑箱输出。",
+            "availability": "需要终端已安装该指标且 iCustom 参数契约（Period, 0, 0）匹配；材料无加载证据，实际可得时点未知。",
+            "missing_policy": "未知：源码未处理外部指标缺失或返回无效值的情况；ShowSignal=false 时写 EMPTY_VALUE，但外部指标本身缺失时的返回值材料未说明。"
+          },
+          {
+            "name": "chart_symbol",
+            "meaning": "iCustom 第一参数为 NULL；按 MQL4 字面为当前图表品种，材料未声明具体资产类别或代码。",
+            "availability": "图表加载时由终端上下文提供；具体品种未知。",
+            "missing_policy": "未知：材料未说明无图表上下文或品种不可用时的行为。"
+          },
+          {
+            "name": "chart_timeframe",
+            "meaning": "iCustom 第二参数为字面 0；按 MQL4 字面指当前图表周期，具体周期（分钟/小时/日等）材料未声明，源码无注释。",
+            "availability": "图表加载时由终端上下文提供；具体周期未知。",
+            "missing_policy": "未知：材料未说明周期不可用或切换周期时的行为。"
+          }
+        ],
+        "output_type": "platform_specific",
+        "units": "未知：外部指标返回值单位材料未声明；ShowSignal=false 时为平台空值标记 EMPTY_VALUE，不是数值 0。",
+        "timeframe": "计算窗口未知：源码无窗口计算、无循环，Period 的单位与语义由外部指标定义，材料未声明；iCustom 第二参数 0 按字面为当前图表周期，具体周期未知；未显示逐 bar 历史计算，AI 推断输出可能只对应单一索引 0（未运行验证）。",
+        "parameters": [
+          {
+            "name": "Period",
+            "type": "int",
+            "default_value": "14",
+            "category": "signal",
+            "meaning": "MQL4 input 输入参数；第12行作为 iCustom 的输入传给外部指标 \"MissingVendor\"。单位与具体语义由外部指标定义，材料未说明。",
+            "constraints": "源码仅声明 `input int Period = 14;`，未声明最小值、最大值、步长或可选值；未提供实际运行配置，默认值 14 不能视为部署值或优化区间。",
+            "effect": "会改变传给 MissingVendor 的参数；由于外部指标算法未提供，无法确认对信号、缓冲区数值或显示的具体影响。",
+            "suggestion": "不宜给出实证最优范围；应先取得 MissingVendor 的参数契约与算法，再验证有效区间。",
+            "evidence": "第4行：`input int Period = 14;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+          },
+          {
+            "name": "ShowSignal",
+            "type": "bool",
+            "default_value": "true",
+            "category": "display",
+            "meaning": "MQL4 extern 外部参数；为 true 时第12行把 iCustom 结果写入 Buffer[0]，为 false 时写 EMPTY_VALUE。它是输出显示/隐藏开关性质，不改变已传入的外部指标参数。",
+            "constraints": "源码仅声明 `extern bool ShowSignal = true;`，未声明运行配置、联动关系或取值范围；布尔默认值 true 不是实际部署配置。",
+            "effect": "切换 Buffer[0] 是显示外部指标值还是 EMPTY_VALUE；是否影响历史全部输出未知，因为源码只写索引 0。",
+            "suggestion": "仅作为显示开关核查；不应作为收益优化参数。需确认关闭时是否应清除全部历史缓冲区。",
+            "evidence": "第5行：`extern bool ShowSignal = true;`；第12行：`Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;`"
+          }
+        ],
+        "dependencies": [
+          "外部指标 \"MissingVendor\" 文件/算法：材料未提供，无加载证据（第12行字符串字面量）",
+          "MQL4 函数 iCustom 及其 symbol=NULL、timeframe=0、mode=0、shift=0 的运行时语义：材料未注释，未知",
+          "SetIndexBuffer(0, Buffer) 运行时绑定：source_structure 标为 lexical_candidate，未证明成功",
+          "终端对 OnCalculate 的调用与 rates_total/prev_calculated 驱动：源码未见循环或增量逻辑"
+        ],
+        "limitations": "expression=null 原因：核心依赖 iCustom（平台黑箱函数）不在支持算子集合内，其内部映射 F 与 mode/shift 语义未知，编造等价公式会伪造语义。其他边界：源码只写 Buffer[0]，未见遍历 rates_total 的循环，prev_calculated 未使用，历史 bar 填充情况未知（AI 推断，未运行验证）；ShowSignal=false 只把索引 0 置为 EMPTY_VALUE，是否等同隐藏全部历史输出未知；\"MissingVendor\" 为硬编码字符串常量，材料未给出可选值集合，故不作字符串枚举参数建模，仅记入 dependencies；Period 的合法范围、步长与单位未声明，不建 domain；未使用 OnCalculate 的 OHLC/tick_volume/volume/spread 形参，不能据此推断价格或量能输入；解析为 lexical-v1/partial，未编译、未运行、未回测；资产类别、频率、收益、风险与最优参数均无材料，本项不作有效性声明。",
+        "tags": [
+          "platform:mt4",
+          "usage:display",
+          "mechanism:other",
+          "tunability:signal"
+        ],
+        "expression": null,
+        "evidence": [
+          {
+            "field": "code",
+            "quote": "Buffer[0] = ShowSignal ? iCustom(NULL, 0, \"MissingVendor\", Period, 0, 0) : EMPTY_VALUE;"
+          },
+          {
+            "field": "code",
+            "quote": "int OnInit() { SetIndexBuffer(0, Buffer); return(INIT_SUCCEEDED); }"
+          },
+          {
+            "field": "code",
+            "quote": "input int Period = 14;"
+          },
+          {
+            "field": "code",
+            "quote": "extern bool ShowSignal = true;"
+          },
+          {
+            "field": "code",
+            "quote": "return(rates_total);"
+          }
+        ]
+      },
+      "content_hash": "0f17f88e9badb8dc15ca687600eda6b1d3243b5717f05a218d696056dc878ae6",
+      "expression_hash": "",
+      "current_revision_id": "",
+      "derived_checkpoint_id": "",
+      "formula_version_id": "",
+      "formula_selection_id": "",
+      "qualification_version": 1
+    }
+  },
+  {
+    "model": "quant.factorqualification",
+    "pk": "d792796e7351f95eebad02c95430ea8e8e834cea",
+    "fields": {
+      "created_at": "2026-10-25T19:06:01.487",
+      "updated_at": "2026-10-25T19:06:01.487",
+      "candidate": "f46365445c40936ce67305c890f7624e806ccca6",
+      "policy_version": 1,
+      "data": {
+        "version": 1,
+        "candidate_hash": "0f17f88e9badb8dc15ca687600eda6b1d3243b5717f05a218d696056dc878ae6",
+        "scope": "portable_expression_declared_contract_only",
+        "reuse_status": "candidate",
+        "checks": [
+          {
+            "code": "expression",
+            "status": "missing",
+            "message": "尚无受控表达式；保留原平台片段，需要补齐计算语义后才能检查引用和类型。"
+          }
+        ],
+        "blockers": [
+          "expression"
+        ],
+        "nodes": [],
+        "configuration": {
+          "status": "declared_defaults_valid",
+          "missing": []
+        },
+        "automatic_ohlcv_mapping": false,
+        "inputs_requiring_mapping": [
+          "missingvendor_value",
+          "chart_symbol",
+          "chart_timeframe"
+        ],
+        "automatic_experiment_ready": false,
+        "inputs": [
+          {
+            "name": "missingvendor_value",
+            "used": false,
+            "availability": "需要终端已安装该指标且 iCustom 参数契约（Period, 0, 0）匹配；材料无加载证据，实际可得时点未知。",
+            "missing_policy": "未知：源码未处理外部指标缺失或返回无效值的情况；ShowSignal=false 时写 EMPTY_VALUE，但外部指标本身缺失时的返回值材料未说明。"
+          },
+          {
+            "name": "chart_symbol",
+            "used": false,
+            "availability": "图表加载时由终端上下文提供；具体品种未知。",
+            "missing_policy": "未知：材料未说明无图表上下文或品种不可用时的行为。"
+          },
+          {
+            "name": "chart_timeframe",
+            "used": false,
+            "availability": "图表加载时由终端上下文提供；具体周期未知。",
+            "missing_policy": "未知：材料未说明周期不可用或切换周期时的行为。"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Period",
+            "used": false,
+            "kind": "int"
+          },
+          {
+            "name": "ShowSignal",
+            "used": false,
+            "kind": "bool"
+          }
+        ],
+        "external_dependencies": [
+          {
+            "name": "外部指标 \"MissingVendor\" 文件/算法：材料未提供，无加载证据（第12行字符串字面量）",
+            "status": "declared_unverified_original_context"
+          },
+          {
+            "name": "MQL4 函数 iCustom 及其 symbol=NULL、timeframe=0、mode=0、shift=0 的运行时语义：材料未注释，未知",
+            "status": "declared_unverified_original_context"
+          },
+          {
+            "name": "SetIndexBuffer(0, Buffer) 运行时绑定：source_structure 标为 lexical_candidate，未证明成功",
+            "status": "declared_unverified_original_context"
+          },
+          {
+            "name": "终端对 OnCalculate 的调用与 rates_total/prev_calculated 驱动：源码未见循环或增量逻辑",
+            "status": "declared_unverified_original_context"
+          }
+        ],
+        "platform_equivalence": "unverified",
+        "economic_effectiveness": "unassessed"
+      },
+      "content_hash": "d88407e6e7888f4a9e1694aa832820798482343800146ba67cd42513e1efc41c"
+    }
+  }
+]

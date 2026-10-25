@@ -4,13 +4,13 @@ from django.db import connection, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
+from rest_framework.views import APIView, exception_handler
 from system_settings.models import AIModel, SystemSetting
 from utils.ai_service import AIService
 from utils.response_utils import success_result
 from .access import owned_collection, owned_entry
 from .locking import collection_lock
-from .models import AIRun, Attachment, Backtest, CodeVersion, Entry, Implementation, Job
+from .models import AIRun, Attachment, Backtest, CodeVersion, Entry, Implementation, Job, SourceRevision
 from .presentation import entry_detail, run_data
 from .serializers import AttachmentSerializer, BacktestSerializer, CodeVersionSerializer, EntrySerializer, ImplementationSerializer, VerificationSerializer
 from .services import adopt, attach, create_implementation, queue, read_script, save_version, touch
@@ -44,7 +44,9 @@ class QuantView(APIView):
     def handle_exception(self, exc):
         if self._request_transaction and connection.in_atomic_block:
             transaction.set_rollback(True)
-        response = super().handle_exception(exc)
+        # The legacy handler assumes flat lists and crashes on nested batch
+        # serializer errors. Preserve DRF's validation response for this domain.
+        response = exception_handler(exc, self.get_exception_handler_context()) if isinstance(exc, serializers.ValidationError) else super().handle_exception(exc)
         # The legacy global serializer handler returns a business error with
         # HTTP 200. New quant endpoints must retain the actual HTTP failure.
         response.status_code = getattr(exc, 'status_code', response.status_code)
@@ -78,9 +80,11 @@ class EntryView(QuantView):
                 raise serializers.ValidationError('研究类型无效')
             entries = [entry for entry in entries if entry.kind == kind]
         if language:
-            if language not in Implementation.LANGUAGES:
+            if language not in (*Implementation.LANGUAGES, 'tongdaxin', 'text'):
                 raise serializers.ValidationError('代码语言无效')
             ids = set(Implementation.objects.filter(entry__anthology=self.collection, language=language).values_list('entry_id', flat=True))
+            ids.update(SourceRevision.objects.filter(material__entry__anthology=self.collection,
+                payload__language=language).values_list('material__entry_id', flat=True))
             entries = [entry for entry in entries if entry.pk in ids]
         return success_result(EntrySerializer(entries, many=True).data)
 

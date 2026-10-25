@@ -8,11 +8,15 @@ def is_interleaved(item):
     return isinstance(item.context, dict) and item.context.get('interleaving', {}).get('version') == INTERLEAVING_VERSION
 
 
+def is_reserved(item):
+    return bool((item.context or {}).get('adventure_reservation_id'))
+
+
 def source(item):
-    return 'interleaved' if is_interleaved(item) else 'manual' if item.context.get('manual') else 'schedule'
+    return 'reservation' if is_reserved(item) else 'interleaved' if is_interleaved(item) else 'manual' if item.context.get('manual') else 'schedule'
 
 
 def main_items(query):
     # JSON missing keys must not be treated as SQL NULL exclusions.
     from django.db.models import Q
-    return query.filter(Q(context__interleaving__isnull=True) | ~Q(context__interleaving__version=1))
+    return query.filter(Q(context__interleaving__isnull=True) | ~Q(context__interleaving__version=1)).filter(context__adventure_reservation_id__isnull=True)

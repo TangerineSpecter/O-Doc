@@ -24,8 +24,8 @@ def run(browser,base,filename,width,out):
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,page.locator('body').inner_text()[:150])
     try:
         go('gallery')
-        expect(page.locator('[data-equipment-row]')).to_have_count(79)
-        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(316)
+        expect(page.locator('[data-equipment-row]')).to_have_count(103)
+        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(416)
         ids=page.locator('[data-equipment-row]').evaluate_all('rows=>rows.map(row=>row.dataset.equipmentRow)')
         art=page.locator('[data-equipment-row]').evaluate_all("rows=>rows.map(row=>Array.from(row.querySelectorAll('svg[data-equipment-pixel-version]')).map(svg=>svg.innerHTML))")
         assert all(len(set(row))==1 for row in art), 'Atlas / no-metadata / market snapshot / template-known record mismatch'
@@ -47,11 +47,11 @@ def run(browser,base,filename,width,out):
         expect(page.get_by_text('未找到符合条件的装备')).to_be_visible()
         fits()
         go('surfaces')
-        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(474)
+        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(624)
         fits()
         page.locator('[data-equipment-row="equip.two_handed_sword"]').screenshot(path=str(out/f'bag-and-slot-{width}.png'))
         go('loot')
-        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(79)
+        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(103)
         page.get_by_role('button',name='查看双手剑，数量1',exact=True).click()
         expect(page.get_by_role('dialog')).to_contain_text('掉落详情')
         expect(page.get_by_role('dialog').locator('[data-equipment-pixel-version="2"]')).to_have_count(2)
@@ -72,7 +72,7 @@ def run(browser,base,filename,width,out):
         assert not errors,errors
         assert responses and all(sw for _,_,sw in responses),responses
         assert all(status!=501 for _,status,_ in responses),responses
-        print({'width':width,'items':79,'states':['populated','empty-search','loading','error'],'apiResponses':len(responses),'pageErrors':errors,'overflow':False})
+        print({'width':width,'items':103,'states':['populated','empty-search','loading','error'],'apiResponses':len(responses),'pageErrors':errors,'overflow':False})
     except Exception:
         print({'width':width,'errors':errors,'body':page.locator('body').inner_text()[:1000]})
         page.screenshot(path=str(out/f'failure-{width}.png'),full_page=True)

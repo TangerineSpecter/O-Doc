@@ -83,6 +83,9 @@ def cast(catalog, caster, sid, rank, friends, enemies, tick, rng, *, rescue=Fals
 
 
 def support(catalog, player, friends, enemies, tick, rng):
+    from .bard_combat import silenced
+    if silenced(player, tick):
+        return []
     choices = []
     for sid, rank in player['skills'].items():
         if catalog.row('skills', sid)['kind'] != 'active' or tick < player['cooldowns'].get(sid, 0) or player['mp'] < engine.cost(catalog, player, sid, rank):
@@ -122,6 +125,8 @@ def step(catalog, state, rng):
     friends, enemies = state['players'], state['enemies']
     tick = state['round'] = state.get('round', 0) + 1
     result = []
+    from .bard_combat import prepare
+    prepare({**friends, **enemies}, tick)
     order = ordered(alive(friends)+alive(enemies), rng)
     state['action_order'] = [u['id'] for u in order]
     for unit in order:
@@ -167,7 +172,7 @@ def step(catalog, state, rng):
                     fx['target'] in ('ally', 'all_allies', 'fallen_ally', 'all_enemies') for fx in catalog.skill(sid, rank)[1])}
                 try:
                     events = tag(engine.player_action(catalog, unit, foe, unit['potions'], tick,
-                        catalog.row('styles', unit['style_id']), rng, unit.get('elixirs'), unit), unit, foe)
+                        catalog.row('styles', unit['style_id']), rng, unit.get('elixirs'), unit, friends=friends, enemies=enemies), unit, foe)
                 finally:
                     unit['skills'] = learned
             for target in enemies.values():

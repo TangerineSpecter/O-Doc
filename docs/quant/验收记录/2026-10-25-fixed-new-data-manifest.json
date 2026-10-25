@@ -1,0 +1,13 @@
+{
+  "application_version": "1.5.42",
+  "registration_timezone": "Asia/Shanghai",
+  "registration_use_tz": false,
+  "registered_at": "2026-10-25T19:29:39.918302+08:00",
+  "registered_at_utc": "2026-10-25T11:29:39.918302+00:00",
+  "downloaded_at": "2026-10-25T11:29:41.522234+00:00",
+  "source_model_review_calls": 2,
+  "first_review": "rejected_bare_candidate_id_used_as_evidence_key",
+  "retry": "completed_without_reimport_or_recalculation",
+  "market_data": "public historical archive; external prior use unattested",
+  "global_independent_validation": false
+}

@@ -1,3 +1,4 @@
+import {LifeReservationSummary} from './LifeReservationSummary';
 import {LifeDomainDetails} from './LifeDomainDetails';
 import {LifeSourceBadge} from './LifeSourceBadge';
 import {BlacksmithActivityDetails} from '../Blacksmith/BlacksmithHistory';
@@ -389,6 +390,7 @@ export default function LifeItemDetails({
                             )}
                         </section>
 
+                        <LifeReservationSummary item={item}/>
                         {/* 调整表单操作 */}
                         {(item.source !== 'interleaved' || item.status !== 'failed') && (['pending', 'deferred', 'paused', 'running'].includes(item.status) ||
                             (item.status === 'failed' && item.activity !== 'market_prepare') ||
@@ -433,7 +435,7 @@ export default function LifeItemDetails({
                                               : '调整操作将记录进历史流水'}
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        {item.source !== 'interleaved' && item.status === 'failed' && item.activity !== 'travel' &&
+                                        {item.source !== 'reservation' && item.source !== 'interleaved' && item.status === 'failed' && item.activity !== 'travel' &&
                                             (item.activity !== 'market_prepare' || item.retryAvailable) && (
                                             <button
                                                 type="button"
@@ -447,7 +449,7 @@ export default function LifeItemDetails({
                                                 <span>重试</span>
                                             </button>
                                         )}
-                                        {item.source !== 'interleaved' && !(item.status === 'failed' && item.activity === 'market_prepare') && <button
+                                        {item.source !== 'reservation' && item.source !== 'interleaved' && !(item.status === 'failed' && item.activity === 'market_prepare') && <button
                                             type="button"
                                             disabled={busy || !reason.trim() || item.status === 'running'}
                                             onClick={() => void change('replan')}
@@ -462,7 +464,8 @@ export default function LifeItemDetails({
                                             />
                                             <span>重新规划</span>
                                         </button>}
-                                        {item.status !== 'failed' && (
+                                        {item.source === 'reservation' && ['reserved', 'preparing'].includes(item.reservation?.status || '') && <button type="button" disabled={busy || !reason.trim()} onClick={() => void change('retry')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-700">恢复本机预约授权</button>}
+                                        {item.status !== 'failed' && item.reservation?.status !== 'active' && (
                                             <button
                                                 type="button"
                                                 disabled={busy || !reason.trim()}

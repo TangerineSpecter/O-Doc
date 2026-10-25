@@ -7,6 +7,7 @@ from datetime import timedelta
 from django.db import transaction
 from django.db.models import Q
 from system_settings.models import Agent, AgentExecutionLease, WorldAction, AgentRunRecord
+from .reservation_resources import quota_remaining
 from .models import Exploration, CombatEncounter, CombatRuntime, CombatConfig, CombatProfile, EquipmentInstance
 from .store import current
 from .permissions import local_runtime
@@ -67,6 +68,8 @@ def available_window(owner, actor, duration, life_id='', now=None):
     from ..life_models import LifeConfig
     from ..life_schedule import window
     now = local_time(now)
+    from .reservation_resources import require_window
+    require_window(owner, actor, now, duration, exclude_item=life_id)
     config = LifeConfig.objects.filter(pk=owner).first()
     if config:
         if life_id and actor in config.paused_agents:
@@ -200,7 +203,7 @@ def consume(run, profile, amount, block, now):
 
 @guarded
 @transaction.atomic
-def depart(run_id, plan, now=None, *, party=None):
+def depart(run_id, plan, now=None, *, party=None, start_wave=True):
     now=local_time(now)
     run=Exploration.objects.select_for_update().get(pk=run_id)
     if run.status!='preparing':return run
@@ -229,7 +232,7 @@ def depart(run_id, plan, now=None, *, party=None):
     dungeon=catalog.row('dungeons',plan['dungeon_id'])
     catalog.row('styles',plan['style_id'])
     duration=plan['duration_seconds']
-    if type(duration)is not int or (duration not in (1800,3600,7200) and not (party is not None and duration>=600)):raise ValueError('探索时长无效')
+    if type(duration)is not int or (duration not in (1800,3600,7200) and not ((party is not None or run.snapshot.get('reservation_id')) and duration>=600)):raise ValueError('探索时长无效')
     for key,val in run.snapshot['constraints'].items():
         if plan.get(key)!=val and not (party is not None and key=='duration_seconds' and plan[key]<=val):raise ValueError('准备计划未遵守用户约束')
     available_window(run.owner_id,run.actor_id,duration,run.life_item_id,now)
@@ -237,7 +240,7 @@ def depart(run_id, plan, now=None, *, party=None):
     config,_=CombatConfig.objects.get_or_create(pk=run.owner_id)
     day=now.date().isoformat()
     for budget_day,seconds in day_parts(now,duration).items():
-        if profile.loot_progress.get('days',{}).get(budget_day,0)+seconds>config.daily_minutes*60:raise ValueError(f'探索时长超出当日时间额度（每日累计探索限额：{config.daily_minutes} 分钟）')
+        if seconds > quota_remaining(profile, budget_day, exclude_item=run.life_item_id):raise ValueError(f'探索时长超出当日时间额度（每日累计探索限额：{config.daily_minutes} 分钟）')
     if run.life_item_id:
         from ..life_interleaving_candidates import legal_durations
         if duration not in legal_durations(item, [duration], seconds=True, now=now):
@@ -273,7 +276,8 @@ def depart(run_id, plan, now=None, *, party=None):
         if not slot_matches(item.snapshot,item.rules,slot):
             raise ValueError('出发装备槽位记录无效')
     from ..life_schedule import reschedule_after_exploration
-    reschedule_after_exploration(run.owner_id,run.actor_id,now,duration,life_item_id=run.life_item_id)
+    if not run.snapshot.get('reservation_id'):
+        reschedule_after_exploration(run.owner_id,run.actor_id,now,duration,life_item_id=run.life_item_id)
     run.duration_seconds=duration
     profession_bonuses = rewards.profession_bonus_snapshot(agent)
     run.snapshot={**run.snapshot,'plan':plan,'equipment':wearing(profile),'progression':profile.progression,
@@ -300,7 +304,7 @@ def depart(run_id, plan, now=None, *, party=None):
            'elixir_version':1,'elixirs':elixirs},run)
     if modern(catalog):
         from .party_sessions import attach
-        attach(run, now, party)
+        attach(run, now, party, start_wave=start_wave)
     return run
 
 
@@ -378,7 +382,9 @@ def settle(run, profile, status, reason, now):
     run.revision+=1
     report=f'{run.actor_name}探索{run.elapsed_seconds//60}分钟，击败{run.result.get("kills",0)}只怪物，获得{run.result.get("experience",0)}经验；消耗{run.result.get("energy",0)}体力。{reason}'
     if 'party_kills' in run.result:
-        report+=f' 本人参与击败{run.result.get("kills",0)}只，离队时队伍累计击败{run.result["party_kills"]}只（按怪物去重）。'
+        report+=f' 本人参与击败{run.result.get("kills",0)}只，离队时队伍累计击败{run.result["party_kills"]}只。'
+    from .participation import participation, display_report
+    report = display_report(report, participation([run], run.owner_id).get(run.pk))
     reward_counts = {}
     for reward in run.result.get('rewards', []):
         if isinstance(reward, dict):
@@ -461,7 +467,7 @@ def tick(run_id, expected_revision=None, now=None):
     day=now.date().isoformat()
     config=CombatConfig.objects.get(pk=run.owner_id)
     credits=day_parts(local_time(run.next_tick_at)-timedelta(seconds=15),15)
-    if any(profile.loot_progress.get('days',{}).get(d,0)+seconds>config.daily_minutes*60 for d,seconds in credits.items()):
+    if any(seconds > quota_remaining(profile, d, exclude_item=run.life_item_id) for d,seconds in credits.items()):
         return settle(run,profile,'exhausted',f'今日探索时间额度耗尽（每日累计探索限额：{config.daily_minutes} 分钟）',now)
     charges=[]
     # A new block starts only if another action will occur; no charge at the endpoint.
@@ -590,13 +596,14 @@ def resume(run_id, now=None):
         return settle(run,profile,'completed','已到预计返回时间；暂停期间不计探索成果',now)
     config,_=CombatConfig.objects.get_or_create(pk=run.owner_id)
     remaining=min(run.duration_seconds-run.elapsed_seconds,max(0,int((end-now).total_seconds()))) if end else run.duration_seconds-run.elapsed_seconds
-    if any(profile.loot_progress.get('days',{}).get(day,0)+seconds>config.daily_minutes*60 for day,seconds in day_parts(now,remaining).items()):
+    if any(seconds > quota_remaining(profile, day, exclude_item=run.life_item_id) for day,seconds in day_parts(now,remaining).items()):
         raise ValueError(f'剩余探索时长超出当日时间额度（每日累计探索限额：{config.daily_minutes} 分钟）')
     available_window(run.owner_id,run.actor_id,remaining,run.life_item_id,now)
     if busy(run.actor_id,excluding=run.pk):raise ValueError('居民正在执行其他活动')
     if stamina(Agent.objects.get(pk=run.actor_id),storage_time(now))<max(0,energy(run.elapsed_seconds+remaining)-run.result.get('energy',0)):raise ValueError('剩余体力预留不足')
     from ..life_schedule import reschedule_after_exploration
-    reschedule_after_exploration(run.owner_id,run.actor_id,now,remaining,life_item_id=run.life_item_id)
+    if not run.snapshot.get('reservation_id'):
+        reschedule_after_exploration(run.owner_id,run.actor_id,now,remaining,life_item_id=run.life_item_id)
     runtime.authorized=True;runtime.save()
     lease,_=AgentExecutionLease.objects.get_or_create(agent_id=run.actor_id)
     lease.token=lease_token(run.pk);lease.until=storage_time((end or now+timedelta(seconds=remaining))+timedelta(seconds=60));lease.save()

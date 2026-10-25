@@ -1,3 +1,4 @@
+import {LifeReservationSummary} from './LifeReservationSummary';
 import {LifeSourceBadge} from './LifeSourceBadge';
 import type {ElementType} from 'react';
 import {
@@ -156,6 +157,7 @@ export default function LifeScheduleCard({
     density = 'compact',
     viewMode = 'week',
 }: LifeScheduleCardProps) {
+    if (item.reservation) return <button type="button" onClick={onClick} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm"><span className="text-xs font-semibold text-slate-700">{actorName} · <LifeSourceBadge item={item}/></span><LifeReservationSummary item={item}/><span className="mt-1 block text-[10px] text-slate-500">{statusLabels[item.status] || item.status}</span></button>;
     const config = activityConfig[item.activity] || {
         icon: Activity,
         badgeColor: 'bg-orange-50 text-orange-700 border-orange-100',

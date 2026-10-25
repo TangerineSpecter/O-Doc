@@ -14,7 +14,7 @@ def validate_import(data: list[dict], meta: dict | None) -> None:
     from utils.sync_manager import SyncError
     has_food = any(row['model'] == RUN and ('food_version' in row['fields'].get('snapshot', {}) or
                    (row['fields'].get('snapshot', {}).get('prepared_plan') or {}).get('food')) for row in data)
-    if has_food and (not meta or meta.get('combat_schema_version', 0) not in (7, 8, 9, 10, 11, 12, 13, 14) or
+    if has_food and (not meta or meta.get('combat_schema_version', 0) not in (7, 8, 9, 10, 11, 12, 13, 14, 15) or
                      meta.get('cooking_schema_version', 0) != 4):
         raise SyncError('美食冒险快照缺少新版战斗或烹饪同步协议')
     validate_source(data, meta, require_manifest=has_food)

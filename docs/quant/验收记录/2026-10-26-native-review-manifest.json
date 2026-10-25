@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "attempts": [
+    {
+      "stages": "2026-10-26-native-review-attempt-1-stages.json",
+      "responses": "2026-10-26-native-review-attempt-1-responses.json",
+      "summary": "2026-10-26-native-review-attempt-1-summary.json"
+    },
+    {
+      "stages": "2026-10-26-native-review-attempt-2-stages.json",
+      "responses": "2026-10-26-native-review-attempt-2-responses.json",
+      "summary": "2026-10-26-native-review-attempt-2-summary.json"
+    },
+    {
+      "stages": "2026-10-26-native-review-attempt-3-stages.json",
+      "responses": "2026-10-26-native-review-attempt-3-responses.json",
+      "summary": "2026-10-26-native-review-attempt-3-summary.json"
+    },
+    {
+      "stages": "2026-10-26-native-review-attempt-4-stages.json",
+      "responses": "2026-10-26-native-review-attempt-4-responses.json",
+      "summary": "2026-10-26-native-review-attempt-4-summary.json",
+      "snapshot": "2026-10-26-native-review-snapshot.json"
+    }
+  ],
+  "artifact_hashes": {
+    "2026-10-26-native-review-summary.json": "cf1f9d035dd4bfd66fd2c0316ba111a46127b94e6c5fb563c68474827906a0c1",
+    "2026-10-26-native-review-attempt-4-stages.json": "dd2f01a5198914c7354647812396a108b0ecd2e095588c4f7f10e9a4e2804420",
+    "2026-10-26-native-review-attempt-1-stages.json": "56fb6abd6f71d55d4df7eb1999248482f6c34676d0d481fe6edf361053fc3dd4",
+    "2026-10-26-native-review-attempt-1-summary.json": "f405d3a33cf6ea02d381adc267b3523a1e5ad9817a34ebf57359a349f938bacf",
+    "2026-10-26-native-review-attempt-1-responses.json": "f6e1e2706dd5e60d9baed9228b6fb661708c2a771ad9714de643ce451b6e76be",
+    "2026-10-26-native-review-attempt-3-responses.json": "017689ca230e20e8373b7ea3e3b5fac91cd88842fad8b1100b7a1de091f5d949",
+    "2026-10-26-native-review-snapshot.json": "9759a1d68dd985bfef742aac173343c2b83ec72ef3ed18e5a22ec9e99ec7ea7c",
+    "2026-10-26-native-review-attempt-2-stages.json": "ce302f0fc7b2553f50dd2251dfc571b940177b1221643f21edb698159125dbc2",
+    "2026-10-26-native-review-attempt-4-responses.json": "ea64b216dbf011e4f4c92503f8ddbaca5b68338fc22e88219578f38aab9ab573",
+    "2026-10-26-native-review-attempt-2-responses.json": "46af8838a8cb78b8ac84618f546583e10d56ea0c0d98f5c5aa5f14fca64e7c4c",
+    "2026-10-26-native-review-original-report.json": "126fdb9cb7880891e6e5122db485b9f23dc01716da31d160bb79a3e4c2e9da78",
+    "2026-10-26-native-review-attempt-4-summary.json": "8702b04e5b7110981c4edf5df7212a12bedf9ca2f8756036a196e78c728aa83f",
+    "2026-10-26-native-review-attempt-3-summary.json": "899a9783092394316112f1f64d7f88f75578ca1bfa4a285d6f443709223c979b",
+    "2026-10-26-native-review-attempt-3-stages.json": "7034ad8c341fe84f52363d9c7a0c13acb1b2f90aaf65d8b4dba09ab0451f8152",
+    "2026-10-26-native-review-attempt-2-summary.json": "af64619b380e1d43a23771e0bbb5bcffe5886e70d1cbdd7a0e03be994ce7398c",
+    "2026-10-26-native-review-numeric-check.json": "e3e9392b38276a6460d6fb741e5e3d1953c5260bdc3d38dcd46ec1f6b56ffdca",
+    "2026-10-26-native-review-verification.json": "650a47817c804e602e1aa11132d573ae4ee25e357b3bb622ee3f8604f8df6890"
+  },
+  "source_hashes": {
+    "quant/native_reviews/sync.py": "0e47eca1a58fc954eee3c6a281af770b33b2526a88c8a3f9a127f6b962c67e3c",
+    "quant/native_reviews/acknowledgment.py": "496ca5cedfb45827f462e1bea9d50299120315fa49e17c3c3f72b9296bef21ae",
+    "quant/native_reviews/runner.py": "45c8a87501f8ace191a71c1006d3dbbe1dd8819da2845f8f12725589245f8c03",
+    "quant/native_reviews/policy.py": "5bcb5c3ccb5a5f9163bff141b6c2e404e6149bb7b59fa080f8772486c1423c87",
+    "quant/native_reviews/__init__.py": "d262d9ff0b0bdf76cdb2f3af6afe4e1664e84657818bc8cdf979ffcffc9e8eb9",
+    "quant/native_reviews/prompts.py": "4804e9124e66bb3fdd80df66d2f39d9fe866c8ce853b385aacf040946fa7cb70",
+    "quant/native_reviews/presentation.py": "763ea70e9eab92980ac67b21127f3770f3af8edee5f616364deff5f0c20b0ff7",
+    "quant/native_reviews/storage.py": "054736a89b277c737cc2b287f6508db6ee07b367e5c412f2ed6f797d9ccfb6ae",
+    "quant/native_reviews/contracts.py": "fae86e963f77ef28a69690c2ff2469317cd5e97b1a2f801d1c9d77dae4b88774",
+    "quant/native_reviews/errors.py": "28ce1bc68e1036a293887f2aacd4c33d04f1ba684ec5f4b8265513b4c2524b4b",
+    "quant/acceptance/native_review_replay.py": "ea8719d0255adc6176833af1849236f8e2f71200ef5d09768cb424bedb80f665"
+  }
+}

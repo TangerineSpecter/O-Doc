@@ -1,0 +1,33 @@
+{
+  "run_id": "7c2c6eb6e38443e9b802a0e3668e9a85",
+  "status": "completed",
+  "error": "",
+  "source_id": "5be2ad7bba7311877b948d96471fd827b86d4697",
+  "parent_source_id": "5850d3cecbb6c1bbee06bf540f3bd20d0c4c112b",
+  "source_files": [
+    {
+      "name": "__source__.mq4",
+      "role": "primary",
+      "content_hash": "3a4cb12d0741952353da49b213d349f0ce05ba87dffee8ceac962aad0b718ccb",
+      "start_line": 2,
+      "end_line": 15
+    },
+    {
+      "name": "MissingVendor.mq4",
+      "role": "dependency",
+      "content_hash": "fa0037227079c99ebfd25812ee7cc4e37c88eb3134414f47ef2dae7ed42866da",
+      "start_line": 19,
+      "end_line": 42
+    }
+  ],
+  "actual_provider_calls": 6,
+  "elapsed_seconds": 297.66,
+  "original_reports_unchanged": true,
+  "native_compile_or_execution": false,
+  "native_library_identity": "unverified",
+  "research_score": 48,
+  "factors": 1,
+  "database": "isolated_in_memory",
+  "snapshot_roundtrip": true,
+  "restored_execution_jobs": false
+}

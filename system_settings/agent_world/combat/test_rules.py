@@ -15,8 +15,8 @@ class RuleTests(SimpleTestCase):
         from .catalog_validation import validate
         with self.assertRaises(ValueError):validate(Path(__file__).resolve().parents[3]/'docs/data/combat')
         c=self.catalog
-        self.assertEqual((len(c.tables['dungeons']),len(c.tables['monsters']),len(c.tables['professions'])),(7,28,29))
-        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),75)
+        self.assertEqual((len(c.tables['dungeons']),len(c.tables['monsters']),len(c.tables['professions'])),(7,28,36))
+        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),98)
         for row in c.tables['skills']:
             for rank in c.ranks[row['id']]:
                 progress=attributes.initial();progress['skills']={row['id']:int(rank['rank'])};progress['level']=99
@@ -158,7 +158,8 @@ class RuleTests(SimpleTestCase):
         base=attributes.attributes(c,progress,[])
         cloth={'slot':'body','equipment_type':'cloth_armor','stats':{}}
         gloves={'slot':'hands','equipment_type':'cloth_armor','stats':{}}
-        with_cloth=attributes.attributes(c,progress,[cloth])
+        full_set=[{'slot':slot,'equipment_type':'cloth_armor','stats':{}} for slot in ('head','body','hands','feet')]
+        with_cloth=attributes.attributes(c,progress,full_set)
         with_gloves_only=attributes.attributes(c,progress,[gloves])
         self.assertGreater(with_cloth['magic_attack'],base['magic_attack'])
         self.assertGreater(with_cloth['magic_defense'],base['magic_defense'])
@@ -194,7 +195,7 @@ class RuleTests(SimpleTestCase):
 
     def test_element_factor_follows_channel_damage_and_stays_bounded(self):
         c = self.catalog
-        self.assertEqual(c.version, 'combat-1.0.22')
+        self.assertEqual(c.version, 'combat-1.0.30')
         defender = engine.fighter({'hp_max': 1000, 'mp_max': 10, 'physical_defense': 60}, '守方', 10)
         self.assertEqual(effects.damage(150, 'physical', 10, defender, variation=1), 100)
         defender['defending'] = True
@@ -239,7 +240,7 @@ class RuleTests(SimpleTestCase):
         events = effects.apply(c, attacker, target, burn, '炎爆', 1, FixedRandom())
         direct = next(event for event in events if event['kind'] == 'damage')
         self.assertEqual(direct['element'], 'fire')
-        self.assertEqual(direct['damage'], 234)
+        self.assertEqual(direct['damage'], 416)
         plain = effects.apply(c, attacker, target, [{
             'code': 'damage', 'stat': 'magic_attack', 'value': 1.8, 'hits': 1, 'damage_type': 'magic',
         }], '随武器', 1, FixedRandom())

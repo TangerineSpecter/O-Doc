@@ -7,6 +7,7 @@ import {drawMaterialArt} from './materialArtDrawing';
 import {atlasSkillProfiles,sampleAtlasSkillHit} from '../animation/skillPreview/atlasSkillProfiles';
 import {drawWeaponSkill} from '../animation/skillPreview/weaponSkillDrawing';
 import {drawSpellSkill} from '../animation/skillPreview/spellSkillDrawing';
+import {drawBardAura} from '../animation/playerAppearance/bardAuraDrawing';
 import {drawPlayerGuard} from '../animation/playerGuardVisual';
 import {drawPlayerBurn} from '../animation/playerBurnVisual';
 import {drawPlayerBurst} from '../animation/playerBurstVisual';
@@ -20,7 +21,7 @@ function table(name:string) {
 }
 test('all production professions have distinct registered aura silhouettes',()=>{
     const jobs=table('professions').filter(row=>row.enabled==='1'),ids=jobs.map(job=>getProfessionAura(job.id));
-    assert.equal(jobs.length,29);assert.ok(!ids.includes('none'));assert.equal(new Set(ids).size,jobs.length);
+    assert.equal(jobs.length,36);assert.ok(!ids.includes('none'));assert.equal(new Set(ids).size,jobs.length);
     assert.equal(new Set(professionAuraProfiles.map(p=>p.shape)).size,jobs.length);
 });
 test('all production material IDs have portraits',()=>{
@@ -31,7 +32,7 @@ test('active skill coverage follows catalog, while novice demo is not a persiste
     const demos=atlasSkillProfiles.filter(skill=>skill.id!=='preview.novice.strike');
     assert.deepEqual(demos.map(skill=>skill.id).sort(),active.map(row=>row.id).sort());
     for(const skill of demos)assert.equal(skill.name,active.find(row=>row.id===skill.id)?.name);
-    assert.equal(atlasSkillProfiles.length,33);assert.ok(!skills.some(row=>row.id==='preview.novice.strike'));
+    assert.equal(atlasSkillProfiles.length,active.length+1);assert.ok(!skills.some(row=>row.id==='preview.novice.strike'));
     for(const job of table('professions').filter(row=>row.id!=='job.novice'))assert.ok(active.some(skill=>skill.profession_id===job.id),job.id);
 });
 test('self effects never animate damage, attacks only react after impact',()=>{
@@ -73,5 +74,14 @@ test('all art draws finite geometry across charge, impact and fade',()=>{
             else drawSpellSkill(...layers,skill,time,a);
         }
         assert.ok(layers.some(c=>c.operations>0),skill.name);
+    }
+});
+
+test('all seven music aura motifs draw finite geometry through their motion',()=>{
+    const ids=['bard','musician','cursesinger','battleconductor','requiemsinger','virtuoso','sonomancer'];
+    for(const p of professionAuraProfiles.filter(p=>ids.includes(p.id))){
+        const rear=canvasProbe(),floor=canvasProbe();
+        for(const time of [0,.5,2,8])drawBardAura(rear,floor,p,time);
+        assert.ok(rear.operations>0&&floor.operations>0,p.id);
     }
 });

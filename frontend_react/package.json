@@ -1,13 +1,14 @@
 {
   "name": "o-doc",
   "private": true,
-  "version": "1.5.8",
+  "version": "1.5.48",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test:parties": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/combatPreparation.test.ts src/mocks/agentWorld/combatAnalytics.test.ts src/components/Combat/animation/observation/partyEventCursor.test.ts",
+    "test:bard": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/bardSamples.test.ts src/components/Combat/art/combatArtCoverage.test.ts",
+    "test:parties": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/combatPreparation.test.ts src/mocks/agentWorld/combatAnalytics.test.ts src/components/Combat/animation/observation/partyEventCursor.test.ts src/components/Combat/partyObservationRecords.test.ts",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
@@ -24,7 +25,7 @@
     "test:prevent-zoom": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/preventZoom.test.ts",
     "test:system-logs": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/diagnostics.test.ts src/utils/dateRangeUtils.test.ts",
     "test:novel": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/novelEditor.test.ts src/utils/novelPreparation.test.ts src/utils/novelNavigation.test.ts",
-    "test:quant": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/quant.test.ts src/mocks/quant/routes.test.ts",
+    "test:quant": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/quant.test.ts src/utils/quantReportDiff.test.ts src/utils/quantStrategy.test.ts src/utils/quantSourceImpact.test.ts src/utils/quantResearchMemory.test.ts src/utils/quantValidationCriteria.test.ts src/utils/quantSelectionDiagnostic.test.ts src/utils/quantPlatformEvidence.test.ts src/mocks/quant/routes.test.ts src/mocks/quant/sourceSupplements.test.ts src/mocks/quant/researchComparisonMemory.test.ts src/mocks/quant/localReading.test.ts src/mocks/quant/formulaVersions.test.ts src/mocks/quant/vocabulary.test.ts src/mocks/quant/verification.test.ts src/mocks/quant/repairs.test.ts src/components/Quant/pineLanguage.test.ts src/components/Quant/experiments/experiments.test.ts src/mocks/quant/validations.test.ts src/mocks/quant/nativePython.test.ts src/mocks/quant/nativeReviews.test.ts",
     "test:farm-scene": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Farm/scene/sceneModel.test.ts src/components/Farm/scene/pacing.test.ts src/components/Farm/scene/rainPattern.test.ts src/components/Farm/scene/simulation.test.ts",
     "test:execution-flow": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/executionFlow.test.ts src/utils/tokenObservatory.test.ts",
     "test:agent-tasks": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/agentTaskValidation.test.ts src/utils/agentTaskPayload.test.ts src/mocks/agentWorld/agentTasks.test.ts src/components/Settings/agent/agentTaskDraft.test.ts",

@@ -1,3 +1,4 @@
+import {LifeReservationSummary} from './LifeReservationSummary';
 import {LifeSourceBadge} from './LifeSourceBadge';
 import {useEffect, useMemo, useState, type ElementType} from 'react';
 import {
@@ -366,8 +367,8 @@ export default function LifeScheduleTodayTimeline({
     onSelectItem,
 }: LifeScheduleTodayTimelineProps) {
     const [statusFilter, setStatusFilter] = useState<string>('all');
-    const showMain = source !== 'interleaved';
-    const showInterleaved = source !== 'main';
+    const showMain = source === 'all' || source === 'main';
+    const showInterleaved = source === 'all' || source === 'interleaved';
     const [currentTime, setCurrentTime] = useState(getShanghaiCurrent);
 
     useEffect(() => {
@@ -388,7 +389,7 @@ export default function LifeScheduleTodayTimeline({
 
     const [showEarlyHistory, setShowEarlyHistory] = useState(false);
 
-    const mainCount = counts?.main ?? sortedItems.filter(i => i.source !== 'interleaved').length;
+    const mainCount = counts?.main ?? sortedItems.filter(i => i.source !== 'interleaved' && i.source !== 'reservation').length;
     const interleavedCount = counts?.interleaved ?? sortedItems.filter(i => i.source === 'interleaved').length;
     const handleToggleSource = (kind: 'main' | 'interleaved') => {
         const next = source === 'all' ? (kind === 'main' ? 'interleaved' : 'main')
@@ -585,6 +586,7 @@ export default function LifeScheduleTodayTimeline({
                                 </span>
                             </button>
                         </div>
+                        <button type="button" onClick={() => onSourceChange(source === 'reservation' ? 'all' : 'reservation')} aria-pressed={source === 'reservation'} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">组队预约 {counts?.reservation ?? sortedItems.filter(i => i.source === 'reservation').length}</button>
                         {/* 达成情况 */}
                         <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white px-2.5 py-1 text-xs text-slate-600 shadow-2xs">
                             <span>达成</span>
@@ -1023,6 +1025,7 @@ function CompactGridCard({
                         : 'border-slate-200 bg-white hover:border-orange-300 hover:shadow-2xs'
             }`}
         >
+            <LifeReservationSummary item={item}/>
             {/* 左侧活动标识彩条 */}
             <span
                 className={`absolute bottom-2 left-0 top-2 w-1 rounded-r-full ${actMeta.accentBar}`}

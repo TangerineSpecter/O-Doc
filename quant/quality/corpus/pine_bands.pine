@@ -1,0 +1,18 @@
+//@version=2
+strategy("QA bands and RSI", overlay=true)
+RSIlength = input(6, minval=1)
+BBlength = input(200, minval=2)
+ShowBands = input(true)
+RSIoverSold = 50
+RSIoverBought = 50
+BBmult = 2.0
+r = rsi(close, RSIlength)
+b = sma(close, BBlength)
+d = BBmult * stdev(close, BBlength)
+lower = b - d
+upper = b + d
+if crossover(r, RSIoverSold) and crossover(close, lower)
+    strategy.entry("L", strategy.long, stop=lower)
+if crossunder(r, RSIoverBought) and crossunder(close, upper)
+    strategy.entry("S", strategy.short, stop=upper)
+plot(ShowBands ? b : na)

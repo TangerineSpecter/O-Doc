@@ -1,0 +1,7 @@
+{N=20, M=5 are internal constants, not external parameter declarations.}
+N:=20;
+M:=5;
+BASE:=MA(C,N);
+DEV:=C/BASE-1;
+SMOOTH:MA(DEV,M);
+BUY:DEV>0 AND REF(DEV,1)<=0;

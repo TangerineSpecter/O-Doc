@@ -4,8 +4,10 @@ from .life_activities import main_items
 
 
 def select_source(query, source):
-    if source not in ('all', 'main', 'interleaved'):
+    if source not in ('all', 'main', 'interleaved', 'reservation'):
         raise ValueError('日程来源无效')
+    if source == 'reservation':
+        return query.filter(context__adventure_reservation_id__isnull=False)
     if source == 'interleaved':
         return query.filter(context__interleaving__version=1)
     if source == 'main':
@@ -14,7 +16,11 @@ def select_source(query, source):
 
 
 def source_counts(query):
-    return {source: select_source(query, source).count() for source in ('main', 'interleaved')}
+    counts = {source: select_source(query, source).count() for source in ('main', 'interleaved')}
+    booked = select_source(query, 'reservation').count()
+    if booked:
+        counts['reservation'] = booked
+    return counts
 
 
 def status_summary(query):

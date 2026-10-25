@@ -1,0 +1,330 @@
+{
+  "title": "BTCUSDT 1h 2024-04 收盘相对滚动均值偏离：全负收益、无受支持参数区段与跨月不一致的终止性解读",
+  "summary": "本轮在 2024-04 BTCUSDT 1h 上评价 16 个受控表达式尝试，训练与验证段收益全部为负；按 train_pareto_then_validation_return_minus_drawdown_v1 选出的 attempt-2 在留出区间为 -3.48%（回撤 3.74%），优于同区间单次买入持有的 -5.62%（回撤 8.49%），但仍为亏损，不能视为有效或可供实盘使用。单窗口 period 轴（12/14/18/24）四个点均不满足正收益与覆盖率规则，参数敏感度没有受支持区段；双窗口族只有 2 个 a_p0 点和 2 个 b_p0 点，属于不完整网格。历史库中 2024-03 的同源实验显示多个窗口验证段为正（如 period=14 验证 +7.42%），与 2024-04 全负相反；2024-02 的 period=30 固定验证虽为 +13.96%，但同期买入持有为 +43.50%，且该行情已被查看，不构成独立样本外证据。结合剩余轮数与候选预算均为 0、无预选后续行情，本轮结论为不值得在当前证据下继续推进，proposal 设为 null，仅保留可证伪的后续假设。",
+  "findings": [
+    {
+      "text": "事实：本批 16 次尝试（attempt-1 至 attempt-16）在训练段与验证段的总收益全部为负，最高者 attempt-16 训练 -0.41%、验证 -1.61%，最低者 attempt-15 训练 -10.35%、验证 -5.07%。没有任何一次尝试出现正收益或正收益区间，因此不存在可称为有效的候选。",
+      "evidence_refs": [
+        "execution",
+        "attempt-16",
+        "attempt-15",
+        "attempt-2"
+      ]
+    },
+    {
+      "text": "事实：被规则选中的 attempt-2（a_p0=14, b_p0=60）在留出区间为 -0.0348、回撤 0.0374、9 次进场、暴露比例 0.262；同期 baseline 为 -0.0562、回撤 0.0849、1 次进场、暴露 1.0。推断：该差异只说明在同一个下跌月份里少亏，且 baseline 仅为单次持有的对照，不构成相对正收益基准的超额，也不证明机制有效。",
+      "evidence_refs": [
+        "holdout",
+        "baseline",
+        "attempt-2"
+      ]
+    },
+    {
+      "text": "事实：留出结果是在本批 16 个候选经训练/验证筛选后才计算的（execution.limitations、reuse.independent_holdout_proven=false），因此该留出数字带有选择偏差，只能作为本批的事后观察，不能作为跨批独立的样本外确认。",
+      "evidence_refs": [
+        "execution",
+        "reuse",
+        "partition:holdout"
+      ]
+    },
+    {
+      "text": "事实：attempt-8 与 attempt-16 的验证段指标完全相同（总收益 -0.016101494254660564、最大回撤 0.029653224298453518、进场 9 次、换手 18），而两者训练段不同（-0.0238 与 -0.0041）。推断：不同组合在验证区间产生了相同交易路径，尝试数量不等于独立信息量，候选计数会高估有效证据规模。",
+      "evidence_refs": [
+        "attempt-8",
+        "attempt-16"
+      ]
+    },
+    {
+      "text": "事实：parameter_sensitivity 中单窗口族 period 轴 12/14/18/24 四个点均标记 eligible=false（训练与验证收益均不为正；period=24 另有验证收益较基线下降超过 2 个百分点），regions 为空；训练收益极差 0.0233、验证收益极差 0.0231，均超过 0.02 的固定容差。因此没有受支持区段，也不能把 period=12 相对 period=14 的 +1.35pp 训练改善当作稳定性。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-1",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5"
+      ]
+    },
+    {
+      "text": "事实：parameter_joint_sensitivity 中双窗口族 a_p0 仅 14/20 两点、b_p0 仅 60/30 两点，comparison_cells 为空、状态 incomplete_grid、regions 为空。推断：当前无法把 a_p0 或 b_p0 的效应单独归因，也不能推荐任何二维组合区间；a_p0=20 验证 -1.24% 与 a_p0=14 验证 -1.33% 的差别远小于容差且都亏损，属平坦亏损而非稳定区。",
+      "evidence_refs": [
+        "parameter_joint_sensitivity",
+        "attempt-2",
+        "attempt-6",
+        "attempt-7"
+      ]
+    },
+    {
+      "text": "事实：历史实验（2024-03 行情）中同源单窗口 period=14 训练 -2.20%、验证 +7.42%，period=7/12/18/24 验证约 +9.5%~+9.9%，双窗口 a14/b60 训练 +4.72%、验证 +5.16%。该与此处 2024-04 全负方向相反。推断：该机制的表现强烈依赖月份/行情状态，跨月结论不可直接合并，也不能用 3 月的正收益为本轮负结果辩护。",
+      "evidence_refs": [
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72",
+        "attempt-2",
+        "attempt-1"
+      ]
+    },
+    {
+      "text": "事实：历史固定验证 period=30 在 2024-02 全月为 +13.96%（回撤 11.12%、41 次进场），而同期 baseline 买入持有为 +43.50%（回撤 4.26%），即该固定配方在该样本上明显落后于持有基准；该结果已标记 historical_evaluation_exposed=true、independent_validation=false。推断：只能作为开发线索，不能称为未见样本外证据，也不能据其推断最优参数或平台等价。",
+      "evidence_refs": [
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07",
+        "baseline"
+      ]
+    },
+    {
+      "text": "事实：另一份固定验证（period=30、2024-02）状态为 cancelled，错误信息为“固定验证在计算前停止；数据预约仍保留”，final 与 baseline 均为空。该记录不产生任何收益事实，不能计为成功或失败的经济结论，只能记为未执行缺口。",
+      "evidence_refs": [
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    },
+    {
+      "text": "事实：双窗口族在训练段反复出现 missing_signals=59/430（约 13.7%），触发“训练段信号覆盖不足 90%（含预热）”的不合格理由；单窗口族缺失为 11–23/430。推断：样本量偏小与预热缺失共同降低了这些点的可比较性，任何收益差异都可能来自交易时点减少而非机制差异。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-2",
+        "attempt-6"
+      ]
+    }
+  ],
+  "parameter_assessment": [
+    {
+      "text": "单窗口族实际运行参数 period=14 与源码声明默认值一致，计划变体 12/18/24 均已实测；四点在训练与验证同时为负，训练回撤 10.3%–12.8%、验证回撤 3.2%–4.8%，没有一条邻域优于基线到可称为稳定的程度。参数实际值等于默认值不构成最优证据。",
+      "evidence_refs": [
+        "seed:8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "attempt-1",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5",
+        "parameter_sensitivity"
+      ]
+    },
+    {
+      "text": "双窗口族实际参数 a_p0=14、b_p0=60（候选声明默认值分别为 14 与 60），计划变体 a_p0=20 与 b_p0=30 均已实测：a_p0=20 验证 -1.24%（较基线 +0.08pp，落在容差内），b_p0=30 验证 -4.85%（较基线 -3.52pp、回撤 +2.58pp）。两者都未通过正收益与相对基线规则，因此 b_p0=30 应视为变差方向而非候选区段。",
+      "evidence_refs": [
+        "seed:6c07f295a922f4ceaaa07f630201d478f68a7cf8",
+        "attempt-2",
+        "attempt-6",
+        "attempt-7",
+        "parameter_joint_sensitivity"
+      ]
+    },
+    {
+      "text": "组合类尝试（attempt-8 至 attempt-16）的参数是父代参数的拼接，不是独立抽样网格；其中 8 与 16 验证指标完全相同，14 验证 -1.06%、13 验证 -1.37%，均未进入 parameter_joint_sensitivity 的完整笛卡尔积。推断：这些点不能用于任何参数敏感度评分或最佳值推荐。",
+      "evidence_refs": [
+        "attempt-8",
+        "attempt-13",
+        "attempt-14",
+        "attempt-16",
+        "parameter_joint_sensitivity"
+      ]
+    },
+    {
+      "text": "历史固定验证中出现过 period=30，但该值不在本批任何已执行的单窗口尝试中（本批只测 12/14/18/24），且其 2024-02 结果与买入持有相比大幅落后。因此 period=30 不能被当成本轮推荐值或稳定区段端点。",
+      "evidence_refs": [
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07",
+        "parameter_sensitivity"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "text": "成本与换手：执行配置为单侧 5bps 手续费 + 5bps 滑点，本轮尝试换手 18–70 次。在全部尝试收益为负的情况下，成本无法被任何正收益缓冲；本批未做费率/滑点敏感性，结论对成本假设的稳健性未知。",
+      "evidence_refs": [
+        "execution",
+        "attempt-1",
+        "attempt-2"
+      ]
+    },
+    {
+      "text": "选择偏差：16 个候选经训练/验证筛选后只对选中者看一次留出，留出数字必然带选择效应；reuse.total=0 且 independent_holdout_proven=false，跨批次的独立性没有被证明，2024-04 的留出不能复用于确认后续假设。",
+      "evidence_refs": [
+        "execution",
+        "reuse",
+        "holdout"
+      ]
+    },
+    {
+      "text": "口径风险：引擎为收盘信号决定下一根开盘做多/空仓，区间末平仓，未模拟涨跌停、停牌、流动性、成交量约束与资金费率；sma 的预热/缺失语义依赖平台，与 pandas rolling 默认 min_periods 是否一致未验证。原平台源码等价性完全未知。",
+      "evidence_refs": [
+        "execution",
+        "partition:train"
+      ]
+    },
+    {
+      "text": "历史证据的误用风险：三份历史记录（含已取消与已完成固定验证、2024-03 实验）均已被查看，属开发线索；其中 3 月为正、2 月落后于持有基准、4 月全负，三者方向不一致。只挑选其中成功月份会构成明显选择偏差，且这些行情不能当作新公式的未见样本外证据。",
+      "evidence_refs": [
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72",
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07",
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    },
+    {
+      "text": "预算风险：剩余轮数 0、剩余候选预算 0、剩余计算秒数 0，且预选后续行情列表为空。即使存在有价值的假设，本轮也无法安排任何新的执行或独立数据复核；任何“继续优化”的表述都不具备执行依据。",
+      "evidence_refs": [
+        "execution"
+      ]
+    }
+  ],
+  "unknowns": [
+    "该表达式在原平台/原源码中的等价性与返回值差异未知（本轮仅为本机受限表达式引擎）。",
+    "其他标的（非 BTCUSDT）、其他周期（非 1h）与其他月份的表现未知；仅 2024-04 单月被本批完整评价。",
+    "滚动均值预热期与缺失值的具体处理（min_periods）、以及 sma 在平台间的语义差异未验证。",
+    "费率与滑点敏感性未测，实盘执行滑点、成交量约束、资金费率影响未知。",
+    "双窗口族缺失信号 59/430 是否因预热切分或表达式嵌套造成，未做统一预热重算验证。",
+    "2024-03 与 2024-02 历史结果的差异是否来自行情状态、成本口径或数据切分差异，未做逐项核对。",
+    "attempt-8 与 attempt-16 验证路径完全一致的原因（信号重合或采样巧合）未查明。"
+  ],
+  "scores": [
+    {
+      "dimension": "参数稳定性",
+      "score": 1,
+      "reason": "同来源同计算逻辑的单窗口 period 轴有 4 个可比较点（12/14/18/24，含实际基线 14），但全部不满足正收益规则，极差超过固定容差；双窗口轴只有 2 点，属不完整网格。无受支持区段，只有平坦亏损的邻域。",
+      "evidence": "parameter_sensitivity 显示 regions 为空、status=no_supported_region，训练收益极差 0.0233、验证极差 0.0231 均超过 0.02；parameter_joint_sensitivity 两个上下文均为 incomplete_grid、comparison_cells 为空。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "parameter_joint_sensitivity",
+        "attempt-1",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5"
+      ]
+    },
+    {
+      "dimension": "验证表现",
+      "score": 1,
+      "reason": "验证段全部为负收益（-1.06% 至 -5.63%），被选中者验证 -1.33%、留出 -3.48%，均无正收益证据；相对买入持有的少亏不足以支持有效性判断。",
+      "evidence": "attempt-2 验证总收益 -0.013275、回撤 0.026718，留出总收益 -0.034802、回撤 0.037360；baseline 留出 -0.056180、回撤 0.084905、暴露 1.0。",
+      "evidence_refs": [
+        "attempt-2",
+        "holdout",
+        "baseline",
+        "partition:validation"
+      ]
+    },
+    {
+      "dimension": "风险与成本",
+      "score": 1,
+      "reason": "单侧 5bps 费用 + 5bps 滑点已计入，但本轮所有路径亏损且换手 18–70 次；训练回撤 7.6%–13.1%，暴露比例 42%–82%，没有风险调整后的正向缓冲。交易约束（流动性、成交量、资金费率）未建模。",
+      "evidence": "execution.config 记录 fee_bps=5、slippage_bps=5、gap=2；attempt-2 训练回撤 0.101240、验证 0.026718；attempt-15 训练回撤 0.131067。",
+      "evidence_refs": [
+        "execution",
+        "attempt-2",
+        "attempt-15"
+      ]
+    },
+    {
+      "dimension": "证据充分度",
+      "score": 1,
+      "reason": "仅单一标的、单一月份、单一时间周期；留出在本批选择后计算，跨批独立性未证明；历史记录方向不一致且已被查看。尝试数量多但存在验证路径重复，独立信息量有限。",
+      "evidence": "dataset 为 BTCUSDT 1h 2024-04 共 720 行；reuse.total=0、independent_holdout_proven=false；attempt-8 与 attempt-16 验证指标完全相同。",
+      "evidence_refs": [
+        "dataset",
+        "reuse",
+        "attempt-8",
+        "attempt-16",
+        "partition:holdout"
+      ]
+    },
+    {
+      "dimension": "复现价值",
+      "score": 2,
+      "reason": "表达式结构简单、参数与费用配置完整记录，可精确复现本机结果；跨月（3 月为正、4 月全负、2 月落后持有基准）的矛盾现象本身具有研究价值。但当前证据不支持作为交易候选继续投入。",
+      "evidence": "execution.engine_version=quant-local-search-2、config 完整；历史对照显示 2024-03 验证为正、2024-04 全负、2024-02 固定验证 +13.96% 低于 baseline +43.50%。",
+      "evidence_refs": [
+        "execution",
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72",
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    }
+  ],
+  "next_hypotheses": [
+    {
+      "text": "假设 H1：该滚动偏离机制在 BTCUSDT 1h 上的可交易性依赖行情状态，跨月符号不稳定（3 月为正、4 月为负），因此任何单月结论都不应外推。",
+      "evidence_refs": [
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72",
+        "holdout",
+        "parameter_sensitivity"
+      ],
+      "test": "在未参与本轮选择的连续多个月份上，对 period∈{12,14,18,24} 与双窗口 a14/b60 逐月计算收益、回撤及与买入持有的差，比较月间符号一致性。",
+      "falsification": "若在 ≥3 个新月份中该族每月符号一致且稳定优于同期买入持有，则否定“状态依赖导致不稳定”的假设。",
+      "data_requirement": "需要至少 3 个与本轮 2024-04 及历史 2024-02/2024-03 均不重叠的新月份 BTCUSDT 1h 行情，并另行登记以确认未被查看。"
+    },
+    {
+      "text": "假设 H2：双窗口族的训练段缺失信号 59/430（约 13.7%）主要来自预热切分与嵌套表达式，导致较少的独立进场时点，其收益差异不应归因于 a_p0/b_p0 的参数效应。",
+      "evidence_refs": [
+        "attempt-2",
+        "attempt-6",
+        "parameter_sensitivity"
+      ],
+      "test": "统一预热重算后，比较单窗口 period=14 与双窗口 a14/b60 的信号覆盖率、信号重合度与进场时点分布，并核对缺失是否集中在区间头部。",
+      "falsification": "若统一预热后覆盖率均≥90% 且两组信号高度重合，而收益差异仍显著，则否定“覆盖不足/时点差异”这一解释。",
+      "data_requirement": "需要能固定预热起点且未参与本轮选择的新区间数据；不得在 2024-04 已查看区间上重复确认。"
+    },
+    {
+      "text": "假设 H3：双窗口族当前证据不足是因为网格缺角而非机制无效，补全至少二维完整网格（a_p0∈{14,20} × b_p0∈{30,60} 共 4 点）后，可对该族是否具备可交易性作出可证伪判断。",
+      "evidence_refs": [
+        "parameter_joint_sensitivity",
+        "attempt-2",
+        "attempt-6",
+        "attempt-7"
+      ],
+      "test": "在同一来源、同一表达式、同一费用与阈值下补齐 4 个笛卡尔积点（含已测 a14/b60、a20/b60、a14/b30 与未测 a20/b30），逐点报告收益、回撤、覆盖率与相对基线差。",
+      "falsification": "若补全后仍无正收益点、或收益极差超过 0.02 容差、或仍有缺角/失败点，则该族不成立稳定区段，假设被否定。",
+      "data_requirement": "需要在新的独立区间（非 2024-02/03/04 已查看数据）上执行，并保留全部点（含亏损点），不得只挑表现最好的单点。"
+    }
+  ],
+  "priority": "deprioritize",
+  "planning_version": 2,
+  "planning_note": "本轮不提出可执行 proposal，原因是执行约束中 remaining_rounds=0、remaining_candidate_budget=0、remaining_compute_seconds=0，且 ordered_datasets 为空，没有任何可用的后续行情元信息可匹配；同时本批 16 个候选在训练与验证段全部为负收益，parameter_sensitivity 与 parameter_joint_sensitivity 均无受支持区段（regions 为空、单窗口极差超过容差、双窗口为不完整网格），已查看的 2024-04 留出与历史 2024-02/02 固定验证都不能充当新的独立留出。因此仅保留 H1–H3 三个可证伪假设作为未来预算恢复后的检验方向，不宣称最优参数、不声明已执行、不授权任何交易。",
+  "proposal": null,
+  "memory_note": "本次冻结历史包含 3 条被选中的同源记录（1 份实验、2 份固定验证），均为 BTCUSDT 1h 均值回归偏离家族，范围受 scan_limit=2000 与 omitted_for_size=1 限制，未提供的记录不能当作不存在反例。要点：①2024-03 实验（memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72）显示单窗口 period=14 训练 -2.20%/验证 +7.42%，period=7/12/18/24 验证约 +9.5%~+9.9%，双窗口 a14/b60 训练 +4.72%/验证 +5.16%，且该批同样出现 attempt-8 与 attempt-16 验证路径完全相同的现象，说明跨月与跨批结论差异大、组合点存在信号重合。②2024-02 固定验证 period=30（memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07）完成并得到 +13.96%，但同区间 baseline 买入持有 +43.50%，配方明显落后，且已标记 historical_evaluation_exposed=true、independent_validation=false，只能作为开发线索，不能称为未见样本外证据；其 period=30 也不在本轮已测的 12/14/18/24 邻域内，不能当作推荐端点。③另一份 period=30 固定验证（memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575）为 cancelled，final/baseline 为空，属未执行缺口而非失败或成功，不能补造收益。综合影响：历史正收益月份不能抵消本轮 2024-04 的全负结果，也不能用于本轮留出确认；后续应采用未查看的新区间、保留全部亏损与取消项、补齐双参数完整网格并报告覆盖率与预热口径，而非只挑成功月份。",
+  "memory_assessment": [
+    {
+      "action": "reject",
+      "rationale": "2024-03 实验中出现多项正验证收益（如 period=14 验证 +7.42%、period=7 +9.93%、双窗口 a14/b60 验证 +5.16%），但与本轮 2024-04 全负方向相反，且该行情已被查看。不能把这些数字当作当前候选的表现分，也不能用于支撑本轮结论；只保留其“跨月不稳定”这一否证性信息。",
+      "evidence_refs": [
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72"
+      ]
+    },
+    {
+      "action": "investigate",
+      "rationale": "该 2024-03 实验中 attempt-8 与 attempt-16 验证指标完全相同的重复现象，与本轮同名尝试的重复一致，提示组合类候选可能产生相同交易路径。后续应以信号重合度与覆盖率核对重复来源，避免把重复尝试计为独立样本；本轮不据此改动任何历史评分。",
+      "evidence_refs": [
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72"
+      ]
+    },
+    {
+      "action": "reject",
+      "rationale": "2024-02 固定验证 period=30 虽为 +13.96%，但同区间买入持有 +43.50%、回撤更小（4.26% vs 11.12%），配方并未取得相对优势；且该结果已被查看（historical_evaluation_exposed=true、independent_validation=false），不能称为新公式的未见样本外证据。故不采用其作为有效性或最优参数依据，仅保留为“需与持有基准比较”的方法学提醒。",
+      "evidence_refs": [
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    },
+    {
+      "action": "investigate",
+      "rationale": "该记录中 period=30 与 baseline 的同口径对照（含回撤与进场次数）显示固定配方在趋势月份显著落后于持有，提示后续任何固定验证必须同时报告买入持有基准与暴露比例，否则无法区分机制贡献与市场 beta。需要在新数据上补证，而非沿用该月结论。",
+      "evidence_refs": [
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    },
+    {
+      "action": "investigate",
+      "rationale": "该固定验证状态为 cancelled（“固定验证在计算前停止；数据预约仍保留”），final 与 baseline 均为空。它既不能作为失败的经济证据，也不能作为成功证据；后续若复用该预约，需先确认数据可用性与预约状态，再重新执行，且不得把未执行点计入稳定区段。",
+      "evidence_refs": [
+        "memory:fixed_validation:c6aef2399d994b9515ec5ee561cbcb6eca7c4575"
+      ]
+    },
+    {
+      "action": "apply",
+      "rationale": "历史与本轮共同表明：同源单参数邻域存在明显月度差异且多次出现覆盖率不足（双窗口训练缺失 59/430）。因此后续方案应沿用“保留全部失败/取消点、按同来源同计算逻辑比较、不跨公式归因、报告覆盖率与预热口径”的做法，而不沿用任何具体参数值作为推荐值。",
+      "evidence_refs": [
+        "memory:experiment:3bcade44045d30027fe12365b9a4e61a081cba72",
+        "memory:fixed_validation:db8395139fd6602f97e1c426248d0dc38ce79d07"
+      ]
+    }
+  ],
+  "evidence_hash": "d05432bf1575316801ddf1e016a4b5cb6e9a841fcdce6ce8992b95689efb9369",
+  "total_score": 24,
+  "format": "experiment_review",
+  "rubric_version": "experiment-research-v1",
+  "evidence_status": "local_simulation_unverified_platform",
+  "independent_holdout_proven": false,
+  "next_hypotheses_status": "unverified_requires_fresh_validation"
+}

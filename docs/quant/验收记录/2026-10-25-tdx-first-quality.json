@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "suite_version": "report-quality-draft-1",
+  "suite_hash": "79700b7af5fb108db25ca1cafed20252eff177fc117b016346ab3f3bfb9f53f4",
+  "label_status": "draft_ai_authored_requires_expert_review",
+  "acceptance": "baseline_collection_only_no_release_thresholds",
+  "required_repeats_per_case": 3,
+  "coverage": [
+    {
+      "case_id": "pine_bands",
+      "attempts": 3,
+      "fresh_valid": 1,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 2,
+      "failed_or_invalid": 2
+    },
+    {
+      "case_id": "vendor_indicator",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "tick_ea",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "future_return",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "channel",
+      "attempts": 1,
+      "fresh_valid": 1,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 2,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "unfetched_url",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "acquisition_blocked",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    }
+  ],
+  "records": [
+    {
+      "case_id": "pine_bands",
+      "repeat": 1,
+      "run_id": "682d182fe71942beaae1a00b3ea15433",
+      "record_hash": "7e461b02628bb2c62a1d12991a796b8c5d61eba71843710837b5c321b64924f0",
+      "status": "failed",
+      "origin": "provider_recorded",
+      "context_hash": "75d07290376af8f98a440df7cdbaf763735597f3010dfc0c0795cebe53dad9f0",
+      "fresh_model_calls": false,
+      "mechanical": {
+        "schema_valid": false,
+        "failure": "failed"
+      },
+      "human": {
+        "status": "not_reviewable"
+      }
+    },
+    {
+      "case_id": "pine_bands",
+      "repeat": 2,
+      "run_id": "56979e8dec2d42b0a3d9e48f82943b5b",
+      "record_hash": "aabe218a5edb6e4499edfe258a55e0b23efd8a4867d17260ba52e01a564c1875",
+      "status": "failed",
+      "origin": "provider_recorded",
+      "context_hash": "75d07290376af8f98a440df7cdbaf763735597f3010dfc0c0795cebe53dad9f0",
+      "fresh_model_calls": false,
+      "mechanical": {
+        "schema_valid": false,
+        "failure": "failed"
+      },
+      "human": {
+        "status": "not_reviewable"
+      }
+    },
+    {
+      "case_id": "pine_bands",
+      "repeat": 3,
+      "run_id": "9f52034ecea8480ea334ab25077902a0",
+      "record_hash": "ca97319a1b05929fef7acf4cb872589b9dc6b7e6681f9855df36a6f5a0ac299f",
+      "status": "completed",
+      "origin": "provider_recorded",
+      "context_hash": "75d07290376af8f98a440df7cdbaf763735597f3010dfc0c0795cebe53dad9f0",
+      "fresh_model_calls": true,
+      "mechanical": {
+        "schema_valid": true,
+        "analysis_hash": "e00aca45b9f1702dc33f2e899fd5b8c8a9efeb06b2b84da570e43493b14e569a",
+        "kind_matches_reference": true,
+        "parameters": {
+          "expected": 6,
+          "reported": 6,
+          "matched": 6,
+          "recall": 1.0,
+          "reference_precision": 1.0,
+          "correct_defaults": 6,
+          "default_recall": 1.0,
+          "correct_categories": 6,
+          "missing_or_duplicate": [],
+          "wrong_defaults": [],
+          "wrong_categories": [],
+          "unlabelled_names_require_review": [],
+          "duplicate_names": []
+        },
+        "nonempty_sections": 6,
+        "section_count": 6,
+        "factor_count": 6,
+        "extraction_contract_present": true,
+        "factor_quotes_bound_to_source": true,
+        "all_scores_unknown": false,
+        "scores": {
+          "逻辑清晰度": 3,
+          "实现质量": 3,
+          "数据与时序可靠性": 3,
+          "参数可解释性": 3,
+          "复现与复用价值": 2
+        },
+        "total_score": 56,
+        "semantic_correctness": "requires_expert_review"
+      },
+      "human": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "channel",
+      "repeat": 1,
+      "run_id": "802364a7ab7a4ebdb1949b14d10af7fa",
+      "record_hash": "a7466fc5aa2215d55ad63f5adab6badb3d8a93da11f784b5be2a90a3651e2fa5",
+      "status": "completed",
+      "origin": "provider_recorded",
+      "context_hash": "75d07290376af8f98a440df7cdbaf763735597f3010dfc0c0795cebe53dad9f0",
+      "fresh_model_calls": true,
+      "mechanical": {
+        "schema_valid": true,
+        "analysis_hash": "e4a1923041251c479b70c2c862fc02fdef1defdf7e4fc85d28aaa55c4a987db4",
+        "kind_matches_reference": true,
+        "parameters": {
+          "expected": 2,
+          "reported": 6,
+          "matched": 2,
+          "recall": 1.0,
+          "reference_precision": 0.666667,
+          "correct_defaults": 2,
+          "default_recall": 1.0,
+          "correct_categories": 2,
+          "missing_or_duplicate": [],
+          "wrong_defaults": [],
+          "wrong_categories": [],
+          "unlabelled_names_require_review": [
+            "SMOOTH",
+            "BUY"
+          ],
+          "duplicate_names": []
+        },
+        "nonempty_sections": 6,
+        "section_count": 6,
+        "factor_count": 3,
+        "extraction_contract_present": true,
+        "factor_quotes_bound_to_source": true,
+        "all_scores_unknown": false,
+        "scores": {
+          "逻辑清晰度": 3,
+          "实现质量": 3,
+          "数据与时序可靠性": 2,
+          "参数可解释性": 3,
+          "复现与复用价值": 2
+        },
+        "total_score": 52,
+        "semantic_correctness": "requires_expert_review"
+      },
+      "human": {
+        "status": "pending"
+      }
+    }
+  ],
+  "score_stability": [
+    {
+      "case_id": "channel",
+      "context_hash": "75d07290376af8f98a440df7cdbaf763735597f3010dfc0c0795cebe53dad9f0",
+      "fresh_completed": 1,
+      "minimum_repeats_met": false,
+      "dimensions": {
+        "逻辑清晰度": {
+          "known": 1,
+          "unknown": 0,
+          "min": 3,
+          "max": 3,
+          "range": 0,
+          "population_stddev": null
+        },
+        "实现质量": {
+          "known": 1,
+          "unknown": 0,
+          "min": 3,
+          "max": 3,
+          "range": 0,
+          "population_stddev": null
+        },
+        "数据与时序可靠性": {
+          "known": 1,
+          "unknown": 0,
+          "min": 2,
+          "max": 2,
+          "range": 0,
+          "population_stddev": null
+        },
+        "参数可解释性": {
+          "known": 1,
+          "unknown": 0,
+          "min": 3,
+          "max": 3,
+          "range": 0,
+          "population_stddev": null
+        },
+        "复现与复用价值": {
+          "known": 1,
+          "unknown": 0,
+          "min": 2,
+          "max": 2,
+          "range": 0,
+          "population_stddev": null
+        },
+        "total_score": {
+          "known": 1,
+          "unknown": 0,
+          "min": 52,
+          "max": 52,
+          "range": 0,
+          "population_stddev": null
+        }
+      }
+    },
+    {
+      "case_id": "pine_bands",
+      "context_hash": "75d07290376af8f98a440df7cdbaf763735597f3010dfc0c0795cebe53dad9f0",
+      "fresh_completed": 1,
+      "minimum_repeats_met": false,
+      "dimensions": {
+        "逻辑清晰度": {
+          "known": 1,
+          "unknown": 0,
+          "min": 3,
+          "max": 3,
+          "range": 0,
+          "population_stddev": null
+        },
+        "实现质量": {
+          "known": 1,
+          "unknown": 0,
+          "min": 3,
+          "max": 3,
+          "range": 0,
+          "population_stddev": null
+        },
+        "数据与时序可靠性": {
+          "known": 1,
+          "unknown": 0,
+          "min": 3,
+          "max": 3,
+          "range": 0,
+          "population_stddev": null
+        },
+        "参数可解释性": {
+          "known": 1,
+          "unknown": 0,
+          "min": 3,
+          "max": 3,
+          "range": 0,
+          "population_stddev": null
+        },
+        "复现与复用价值": {
+          "known": 1,
+          "unknown": 0,
+          "min": 2,
+          "max": 2,
+          "range": 0,
+          "population_stddev": null
+        },
+        "total_score": {
+          "known": 1,
+          "unknown": 0,
+          "min": 56,
+          "max": 56,
+          "range": 0,
+          "population_stddev": null
+        }
+      }
+    }
+  ],
+  "complete_same_context_baseline": false,
+  "human_review_complete": false,
+  "provider_recorded_attempts": 4,
+  "limitations": [
+    "自动引用与格式检查不证明语义正确；参数额外项可能是合法遗漏标签，须人工裁决。",
+    "本版参考标签由 AI 起草，未有人类审阅记录时不能称专家基准。",
+    "provider_recorded 只表示导出时存在调用用量记录，不是独立的提供商真实性证明。",
+    "同配置同上下文至少三次新分析才报告稳定性基线；缓存复用、失败和未知分数不按零分计。",
+    "尚无经确认的放行阈值；不输出通过结论、收益分或平台验证状态。"
+  ]
+}

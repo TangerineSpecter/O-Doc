@@ -1,0 +1,26 @@
+[
+  {
+    "month": 3,
+    "archive_url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-03.zip",
+    "checksum_url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-03.zip.CHECKSUM",
+    "archive_sha256": "b0851daf609d6ab82fdf8f1d1c4fbd974bc1b4e6530a832067516ac1c2be63a6",
+    "normalized_sha256": "6e351905971ec006062d39606868e0ace467e4df9758b128840efd0359215590",
+    "row_count": 744,
+    "warmup_from_previous_month": false,
+    "downloaded_at": "2026-10-25T12:14:43.479203+00:00",
+    "proposal_predates_download": true,
+    "dataset_id": "8eec5657b9b3070954bacfcdb3e8f53831d71bc6"
+  },
+  {
+    "month": 4,
+    "archive_url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip",
+    "checksum_url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip.CHECKSUM",
+    "archive_sha256": "e266707ad2ea3cd4680bf1ac5025f0c1bfeb38e703374a91f8dc193d1ec8d48f",
+    "normalized_sha256": "ee0d0efc7ca663d75f321740aaf8968de81424451c09f207b2fead0ce2c39bed",
+    "row_count": 720,
+    "warmup_from_previous_month": false,
+    "downloaded_at": "2026-10-25T12:14:44.028643+00:00",
+    "proposal_predates_download": true,
+    "dataset_id": "450d2db5d1996ac41af964929e7993e7dd9f8e6f"
+  }
+]

@@ -2,12 +2,13 @@
 import logging
 from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision, LifeIntegrity, LifeInterleavingState
 from .life_snapshot import hash_rows
+from .combat.reservation_models import AdventurePlanningDay, AdventureReservation
 
 logger = logging.getLogger(__name__)
 
 
 def fingerprints(owner: str) -> dict[str, str]:
-    queries=[LifeConfig.objects.filter(pk=owner),LifeProfile.objects.filter(owner_id=owner),LifeGoal.objects.filter(owner_id=owner),LifeCycle.objects.filter(owner_id=owner),LifeItem.objects.filter(owner_id=owner),LifeRevision.objects.filter(item__owner_id=owner), LifeInterleavingState.objects.filter(owner_id=owner)]
+    queries=[LifeConfig.objects.filter(pk=owner),LifeProfile.objects.filter(owner_id=owner),LifeGoal.objects.filter(owner_id=owner),LifeCycle.objects.filter(owner_id=owner),LifeItem.objects.filter(owner_id=owner),LifeRevision.objects.filter(item__owner_id=owner), LifeInterleavingState.objects.filter(owner_id=owner), AdventurePlanningDay.objects.filter(owner_id=owner), AdventureReservation.objects.filter(owner_id=owner)]
     return {q.model.__name__: hash_rows(list(q.values()), tuple(
         field.attname for field in q.model._meta.fields if field.get_internal_type() == 'DateTimeField'
     )) for q in queries}
@@ -16,7 +17,7 @@ def fingerprints(owner: str) -> dict[str, str]:
 def life_owners() -> set[str]:
     """所有拥有任意生活记录的账号；不能只看 LifeConfig，否则孤立记录无法生成摘要。"""
     owners = set(LifeConfig.objects.values_list('pk', flat=True))
-    for model in (LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeInterleavingState):
+    for model in (LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeInterleavingState, AdventurePlanningDay, AdventureReservation):
         owners.update(model.objects.values_list('owner_id', flat=True))
     return owners
 
@@ -105,6 +106,11 @@ def reconcile_life() -> None:
             if not LifeProfile.objects.filter(pk=goal.actor_id,owner_id=owner).exists():raise SyncError('目标缺少居民生活资料')
     from .life_interleaving_sync import validate_database
     validate_database()
+    from django.core import serializers
+    import json
+    from .combat.models import Exploration
+    from .combat.reservation_sync import validate_snapshot
+    validate_snapshot(json.loads(serializers.serialize('json', [*AdventurePlanningDay.objects.all(), *AdventureReservation.objects.all(), *LifeItem.objects.all(), *Exploration.objects.all()])))
     from .life_planner import check_goals
     for profile in LifeProfile.objects.all():
         actor=Agent.objects.filter(pk=profile.pk).first()

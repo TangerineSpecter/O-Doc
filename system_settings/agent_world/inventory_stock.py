@@ -60,6 +60,8 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
 @guarded
 @transaction.atomic
 def take_stock(actor_id: str, owner_id: str, sku: str, quantity: int) -> Decimal:
+    from .combat.reservation_resources import require_stock
+    require_stock(owner_id, actor_id, sku, quantity)
     rows = list(stock_rows(actor_id, owner_id, sku).select_for_update())
     if sku.startswith(('crop.', 'dish.', 'elixir.')):
         rows.sort(key=lambda row: (row.source.get('stars', 1), row.created_at, row.pk))

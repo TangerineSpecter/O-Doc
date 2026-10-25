@@ -185,7 +185,7 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                     if not current_run or not CombatRuntime.objects.filter(pk=run_id, authorized=True).exists():
                         raise ValueError('准备期间探索已取消')
                 from ..life_activities import is_interleaved
-                if (item and is_interleaved(item)) or jev_enabled(run.owner_id, 'combat_preparation'):
+                if run.snapshot.get('reservation_id') or (item and is_interleaved(item)) or jev_enabled(run.owner_id, 'combat_preparation'):
                     from .preparation_decision import build_plan
                     plan, preparation_decisions = build_plan(run, agent, check=check_preparation)
                 else:
@@ -249,6 +249,20 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                 close_session(session,'探索补给采购完成');session=None
             from ..life_interleaving_preparation import resize_exploration
             plan = resize_exploration(run, agent, plan)
+            if run.snapshot.get('reservation_id'):
+                with farm_gate(), transaction.atomic():
+                    locked = Exploration.objects.select_for_update().get(pk=run.pk)
+                    if locked.status != 'preparing':
+                        return locked
+                    locked.phase = 'waiting_reservation'
+                    locked.snapshot['prepared_plan'] = plan
+                    locked.save()
+                    from .facts import append
+                    append(CombatProfile.objects.get(pk=run.actor_id), run.pk+':waiting-reservation', 'waiting_reservation', {'reservation_id':run.snapshot['reservation_id']}, locked)
+                    from system_settings.models import AgentExecutionLease
+                    from .explorations import lease_token
+                    AgentExecutionLease.objects.filter(agent_id=run.actor_id, token=lease_token(run.pk)).update(token='', until=None)
+                    return locked
             return depart(run.pk,plan)
     except Exception as exc:
         from system_settings.decision.jev import DecisionUnavailable

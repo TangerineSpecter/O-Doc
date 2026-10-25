@@ -30,12 +30,19 @@ def domain_lock(exclusive=False):
 
 @contextmanager
 def collection_lock(coll_id):
+    identity = str(coll_id)
+    held = getattr(_local, 'collections', set())
+    if identity in held:
+        yield
+        return
     root = Path(tempfile.gettempdir()) / f'odoc-quant-{os.getuid()}'
-    with domain_lock(), (root / hashlib.sha256(str(coll_id).encode()).hexdigest()).open('a') as stream:
+    with domain_lock(), (root / hashlib.sha256(identity.encode()).hexdigest()).open('a') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX)
+        _local.collections = held | {identity}
         try:
             yield
         finally:
+            _local.collections = held
             fcntl.flock(stream, fcntl.LOCK_UN)
 
 

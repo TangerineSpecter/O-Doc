@@ -23,6 +23,7 @@ export interface DailyFeedEvent {
     isMotive?: boolean;
     counterpartName?: string;
     outputPreview?: string;
+    explorationParty?: {min: number; max: number; final: number};
     target: {kind: string; id: string; [key: string]: string | undefined} | null;
 }
 

@@ -73,7 +73,7 @@ def wave(party, now):
     append(party, 'wave', {'number': number, 'members': sorted(players), 'monsters': monster['monsters']})
 
 
-def attach(run, now, party=None):
+def attach(run, now, party=None, *, start_wave=True):
     if party is None:
         identity = 'party:'+hashlib.sha256(run.pk.encode()).hexdigest()[:48]
         party = AdventureParty.objects.create(pk=identity, owner_id=run.owner_id, catalog_id=run.catalog_id,
@@ -94,7 +94,7 @@ def attach(run, now, party=None):
     run.next_tick_at = None  # the shared session owns scheduling
     run.save()
     append(party, 'join', {'actor_id': run.actor_id, 'exploration_id': run.pk})
-    if not party.state.get('wave'):
+    if start_wave and not party.state.get('wave'):
         wave(party, now)
     from .facts import append as personal_fact
     run.refresh_from_db()

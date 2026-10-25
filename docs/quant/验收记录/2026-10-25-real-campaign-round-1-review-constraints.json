@@ -1,0 +1,21 @@
+{
+  "remaining_rounds": 1,
+  "remaining_candidate_budget": 16,
+  "remaining_compute_seconds": 30,
+  "remaining_wall_seconds": 598,
+  "ordered_datasets": [
+    {
+      "id": "450d2db5d1996ac41af964929e7993e7dd9f8e6f",
+      "symbol": "BTCUSDT",
+      "timeframe": "1h",
+      "timezone": "UTC",
+      "price_adjustment": "spot raw; no equity adjustment",
+      "row_count": 720,
+      "start": "2024-04-01T00:00:00+00:00",
+      "end": "2024-04-30T23:00:00+00:00"
+    }
+  ],
+  "unavailable_ids": [],
+  "omitted_for_size": 0,
+  "scope": "preselected_metadata_only_not_independent_evidence"
+}

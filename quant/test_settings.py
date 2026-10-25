@@ -1,6 +1,7 @@
 import os
 os.environ['ODOC_ENABLE_LEARNING'] = 'false'
 os.environ['ODOC_ENABLE_NOVEL'] = 'false'
+os.environ['ODOC_ENABLE_MEMO_SPROUT'] = 'false'
 from book_analysis.test_settings import *  # noqa: F403,E402
 
 if 'quant' not in INSTALLED_APPS and 'quant.apps.QuantConfig' not in INSTALLED_APPS:  # noqa: F405

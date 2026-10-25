@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "suite_hash": "79700b7af5fb108db25ca1cafed20252eff177fc117b016346ab3f3bfb9f53f4",
+  "reviewer": "",
+  "corpus_approved": false,
+  "corpus_review_note": "",
+  "reviews": [
+    {
+      "case_id": "pine_bands",
+      "repeat": 3,
+      "record_hash": "ca97319a1b05929fef7acf4cb872589b9dc6b7e6681f9855df36a6f5a0ac299f",
+      "facts": [
+        {
+          "id": "thresholds",
+          "requirement": "两个 RSI 阈值均为 50；不能按常见 30/70 解读。",
+          "verdict": "uncertain",
+          "reason": "",
+          "report_quotes": [],
+          "source_quotes": []
+        },
+        {
+          "id": "orders",
+          "requirement": "代码是带 stop 参数的入场指令，不把 stop 当已设置的止损；不声称成交机制已验证。",
+          "verdict": "uncertain",
+          "reason": "",
+          "report_quotes": [],
+          "source_quotes": []
+        },
+        {
+          "id": "display",
+          "requirement": "ShowBands 只影响显示，不能当收益参数推荐优化。",
+          "verdict": "uncertain",
+          "reason": "",
+          "report_quotes": [],
+          "source_quotes": []
+        },
+        {
+          "id": "evidence",
+          "requirement": "没有历史行情或执行报告，不声称盈利、最优参数或编译通过。",
+          "verdict": "uncertain",
+          "reason": "",
+          "report_quotes": [],
+          "source_quotes": []
+        }
+      ],
+      "unsupported_claims": {
+        "verdict": "uncertain",
+        "reason": "",
+        "report_quotes": []
+      },
+      "parameter_review": {
+        "complete": false,
+        "reason": ""
+      },
+      "factor_rubric": "区分 RSI 状态、通道偏离与交易条件；不把 RSI 偷换成当前 DSL 没有的算子。",
+      "factors": [
+        {
+          "index": 0,
+          "verdict": "unclear",
+          "reason": ""
+        },
+        {
+          "index": 1,
+          "verdict": "unclear",
+          "reason": ""
+        },
+        {
+          "index": 2,
+          "verdict": "unclear",
+          "reason": ""
+        },
+        {
+          "index": 3,
+          "verdict": "unclear",
+          "reason": ""
+        },
+        {
+          "index": 4,
+          "verdict": "unclear",
+          "reason": ""
+        },
+        {
+          "index": 5,
+          "verdict": "unclear",
+          "reason": ""
+        }
+      ],
+      "factor_coverage": {
+        "complete": false,
+        "reason": ""
+      }
+    }
+  ]
+}

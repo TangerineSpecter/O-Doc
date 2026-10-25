@@ -1,0 +1,25 @@
+{
+  "application_version": "1.5.43",
+  "quant_schema": 46,
+  "configured_model": "deepseek-flash",
+  "provider_identity_independently_attested": false,
+  "actual_provider_calls": 2,
+  "call_seconds": [
+    65.39,
+    57.63
+  ],
+  "origin": "captured real source analysis and fixed-validation followup; no mock model answers",
+  "data_purpose": "development_search_not_fixed_independent_validation",
+  "database": "in_memory_only",
+  "business_postgres_access": "read_only_model_configuration",
+  "credential_exported": false,
+  "execution_authority_exported": false,
+  "migration_or_deployment": false,
+  "source_hashes": {
+    "quant/experiments/campaigns/review_context.py": "1fe8b7a8510a9cf1c6988008ce743be1b571a6c008c74f47887fd1c139448373",
+    "quant/experiments/campaigns/worker.py": "d3de23b4359e3d4225b81a80e9a572eb07f265defc17b45da8895d7ea548ed1d",
+    "quant/acceptance/plan_reference.py": "4628155688e4940079fe0065f846481e78127752fa7ff3dd8c57ccaf4fd566f7",
+    "quant/acceptance/campaign_replay.py": "c4a6cee13bd5cd8002b2e8b76c6194541fe11b67c8dea62cb4f6657dbf8c7ff0"
+  },
+  "offline_replay": "uv run --python 3.11 python -m quant.acceptance.campaign_replay"
+}

@@ -10,6 +10,9 @@ FIELDS = ('name', 'kind', 'value', 'rarity', 'origin_actor_id', 'origin_actor_na
 def split_item(item: AgentInventoryItem, quantity: int) -> dict:
     if type(quantity) is not int or quantity < 1 or quantity > item.quantity:
         raise ValueError('库存不足或数量无效')
+    if item.source.get('sku'):
+        from .combat.reservation_resources import require_stock
+        require_stock(item.owner_id, item.actor_id, item.source['sku'], quantity)
     payload = {key: copy.deepcopy(getattr(item, key)) for key in FIELDS}
     payload['value'] = str(payload['value'])
     payload['created_at'] = payload['created_at'].isoformat()

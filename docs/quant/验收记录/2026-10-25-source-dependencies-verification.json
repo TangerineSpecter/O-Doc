@@ -1,0 +1,49 @@
+{
+  "backend_regressions": {
+    "count": 544,
+    "passed": true,
+    "seconds": 130.714
+  },
+  "final_input_and_archive_tests": {
+    "count": 7,
+    "passed": true
+  },
+  "frontend_tests": {
+    "count": 109,
+    "passed": true
+  },
+  "type_check": true,
+  "targeted_lint": true,
+  "production_build": true,
+  "overlapping_test_counts_not_added": true,
+  "new_migrations": false,
+  "deployed": false,
+  "offline_replay": {
+    "source_bundle_rebuilt": true,
+    "report_contract": true,
+    "original_reports_unchanged": true,
+    "native_execution": false,
+    "provider_calls": 0,
+    "business_database_access": false
+  },
+  "document_links": {
+    "checked_files": 8,
+    "missing": 0
+  },
+  "sensitive_key_scan": "passed",
+  "browser_local_only": {
+    "pasted_dependency_and_auto_report": true,
+    "empty_and_unsafe_path_rejected": true,
+    "unicode_UTF16LE_CRLF_upload": true,
+    "decoded_text_SHA256": "186521d60ba1afaf35dc64d3120bc8845c3e0296e619350a8c59f983167094a3",
+    "viewport_iframes": [
+      390,
+      768,
+      1440
+    ],
+    "original_reports_retained": true
+  },
+  "remaining": "native environment/dependency resolution, formal evidence promotion and complete objective gates remain",
+  "temporary_responsive_fixture": "/private/tmp/odoc-source-dependencies-responsive",
+  "temporary_fixture_in_frontend_source": false
+}

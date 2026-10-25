@@ -25,11 +25,11 @@ export function observationKills(events: CombatEvent[]) {
 
 /** Merge adjacent facts at the same elapsed time without changing their sequence. */
 export function observationEventGroups(events: CombatEvent[]) {
-    const groups: {key: string; seconds: number; rows: CombatEvent[]}[] = [];
+    const groups: {key: string; seconds: number; label?: string; rows: CombatEvent[]}[] = [];
     for (const event of events) {
         const previous = groups[groups.length - 1];
-        if (previous?.seconds === event.elapsedSeconds) previous.rows.push(event);
-        else groups.push({key: event.id, seconds: event.elapsedSeconds, rows: [event]});
+        if (previous?.seconds === event.elapsedSeconds && previous?.label === event.timelineLabel) previous.rows.push(event);
+        else groups.push({key: event.id, seconds: event.elapsedSeconds, label: event.timelineLabel, rows: [event]});
     }
     return groups;
 }

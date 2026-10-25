@@ -18,7 +18,7 @@ class BookEmbeddingTests(SimpleTestCase):
 
     def transport(self, handler):
         original = httpx.AsyncClient
-        return patch('book_analysis.embeddings.httpx.AsyncClient', side_effect=lambda **kwargs: original(**kwargs, transport=httpx.MockTransport(handler)))
+        return patch('utils.bounded_embeddings.httpx.AsyncClient', side_effect=lambda **kwargs: original(**kwargs, transport=httpx.MockTransport(handler)))
 
     def test_single_string_requests_use_long_index_budget_and_short_query_budget(self):
         requests, events = [], []

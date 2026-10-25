@@ -1,0 +1,47 @@
+{
+  "offline_replay": {
+    "rounds": 2,
+    "evaluated_attempts": 28,
+    "pinned_data": true,
+    "decimal_development_and_complete_holdout_paths": true,
+    "review_contracts": true,
+    "automatic_proposal_lineage": true,
+    "frozen_budget_context": true,
+    "snapshot_graph_and_replay": true,
+    "provider_calls": 0,
+    "independent_validation": false
+  },
+  "tamper_probes": [
+    {
+      "mode": "price",
+      "rejected": true,
+      "reason": "Pinned campaign market-data hash mismatch"
+    },
+    {
+      "mode": "lineage",
+      "rejected": true,
+      "reason": "Automatic next-proposal lineage changed"
+    }
+  ],
+  "syntax_check": true,
+  "credentials_or_execution_authority_in_archive": false,
+  "frontend_ui_changed": false,
+  "business_database_migrated": false,
+  "deployed": false,
+  "campaign_context_and_coordinator_tests": 13,
+  "new_context_tests": 2,
+  "backend_regressions": {
+    "tests": 538,
+    "status": "passed",
+    "elapsed_seconds": 128.205,
+    "command": "uv run --python 3.11 python manage.py test quant book_analysis.test_bounded_completion book_analysis.test_ai_errors system_settings.test_sync_datetime --settings=quant.test_settings --noinput"
+  },
+  "documentation_link_check": {
+    "files": 8,
+    "missing_links": 0
+  },
+  "json_sensitive_field_scan": {
+    "files": 15,
+    "forbidden_fields": 0
+  }
+}

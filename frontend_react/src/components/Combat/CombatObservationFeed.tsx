@@ -1,6 +1,7 @@
+import {musicActionText} from './musicPresentation';
 import {useMemo} from 'react';
 import {ArrowRight, Clock3, Compass, Footprints, Heart, Package, PauseCircle, PlayCircle, ShieldAlert, Sparkles, Swords, Trophy, ScrollText} from 'lucide-react';
-import type {CombatAction, CombatEvent} from '../../types/api/combat';
+import type {CombatAction, CombatEvent, PartyAction, PartyCombatant} from '../../types/api/combat';
 import {elapsed} from './presentation';
 import {
     observationEventMessage,
@@ -105,6 +106,8 @@ function EncounterCard({action}: {action: CombatAction}) {
 
 /** 攻防交锋卡片 */
 function AttackCard({action, playerName}: {action: CombatAction; playerName?: string}) {
+    const music=musicActionText(action);
+    if(music)return <article className="rounded-xl border border-teal-200 bg-teal-50/50 px-2.5 py-2 text-xs"><strong>{action.actor} · {action.action}</strong><p className="mt-1 text-teal-800">{action.target?`${action.target} · `:''}{music}</p></article>;
     const isPlayer = Boolean(playerName ? action.actor === playerName : action.target !== playerName);
     const isHeal = action.healing != null || action.restored != null;
     const isMiss = action.hit === false;
@@ -219,7 +222,15 @@ function AttackCard({action, playerName}: {action: CombatAction; playerName?: st
 }
 
 /** 动作卡片调度 */
-function ActionCard({action, playerName}: {action: CombatAction; playerName?: string}) {
+function ActionCard({action, playerName, partyPlayers}: {action: PartyAction; playerName?: string; partyPlayers?: PartyCombatant[]}) {
+    if (action.rolls) return <article className="rounded-xl border border-amber-200 bg-amber-50/50 px-2.5 py-2 text-xs text-slate-700">
+        <strong>战利品分配</strong>
+        {action.rolls.map(roll => <div key={roll.rewardId} className="mt-1">
+            <p>{roll.reward.item.name || '战利品'} → {partyPlayers?.find(player => player.id === roll.winnerId)?.name || '历史队员'}</p>
+            <p className="mt-1 text-[10px] text-slate-500">{roll.rounds.map(scores => Object.entries(scores).map(([id, score]) => `${partyPlayers?.find(player => player.id === id)?.name || '历史队员'} ${score}`).join(' / ')).join('；重roll ')}</p>
+        </div>)}
+    </article>;
+    if (action.kind === 'rescue') return <article className="rounded-xl border border-teal-200 bg-teal-50/50 px-2.5 py-2 text-xs text-teal-800">{action.actor || action.target || '队伍'} · 清场救援{action.healing != null ? ` · 恢复${action.healing}` : ''}</article>;
     if (action.kind === 'kill') return <KillCard action={action} />;
     if (action.kind === 'encounter') return <EncounterCard action={action} />;
     return <AttackCard action={action} playerName={playerName} />;
@@ -375,7 +386,7 @@ function SystemEventCard({event}: {event: CombatEvent}) {
 }
 
 /** 动态事件流 */
-export function ObservationEvents({events, playerName}: {events: CombatEvent[]; playerName?: string}) {
+export function ObservationEvents({events, playerName, partyPlayers}: {events: CombatEvent[]; playerName?: string; partyPlayers?: PartyCombatant[]}) {
     const rawGroups = observationEventGroups(events);
 
     // 智能提取该组的核心标签
@@ -409,13 +420,13 @@ export function ObservationEvents({events, playerName}: {events: CombatEvent[]; 
     return (
         <div className="space-y-4">
             {groupsWithMeta.map(group => (
-                <section key={group.key} aria-label={`探索 ${elapsed(group.seconds)} 的战报`}>
+                <section key={group.key} aria-label={group.label || `探索 ${elapsed(group.seconds)} 的战报`}>
                     {/* 吸顶时间标签栏：无边框天蓝色极简设计 */}
                     <div className="sticky -top-3 z-10 -mx-1 flex items-center gap-2 bg-white/95 px-1 py-1.5 backdrop-blur-sm">
                         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-0.5 text-sky-600">
                             <Clock3 className="h-3 w-3 text-sky-500" />
-                            <time dateTime={`PT${group.seconds}S`} className="font-mono text-[11px] font-bold tracking-tight text-sky-600">
-                                {elapsed(group.seconds)}
+                            <time dateTime={group.label ? undefined : `PT${group.seconds}S`} className="font-mono text-[11px] font-bold tracking-tight text-sky-600">
+                                {group.label || elapsed(group.seconds)}
                             </time>
                         </span>
                         <span className="h-px flex-1 bg-gradient-to-r from-sky-100 via-slate-100 to-transparent" />
@@ -444,7 +455,7 @@ export function ObservationEvents({events, playerName}: {events: CombatEvent[]; 
                                     <div key={row.id} className="relative space-y-1.5">
                                         <span className="absolute -left-[15px] top-2 h-1.5 w-1.5 rounded-full bg-sky-400 ring-2 ring-white" />
                                         {row.payload.events.map((action, index) => (
-                                            <ActionCard key={index} action={action} playerName={playerName} />
+                                            <ActionCard key={index} action={action} playerName={playerName} partyPlayers={partyPlayers} />
                                         ))}
                                     </div>
                                 );

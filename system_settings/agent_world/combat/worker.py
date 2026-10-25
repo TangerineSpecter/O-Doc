@@ -68,6 +68,10 @@ def advance():
     with execution_lease(CombatRuntime,{'pk':'combat-worker'}) as token:
         if not token:return
         CombatRuntime.objects.filter(pk='combat-worker',token=token).update(requests={'process_id':os.getpid()})
+        from ..life_models import LifeConfig
+        from .reservation_execution import tick as tick_reservations
+        for life_config in LifeConfig.objects.all():
+            tick_reservations(life_config)
         from .recovery import recover
         recover()
         recover_expired_rests()
@@ -77,7 +81,7 @@ def advance():
         from .party_tick import tick as party_tick
         for row in AdventureParty.objects.filter(status='active').values('id', 'revision'):
             party_tick(row['id'], row['revision'])
-        for pending in Exploration.objects.filter(status='preparing').exclude(phase='waiting_party').filter(id__in=CombatRuntime.objects.filter(authorized=True).values('id')):
+        for pending in Exploration.objects.filter(status='preparing').exclude(phase__in=('waiting_party', 'waiting_reservation')).filter(id__in=CombatRuntime.objects.filter(authorized=True).values('id')):
             from datetime import datetime
             retry = pending.snapshot.get('preparation_retry_at')
             if retry and local_time(datetime.fromisoformat(retry)) > local_time():

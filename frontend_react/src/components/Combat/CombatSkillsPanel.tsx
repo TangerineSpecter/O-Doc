@@ -1,5 +1,5 @@
 import type {CombatProfile} from '../../types/api/combat';
-import {effectText} from './presentation';
+import {effectText, skillDescription} from './presentation';
 import {BookOpen, Flame, Sparkles, Zap} from 'lucide-react';
 
 export default function CombatSkillsPanel({profile}: {profile: CombatProfile}) {
@@ -11,7 +11,7 @@ export default function CombatSkillsPanel({profile}: {profile: CombatProfile}) {
                 <div className="grid gap-2.5 sm:grid-cols-2">
                     {profile.skills.map(skill => {
                         const isPassive = skill.kind === 'passive';
-                        const description = String(skill.parameters.description || '');
+                        const description = skillDescription(String(skill.parameters.description || ''));
                         return (
                             <article
                                 key={skill.id}

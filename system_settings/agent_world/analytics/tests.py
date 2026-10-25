@@ -386,6 +386,22 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertEqual(row['monsters'],[])
         self.assertEqual(result['outcomes']['wins'],0)
 
+    def test_party_kills_across_shanghai_midnight_and_empty_new_day(self):
+        self.at = storage_time(datetime(2026, 10, 24, 23, 59, 59, tzinfo=SHANGHAI))
+        run = self.exploration('midnight-party', self.a, kills=3)
+        self.party_kill(run, 'before-midnight')
+        self.party_kill(run, 'at-midnight', at=self.at + timedelta(seconds=1))
+        self.party_kill(run, 'after-window', at=self.at + timedelta(days=1, seconds=1))
+
+        result = self.fetch(start_date='2026-09-26', end_date='2026-10-25')
+        self.assertEqual(result['outcomes']['wins'], 2)
+        self.assertEqual(len(result['daily']), 30)
+        for day in ('2026-10-24', '2026-10-25', '2026-10-26'):
+            self.assertEqual(self.fetch(start_date=day, end_date=day)['outcomes']['wins'], 1)
+        empty = self.fetch(start_date='2026-10-27', end_date='2026-10-27')
+        self.assertEqual(empty['outcomes']['wins'], 0)
+        self.assertEqual(empty['daily'][0]['behaviors'], 0)
+
     def test_comparison_includes_profession_name(self):
         from system_settings.models import WorldProfession
         prof = WorldProfession.objects.create(name='吟游诗人')

@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {getCombatSnapshot} from '../api/combat';
 import type {CombatEvent, CombatSnapshot} from '../types/api/combat';
+import {mergePartyHistory} from '../components/Combat/partyObservationRecords';
 import {appendCombatEvents} from '../components/Combat/presentation';
 export function useCombatObservation(id: string) {
     const [data, setData] = useState<{id: string; snapshot: CombatSnapshot; events: CombatEvent[]} | null>(null);
@@ -18,7 +19,14 @@ export function useCombatObservation(id: string) {
                     const snapshot = await getCombatSnapshot(id, cursor, signal);
                     if (!active || signal.aborted) return;
                     cursor = snapshot.nextCursor;
-                    setData(previous => ({id, snapshot, events: appendCombatEvents(previous?.id === id ? previous.events : [], snapshot.events)}));
+                    setData(previous => {
+                        const sameRun = previous?.id === id;
+                        const party = snapshot.party;
+                        const priorParty = sameRun ? previous.snapshot.party : null;
+                        return {id, snapshot: party ? {...snapshot, party: {...party,
+                            events: mergePartyHistory(priorParty?.id === party.id ? priorParty.events : [], party.events)}} : snapshot,
+                            events: appendCombatEvents(sameRun ? previous.events : [], snapshot.events)};
+                    });
                     setError('');
                     if (!snapshot.hasMore) break;
                 } while (active && !document.hidden);

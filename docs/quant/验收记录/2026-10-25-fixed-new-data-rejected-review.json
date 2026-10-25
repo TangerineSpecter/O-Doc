@@ -1,0 +1,293 @@
+{
+  "title": "BTCUSDT 1h 滚动均值偏离 period30 固定验证与独立复核规划",
+  "summary": "冻结公式 close/mean-1 在 period30、2024-02 固定验证中取得 0.139583 的正收益，但同期买入持有基线为 0.434984，且策略回撤 0.111227 高于基线 0.042584；原 1 月训练与验证均为负，参数敏感性无支持区段，均值组合尝试也为负。当前证据只值得在全新独立数据上做否证性复核，不支持稳定参数、盈利或实盘结论。",
+  "findings": [
+    {
+      "text": "fixed_validation 记录 2024-02-01 至 2024-02-29 23:00、695 bars，冻结参数为 p0=30。final total_return=0.139583，max_drawdown=0.111227，entries=41，turnover=82，exposure_fraction=0.631655，missing_signals=0。同期买入持有 baseline total_return=0.434984，max_drawdown=0.042584，exposure_fraction=1.0。策略绝对收益为正，但低于买入持有约 0.2954，回撤也更高；这是一次固定参数评价，不是最优或参数稳定性证明。",
+      "evidence_refs": [
+        "fixed_validation",
+        "attempt-5"
+      ]
+    },
+    {
+      "text": "原实验 attempt-1 至 attempt-6 为同公式同轴的 period 5、10、14、20、30、60 参数变体。训练收益全部为负，分别为 -0.128843、-0.098735、-0.079440、-0.142352、-0.121908、-0.147586；验证收益也全部为负，分别为 -0.037097、-0.032248、-0.046216、-0.023409、-0.040178、-0.038177。selection_rule 为 train_pareto_then_validation_return_minus_drawdown_v1，selected_id 为 attempt-5；选择发生在 1 月训练和验证数据上，不能排除参数选择偏差。",
+      "evidence_refs": [
+        "attempt-1",
+        "attempt-2",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5",
+        "attempt-6",
+        "execution"
+      ]
+    },
+    {
+      "text": "attempt-7、attempt-8、attempt-9 是双窗口均值组合，参数分别为 a_p0=14/b_p0=60、a_p0=14/b_p0=30、a_p0=30/b_p0=60。它们的训练收益为 -0.122046、-0.141610、-0.121935，验证收益为 -0.057991、-0.037867、-0.067827，均未改善 1 月表现；这些组合被列入 excluded_combination_ids，不能作为组合增益或参数稳定性证据。",
+      "evidence_refs": [
+        "attempt-7",
+        "attempt-8",
+        "attempt-9"
+      ]
+    },
+    {
+      "text": "原实验 holdout 为 2024-01-25T21:00 至 2024-01-31T23:00、146 bars。attempt-5 的 holdout total_return=0.021634，max_drawdown=0.029735；同期买入持有 baseline total_return=0.068590，max_drawdown=0.028211。策略在留出段仍低于买入持有，且回撤略高。该留出是在本批选择后计算，跨批次独立性没有证明。",
+      "evidence_refs": [
+        "holdout",
+        "baseline",
+        "attempt-5"
+      ]
+    },
+    {
+      "text": "parameter_sensitivity 对 period 轴比较了 6 个可比较点并含实际基线 attempt-1，但所有点的训练和验证收益均为负，eligible 全部为 false；训练收益极差 0.068147，验证收益极差 0.022807，均超过固定 0.02 容差；period60 在训练段 missing_signals=59/444，覆盖率低于 90%。regions 为空，status=no_supported_region，因此没有受支持的稳定参数区段，也不能推荐最佳 period。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-1",
+        "attempt-2",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5",
+        "attempt-6"
+      ]
+    },
+    {
+      "text": "parameter_joint_sensitivity 只有 period 一个数值轴，comparison_cells 为空，regions 为空，status=incomplete_grid；因此本批没有满足至少二维完整笛卡尔积的联合参数证据，不能评价二维交互、连续区间或组合稳定性。",
+      "evidence_refs": [
+        "parameter_joint_sensitivity"
+      ]
+    },
+    {
+      "text": "fixed_validation 的 mode=fresh，imported_after_registration=true；authorization_audit 与 publication_audit 均为 complete_scan=true、conflict_count=0、range_status=no_tracked_conflict，但 external_prior_use=unattested，global_independent_validation=false。登记后导入和无已知重用不等于全局独立证明，ordinary replication 也不是新数据验证。",
+      "evidence_refs": [
+        "fixed_validation",
+        "reuse"
+      ]
+    }
+  ],
+  "parameter_assessment": [
+    {
+      "text": "源码默认 period=14；本批实际基线 attempt-1 也是 period=14；被选 attempt-5 和 fixed_validation 的实际参数为 period=30 或 p0=30。30 不是源码默认值，也不是经过独立样本确认的最优值。",
+      "evidence_refs": [
+        "8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "attempt-1",
+        "attempt-5",
+        "fixed_validation"
+      ]
+    },
+    {
+      "text": "同轴已测值 period=5、10、14、20、30、60 在训练与验证均亏损；训练收益极差 0.068147、验证收益极差 0.022807，回撤极差也超过 0.02。所有点 eligibility_reasons 均包含负收益条件，period60 还包含训练段覆盖率不足；因此没有可连接的稳定区段。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-1",
+        "attempt-2",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5",
+        "attempt-6"
+      ]
+    },
+    {
+      "text": "attempt-2 至 attempt-6 的实际值分别为 5、10、20、30、60；attempt-7 至 attempt-9 的实际组合参数为 14/60、14/30、30/60。组合尝试全负且被排除，不能把单轴敏感性外推为组合有效性。",
+      "evidence_refs": [
+        "attempt-2",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5",
+        "attempt-6",
+        "attempt-7",
+        "attempt-8",
+        "attempt-9",
+        "parameter_joint_sensitivity"
+      ]
+    },
+    {
+      "text": "period=25、35、40 等 20 与 30、30 与 60 之间的邻域未在提供记录中实际运行；不能推断未测中间值或连续区间。fixed_validation 只评价 period30 一个冻结点，不能替代参数稳定性检验。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "fixed_validation",
+        "attempt-5"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "text": "选择偏差和过拟合风险明显：从 period 5、10、14、20、30、60 中按 1 月训练 Pareto 与验证收益减回撤规则选出 attempt-5，随后才看到 2 月 fixed_validation；训练、验证、1 月留出与 2 月固定验证的方向并不一致，不能把 2 月正收益当作稳定 alpha。",
+      "evidence_refs": [
+        "execution",
+        "attempt-5",
+        "holdout",
+        "fixed_validation"
+      ]
+    },
+    {
+      "text": "相对基准风险突出：fixed_validation 中策略收益 0.139583 低于买入持有 0.434984，回撤 0.111227 高于基线 0.042584；策略暴露仅 0.631655，2 月正收益可能主要来自市场 beta 而非相对超额。",
+      "evidence_refs": [
+        "fixed_validation",
+        "attempt-5"
+      ]
+    },
+    {
+      "text": "成本与成交假设敏感：费用为每边 5 bps、滑点每边 5 bps，fixed_validation entries=41、turnover=82；引擎未模拟成交量、流动性、资金费率、停牌、涨跌停等约束，spot raw 数据也无权益调整。成本拆分和真实成交冲击未单独识别。",
+      "evidence_refs": [
+        "execution",
+        "fixed_validation",
+        "attempt-5"
+      ]
+    },
+    {
+      "text": "平台语义与缺失处理仍有不确定性：表达式中的 sma 是本地引擎语义，未证明与原平台 pandas rolling(period).mean() 的 min_periods 默认行为等价；训练段 missing_signals 随 period 增大，period60 达 59/444，预热和缺失处理会影响覆盖率比较。",
+      "evidence_refs": [
+        "8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "parameter_sensitivity",
+        "attempt-6"
+      ]
+    },
+    {
+      "text": "证据独立性有限：fixed_validation 为单公式、单区间、无搜索的固定评价，independent_validation=false；审计只覆盖同一私密库的已知使用，外部先验使用未知。看过该结果后提出的假设必须用其他新独立数据验证，不能用同一 2 月区间确认。",
+      "evidence_refs": [
+        "fixed_validation",
+        "reuse"
+      ]
+    }
+  ],
+  "unknowns": [
+    "period30 在 2 月的正收益是否主要由市场 beta 解释，尚未用相对买入持有超额或回归控制验证。",
+    "period 25、35、40 等未测邻域，以及阈值、费用或滑点变化下的表现均未知。",
+    "本记录未提供统计显著性、胜率、交易级成本拆分或真实流动性冲击，不能推断这些指标。",
+    "本地 sma 语义与原平台 rolling(period).mean() 是否等价，以及 min_periods 的精确行为未验证。",
+    "其他标的、其他时间周期或其他独立区间是否可复现，未验证。",
+    "fixed_validation 的外部先验使用未知，无法证明该 2 月数据在登记前从未被外部查看或选择。",
+    "均值组合 attempts7-9 的负结果只说明本批记录中的组合未改善，不证明所有双窗口组合机制普遍无效。"
+  ],
+  "priority": "investigate",
+  "scores": [
+    {
+      "dimension": "参数稳定性",
+      "score": 1,
+      "reason": "同轴有 6 个可比较点且含实际基线，但全部训练和验证收益为负，收益与回撤极差超过容差，period60 覆盖率不足，regions 为空；只能说明本批没有稳定区段。",
+      "evidence": "parameter_sensitivity 的 compared_points=6、spreads 超限、regions=[]；parameter_joint_sensitivity 为一维 incomplete_grid，不能支持联合稳定性。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "parameter_joint_sensitivity",
+        "attempt-1",
+        "attempt-2",
+        "attempt-3",
+        "attempt-4",
+        "attempt-5",
+        "attempt-6"
+      ]
+    },
+    {
+      "dimension": "验证表现",
+      "score": 1,
+      "reason": "fixed_validation 绝对收益为正，但低于买入持有且回撤更高；原训练和验证均为负，1 月留出也低于基线，方向不稳定。",
+      "evidence": "fixed_validation total_return=0.139583 对 baseline=0.434984，max_drawdown=0.111227 对 0.042584；attempt-5 的 train=-0.121908、validation=-0.040178、holdout=0.021634。",
+      "evidence_refs": [
+        "fixed_validation",
+        "attempt-5",
+        "holdout",
+        "baseline"
+      ]
+    },
+    {
+      "dimension": "风险与成本",
+      "score": 1,
+      "reason": "策略回撤显著高于买入持有，暴露仅约 0.632，41 次 entries 和 turnover=82 带来费用与滑点暴露；未模拟流动性与成交量约束。",
+      "evidence": "fixed_validation 记录 fee_bps=5、slippage_bps=5、entries=41、turnover=82、max_drawdown=0.111227；同期买入持有 max_drawdown=0.042584。",
+      "evidence_refs": [
+        "fixed_validation",
+        "attempt-5",
+        "execution"
+      ]
+    },
+    {
+      "dimension": "证据充分度",
+      "score": 2,
+      "reason": "有完整训练、验证、1 月留出、2 月固定验证和参数敏感性记录，但固定验证仅一个区间且无搜索，独立验证未证明，外部使用未知，不能支持稳定结论。",
+      "evidence": "fixed_validation independent_validation=false、global_independent_validation=false、external_prior_use=unattested；reuse.total=0 只表示已知重用为零。",
+      "evidence_refs": [
+        "fixed_validation",
+        "reuse",
+        "execution",
+        "attempt-5"
+      ]
+    },
+    {
+      "dimension": "复现价值",
+      "score": 2,
+      "reason": "公式和参数简单、可精确定义，适合在独立新数据上做否证性复核；但当前证据不支持直接追求收益或参数优化，复现价值主要在验证 beta 解释与参数邻域。",
+      "evidence": "fixed_validation 为冻结 period30 的单区间评价；parameter_sensitivity 无支持区段；attempt-1 至 attempt-9 均已评价且训练/验证多为负。",
+      "evidence_refs": [
+        "fixed_validation",
+        "parameter_sensitivity",
+        "attempt-1",
+        "attempt-5",
+        "attempt-9"
+      ]
+    }
+  ],
+  "next_hypotheses": [
+    {
+      "text": "period30 的 2 月正绝对收益主要来自市场 beta，而不是相对买入持有的稳定 alpha。",
+      "test": "在未参与此前搜索、1 月留出和 2 月固定验证的新 BTCUSDT 1h 区间，冻结运行 period30，使用相同 5 bps 费用和 5 bps 滑点，比较总收益、相对买入持有超额和最大回撤。",
+      "falsification": "若 period30 在新数据同时满足成本后总收益为正、相对买入持有超额为正且最大回撤不高于买入持有基线，则 beta 解释被否证。",
+      "data_requirement": "全新独立区间，运行前冻结起止点和参数；不能继续使用 2024-01 或 2024-02 已查看数据作为独立验证。",
+      "evidence_refs": [
+        "fixed_validation",
+        "attempt-5",
+        "baseline"
+      ]
+    },
+    {
+      "text": "period 25 至 40 邻域不存在可复现的稳定参数区段，单点 period30 的改善不能外推到相邻窗口。",
+      "test": "在新独立数据上测试 period=25、30、35、40，按同一训练/验证覆盖率和收益回撤容差规则检查是否能形成支持区段，并与买入持有比较。",
+      "falsification": "若任一连续抽样邻域满足覆盖率不低于 90%、训练与验证收益为正、收益和回撤极差不超过固定容差，并且相对基线不差，则无稳定区段假设被否证。",
+      "data_requirement": "需要未用于本批参数选择的新行情区间；样本点和规则须预注册，不能事后挑选表现最好的单点。",
+      "evidence_refs": [
+        "parameter_sensitivity",
+        "attempt-1",
+        "attempt-5",
+        "attempt-6"
+      ]
+    }
+  ],
+  "planning_version": 2,
+  "planning_note": "从 planning_options 选择派生候选 61cf3392f937933e73fc7b10e8b115ff73fc88de（实际 p0=30）作为唯一父代，因为 fixed_validation 正是该冻结参数；变体 p0=25、35、40 用于补足 20 与 30、30 与 60 之间的未测邻域。未采用 attempt-7、attempt-8、attempt-9 的双窗口均值组合，因为它们已在原训练/验证中全负且被排除；library_retrieval 无候选，故不提出组合方案。1 个父代加 3 个参数组共 4 个候选，小于 max_candidates=16，并继承原实验的 generations=2、费用和成交假设。方案仅用于新独立数据上的否证性复核，不宣称已执行、最优或盈利。",
+  "proposal": {
+    "name": "BTCUSDT 1h period30 邻域独立否证复核",
+    "hypothesis": "period30 的 2 月正绝对收益主要来自市场 beta；在未参与此前搜索和固定验证的新独立 BTCUSDT 1h 区间，period30 及其 25、35、40 邻域不能同时取得成本后正收益、相对买入持有正超额且回撤不高于买入持有基线。",
+    "falsification": "若任一预注册候选在新数据同时满足成本后总收益大于 0、相对买入持有超额大于 0、最大回撤不高于买入持有基线且信号覆盖不低于 90%，则上述否证性假设被否定。",
+    "data_requirement": "需要未用于 2024-01 训练、验证、留出和 2024-02 固定验证的 BTCUSDT 1h 新区间；起止点、参数和评价规则须在运行前冻结，外部先验使用需登记。",
+    "evidence_refs": [
+      "fixed_validation",
+      "attempt-5",
+      "parameter_sensitivity"
+    ],
+    "seeds": [
+      {
+        "candidate_id": "61cf3392f937933e73fc7b10e8b115ff73fc88de",
+        "variants": [
+          [
+            {
+              "name": "p0",
+              "value": 25
+            }
+          ],
+          [
+            {
+              "name": "p0",
+              "value": 35
+            }
+          ],
+          [
+            {
+              "name": "p0",
+              "value": 40
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "memory_note": "research_memory 与 library_retrieval 本次均未返回任何历史实验、反馈、对照或固定验证记录；scan_limits 显示未被预算限制截断，但零记录不能推断不存在失败或反例。因此无历史线索可采纳、拒绝或补证，后续仅依据本批 evidence 和新独立数据。",
+  "memory_assessment": []
+}

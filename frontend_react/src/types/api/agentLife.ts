@@ -44,7 +44,8 @@ export interface LifeDailyChoice {
     plan: {id: string; activity: string; reason: string; offeredActivities?: string[]; travelPlan?: LifeTravelPlan};
 }
 export interface LifeItem {
-    source?: 'schedule' | 'interleaved' | 'manual';
+    source?: 'schedule' | 'interleaved' | 'manual' | 'reservation';
+    reservation?: {id: string; status: string; dungeonId: string; dungeonName?: string; prepareAt: string; startsAt: string; endsAt: string; durationSeconds: number; reason: string; runId: string; members: {actorId: string; name: string; jobId: string; durationSeconds: number; status: string}[]};
     actualStartedAt?: string | null; actualEndedAt?: string | null; actualEnergyCost?: string | null;
     activityUsage?: {requests: number; inputTokens: number | null; outputTokens: number | null; totalTokens: number | null; usageComplete: boolean} | null;
     domainDetail?: {kind: 'exploration' | 'fishing' | 'blacksmith'; id: string} | null;
@@ -57,5 +58,5 @@ export interface LifeItem {
     retryAvailable?: boolean; retryBlockedReason?: string;
     revisions?: Array<{id: string; before: Record<string, unknown>; after: Record<string, unknown>; reason: string; createdAt: string}>;
 }
-export type LifeScheduleSource = 'all' | 'main' | 'interleaved';
-export interface LifeSchedule {counts?: {main: number; interleaved: number}; summary?: Record<string, number>; items: LifeItem[]; total: number; page: number}
+export type LifeScheduleSource = 'all' | 'main' | 'interleaved' | 'reservation';
+export interface LifeSchedule {explorationPlanning?: {day: string; actorId: string; name: string; participate: boolean; dungeonId?: string; durationSeconds?: number; status: string; reason: string}[]; counts?: {main: number; interleaved: number; reservation?: number}; summary?: Record<string, number>; items: LifeItem[]; total: number; page: number}

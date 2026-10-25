@@ -221,11 +221,14 @@ class BoundedCompletionTests(SimpleTestCase):
             body = ''.join('data: ' + json.dumps(chunk) + '\n\n' for chunk in chunks) + 'data: [DONE]\n\n'
             return httpx.Response(200, headers={'content-type': 'text/event-stream'}, content=body)
         def factory(**options):
-            client = AsyncOpenAI(**options, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+            self.assertIsInstance(options['http_client'], httpx.AsyncClient)
+            client = AsyncOpenAI(**options)
             clients.append(client)
             return client
+        def http_factory(**options):
+            return httpx.AsyncClient(**options, transport=httpx.MockTransport(handler))
         events = []
-        with patch('utils.bounded_completion.AsyncOpenAI', side_effect=factory), observe_ai(lambda kind, title, level, details: events.append((kind, details))):
+        with patch('utils.bounded_completion.AsyncHTTPClient', side_effect=http_factory), patch('utils.bounded_completion.AsyncOpenAI', side_effect=factory), observe_ai(lambda kind, title, level, details: events.append((kind, details))):
             result = complete({**CONFIG, 'provider_type': 'DeepSeek'}, 'Return JSON', json_output=True, max_tokens=6000, extra_body={'thinking': {'type': 'disabled'}})
         self.assertEqual(result, '{"nodes":[]}')
         self.assertEqual(requests[0]['thinking'], {'type': 'disabled'})
@@ -234,11 +237,26 @@ class BoundedCompletionTests(SimpleTestCase):
         self.assertEqual([d['completion_tokens'] for k, d in events if k == 'model_usage'], [8])
         self.assertTrue(clients[0].is_closed())
         # 同一 SDK 的默认请求在 HTTP JSON 中完全省略输出预算字段。
-        with patch('utils.bounded_completion.AsyncOpenAI', side_effect=factory):
+        with patch('utils.bounded_completion.AsyncHTTPClient', side_effect=http_factory), patch('utils.bounded_completion.AsyncOpenAI', side_effect=factory):
             complete({**CONFIG, 'provider_type': 'OpenAi'}, 'Return JSON', json_output=True, extra_body={})
         for name in ('max_tokens', 'max_completion_tokens', 'max_output_tokens'):
             self.assertNotIn(name, requests[1])
         self.assertTrue(clients[1].is_closed())
+
+    def test_owned_http_client_closes_if_sdk_initialization_fails(self):
+        from utils.bounded_completion import _receive
+        import queue
+        owned = []
+        def http_factory(**options):
+            client = httpx.AsyncClient(**options, transport=httpx.MockTransport(lambda _: httpx.Response(500)))
+            owned.append(client)
+            return client
+        with patch('utils.bounded_completion.AsyncHTTPClient', side_effect=http_factory), patch(
+                'utils.bounded_completion.AsyncOpenAI', side_effect=RuntimeError('SDK initialization failed')):
+            with self.assertRaisesRegex(RuntimeError, 'SDK initialization failed'):
+                asyncio.run(_receive(CONFIG, {}, 1, queue.Queue()))
+        self.assertEqual(len(owned), 1)
+        self.assertTrue(owned[0].is_closed)
 
     def test_reasoning_channel_is_used_only_when_content_is_empty(self):
         class ReasoningStream(FakeStream):

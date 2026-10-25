@@ -1,0 +1,13 @@
+{
+  "review_id": "7f000a5903994bd380f360eba7964f94",
+  "review_status": "completed",
+  "review_error": "",
+  "fixed_result_id": "db8395139fd6602f97e1c426248d0dc38ce79d07",
+  "fixed_result_unchanged": true,
+  "prior_reports_and_source_experiment_unchanged": true,
+  "provider_calls": 1,
+  "no_market_reimport": true,
+  "no_recalculation": true,
+  "snapshot_roundtrip": true,
+  "restored_execution_jobs": false
+}

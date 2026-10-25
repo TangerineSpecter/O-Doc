@@ -1,0 +1,4658 @@
+{
+  "source": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01.zip",
+  "archive_sha256": "cf873a185bd5b24b8e00034e49583fcb49928e0c3a45c6fc27a632a683655417",
+  "normalized_csv_sha256": "14b48319e5e446d15d8add8f3cc5d9728c0d96469591265f8e9efbe61eb05b68",
+  "row_count": 744,
+  "source_analysis": "synthetic_fixture_not_real_ai",
+  "scope": "controlled_momentum_expression_next_open_long_flat_not_native_platform",
+  "reference": "independent_decimal_ledger_45_digits",
+  "tolerance": 2e-11,
+  "request": {
+    "version": 1,
+    "engine_version": "quant-local-search-4",
+    "name": "真实数据独立账本核对",
+    "dataset_hash": "66c411d6a2d48ff58f26148f5ab9d330d355c25394ffbe70f35f8f9e725b4c03",
+    "seeds": [
+      {
+        "id": "4fa55eda8010d6c27221048c1e0de56108b1e268",
+        "candidate": {
+          "name": "动量",
+          "role": "factor",
+          "family": "momentum",
+          "summary": "收盘价相对变化",
+          "formula": "close / close[N] - 1",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "收盘价",
+              "availability": "收盘后",
+              "missing_policy": "未知"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "比率",
+          "timeframe": "N根K线，交易周期未知",
+          "parameters": [
+            {
+              "name": "N",
+              "type": "int",
+              "default_value": "20",
+              "category": "signal",
+              "meaning": "窗口",
+              "constraints": "正整数",
+              "effect": "改变跨度",
+              "suggestion": "比较邻近窗口，待验证",
+              "evidence": "N=20"
+            }
+          ],
+          "dependencies": [
+            "pandas价格序列"
+          ],
+          "limitations": "尚未验证复权、缺失处理与实际参数",
+          "tags": [
+            "动量"
+          ],
+          "expression": {
+            "op": "sub",
+            "args": [
+              {
+                "op": "div",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "lag",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "close"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "N"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 1
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "close / close.shift(N) - 1"
+            }
+          ]
+        },
+        "bindings": {
+          "close": "close"
+        },
+        "parameters": {
+          "N": 5
+        },
+        "variants": [
+          {
+            "N": 3
+          },
+          {
+            "N": 8
+          },
+          {
+            "N": 0
+          }
+        ]
+      }
+    ],
+    "config": {
+      "seed": 123,
+      "max_candidates": 12,
+      "generations": 1,
+      "threshold": 0,
+      "fee_bps": 5,
+      "slippage_bps": 5,
+      "gap": 2,
+      "seconds": 30,
+      "walk_forward": {
+        "version": 1,
+        "mode": "expanding",
+        "folds": 3,
+        "train_bars": 200,
+        "validation_bars": 80,
+        "test_bars": 80,
+        "warmup_bars": 20
+      }
+    }
+  },
+  "outcome": {
+    "version": 1,
+    "status": "completed",
+    "error": "",
+    "output": {
+      "engine_version": "quant-local-search-4",
+      "dataset_hash": "66c411d6a2d48ff58f26148f5ab9d330d355c25394ffbe70f35f8f9e725b4c03",
+      "config": {
+        "seed": 123,
+        "max_candidates": 12,
+        "generations": 1,
+        "threshold": 0,
+        "fee_bps": 5,
+        "slippage_bps": 5,
+        "gap": 2,
+        "seconds": 30,
+        "walk_forward": {
+          "version": 1,
+          "mode": "expanding",
+          "folds": 3,
+          "train_bars": 200,
+          "validation_bars": 80,
+          "test_bars": 80,
+          "warmup_bars": 20
+        }
+      },
+      "partitions": {
+        "train": [
+          217,
+          577
+        ],
+        "validation": [
+          580,
+          660
+        ],
+        "holdout": [
+          663,
+          743
+        ]
+      },
+      "seed_plan": [
+        {
+          "id": "4fa55eda8010d6c27221048c1e0de56108b1e268",
+          "source_hash": "a05afebb7c62289443600981f37897cf50067c3affc78bbdfea4f4a52b4e710a",
+          "bindings": {
+            "close": "close"
+          },
+          "parameters": {
+            "N": 5
+          },
+          "variants": [
+            {
+              "N": 3
+            },
+            {
+              "N": 8
+            },
+            {
+              "N": 0
+            }
+          ]
+        }
+      ],
+      "attempts": [
+        {
+          "id": "attempt-1",
+          "parents": [
+            "4fa55eda8010d6c27221048c1e0de56108b1e268"
+          ],
+          "operation": "source_candidate",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 5
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.0968925882934808,
+              "max_drawdown": 0.11677489121028839,
+              "entries": 23,
+              "turnover": 46,
+              "exposure_fraction": 0.435,
+              "missing_signals": 0,
+              "bars": 200,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-18T09:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.05691461450867963,
+              "max_drawdown": 0.05691461450867963,
+              "entries": 9,
+              "turnover": 18,
+              "exposure_fraction": 0.4375,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-18T12:00:00+00:00",
+              "end": "2024-01-21T20:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 5
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "14b36446ad9a913b11030a0c0ae6798d0d4a35eb7a50178cb8b17155abe23787",
+          "complexity": 7,
+          "fold": 1
+        },
+        {
+          "id": "attempt-2",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 3
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.12358365180255837,
+              "max_drawdown": 0.14265684430848702,
+              "entries": 31,
+              "turnover": 62,
+              "exposure_fraction": 0.445,
+              "missing_signals": 0,
+              "bars": 200,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-18T09:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.04104538649787359,
+              "max_drawdown": 0.045266787322703395,
+              "entries": 14,
+              "turnover": 28,
+              "exposure_fraction": 0.4875,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-18T12:00:00+00:00",
+              "end": "2024-01-21T20:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 3
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "4918afe9be0a68776beb887b812043f0ac6587e8176f3596e57e26425fa1ffa1",
+          "complexity": 7,
+          "fold": 1
+        },
+        {
+          "id": "attempt-3",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 8
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.1182385809072809,
+              "max_drawdown": 0.13639207067625891,
+              "entries": 19,
+              "turnover": 38,
+              "exposure_fraction": 0.425,
+              "missing_signals": 0,
+              "bars": 200,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-18T09:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.025912805833161245,
+              "max_drawdown": 0.03476806336684879,
+              "entries": 7,
+              "turnover": 14,
+              "exposure_fraction": 0.4875,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-18T12:00:00+00:00",
+              "end": "2024-01-21T20:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 8
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "d9a005085a158d83e4000c39da979f2f054ea910b0cbc32e48580c360f22b807",
+          "complexity": 7,
+          "fold": 1
+        },
+        {
+          "id": "attempt-4",
+          "parents": [
+            "attempt-1"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 0
+          },
+          "status": "rejected",
+          "reason": "表达式类型、窗口、单位、参数或输入合同不满足计算规则",
+          "metrics": {},
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 0
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "821af2b1180a4d35836a529089efd9807a3663f5380b3afb993a6eb1c1084982",
+          "complexity": 7,
+          "fold": 1
+        },
+        {
+          "id": "attempt-5",
+          "parents": [
+            "4fa55eda8010d6c27221048c1e0de56108b1e268"
+          ],
+          "operation": "source_candidate",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 5
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.15415762678806022,
+              "max_drawdown": 0.1727792149469849,
+              "entries": 32,
+              "turnover": 64,
+              "exposure_fraction": 0.44285714285714284,
+              "missing_signals": 0,
+              "bars": 280,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-21T17:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.04180897637899361,
+              "max_drawdown": 0.04257985346558324,
+              "entries": 9,
+              "turnover": 18,
+              "exposure_fraction": 0.4,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-21T20:00:00+00:00",
+              "end": "2024-01-25T04:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 5
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "14b36446ad9a913b11030a0c0ae6798d0d4a35eb7a50178cb8b17155abe23787",
+          "complexity": 7,
+          "fold": 2
+        },
+        {
+          "id": "attempt-6",
+          "parents": [
+            "attempt-5"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 3
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.15864619265174573,
+              "max_drawdown": 0.17695632934209204,
+              "entries": 44,
+              "turnover": 88,
+              "exposure_fraction": 0.45357142857142857,
+              "missing_signals": 0,
+              "bars": 280,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-21T17:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.05994963395212505,
+              "max_drawdown": 0.06628090498938577,
+              "entries": 14,
+              "turnover": 28,
+              "exposure_fraction": 0.4875,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-21T20:00:00+00:00",
+              "end": "2024-01-25T04:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 3
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "4918afe9be0a68776beb887b812043f0ac6587e8176f3596e57e26425fa1ffa1",
+          "complexity": 7,
+          "fold": 2
+        },
+        {
+          "id": "attempt-7",
+          "parents": [
+            "attempt-5"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 8
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.14700213745045954,
+              "max_drawdown": 0.16456345010880447,
+              "entries": 26,
+              "turnover": 52,
+              "exposure_fraction": 0.45,
+              "missing_signals": 0,
+              "bars": 280,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-21T17:00:00+00:00"
+            },
+            "validation": {
+              "total_return": -0.023634366661087536,
+              "max_drawdown": 0.035402276893731655,
+              "entries": 8,
+              "turnover": 16,
+              "exposure_fraction": 0.4,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-21T20:00:00+00:00",
+              "end": "2024-01-25T04:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 8
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "d9a005085a158d83e4000c39da979f2f054ea910b0cbc32e48580c360f22b807",
+          "complexity": 7,
+          "fold": 2
+        },
+        {
+          "id": "attempt-8",
+          "parents": [
+            "attempt-5"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 0
+          },
+          "status": "rejected",
+          "reason": "表达式类型、窗口、单位、参数或输入合同不满足计算规则",
+          "metrics": {},
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 0
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "821af2b1180a4d35836a529089efd9807a3663f5380b3afb993a6eb1c1084982",
+          "complexity": 7,
+          "fold": 2
+        },
+        {
+          "id": "attempt-9",
+          "parents": [
+            "4fa55eda8010d6c27221048c1e0de56108b1e268"
+          ],
+          "operation": "source_candidate",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 5
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.18631816534625745,
+              "max_drawdown": 0.20433017678123733,
+              "entries": 41,
+              "turnover": 82,
+              "exposure_fraction": 0.425,
+              "missing_signals": 0,
+              "bars": 360,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-25T01:00:00+00:00"
+            },
+            "validation": {
+              "total_return": 0.01590474668258035,
+              "max_drawdown": 0.014752832654179704,
+              "entries": 10,
+              "turnover": 20,
+              "exposure_fraction": 0.6625,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-25T04:00:00+00:00",
+              "end": "2024-01-28T12:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 5
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "14b36446ad9a913b11030a0c0ae6798d0d4a35eb7a50178cb8b17155abe23787",
+          "complexity": 7,
+          "fold": 3
+        },
+        {
+          "id": "attempt-10",
+          "parents": [
+            "attempt-9"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 3
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.20379334723633136,
+              "max_drawdown": 0.23080225565027446,
+              "entries": 58,
+              "turnover": 116,
+              "exposure_fraction": 0.4583333333333333,
+              "missing_signals": 0,
+              "bars": 360,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-25T01:00:00+00:00"
+            },
+            "validation": {
+              "total_return": 0.015687466428833563,
+              "max_drawdown": 0.021355435256420696,
+              "entries": 12,
+              "turnover": 24,
+              "exposure_fraction": 0.575,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-25T04:00:00+00:00",
+              "end": "2024-01-28T12:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 3
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "4918afe9be0a68776beb887b812043f0ac6587e8176f3596e57e26425fa1ffa1",
+          "complexity": 7,
+          "fold": 3
+        },
+        {
+          "id": "attempt-11",
+          "parents": [
+            "attempt-9"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 8
+          },
+          "status": "evaluated",
+          "reason": "",
+          "metrics": {
+            "train": {
+              "total_return": -0.16699922971836045,
+              "max_drawdown": 0.19413980617519655,
+              "entries": 33,
+              "turnover": 66,
+              "exposure_fraction": 0.4361111111111111,
+              "missing_signals": 0,
+              "bars": 360,
+              "start": "2024-01-10T01:00:00+00:00",
+              "end": "2024-01-25T01:00:00+00:00"
+            },
+            "validation": {
+              "total_return": 0.051232244901318946,
+              "max_drawdown": 0.012362173086714168,
+              "entries": 6,
+              "turnover": 12,
+              "exposure_fraction": 0.7,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-25T04:00:00+00:00",
+              "end": "2024-01-28T12:00:00+00:00"
+            }
+          },
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 8
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "d9a005085a158d83e4000c39da979f2f054ea910b0cbc32e48580c360f22b807",
+          "complexity": 7,
+          "fold": 3
+        },
+        {
+          "id": "attempt-12",
+          "parents": [
+            "attempt-9"
+          ],
+          "operation": "parameter_variant",
+          "generation": 0,
+          "requested_parameters": {
+            "N": 0
+          },
+          "status": "rejected",
+          "reason": "表达式类型、窗口、单位、参数或输入合同不满足计算规则",
+          "metrics": {},
+          "recipe": {
+            "expression": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "op": "input",
+                      "name": "i0"
+                    },
+                    {
+                      "op": "lag",
+                      "args": [
+                        {
+                          "op": "input",
+                          "name": "i0"
+                        },
+                        {
+                          "op": "parameter",
+                          "name": "p0"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "constant",
+                  "value": 1
+                }
+              ]
+            },
+            "bindings": {
+              "i0": "close"
+            },
+            "parameters": {
+              "p0": 0
+            },
+            "parameter_names": {
+              "p0": "N"
+            },
+            "output_type": "numeric_series",
+            "units": "比率"
+          },
+          "fingerprint": "821af2b1180a4d35836a529089efd9807a3663f5380b3afb993a6eb1c1084982",
+          "complexity": 7,
+          "fold": 3
+        }
+      ],
+      "selection_rule": "train_pareto_then_validation_return_minus_drawdown_v1",
+      "frontier_ids": [
+        "attempt-11"
+      ],
+      "selected_id": "attempt-11",
+      "holdout_status": "excluded_from_this_fold_selection_prior_usage_unattested",
+      "holdout": {
+        "total_return": -0.04453079732894427,
+        "max_drawdown": 0.05649624572855094,
+        "entries": 8,
+        "turnover": 16,
+        "exposure_fraction": 0.5125,
+        "missing_signals": 0,
+        "bars": 80,
+        "start": "2024-01-28T15:00:00+00:00",
+        "end": "2024-01-31T23:00:00+00:00",
+        "curve": [
+          {
+            "timestamp": "2024-01-28T15:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T16:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T17:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T18:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T19:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T20:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T21:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T22:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T23:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-29T00:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-29T01:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-29T02:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-29T03:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-29T04:00:00+00:00",
+            "equity": 1.0012145306215607
+          },
+          {
+            "timestamp": "2024-01-29T05:00:00+00:00",
+            "equity": 0.9985373681623656
+          },
+          {
+            "timestamp": "2024-01-29T06:00:00+00:00",
+            "equity": 0.9967925649587716
+          },
+          {
+            "timestamp": "2024-01-29T07:00:00+00:00",
+            "equity": 0.9972421882324644
+          },
+          {
+            "timestamp": "2024-01-29T08:00:00+00:00",
+            "equity": 0.9946454423503632
+          },
+          {
+            "timestamp": "2024-01-29T09:00:00+00:00",
+            "equity": 0.9962868866004572
+          },
+          {
+            "timestamp": "2024-01-29T10:00:00+00:00",
+            "equity": 1.0003798538551945
+          },
+          {
+            "timestamp": "2024-01-29T11:00:00+00:00",
+            "equity": 1.0007885592823071
+          },
+          {
+            "timestamp": "2024-01-29T12:00:00+00:00",
+            "equity": 0.999222091664386
+          },
+          {
+            "timestamp": "2024-01-29T13:00:00+00:00",
+            "equity": 0.9982228695727217
+          },
+          {
+            "timestamp": "2024-01-29T14:00:00+00:00",
+            "equity": 0.9982228695727217
+          },
+          {
+            "timestamp": "2024-01-29T15:00:00+00:00",
+            "equity": 0.9982228695727217
+          },
+          {
+            "timestamp": "2024-01-29T16:00:00+00:00",
+            "equity": 0.9982228695727217
+          },
+          {
+            "timestamp": "2024-01-29T17:00:00+00:00",
+            "equity": 1.010280176348825
+          },
+          {
+            "timestamp": "2024-01-29T18:00:00+00:00",
+            "equity": 1.0055222723141228
+          },
+          {
+            "timestamp": "2024-01-29T19:00:00+00:00",
+            "equity": 1.0062748373268369
+          },
+          {
+            "timestamp": "2024-01-29T20:00:00+00:00",
+            "equity": 1.0055089422315482
+          },
+          {
+            "timestamp": "2024-01-29T21:00:00+00:00",
+            "equity": 1.0090547441963627
+          },
+          {
+            "timestamp": "2024-01-29T22:00:00+00:00",
+            "equity": 1.0097254578248476
+          },
+          {
+            "timestamp": "2024-01-29T23:00:00+00:00",
+            "equity": 1.0082011511893998
+          },
+          {
+            "timestamp": "2024-01-30T00:00:00+00:00",
+            "equity": 1.012681929823211
+          },
+          {
+            "timestamp": "2024-01-30T01:00:00+00:00",
+            "equity": 1.0093917380382897
+          },
+          {
+            "timestamp": "2024-01-30T02:00:00+00:00",
+            "equity": 1.0083823463002515
+          },
+          {
+            "timestamp": "2024-01-30T03:00:00+00:00",
+            "equity": 1.0114471029702263
+          },
+          {
+            "timestamp": "2024-01-30T04:00:00+00:00",
+            "equity": 1.0092338236049718
+          },
+          {
+            "timestamp": "2024-01-30T05:00:00+00:00",
+            "equity": 1.0069563071919203
+          },
+          {
+            "timestamp": "2024-01-30T06:00:00+00:00",
+            "equity": 1.005646752647118
+          },
+          {
+            "timestamp": "2024-01-30T07:00:00+00:00",
+            "equity": 1.0050820695735225
+          },
+          {
+            "timestamp": "2024-01-30T08:00:00+00:00",
+            "equity": 1.00548929071407
+          },
+          {
+            "timestamp": "2024-01-30T09:00:00+00:00",
+            "equity": 1.0072021240535263
+          },
+          {
+            "timestamp": "2024-01-30T10:00:00+00:00",
+            "equity": 1.004704763881227
+          },
+          {
+            "timestamp": "2024-01-30T11:00:00+00:00",
+            "equity": 1.0037000591173457
+          },
+          {
+            "timestamp": "2024-01-30T12:00:00+00:00",
+            "equity": 1.0037000591173457
+          },
+          {
+            "timestamp": "2024-01-30T13:00:00+00:00",
+            "equity": 0.9993981604700899
+          },
+          {
+            "timestamp": "2024-01-30T14:00:00+00:00",
+            "equity": 0.9983987623096198
+          },
+          {
+            "timestamp": "2024-01-30T15:00:00+00:00",
+            "equity": 0.9983987623096198
+          },
+          {
+            "timestamp": "2024-01-30T16:00:00+00:00",
+            "equity": 0.9951405315601589
+          },
+          {
+            "timestamp": "2024-01-30T17:00:00+00:00",
+            "equity": 0.9979746132390704
+          },
+          {
+            "timestamp": "2024-01-30T18:00:00+00:00",
+            "equity": 0.9956638489979956
+          },
+          {
+            "timestamp": "2024-01-30T19:00:00+00:00",
+            "equity": 0.9950519736772108
+          },
+          {
+            "timestamp": "2024-01-30T20:00:00+00:00",
+            "equity": 0.9940569217035335
+          },
+          {
+            "timestamp": "2024-01-30T21:00:00+00:00",
+            "equity": 0.993361823566318
+          },
+          {
+            "timestamp": "2024-01-30T22:00:00+00:00",
+            "equity": 0.993019081344285
+          },
+          {
+            "timestamp": "2024-01-30T23:00:00+00:00",
+            "equity": 0.9880412237496353
+          },
+          {
+            "timestamp": "2024-01-31T00:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T01:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T02:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T03:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T04:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T05:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T06:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T07:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T08:00:00+00:00",
+            "equity": 0.9870531825258857
+          },
+          {
+            "timestamp": "2024-01-31T09:00:00+00:00",
+            "equity": 0.9844167308420816
+          },
+          {
+            "timestamp": "2024-01-31T10:00:00+00:00",
+            "equity": 0.9768119982159267
+          },
+          {
+            "timestamp": "2024-01-31T11:00:00+00:00",
+            "equity": 0.9758351862177107
+          },
+          {
+            "timestamp": "2024-01-31T12:00:00+00:00",
+            "equity": 0.9758351862177107
+          },
+          {
+            "timestamp": "2024-01-31T13:00:00+00:00",
+            "equity": 0.9758351862177107
+          },
+          {
+            "timestamp": "2024-01-31T14:00:00+00:00",
+            "equity": 0.9758351862177107
+          },
+          {
+            "timestamp": "2024-01-31T15:00:00+00:00",
+            "equity": 0.9758351862177107
+          },
+          {
+            "timestamp": "2024-01-31T16:00:00+00:00",
+            "equity": 0.9758351862177107
+          },
+          {
+            "timestamp": "2024-01-31T17:00:00+00:00",
+            "equity": 0.9774155934388548
+          },
+          {
+            "timestamp": "2024-01-31T18:00:00+00:00",
+            "equity": 0.9828165267152008
+          },
+          {
+            "timestamp": "2024-01-31T19:00:00+00:00",
+            "equity": 0.9782827374111674
+          },
+          {
+            "timestamp": "2024-01-31T20:00:00+00:00",
+            "equity": 0.9742640185869289
+          },
+          {
+            "timestamp": "2024-01-31T21:00:00+00:00",
+            "equity": 0.9564256282993551
+          },
+          {
+            "timestamp": "2024-01-31T22:00:00+00:00",
+            "equity": 0.9554692026710557
+          },
+          {
+            "timestamp": "2024-01-31T23:00:00+00:00",
+            "equity": 0.9554692026710557
+          }
+        ],
+        "returns": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0012145306215607388,
+          -0.0026739149076603352,
+          -0.0017473589464208628,
+          0.00045107005158229185,
+          -0.002603927022686081,
+          0.0016502807736344938,
+          0.004108221547212576,
+          0.0004085502377297878,
+          -0.0015652333386430017,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.012078772329934928,
+          -0.004709489650581156,
+          0.0007484319675805651,
+          -0.0007611191961465202,
+          0.0035263753666330278,
+          0.0006646949854232087,
+          -0.0015096248427086678,
+          0.004444330011451836,
+          -0.0032489883427619937,
+          -0.0010000000000000009,
+          0.0030392803694148096,
+          -0.0021882304657899754,
+          -0.002256678640551568,
+          -0.0013005078129498804,
+          -0.000561512352234117,
+          0.00040516207867513643,
+          0.001703482429176173,
+          -0.002479502487791163,
+          -0.0010000000000000009,
+          0.0,
+          -0.004286040045707429,
+          -0.0010000000000000009,
+          0.0,
+          -0.003263456318719271,
+          0.0028479210614287265,
+          -0.002315453930811784,
+          -0.0006145400592787453,
+          -0.0010000000000000009,
+          -0.0006992538576406915,
+          -0.00034503260936935565,
+          -0.00501285190603884,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -0.0026710330613163302,
+          -0.007725115175206021,
+          -0.0010000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.001619543180513494,
+          0.005525728577077338,
+          -0.00461305765704445,
+          -0.004107931859120062,
+          -0.018309605966405962,
+          -0.0010000000000000009,
+          0.0
+        ]
+      },
+      "buy_hold_baseline": {
+        "total_return": 0.006687488556327503,
+        "max_drawdown": 0.028211068860247934,
+        "entries": 1,
+        "turnover": 2,
+        "exposure_fraction": 1.0,
+        "missing_signals": 0,
+        "bars": 80,
+        "start": "2024-01-28T15:00:00+00:00",
+        "end": "2024-01-31T23:00:00+00:00",
+        "curve": [
+          {
+            "timestamp": "2024-01-28T15:00:00+00:00",
+            "equity": 1.0
+          },
+          {
+            "timestamp": "2024-01-28T16:00:00+00:00",
+            "equity": 0.9982912883087401
+          },
+          {
+            "timestamp": "2024-01-28T17:00:00+00:00",
+            "equity": 0.9995752376560727
+          },
+          {
+            "timestamp": "2024-01-28T18:00:00+00:00",
+            "equity": 0.9961689330306471
+          },
+          {
+            "timestamp": "2024-01-28T19:00:00+00:00",
+            "equity": 0.9915271076901249
+          },
+          {
+            "timestamp": "2024-01-28T20:00:00+00:00",
+            "equity": 0.9871387648978436
+          },
+          {
+            "timestamp": "2024-01-28T21:00:00+00:00",
+            "equity": 0.9908991891316686
+          },
+          {
+            "timestamp": "2024-01-28T22:00:00+00:00",
+            "equity": 0.9917142075766175
+          },
+          {
+            "timestamp": "2024-01-28T23:00:00+00:00",
+            "equity": 0.9882750659761637
+          },
+          {
+            "timestamp": "2024-01-29T00:00:00+00:00",
+            "equity": 0.9929298843643589
+          },
+          {
+            "timestamp": "2024-01-29T01:00:00+00:00",
+            "equity": 0.991521437996595
+          },
+          {
+            "timestamp": "2024-01-29T02:00:00+00:00",
+            "equity": 0.9959811244324633
+          },
+          {
+            "timestamp": "2024-01-29T03:00:00+00:00",
+            "equity": 0.9978084194097617
+          },
+          {
+            "timestamp": "2024-01-29T04:00:00+00:00",
+            "equity": 1.0000203085981842
+          },
+          {
+            "timestamp": "2024-01-29T05:00:00+00:00",
+            "equity": 0.9973463393870605
+          },
+          {
+            "timestamp": "2024-01-29T06:00:00+00:00",
+            "equity": 0.9956036173382524
+          },
+          {
+            "timestamp": "2024-01-29T07:00:00+00:00",
+            "equity": 0.9960527043132807
+          },
+          {
+            "timestamp": "2024-01-29T08:00:00+00:00",
+            "equity": 0.9934590557604999
+          },
+          {
+            "timestamp": "2024-01-29T09:00:00+00:00",
+            "equity": 0.9950985421396145
+          },
+          {
+            "timestamp": "2024-01-29T10:00:00+00:00",
+            "equity": 0.9991866274120322
+          },
+          {
+            "timestamp": "2024-01-29T11:00:00+00:00",
+            "equity": 0.9995948453461978
+          },
+          {
+            "timestamp": "2024-01-29T12:00:00+00:00",
+            "equity": 0.9980302461691263
+          },
+          {
+            "timestamp": "2024-01-29T13:00:00+00:00",
+            "equity": 0.9946218154086268
+          },
+          {
+            "timestamp": "2024-01-29T14:00:00+00:00",
+            "equity": 0.9923548829455168
+          },
+          {
+            "timestamp": "2024-01-29T15:00:00+00:00",
+            "equity": 0.9910591217366632
+          },
+          {
+            "timestamp": "2024-01-29T16:00:00+00:00",
+            "equity": 1.007356892026107
+          },
+          {
+            "timestamp": "2024-01-29T17:00:00+00:00",
+            "equity": 1.0205450716515327
+          },
+          {
+            "timestamp": "2024-01-29T18:00:00+00:00",
+            "equity": 1.0157388251986383
+          },
+          {
+            "timestamp": "2024-01-29T19:00:00+00:00",
+            "equity": 1.0164990366061297
+          },
+          {
+            "timestamp": "2024-01-29T20:00:00+00:00",
+            "equity": 1.0157253596765043
+          },
+          {
+            "timestamp": "2024-01-29T21:00:00+00:00",
+            "equity": 1.019307188564132
+          },
+          {
+            "timestamp": "2024-01-29T22:00:00+00:00",
+            "equity": 1.0199847169409764
+          },
+          {
+            "timestamp": "2024-01-29T23:00:00+00:00",
+            "equity": 1.018444922673099
+          },
+          {
+            "timestamp": "2024-01-30T00:00:00+00:00",
+            "equity": 1.0229712280079457
+          },
+          {
+            "timestamp": "2024-01-30T01:00:00+00:00",
+            "equity": 1.019647606413167
+          },
+          {
+            "timestamp": "2024-01-30T02:00:00+00:00",
+            "equity": 1.0262029533200911
+          },
+          {
+            "timestamp": "2024-01-30T03:00:00+00:00",
+            "equity": 1.0303522240351877
+          },
+          {
+            "timestamp": "2024-01-30T04:00:00+00:00",
+            "equity": 1.0280975759080593
+          },
+          {
+            "timestamp": "2024-01-30T05:00:00+00:00",
+            "equity": 1.0257774900681047
+          },
+          {
+            "timestamp": "2024-01-30T06:00:00+00:00",
+            "equity": 1.024443458427923
+          },
+          {
+            "timestamp": "2024-01-30T07:00:00+00:00",
+            "equity": 1.0238682207718504
+          },
+          {
+            "timestamp": "2024-01-30T08:00:00+00:00",
+            "equity": 1.0242830533484677
+          },
+          {
+            "timestamp": "2024-01-30T09:00:00+00:00",
+            "equity": 1.0260279015323497
+          },
+          {
+            "timestamp": "2024-01-30T10:00:00+00:00",
+            "equity": 1.023483862797957
+          },
+          {
+            "timestamp": "2024-01-30T11:00:00+00:00",
+            "equity": 1.0272069615493757
+          },
+          {
+            "timestamp": "2024-01-30T12:00:00+00:00",
+            "equity": 1.0285237478717366
+          },
+          {
+            "timestamp": "2024-01-30T13:00:00+00:00",
+            "equity": 1.0251405944948921
+          },
+          {
+            "timestamp": "2024-01-30T14:00:00+00:00",
+            "equity": 1.0226145097900112
+          },
+          {
+            "timestamp": "2024-01-30T15:00:00+00:00",
+            "equity": 1.0270177355278092
+          },
+          {
+            "timestamp": "2024-01-30T16:00:00+00:00",
+            "equity": 1.0246907988081724
+          },
+          {
+            "timestamp": "2024-01-30T17:00:00+00:00",
+            "equity": 1.0276090373155504
+          },
+          {
+            "timestamp": "2024-01-30T18:00:00+00:00",
+            "equity": 1.0252296559307603
+          },
+          {
+            "timestamp": "2024-01-30T19:00:00+00:00",
+            "equity": 1.0245996112372302
+          },
+          {
+            "timestamp": "2024-01-30T20:00:00+00:00",
+            "equity": 1.0287656547956865
+          },
+          {
+            "timestamp": "2024-01-30T21:00:00+00:00",
+            "equity": 1.029075361804767
+          },
+          {
+            "timestamp": "2024-01-30T22:00:00+00:00",
+            "equity": 1.0287202972474458
+          },
+          {
+            "timestamp": "2024-01-30T23:00:00+00:00",
+            "equity": 1.023563474744608
+          },
+          {
+            "timestamp": "2024-01-31T00:00:00+00:00",
+            "equity": 1.0144286535187284
+          },
+          {
+            "timestamp": "2024-01-31T01:00:00+00:00",
+            "equity": 1.0142420261066964
+          },
+          {
+            "timestamp": "2024-01-31T02:00:00+00:00",
+            "equity": 1.0106892543984103
+          },
+          {
+            "timestamp": "2024-01-31T03:00:00+00:00",
+            "equity": 1.0130563514472186
+          },
+          {
+            "timestamp": "2024-01-31T04:00:00+00:00",
+            "equity": 1.0141678476163445
+          },
+          {
+            "timestamp": "2024-01-31T05:00:00+00:00",
+            "equity": 1.0149375085130528
+          },
+          {
+            "timestamp": "2024-01-31T06:00:00+00:00",
+            "equity": 1.0153476163450619
+          },
+          {
+            "timestamp": "2024-01-31T07:00:00+00:00",
+            "equity": 1.0152512315550504
+          },
+          {
+            "timestamp": "2024-01-31T08:00:00+00:00",
+            "equity": 1.0170015131952321
+          },
+          {
+            "timestamp": "2024-01-31T09:00:00+00:00",
+            "equity": 1.015300368898978
+          },
+          {
+            "timestamp": "2024-01-31T10:00:00+00:00",
+            "equity": 1.0074570566118042
+          },
+          {
+            "timestamp": "2024-01-31T11:00:00+00:00",
+            "equity": 1.0012848864926214
+          },
+          {
+            "timestamp": "2024-01-31T12:00:00+00:00",
+            "equity": 1.0075040678206577
+          },
+          {
+            "timestamp": "2024-01-31T13:00:00+00:00",
+            "equity": 1.0069092224744602
+          },
+          {
+            "timestamp": "2024-01-31T14:00:00+00:00",
+            "equity": 1.0111877149545965
+          },
+          {
+            "timestamp": "2024-01-31T15:00:00+00:00",
+            "equity": 1.0130343813847895
+          },
+          {
+            "timestamp": "2024-01-31T16:00:00+00:00",
+            "equity": 1.0243508534335977
+          },
+          {
+            "timestamp": "2024-01-31T17:00:00+00:00",
+            "equity": 1.0270368707434727
+          },
+          {
+            "timestamp": "2024-01-31T18:00:00+00:00",
+            "equity": 1.032711997729852
+          },
+          {
+            "timestamp": "2024-01-31T19:00:00+00:00",
+            "equity": 1.0279480377412027
+          },
+          {
+            "timestamp": "2024-01-31T20:00:00+00:00",
+            "equity": 1.0237252972474455
+          },
+          {
+            "timestamp": "2024-01-31T21:00:00+00:00",
+            "equity": 1.004981290437003
+          },
+          {
+            "timestamp": "2024-01-31T22:00:00+00:00",
+            "equity": 1.0037039557321223
+          },
+          {
+            "timestamp": "2024-01-31T23:00:00+00:00",
+            "equity": 1.0066874885563275
+          }
+        ],
+        "returns": [
+          -0.0017087116912598566,
+          0.0012861470017511145,
+          -0.0034077521101993913,
+          -0.004659676874684715,
+          -0.004425842478986253,
+          0.003809418055033209,
+          0.000822503897357274,
+          -0.0034678756986429304,
+          0.004710043335554026,
+          -0.0014184751511086002,
+          0.004497821494287901,
+          0.00183466828082679,
+          0.002216747368929628,
+          -0.0026739149076603352,
+          -0.0017473589464208628,
+          0.00045107005158229185,
+          -0.002603927022686081,
+          0.0016502807736344938,
+          0.004108221547212576,
+          0.0004085502377297878,
+          -0.0015652333386430017,
+          -0.0034151577806208477,
+          -0.002279190369636863,
+          -0.0013057437728400956,
+          0.01644480125553427,
+          0.01309186419412911,
+          -0.004709489650581045,
+          0.0007484319675805651,
+          -0.0007611191961465202,
+          0.0035263753666330278,
+          0.0006646949854232087,
+          -0.0015096248427087788,
+          0.004444330011451836,
+          -0.0032489883427619937,
+          0.006429031820105013,
+          0.004043323693107892,
+          -0.0021882304657900864,
+          -0.002256678640551568,
+          -0.0013005078129499914,
+          -0.000561512352234006,
+          0.00040516207867513643,
+          0.001703482429176173,
+          -0.002479502487791274,
+          0.003637672157566607,
+          0.0012819094609470838,
+          -0.003289329375082528,
+          -0.002464134888859437,
+          0.00430585102758041,
+          -0.002265722040760032,
+          0.0028479210614287265,
+          -0.002315453930811895,
+          -0.0006145400592788564,
+          0.004066021022031796,
+          0.0003010471895488198,
+          -0.0003450326093692446,
+          -0.005012851906038951,
+          -0.008924528328015047,
+          -0.00018397293036287454,
+          -0.0035028835493279287,
+          0.0023420621506629047,
+          0.0010971711174190268,
+          0.0007589087925803373,
+          0.00040407200302405855,
+          -9.492787342968434e-05,
+          0.0017239886894802048,
+          -0.0016727057670834489,
+          -0.007725115175206021,
+          -0.006126484576861824,
+          0.006211200640230841,
+          -0.0005904148332465109,
+          0.004249134266167465,
+          0.001826235033201451,
+          0.011170866711689431,
+          0.002622165345859351,
+          0.005525728577077338,
+          -0.00461305765704445,
+          -0.004107931859120173,
+          -0.018309605966405962,
+          -0.0012710034674627835,
+          0.002972522731594651
+        ]
+      },
+      "stop_reason": "generation_complete",
+      "limitations": [
+        "只验证受控表达式，未验证原平台源码等价性",
+        "固定阈值/布尔条件做多或空仓，下一根开盘成交，区间末平仓",
+        "未模拟涨跌停、停牌、流动性、成交量约束、T+1、融资与公司行动；净值回撤按开盘区间采样",
+        "留出数据在本批选择后才评价，跨批次使用历史需由持久化工作流另行检查",
+        "单位比较使用原始声明，尚未证明经济含义或尺度可比",
+        "每折从冻结父代重新搜索；扩展或滚动训练、内层验证选择、后续测试评价，后折允许使用已过去的数据",
+        "预热为首个交易信号之前额外参与计算的历史根数；不足窗口的信号继续缺失，不补造或剔除试验",
+        "逐折独立从空仓开始并在区间末平仓；均值和最差值不是连续投资组合收益或统计显著性",
+        "最终候选和顶层留出结果仅代表最后一折；不按测试收益选折，跨研究独立性仍未证明"
+      ],
+      "walk_forward": {
+        "version": 1,
+        "folds": [
+          {
+            "number": 1,
+            "calculation_start": 196,
+            "partitions": {
+              "train": [
+                217,
+                417
+              ],
+              "validation": [
+                420,
+                500
+              ],
+              "holdout": [
+                503,
+                583
+              ]
+            },
+            "seed": 123,
+            "max_candidates": 4,
+            "search_engine_version": "quant-local-search-2",
+            "attempt_ids": [
+              "attempt-1",
+              "attempt-2",
+              "attempt-3",
+              "attempt-4"
+            ],
+            "frontier_ids": [
+              "attempt-3",
+              "attempt-1"
+            ],
+            "selected_id": "attempt-3",
+            "holdout_status": "excluded_from_this_fold_selection_prior_usage_unattested",
+            "holdout": {
+              "total_return": -0.023073124934745892,
+              "max_drawdown": 0.035402276893731655,
+              "entries": 8,
+              "turnover": 16,
+              "exposure_fraction": 0.4375,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-21T23:00:00+00:00",
+              "end": "2024-01-25T07:00:00+00:00",
+              "curve": [
+                {
+                  "timestamp": "2024-01-21T23:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-22T00:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-22T01:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-22T02:00:00+00:00",
+                  "equity": 0.9919482939778089
+                },
+                {
+                  "timestamp": "2024-01-22T03:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T04:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T05:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T06:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T07:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T08:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T09:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T10:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T11:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T12:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T13:00:00+00:00",
+                  "equity": 0.9909563456838311
+                },
+                {
+                  "timestamp": "2024-01-22T14:00:00+00:00",
+                  "equity": 0.9913746110071243
+                },
+                {
+                  "timestamp": "2024-01-22T15:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T16:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T17:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T18:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T19:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T20:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T21:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T22:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-22T23:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-23T00:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-23T01:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-23T02:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-23T03:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-23T04:00:00+00:00",
+                  "equity": 0.9903832363961171
+                },
+                {
+                  "timestamp": "2024-01-23T05:00:00+00:00",
+                  "equity": 0.9910023306817154
+                },
+                {
+                  "timestamp": "2024-01-23T06:00:00+00:00",
+                  "equity": 0.9900113283510337
+                },
+                {
+                  "timestamp": "2024-01-23T07:00:00+00:00",
+                  "equity": 0.9877891546804991
+                },
+                {
+                  "timestamp": "2024-01-23T08:00:00+00:00",
+                  "equity": 0.9818796132549065
+                },
+                {
+                  "timestamp": "2024-01-23T09:00:00+00:00",
+                  "equity": 0.9741035630890109
+                },
+                {
+                  "timestamp": "2024-01-23T10:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T11:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T12:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T13:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T14:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T15:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T16:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T17:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T18:00:00+00:00",
+                  "equity": 0.9731294595259219
+                },
+                {
+                  "timestamp": "2024-01-23T19:00:00+00:00",
+                  "equity": 0.9645977231062683
+                },
+                {
+                  "timestamp": "2024-01-23T20:00:00+00:00",
+                  "equity": 0.9659676635575015
+                },
+                {
+                  "timestamp": "2024-01-23T21:00:00+00:00",
+                  "equity": 0.9666338809959615
+                },
+                {
+                  "timestamp": "2024-01-23T22:00:00+00:00",
+                  "equity": 0.9678352931099844
+                },
+                {
+                  "timestamp": "2024-01-23T23:00:00+00:00",
+                  "equity": 0.973879365760013
+                },
+                {
+                  "timestamp": "2024-01-24T00:00:00+00:00",
+                  "equity": 0.9844618596491509
+                },
+                {
+                  "timestamp": "2024-01-24T01:00:00+00:00",
+                  "equity": 0.99141865018987
+                },
+                {
+                  "timestamp": "2024-01-24T02:00:00+00:00",
+                  "equity": 0.9813131186372297
+                },
+                {
+                  "timestamp": "2024-01-24T03:00:00+00:00",
+                  "equity": 0.9811532264519992
+                },
+                {
+                  "timestamp": "2024-01-24T04:00:00+00:00",
+                  "equity": 0.9774643558205263
+                },
+                {
+                  "timestamp": "2024-01-24T05:00:00+00:00",
+                  "equity": 0.9784609677590225
+                },
+                {
+                  "timestamp": "2024-01-24T06:00:00+00:00",
+                  "equity": 0.9820254778019829
+                },
+                {
+                  "timestamp": "2024-01-24T07:00:00+00:00",
+                  "equity": 0.9842252290848982
+                },
+                {
+                  "timestamp": "2024-01-24T08:00:00+00:00",
+                  "equity": 0.9865221987643885
+                },
+                {
+                  "timestamp": "2024-01-24T09:00:00+00:00",
+                  "equity": 0.9858668382027035
+                },
+                {
+                  "timestamp": "2024-01-24T10:00:00+00:00",
+                  "equity": 0.9848809713645008
+                },
+                {
+                  "timestamp": "2024-01-24T11:00:00+00:00",
+                  "equity": 0.991949202417445
+                },
+                {
+                  "timestamp": "2024-01-24T12:00:00+00:00",
+                  "equity": 0.9884319885333238
+                },
+                {
+                  "timestamp": "2024-01-24T13:00:00+00:00",
+                  "equity": 0.9840150679944724
+                },
+                {
+                  "timestamp": "2024-01-24T14:00:00+00:00",
+                  "equity": 0.9829140335391341
+                },
+                {
+                  "timestamp": "2024-01-24T15:00:00+00:00",
+                  "equity": 0.9811718966369278
+                },
+                {
+                  "timestamp": "2024-01-24T16:00:00+00:00",
+                  "equity": 0.9845327680531779
+                },
+                {
+                  "timestamp": "2024-01-24T17:00:00+00:00",
+                  "equity": 0.9879568155924513
+                },
+                {
+                  "timestamp": "2024-01-24T18:00:00+00:00",
+                  "equity": 0.9867761349742354
+                },
+                {
+                  "timestamp": "2024-01-24T19:00:00+00:00",
+                  "equity": 0.9774132860492699
+                },
+                {
+                  "timestamp": "2024-01-24T20:00:00+00:00",
+                  "equity": 0.9764358727632206
+                },
+                {
+                  "timestamp": "2024-01-24T21:00:00+00:00",
+                  "equity": 0.9764358727632206
+                },
+                {
+                  "timestamp": "2024-01-24T22:00:00+00:00",
+                  "equity": 0.9764358727632206
+                },
+                {
+                  "timestamp": "2024-01-24T23:00:00+00:00",
+                  "equity": 0.9764358727632206
+                },
+                {
+                  "timestamp": "2024-01-25T00:00:00+00:00",
+                  "equity": 0.9764358727632206
+                },
+                {
+                  "timestamp": "2024-01-25T01:00:00+00:00",
+                  "equity": 0.9775342254601476
+                },
+                {
+                  "timestamp": "2024-01-25T02:00:00+00:00",
+                  "equity": 0.9765566912346875
+                },
+                {
+                  "timestamp": "2024-01-25T03:00:00+00:00",
+                  "equity": 0.9765566912346875
+                },
+                {
+                  "timestamp": "2024-01-25T04:00:00+00:00",
+                  "equity": 0.9773429763152277
+                },
+                {
+                  "timestamp": "2024-01-25T05:00:00+00:00",
+                  "equity": 0.9759963576803663
+                },
+                {
+                  "timestamp": "2024-01-25T06:00:00+00:00",
+                  "equity": 0.9740322436874551
+                },
+                {
+                  "timestamp": "2024-01-25T07:00:00+00:00",
+                  "equity": 0.9769268750652541
+                }
+              ],
+              "returns": [
+                0.0,
+                0.0,
+                -0.008051706022191074,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.00042208249143871335,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0006251057801129889,
+                -0.0010000000000000009,
+                -0.0022445941848320272,
+                -0.005982593954986348,
+                -0.007919555575777948,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -0.008767319020235975,
+                0.0014202194535786195,
+                0.0006896891724164078,
+                0.00124288227181224,
+                0.006244939291898399,
+                0.01086632930237652,
+                0.007066592242789715,
+                -0.010193001262085333,
+                -0.00016293696904057242,
+                -0.00375972940007796,
+                0.0010195890341797575,
+                0.0036429762253309406,
+                0.0022400144727801052,
+                0.002333784596871169,
+                -0.0006643140544692061,
+                -0.0010000000000000009,
+                0.0071767363351040725,
+                -0.0035457600808080914,
+                -0.00446861351118899,
+                -0.0011189203205823617,
+                -0.0017724204180231684,
+                0.0034253645337476435,
+                0.0034778400987547364,
+                -0.0011950731039876983,
+                -0.009488321203886874,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0011248590179493423,
+                -0.0010000000000000009,
+                0.0,
+                0.0008051607117105508,
+                -0.0013778363046496045,
+                -0.0020124193881002617,
+                0.002971802418819891
+              ]
+            },
+            "buy_hold_baseline": {
+              "total_return": -0.040314036041504075,
+              "max_drawdown": 0.06976150032461959,
+              "entries": 1,
+              "turnover": 2,
+              "exposure_fraction": 1.0,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-21T23:00:00+00:00",
+              "end": "2024-01-25T07:00:00+00:00",
+              "curve": [
+                {
+                  "timestamp": "2024-01-21T23:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-22T00:00:00+00:00",
+                  "equity": 0.9977265766731943
+                },
+                {
+                  "timestamp": "2024-01-22T01:00:00+00:00",
+                  "equity": 0.9995768437304768
+                },
+                {
+                  "timestamp": "2024-01-22T02:00:00+00:00",
+                  "equity": 0.9925210659040734
+                },
+                {
+                  "timestamp": "2024-01-22T03:00:00+00:00",
+                  "equity": 0.9914314455296577
+                },
+                {
+                  "timestamp": "2024-01-22T04:00:00+00:00",
+                  "equity": 0.98852971040792
+                },
+                {
+                  "timestamp": "2024-01-22T05:00:00+00:00",
+                  "equity": 0.9786765764209928
+                },
+                {
+                  "timestamp": "2024-01-22T06:00:00+00:00",
+                  "equity": 0.9871243136818788
+                },
+                {
+                  "timestamp": "2024-01-22T07:00:00+00:00",
+                  "equity": 0.9887444671212217
+                },
+                {
+                  "timestamp": "2024-01-22T08:00:00+00:00",
+                  "equity": 0.9848502920372326
+                },
+                {
+                  "timestamp": "2024-01-22T09:00:00+00:00",
+                  "equity": 0.98281766173737
+                },
+                {
+                  "timestamp": "2024-01-22T10:00:00+00:00",
+                  "equity": 0.9776795773776771
+                },
+                {
+                  "timestamp": "2024-01-22T11:00:00+00:00",
+                  "equity": 0.9766967354808246
+                },
+                {
+                  "timestamp": "2024-01-22T12:00:00+00:00",
+                  "equity": 0.9793846736958004
+                },
+                {
+                  "timestamp": "2024-01-22T13:00:00+00:00",
+                  "equity": 0.9810415397352942
+                },
+                {
+                  "timestamp": "2024-01-22T14:00:00+00:00",
+                  "equity": 0.9824380582508413
+                },
+                {
+                  "timestamp": "2024-01-22T15:00:00+00:00",
+                  "equity": 0.9764774196864583
+                },
+                {
+                  "timestamp": "2024-01-22T16:00:00+00:00",
+                  "equity": 0.9783308061149955
+                },
+                {
+                  "timestamp": "2024-01-22T17:00:00+00:00",
+                  "equity": 0.9722506716363956
+                },
+                {
+                  "timestamp": "2024-01-22T18:00:00+00:00",
+                  "equity": 0.9767948756995284
+                },
+                {
+                  "timestamp": "2024-01-22T19:00:00+00:00",
+                  "equity": 0.9673890115601923
+                },
+                {
+                  "timestamp": "2024-01-22T20:00:00+00:00",
+                  "equity": 0.9554948489661781
+                },
+                {
+                  "timestamp": "2024-01-22T21:00:00+00:00",
+                  "equity": 0.9641544635207459
+                },
+                {
+                  "timestamp": "2024-01-22T22:00:00+00:00",
+                  "equity": 0.9562060656122402
+                },
+                {
+                  "timestamp": "2024-01-22T23:00:00+00:00",
+                  "equity": 0.9557947885098952
+                },
+                {
+                  "timestamp": "2024-01-23T00:00:00+00:00",
+                  "equity": 0.9494411091674251
+                },
+                {
+                  "timestamp": "2024-01-23T01:00:00+00:00",
+                  "equity": 0.9567351589673573
+                },
+                {
+                  "timestamp": "2024-01-23T02:00:00+00:00",
+                  "equity": 0.9557441587149156
+                },
+                {
+                  "timestamp": "2024-01-23T03:00:00+00:00",
+                  "equity": 0.9612575274317076
+                },
+                {
+                  "timestamp": "2024-01-23T04:00:00+00:00",
+                  "equity": 0.9598168578153251
+                },
+                {
+                  "timestamp": "2024-01-23T05:00:00+00:00",
+                  "equity": 0.9613782231040994
+                },
+                {
+                  "timestamp": "2024-01-23T06:00:00+00:00",
+                  "equity": 0.9614706044835644
+                },
+                {
+                  "timestamp": "2024-01-23T07:00:00+00:00",
+                  "equity": 0.9602727659217755
+                },
+                {
+                  "timestamp": "2024-01-23T08:00:00+00:00",
+                  "equity": 0.9545278438772338
+                },
+                {
+                  "timestamp": "2024-01-23T09:00:00+00:00",
+                  "equity": 0.9469684075690206
+                },
+                {
+                  "timestamp": "2024-01-23T10:00:00+00:00",
+                  "equity": 0.9348849231350121
+                },
+                {
+                  "timestamp": "2024-01-23T11:00:00+00:00",
+                  "equity": 0.9338262565215079
+                },
+                {
+                  "timestamp": "2024-01-23T12:00:00+00:00",
+                  "equity": 0.932105563347111
+                },
+                {
+                  "timestamp": "2024-01-23T13:00:00+00:00",
+                  "equity": 0.9373873787361535
+                },
+                {
+                  "timestamp": "2024-01-23T14:00:00+00:00",
+                  "equity": 0.9325516334365274
+                },
+                {
+                  "timestamp": "2024-01-23T15:00:00+00:00",
+                  "equity": 0.9302384996753804
+                },
+                {
+                  "timestamp": "2024-01-23T16:00:00+00:00",
+                  "equity": 0.9407063897511105
+                },
+                {
+                  "timestamp": "2024-01-23T17:00:00+00:00",
+                  "equity": 0.9431922886894386
+                },
+                {
+                  "timestamp": "2024-01-23T18:00:00+00:00",
+                  "equity": 0.9453825672134789
+                },
+                {
+                  "timestamp": "2024-01-23T19:00:00+00:00",
+                  "equity": 0.9380321287793281
+                },
+                {
+                  "timestamp": "2024-01-23T20:00:00+00:00",
+                  "equity": 0.9393643402567022
+                },
+                {
+                  "timestamp": "2024-01-23T21:00:00+00:00",
+                  "equity": 0.9400122096711314
+                },
+                {
+                  "timestamp": "2024-01-23T22:00:00+00:00",
+                  "equity": 0.9411805341818187
+                },
+                {
+                  "timestamp": "2024-01-23T23:00:00+00:00",
+                  "equity": 0.9470581494805006
+                },
+                {
+                  "timestamp": "2024-01-24T00:00:00+00:00",
+                  "equity": 0.957349195201255
+                },
+                {
+                  "timestamp": "2024-01-24T01:00:00+00:00",
+                  "equity": 0.9641143915977052
+                },
+                {
+                  "timestamp": "2024-01-24T02:00:00+00:00",
+                  "equity": 0.9542871723873552
+                },
+                {
+                  "timestamp": "2024-01-24T03:00:00+00:00",
+                  "equity": 0.954131683727892
+                },
+                {
+                  "timestamp": "2024-01-24T04:00:00+00:00",
+                  "equity": 0.9505444067850344
+                },
+                {
+                  "timestamp": "2024-01-24T05:00:00+00:00",
+                  "equity": 0.9515135714386933
+                },
+                {
+                  "timestamp": "2024-01-24T06:00:00+00:00",
+                  "equity": 0.9549799127575243
+                },
+                {
+                  "timestamp": "2024-01-24T07:00:00+00:00",
+                  "equity": 0.9571190815833154
+                },
+                {
+                  "timestamp": "2024-01-24T08:00:00+00:00",
+                  "equity": 0.959352791353286
+                },
+                {
+                  "timestamp": "2024-01-24T09:00:00+00:00",
+                  "equity": 0.9587154798107957
+                },
+                {
+                  "timestamp": "2024-01-24T10:00:00+00:00",
+                  "equity": 0.9604020998530264
+                },
+                {
+                  "timestamp": "2024-01-24T11:00:00+00:00",
+                  "equity": 0.9682629154147667
+                },
+                {
+                  "timestamp": "2024-01-24T12:00:00+00:00",
+                  "equity": 0.9648296874215622
+                },
+                {
+                  "timestamp": "2024-01-24T13:00:00+00:00",
+                  "equity": 0.960518236444354
+                },
+                {
+                  "timestamp": "2024-01-24T14:00:00+00:00",
+                  "equity": 0.9594434930713065
+                },
+                {
+                  "timestamp": "2024-01-24T15:00:00+00:00",
+                  "equity": 0.9577429558342474
+                },
+                {
+                  "timestamp": "2024-01-24T16:00:00+00:00",
+                  "equity": 0.9610235745876087
+                },
+                {
+                  "timestamp": "2024-01-24T17:00:00+00:00",
+                  "equity": 0.9643658609111581
+                },
+                {
+                  "timestamp": "2024-01-24T18:00:00+00:00",
+                  "equity": 0.9632133732083792
+                },
+                {
+                  "timestamp": "2024-01-24T19:00:00+00:00",
+                  "equity": 0.9540740953354987
+                },
+                {
+                  "timestamp": "2024-01-24T20:00:00+00:00",
+                  "equity": 0.9550804524925787
+                },
+                {
+                  "timestamp": "2024-01-24T21:00:00+00:00",
+                  "equity": 0.9488743434056175
+                },
+                {
+                  "timestamp": "2024-01-24T22:00:00+00:00",
+                  "equity": 0.9548335422601907
+                },
+                {
+                  "timestamp": "2024-01-24T23:00:00+00:00",
+                  "equity": 0.9568306597180773
+                },
+                {
+                  "timestamp": "2024-01-25T00:00:00+00:00",
+                  "equity": 0.961843489324314
+                },
+                {
+                  "timestamp": "2024-01-25T01:00:00+00:00",
+                  "equity": 0.9638893169641003
+                },
+                {
+                  "timestamp": "2024-01-25T02:00:00+00:00",
+                  "equity": 0.9592988022354173
+                },
+                {
+                  "timestamp": "2024-01-25T03:00:00+00:00",
+                  "equity": 0.9583629908590197
+                },
+                {
+                  "timestamp": "2024-01-25T04:00:00+00:00",
+                  "equity": 0.9600947218086253
+                },
+                {
+                  "timestamp": "2024-01-25T05:00:00+00:00",
+                  "equity": 0.9587718684450149
+                },
+                {
+                  "timestamp": "2024-01-25T06:00:00+00:00",
+                  "equity": 0.9568424173481911
+                },
+                {
+                  "timestamp": "2024-01-25T07:00:00+00:00",
+                  "equity": 0.9596859639584959
+                }
+              ],
+              "returns": [
+                -0.0022734233268056903,
+                0.0018544830823812308,
+                -0.007058764786978089,
+                -0.001097830979963299,
+                -0.0029268136842154346,
+                -0.009967463681856636,
+                0.008631796718563844,
+                0.001641286124641983,
+                -0.003938505057153097,
+                -0.0020638977480100795,
+                -0.00522791211404372,
+                -0.0010052801752171714,
+                0.00275207044042447,
+                0.0016917418497488512,
+                0.0014235059974361253,
+                -0.006067190205350403,
+                0.0018980330637161646,
+                -0.006214804277445252,
+                0.004673901696035321,
+                -0.009629313557362962,
+                -0.012295118563349638,
+                0.009062963095967769,
+                -0.0082439051098524,
+                -0.00043011346312860077,
+                -0.006647535034560725,
+                0.007682466800208898,
+                -0.0010358146067416252,
+                0.005768665878330026,
+                -0.001498734288439496,
+                0.0016267325126255727,
+                9.609264828847053e-05,
+                -0.0012458400248568369,
+                -0.005982593954986459,
+                -0.007919555575777948,
+                -0.012760176936660539,
+                -0.0011324031303812099,
+                -0.0018426266796206514,
+                0.005666542070702718,
+                -0.00515874803663996,
+                -0.002480435053899277,
+                0.01125290995737438,
+                0.002642587491072268,
+                0.002322197234122525,
+                -0.007775094114350289,
+                0.0014202194535786195,
+                0.0006896891724164078,
+                0.00124288227181224,
+                0.006244939291898399,
+                0.01086632930237652,
+                0.007066592242789715,
+                -0.010193001262085333,
+                -0.00016293696904057242,
+                -0.00375972940007796,
+                0.0010195890341797575,
+                0.0036429762253309406,
+                0.0022400144727801052,
+                0.002333784596871169,
+                -0.0006643140544692061,
+                0.0017592498272411827,
+                0.0081849212563605,
+                -0.0035457600808080914,
+                -0.00446861351118899,
+                -0.0011189203205823617,
+                -0.0017724204180231684,
+                0.0034253645337476435,
+                0.0034778400987547364,
+                -0.0011950731039876983,
+                -0.009488321203886874,
+                0.0010547997917562668,
+                -0.00649799613295865,
+                0.0062802824167265126,
+                0.0020915870353268584,
+                0.005238993499344646,
+                0.002126986003953224,
+                -0.004762491551562609,
+                -0.0009755160479893998,
+                0.0018069676793899259,
+                -0.0013778363046496045,
+                -0.0020124193881002617,
+                0.002971802418819891
+              ]
+            },
+            "stop_reason": "generation_complete"
+          },
+          {
+            "number": 2,
+            "calculation_start": 196,
+            "partitions": {
+              "train": [
+                217,
+                497
+              ],
+              "validation": [
+                500,
+                580
+              ],
+              "holdout": [
+                583,
+                663
+              ]
+            },
+            "seed": 124,
+            "max_candidates": 4,
+            "search_engine_version": "quant-local-search-2",
+            "attempt_ids": [
+              "attempt-5",
+              "attempt-6",
+              "attempt-7",
+              "attempt-8"
+            ],
+            "frontier_ids": [
+              "attempt-7"
+            ],
+            "selected_id": "attempt-7",
+            "holdout_status": "excluded_from_this_fold_selection_prior_usage_unattested",
+            "holdout": {
+              "total_return": 0.04926926553400102,
+              "max_drawdown": 0.012362173086714168,
+              "entries": 6,
+              "turnover": 12,
+              "exposure_fraction": 0.675,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-25T07:00:00+00:00",
+              "end": "2024-01-28T15:00:00+00:00",
+              "curve": [
+                {
+                  "timestamp": "2024-01-25T07:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-25T08:00:00+00:00",
+                  "equity": 1.0013703006443608
+                },
+                {
+                  "timestamp": "2024-01-25T09:00:00+00:00",
+                  "equity": 1.000128381883756
+                },
+                {
+                  "timestamp": "2024-01-25T10:00:00+00:00",
+                  "equity": 0.9991282535018723
+                },
+                {
+                  "timestamp": "2024-01-25T11:00:00+00:00",
+                  "equity": 1.0002352642645342
+                },
+                {
+                  "timestamp": "2024-01-25T12:00:00+00:00",
+                  "equity": 1.0017828912176925
+                },
+                {
+                  "timestamp": "2024-01-25T13:00:00+00:00",
+                  "equity": 0.993847531879652
+                },
+                {
+                  "timestamp": "2024-01-25T14:00:00+00:00",
+                  "equity": 0.9928536843477723
+                },
+                {
+                  "timestamp": "2024-01-25T15:00:00+00:00",
+                  "equity": 0.9943232218969026
+                },
+                {
+                  "timestamp": "2024-01-25T16:00:00+00:00",
+                  "equity": 0.9933288986750057
+                },
+                {
+                  "timestamp": "2024-01-25T17:00:00+00:00",
+                  "equity": 0.9933288986750057
+                },
+                {
+                  "timestamp": "2024-01-25T18:00:00+00:00",
+                  "equity": 0.9933288986750057
+                },
+                {
+                  "timestamp": "2024-01-25T19:00:00+00:00",
+                  "equity": 0.9933288986750057
+                },
+                {
+                  "timestamp": "2024-01-25T20:00:00+00:00",
+                  "equity": 0.9933288986750057
+                },
+                {
+                  "timestamp": "2024-01-25T21:00:00+00:00",
+                  "equity": 0.9933288986750057
+                },
+                {
+                  "timestamp": "2024-01-25T22:00:00+00:00",
+                  "equity": 0.9933288986750057
+                },
+                {
+                  "timestamp": "2024-01-25T23:00:00+00:00",
+                  "equity": 0.9929996186629819
+                },
+                {
+                  "timestamp": "2024-01-26T00:00:00+00:00",
+                  "equity": 0.992006619044319
+                },
+                {
+                  "timestamp": "2024-01-26T01:00:00+00:00",
+                  "equity": 0.9893986777211504
+                },
+                {
+                  "timestamp": "2024-01-26T02:00:00+00:00",
+                  "equity": 0.990436288341478
+                },
+                {
+                  "timestamp": "2024-01-26T03:00:00+00:00",
+                  "equity": 0.9955581268074507
+                },
+                {
+                  "timestamp": "2024-01-26T04:00:00+00:00",
+                  "equity": 0.9936540220409886
+                },
+                {
+                  "timestamp": "2024-01-26T05:00:00+00:00",
+                  "equity": 0.9956808842780678
+                },
+                {
+                  "timestamp": "2024-01-26T06:00:00+00:00",
+                  "equity": 0.994519028217782
+                },
+                {
+                  "timestamp": "2024-01-26T07:00:00+00:00",
+                  "equity": 0.9920499910915909
+                },
+                {
+                  "timestamp": "2024-01-26T08:00:00+00:00",
+                  "equity": 0.9912355758723853
+                },
+                {
+                  "timestamp": "2024-01-26T09:00:00+00:00",
+                  "equity": 0.995297484177918
+                },
+                {
+                  "timestamp": "2024-01-26T10:00:00+00:00",
+                  "equity": 0.9939593037507458
+                },
+                {
+                  "timestamp": "2024-01-26T11:00:00+00:00",
+                  "equity": 1.0091566786131514
+                },
+                {
+                  "timestamp": "2024-01-26T12:00:00+00:00",
+                  "equity": 1.0239589976155707
+                },
+                {
+                  "timestamp": "2024-01-26T13:00:00+00:00",
+                  "equity": 1.020251226013152
+                },
+                {
+                  "timestamp": "2024-01-26T14:00:00+00:00",
+                  "equity": 1.0173159584935059
+                },
+                {
+                  "timestamp": "2024-01-26T15:00:00+00:00",
+                  "equity": 1.0313611490963412
+                },
+                {
+                  "timestamp": "2024-01-26T16:00:00+00:00",
+                  "equity": 1.027268737419322
+                },
+                {
+                  "timestamp": "2024-01-26T17:00:00+00:00",
+                  "equity": 1.0406150784217547
+                },
+                {
+                  "timestamp": "2024-01-26T18:00:00+00:00",
+                  "equity": 1.0394747979169106
+                },
+                {
+                  "timestamp": "2024-01-26T19:00:00+00:00",
+                  "equity": 1.0441824849163566
+                },
+                {
+                  "timestamp": "2024-01-26T20:00:00+00:00",
+                  "equity": 1.0431776096215268
+                },
+                {
+                  "timestamp": "2024-01-26T21:00:00+00:00",
+                  "equity": 1.0410126142306422
+                },
+                {
+                  "timestamp": "2024-01-26T22:00:00+00:00",
+                  "equity": 1.041548035198445
+                },
+                {
+                  "timestamp": "2024-01-26T23:00:00+00:00",
+                  "equity": 1.03925433045958
+                },
+                {
+                  "timestamp": "2024-01-27T00:00:00+00:00",
+                  "equity": 1.037201676753927
+                },
+                {
+                  "timestamp": "2024-01-27T01:00:00+00:00",
+                  "equity": 1.0362699599516871
+                },
+                {
+                  "timestamp": "2024-01-27T02:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T03:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T04:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T05:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T06:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T07:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T08:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T09:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T10:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T11:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T12:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T13:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T14:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T15:00:00+00:00",
+                  "equity": 1.0352336899917354
+                },
+                {
+                  "timestamp": "2024-01-27T16:00:00+00:00",
+                  "equity": 1.03538701967358
+                },
+                {
+                  "timestamp": "2024-01-27T17:00:00+00:00",
+                  "equity": 1.0352924298385713
+                },
+                {
+                  "timestamp": "2024-01-27T18:00:00+00:00",
+                  "equity": 1.0345275397853209
+                },
+                {
+                  "timestamp": "2024-01-27T19:00:00+00:00",
+                  "equity": 1.03498167004031
+                },
+                {
+                  "timestamp": "2024-01-27T20:00:00+00:00",
+                  "equity": 1.0377762796683403
+                },
+                {
+                  "timestamp": "2024-01-27T21:00:00+00:00",
+                  "equity": 1.0414771688673958
+                },
+                {
+                  "timestamp": "2024-01-27T22:00:00+00:00",
+                  "equity": 1.0437218203185825
+                },
+                {
+                  "timestamp": "2024-01-27T23:00:00+00:00",
+                  "equity": 1.0438434004468267
+                },
+                {
+                  "timestamp": "2024-01-28T00:00:00+00:00",
+                  "equity": 1.0429799586806614
+                },
+                {
+                  "timestamp": "2024-01-28T01:00:00+00:00",
+                  "equity": 1.039766380464059
+                },
+                {
+                  "timestamp": "2024-01-28T02:00:00+00:00",
+                  "equity": 1.0424691240481412
+                },
+                {
+                  "timestamp": "2024-01-28T03:00:00+00:00",
+                  "equity": 1.0425238474867193
+                },
+                {
+                  "timestamp": "2024-01-28T04:00:00+00:00",
+                  "equity": 1.0457337114427847
+                },
+                {
+                  "timestamp": "2024-01-28T05:00:00+00:00",
+                  "equity": 1.057829572307542
+                },
+                {
+                  "timestamp": "2024-01-28T06:00:00+00:00",
+                  "equity": 1.0539201892836767
+                },
+                {
+                  "timestamp": "2024-01-28T07:00:00+00:00",
+                  "equity": 1.0502262333709569
+                },
+                {
+                  "timestamp": "2024-01-28T08:00:00+00:00",
+                  "equity": 1.0496208089034278
+                },
+                {
+                  "timestamp": "2024-01-28T09:00:00+00:00",
+                  "equity": 1.0521531917375466
+                },
+                {
+                  "timestamp": "2024-01-28T10:00:00+00:00",
+                  "equity": 1.0542314443166763
+                },
+                {
+                  "timestamp": "2024-01-28T11:00:00+00:00",
+                  "equity": 1.054850735356877
+                },
+                {
+                  "timestamp": "2024-01-28T12:00:00+00:00",
+                  "equity": 1.0516799949451345
+                },
+                {
+                  "timestamp": "2024-01-28T13:00:00+00:00",
+                  "equity": 1.05031958511912
+                },
+                {
+                  "timestamp": "2024-01-28T14:00:00+00:00",
+                  "equity": 1.049269265534001
+                },
+                {
+                  "timestamp": "2024-01-28T15:00:00+00:00",
+                  "equity": 1.049269265534001
+                }
+              ],
+              "returns": [
+                0.0013703006443608334,
+                -0.0012402192873162132,
+                -0.0010000000000000009,
+                0.0011079766374155753,
+                0.0015472629374813085,
+                -0.007921236634811035,
+                -0.0010000000000000009,
+                0.0014801149175325268,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -0.0003314914249077372,
+                -0.0010000000000000009,
+                -0.0026289555665273134,
+                0.0010487285294513704,
+                0.005171295242573759,
+                -0.0019126002944379605,
+                0.002039806806111377,
+                -0.0011668960192282585,
+                -0.002482644430258696,
+                -0.0008209417131382901,
+                0.0040978233675257325,
+                -0.0013445029736787184,
+                0.015289735510355174,
+                0.014668008760306384,
+                -0.003621015695992491,
+                -0.002877004648273007,
+                0.01380612432703221,
+                -0.0039679715302491925,
+                0.012992063825441713,
+                -0.0010957754970969402,
+                0.0045289092230809125,
+                -0.000962356014724941,
+                -0.0020753852181223387,
+                0.0005143270700889158,
+                -0.002202207350357921,
+                -0.001975121628548182,
+                -0.0008982985885210848,
+                -0.001000000000000112,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0001481111784971123,
+                -9.135698363160749e-05,
+                -0.0007388154604488495,
+                0.0004389735773331349,
+                0.0027001537408111176,
+                0.003566172470465645,
+                0.0021552574730252516,
+                0.00011648710018064001,
+                -0.0008271755761406485,
+                -0.003081150495612195,
+                0.0025993758163982417,
+                5.2494061757668575e-05,
+                0.0030789357613292268,
+                0.011566865189866382,
+                -0.003695664335926385,
+                -0.003504967406716575,
+                -0.0005764705244372115,
+                0.002412664471433734,
+                0.001975237632171778,
+                0.0005874336641533695,
+                -0.0030058664277934355,
+                -0.0012935587180066266,
+                -0.0009999999999998899,
+                0.0
+              ]
+            },
+            "buy_hold_baseline": {
+              "total_return": 0.05416400015886147,
+              "max_drawdown": 0.015081106756916651,
+              "entries": 1,
+              "turnover": 2,
+              "exposure_fraction": 1.0,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-25T07:00:00+00:00",
+              "end": "2024-01-28T15:00:00+00:00",
+              "curve": [
+                {
+                  "timestamp": "2024-01-25T07:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-25T08:00:00+00:00",
+                  "equity": 1.0013703006443608
+                },
+                {
+                  "timestamp": "2024-01-25T09:00:00+00:00",
+                  "equity": 1.000128381883756
+                },
+                {
+                  "timestamp": "2024-01-25T10:00:00+00:00",
+                  "equity": 0.9989131630040804
+                },
+                {
+                  "timestamp": "2024-01-25T11:00:00+00:00",
+                  "equity": 1.0010209564079038
+                },
+                {
+                  "timestamp": "2024-01-25T12:00:00+00:00",
+                  "equity": 1.002569799033396
+                },
+                {
+                  "timestamp": "2024-01-25T13:00:00+00:00",
+                  "equity": 0.9946282064123375
+                },
+                {
+                  "timestamp": "2024-01-25T14:00:00+00:00",
+                  "equity": 0.9959764256334641
+                },
+                {
+                  "timestamp": "2024-01-25T15:00:00+00:00",
+                  "equity": 0.9984490342327876
+                },
+                {
+                  "timestamp": "2024-01-25T16:00:00+00:00",
+                  "equity": 0.993241309793603
+                },
+                {
+                  "timestamp": "2024-01-25T17:00:00+00:00",
+                  "equity": 0.9908982080933662
+                },
+                {
+                  "timestamp": "2024-01-25T18:00:00+00:00",
+                  "equity": 0.9932146099126737
+                },
+                {
+                  "timestamp": "2024-01-25T19:00:00+00:00",
+                  "equity": 0.994199511127885
+                },
+                {
+                  "timestamp": "2024-01-25T20:00:00+00:00",
+                  "equity": 0.99785814340998
+                },
+                {
+                  "timestamp": "2024-01-25T21:00:00+00:00",
+                  "equity": 0.9940914639461809
+                },
+                {
+                  "timestamp": "2024-01-25T22:00:00+00:00",
+                  "equity": 0.9963696874310756
+                },
+                {
+                  "timestamp": "2024-01-25T23:00:00+00:00",
+                  "equity": 0.9970364358595137
+                },
+                {
+                  "timestamp": "2024-01-26T00:00:00+00:00",
+                  "equity": 0.9971554624315067
+                },
+                {
+                  "timestamp": "2024-01-26T01:00:00+00:00",
+                  "equity": 0.9955295145423967
+                },
+                {
+                  "timestamp": "2024-01-26T02:00:00+00:00",
+                  "equity": 0.9965735547462081
+                },
+                {
+                  "timestamp": "2024-01-26T03:00:00+00:00",
+                  "equity": 1.001727130828742
+                },
+                {
+                  "timestamp": "2024-01-26T04:00:00+00:00",
+                  "equity": 0.9998112272233726
+                },
+                {
+                  "timestamp": "2024-01-26T05:00:00+00:00",
+                  "equity": 1.0018506489694894
+                },
+                {
+                  "timestamp": "2024-01-26T06:00:00+00:00",
+                  "equity": 1.0006815934353457
+                },
+                {
+                  "timestamp": "2024-01-26T07:00:00+00:00",
+                  "equity": 0.9981972568509411
+                },
+                {
+                  "timestamp": "2024-01-26T08:00:00+00:00",
+                  "equity": 0.9973777950848519
+                },
+                {
+                  "timestamp": "2024-01-26T09:00:00+00:00",
+                  "equity": 1.001464873119802
+                },
+                {
+                  "timestamp": "2024-01-26T10:00:00+00:00",
+                  "equity": 1.0001184006198576
+                },
+                {
+                  "timestamp": "2024-01-26T11:00:00+00:00",
+                  "equity": 1.0154099464443747
+                },
+                {
+                  "timestamp": "2024-01-26T12:00:00+00:00",
+                  "equity": 1.030303988434123
+                },
+                {
+                  "timestamp": "2024-01-26T13:00:00+00:00",
+                  "equity": 1.0265732415203594
+                },
+                {
+                  "timestamp": "2024-01-26T14:00:00+00:00",
+                  "equity": 1.0236197855327125
+                },
+                {
+                  "timestamp": "2024-01-26T15:00:00+00:00",
+                  "equity": 1.0377520075553872
+                },
+                {
+                  "timestamp": "2024-01-26T16:00:00+00:00",
+                  "equity": 1.0336342371339486
+                },
+                {
+                  "timestamp": "2024-01-26T17:00:00+00:00",
+                  "equity": 1.0470632791149546
+                },
+                {
+                  "timestamp": "2024-01-26T18:00:00+00:00",
+                  "equity": 1.0459159328297905
+                },
+                {
+                  "timestamp": "2024-01-26T19:00:00+00:00",
+                  "equity": 1.0506527911445505
+                },
+                {
+                  "timestamp": "2024-01-26T20:00:00+00:00",
+                  "equity": 1.049641689111605
+                },
+                {
+                  "timestamp": "2024-01-26T21:00:00+00:00",
+                  "equity": 1.0474632782656979
+                },
+                {
+                  "timestamp": "2024-01-26T22:00:00+00:00",
+                  "equity": 1.048002016984634
+                },
+                {
+                  "timestamp": "2024-01-26T23:00:00+00:00",
+                  "equity": 1.0456940992396404
+                },
+                {
+                  "timestamp": "2024-01-27T00:00:00+00:00",
+                  "equity": 1.043628726207387
+                },
+                {
+                  "timestamp": "2024-01-27T01:00:00+00:00",
+                  "equity": 1.0426912359956948
+                },
+                {
+                  "timestamp": "2024-01-27T02:00:00+00:00",
+                  "equity": 1.0435126940145638
+                },
+                {
+                  "timestamp": "2024-01-27T03:00:00+00:00",
+                  "equity": 1.0440052693879682
+                },
+                {
+                  "timestamp": "2024-01-27T04:00:00+00:00",
+                  "equity": 1.0434166243495382
+                },
+                {
+                  "timestamp": "2024-01-27T05:00:00+00:00",
+                  "equity": 1.044146504272136
+                },
+                {
+                  "timestamp": "2024-01-27T06:00:00+00:00",
+                  "equity": 1.0421060843996295
+                },
+                {
+                  "timestamp": "2024-01-27T07:00:00+00:00",
+                  "equity": 1.0406475722124213
+                },
+                {
+                  "timestamp": "2024-01-27T08:00:00+00:00",
+                  "equity": 1.0408000360184753
+                },
+                {
+                  "timestamp": "2024-01-27T09:00:00+00:00",
+                  "equity": 1.034807784236847
+                },
+                {
+                  "timestamp": "2024-01-27T10:00:00+00:00",
+                  "equity": 1.0397929264910888
+                },
+                {
+                  "timestamp": "2024-01-27T11:00:00+00:00",
+                  "equity": 1.0417272954346708
+                },
+                {
+                  "timestamp": "2024-01-27T12:00:00+00:00",
+                  "equity": 1.0420743938867507
+                },
+                {
+                  "timestamp": "2024-01-27T13:00:00+00:00",
+                  "equity": 1.0417946689659876
+                },
+                {
+                  "timestamp": "2024-01-27T14:00:00+00:00",
+                  "equity": 1.0416057735467035
+                },
+                {
+                  "timestamp": "2024-01-27T15:00:00+00:00",
+                  "equity": 1.0421934204587435
+                },
+                {
+                  "timestamp": "2024-01-27T16:00:00+00:00",
+                  "equity": 1.0433911721265963
+                },
+                {
+                  "timestamp": "2024-01-27T17:00:00+00:00",
+                  "equity": 1.043295851056363
+                },
+                {
+                  "timestamp": "2024-01-27T18:00:00+00:00",
+                  "equity": 1.0425250479517802
+                },
+                {
+                  "timestamp": "2024-01-27T19:00:00+00:00",
+                  "equity": 1.042982688901539
+                },
+                {
+                  "timestamp": "2024-01-27T20:00:00+00:00",
+                  "equity": 1.0457989025105778
+                },
+                {
+                  "timestamp": "2024-01-27T21:00:00+00:00",
+                  "equity": 1.0495284017663542
+                },
+                {
+                  "timestamp": "2024-01-27T22:00:00+00:00",
+                  "equity": 1.0517904056974134
+                },
+                {
+                  "timestamp": "2024-01-27T23:00:00+00:00",
+                  "equity": 1.051912925711771
+                },
+                {
+                  "timestamp": "2024-01-28T00:00:00+00:00",
+                  "equity": 1.0510428090313955
+                },
+                {
+                  "timestamp": "2024-01-28T01:00:00+00:00",
+                  "equity": 1.0478043879594388
+                },
+                {
+                  "timestamp": "2024-01-28T02:00:00+00:00",
+                  "equity": 1.0505280253458165
+                },
+                {
+                  "timestamp": "2024-01-28T03:00:00+00:00",
+                  "equity": 1.0505831718288572
+                },
+                {
+                  "timestamp": "2024-01-28T04:00:00+00:00",
+                  "equity": 1.0538178499268518
+                },
+                {
+                  "timestamp": "2024-01-28T05:00:00+00:00",
+                  "equity": 1.0660072189316305
+                },
+                {
+                  "timestamp": "2024-01-28T06:00:00+00:00",
+                  "equity": 1.0620676140707848
+                },
+                {
+                  "timestamp": "2024-01-28T07:00:00+00:00",
+                  "equity": 1.0583451016997376
+                },
+                {
+                  "timestamp": "2024-01-28T08:00:00+00:00",
+                  "equity": 1.0577349969439251
+                },
+                {
+                  "timestamp": "2024-01-28T09:00:00+00:00",
+                  "equity": 1.0602869565912438
+                },
+                {
+                  "timestamp": "2024-01-28T10:00:00+00:00",
+                  "equity": 1.0623812752888038
+                },
+                {
+                  "timestamp": "2024-01-28T11:00:00+00:00",
+                  "equity": 1.0630053538140747
+                },
+                {
+                  "timestamp": "2024-01-28T12:00:00+00:00",
+                  "equity": 1.0598101017084802
+                },
+                {
+                  "timestamp": "2024-01-28T13:00:00+00:00",
+                  "equity": 1.0584391751119837
+                },
+                {
+                  "timestamp": "2024-01-28T14:00:00+00:00",
+                  "equity": 1.0579438548910072
+                },
+                {
+                  "timestamp": "2024-01-28T15:00:00+00:00",
+                  "equity": 1.0541640001588615
+                }
+              ],
+              "returns": [
+                0.0013703006443608334,
+                -0.0012402192873162132,
+                -0.0012150628876133052,
+                0.0021100867241397037,
+                0.0015472629374813085,
+                -0.007921236634811035,
+                0.0013555006910468403,
+                0.0024825975150475355,
+                -0.005215813988128315,
+                -0.002359045759709466,
+                0.002337678886073169,
+                0.000991629810296324,
+                0.003679977953262581,
+                -0.0037747644679506642,
+                0.002291764457820644,
+                0.0006691777528451404,
+                0.00011938036335679136,
+                -0.0016305861526799692,
+                0.0010487285294513704,
+                0.005171295242573759,
+                -0.0019126002944379605,
+                0.002039806806111377,
+                -0.0011668960192282585,
+                -0.002482644430258696,
+                -0.0008209417131382901,
+                0.0040978233675257325,
+                -0.0013445029736787184,
+                0.015289735510355174,
+                0.014668008760306384,
+                -0.00362101569599238,
+                -0.002877004648273229,
+                0.01380612432703221,
+                -0.0039679715302490814,
+                0.012992063825441713,
+                -0.0010957754970969402,
+                0.0045289092230809125,
+                -0.000962356014724941,
+                -0.0020753852181222276,
+                0.0005143270700889158,
+                -0.002202207350358032,
+                -0.001975121628548293,
+                -0.0008982985885209738,
+                0.0007878248042283431,
+                0.00047203582307120406,
+                -0.0005638333978669197,
+                0.0006995095780200078,
+                -0.001954150939698751,
+                -0.0013995812989120449,
+                0.00014650858765730135,
+                -0.005757351627841301,
+                0.00481745724199234,
+                0.0018603405488724079,
+                0.0003331951208354056,
+                -0.0002684308552288739,
+                -0.00018131732184001326,
+                0.0005641740157018571,
+                0.0011492604389360395,
+                -9.135698363149647e-05,
+                -0.0007388154604490715,
+                0.0004389735773331349,
+                0.0027001537408111176,
+                0.003566172470465645,
+                0.0021552574730252516,
+                0.00011648710018064001,
+                -0.0008271755761407595,
+                -0.003081150495612195,
+                0.0025993758163982417,
+                5.2494061757668575e-05,
+                0.0030789357613292268,
+                0.011566865189866382,
+                -0.0036956643359264962,
+                -0.0035049674067163528,
+                -0.0005764705244373225,
+                0.002412664471433734,
+                0.001975237632171778,
+                0.0005874336641533695,
+                -0.0030058664277934355,
+                -0.0012935587180066266,
+                -0.00046797230546968827,
+                -0.0035728311239494603
+              ]
+            },
+            "stop_reason": "generation_complete"
+          },
+          {
+            "number": 3,
+            "calculation_start": 196,
+            "partitions": {
+              "train": [
+                217,
+                577
+              ],
+              "validation": [
+                580,
+                660
+              ],
+              "holdout": [
+                663,
+                743
+              ]
+            },
+            "seed": 125,
+            "max_candidates": 4,
+            "search_engine_version": "quant-local-search-2",
+            "attempt_ids": [
+              "attempt-9",
+              "attempt-10",
+              "attempt-11",
+              "attempt-12"
+            ],
+            "frontier_ids": [
+              "attempt-11"
+            ],
+            "selected_id": "attempt-11",
+            "holdout_status": "excluded_from_this_fold_selection_prior_usage_unattested",
+            "holdout": {
+              "total_return": -0.04453079732894427,
+              "max_drawdown": 0.05649624572855094,
+              "entries": 8,
+              "turnover": 16,
+              "exposure_fraction": 0.5125,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-28T15:00:00+00:00",
+              "end": "2024-01-31T23:00:00+00:00",
+              "curve": [
+                {
+                  "timestamp": "2024-01-28T15:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T16:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T17:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T18:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T19:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T20:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T21:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T22:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T23:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-29T00:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-29T01:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-29T02:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-29T03:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-29T04:00:00+00:00",
+                  "equity": 1.0012145306215607
+                },
+                {
+                  "timestamp": "2024-01-29T05:00:00+00:00",
+                  "equity": 0.9985373681623656
+                },
+                {
+                  "timestamp": "2024-01-29T06:00:00+00:00",
+                  "equity": 0.9967925649587716
+                },
+                {
+                  "timestamp": "2024-01-29T07:00:00+00:00",
+                  "equity": 0.9972421882324644
+                },
+                {
+                  "timestamp": "2024-01-29T08:00:00+00:00",
+                  "equity": 0.9946454423503632
+                },
+                {
+                  "timestamp": "2024-01-29T09:00:00+00:00",
+                  "equity": 0.9962868866004572
+                },
+                {
+                  "timestamp": "2024-01-29T10:00:00+00:00",
+                  "equity": 1.0003798538551945
+                },
+                {
+                  "timestamp": "2024-01-29T11:00:00+00:00",
+                  "equity": 1.0007885592823071
+                },
+                {
+                  "timestamp": "2024-01-29T12:00:00+00:00",
+                  "equity": 0.999222091664386
+                },
+                {
+                  "timestamp": "2024-01-29T13:00:00+00:00",
+                  "equity": 0.9982228695727217
+                },
+                {
+                  "timestamp": "2024-01-29T14:00:00+00:00",
+                  "equity": 0.9982228695727217
+                },
+                {
+                  "timestamp": "2024-01-29T15:00:00+00:00",
+                  "equity": 0.9982228695727217
+                },
+                {
+                  "timestamp": "2024-01-29T16:00:00+00:00",
+                  "equity": 0.9982228695727217
+                },
+                {
+                  "timestamp": "2024-01-29T17:00:00+00:00",
+                  "equity": 1.010280176348825
+                },
+                {
+                  "timestamp": "2024-01-29T18:00:00+00:00",
+                  "equity": 1.0055222723141228
+                },
+                {
+                  "timestamp": "2024-01-29T19:00:00+00:00",
+                  "equity": 1.0062748373268369
+                },
+                {
+                  "timestamp": "2024-01-29T20:00:00+00:00",
+                  "equity": 1.0055089422315482
+                },
+                {
+                  "timestamp": "2024-01-29T21:00:00+00:00",
+                  "equity": 1.0090547441963627
+                },
+                {
+                  "timestamp": "2024-01-29T22:00:00+00:00",
+                  "equity": 1.0097254578248476
+                },
+                {
+                  "timestamp": "2024-01-29T23:00:00+00:00",
+                  "equity": 1.0082011511893998
+                },
+                {
+                  "timestamp": "2024-01-30T00:00:00+00:00",
+                  "equity": 1.012681929823211
+                },
+                {
+                  "timestamp": "2024-01-30T01:00:00+00:00",
+                  "equity": 1.0093917380382897
+                },
+                {
+                  "timestamp": "2024-01-30T02:00:00+00:00",
+                  "equity": 1.0083823463002515
+                },
+                {
+                  "timestamp": "2024-01-30T03:00:00+00:00",
+                  "equity": 1.0114471029702263
+                },
+                {
+                  "timestamp": "2024-01-30T04:00:00+00:00",
+                  "equity": 1.0092338236049718
+                },
+                {
+                  "timestamp": "2024-01-30T05:00:00+00:00",
+                  "equity": 1.0069563071919203
+                },
+                {
+                  "timestamp": "2024-01-30T06:00:00+00:00",
+                  "equity": 1.005646752647118
+                },
+                {
+                  "timestamp": "2024-01-30T07:00:00+00:00",
+                  "equity": 1.0050820695735225
+                },
+                {
+                  "timestamp": "2024-01-30T08:00:00+00:00",
+                  "equity": 1.00548929071407
+                },
+                {
+                  "timestamp": "2024-01-30T09:00:00+00:00",
+                  "equity": 1.0072021240535263
+                },
+                {
+                  "timestamp": "2024-01-30T10:00:00+00:00",
+                  "equity": 1.004704763881227
+                },
+                {
+                  "timestamp": "2024-01-30T11:00:00+00:00",
+                  "equity": 1.0037000591173457
+                },
+                {
+                  "timestamp": "2024-01-30T12:00:00+00:00",
+                  "equity": 1.0037000591173457
+                },
+                {
+                  "timestamp": "2024-01-30T13:00:00+00:00",
+                  "equity": 0.9993981604700899
+                },
+                {
+                  "timestamp": "2024-01-30T14:00:00+00:00",
+                  "equity": 0.9983987623096198
+                },
+                {
+                  "timestamp": "2024-01-30T15:00:00+00:00",
+                  "equity": 0.9983987623096198
+                },
+                {
+                  "timestamp": "2024-01-30T16:00:00+00:00",
+                  "equity": 0.9951405315601589
+                },
+                {
+                  "timestamp": "2024-01-30T17:00:00+00:00",
+                  "equity": 0.9979746132390704
+                },
+                {
+                  "timestamp": "2024-01-30T18:00:00+00:00",
+                  "equity": 0.9956638489979956
+                },
+                {
+                  "timestamp": "2024-01-30T19:00:00+00:00",
+                  "equity": 0.9950519736772108
+                },
+                {
+                  "timestamp": "2024-01-30T20:00:00+00:00",
+                  "equity": 0.9940569217035335
+                },
+                {
+                  "timestamp": "2024-01-30T21:00:00+00:00",
+                  "equity": 0.993361823566318
+                },
+                {
+                  "timestamp": "2024-01-30T22:00:00+00:00",
+                  "equity": 0.993019081344285
+                },
+                {
+                  "timestamp": "2024-01-30T23:00:00+00:00",
+                  "equity": 0.9880412237496353
+                },
+                {
+                  "timestamp": "2024-01-31T00:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T01:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T02:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T03:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T04:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T05:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T06:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T07:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T08:00:00+00:00",
+                  "equity": 0.9870531825258857
+                },
+                {
+                  "timestamp": "2024-01-31T09:00:00+00:00",
+                  "equity": 0.9844167308420816
+                },
+                {
+                  "timestamp": "2024-01-31T10:00:00+00:00",
+                  "equity": 0.9768119982159267
+                },
+                {
+                  "timestamp": "2024-01-31T11:00:00+00:00",
+                  "equity": 0.9758351862177107
+                },
+                {
+                  "timestamp": "2024-01-31T12:00:00+00:00",
+                  "equity": 0.9758351862177107
+                },
+                {
+                  "timestamp": "2024-01-31T13:00:00+00:00",
+                  "equity": 0.9758351862177107
+                },
+                {
+                  "timestamp": "2024-01-31T14:00:00+00:00",
+                  "equity": 0.9758351862177107
+                },
+                {
+                  "timestamp": "2024-01-31T15:00:00+00:00",
+                  "equity": 0.9758351862177107
+                },
+                {
+                  "timestamp": "2024-01-31T16:00:00+00:00",
+                  "equity": 0.9758351862177107
+                },
+                {
+                  "timestamp": "2024-01-31T17:00:00+00:00",
+                  "equity": 0.9774155934388548
+                },
+                {
+                  "timestamp": "2024-01-31T18:00:00+00:00",
+                  "equity": 0.9828165267152008
+                },
+                {
+                  "timestamp": "2024-01-31T19:00:00+00:00",
+                  "equity": 0.9782827374111674
+                },
+                {
+                  "timestamp": "2024-01-31T20:00:00+00:00",
+                  "equity": 0.9742640185869289
+                },
+                {
+                  "timestamp": "2024-01-31T21:00:00+00:00",
+                  "equity": 0.9564256282993551
+                },
+                {
+                  "timestamp": "2024-01-31T22:00:00+00:00",
+                  "equity": 0.9554692026710557
+                },
+                {
+                  "timestamp": "2024-01-31T23:00:00+00:00",
+                  "equity": 0.9554692026710557
+                }
+              ],
+              "returns": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0012145306215607388,
+                -0.0026739149076603352,
+                -0.0017473589464208628,
+                0.00045107005158229185,
+                -0.002603927022686081,
+                0.0016502807736344938,
+                0.004108221547212576,
+                0.0004085502377297878,
+                -0.0015652333386430017,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.012078772329934928,
+                -0.004709489650581156,
+                0.0007484319675805651,
+                -0.0007611191961465202,
+                0.0035263753666330278,
+                0.0006646949854232087,
+                -0.0015096248427086678,
+                0.004444330011451836,
+                -0.0032489883427619937,
+                -0.0010000000000000009,
+                0.0030392803694148096,
+                -0.0021882304657899754,
+                -0.002256678640551568,
+                -0.0013005078129498804,
+                -0.000561512352234117,
+                0.00040516207867513643,
+                0.001703482429176173,
+                -0.002479502487791163,
+                -0.0010000000000000009,
+                0.0,
+                -0.004286040045707429,
+                -0.0010000000000000009,
+                0.0,
+                -0.003263456318719271,
+                0.0028479210614287265,
+                -0.002315453930811784,
+                -0.0006145400592787453,
+                -0.0010000000000000009,
+                -0.0006992538576406915,
+                -0.00034503260936935565,
+                -0.00501285190603884,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -0.0026710330613163302,
+                -0.007725115175206021,
+                -0.0010000000000000009,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.001619543180513494,
+                0.005525728577077338,
+                -0.00461305765704445,
+                -0.004107931859120062,
+                -0.018309605966405962,
+                -0.0010000000000000009,
+                0.0
+              ]
+            },
+            "buy_hold_baseline": {
+              "total_return": 0.006687488556327503,
+              "max_drawdown": 0.028211068860247934,
+              "entries": 1,
+              "turnover": 2,
+              "exposure_fraction": 1.0,
+              "missing_signals": 0,
+              "bars": 80,
+              "start": "2024-01-28T15:00:00+00:00",
+              "end": "2024-01-31T23:00:00+00:00",
+              "curve": [
+                {
+                  "timestamp": "2024-01-28T15:00:00+00:00",
+                  "equity": 1.0
+                },
+                {
+                  "timestamp": "2024-01-28T16:00:00+00:00",
+                  "equity": 0.9982912883087401
+                },
+                {
+                  "timestamp": "2024-01-28T17:00:00+00:00",
+                  "equity": 0.9995752376560727
+                },
+                {
+                  "timestamp": "2024-01-28T18:00:00+00:00",
+                  "equity": 0.9961689330306471
+                },
+                {
+                  "timestamp": "2024-01-28T19:00:00+00:00",
+                  "equity": 0.9915271076901249
+                },
+                {
+                  "timestamp": "2024-01-28T20:00:00+00:00",
+                  "equity": 0.9871387648978436
+                },
+                {
+                  "timestamp": "2024-01-28T21:00:00+00:00",
+                  "equity": 0.9908991891316686
+                },
+                {
+                  "timestamp": "2024-01-28T22:00:00+00:00",
+                  "equity": 0.9917142075766175
+                },
+                {
+                  "timestamp": "2024-01-28T23:00:00+00:00",
+                  "equity": 0.9882750659761637
+                },
+                {
+                  "timestamp": "2024-01-29T00:00:00+00:00",
+                  "equity": 0.9929298843643589
+                },
+                {
+                  "timestamp": "2024-01-29T01:00:00+00:00",
+                  "equity": 0.991521437996595
+                },
+                {
+                  "timestamp": "2024-01-29T02:00:00+00:00",
+                  "equity": 0.9959811244324633
+                },
+                {
+                  "timestamp": "2024-01-29T03:00:00+00:00",
+                  "equity": 0.9978084194097617
+                },
+                {
+                  "timestamp": "2024-01-29T04:00:00+00:00",
+                  "equity": 1.0000203085981842
+                },
+                {
+                  "timestamp": "2024-01-29T05:00:00+00:00",
+                  "equity": 0.9973463393870605
+                },
+                {
+                  "timestamp": "2024-01-29T06:00:00+00:00",
+                  "equity": 0.9956036173382524
+                },
+                {
+                  "timestamp": "2024-01-29T07:00:00+00:00",
+                  "equity": 0.9960527043132807
+                },
+                {
+                  "timestamp": "2024-01-29T08:00:00+00:00",
+                  "equity": 0.9934590557604999
+                },
+                {
+                  "timestamp": "2024-01-29T09:00:00+00:00",
+                  "equity": 0.9950985421396145
+                },
+                {
+                  "timestamp": "2024-01-29T10:00:00+00:00",
+                  "equity": 0.9991866274120322
+                },
+                {
+                  "timestamp": "2024-01-29T11:00:00+00:00",
+                  "equity": 0.9995948453461978
+                },
+                {
+                  "timestamp": "2024-01-29T12:00:00+00:00",
+                  "equity": 0.9980302461691263
+                },
+                {
+                  "timestamp": "2024-01-29T13:00:00+00:00",
+                  "equity": 0.9946218154086268
+                },
+                {
+                  "timestamp": "2024-01-29T14:00:00+00:00",
+                  "equity": 0.9923548829455168
+                },
+                {
+                  "timestamp": "2024-01-29T15:00:00+00:00",
+                  "equity": 0.9910591217366632
+                },
+                {
+                  "timestamp": "2024-01-29T16:00:00+00:00",
+                  "equity": 1.007356892026107
+                },
+                {
+                  "timestamp": "2024-01-29T17:00:00+00:00",
+                  "equity": 1.0205450716515327
+                },
+                {
+                  "timestamp": "2024-01-29T18:00:00+00:00",
+                  "equity": 1.0157388251986383
+                },
+                {
+                  "timestamp": "2024-01-29T19:00:00+00:00",
+                  "equity": 1.0164990366061297
+                },
+                {
+                  "timestamp": "2024-01-29T20:00:00+00:00",
+                  "equity": 1.0157253596765043
+                },
+                {
+                  "timestamp": "2024-01-29T21:00:00+00:00",
+                  "equity": 1.019307188564132
+                },
+                {
+                  "timestamp": "2024-01-29T22:00:00+00:00",
+                  "equity": 1.0199847169409764
+                },
+                {
+                  "timestamp": "2024-01-29T23:00:00+00:00",
+                  "equity": 1.018444922673099
+                },
+                {
+                  "timestamp": "2024-01-30T00:00:00+00:00",
+                  "equity": 1.0229712280079457
+                },
+                {
+                  "timestamp": "2024-01-30T01:00:00+00:00",
+                  "equity": 1.019647606413167
+                },
+                {
+                  "timestamp": "2024-01-30T02:00:00+00:00",
+                  "equity": 1.0262029533200911
+                },
+                {
+                  "timestamp": "2024-01-30T03:00:00+00:00",
+                  "equity": 1.0303522240351877
+                },
+                {
+                  "timestamp": "2024-01-30T04:00:00+00:00",
+                  "equity": 1.0280975759080593
+                },
+                {
+                  "timestamp": "2024-01-30T05:00:00+00:00",
+                  "equity": 1.0257774900681047
+                },
+                {
+                  "timestamp": "2024-01-30T06:00:00+00:00",
+                  "equity": 1.024443458427923
+                },
+                {
+                  "timestamp": "2024-01-30T07:00:00+00:00",
+                  "equity": 1.0238682207718504
+                },
+                {
+                  "timestamp": "2024-01-30T08:00:00+00:00",
+                  "equity": 1.0242830533484677
+                },
+                {
+                  "timestamp": "2024-01-30T09:00:00+00:00",
+                  "equity": 1.0260279015323497
+                },
+                {
+                  "timestamp": "2024-01-30T10:00:00+00:00",
+                  "equity": 1.023483862797957
+                },
+                {
+                  "timestamp": "2024-01-30T11:00:00+00:00",
+                  "equity": 1.0272069615493757
+                },
+                {
+                  "timestamp": "2024-01-30T12:00:00+00:00",
+                  "equity": 1.0285237478717366
+                },
+                {
+                  "timestamp": "2024-01-30T13:00:00+00:00",
+                  "equity": 1.0251405944948921
+                },
+                {
+                  "timestamp": "2024-01-30T14:00:00+00:00",
+                  "equity": 1.0226145097900112
+                },
+                {
+                  "timestamp": "2024-01-30T15:00:00+00:00",
+                  "equity": 1.0270177355278092
+                },
+                {
+                  "timestamp": "2024-01-30T16:00:00+00:00",
+                  "equity": 1.0246907988081724
+                },
+                {
+                  "timestamp": "2024-01-30T17:00:00+00:00",
+                  "equity": 1.0276090373155504
+                },
+                {
+                  "timestamp": "2024-01-30T18:00:00+00:00",
+                  "equity": 1.0252296559307603
+                },
+                {
+                  "timestamp": "2024-01-30T19:00:00+00:00",
+                  "equity": 1.0245996112372302
+                },
+                {
+                  "timestamp": "2024-01-30T20:00:00+00:00",
+                  "equity": 1.0287656547956865
+                },
+                {
+                  "timestamp": "2024-01-30T21:00:00+00:00",
+                  "equity": 1.029075361804767
+                },
+                {
+                  "timestamp": "2024-01-30T22:00:00+00:00",
+                  "equity": 1.0287202972474458
+                },
+                {
+                  "timestamp": "2024-01-30T23:00:00+00:00",
+                  "equity": 1.023563474744608
+                },
+                {
+                  "timestamp": "2024-01-31T00:00:00+00:00",
+                  "equity": 1.0144286535187284
+                },
+                {
+                  "timestamp": "2024-01-31T01:00:00+00:00",
+                  "equity": 1.0142420261066964
+                },
+                {
+                  "timestamp": "2024-01-31T02:00:00+00:00",
+                  "equity": 1.0106892543984103
+                },
+                {
+                  "timestamp": "2024-01-31T03:00:00+00:00",
+                  "equity": 1.0130563514472186
+                },
+                {
+                  "timestamp": "2024-01-31T04:00:00+00:00",
+                  "equity": 1.0141678476163445
+                },
+                {
+                  "timestamp": "2024-01-31T05:00:00+00:00",
+                  "equity": 1.0149375085130528
+                },
+                {
+                  "timestamp": "2024-01-31T06:00:00+00:00",
+                  "equity": 1.0153476163450619
+                },
+                {
+                  "timestamp": "2024-01-31T07:00:00+00:00",
+                  "equity": 1.0152512315550504
+                },
+                {
+                  "timestamp": "2024-01-31T08:00:00+00:00",
+                  "equity": 1.0170015131952321
+                },
+                {
+                  "timestamp": "2024-01-31T09:00:00+00:00",
+                  "equity": 1.015300368898978
+                },
+                {
+                  "timestamp": "2024-01-31T10:00:00+00:00",
+                  "equity": 1.0074570566118042
+                },
+                {
+                  "timestamp": "2024-01-31T11:00:00+00:00",
+                  "equity": 1.0012848864926214
+                },
+                {
+                  "timestamp": "2024-01-31T12:00:00+00:00",
+                  "equity": 1.0075040678206577
+                },
+                {
+                  "timestamp": "2024-01-31T13:00:00+00:00",
+                  "equity": 1.0069092224744602
+                },
+                {
+                  "timestamp": "2024-01-31T14:00:00+00:00",
+                  "equity": 1.0111877149545965
+                },
+                {
+                  "timestamp": "2024-01-31T15:00:00+00:00",
+                  "equity": 1.0130343813847895
+                },
+                {
+                  "timestamp": "2024-01-31T16:00:00+00:00",
+                  "equity": 1.0243508534335977
+                },
+                {
+                  "timestamp": "2024-01-31T17:00:00+00:00",
+                  "equity": 1.0270368707434727
+                },
+                {
+                  "timestamp": "2024-01-31T18:00:00+00:00",
+                  "equity": 1.032711997729852
+                },
+                {
+                  "timestamp": "2024-01-31T19:00:00+00:00",
+                  "equity": 1.0279480377412027
+                },
+                {
+                  "timestamp": "2024-01-31T20:00:00+00:00",
+                  "equity": 1.0237252972474455
+                },
+                {
+                  "timestamp": "2024-01-31T21:00:00+00:00",
+                  "equity": 1.004981290437003
+                },
+                {
+                  "timestamp": "2024-01-31T22:00:00+00:00",
+                  "equity": 1.0037039557321223
+                },
+                {
+                  "timestamp": "2024-01-31T23:00:00+00:00",
+                  "equity": 1.0066874885563275
+                }
+              ],
+              "returns": [
+                -0.0017087116912598566,
+                0.0012861470017511145,
+                -0.0034077521101993913,
+                -0.004659676874684715,
+                -0.004425842478986253,
+                0.003809418055033209,
+                0.000822503897357274,
+                -0.0034678756986429304,
+                0.004710043335554026,
+                -0.0014184751511086002,
+                0.004497821494287901,
+                0.00183466828082679,
+                0.002216747368929628,
+                -0.0026739149076603352,
+                -0.0017473589464208628,
+                0.00045107005158229185,
+                -0.002603927022686081,
+                0.0016502807736344938,
+                0.004108221547212576,
+                0.0004085502377297878,
+                -0.0015652333386430017,
+                -0.0034151577806208477,
+                -0.002279190369636863,
+                -0.0013057437728400956,
+                0.01644480125553427,
+                0.01309186419412911,
+                -0.004709489650581045,
+                0.0007484319675805651,
+                -0.0007611191961465202,
+                0.0035263753666330278,
+                0.0006646949854232087,
+                -0.0015096248427087788,
+                0.004444330011451836,
+                -0.0032489883427619937,
+                0.006429031820105013,
+                0.004043323693107892,
+                -0.0021882304657900864,
+                -0.002256678640551568,
+                -0.0013005078129499914,
+                -0.000561512352234006,
+                0.00040516207867513643,
+                0.001703482429176173,
+                -0.002479502487791274,
+                0.003637672157566607,
+                0.0012819094609470838,
+                -0.003289329375082528,
+                -0.002464134888859437,
+                0.00430585102758041,
+                -0.002265722040760032,
+                0.0028479210614287265,
+                -0.002315453930811895,
+                -0.0006145400592788564,
+                0.004066021022031796,
+                0.0003010471895488198,
+                -0.0003450326093692446,
+                -0.005012851906038951,
+                -0.008924528328015047,
+                -0.00018397293036287454,
+                -0.0035028835493279287,
+                0.0023420621506629047,
+                0.0010971711174190268,
+                0.0007589087925803373,
+                0.00040407200302405855,
+                -9.492787342968434e-05,
+                0.0017239886894802048,
+                -0.0016727057670834489,
+                -0.007725115175206021,
+                -0.006126484576861824,
+                0.006211200640230841,
+                -0.0005904148332465109,
+                0.004249134266167465,
+                0.001826235033201451,
+                0.011170866711689431,
+                0.002622165345859351,
+                0.005525728577077338,
+                -0.00461305765704445,
+                -0.004107931859120173,
+                -0.018309605966405962,
+                -0.0012710034674627835,
+                0.002972522731594651
+              ]
+            },
+            "stop_reason": "generation_complete"
+          }
+        ],
+        "summary": {
+          "planned_folds": 3,
+          "started_folds": 3,
+          "tested_folds": 3,
+          "positive_folds": 1,
+          "mean_test_return": -0.006111552243229716,
+          "worst_test_return": -0.04453079732894427,
+          "worst_test_drawdown": 0.05649624572855094,
+          "mean_baseline_return": 0.006845817557894966,
+          "aggregation": "per_fold_flat_start_arithmetic_summary_v1"
+        }
+      }
+    },
+    "checkpoint_hashes": [
+      "1812827cbb15c733a8fa31e1eb60a9960bdb376aded40425428070bf9da4c940",
+      "ef9abe2c6b7b5a44c1c46ae9eeade2205e9f501d1d28ad0c93863d702410b264",
+      "70b56be2d823f540c0a9f8a7407664345509a30e34adb973512d859b434e631e",
+      "ed248bbb0e70368f6ac30630b54b9c775bf81048aa2317b74ed74f26a917f0f9",
+      "83b642b887859f5463b751c092762a2c882926076ccf21a19f02254225ca2249",
+      "2852a5d9da835cadc2f20d086a1e93c83b4455c9343c4ccd5bb72fc96d24ce9e",
+      "4319a64a9bade5a04c6ed2e283887e419f2e0a6ffddde0cba9b391990a884db8",
+      "ba8b33de0ac98df628458fbb56730ec582c28481bb790343146c3cceab3bf4a2",
+      "8b3ccaafab5d668de01c6ad2655b560b79e50b588efd35fda091bc13ab01163e",
+      "677e812643db0053f16b4571635343291e2f5519ecf097873077061313a80a6a",
+      "1d5b9ed8696579feecddbbf3dd667ef81f0ee089b1e1a9aef6dfb1beded47c76",
+      "2aebcf59ae72f9afe244d1b2d1dbeb47a8d11fa90c0b8c002046683151f74f71"
+    ],
+    "overlap_audit": {
+      "scope": "same_collection_symbol_timeframe_requested_ranges",
+      "request_ids": [],
+      "total": 0,
+      "independent_holdout_proven": false
+    }
+  },
+  "result_hash": "86586e3bbc3d0b71ea6365b1bd66d6d7dbd5fa21a67ccc760b6bbf6fb9b438af",
+  "checks": [
+    "pinned_archive_checksum",
+    "lossless_csv_conversion",
+    "api_import",
+    "three_folds",
+    "all_12_attempts",
+    "all_18_development_metric_sets",
+    "three_holdout_ledgers",
+    "three_cost_matched_baselines",
+    "frozen_review_evidence",
+    "snapshot_roundtrip",
+    "no_execution_authority_restored"
+  ]
+}

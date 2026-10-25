@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "date": "2026-10-25",
+  "app_version": "1.5.45",
+  "quant_schema": 48,
+  "model_alias": "deepseek-flash",
+  "provider_calls": 1,
+  "environment": "isolated_in_memory_and_temporary_media_read_only_model_config",
+  "production_deployment": false,
+  "remote_sync_verified": false,
+  "original_code_execution": false,
+  "global_independent_validation": false,
+  "archive_url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-05.zip",
+  "official_checksum_match_at_download": true,
+  "source_hashes": {
+    "quant/validation_studies/criteria.py": "3d0dbc0e2dd3ab564a1dbbe01897b3ecc5586bc1b50d0bfd362b66bd481cf777",
+    "quant/validation_studies/contracts.py": "ca59c42cb6dfe37e6ad266fbf2e7c1ae9c704c67cd2194940c49c935d553750d",
+    "quant/validation_studies/worker.py": "2984bb74038081604ce63eacdecbec42602c30c6bd3801a683a9f3eb10611f9c",
+    "quant/validation_studies/sync.py": "21027545b2f454aebf6767a251514482a555a0dfc14d3d489b8463d5c26968d5",
+    "quant/experiments/review_contract.py": "de30596ac8db8b09fc20042f27b5cd7f7c67c8188f76797886a916d314e15086",
+    "quant/verification/evidence.py": "bbe3835234450748d665ac95f14b9c117848214e41e200b7d8e75d5c6683e0cc",
+    "quant/research_memory/fixed_validations.py": "617295ad3ec248c692475d565c63bfcba6d302dc36f80a195ad49b4699af4fcb"
+  },
+  "artifact_hashes": {
+    "2026-10-25-registered-criteria-review-evidence.json": "53c2ab815bf5bfbbeab744fa575a1f200a3ee52f59bf0182c1c17c604673f31c",
+    "2026-10-25-registered-criteria-snapshot.json": "d7bf197ab61684abfa3f9507fbe43ca326372c1af28319b4e3774d199c3928d8",
+    "2026-10-25-registered-criteria-report.md": "53e3ce64ef6d50c700b21a2b6346d5e4f9fbd1d21ae6c1326ce01f99e8efec53",
+    "2026-10-25-registered-criteria-summary.json": "3d06edfa90b77c0e3a8ac59cc377b0589de653b712603aee664f549d2149ff9d",
+    "2026-10-25-registered-criteria-report.json": "a3d4576c9f8ebc5258599a56a28f453a72ca5820038f3d4b80ba5d404ca57bd8",
+    "2026-10-25-registered-criteria-registered-before-download.json": "a95cad6ca78eb11da501a260a6b02001a3684900befa4eeb5f570c63b40c26bb"
+  }
+}

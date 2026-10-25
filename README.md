@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-1.5.8-blue.svg)](https://github.com/TangerineSpecter/O-Doc)
+[![版本](https://img.shields.io/badge/version-1.5.12-blue.svg)](https://github.com/TangerineSpecter/O-Doc)
 [![Django](https://img.shields.io/badge/Django-5.x-092e20.svg?logo=django)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
@@ -381,3 +381,13 @@ Apache License 2.0 - 详见 [LICENSE](frontend_react/LICENSE) 文件
 
 **小橘文档** - 让知识管理更简单、更高效！ 🍊
 **项目地址** - [点击跳转](https://github.com/TangerineSpecter/O-Doc)
+
+量化研究的冻结后新行情评价、自动解读与已知重用审计见[固定方案新数据验证](docs/quant/固定方案新数据验证说明.md)；该功能的本地实现不代表完整重构或真实环境验收完成。
+
+历史固定验证进入后续源码／实验／反馈分析的规则见[固定验证历史与后续AI研究](docs/quant/固定验证历史与后续AI研究说明.md)，保留AI判断与失败记录，历史收益不自动提升当前证据等级。
+
+报告质量的离线评测入口见[研究报告质量评测](docs/quant/研究报告质量评测说明.md)，当前参考标签待专家核对，真实模型基线和放行阈值尚未建立。
+
+静态报告的严重问题会独立显示在总分前，规则和旧报告边界见[源码问题清单与严重度](docs/quant/源码问题清单与严重度说明.md)。
+
+重新分析后可直接查看原稿评分、参数和正文变化，也可对照已保存的人工修订，见[研究报告对照](docs/quant/研究报告对照说明.md)。

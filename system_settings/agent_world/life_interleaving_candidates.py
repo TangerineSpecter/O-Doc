@@ -19,6 +19,8 @@ def available_window(owner, actor, now=None, *, exclude_item=None):
     next_item = rows.order_by('scheduled_at').first()
     if next_item:
         right = min(right, local_time(next_item.scheduled_at))
+    from .combat.reservation_resources import available_until
+    right = available_until(owner, actor, now, right, exclude_item=exclude_item)
     return max(0, int((right - now).total_seconds()) - settings['min_gap_minutes'] * 60)
 
 
@@ -57,8 +59,8 @@ def exploration_candidate(owner, agent, now, gap, resource) -> dict:
     if not any(row.get('enabled') == '1' and int(row['recommended_level_min']) <= progression['level'] for row in catalog.tables['dungeons']):
         return {}
     cfg = CombatConfig.objects.filter(pk=owner).first()
-    used = profile.loot_progress.get('days', {}).get(now.date().isoformat(), 0) if profile else 0
-    quota = (cfg.daily_minutes if cfg else 120) * 60 - used
+    from .combat.reservation_resources import quota_remaining
+    quota = quota_remaining(profile, now.date()) if profile else (cfg.daily_minutes if cfg else 120)*60
     times = [n // 60 for n in (1800, 3600, 7200) if n <= gap and n <= quota and energy(n) <= resource['energy']]
     if not times:
         from .combat.party_options import options

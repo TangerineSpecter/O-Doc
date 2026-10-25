@@ -43,7 +43,7 @@ export function resolveLoadoutSlots(profile: CombatProfile): Map<string, Present
     return slots;
 }
 
-export type LoadoutHeroArchetype = 'warrior' | 'mage' | 'archer' | 'priest';
+export type LoadoutHeroArchetype = 'warrior' | 'mage' | 'archer' | 'priest' | 'bard';
 
 const MAGE_JOBS = new Set([
     'job.mage', 'mage', '法师',
@@ -85,6 +85,7 @@ const PRIEST_JOBS = new Set([
 export function resolveLoadoutHeroArchetype(jobId?: string | null): LoadoutHeroArchetype {
     const key = (jobId || '').trim();
     if (!key) return 'warrior';
+    if (['bard','musician','cursesinger','battleconductor','requiemsinger','virtuoso','sonomancer'].includes(key.replace(/^job\./,'')) || ['吟游诗人','乐师','咒歌者','战歌指挥','镇魂歌者','琴圣','魔音术士'].includes(key)) return 'bard';
     if (MAGE_JOBS.has(key)) return 'mage';
     if (RANGER_JOBS.has(key)) return 'archer';
     if (PRIEST_JOBS.has(key)) return 'priest';
@@ -130,9 +131,14 @@ export interface HeroSlotAnchor {
 }
 
 /**
- * 四大一转职业立绘 (360x400) 上对应的 9 个解剖部位归一化锚点坐标
+ * 职业立绘 (360x400) 上对应的 9 个解剖部位归一化锚点坐标
  */
 export const LOADOUT_HERO_ANCHORS: Record<LoadoutHeroArchetype, Record<string, HeroSlotAnchor>> = {
+    bard: {
+        head:{nx:.5,ny:.36},accessory:{nx:.5,ny:.58},body:{nx:.5,ny:.67},
+        hands:{nx:.44,ny:.76},weapon:{nx:.60,ny:.70},offhand:{nx:.65,ny:.76},
+        ring_1:{nx:.44,ny:.77},ring_2:{nx:.65,ny:.77},feet:{nx:.5,ny:.89},
+    },
     warrior: {
         head: {nx: 0.50, ny: 0.09},
         accessory: {nx: 0.50, ny: 0.24},

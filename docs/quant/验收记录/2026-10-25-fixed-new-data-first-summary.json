@@ -1,0 +1,30 @@
+{
+  "source_case": "future_return",
+  "registered_plan_id": "c7e42b181045e5d455858fe27e20fa993aced4d3",
+  "registered_before_download_and_import": true,
+  "recipe_parameters": {
+    "p0": 30
+  },
+  "required_history": 29,
+  "intervals": 695,
+  "fresh_allowed_at_binding": true,
+  "known_conflicts_at_binding": 0,
+  "reuse_probe_fresh_rejected": true,
+  "explicit_replication_cancelled": true,
+  "no_search_performed": true,
+  "decimal_full_path_check": true,
+  "source_report_unchanged": true,
+  "source_experiment_unchanged": true,
+  "independent_validation": false,
+  "final_return": 0.13958330972060828,
+  "baseline_return": 0.4349843396904649,
+  "fixed_result_id": "db8395139fd6602f97e1c426248d0dc38ce79d07",
+  "review_id": "418a7d73a00d4bee962c469dc842b97d",
+  "review_status": "failed",
+  "review_error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+  "provider_calls": 1,
+  "snapshot_roundtrip": true,
+  "restored_execution_jobs": false,
+  "database": "isolated_in_memory",
+  "production_database": "read_only_model_configuration"
+}

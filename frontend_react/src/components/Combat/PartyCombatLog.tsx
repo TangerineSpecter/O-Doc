@@ -1,3 +1,4 @@
+import {musicActionText} from './musicPresentation';
 import {useEffect,useRef,useState} from 'react';
 import {getPartyEvents} from '../../api/combat';
 import type {AdventurePartySnapshot} from '../../types/api/combat';
@@ -19,7 +20,7 @@ export default function PartyCombatLog({party}:{party:AdventurePartySnapshot}) {
             {!events.length&&<p className="text-slate-500">还没有已确认的战斗行动。</p>}
             {events.slice().reverse().map(({key,action:a})=><div key={key} className="border-b border-slate-100 pb-2 text-slate-600">
                 {a.rolls?a.rolls.map(roll=><p key={roll.rewardId}>{String(roll.reward.item.name||'战利品')} → {names.get(roll.winnerId)||'历史队员'}<span className="ml-1 text-slate-400">{roll.rounds.map(scores=>Object.entries(scores).map(([id,score])=>`${names.get(id)||'历史队员'} ${score}`).join(' / ')).join('；重roll ')}</span></p>):
-                <p>{a.actor||''}{a.action?` · ${a.action}`:''}{a.target?` → ${a.target}`:''}{a.damage!=null?` 伤害${a.damage}`:''}{a.healing!=null?` 恢复${a.healing}`:''}{a.kind==='encounter'?'下一波遭遇':''}{a.kind==='rescue'?' 清场救援':''}</p>}
+                <p>{a.actor||''}{a.action?` · ${a.action}`:''}{a.target?` → ${a.target}`:''}{a.damage!=null?` 伤害${a.damage}`:''}{a.healing!=null?` 恢复${a.healing}`:''}{musicActionText(a)&&` · ${musicActionText(a)}`}{a.kind==='encounter'?'下一波遭遇':''}{a.kind==='rescue'?' 清场救援':''}</p>}
             </div>)}
         </div>
         {error&&<p role="alert" className="mt-2 text-rose-700">{error}</p>}

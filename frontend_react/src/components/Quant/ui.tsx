@@ -76,12 +76,14 @@ export function QuantModal({
     children,
     wide = false,
     busy = false,
+    footer,
 }: {
     title: string;
     close: () => void;
     children: ReactNode;
     wide?: boolean;
     busy?: boolean;
+    footer?: ReactNode;
 }) {
     const dialog = useRef<HTMLElement>(null);
     const dismiss = () => {
@@ -137,6 +139,7 @@ export function QuantModal({
                     </button>
                 </header>
                 <div className="min-h-0 space-y-5 overflow-auto p-5 scrollbar-hide">{children}</div>
+                {footer && <footer className="shrink-0 border-t border-slate-100 bg-white px-5 py-4">{footer}</footer>}
             </section>
         </div>
     );

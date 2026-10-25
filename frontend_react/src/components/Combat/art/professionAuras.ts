@@ -28,6 +28,13 @@ export const professionAuraProfiles = [
     {id:'inquisitor',name:'审判者 · 裁决天平',shape:'judgment',color:'#d4ac85',light:'#ffe9c7',tier:3},
     {id:'druid',name:'德鲁伊 · 林冠繁生',shape:'canopy',color:'#8daf74',light:'#e5efb2',tier:3},
     {id:'warden',name:'守望者 · 森林六芒',shape:'grove',color:'#6fae93',light:'#d4f0c3',tier:3},
+    {id:'bard',name:'吟游诗人 · 旅途余音',shape:'notes',color:'#78a589',light:'#e5edc2',tier:1},
+    {id:'musician',name:'乐师 · 和声环流',shape:'harmony',color:'#6c9bb5',light:'#e1f3e9',tier:2},
+    {id:'cursesinger',name:'咒歌者 · 不谐音律',shape:'dissonance',color:'#a082bb',light:'#ead8f4',tier:2},
+    {id:'battleconductor',name:'战歌指挥 · 凯旋乐章',shape:'batons',color:'#c9955c',light:'#fff0bb',tier:3},
+    {id:'requiemsinger',name:'镇魂歌者 · 安魂回声',shape:'bells',color:'#7dabb5',light:'#dcf5ef',tier:3},
+    {id:'virtuoso',name:'琴圣 · 华彩余韵',shape:'cadenza',color:'#d6bc80',light:'#fff8df',tier:3},
+    {id:'sonomancer',name:'魔音术士 · 深渊共鸣',shape:'resonance',color:'#9e78bd',light:'#f1d5f4',tier:3},
 ] as const;
 export type ProfessionAuraProfile = typeof professionAuraProfiles[number];
 export type ProfessionAuraId = 'none' | ProfessionAuraProfile['id'];

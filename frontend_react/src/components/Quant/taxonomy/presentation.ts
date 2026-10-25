@@ -1,0 +1,3 @@
+import type {VocabularyDimension} from '../../../types/api/quantVocabulary';
+export const vocabularyDimensions: Record<VocabularyDimension, string> = {mechanism: '机制', structure: '时序与截面', asset: '资产', frequency: '频率', data: '数据要求', usage: '用途', platform: '平台', tunability: '参数声明', evidence: '证据状态'};
+export const classificationBasis: Record<string, string> = {ai_tag: 'AI 原始标签', inherited_tag: '实验归档标签', authored_tag: '作者公式标签', user_tag: '人工补充标签', user_family: '人工机制分类', declared_family: '定义中的机制', declared_role: '定义中的用途', source_platform: '来源的平台声明', parameter_declaration: '参数声明', record_origin: '记录生成方式'};

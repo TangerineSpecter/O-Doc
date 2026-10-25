@@ -111,6 +111,37 @@ class PartyRuleTests(SimpleTestCase):
 
 
 class PartyServiceTests(TestCase):
+    def test_solo_settlement_uses_personal_fallen_reason_without_team_summary(self):
+        from .participation import participation
+        run, party = self.start()
+        self.assertEqual(participation([run], 'admin')[run.pk], {'min': 1, 'max': 1, 'final': 1})
+        explorations.finish(run.pk, 'fallen', '全队倒地', self.now + timedelta(seconds=60))
+        run.refresh_from_db()
+        self.assertIn('角色倒地', run.result['report'])
+        self.assertNotIn('全队倒地', run.result['report'])
+        self.assertNotIn('队伍累计', run.result['report'])
+        self.assertNotIn('按怪物去重', run.result['report'])
+
+    def test_participation_tracks_personal_waves_and_freezes_after_departure(self):
+        from .party_models import AdventureWave
+        from .models import CombatEncounter
+        from .participation import participation, display_report
+        run, party = self.start()
+        member = AdventureMember.objects.get(exploration_id=run.pk)
+        member.left_at = storage_time(self.now + timedelta(minutes=2))
+        member.save()
+        AdventureWave.objects.create(id='roster-two', party_id=party.pk, owner_id='admin', number=2,
+            created_at=storage_time(self.now + timedelta(minutes=1)), snapshot={'members': [run.actor_id, 'other']})
+        CombatEncounter.objects.create(id=f'{run.pk}:party:2', exploration_id=run.pk,
+            owner_id='admin', actor_id=run.actor_id, number=2)
+        AdventureWave.objects.create(id='later-roster-four', party_id=party.pk, owner_id='admin', number=3,
+            created_at=storage_time(self.now + timedelta(minutes=3)), snapshot={'members': [run.actor_id, 'b', 'c', 'd']})
+        roster = participation([run], 'admin')[run.pk]
+        self.assertEqual(roster, {'min': 1, 'max': 2, 'final': 2})
+        report = '全队倒地 本人参与击败14只，离队时队伍累计击败20只（按怪物去重）。'
+        self.assertEqual(display_report(report, roster), '全队倒地 本人参与击败14只，离队时队伍累计击败20只。')
+        self.assertEqual(participation([run], 'another-owner'), {})
+
     def setUp(self):
         provider=AIProvider.objects.create(name='test',type='OpenAi',base_url='https://example.invalid')
         model=AIModel.objects.create(name='test',type='chat',provider=provider)
@@ -631,11 +662,11 @@ class PartyServiceTests(TestCase):
         from utils.sync_manager import SyncError
         self.start()
         source=self.data();meta=metadata(source)
-        self.assertEqual(meta['combat_schema_version'],14)
+        self.assertEqual(meta['combat_schema_version'],15)
         with self.assertRaisesMessage(SyncError,'需要战斗同步14'):
             validate_source(source,{**meta,'combat_schema_version':13})
         with self.assertRaisesMessage(SyncError,'版本过新'):
-            validate_source(source,{**meta,'combat_schema_version':15})
+            validate_source(source,{**meta,'combat_schema_version':16})
 
     def test_completed_legacy_party_restores_without_converting_history(self):
         from utils.sync_manager import SyncManager

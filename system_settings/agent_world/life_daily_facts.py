@@ -151,12 +151,11 @@ def task_reason(owner: str, agent, task, at, quota=None) -> str:
                                interaction_window_days(task, agent)).exists():
             return '没有可互动帖子'
     if task.task_kind == 'exploration':
-        from .combat.models import CombatConfig, CombatProfile
-        config = CombatConfig.objects.filter(pk=owner).first()
+        from .combat.models import CombatProfile
         profile = CombatProfile.objects.filter(pk=agent.pk, owner_id=owner).first()
         if profile:
-            used = profile.loot_progress.get('days', {}).get(at.date().isoformat(), 0)
-            if used + 1800 > (config.daily_minutes if config else 120) * 60:
+            from .combat.reservation_resources import quota_remaining
+            if quota_remaining(profile, at.date()) < 1800:
                 return '目标日期探索额度不足30分钟'
             if profile.rest_until and local_time(profile.rest_until) > at:
                 return '该时段仍需休养'

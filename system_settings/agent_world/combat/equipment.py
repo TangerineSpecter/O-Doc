@@ -43,6 +43,10 @@ def promotion_weapon(catalog: Catalog, job: str, level: int) -> str:
                   int(catalog.row('equipment_templates', r['equipment_id'])['level_min']) <= level <=
                   int(catalog.row('equipment_templates', r['equipment_id'])['level_max']) and
                   allowed(catalog, r['equipment_id'], job, level, level)]
+    if 'job.bard' in catalog.path(job):
+        instruments = [sid for sid in candidates if catalog.row('equipment_templates', sid).get('equipment_type') == 'instrument']
+        if instruments:
+            return max(instruments, key=lambda sid: int(catalog.row('equipment_templates', sid)['level_min']))
     preferred = {'job.mage': 'equip.mage_staff'}.get(job)
     if preferred in candidates:
         return preferred
@@ -77,11 +81,15 @@ def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, 
         stats[definition['stat']] = stats.get(definition['stat'], 0) + value
     if starter:
         # Bound promotion weapons have a deterministic primary affix and zero sale value.
-        primary = 'spirit' if template_id == 'equip.holy_staff' else 'intelligence' if template_id in ('equip.staff', 'equip.mage_staff') else 'dexterity' if template_id in ('equip.bow', 'equip.dagger') else 'strength'
+        primary = 'spirit' if template_id == 'equip.holy_staff' else 'intelligence' if template_id in ('equip.staff', 'equip.mage_staff') or template.get('equipment_type') == 'instrument' else 'dexterity' if template_id in ('equip.bow', 'equip.dagger') else 'strength'
         stats = {k: v - sum(a['value'] for a in affixes if a['stat'] == k) for k, v in stats.items()}
         stats[primary] = stats.get(primary, 0) + 1
         affixes = [{'id': 'affix.' + primary, 'stat': primary, 'value': 1, 'min': 1, 'max': 1}]
-    value = cash((Decimal(10) + Decimal('.5') * level) * Decimal(catalog.row('qualities', quality)['sale_multiplier']) * (1 + Decimal('.1') * Decimal(str(sum(positions) / len(positions)))))
+    # Read the frozen catalog so in-flight explorations retain their original prices.
+    base_price = (Decimal(catalog.row('rules', 'weapon_sale_base')['value'])
+                  + Decimal(catalog.row('rules', 'weapon_sale_per_level')['value']) * level)
+    value = cash(base_price * Decimal(catalog.row('qualities', quality)['sale_multiplier'])
+                 * (1 + Decimal('.1') * Decimal(str(sum(positions) / len(positions)))))
     item = {'template_id': template_id, 'name': equipment_name(template, affixes, starter=starter, level=level),
             'slot': template['slot'], 'level': level, 'quality': quality, 'stats': stats,
             'affixes': affixes, 'value': str(0 if starter else value)}

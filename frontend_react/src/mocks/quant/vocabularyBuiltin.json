@@ -1,0 +1,485 @@
+{
+  "version": 1,
+  "reason": "内置研究分类词表 v1",
+  "terms": [
+    {
+      "id": "asset:crypto",
+      "dimension": "asset",
+      "label": "加密资产",
+      "aliases": [
+        "crypto",
+        "cryptocurrency",
+        "数字货币"
+      ],
+      "definition": "加密资产相关材料标签。",
+      "active": true
+    },
+    {
+      "id": "asset:equity",
+      "dimension": "asset",
+      "label": "股票",
+      "aliases": [
+        "equity",
+        "stocks",
+        "A股",
+        "美股",
+        "港股"
+      ],
+      "definition": "股票相关材料标签，不证明适用任何具体市场。",
+      "active": true
+    },
+    {
+      "id": "asset:fund",
+      "dimension": "asset",
+      "label": "基金",
+      "aliases": [
+        "fund",
+        "ETF"
+      ],
+      "definition": "基金相关材料标签。",
+      "active": true
+    },
+    {
+      "id": "asset:futures",
+      "dimension": "asset",
+      "label": "期货",
+      "aliases": [
+        "futures"
+      ],
+      "definition": "期货相关材料标签。",
+      "active": true
+    },
+    {
+      "id": "asset:fx",
+      "dimension": "asset",
+      "label": "外汇",
+      "aliases": [
+        "forex",
+        "fx"
+      ],
+      "definition": "外汇相关材料标签。",
+      "active": true
+    },
+    {
+      "id": "asset:options",
+      "dimension": "asset",
+      "label": "期权",
+      "aliases": [
+        "options"
+      ],
+      "definition": "期权相关材料标签。",
+      "active": true
+    },
+    {
+      "id": "asset:rates",
+      "dimension": "asset",
+      "label": "利率与债券",
+      "aliases": [
+        "fixed income",
+        "债券",
+        "利率"
+      ],
+      "definition": "利率或债券相关材料标签。",
+      "active": true
+    },
+    {
+      "id": "data:alternative",
+      "dimension": "data",
+      "label": "另类数据",
+      "aliases": [
+        "alternative data"
+      ],
+      "definition": "另类数据要求标签。",
+      "active": true
+    },
+    {
+      "id": "data:fundamental",
+      "dimension": "data",
+      "label": "财务基本面数据",
+      "aliases": [
+        "financial data",
+        "财务数据"
+      ],
+      "definition": "财务数据要求标签。",
+      "active": true
+    },
+    {
+      "id": "data:ohlcv",
+      "dimension": "data",
+      "label": "OHLCV",
+      "aliases": [
+        "行情量价"
+      ],
+      "definition": "标签声明使用价格和成交量，不证明数据完整性。",
+      "active": true
+    },
+    {
+      "id": "data:orderbook",
+      "dimension": "data",
+      "label": "盘口数据",
+      "aliases": [
+        "order book",
+        "orderbook",
+        "盘口"
+      ],
+      "definition": "盘口或订单簿要求标签。",
+      "active": true
+    },
+    {
+      "id": "data:price",
+      "dimension": "data",
+      "label": "价格数据",
+      "aliases": [
+        "price data",
+        "价格"
+      ],
+      "definition": "价格数据要求标签。",
+      "active": true
+    },
+    {
+      "id": "evidence:authored_unverified",
+      "dimension": "evidence",
+      "label": "作者定义,未实证晋级",
+      "aliases": [],
+      "definition": "本版本是人工定义，不继承祖先源码、评分或实验表现。",
+      "active": true
+    },
+    {
+      "id": "evidence:local_simulation_unverified_platform",
+      "dimension": "evidence",
+      "label": "本机衍生,原平台未验证",
+      "aliases": [],
+      "definition": "本版本来自受控计算；不证明原平台等价、独立样本表现或实盘有效。",
+      "active": true
+    },
+    {
+      "id": "evidence:static_unverified",
+      "dimension": "evidence",
+      "label": "静态候选,未实证晋级",
+      "aliases": [],
+      "definition": "候选自身是静态提取记录；不汇总或否定独立实验室中的其他证据。",
+      "active": true
+    },
+    {
+      "id": "frequency:daily",
+      "dimension": "frequency",
+      "label": "日频",
+      "aliases": [
+        "daily",
+        "日线",
+        "1d",
+        "D1"
+      ],
+      "definition": "日频材料标签，不改变窗口含义。",
+      "active": true
+    },
+    {
+      "id": "frequency:intraday",
+      "dimension": "frequency",
+      "label": "日内",
+      "aliases": [
+        "intraday"
+      ],
+      "definition": "日内研究频率标签。",
+      "active": true
+    },
+    {
+      "id": "frequency:minute",
+      "dimension": "frequency",
+      "label": "分钟级",
+      "aliases": [
+        "minute",
+        "分钟线"
+      ],
+      "definition": "分钟级材料标签；具体分钟数仍以来源为准。",
+      "active": true
+    },
+    {
+      "id": "frequency:monthly",
+      "dimension": "frequency",
+      "label": "月频",
+      "aliases": [
+        "monthly",
+        "月线"
+      ],
+      "definition": "月频材料标签。",
+      "active": true
+    },
+    {
+      "id": "frequency:tick",
+      "dimension": "frequency",
+      "label": "逐笔或Tick",
+      "aliases": [
+        "tick",
+        "逐笔"
+      ],
+      "definition": "逐笔相关材料标签。",
+      "active": true
+    },
+    {
+      "id": "frequency:weekly",
+      "dimension": "frequency",
+      "label": "周频",
+      "aliases": [
+        "weekly",
+        "周线",
+        "1w"
+      ],
+      "definition": "周频材料标签。",
+      "active": true
+    },
+    {
+      "id": "mechanism:fundamental",
+      "dimension": "mechanism",
+      "label": "基本面",
+      "aliases": [
+        "fundamental",
+        "fundamentals"
+      ],
+      "definition": "基本面信息相关分类。",
+      "active": true
+    },
+    {
+      "id": "mechanism:mean_reversion",
+      "dimension": "mechanism",
+      "label": "均值回归",
+      "aliases": [
+        "mean reversion",
+        "mean_reversion",
+        "反转",
+        "均值回复"
+      ],
+      "definition": "回归或反转机制的研究分类。",
+      "active": true
+    },
+    {
+      "id": "mechanism:momentum",
+      "dimension": "mechanism",
+      "label": "动量",
+      "aliases": [
+        "momentum",
+        "动能",
+        "動量"
+      ],
+      "definition": "收益或价格延续方向的研究分类；标签不证明有效性。",
+      "active": true
+    },
+    {
+      "id": "mechanism:other",
+      "dimension": "mechanism",
+      "label": "其他或未细分机制",
+      "aliases": [
+        "other",
+        "其他机制"
+      ],
+      "definition": "既有机制字段尚未细分；不代表识别出明确机制。",
+      "active": true
+    },
+    {
+      "id": "mechanism:price_structure",
+      "dimension": "mechanism",
+      "label": "价格结构",
+      "aliases": [
+        "price structure",
+        "price_structure",
+        "价位结构"
+      ],
+      "definition": "价格位置或形态结构相关分类。",
+      "active": true
+    },
+    {
+      "id": "mechanism:trend",
+      "dimension": "mechanism",
+      "label": "趋势",
+      "aliases": [
+        "trend",
+        "趨勢",
+        "趋势跟随"
+      ],
+      "definition": "趋势相关机制的研究分类。",
+      "active": true
+    },
+    {
+      "id": "mechanism:volatility",
+      "dimension": "mechanism",
+      "label": "波动率",
+      "aliases": [
+        "volatility",
+        "波動率",
+        "波动"
+      ],
+      "definition": "波动与离散程度相关研究分类。",
+      "active": true
+    },
+    {
+      "id": "mechanism:volume",
+      "dimension": "mechanism",
+      "label": "量能",
+      "aliases": [
+        "volume",
+        "成交量",
+        "量价"
+      ],
+      "definition": "成交量及量价关系的研究分类。",
+      "active": true
+    },
+    {
+      "id": "platform:joinquant",
+      "dimension": "platform",
+      "label": "聚宽",
+      "aliases": [
+        "joinquant",
+        "JQ"
+      ],
+      "definition": "材料中声明的平台；不能只凭 Python 语言认定。",
+      "active": true
+    },
+    {
+      "id": "platform:mt4",
+      "dimension": "platform",
+      "label": "MetaTrader 4",
+      "aliases": [
+        "MT4",
+        "MetaTrader4"
+      ],
+      "definition": "材料中声明的平台；不把指标自动归类为 EA。",
+      "active": true
+    },
+    {
+      "id": "platform:tongdaxin",
+      "dimension": "platform",
+      "label": "通达信",
+      "aliases": [
+        "tongdaxin",
+        "TDX"
+      ],
+      "definition": "材料中声明的平台。",
+      "active": true
+    },
+    {
+      "id": "platform:tradingview",
+      "dimension": "platform",
+      "label": "TradingView",
+      "aliases": [
+        "TV"
+      ],
+      "definition": "材料中声明的平台，不证明编译或运行通过。",
+      "active": true
+    },
+    {
+      "id": "structure:cross_section",
+      "dimension": "structure",
+      "label": "截面",
+      "aliases": [
+        "cross sectional",
+        "cross_section",
+        "横截面"
+      ],
+      "definition": "分类提议为截面研究，不证明样本或数据可得口径。",
+      "active": true
+    },
+    {
+      "id": "structure:time_series",
+      "dimension": "structure",
+      "label": "时序",
+      "aliases": [
+        "time series",
+        "time_series",
+        "时间序列"
+      ],
+      "definition": "分类提议为时序研究，不证明时序安全。",
+      "active": true
+    },
+    {
+      "id": "tunability:none",
+      "dimension": "tunability",
+      "label": "未列出参数",
+      "aliases": [],
+      "definition": "候选定义中未列参数，不能据此证明原代码没有常量或动态状态。",
+      "active": true
+    },
+    {
+      "id": "tunability:other",
+      "dimension": "tunability",
+      "label": "仅列出其他参数",
+      "aliases": [],
+      "definition": "定义列出显示、风险、执行或状态等参数。",
+      "active": true
+    },
+    {
+      "id": "tunability:signal",
+      "dimension": "tunability",
+      "label": "有声明信号参数",
+      "aliases": [],
+      "definition": "定义列出 signal 类参数；不是推荐参数或实际运行配置。",
+      "active": true
+    },
+    {
+      "id": "usage:display",
+      "dimension": "usage",
+      "label": "可视化",
+      "aliases": [
+        "display",
+        "绘图"
+      ],
+      "definition": "候选声明为显示模块。",
+      "active": true
+    },
+    {
+      "id": "usage:execution",
+      "dimension": "usage",
+      "label": "交易执行",
+      "aliases": [
+        "execution",
+        "执行模块"
+      ],
+      "definition": "候选声明为执行相关模块；不授予下单权限。",
+      "active": true
+    },
+    {
+      "id": "usage:factor",
+      "dimension": "usage",
+      "label": "计算因子",
+      "aliases": [
+        "factor",
+        "计算模块"
+      ],
+      "definition": "候选声明为独立计算模块。",
+      "active": true
+    },
+    {
+      "id": "usage:filter",
+      "dimension": "usage",
+      "label": "过滤条件",
+      "aliases": [
+        "filter",
+        "过滤器"
+      ],
+      "definition": "候选声明为过滤模块。",
+      "active": true
+    },
+    {
+      "id": "usage:risk",
+      "dimension": "usage",
+      "label": "风险管理",
+      "aliases": [
+        "risk",
+        "风控"
+      ],
+      "definition": "候选声明为风险相关模块。",
+      "active": true
+    },
+    {
+      "id": "usage:signal",
+      "dimension": "usage",
+      "label": "交易信号",
+      "aliases": [
+        "signal",
+        "信号"
+      ],
+      "definition": "候选声明为信号模块，不等于完整策略。",
+      "active": true
+    }
+  ],
+  "builtinVersion": 1
+}

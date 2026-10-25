@@ -6,6 +6,9 @@ from ..life_time import local_time
 
 
 def deadline(run: Exploration):
+    if run.snapshot.get('reservation_ends_at'):
+        from datetime import datetime
+        return local_time(datetime.fromisoformat(run.snapshot['reservation_ends_at']))
     departure=CombatFact.objects.filter(exploration_id=run.pk,kind='depart').first()
     return local_time(departure.created_at)+timedelta(seconds=run.duration_seconds) if departure else None
 

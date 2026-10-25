@@ -1,0 +1,69 @@
+"""Repeat the complete bounded search inside each chronological outer fold.
+
+This pure engine is wired separately from HTTP/workers and snapshot restore.
+No uploaded code is executed and no model, database or external I/O is involved.
+"""
+import copy
+import time
+from quant.research.contracts import digest
+from .search import _run_partitioned, engine_for
+from .temporal import VERSION, windows, configurations, remap_attempt, summarize
+
+
+def run_walk_forward(snapshot: dict, seeds: list[dict], config: dict, policy: dict, *, check=None, checkpoint=None, engine_version=None) -> dict:
+    """`config` is the legacy search contract; temporal policy is explicit.
+
+    Seeds restart from the frozen originals in each fold. Each inner search
+    sees only its own training/validation prefix; the outer test is calculated
+    after that fold's final selection. All folds consume one wall-time budget.
+    """
+    schedules = windows(len(snapshot['rows']), policy, config.get('gap') if isinstance(config, dict) else None)
+    budgets = configurations(seeds, config, policy)
+    started = time.monotonic()
+    def guard():
+        if check:
+            check()
+        if time.monotonic() - started >= config['seconds']:
+            raise TimeoutError('滚动验证总时间预算已用尽')
+    attempts, folds = [], []
+    last = None
+    inner_version = engine_for(config)
+    for schedule, budget in zip(schedules, budgets):
+        origin = schedule['calculation_start']
+        # Even the inner runner's final evaluation cannot access future folds.
+        end = schedule['partitions']['holdout'][1]
+        prefix = {**snapshot, 'rows': snapshot['rows'][origin:end + 1]}
+        split = {name: [start - origin, finish - origin]
+            for name, (start, finish) in schedule['partitions'].items()}
+        offset = len(attempts)
+        def save(attempt):
+            if checkpoint:
+                checkpoint(remap_attempt(attempt, offset, schedule['number']))
+        last = _run_partitioned(prefix, seeds, budget, split, check=guard, checkpoint=save, engine_version=inner_version)
+        remapped = [remap_attempt(attempt, offset, schedule['number']) for attempt in last['attempts']]
+        identities = {old['id']: new['id'] for old, new in zip(last['attempts'], remapped)}
+        attempts.extend(remapped)
+        folds.append({**schedule, 'seed': budget['seed'], 'max_candidates': budget['max_candidates'],
+            'search_engine_version': inner_version, 'attempt_ids': [attempt['id'] for attempt in remapped],
+            'frontier_ids': [identities[identity] for identity in last['frontier_ids']],
+            'selected_id': identities.get(last['selected_id'], ''),
+            **{key: copy.deepcopy(last[key]) for key in ('holdout_status', 'holdout', 'buy_hold_baseline', 'stop_reason')}})
+        if folds[-1]['holdout'] is not None:
+            folds[-1]['holdout_status'] = 'excluded_from_this_fold_selection_prior_usage_unattested'
+        if last['stop_reason'] in ('cancelled', 'time_budget'):
+            break
+    # Global selection means the final attempted fold's selection, never a
+    # Pareto comparison across unrelated historical periods or outer tests.
+    final_fold = folds[-1]
+    stopped = final_fold['stop_reason'] if final_fold['stop_reason'] in ('cancelled', 'time_budget') else 'generation_complete'
+    return {**last, 'engine_version': engine_version or ('quant-local-search-6' if 'strategy' in config else VERSION), 'dataset_hash': digest(snapshot),
+        'config': copy.deepcopy(config) | {'walk_forward': copy.deepcopy(policy)},
+        'partitions': final_fold['partitions'], 'attempts': attempts,
+        'holdout_status': final_fold['holdout_status'],
+        'frontier_ids': final_fold['frontier_ids'], 'selected_id': final_fold['selected_id'], 'stop_reason': stopped,
+        'walk_forward': {'version': 1, 'folds': folds, 'summary': summarize(folds, policy['folds'])},
+        'limitations': last['limitations'] + [
+            '每折从冻结父代重新搜索；扩展或滚动训练、内层验证选择、后续测试评价，后折允许使用已过去的数据',
+            '预热为首个交易信号之前额外参与计算的历史根数；不足窗口的信号继续缺失，不补造或剔除试验',
+            '逐折独立从空仓开始并在区间末平仓；均值和最差值不是连续投资组合收益或统计显著性',
+            '最终候选和顶层留出结果仅代表最后一折；不按测试收益选折，跨研究独立性仍未证明']}

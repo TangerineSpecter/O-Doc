@@ -14,11 +14,18 @@ def fighter(stats: dict, name: str, level: int, *, hp=None, mp=None, skills=None
 def cost(catalog: Catalog, entity: dict, identity: str, rank: int) -> int:
     row, _ = catalog.skill(identity, rank)
     discount = sum(float(e['value']) for e in entity['passives'] if e['code'] == 'passive_cost')
+    from .bard_combat import music_row, passive
+    fx = music_row(catalog, identity, rank)
+    if fx and fx['group'] in ('encourage','melody_attack','melody_guard','requiem'):
+        discount += passive(entity, 'passive_music_cost')
     return max(1, math.ceil((float(row['cost_base']) + float(row['cost_per_level']) * entity['level']) * float(row['cost_rank_factor']) * (1 - clamp(discount, 0, .9))))
 
 
-def available(catalog: Catalog, player: dict, enemy: dict, tick: int, style: dict) -> list[tuple[str, int, float]]:
+def available(catalog: Catalog, player: dict, enemy: dict, tick: int, style: dict, friends=None, enemies=None) -> list[tuple[str, int, float]]:
+    from .bard_combat import silenced, score
     result = []
+    if silenced(player, tick):
+        return result
     h = player['hp'] / player['stats']['hp_max']
     m = player['mp'] / max(1, player['stats']['mp_max'])
     t = clamp((enemy['level'] - player['level']) / 10)
@@ -28,6 +35,11 @@ def available(catalog: Catalog, player: dict, enemy: dict, tick: int, style: dic
         if definition['kind'] == 'passive' or tick < player['cooldowns'].get(sid, 0) or player['mp'] < cost(catalog, player, sid, rank):
             continue
         _, effects = catalog.skill(sid, rank)
+        music_score = score(catalog, player, enemy, sid, rank, tick, friends, enemies)
+        if music_score is not None:
+            if music_score > 0:
+                result.append((sid, rank, music_score))
+            continue
         choices = []
         if any(e['code'] in ('damage', 'dot', 'summon') for e in effects):
             q = 1.3 if style['id'] == 'style.assault' else 1
@@ -63,13 +75,13 @@ def potion(catalog: Catalog, entity: dict, carried: dict, kind: str, tick: int):
 
 
 def player_action(catalog: Catalog, player: dict, enemy: dict, carried: dict, tick: int, style: dict, rng,
-                  elixirs: list | None = None, state: dict | None = None) -> list[dict]:
+                  elixirs: list | None = None, state: dict | None = None, *, friends=None, enemies=None) -> list[dict]:
     if elixirs:
         from .elixir import use as use_elixir
         events = use_elixir(player, enemy, elixirs, state if state is not None else {}, tick)
         if events:
             return events
-    skills = available(catalog, player, enemy, tick, style)
+    skills = available(catalog, player, enemy, tick, style, friends, enemies)
     h = player['hp'] / player['stats']['hp_max']
     m = player['mp'] / max(1, player['stats']['mp_max'])
     t, c = clamp((enemy['level'] - player['level']) / 10), clamp((.35 - h) / .35)
@@ -83,6 +95,9 @@ def player_action(catalog: Catalog, player: dict, enemy: dict, carried: dict, ti
     action = rng.choices(list(weights), weights=list(weights.values()))[0]
     if action == 'skill':
         sid, rank, _ = rng.choices(skills, weights=[s[2] for s in skills])[0]
+        from .bard_combat import music_row, cast, identity
+        if music_row(catalog, sid, rank):
+            return cast(catalog, player, enemy, friends or {identity(player): player}, enemies or {identity(enemy): enemy}, sid, rank, tick, rng)
         row, effects = catalog.skill(sid, rank)
         player['mp'] -= cost(catalog, player, sid, rank)
         player['cooldowns'][sid] = tick + int(row['cooldown_rounds'])
@@ -98,12 +113,12 @@ def player_action(catalog: Catalog, player: dict, enemy: dict, carried: dict, ti
     if action == 'defend':
         player['defending'] = True
         return [{'actor': player['name'], 'action': '防御', 'kind': 'defend'}]
-    return attack(catalog, player, enemy, tick, rng)
+    return attack(catalog, player, enemy, tick, rng, allies=friends)
 
 
-def attack(catalog: Catalog, entity: dict, target: dict, tick: int, rng) -> list[dict]:
+def attack(catalog: Catalog, entity: dict, target: dict, tick: int, rng, *, allies=None) -> list[dict]:
     kind = entity['stats']['damage_type']
-    return apply(catalog, entity, target, [{'code': 'damage', 'stat': kind + '_attack', 'value': 1, 'hits': 1, 'damage_type': kind}], '普通攻击', tick, rng)
+    return apply(catalog, entity, target, [{'code': 'damage', 'stat': kind + '_attack', 'value': 1, 'hits': 1, 'damage_type': kind}], '普通攻击', tick, rng, allies=allies)
 
 
 def enemy_action(catalog: Catalog, enemy: dict, player: dict, template_id: str, tick: int, rng) -> list[dict]:
@@ -113,6 +128,8 @@ def enemy_action(catalog: Catalog, enemy: dict, player: dict, template_id: str, 
             continue
         sid = row['skill_id']
         if sid:
+            from .bard_combat import silenced
+            if silenced(enemy, tick):continue
             if catalog.row('skills',sid)['enabled']!='1':continue
             _, effects = catalog.skill(sid, 1)
             if tick < enemy['cooldowns'].get(sid, 0) or enemy['mp'] < cost(catalog, enemy, sid, 1):
@@ -161,6 +178,8 @@ def recover_passives(catalog: Catalog, entity: dict) -> list[dict]:
 def step(catalog: Catalog, state: dict, style_id: str, tick: int, rng, *, waiting=False) -> tuple[dict, list[dict]]:
     result = deepcopy(state)
     player, enemy = result['player'], result.get('enemy')
+    from .bard_combat import prepare
+    prepare({'player': player, **({'enemy':enemy} if enemy else {})}, tick)
     events = []
     player['defending'] = False
     upkeep(player, tick, events, opponent=enemy, catalog=catalog, rng=rng)

@@ -12,6 +12,7 @@ import time
 import uuid
 
 from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI, AuthenticationError
+from httpx import AsyncClient as AsyncHTTPClient
 
 from .ai_observer import check_ai_control, emit_ai_event
 from .completion_options import temperature_options
@@ -44,7 +45,12 @@ async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.
     started = time.monotonic()
     parts, reasoning_parts, count, finish, last_progress = [], [], 0, '', 0.0
     saw_content = False
-    async with AsyncOpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=seconds, max_retries=0) as client:
+    # Own the supported httpx client explicitly. SDK 3's default httpx2 stack
+    # left nested SSE generators pending at per-request event-loop shutdown.
+    # Keeping the client in this scope also closes it if SDK setup fails.
+    async with AsyncHTTPClient(timeout=seconds, follow_redirects=True) as http_client, AsyncOpenAI(
+            api_key=config['api_key'], base_url=config['base_url'], timeout=seconds,
+            max_retries=0, http_client=http_client) as client:
         stream = await client.chat.completions.create(**parameters)
         try:
             async for chunk in stream:

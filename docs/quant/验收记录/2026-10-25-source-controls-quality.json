@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "suite_version": "report-quality-draft-1",
+  "suite_hash": "79700b7af5fb108db25ca1cafed20252eff177fc117b016346ab3f3bfb9f53f4",
+  "label_status": "draft_ai_authored_requires_expert_review",
+  "acceptance": "baseline_collection_only_no_release_thresholds",
+  "required_repeats_per_case": 3,
+  "coverage": [
+    {
+      "case_id": "pine_bands",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "vendor_indicator",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "tick_ea",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "future_return",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "channel",
+      "attempts": 0,
+      "fresh_valid": 0,
+      "expected_outcome": "report",
+      "matched_acquisition_controls": 0,
+      "missing_required_repeats": 3,
+      "failed_or_invalid": 0
+    },
+    {
+      "case_id": "unfetched_url",
+      "attempts": 3,
+      "fresh_valid": 0,
+      "expected_outcome": "acquisition_blocked",
+      "matched_acquisition_controls": 3,
+      "missing_required_repeats": 0,
+      "failed_or_invalid": 0
+    }
+  ],
+  "records": [
+    {
+      "case_id": "unfetched_url",
+      "repeat": 1,
+      "run_id": "bc69bfe0db1448e18dcc4354fa4431ce",
+      "record_hash": "eaa67a7cb31b72f57f4105d90418aad4af772993f09ff1088e9276c1a59b838c",
+      "status": "failed",
+      "origin": "unverified",
+      "context_hash": "ff03b8e3ddf22b7bba787eb13211fb279d62ab466c19349314938e8a391e849e",
+      "fresh_model_calls": false,
+      "mechanical": {
+        "schema_valid": true,
+        "type": "source_acquisition_control",
+        "expected_block_matched": true
+      },
+      "human": {
+        "status": "not_required_acquisition_control"
+      }
+    },
+    {
+      "case_id": "unfetched_url",
+      "repeat": 2,
+      "run_id": "e6a9e6918c6c4a8884cff5781dc215dc",
+      "record_hash": "fdb507d240ac0e2054dedbe662a0c24de73aea6b8454e8aee36fa5f284d91001",
+      "status": "failed",
+      "origin": "unverified",
+      "context_hash": "ff03b8e3ddf22b7bba787eb13211fb279d62ab466c19349314938e8a391e849e",
+      "fresh_model_calls": false,
+      "mechanical": {
+        "schema_valid": true,
+        "type": "source_acquisition_control",
+        "expected_block_matched": true
+      },
+      "human": {
+        "status": "not_required_acquisition_control"
+      }
+    },
+    {
+      "case_id": "unfetched_url",
+      "repeat": 3,
+      "run_id": "b57b8b3becf64ca08ab13c65589398ed",
+      "record_hash": "0dcf12e1ec387837da180a851bd87b5b267fec18a902e5a2bd30e478b84f4b48",
+      "status": "failed",
+      "origin": "unverified",
+      "context_hash": "ff03b8e3ddf22b7bba787eb13211fb279d62ab466c19349314938e8a391e849e",
+      "fresh_model_calls": false,
+      "mechanical": {
+        "schema_valid": true,
+        "type": "source_acquisition_control",
+        "expected_block_matched": true
+      },
+      "human": {
+        "status": "not_required_acquisition_control"
+      }
+    }
+  ],
+  "score_stability": [],
+  "complete_same_context_baseline": false,
+  "human_review_complete": false,
+  "provider_recorded_attempts": 0,
+  "limitations": [
+    "自动引用与格式检查不证明语义正确；参数额外项可能是合法遗漏标签，须人工裁决。",
+    "本版参考标签由 AI 起草，未有人类审阅记录时不能称专家基准。",
+    "provider_recorded 只表示导出时存在调用用量记录，不是独立的提供商真实性证明。",
+    "同配置同上下文至少三次新分析才报告稳定性基线；缓存复用、失败和未知分数不按零分计。",
+    "尚无经确认的放行阈值；不输出通过结论、收益分或平台验证状态。"
+  ]
+}
