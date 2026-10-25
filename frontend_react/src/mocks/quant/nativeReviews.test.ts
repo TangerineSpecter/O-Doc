@@ -6,12 +6,14 @@ import {collectMockFeedback} from './feedback.ts';
 import {advanceRun} from './runs.ts';
 import {resolveQuantRoute} from './routes.ts';
 import {readNativeReview} from '../../utils/quantNativeReview.ts';
+import {nativeAlignmentFixture} from './nativeAlignment.ts';
+import {readNativeAlignment} from '../../utils/quantNativeAlignment.ts';
 import type {QuantAIRun,QuantEntryDetail} from '../../types/api/quant.ts';
 import type {NativeReviewEvidence} from '../../types/api/quantNativeReview.ts';
 beforeEach(()=>resetQuantStateForTests());
 function prepare(notes=''){
     const entry=quantState().entries[0];ensureSources(entry);
-    const saved=collectMockFeedback(entry,{requestKey:quantId('review'),title:'人工审查样例',targetSourceId:entry.sources!.find(row=>row.payload.provenance!=='external_feedback')!.id,factorId:'',experimentResultId:'',mode:'unknown',documentFormat:'json',document:JSON.stringify({kind:'LOCAL_NATIVE_PYTHON',verdict:'fail',parameters:[{name:'lookback',value:25}]}),platform:'local artificial',notes,analyze:true,modelId:''});
+    const saved=collectMockFeedback(entry,{requestKey:quantId('review'),title:'人工审查样例',targetSourceId:entry.sources!.find(row=>row.payload.provenance!=='external_feedback')!.id,factorId:'',experimentResultId:'',mode:'unknown',documentFormat:'json',document:JSON.stringify({kind:'LOCAL_NATIVE_PYTHON',verdict:'fail',parameters:[{name:'lookback',value:25}],alignmentAck:nativeAlignmentFixture(60,0,true,true)}),platform:'local artificial',notes,analyze:true,modelId:''});
     assert.ok(!(saved instanceof Response));return {entry,source:saved.source,run:entry.runs[0]};
 }
 const finish=(entry:QuantEntryDetail,run:QuantAIRun)=>{run.createdAt='2020-01-01T00:00:00Z';advanceRun(run,entry.sources?.find(row=>row.id===run.sourceId));publishMockReport(entry);};
@@ -19,10 +21,15 @@ async function invoke(entry:QuantEntryDetail,path:string,method='GET',body?:unkn
 test('native review local sample has bounded stages, saved original and inspectable outcomes',async()=>{
     const {entry,run}=prepare();assert.equal(run.nativeReviewWorkflow?.policy.maxModelCalls,3);
     const waiting=await invoke(entry,`${run.id}/workflow/native_audit/`) as Response;assert.equal(waiting.status,404);
-    finish(entry,run);assert.equal(run.status,'completed');assert.equal(run.nativeReviewWorkflow?.stages.length,2);assert.equal(run.result.feedback?.nativeReviewVersion,2);
+    finish(entry,run);assert.equal(run.status,'completed');assert.equal(run.nativeReviewWorkflow?.stages.length,2);assert.equal(run.result.feedback?.nativeReviewVersion,3);
+    const positions=readNativeAlignment(run.nativeReviewWorkflow!.alignmentJson!);assert.equal(positions.left_first_valid_index,positions.right_first_valid_index);assert.deepEqual(positions.missing_mismatch_indices,[59]);
     const evidence=await invoke(entry,`${run.id}/workflow/native_audit/`) as NativeReviewEvidence;
     const parsed=readNativeReview(evidence.outcomeJson!);assert.equal(parsed.output.decision,'accept');assert.deepEqual(parsed.output.issues,[]);
+    const draft=quantState().nativeReviewRecords[0].evidence.native_draft!;
+    const original=readNativeReview(draft.outcomeJson!).output.analysis as {native_review_version:number;summary:string};
+    assert.equal(original.native_review_version,3);assert.equal(original.summary,run.result.feedback!.summary);
     assert.match(evidence.inputJson,/artificial/);assert.equal(quantState().nativeReviewRecords.length,1);
+    const input=JSON.parse(evidence.inputJson);assert.deepEqual(input.draft.native_review.alignment_ack,input.alignment);
 });
 test('reviewing saved legacy report retains it and records one revision without source rerun',async()=>{
     const {entry,run}=prepare();finish(entry,run);const old=entry.reports!.find(row=>row.runId===run.id)!;old.data.nativeReviewVersion=1;
@@ -32,6 +39,7 @@ test('reviewing saved legacy report retains it and records one revision without 
     assert.equal(entry.reports!.filter(row=>row.sourceId===run.sourceId).length,2);
     const evidence=await invoke(entry,`${next.id}/workflow/native_audit/`) as NativeReviewEvidence;
     const parsed=readNativeReview(evidence.outcomeJson!);assert.equal(parsed.output.issues![0].quote,'"native_review_version": 1');
+    assert.equal(parsed.output.issues![0].quote_origin,'frozen_text_span');assert.equal(parsed.output.issues![0].text_ref,'text:protocol_version');
     assert.equal(next.nativeReviewWorkflow?.stages[0].usage?.requestCount,0);
     const invalid=await invoke(entry,'','POST',{kind:'feedback_review',sourceId:run.sourceId,auditReportId:'other-report',requestKey:'native_bad_ref_mock_001'}) as Response;assert.equal(invalid.status,400);
 });
@@ -47,4 +55,12 @@ test('raw review reader rejects incomplete, forged failed and unsupported record
     assert.throws(()=>readNativeReview(JSON.stringify({...raw,status:'failed',error:'x'})),/失败审查/);
     assert.throws(()=>readNativeReview(JSON.stringify({...raw,output:{decision:'unknown'}})),/未知审查/);
     assert.throws(()=>readNativeReview(JSON.stringify({...raw,output:{decision:'revise',issues:[{quote:'x'}]}})),/逐字/);
+});
+test('missing positions keep zero, no-valid rows and unknown source failures distinct',()=>{
+    const valid=nativeAlignmentFixture(60,0);valid.left_first_valid_index=0;valid.right_first_valid_index=null;
+    assert.equal(readNativeAlignment(JSON.stringify(valid)).left_first_valid_index,0);
+    assert.equal(readNativeAlignment(JSON.stringify(valid)).right_first_valid_index,null);
+    const unavailable=nativeAlignmentFixture(60,0,false);assert.equal(readNativeAlignment(JSON.stringify(unavailable)).missing_mismatch_total,null);
+    assert.throws(()=>readNativeAlignment(JSON.stringify({...unavailable,left_first_valid_index:0})),/未知/);
+    assert.throws(()=>readNativeAlignment(JSON.stringify({...valid,missing_mismatch_total:1})),/数量不一致/);
 });

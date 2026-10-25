@@ -53,8 +53,8 @@ def validate_feedback(rows: dict, fail) -> None:
                 from .memory import from_rows
                 context = {**context, 'research_memory': from_rows(run, rows)}
             if run.get('feedback_workflow_version'):
-                from quant.native_reviews.policy import POLICY
-                context['native_review_policy']=POLICY.copy()
+                from quant.native_reviews.context import from_rows as enrich_native
+                context=enrich_native(context,run,rows)
             if run['status'] == 'completed':
                 if validate_analysis(run['result'], context) != run['result']:
                     fail('反馈分析证据或哈希不一致')
@@ -76,6 +76,6 @@ def for_run_rows(run: dict, rows: dict, fail) -> dict:
         from .memory import from_rows
         context['research_memory'] = from_rows(run, rows)
     if run.get('feedback_workflow_version'):
-        from quant.native_reviews.policy import POLICY
-        context['native_review_policy']=POLICY.copy()
+        from quant.native_reviews.context import from_rows as enrich_native
+        context=enrich_native(context,run,rows)
     return context

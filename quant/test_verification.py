@@ -164,11 +164,11 @@ class VerificationIntegrationTests(TestCase):
 
     def test_old_complete_backup_prunes_new_checks_and_does_not_borrow_new_field(self):
         candidate = self.publish('verification_legacy001')
-        FactorCandidate.objects.filter(pk=candidate.pk).update(qualification_version=0)
+        FactorCandidate.objects.filter(pk=candidate.pk).update(qualification_version=0,admission_version=0)
         FactorQualification.objects.filter(candidate=candidate).delete()
         snapshot = SyncManager().build_snapshot_data()
         for row in snapshot:
-            if row['model'] == 'quant.factorcandidate': row['fields'].pop('qualification_version')
+            if row['model'] == 'quant.factorcandidate': row['fields'].pop('qualification_version'); row['fields'].pop('admission_version')
         meta = metadata(snapshot); meta['quant_schema_version'] = 39
         indexed = self.client.post(self.verification_url(candidate), {'kind': 'experiment'}, format='json')
         self.assertEqual(indexed.status_code, 200, indexed.data)

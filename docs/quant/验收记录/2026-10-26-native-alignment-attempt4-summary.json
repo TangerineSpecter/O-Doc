@@ -1,0 +1,23 @@
+{
+  "run_id": "3b1bae969d0d43339080ede95d8bfee0",
+  "new_report_id": "a65e6af6a9ff4e3ca2bc786b4ca40709",
+  "old_report_id": "ffbbf2cd49514a3eaa62410d995db206",
+  "status": "completed",
+  "error": "",
+  "model": "deepseek-flash",
+  "provider_calls": 2,
+  "source_calls": 0,
+  "prior_report_unchanged": true,
+  "restore_calls": 0,
+  "schema_version": 52,
+  "decisions": [
+    null,
+    "accept"
+  ],
+  "model_context_chars_before": 39569,
+  "model_context_chars_after": 39044,
+  "manual_quality_review": "pending",
+  "independent_review": false,
+  "default_request_requirements_empty": true,
+  "source_report_seeded": false
+}

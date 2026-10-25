@@ -11,8 +11,10 @@ def validate(value,context,*,model_output=False):
         return {}
     if not present and not native:return {}
     version=value.get('native_review_version',1)
-    if type(version) is not int or version not in (1,2):raise serializers.ValidationError('Python验证解读版本无效')
-    if native and version!=(2 if context.get('native_review_policy') else 1):
+    if type(version) is not int or version not in (1,2,3):raise serializers.ValidationError('Python验证解读版本无效')
+    policy=context.get('native_review_policy') if context is not None else None
+    expected_version=3 if policy and policy.get('version')==2 else 2 if policy else 1
+    if native and version!=expected_version:
         raise serializers.ValidationError('原始Python审查版本与本次冻结策略不一致')
     class Review(serializers.Serializer):
         verdict=serializers.ChoiceField(choices=['pass','fail','inconclusive','unavailable'])
@@ -24,14 +26,16 @@ def validate(value,context,*,model_output=False):
         comparison_roles=serializers.DictField(child=serializers.CharField())
         comparison_rule=serializers.DictField(child=serializers.JSONField())
         native_result_id=serializers.RegexField(r'^[0-9a-f]{40}$')
-    serializer=(Reviewed if version==2 else Review)(data=value.get('native_review'));serializer.is_valid(raise_exception=True)
+    class Aligned(Reviewed):
+        alignment_ack=serializers.DictField(child=serializers.JSONField())
+    serializer=(Aligned if version==3 else Reviewed if version==2 else Review)(data=value.get('native_review'));serializer.is_valid(raise_exception=True)
     if not model_output and (type(value.get('native_review_version')) is not int or value['native_review_version']!=version):
         raise serializers.ValidationError('Python验证解读版本无效')
     result=dict(serializer.validated_data)
     if native and (result['verdict']!=(native['verdict'] or 'unavailable') or digest(result['actual_parameters'])!=digest(native['parameters'])
             or any(value.get(key) for key in ('reported_parameters','reported_metrics','supporting_evidence','counter_evidence'))):
         raise serializers.ValidationError('模型须保留Python计算判定；输出对照不能产生收益指标')
-    if version==2:
+    if version>=2:
         from quant.native_reviews.contracts import acknowledgment
         from quant.comparisons.output_compare import validate_policy
         rule=result['comparison_rule']
@@ -41,24 +45,29 @@ def validate(value,context,*,model_output=False):
         expected=acknowledgment(native) if native else {'comparison_roles':{'left':'portable_expression','right':'original_python_function'}}
         if any(digest(result[key])!=digest(item) for key,item in expected.items()):
             raise serializers.ValidationError('Python审查的左右侧、容差或结果引用与计算事实不一致')
+        if version==3:
+            from quant.native_reviews.alignment import validate_ack
+            try:validate_ack(result['alignment_ack'])
+            except ValueError as error:raise serializers.ValidationError('Python审查缺失位置确认无效') from error
     output={'native_review_version':version,'native_review':result}
-    if model_output:output['native_markdown_version']=3 if version==2 else 2
+    markdown_version=5 if version==3 else 3 if version==2 else 2
+    if model_output:output['native_markdown_version']=markdown_version
     elif 'native_markdown_version' in value:
-        if type(value['native_markdown_version']) is not int or value['native_markdown_version']!=(3 if version==2 else 2):
+        if type(value['native_markdown_version']) is not int or value['native_markdown_version'] not in ((4,5) if version==3 else (markdown_version,)):
             raise serializers.ValidationError('Python报告展示版本无效')
         output['native_markdown_version']=value['native_markdown_version']
     if native:
         facts={key:native[key] for key in ('id','content_hash','source','dataset','parameters','bindings','native','policy','environment','status','reason','verdict','comparison')}
+        if version==3:facts['alignment']=native['alignment']
         if 'native_review_facts' in value and digest(value['native_review_facts'])!=digest(facts):
             raise serializers.ValidationError('Python报告核算事实不可改写')
         output['native_review_facts']=facts
     elif 'native_review_facts' in value:output['native_review_facts']=value['native_review_facts']
     if 'native_review_gate' in value:
-        from quant.native_reviews.policy import POLICY
         from quant.native_reviews.contracts import validate_gate
-        if model_output or version!=2:raise serializers.ValidationError('模型不能自授报告审查通过状态')
+        if model_output or version not in (2,3):raise serializers.ValidationError('模型不能自授报告审查通过状态')
         validate_gate(value['native_review_gate'])
-        if context is not None and context.get('native_review_policy')!=POLICY:raise serializers.ValidationError('Python审查策略不匹配')
+        if context is not None and context.get('native_review_policy')!=value['native_review_gate']['policy']:raise serializers.ValidationError('Python审查策略不匹配')
         output['native_review_gate']=value['native_review_gate']
     return output
 
@@ -82,7 +91,7 @@ def markdown(result):
     if not value:return []
     facts=result.get('native_review_facts',{})
     fixed=[]
-    if facts and result.get('native_markdown_version') not in (2,3):
+    if facts and result.get('native_markdown_version') not in (2,3,4,5):
         import json
         fixed=['### 程序记录的实际配置',json.dumps({'实际参数':facts['parameters'],'函数参数映射':facts['native']['arguments'],
             '行情片段':facts['dataset'],'容差':facts['policy'],'运行环境':facts['environment']['runtime'],
@@ -105,11 +114,14 @@ def markdown(result):
             counts=facts['comparison']['counts']
             fixed.append(f"左侧为受控表达式，右侧为原始函数：共同有效{counts['common_valid']}行，数值差异{counts['value_mismatches']}行，缺失差异{counts['missing_mismatches']}行。")
         else:fixed.append('运行未得到可比较输出；原因：'+facts['reason'])
-        if result.get('native_markdown_version')==3:
+        if result.get('native_markdown_version') in (3,4,5):
             fixed.append('数值一致条件：abs(左−右) ≤ 绝对容差 + 相对容差 × max(abs(左), abs(右))；不是两个独立阈值的“且”或“或”。')
             record=result.get('native_review_gate')
             if record:
                 fixed+=['### AI事实审查记录',('经过一次修订及最终复核。' if record['status']=='revised_audited' else '本次复核未列出需修订问题。')+
                     '生成与审查使用同一模型配置，不属于独立验证或质量放行。原始解读、逐字问题与修订稿分别保留。']
+        if 'alignment' in facts:
+            from quant.native_reviews.alignment_markdown import markdown as alignment_markdown
+            fixed+=alignment_markdown(facts['alignment'],joined=result.get('native_markdown_version')==5)
     return ['## Python原始函数固定样本验证',f"计算判定：{value['verdict']}",*fixed,value['interpretation'],
         '### 实际参数与后续假设',value['parameter_assessment'],'### 适用边界','\n'.join('- '+row for row in value['limitations'])]

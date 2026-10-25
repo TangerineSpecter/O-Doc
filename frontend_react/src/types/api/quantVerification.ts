@@ -48,12 +48,12 @@ export interface FeedbackVerification extends EvidenceBase {
     parser_status: string; accounting_status: string; counts: Record<string, number>; structured: boolean; platform_authenticated: false;
 }
 export interface FixedValidationVerification extends EvidenceBase {
-    kind: 'fixed_validation'; source_request_id: string; source_attempt_id: string; dataset_hash: string;
+    kind: 'fixed_validation'; result_status?:'completed'|'failed'|'cancelled';error?:string;source_request_id: string; source_attempt_id: string; dataset_hash: string;
     market: {symbol: string;timeframe: string}; mode: 'fresh' | 'replication'; independent_validation: false;
     config: {threshold: number;fee_bps: number;slippage_bps: number;strategy?: Record<string,unknown>};
     recipe: {parameters: Record<string,number|boolean|string>}; bounds: {start_timestamp: string;end_timestamp: string};
     metrics: VerificationMetrics; baseline: VerificationMetrics;
-    publication_audit: {complete_scan: boolean;conflict_count: number;global_independent_validation: false;range_status: string};
+    publication_audit: {complete_scan: boolean;conflict_count: number;global_independent_validation: false;range_status: string}|null;
     registered_criteria?:QuantRegisteredCriteria; criteria_assessment?:QuantCriteriaAssessment;
     criteria_context?:{mode:'fresh'|'replication';imported_after_registration:boolean;audit:{complete_scan:boolean;conflict_count:number}};
 }

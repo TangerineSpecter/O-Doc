@@ -1,11 +1,14 @@
 """Compact per-run status; original model inputs/outputs load only on demand."""
 import json
-from .policy import POLICY,STAGES,NAMES
+from .policy import get_policy,STAGES,NAMES
 
 
 def summary(run) -> dict|None:
     if not run.feedback_workflow_version:return None
     steps=list(run.workflow_steps.select_related('outcome').order_by('ordinal'))
+    alignment=next((step.input.get('context',{}).get('native_check',{}).get('alignment') for step in steps
+        if step.input.get('context',{}).get('native_check',{}).get('alignment')),None)
+    from .alignment import acknowledgment
     records=[]
     for row in steps:
         outcome=getattr(row,'outcome',None);data=outcome.data if outcome else {};output=data.get('output',{})
@@ -14,7 +17,8 @@ def summary(run) -> dict|None:
             'issue_count':len(output.get('issues',[])),'origin':output.get('origin','model'),
             'outcome_id':outcome.pk if outcome else None,'content_hash':outcome.content_hash if outcome else None,
             'error':data.get('error',''),'elapsed_ms':data.get('elapsed_ms'),'usage':data.get('usage')})
-    return {'version':1,'policy':POLICY.copy(),'source_report_id':run.audit_report_id or None,'stages':records,
+    return {'version':run.feedback_workflow_version,'policy':get_policy(run.feedback_workflow_version),'source_report_id':run.audit_report_id or None,'stages':records,
+        'alignment_json':json.dumps(acknowledgment(alignment),ensure_ascii=False) if alignment else None,
         'gate_status':run.result.get('native_review_gate',{}).get('status') if run.status=='completed' else None,
         'remaining_stages':[] if run.status=='completed' else [stage for stage in STAGES if stage not in {row.stage for row in steps}]}
 

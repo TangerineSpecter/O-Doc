@@ -35,6 +35,8 @@ def snapshot(collection, query: dict, signature: str) -> list[dict]:
         cached = vectors.get(candidate.pk)
         vector = cached.vector if fingerprint and cached and cached.projection_hash == fingerprint and cosine(cached.vector, cached.vector) is not None else None
         item = candidate_data(candidate, vocabulary)
+        if query.get('admission_stage') and query['admission_stage']!=item['admission']['stage']:
+            continue
         if query.get('reuse_status') and query['reuse_status'] != item['verification']['reuse_status']:
             continue
         if query.get('taxonomy_term') and query['taxonomy_term'] not in {term['id'] for term in item['classification']['terms']}:

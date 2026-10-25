@@ -11,13 +11,14 @@ from .contracts import model_context,draft_projection,MAX_RAW
 from .policy import NAMES
 
 
-def input_snapshot(stage:str,ordinal:int,context:dict,requirements:str,model:dict,*,draft=None,source_report=None,version=4) -> dict:
+def input_snapshot(stage:str,ordinal:int,context:dict,requirements:str,model:dict,*,draft=None,source_report=None,version=None) -> dict:
+    if version is None:version=9 if context['native_review_policy']['version']==2 else 4
     value={'version':version,'method':'native-report-review-v1','stage':stage,'ordinal':ordinal,
         'context_hash':digest(context),'context':model_context(context),'requirements':requirements,
         'model':copy.deepcopy(model),'draft':draft_projection(draft) if draft is not None else None,'source_report':source_report}
     if version>=2:
         from . import prompts
-        prompt_version=3 if version>=4 else 2 if version>=3 else 1
+        prompt_version=8 if version>=9 else 7 if version>=8 else 6 if version>=7 else 5 if version>=6 else 4 if version>=5 else 3 if version>=4 else 2 if version>=3 else 1
         value['prompt']=None if not model else prompts.generation(context,requirements,version=prompt_version) if stage=='native_draft' else prompts.review(context,draft,requirements,can_revise=stage=='native_audit',version=prompt_version)
     return value
 

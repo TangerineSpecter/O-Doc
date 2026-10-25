@@ -1,5 +1,5 @@
 import type {QuantFactorCandidate, QuantFactorQuery} from './quant';
-export type QuantSearchQuery = Pick<QuantFactorQuery, 'q' | 'role' | 'family' | 'groupBy' | 'entryId' | 'taxonomyTerm' | 'reuseStatus'>;
+export type QuantSearchQuery = Pick<QuantFactorQuery, 'q' | 'role' | 'family' | 'groupBy' | 'entryId' | 'taxonomyTerm' | 'reuseStatus' | 'admissionStage'>;
 export interface QuantSearchMatch {
     keywordFields: string[];
     semanticSimilarity: number | null;

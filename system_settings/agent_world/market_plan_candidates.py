@@ -9,15 +9,12 @@ from decimal import Decimal
 
 from .inventory_stock import stock_quantity
 from .market_models import MarketListing
-from .market_no_buy import filter_candidates
 from .market_shop import shop_payload
 from .fishing.constants import MAX_BAIT_STOCK
 
 MAX_OPTIONS = 10
-MAX_QUESTIONS = 9
+MAX_QUESTIONS = 8
 CRAFTING_SIMULATION_ENERGY = Decimal('1000000')
-GOAL_SLOTS = ('weapon', 'offhand', 'head', 'body', 'hands', 'legs', 'feet',
-              'accessory', 'ring_1', 'ring_2')
 SEED_PREFIX = 'seed.'
 FERTILIZER_PREFIX = 'fertilizer.'
 
@@ -395,51 +392,3 @@ def listing_quote(owner: str, actor_id: str, sku: str, min_stars: int) -> dict |
         count += row['remaining_quantity']
         minimum = min(minimum, row['unit_price']) if minimum is not None else row['unit_price']
     return {'count': count, 'min_price': money(minimum)} if count else None
-
-
-def equipment_rows(owner: str, actor_id: str, limit: int = 2) -> list[dict]:
-    """空部位且存在可穿戴、有提升的挂牌，按部位汇总候选数量与最低价。"""
-    from .combat.models import CombatProfile, EquipmentInstance
-    profile = CombatProfile.objects.filter(pk=actor_id, owner_id=owner).first()
-    if not profile:
-        return []
-    loadout = profile.loadout or {}
-    empty = [slot for slot in GOAL_SLOTS if not loadout.get(slot)]
-    if not empty:
-        return []
-    job = (profile.progression or {}).get('job', '')
-    level = int((profile.progression or {}).get('level', 1))
-    rows = list(MarketListing.objects.filter(
-        owner_id=owner, status='active', item__source__kind='combat_equipment'
-    ).exclude(seller_id=actor_id).order_by('unit_price')[:30])
-    gear_ids = [str((row.item or {}).get('source', {}).get('equipment_id') or '') for row in rows]
-    gears = {gear.pk: gear for gear in EquipmentInstance.objects.filter(
-        pk__in=[identity for identity in gear_ids if identity])}
-    by_slot = {}
-    for row in rows:
-        item = row.item or {}
-        equipment_id = str((item.get('source') or {}).get('equipment_id') or '')
-        gear = gears.get(equipment_id)
-        snapshot = (gear.snapshot if gear else item.get('equipment_snapshot')) or {}
-        snapshot_slot = snapshot.get('slot')
-        if snapshot_slot == 'accessory':
-            targets = ([slot for slot in ('ring_1', 'ring_2') if not loadout.get(slot)]
-                       if snapshot.get('equipment_type') == 'ring'
-                       else ([] if loadout.get('accessory') else ['accessory']))
-        elif snapshot_slot in empty:
-            targets = [snapshot_slot]
-        else:
-            targets = []
-        candidate = {'listing_id': row.pk, 'version': row.version, 'equipment_id': equipment_id,
-                     'snapshot': snapshot, 'rules': gear.rules if gear else {},
-                     'name': item.get('name', '装备'), 'price': str(row.unit_price), 'quantity': 1}
-        for slot in targets:
-            current_id = loadout.get(slot)
-            current = EquipmentInstance.objects.filter(pk=current_id, owner_id=owner).first() if current_id else None
-            if not filter_candidates(owner, actor_id, [candidate], job, level, slot=slot,
-                                     current=current.snapshot if current else None):
-                continue
-            entry = by_slot.setdefault(slot, {'slot': slot, 'count': 0, 'min_price': row.unit_price})
-            entry['count'] += 1
-            entry['min_price'] = min(entry['min_price'], row.unit_price)
-    return sorted(by_slot.values(), key=lambda entry: (-entry['count'], entry['min_price']))[:limit]

@@ -147,7 +147,7 @@ def validate_research(rows: dict, fail) -> None:
             for key in model.SNAPSHOT_FIELDS:
                 field = model._meta.get_field(key)
                 source_key = field.name
-                incoming_value = fields.get(source_key, 0 if key == 'qualification_version' else '' if key in ('derived_checkpoint_id', 'formula_version_id') else None)
+                incoming_value = fields.get(source_key, 0 if key in ('qualification_version','admission_version') else '' if key in ('derived_checkpoint_id', 'formula_version_id') else None)
                 if local[key] != incoming_value:
                     fail('同一研究快照的不可变内容冲突，拒绝覆盖')
 

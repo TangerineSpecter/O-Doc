@@ -248,6 +248,7 @@ export interface QuantFactorData {
     derivation?: {transformation?: import('./quantExperiment').QuantFormulaTransform; localDemo?: boolean; version: string; requestId: string; checkpointId: string; attemptId: string; parentCandidateIds: string[]; parentAttemptIds: string[]; operation: string; engineVersion: string; datasetHash: string; selectionRule: string};
 }
 export interface QuantFactorCandidate {
+    admission?: import('./quantAdmission').AdmissionSummary;
     verification?: import('./quantVerification').QuantVerificationSummary;
     classification?: import('./quantVocabulary').FactorClassification;
     formulaLineage?: {id: string; rootCandidateId: string; currentCandidateId: string; currentSelectionId: string; currentAvailable: boolean; versionsTotal: number};
@@ -279,6 +280,7 @@ export interface QuantFactorCuration {
 }
 export type QuantFactorGrouping = 'none' | 'raw' | 'expression' | 'merged' | 'lineage';
 export interface QuantFactorQuery {
+    admissionStage?: import('./quantAdmission').ResearchStage | '';
     reuseStatus?: import('./quantVerification').ReuseStatus | '';
     taxonomyTerm?: string;
     groupBy?: QuantFactorGrouping;

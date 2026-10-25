@@ -28,9 +28,8 @@ def finish(request,status,error='',output=None):
             data['criteria_assessment']=assess(request.plan.data['criteria'],'failed',None,request.data,None)
     result,_=ValidationResult.objects.get_or_create(id=digest(['validation-result-v1',request.pk])[:40],
         defaults={'request':request,'data':data,'content_hash':digest(data)})
-    if result.data['status']=='completed':
-        from quant.verification.services import fixed_validation
-        fixed_validation(result)
+    from quant.verification.services import fixed_validation
+    fixed_validation(result)
     return result
 
 

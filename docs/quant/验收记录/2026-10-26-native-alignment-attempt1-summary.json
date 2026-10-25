@@ -1,0 +1,22 @@
+{
+  "run_id": "4bd1893bb40e49979576ee17831d6f74",
+  "new_report_id": null,
+  "old_report_id": "c7c40cf320c94f4e81da145a9555bd93",
+  "status": "failed",
+  "error": "模型未返回完整有效的结果，本次未采用，请调整要求后重试",
+  "model": "deepseek-flash",
+  "provider_calls": 1,
+  "source_calls": 0,
+  "prior_report_unchanged": true,
+  "restore_calls": 0,
+  "schema_version": 52,
+  "decisions": [
+    null
+  ],
+  "model_context_chars_before": 39569,
+  "model_context_chars_after": 39044,
+  "manual_quality_review": "pending",
+  "independent_review": false,
+  "default_request_requirements_empty": true,
+  "source_report_seeded": false
+}

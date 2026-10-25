@@ -3,13 +3,19 @@ from quant.models import ResearchReport
 
 POLICY={'version':1,'max_model_calls':3,'max_seconds':360,'per_call_seconds':120,
     'max_revisions':1,'reviewer_independent':False}
+POLICIES={1:POLICY,2:{**POLICY,'version':2}}
 STAGES=('native_draft','native_audit','native_reaudit')
 NAMES={'native_draft':'生成或读取原始解读','native_audit':'事实审查与一次修订','native_reaudit':'复核修订稿'}
 
 
+def get_policy(version):
+    if type(version) is not int or version not in POLICIES:raise ValidationError('Python报告审查策略版本无效')
+    return POLICIES[version].copy()
+
+
 def prepare(source,values:dict,existing=None) -> None:
     native=source.payload.get('feedback_version')==4
-    version=existing.feedback_workflow_version if existing else 1 if native else 0
+    version=existing.feedback_workflow_version if existing else 2 if native else 0
     if version:
         if not native:raise ValidationError('原始输出审查须绑定Python计算事实')
         values['feedback_workflow_version']=version

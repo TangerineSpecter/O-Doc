@@ -1,3 +1,4 @@
+import {FactorAdmission} from './admissions/FactorAdmission';
 import type {QuantRegisterDraft} from '../../hooks/useQuantNavigation';
 import {FactorVerification} from './verification/FactorVerification';
 import {NativePanel} from './nativePython/NativePanel';
@@ -22,6 +23,7 @@ export function FactorDetail({collection, candidate, openSource, register, reque
         <div><div className="mb-3 flex flex-wrap gap-2 text-xs text-slate-500"><span>{factorRoles[data.role]}</span><span>·</span><span>{factorFamilies[curated.family]}</span><span>· {candidate.verification ? reuseLabels[candidate.verification.reuseStatus] : '验证状态待归集'}</span></div>
             <h3 className="text-lg font-semibold text-slate-900">{curated.name}</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{data.summary}</p>
         </div>
+        <FactorAdmission key={`admission-${candidate.id}`} collection={collection} candidate={candidate.id} initial={candidate.admission}/>
         <FactorVerification key={candidate.id} collection={collection} candidate={candidate.id} openExperiment={openExperiment} openComparison={openComparison} openVersions={versions}/>
         <NativePanel key={`native-${candidate.id}`} collection={collection} candidate={candidate} register={register} request={request} openSource={(entryId,reportId)=>openSource({entryId:entryId||candidate.entryId,reportId:reportId||candidate.reportId})}/>
         <Classification value={candidate.classification}/>

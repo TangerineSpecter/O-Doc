@@ -101,6 +101,6 @@ def for_run(run) -> dict:
         from .memory import for_source as memory_for_source
         context['research_memory'] = memory_for_source(run.source, run.planning_context)
     if run.feedback_workflow_version:
-        from quant.native_reviews.policy import POLICY
-        context['native_review_policy']=POLICY.copy()
+        from quant.native_reviews.context import for_source as enrich_native
+        context=enrich_native(context,run.source,run.feedback_workflow_version)
     return context

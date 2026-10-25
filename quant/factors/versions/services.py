@@ -37,7 +37,7 @@ def edit(parent: FactorCandidate, request_key: str, definition_json: str, reason
         return previous.candidate
     candidate_data = authored(data, identity, root.pk)
     child = FactorCandidate.objects.create(id=candidate_id(identity), report=parent.report, ordinal=0,
-        formula_version_id=identity, qualification_version=1, data=candidate_data, content_hash=digest(candidate_data),
+        formula_version_id=identity, qualification_version=1, admission_version=1, data=candidate_data, content_hash=digest(candidate_data),
         expression_hash=expression_hash(candidate_data))
     FactorFormulaVersion.objects.create(id=identity, root=root, candidate=child, request_key=request_key,
         data=data, content_hash=digest(data))

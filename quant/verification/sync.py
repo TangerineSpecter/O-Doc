@@ -47,7 +47,7 @@ def validate_verification(rows, fail):
             if not target or fixed.get('anthology')!=collection or not source or not origin:
                 fail('固定验证证据来源缺失或跨文集')
             expected=evidence.fixed_validation(candidate_id,candidate['data'],target_id,target['data'],request['data'],fixed['data'],
-                rows['quant.marketdataset'][request['dataset']]['snapshot'],origin['data'],source['plan'],rows['quant.marketdataset'][source['dataset']]['snapshot'])
+                rows['quant.marketdataset'][request['dataset']]['snapshot'],origin['data'],source['plan'],rows['quant.marketdataset'][source['dataset']]['snapshot'],include_incomplete=row.get('admission_version',0)==1)
         elif kind=='native_python':
             from quant.native_python.evidence import verification
             target=rows.get('quant.nativepythonresult',{}).get(target_id,{})
@@ -74,5 +74,5 @@ def validate_verification(rows, fail):
     for model in (FactorQualification, FactorEvidenceLink):
         incoming = rows.get(model._meta.label_lower, {})
         for local in model.objects.filter(pk__in=incoming).values('id', *model.SNAPSHOT_FIELDS):
-            if any(digest(local[field]) != digest(incoming[local['id']].get(model._meta.get_field(field).name)) for field in model.SNAPSHOT_FIELDS):
+            if any(digest(local[field]) != digest(incoming[local['id']].get(model._meta.get_field(field).name,0 if field=='admission_version' else None)) for field in model.SNAPSHOT_FIELDS):
                 fail('已有因子检查与验证事实不可覆盖')

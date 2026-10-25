@@ -26,9 +26,10 @@ export function VerificationEvidence({value, createdAt, openExperiment, openComp
             <p>{value.market.symbol} · {value.market.timeframe} · {value.mode === 'fresh' ? '登记后导入的新数据验证' : '普通复核'}。单侧费用 {value.config.fee_bps} bps，滑点 {value.config.slippage_bps} bps。</p>
             <p className="break-words">{value.bounds.start_timestamp} → {value.bounds.end_timestamp} · 来源尝试 {value.source_attempt_id}</p>
             <p className="break-all font-mono">{Object.entries(value.recipe.parameters).map(([k,v]) => `${k}=${v}`).join('，') || '无可调参数'}</p>
+            {value.result_status&&value.result_status!=='completed'&&<p className="text-orange-700">{value.result_status==='cancelled'?'评价已停止':'评价未完成'}：{value.error}；以下范围为冻结计划，未形成实际指标。</p>}
             <p>固定方案：<Metrics value={value.metrics}/></p><p>同成本基线：<Metrics value={value.baseline}/></p>
             {value.registered_criteria && <RegisteredCriteriaResult criteria={value.registered_criteria} assessment={value.criteria_assessment}/>}
-            <p>发布时发现 {value.publication_audit.conflict_count} 条重叠，扫描{value.publication_audit.complete_scan ? '覆盖已记录范围' : '不完整'}；外部使用及全局独立性未知。当前重用审计和完整报告见来源实验的固定验证区。</p>
+            {value.publication_audit?<p>发布时发现 {value.publication_audit.conflict_count} 条重叠，扫描{value.publication_audit.complete_scan ? '覆盖已记录范围' : '不完整'}；外部使用及全局独立性未知。当前重用审计和完整报告见来源实验的固定验证区。</p>:<p>尚未形成发布时审计，不能将未知记作零重叠。</p>}
             <QuantButton onClick={() => openExperiment(value.source_request_id)}>打开来源实验与固定验证</QuantButton>
         </> : value.kind === 'experiment' ? <>
             <p>{value.market.symbol || '标的未知'} · {value.market.timeframe || '周期未知'} · {status[value.result_status] || value.result_status}。费用 {value.config.fee_bps} bps，滑点 {value.config.slippage_bps} bps，隔离 {value.config.gap} 根。</p>

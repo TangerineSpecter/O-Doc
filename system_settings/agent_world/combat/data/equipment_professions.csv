@@ -1261,3 +1261,10 @@ equip.instrument.50.job.battleconductor,equip.instrument.50,job.battleconductor
 equip.instrument.50.job.requiemsinger,equip.instrument.50,job.requiemsinger
 equip.instrument.50.job.virtuoso,equip.instrument.50,job.virtuoso
 equip.instrument.50.job.sonomancer,equip.instrument.50,job.sonomancer
+equip.mage_staff.job.priest,equip.mage_staff,job.priest
+equip.mage_staff.job.cleric,equip.mage_staff,job.cleric
+equip.mage_staff.job.naturalist,equip.mage_staff,job.naturalist
+equip.mage_staff.job.highpriest,equip.mage_staff,job.highpriest
+equip.mage_staff.job.inquisitor,equip.mage_staff,job.inquisitor
+equip.mage_staff.job.druid,equip.mage_staff,job.druid
+equip.mage_staff.job.warden,equip.mage_staff,job.warden

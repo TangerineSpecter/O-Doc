@@ -17,7 +17,7 @@ def publish(report) -> None:
         parent = report.factor_candidates.get(pk=root)
         data = candidate_data(item, report.pk)
         child, _ = FactorCandidate.objects.get_or_create(pk=identity, defaults={'report': report, 'ordinal': 0,
-            'formula_version_id': version, 'qualification_version': 1, 'data': data,
+            'formula_version_id': version, 'qualification_version': 1, 'admission_version':1, 'data': data,
             'content_hash': digest(data), 'expression_hash': expression_hash(data)})
         record = version_data(item, root, parent.content_hash, report.pk)
         FactorFormulaVersion.objects.get_or_create(pk=version, defaults={'root': parent, 'candidate': child,

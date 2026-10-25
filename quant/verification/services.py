@@ -9,14 +9,19 @@ def qualify(candidate):
     value = qualification(candidate.data)
     row, _ = FactorQualification.objects.get_or_create(id=digest(['factor-qualification-1', candidate.pk])[:40], defaults={
         'candidate': candidate, 'policy_version': 1, 'data': value, 'content_hash': digest(value)})
+    from quant.admissions.services import publish
+    publish(candidate,row)
     return row
 
 
 def link(candidate, kind, target_id, value):
     if value is None: return
-    qualify(candidate)
-    return FactorEvidenceLink.objects.get_or_create(id=digest(['factor-verification-link-1', candidate.pk, kind, target_id])[:40], defaults={
-        'candidate': candidate, 'kind': kind, 'target_id': target_id, 'data': value, 'content_hash': digest(value)})[0]
+    qualified=qualify(candidate)
+    record=FactorEvidenceLink.objects.get_or_create(id=digest(['factor-verification-link-1', candidate.pk, kind, target_id])[:40], defaults={
+        'candidate': candidate, 'kind': kind, 'target_id': target_id, 'data': value, 'content_hash': digest(value), 'admission_version':1})[0]
+    from quant.admissions.services import publish
+    publish(candidate,qualified,record)
+    return record
 
 
 def experiment(result):
@@ -94,6 +99,23 @@ def backfill(candidate, offset=0, limit=20, kind='experiment'):
         for record in records.select_related('dataset')[offset:offset + limit]:
             link(candidate, 'comparison', record.pk, evidence.comparison(candidate.pk, candidate.data,
                 record.pk, record.plan, record.result, record.content_hash, record.dataset.snapshot))
+    elif kind in ('fixed_validation','native_python'):
+        from quant.models import ValidationResult,NativePythonResult
+        if kind=='native_python':
+            records=NativePythonResult.objects.filter(request__candidate=candidate).select_related('request__dataset')
+        else:
+            records=ValidationResult.objects.filter(request__plan__anthology_id=coll).select_related('request__dataset','request__plan__source_request__dataset')
+        records=records.order_by('created_at','id');total=records.count()
+        for result in records[offset:offset+limit]:
+            if kind=='native_python':
+                from quant.native_python.evidence import verification
+                request=result.request
+                value=verification(candidate.pk,candidate.data,result.pk,request.plan,result.data,result.content_hash,request.dataset.snapshot)
+            else:
+                request=result.request;plan=request.plan;source=plan.source_request
+                value=evidence.fixed_validation(candidate.pk,candidate.data,result.pk,result.data,request.data,plan.data,
+                    request.dataset.snapshot,source.result.data,source.plan,source.dataset.snapshot,include_incomplete=True)
+            link(candidate,kind,result.pk,value)
     else:
         records = SourceRevision.objects.filter(material__entry__anthology_id=coll, payload__factor_id=candidate.pk).order_by('created_at', 'id')
         total = records.count()
@@ -109,5 +131,5 @@ def fixed_validation(result):
     candidates=FactorCandidate.objects.filter(pk__in=ids) | FactorCandidate.objects.filter(derived_checkpoint_id__in=source.checkpoints.values('id'))
     for candidate in candidates:
         value=evidence.fixed_validation(candidate.pk,candidate.data,result.pk,result.data,request.data,plan.data,
-            request.dataset.snapshot,source.result.data,source.plan,source.dataset.snapshot)
+            request.dataset.snapshot,source.result.data,source.plan,source.dataset.snapshot,include_incomplete=True)
         link(candidate,'fixed_validation',result.pk,value)

@@ -1,3 +1,4 @@
+from quant.admissions.services import compact_prefetch as admission_prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from utils.response_utils import success_result
@@ -10,7 +11,7 @@ from .presentation import history
 
 class FormulaView(QuantView):
     def candidate(self, identity):
-        return get_object_or_404(FactorCandidate.objects.select_related('report__entry', 'report__run').prefetch_related('revisions', 'qualifications'),
+        return get_object_or_404(FactorCandidate.objects.select_related('report__entry', 'report__run').prefetch_related('revisions', 'qualifications', admission_prefetch()),
             pk=identity, report__entry__anthology=self.collection, report__entry__is_valid=True)
 
     def get(self, request, coll_id, factor_id, action=None):

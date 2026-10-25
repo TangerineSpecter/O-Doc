@@ -12,6 +12,7 @@ class SearchInput(serializers.Serializer):
     role = serializers.ChoiceField(choices=['', *ROLES], default='')
     family = serializers.ChoiceField(choices=['', *FAMILIES], default='')
     reuse_status = serializers.ChoiceField(choices=['', 'reusable', 'candidate', 'unchecked'], required=False)
+    admission_stage = serializers.ChoiceField(choices=['','unrecorded','candidate','reusable','calculated','historical','fixed_observation','registered_criteria_met'],required=False)
     taxonomy_term = serializers.CharField(max_length=48, required=False, allow_blank=True)
     entry_id = serializers.CharField(max_length=40, required=False, allow_blank=True)
     group_by = serializers.ChoiceField(choices=['none', 'raw', 'expression'], default='none')

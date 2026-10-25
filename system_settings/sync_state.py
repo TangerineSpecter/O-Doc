@@ -127,7 +127,9 @@ def record_change(sender, instance, deleted=False):
         return
     from system_settings.models import SyncEntityState
     fields = {
-        field.name: getattr(instance, field.name, None)
+        # Cascade deletion can remove a related row before this tombstone. Use
+        # its stored FK value instead of dereferencing a now-missing object.
+        field.name: getattr(instance, field.attname, None)
         for field in sender._meta.fields
     }
     state, _ = SyncEntityState.objects.update_or_create(

@@ -134,7 +134,7 @@ class MarketStarPriceTests(TestCase):
         plan.refresh_from_db()
         self.assertEqual(plan.context['answers']['listing-stars:dish.stew'], '5')
 
-    def test_full_needs_sequence_includes_quality_price_and_equipment(self):
+    def test_full_daily_sequence_leaves_equipment_to_hourly_shopping(self):
         facts = self.facts()
         facts['needs'] = [
             {'key': f'{kind}:{index}', 'kind': kind, 'sku': f'{kind}.{index}',
@@ -145,13 +145,13 @@ class MarketStarPriceTests(TestCase):
             question = kwargs['question_id']
             if ':listing-stars:' in question: return '5'
             if ':listing:' in question: return '100.00'
-            if ':equipment:' in question: return '10.00'
+            if ':bait-range:' in question: return '0-9'
             return '1'
         with patch('system_settings.agent_world.market_planning.choose_scene', side_effect=choose) as call:
             goals, budget, _, _ = _decide('owner', self.buyer, self.plan(), facts)
         self.assertEqual(call.call_count, 8)
-        self.assertEqual({goal['kind'] for goal in goals}, {'shop', 'listing', 'equipment'})
-        self.assertEqual(budget, Decimal('115'))
+        self.assertEqual({goal['kind'] for goal in goals}, {'shop', 'listing'})
+        self.assertEqual(budget, Decimal('105'))
 
     def test_legacy_unqualified_price_cache_cannot_price_five_star_goal(self):
         plan = self.plan({'listing-stars:dish.stew': '5', 'listing:dish.stew': '12.00'})

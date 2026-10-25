@@ -743,7 +743,7 @@
     "star_rift": "星蚀裂隙"
   },
   "combat": {
-    "version": "combat-1.0.30",
+    "version": "combat-1.0.31",
     "tables": {
       "affixSlots": [
         {
@@ -25897,6 +25897,41 @@
           "id": "equip.instrument.50.job.sonomancer",
           "equipmentId": "equip.instrument.50",
           "professionId": "job.sonomancer"
+        },
+        {
+          "id": "equip.mage_staff.job.priest",
+          "equipmentId": "equip.mage_staff",
+          "professionId": "job.priest"
+        },
+        {
+          "id": "equip.mage_staff.job.cleric",
+          "equipmentId": "equip.mage_staff",
+          "professionId": "job.cleric"
+        },
+        {
+          "id": "equip.mage_staff.job.naturalist",
+          "equipmentId": "equip.mage_staff",
+          "professionId": "job.naturalist"
+        },
+        {
+          "id": "equip.mage_staff.job.highpriest",
+          "equipmentId": "equip.mage_staff",
+          "professionId": "job.highpriest"
+        },
+        {
+          "id": "equip.mage_staff.job.inquisitor",
+          "equipmentId": "equip.mage_staff",
+          "professionId": "job.inquisitor"
+        },
+        {
+          "id": "equip.mage_staff.job.druid",
+          "equipmentId": "equip.mage_staff",
+          "professionId": "job.druid"
+        },
+        {
+          "id": "equip.mage_staff.job.warden",
+          "equipmentId": "equip.mage_staff",
+          "professionId": "job.warden"
         }
       ],
       "equipmentTemplates": [

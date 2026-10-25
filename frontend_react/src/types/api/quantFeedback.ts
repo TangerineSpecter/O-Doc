@@ -8,7 +8,7 @@ export interface QuantFeedbackInput {
     analyze: boolean; modelId: string;
 }
 export interface QuantFeedbackAnalysis {
-    computedNativeJson?:string;nativeReviewVersion?:1|2;nativeReview?:{verdict:'pass'|'fail'|'inconclusive'|'unavailable';actualParameters:{name:string;value:number|boolean|string}[];interpretation:string;parameterAssessment:string;limitations:string[]};
+    computedNativeJson?:string;nativeReviewVersion?:1|2|3;nativeReview?:{verdict:'pass'|'fail'|'inconclusive'|'unavailable';actualParameters:{name:string;value:number|boolean|string}[];interpretation:string;parameterAssessment:string;limitations:string[]};
     executionAssessment?: import('./quantPlatformEvidence').QuantExecutionAssessment;
     computedExecutionJson?: string;
     memoryNote?: string;

@@ -18,12 +18,13 @@ from django.utils import timezone
 
 from system_settings.decision.routing import choose_scene
 from system_settings.models import Agent
+from .farm_gate import guarded
 
 from .life_budget_policy import remaining_reservation
 from .life_models import LifeItem
 from .life_schedule import OPEN
 from .life_time import local_time, storage_time
-from .market_plan_candidates import (MAX_QUESTIONS, equipment_rows, listing_rows, listing_quote, listing_star_options,
+from .market_plan_candidates import (MAX_QUESTIONS, listing_rows, listing_quote, listing_star_options,
                                      bait_exact_quantities, bait_quantity_ranges, money, need_rows,
                                      price_options, quantity_options)
 from .market_plan_models import MarketGoal, MarketPlan, plan_id, stable_key
@@ -35,7 +36,6 @@ PLAN_SCENE = 'market_plan'
 SEED_QUESTIONS = 2
 FERTILIZER_QUESTIONS = 2
 LISTING_QUESTIONS = 1
-EQUIPMENT_QUESTIONS = 1
 MAX_GOALS = 12
 MAX_GOAL_QUANTITY = 99
 SLOTS = ('weapon', 'offhand', 'head', 'body', 'hands', 'legs', 'feet', 'accessory', 'ring_1', 'ring_2')
@@ -77,7 +77,6 @@ def _facts(owner: str, agent, now) -> dict:
         'available': str(_available_budget(owner, agent)),
         'needs': need_rows(owner, agent, now),
         'listings': listing_rows(owner, agent.pk, agent=agent),
-        'equipment': equipment_rows(owner, agent.pk),
         'shop_skus': shop_skus,
         'signature': signature,
     }
@@ -228,7 +227,7 @@ def _need_state(row: dict, available: str) -> dict:
 
 
 def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict], Decimal, str, str]:
-    """种子→肥料→鱼饵→挂牌星级→该星级报价→装备；至多八次有限提问。"""
+    """种子→肥料→鱼饵→挂牌星级→该星级报价；装备独立按小时逐件判断。"""
     available = Decimal(facts['available'])
     answers = dict((plan.context or {}).get('answers') or {})
     questions = MAX_QUESTIONS
@@ -343,16 +342,6 @@ def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict
                           'max_unit_price': str(ceiling),
                           'reason': f"求购至少{stars}星一件，符合星级的真实最低价{quote['min_price']}",
                           'name': row['name']})
-
-    for row in facts['equipment'][:EQUIPMENT_QUESTIONS]:
-        state = {'slot': row['slot'], 'count': row['count'],
-                 'min_price': str(money(row['min_price'])), 'available_budget': facts['available']}
-        ceiling = price('equipment:' + row['slot'], state, row['min_price'],
-                        '决定是否为这个空部位设定装备求购上限；买下后仍需在探索准备中换装。')
-        if ceiling > 0:
-            goals.append({'kind': 'equipment', 'sku': '', 'slot': row['slot'], 'quantity': 1,
-                          'min_stars': 1, 'max_unit_price': str(ceiling),
-                          'reason': f"空部位，候选最低{row['min_price']}"})
 
     fitted, spent = _fit(goals, available)
     return fitted, spent, _summary(fitted, fallback), fallback
@@ -479,29 +468,24 @@ def _apply(plan: MarketPlan, result: dict, context: dict, now) -> None:
                 min_stars=goal['min_stars'], quantity=goal['quantity'],
                 max_unit_price=Decimal(goal['max_unit_price']), deadline=deadline,
                 status='open', reason=goal.get('reason', ''))
-        # 装备评价输入没变时沿用昨日未完成目标，但必须落在今日剩余预算内。
-        yesterday = MarketPlan.objects.filter(
-            owner_id=row.owner_id, actor_id=row.actor_id,
-            plan_date=row.plan_date - timedelta(days=1), status='active').first()
-        if yesterday and yesterday.equipment_signature == row.equipment_signature:
-            existing = {(goal.kind, goal.slot) for goal in row.goals.filter(kind='equipment')}
-            room = max(Decimal(0), Decimal(context['available_budget']) - row.budget)
-            carried = Decimal(0)
-            for goal in yesterday.goals.filter(kind='equipment', status='open'):
-                if ('equipment', goal.slot) in existing or goal.max_unit_price > room:
-                    continue
-                identity = stable_key('market-goal', plan.pk, 'equipment', goal.slot, 'carry', length=80)
-                MarketGoal.objects.create(
-                    pk=identity, owner_id=row.owner_id, actor_id=row.actor_id, plan=row,
-                    kind='equipment', slot=goal.slot, min_stars=goal.min_stars,
-                    quantity=1, max_unit_price=goal.max_unit_price, deadline=deadline,
-                    status='open', reason='装备评价输入未变化，沿用昨日目标')
-                room -= goal.max_unit_price
-                carried += goal.max_unit_price
-            if carried:
-                row.budget += carried
-                row.summary = (row.summary.rstrip('。') + f'；沿用昨日装备目标，预算增至{row.budget}。')[:1000]
-                row.save(update_fields=['budget', 'summary', 'updated_at'])
+
+
+@guarded
+@transaction.atomic
+def retire_equipment_goals(plan: MarketPlan) -> None:
+    """Release old slot/price commitments without deleting their audit records."""
+    locked = MarketPlan.objects.select_for_update().get(pk=plan.pk)
+    goals = list(locked.goals.select_for_update().filter(kind='equipment', status='open'))
+    if not goals:
+        return
+    released = sum((goal.max_unit_price * max(0, goal.quantity - goal.filled_quantity)
+                    for goal in goals), Decimal(0))
+    for goal in goals:
+        goal.status = 'cancelled'
+        goal.reason = '改由小时进场后逐件判断装备购买'
+        goal.save(update_fields=['status', 'reason', 'updated_at'])
+    locked.budget = max(locked.spent, locked.budget - released)
+    locked.save(update_fields=['budget', 'updated_at'])
 
 
 def ensure_plan(owner: str, actor_id: str, now=None) -> MarketPlan | None:

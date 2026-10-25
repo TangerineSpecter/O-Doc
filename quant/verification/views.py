@@ -20,7 +20,7 @@ class VerificationView(QuantView):
 
     def post(self, request, coll_id, factor_id):
         class Input(serializers.Serializer):
-            kind = serializers.ChoiceField(choices=['experiment', 'comparison', 'feedback'], default='experiment')
+            kind = serializers.ChoiceField(choices=['experiment', 'comparison', 'feedback','fixed_validation','native_python'], default='experiment')
             offset = serializers.IntegerField(min_value=0, default=0)
             limit = serializers.IntegerField(min_value=1, max_value=50, default=20)
         value = Input(data=request.data); value.is_valid(raise_exception=True)

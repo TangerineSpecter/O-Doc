@@ -96,7 +96,7 @@ def publish_derived(result):
         parent = FactorCandidate.objects.get(pk=data['derivation']['parent_candidate_ids'][0])
         candidate, created = FactorCandidate.objects.get_or_create(id=digest([VERSION, checkpoint_id])[:40], defaults={
             'report_id': parent.report_id, 'ordinal': 0, 'derived_checkpoint_id': checkpoint_id,
-            'formula_version_id': digest(['factor-formula-experiment-1', checkpoint_id])[:40], 'qualification_version': 1,
+            'formula_version_id': digest(['factor-formula-experiment-1', checkpoint_id])[:40], 'qualification_version': 1, 'admission_version':1,
             'data': data, 'content_hash': digest(data), 'expression_hash': expression_hash(data)})
         if created:
             from quant.factors.versions.services import register_experiment

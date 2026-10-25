@@ -1,3 +1,4 @@
+import type {MockAdmission} from './admissions';
 import type {MockNativeReview} from './nativeReviews';
 import type {MockNativePython} from './nativePython';
 import type {MockValidation} from './validations';
@@ -13,7 +14,7 @@ import type {Anthology} from '../../types/api/anthology';
 import type {QuantEntryDetail, QuantRunInput, QuantFactorCandidate} from '../../types/api/quant';
 import {quantAssets, quantCollection, quantEntries, type MockQuantAsset} from './fixtures';
 
-export interface QuantMockState {nativeReviewRecords:MockNativeReview[];nativePython:MockNativePython[];validations: MockValidation[];verificationIndexed: Record<string, boolean>; vocabularies: Record<string, MockVocabularyBook>; formulaEdits: MockFormulaEdit[]; formulaSelections: MockFormulaSelection[]; formulaRoots: Record<string, string>; formulaHeads: Record<string, string>; materialCurrentSources: Record<string, string>; comparisons: MockComparison[]; factorMerges: MockFactorMerge[]; batches: MockBatch[]; campaigns: MockCampaign[]; derivedFactors: QuantFactorCandidate[]; experiments: MockExperiment[]; datasets: MockDataset[]; graph: MockGraphState; factorRevisions: Record<string, QuantFactorCandidate['revisions']>; collections: Anthology[]; entries: QuantEntryDetail[]; assets: MockQuantAsset[]; requestKeys: Record<string, {input: QuantRunInput; runId: string}>; removedCollectionIds: string[]}
+export interface QuantMockState {admissionRecords:MockAdmission[];admissionIndexed:Record<string,boolean>;nativeReviewRecords:MockNativeReview[];nativePython:MockNativePython[];validations: MockValidation[];verificationIndexed: Record<string, boolean>; vocabularies: Record<string, MockVocabularyBook>; formulaEdits: MockFormulaEdit[]; formulaSelections: MockFormulaSelection[]; formulaRoots: Record<string, string>; formulaHeads: Record<string, string>; materialCurrentSources: Record<string, string>; comparisons: MockComparison[]; factorMerges: MockFactorMerge[]; batches: MockBatch[]; campaigns: MockCampaign[]; derivedFactors: QuantFactorCandidate[]; experiments: MockExperiment[]; datasets: MockDataset[]; graph: MockGraphState; factorRevisions: Record<string, QuantFactorCandidate['revisions']>; collections: Anthology[]; entries: QuantEntryDetail[]; assets: MockQuantAsset[]; requestKeys: Record<string, {input: QuantRunInput; runId: string}>; removedCollectionIds: string[]}
 export const quantMockStoragePrefix = 'odoc:local:quant:v1:';
 const memoryStates = new Map<string, QuantMockState>();
 export const mockScenario = () => typeof location === 'undefined' ? 'sample' : new URLSearchParams(location.search).get('mockState') || 'sample';
@@ -30,6 +31,7 @@ export function quantState(): QuantMockState {
                 const parsed: unknown = JSON.parse(saved);
                 if (typeof parsed === 'object' && parsed && 'collections' in parsed && 'entries' in parsed && 'assets' in parsed && 'requestKeys' in parsed) {
                     const state = parsed as QuantMockState;
+                    state.admissionRecords ||= []; state.admissionIndexed ||= {};
                     state.nativePython ||= [];
                     state.nativeReviewRecords ||= [];
                     state.validations ||= [];
@@ -55,7 +57,7 @@ export function quantState(): QuantMockState {
         } catch { /* An unavailable browser storage must not make local mode call the backend. */ }
     }
     const empty = mockScenario() === 'empty';
-    const state: QuantMockState = {nativeReviewRecords:[],nativePython:[],validations: [], verificationIndexed: {}, vocabularies: {}, formulaEdits: [], formulaSelections: [], formulaRoots: {}, formulaHeads: {}, materialCurrentSources: {}, comparisons: [], factorMerges: [], batches: [], campaigns: [], derivedFactors: [], experiments: [], datasets: empty ? [] : [sampleDataset()], graph: {cache: {}, jobs: []}, factorRevisions: {}, collections: [{...clone(quantCollection), count: empty ? 0 : quantCollection.count}], entries: empty ? [] : clone(quantEntries), assets: empty ? [] : clone(quantAssets), requestKeys: {}, removedCollectionIds: []};
+    const state: QuantMockState = {admissionRecords:[],admissionIndexed:{},nativeReviewRecords:[],nativePython:[],validations: [], verificationIndexed: {}, vocabularies: {}, formulaEdits: [], formulaSelections: [], formulaRoots: {}, formulaHeads: {}, materialCurrentSources: {}, comparisons: [], factorMerges: [], batches: [], campaigns: [], derivedFactors: [], experiments: [], datasets: empty ? [] : [sampleDataset()], graph: {cache: {}, jobs: []}, factorRevisions: {}, collections: [{...clone(quantCollection), count: empty ? 0 : quantCollection.count}], entries: empty ? [] : clone(quantEntries), assets: empty ? [] : clone(quantAssets), requestKeys: {}, removedCollectionIds: []};
     memoryStates.set(key, state);
     return state;
 }

@@ -1,4 +1,5 @@
 """Persist AI designs separately from actual experiments and their authorization."""
+from quant.admissions.services import compact_prefetch as admission_prefetch
 import json
 from rest_framework.exceptions import ValidationError
 from quant.models import ExperimentProposal
@@ -29,7 +30,7 @@ def presentation(proposal) -> dict:
     from quant.models import FactorCandidate
     candidates = FactorCandidate.objects.filter(pk__in=[row['id'] for row in proposal.data['seeds']],
         report__entry__is_valid=True, report__entry__anthology_id=proposal.run.entry.anthology_id).select_related(
-            'report__entry', 'report__run', 'report__source').prefetch_related('revisions', 'qualifications')
+            'report__entry', 'report__run', 'report__source').prefetch_related('revisions', 'qualifications', admission_prefetch())
     from quant.taxonomy.services import current
     vocabulary = current(proposal.run.entry.anthology_id)
     return {'id': proposal.pk, 'created_at': proposal.created_at.isoformat(), 'content_hash': proposal.content_hash,

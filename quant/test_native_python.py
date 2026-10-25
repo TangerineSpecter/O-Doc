@@ -130,14 +130,15 @@ class NativePythonTests(TestCase):
         value.update(title='原始函数一致性解读',summary='仅本次样本一致',reported_parameters=[],reported_metrics=[],counter_evidence=[],
             native_review={'verdict':'pass','actual_parameters':{'N':20},'interpretation':'本次逐行一致','parameter_assessment':'N=20为本次配置，不是最优参数',
                 'limitations':['未验证其他区间或收益']})
-        value['native_review_version']=2;value['native_review'].update(acknowledgment(context['native_check']))
+        value['native_review_version']=3;value['native_review'].update(acknowledgment(context['native_check']))
         with patch('quant.worker.complete',side_effect=[json.dumps(value),json.dumps({'decision':'accept','issues':[],'analysis':None})]):execute_ai(run.pk)
         run.refresh_from_db();self.assertEqual(run.status,'completed',run.error)
         self.assertEqual(run.result['native_review']['verdict'],'pass')
         from quant.feedback.contracts import markdown
         self.assertIn('| 候选表达式参数 | 本次实际值 |',markdown(run.result))
         legacy=copy.deepcopy(run.result);legacy.pop('native_markdown_version');legacy.pop('native_review_gate');legacy['native_review_version']=1
-        for key in ('comparison_roles','comparison_rule','native_result_id'):legacy['native_review'].pop(key)
+        for key in ('comparison_roles','comparison_rule','native_result_id','alignment_ack'):legacy['native_review'].pop(key)
+        legacy['native_review_facts'].pop('alignment')
         self.assertNotIn('native_markdown_version',validate_analysis(legacy,for_source(source)))
         self.assertIn('"实际参数": {',markdown(legacy))
         wrong=copy.deepcopy(run.result);wrong['native_review_facts']['parameters']['N']=1

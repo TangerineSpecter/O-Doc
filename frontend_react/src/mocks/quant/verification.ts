@@ -45,14 +45,14 @@ function records(candidate: QuantFactorCandidate, collection: string): Row[] {
             dataset_hash: dataset?.contentHash || 'local-demo', market: {symbol: dataset?.symbol || '', timeframe: dataset?.timeframe || ''}, engine_version: JSON.parse(record.data.planJson!).engine_version,
             config: {...(record.input.config.strategy ? {strategy: strategySnapshot(record.input.config.strategy)} : {}), threshold: record.input.config.threshold, fee_bps: record.input.config.feeBps, slippage_bps: record.input.config.slippageBps, gap: record.input.config.gap},
             result_status: record.data.status, error: '', checkpoint_count: attempts.length, attempts, heldout, independent_validation: false}, record.data.createdAt));
-        for (const fixed of state.validations.filter(row=>row.collection===collection && row.input.sourceRequestId===record.data.id && evaluated.has(row.input.attemptId) && row.data.evaluation?.status==='completed')) {
+        for (const fixed of state.validations.filter(row=>row.collection===collection && row.input.sourceRequestId===record.data.id && evaluated.has(row.input.attemptId) && !!row.data.evaluation?.resultJson && ['completed','failed','cancelled'].includes(row.data.evaluation.status))) {
             const evaluation=fixed.data.evaluation!,plan=JSON.parse(fixed.data.planJson),prepared=JSON.parse(evaluation.requestJson),saved=JSON.parse(evaluation.resultJson!);
             const market=state.datasets.find(row=>row.data.id===evaluation.datasetId)!.data;
             result.push(packed({...base(candidate,'fixed_validation',evaluation.resultId!),kind:'fixed_validation',
                 source_request_id:record.data.id,source_attempt_id:fixed.input.attemptId,dataset_hash:market.contentHash,
                 market:{symbol:market.symbol,timeframe:market.timeframe},mode:evaluation.mode,config:plan.config,recipe:plan.recipe,bounds:prepared.bounds,
-                metrics:metricSummary(saved.output.final),baseline:metricSummary(saved.output.baseline),publication_audit:saved.publication_audit,independent_validation:false,
-                levels:['fixed_observation',...(saved.criteria_assessment?.eligibility==='fresh_scope_criteria_met'?['registered_criteria_met']:[])],
+                ...(saved.status!=='completed'?{result_status:saved.status,error:saved.error}:{}),metrics:metricSummary(saved.output?.final||{}),baseline:metricSummary(saved.output?.baseline||{}),publication_audit:saved.publication_audit,independent_validation:false,
+                levels:saved.status==='completed'?['fixed_observation',...(saved.criteria_assessment?.eligibility==='fresh_scope_criteria_met'?['registered_criteria_met']:[])]:[],
                 ...(plan.version===2?{registered_criteria:plan.criteria,criteria_assessment:saved.criteria_assessment,criteria_context:{mode:evaluation.mode,imported_after_registration:prepared.imported_after_registration,audit:prepared.audit}}:{})},fixed.resultCreatedAt || fixed.data.createdAt));
         }
     }
@@ -98,3 +98,5 @@ export async function resolveVerificationRoute(request: Request, candidate: Quan
     const all = records(candidate, collection), summary = candidate.verification || mockQualificationSummary(candidate);
     return {...summary, ...mockRepairDetail(candidate.id, candidate.reportId), qualificationJson: summary.qualificationId ? JSON.stringify(mockQualification(candidate)) : '', levels: [...new Set(all.flatMap(row => (JSON.parse(row.dataJson) as DirectVerification).levels))].sort(), total: all.length, items: all.slice(offset, offset + limit), independentValidation: false, platformEquivalence: 'unverified', economicEffectiveness: 'unassessed'} satisfies QuantVerification;
 }
+
+export {records as mockVerificationRecords};

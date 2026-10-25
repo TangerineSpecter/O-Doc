@@ -44,18 +44,9 @@ def _wearable(snapshot: dict, rules: dict, job: str, level: int, slot: str) -> b
     return True
 
 
-def _improves(snapshot: dict, current: dict) -> bool:
-    """候选装备至少有一项属性高于当前部位装备，否则不值得再问模型。"""
-    stats = snapshot.get('stats') or {}
-    baseline = current.get('stats') or {}
-    if not stats:
-        return False
-    return any(float(value) > float(baseline.get(key, 0) or 0) for key, value in stats.items())
-
-
 def filter_candidates(owner: str, actor_id: str, rows: list[dict], job: str, level: int, *,
-                      slot: str = '', current: dict | None = None) -> list[dict]:
-    """先剔除永久不买、不可穿戴与属性无提升的装备，只把值得比较的交给模型。"""
+                      slot: str = '') -> list[dict]:
+    """只剔除明确不买及不可穿戴实例；属性取舍留给居民逐件判断。"""
     blocked = blocked_ids(owner, actor_id)
     result = []
     for row in rows:
@@ -64,8 +55,6 @@ def filter_candidates(owner: str, actor_id: str, rows: list[dict], job: str, lev
         if equipment_id and equipment_id in blocked:
             continue
         if not _wearable(snapshot, row.get('rules') or {}, job, level, slot):
-            continue
-        if current and not _improves(snapshot, current):
             continue
         result.append(row)
     return result

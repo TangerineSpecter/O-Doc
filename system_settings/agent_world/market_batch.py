@@ -156,7 +156,7 @@ def _record_farm_purchase(owner: str, actor_id: str, key: str, sku: str, amount)
 @guarded
 @transaction.atomic
 def _purchase(session, agent, plan: MarketPlan, key: str, operation: dict,
-              goal_id: str, now) -> dict:
+              goal_id: str, now, *, equipment=False) -> dict:
     """交易、实时资金预留检查及计划记账一起提交；重放不重复记账。"""
     agent = Agent.objects.select_for_update().get(pk=agent.pk)
     plan = MarketPlan.objects.select_for_update().get(
@@ -166,7 +166,12 @@ def _purchase(session, agent, plan: MarketPlan, key: str, operation: dict,
     reservations = LifeItem.objects.select_for_update().filter(
         owner_id=plan.owner_id, actor_id=agent.pk, status__in=OPEN)
     reserved = sum((remaining_reservation(row) for row in reservations), Decimal(0))
-    available = max(Decimal(0), min(plan.budget - plan.spent, agent.money - reserved))
+    available = (max(Decimal(0), agent.money - reserved - max(Decimal(0), plan.budget - plan.spent))
+                 if equipment else max(Decimal(0), min(plan.budget - plan.spent, agent.money - reserved)))
+    if equipment:
+        from .market_equipment_candidates import equipment_candidates
+        if not equipment_candidates(session.owner_id, agent.pk, listing_ids=[operation['listing_id']]):
+            raise ValueError('装备已不可购买或不再符合穿戴条件')
     if _unit_price(operation) * int(operation.get('quantity', 1)) > available:
         raise ValueError('超出当日市场预算或资金已预留给其他生活安排')
     result = trade(session, agent, key, operation, now)
@@ -176,9 +181,21 @@ def _purchase(session, agent, plan: MarketPlan, key: str, operation: dict,
         raise ValueError('实际成交金额超出当日市场预算或生活可用资金')
     if goal_id:
         _record_goal(goal_id, int(result['quantity']))
+    if equipment:
+        # Opportunistic equipment shopping adds only committed spend; leave daily goal funds intact.
+        plan.budget += amount
     plan.spent += amount
-    plan.save(update_fields=['spent', 'updated_at'])
+    plan.save(update_fields=['budget', 'spent', 'updated_at'])
     return result
+
+
+def equipment_funds(owner: str, actor_id: str, plan: MarketPlan) -> Decimal:
+    """Protect both life reservations and the daily plan's still-unspent allocation."""
+    plan.refresh_from_db()
+    balance = Agent.objects.get(pk=actor_id).money
+    reserved = sum((remaining_reservation(row) for row in LifeItem.objects.filter(
+        owner_id=owner, actor_id=actor_id, status__in=OPEN)), Decimal(0))
+    return max(Decimal(0), balance - reserved - max(Decimal(0), plan.budget - plan.spent))
 
 
 def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) -> dict:
@@ -243,9 +260,15 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
                 result['done'].append(operation)
             except Exception as exc:  # noqa: BLE001
                 result['failed'].append({'operation': operation, 'reason': str(exc)[:300]})
+        if actions.get('equipment_listings'):
+            from .market_equipment_shopping import shop_equipment
+            shopping = shop_equipment(owner, agent, session, plan, tick,
+                actions['equipment_listings'], _purchase, _key, equipment_funds)
+            for key in ('done', 'failed', 'skipped'):
+                result[key].extend(shopping[key])
+            result['equipment_decisions'] = shopping['decisions']
     finally:
-        # 装备意向会逐件请求定价，成交可能晚于本轮预检时间。
-        close_session(session, '按日计划批量执行完成')
+        close_session(session, '按日计划与逐件装备判断执行完成')
     # 部分失败不影响已完成动作；全部失败才把本次预检标记为失败。
     result['ok'] = not result['failed'] or bool(result['done'])
     return result

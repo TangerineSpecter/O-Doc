@@ -20,6 +20,7 @@ from .source_changes.views import SourceImpactView
 from .factors.versions.views import FormulaView
 from .taxonomy.views import VocabularyView
 from .verification.views import VerificationView
+from .admissions.views import AdmissionView
 from .native_python.views import NativeView
 
 urlpatterns = [
@@ -29,6 +30,7 @@ urlpatterns = [
     path('<str:coll_id>/native-python/<str:native_id>/cancel/',NativeView.as_view(),{'action':'cancel'}),
     path('<str:coll_id>/entries/<str:entry_id>/sources/<str:source_id>/supplements/', SourceSupplementView.as_view()),
     path('<str:coll_id>/experiments/<str:experiment_id>/strategy-export/', StrategyExportView.as_view()),
+    path('<str:coll_id>/factors/<str:factor_id>/admissions/',AdmissionView.as_view()),
     path('<str:coll_id>/factors/<str:factor_id>/verification/', VerificationView.as_view()),
     path('<str:coll_id>/vocabulary/', VocabularyView.as_view()),
     path('<str:coll_id>/factors/<str:factor_id>/formula-versions/', FormulaView.as_view()),

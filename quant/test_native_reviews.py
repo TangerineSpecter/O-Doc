@@ -19,7 +19,7 @@ ACCEPT={'decision':'accept','issues':[],'analysis':None}
 def draft(context,*,bad=False):
     value=response();native=context['native_check']
     value.update(title='原始输出对照解读',summary='只解释本次固定样本',reported_parameters=[],reported_metrics=[],supporting_evidence=[],counter_evidence=[],
-        native_review_version=2,native_review={'verdict':native['verdict'] or 'unavailable','actual_parameters':native['parameters'],
+        native_review_version=3 if context.get('native_review_policy',{}).get('version')==2 else 2,native_review={'verdict':native['verdict'] or 'unavailable','actual_parameters':native['parameters'],
             **acknowledgment(native),'interpretation':'左侧为受控表达式，右侧为原始函数','parameter_assessment':'本次候选参数与函数映射分别确认，不称最优',
             'limitations':['同一模型审查不是独立验证，不能推断盈利']},
         hypotheses=['左侧是原始函数' if bad else '左侧为受控表达式，原函数位于右侧'],
@@ -29,10 +29,18 @@ def draft(context,*,bad=False):
 
 def revision(context,raw):
     value=draft(context)
-    return {'decision':'revise','issues':[
+    return {'decision':'revise','issues':selected_issues(context,raw,[
         {'code':'side_inversion','path':'/hypotheses/0','quote':raw['hypotheses'][0],'evidence_refs':['native:sides'],'explanation':'左右侧颠倒'},
-        {'code':'tolerance_rule','path':'/next_steps','quote':raw['next_steps'],'evidence_refs':['native:tolerance'],'explanation':'应使用复合容差而非独立阈值'}],
+        {'code':'tolerance_rule','path':'/next_steps','quote':raw['next_steps'],'evidence_refs':['native:tolerance'],'explanation':'应使用复合容差而非独立阈值'}]),
         'analysis':value}
+
+
+def selected_issues(context,original,items):
+    if context.get('native_review_policy',{}).get('version')!=2:return items
+    from quant.native_reviews.text_spans import registry
+    _,spans=registry(original)
+    return [{**{key:value for key,value in item.items() if key!='quote'},
+        'text_ref':next(row['ref'] for row in spans if row['path']==item['path'])} for item in items]
 
 
 class NativeReviewTests(TestCase):
@@ -43,11 +51,17 @@ class NativeReviewTests(TestCase):
     prepare=fixtures.NativePythonTests.prepare
     compute=fixtures.NativePythonTests.compute
 
-    def queued(self,*,legacy=False):
+    def queued(self,*,legacy=False,profile=2):
         _,_,_,_,record=self.prepare(analyze=True);self.compute(record)
         result=NativePythonResult.objects.get();job=NativePythonJob.objects.get()
         if legacy:
             with patch('quant.native_reviews.policy.prepare',return_value=None):automatic(result.pk,job.lease_token)
+        elif profile==1:
+            from quant.native_reviews.policy import prepare
+            def old_prepare(source,values,existing=None):
+                prepare(source,values,existing)
+                if existing is None:values['feedback_workflow_version']=1
+            with patch('quant.native_reviews.policy.prepare',side_effect=old_prepare):automatic(result.pk,job.lease_token)
         else:automatic(result.pk,job.lease_token)
         return AIRun.objects.get(source__payload__feedback_version=4)
 
@@ -57,14 +71,37 @@ class NativeReviewTests(TestCase):
         run.refresh_from_db();return complete
 
     def test_two_calls_accept_and_restore_without_any_execution(self):
-        run=self.queued();self.assertEqual(run.feedback_workflow_version,1)
+        run=self.queued();self.assertEqual(run.feedback_workflow_version,2)
         complete=self.run_model(run,[draft(for_run(run)),ACCEPT]);self.assertEqual(complete.call_count,2)
         self.assertEqual(run.status,'completed',run.error);self.assertEqual(run.result['native_review_gate']['status'],'audited')
         self.assertEqual(run.workflow_steps.count(),2)
+        self.assertEqual(run.result['native_markdown_version'],5)
+        markdown=ResearchReport.objects.get(run=run).markdown
+        self.assertIn('| 输出侧 | 首次有效行 | 末次有效行 | 整个片段缺失数 |\n| --- |',markdown)
+        from quant.native_reviews.presentation import summary
+        positions=json.loads(summary(run)['alignment_json'])
+        self.assertEqual(positions['sample_row_count'],80)
         snapshot=SyncManager().build_snapshot_data();validate(snapshot,metadata(snapshot))
         with patch('quant.worker.complete',side_effect=AssertionError('restore model')),patch('quant.native_python.runtime.run',side_effect=AssertionError('restore source')):
             SyncManager().apply_snapshot_data(snapshot,remote_meta=metadata(snapshot))
         self.assertFalse(Job.objects.exists());self.assertFalse(NativePythonJob.objects.exists())
+        self.assertEqual(AIRun.objects.get(pk=run.pk).result,run.result)
+
+    def test_recorded_v8_keeps_its_original_prompt_and_markdown_on_restore(self):
+        from quant.native_reviews.storage import input_snapshot
+        from quant.native_reviews.text_spans import registry
+        run=self.queued()
+        def prior(*args,**kwargs):return input_snapshot(*args,**kwargs,version=8)
+        def prior_order(value):
+            structure,spans=registry(value)
+            return structure,list(reversed(spans))
+        with patch('quant.native_reviews.storage.input_snapshot',side_effect=prior),patch('quant.native_reviews.text_spans.registry',side_effect=prior_order):
+            self.run_model(run,[draft(for_run(run)),ACCEPT])
+        self.assertEqual(run.status,'completed',run.error)
+        self.assertEqual(run.result['native_markdown_version'],4)
+        snapshot=SyncManager().build_snapshot_data();validate(snapshot,metadata(snapshot))
+        with patch('quant.worker.complete',side_effect=AssertionError('restore model')):
+            SyncManager().apply_snapshot_data(snapshot,remote_meta=metadata(snapshot))
         self.assertEqual(AIRun.objects.get(pk=run.pk).result,run.result)
 
     def test_one_revision_three_calls_preserves_original_words_and_issues(self):
@@ -81,8 +118,8 @@ class NativeReviewTests(TestCase):
     def test_unresolved_revision_is_not_published_and_fourth_call_is_impossible(self):
         run=self.queued();context=for_run(run);original=draft(context,bad=True);revised=revision(context,original)
         revised['analysis']['summary']='已证实盈利能力'
-        rejected={'decision':'reject','issues':[{'code':'unsupported_inference','path':'/summary','quote':'已证实盈利能力',
-            'evidence_refs':['native:scope'],'explanation':'没有收益实验'}],'analysis':None}
+        rejected={'decision':'reject','issues':selected_issues(context,revised['analysis'],[{'code':'unsupported_inference','path':'/summary','quote':'已证实盈利能力',
+            'evidence_refs':['native:scope'],'explanation':'没有收益实验'}]),'analysis':None}
         complete=self.run_model(run,[original,revised,rejected])
         self.assertEqual(complete.call_count,3);self.assertEqual(run.status,'failed');self.assertFalse(run.result)
         self.assertFalse(ResearchReport.objects.filter(run=run).exists());self.assertEqual(run.workflow_steps.count(),3)
@@ -96,15 +133,34 @@ class NativeReviewTests(TestCase):
         self.assertIn('original_python_function',outcome.data['raw']['text']);self.assertFalse(outcome.data['output'])
         validate(SyncManager().build_snapshot_data())
 
-    def test_false_quote_does_not_authorize_a_revision(self):
+    def test_alignment_ack_cannot_replace_known_first_valid_position(self):
+        run=self.queued();raw=draft(for_run(run));raw['native_review']['alignment_ack']['left_first_valid_index']=0
+        complete=self.run_model(run,[raw]);self.assertEqual(complete.call_count,1);self.assertEqual(run.status,'failed')
+        self.assertFalse(ResearchReport.objects.filter(run=run).exists())
+
+    def test_complete_encoded_revision_is_lossless_but_incomplete_json_is_not_repaired(self):
+        from quant.native_reviews.contracts import audit
+        from rest_framework.exceptions import ValidationError
         run=self.queued();context=for_run(run);original=draft(context,bad=True);review=revision(context,original)
+        review['analysis']=json.dumps(review['analysis'])
+        with self.assertRaises(ValidationError):audit(review,original,context,can_revise=True)
+        incomplete=copy.deepcopy(review);incomplete['analysis']='{"native_review_version":3'
+        with self.assertRaises(ValidationError):audit(incomplete,original,context,can_revise=True,allow_encoded_analysis=True,use_text_spans=True)
+        self.run_model(run,[original,review,ACCEPT]);self.assertEqual(run.status,'completed',run.error)
+        outcome=run.workflow_steps.get(stage='native_audit').outcome
+        self.assertEqual(outcome.data['output']['normalizations'],['decoded_complete_analysis_json_string'])
+        self.assertIsInstance(json.loads(outcome.data['raw']['text'])['analysis'],str)
+        snapshot=SyncManager().build_snapshot_data();validate(snapshot,metadata(snapshot))
+
+    def test_false_quote_does_not_authorize_a_revision(self):
+        run=self.queued(profile=1);context=for_run(run);original=draft(context,bad=True);review=revision(context,original)
         review['issues'][0]['quote']='原稿从未出现的文字'
         self.run_model(run,[original,review]);self.assertEqual(run.status,'failed');self.assertEqual(run.workflow_steps.count(),2)
         self.assertFalse(ResearchReport.objects.filter(run=run).exists())
 
     def test_sorted_json_roundtrip_and_legacy_prompt_order_do_not_rewrite_recorded_text(self):
         from quant.native_reviews.storage import input_snapshot
-        run=self.queued();context=for_run(run);original=draft(context,bad=True)
+        run=self.queued(profile=1);context=for_run(run);original=draft(context,bad=True)
         def legacy(*args,**kwargs):return input_snapshot(*args,**kwargs,version=3)
         with patch('quant.native_reviews.storage.input_snapshot',side_effect=legacy):
             self.run_model(run,[original,revision(context,original),ACCEPT])
@@ -120,8 +176,8 @@ class NativeReviewTests(TestCase):
     def test_revision_can_delete_an_unsupported_hypothesis_without_losing_original(self):
         run=self.queued();context=for_run(run);original=draft(context)
         original['hypotheses']+=['假设一','假设二','保证任何参数都盈利']
-        review={'decision':'revise','issues':[{'code':'unsupported_inference','path':'/hypotheses/3','quote':'保证任何参数都盈利',
-            'evidence_refs':['native:scope'],'explanation':'本次没有收益证据，删除无依据断言'}],'analysis':draft(context)}
+        review={'decision':'revise','issues':selected_issues(context,original,[{'code':'unsupported_inference','path':'/hypotheses/3','quote':'保证任何参数都盈利',
+            'evidence_refs':['native:scope'],'explanation':'本次没有收益证据，删除无依据断言'}]),'analysis':draft(context)}
         self.run_model(run,[original,review,ACCEPT]);self.assertEqual(run.status,'completed',run.error)
         self.assertEqual(len(run.result['hypotheses']),1)
         self.assertEqual(run.workflow_steps.first().outcome.data['output']['analysis']['hypotheses'][3],'保证任何参数都盈利')
@@ -154,7 +210,7 @@ class NativeReviewTests(TestCase):
         original.refresh_from_db();self.assertEqual(original.data,before);self.assertEqual(ResearchReport.objects.filter(source_id=old.source_id).count(),2)
         self.assertEqual(run.workflow_steps.first().outcome.data['output']['origin'],'report_snapshot')
         step=run.workflow_steps.get(stage='native_audit')
-        self.assertEqual(step.input['version'],4);self.assertIn('逐项检查自算比值',step.input['prompt'])
+        self.assertEqual(step.input['version'],9);self.assertIn('native:alignment',step.input['prompt'])
         detail=self.client.get(f'/api/quant/{self.collection.pk}/entries/{old.entry_id}/runs/{run.pk}/workflow/native_audit/')
         self.assertEqual(detail.status_code,200,detail.data)
         evidence=json.loads(detail.data['data']['outcome_json']);self.assertEqual(evidence['output']['decision'],'revise')

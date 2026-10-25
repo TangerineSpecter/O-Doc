@@ -4,7 +4,7 @@ import json
 import re
 from rest_framework import serializers
 from quant.research.contracts import digest
-from .policy import POLICY
+from .policy import POLICY,POLICIES
 
 MAX_RAW=150000
 
@@ -26,14 +26,18 @@ def decode(raw:str) -> dict:
 
 
 def acknowledgment(native:dict) -> dict:
-    return {'comparison_roles':{'left':'portable_expression','right':'original_python_function'},
+    value={'comparison_roles':{'left':'portable_expression','right':'original_python_function'},
         'comparison_rule':{'rule':'abs_plus_rel_max',**copy.deepcopy(native['policy'])},'native_result_id':native['id']}
+    if 'alignment' in native:
+        from .alignment import acknowledgment as alignment_ack
+        value['alignment_ack']=alignment_ack(native['alignment'])
+    return value
 
 
 def facts(context:dict) -> dict:
     native=context['native_check']
     value={'native:sides':acknowledgment(native)['comparison_roles'],
-        'native:review_policy':POLICY.copy(),
+        'native:review_policy':copy.deepcopy(context['native_review_policy']),
         'native:tolerance':acknowledgment(native)['comparison_rule'],
         'native:configuration':{key:native[key] for key in ('parameters','bindings','native')},
         'native:comparison':{key:native[key] for key in ('status','reason','verdict','comparison')},
@@ -42,6 +46,8 @@ def facts(context:dict) -> dict:
     memory=context.get('research_memory',{})
     value.update({f"history:{row['id']}":row for row in memory.get('history',[])})
     value.update({f"memory:{row['kind']}:{row['id']}":row for row in memory.get('library_memory',{}).get('items',[])})
+    if 'alignment' in native:value['native:alignment']=native['alignment']
+    if 'native_history_statistics' in context:value['native:history_statistics']=context['native_history_statistics']
     return copy.deepcopy(value)
 
 
@@ -61,16 +67,19 @@ def pointer(value:dict,path:str):
     return current
 
 
-def analysis(value:dict,context:dict) -> dict:
+def analysis(value:dict,context:dict,*,markdown_version=5) -> dict:
     from quant.feedback.contracts import validate_analysis
-    return validate_analysis(value,context,model_output=True)
+    result=validate_analysis(value,context,model_output=True)
+    if result.get('native_review_version')==3:result['native_markdown_version']=markdown_version
+    return result
 
 
-def audit(value:dict,draft:dict,context:dict,*,can_revise:bool,max_issues=24) -> dict:
+def audit(value:dict,draft:dict,context:dict,*,can_revise:bool,max_issues=24,allow_encoded_analysis=False,use_text_spans=False,markdown_version=5) -> dict:
     class Finding(serializers.Serializer):
         code=serializers.ChoiceField(choices=['side_inversion','tolerance_rule','actual_parameter','fact_contradiction','unsupported_inference','unresolved_scope','protocol_upgrade'])
         path=serializers.CharField(max_length=500)
-        quote=serializers.CharField(max_length=3000,trim_whitespace=False)
+        quote=serializers.CharField(max_length=3000,trim_whitespace=False,required=not use_text_spans)
+        text_ref=serializers.CharField(max_length=600,required=use_text_spans)
         evidence_refs=serializers.ListField(child=serializers.CharField(max_length=120),min_length=1,max_length=8)
         explanation=serializers.CharField(max_length=3000)
     class Review(serializers.Serializer):
@@ -84,15 +93,23 @@ def audit(value:dict,draft:dict,context:dict,*,can_revise:bool,max_issues=24) ->
         raise serializers.ValidationError('审查判断与问题/修订预算不一致')
     seen=set()
     for issue in issues:
+        if use_text_spans:
+            from .text_spans import select
+            try:issue.update(select(draft,issue['text_ref'],issue['path']))
+            except ValueError as error:raise serializers.ValidationError('审查区间不属于当前原稿字段') from error
         text=pointer(draft,issue['path']);key=(issue['path'],issue['quote'])
-        if issue['path']=='/' and (issue['code']!='protocol_upgrade' or draft.get('native_review_version')==2):
+        expected_version=3 if context.get('native_review_policy',{}).get('version')==2 else 2
+        if issue['path']=='/' and (issue['code']!='protocol_upgrade' or draft.get('native_review_version')==expected_version):
             raise serializers.ValidationError('根路径仅用于旧稿审查合同升级')
         if not issue['quote'].strip() or issue['quote'] not in text or set(issue['evidence_refs'])-references or key in seen:
             raise serializers.ValidationError('审查问题必须逐字定位原稿并引用已提供事实')
         seen.add(key)
     if decision=='revise':
+        if allow_encoded_analysis and isinstance(result['analysis'],str):
+            result['analysis']=decode(result['analysis'])
+            result['normalizations']=['decoded_complete_analysis_json_string']
         if not isinstance(result['analysis'],dict):raise serializers.ValidationError('修订须返回完整的新分析')
-        revised=analysis(result['analysis'],context)
+        revised=analysis(result['analysis'],context,markdown_version=markdown_version)
         for row in issues:
             try:replacement=pointer(revised,row['path'])
             except serializers.ValidationError:
@@ -118,6 +135,9 @@ def model_context(context:dict) -> dict:
     # Runtime hashes remain in immutable facts for replay/UI, not model prose.
     environment=value['native_check']['environment']
     value['native_check']['environment']={'runtime':{key:environment['runtime'][key] for key in ('python','numpy','pandas','machine')},'limits':environment['limits']}
+    if value.get('native_review_policy',{}).get('version')==2 and value.get('research_memory',{}).get('library_memory'):
+        from .history import model_memory
+        value['research_memory']['library_memory']=model_memory(value['research_memory']['library_memory'])
     return value
 
 
@@ -125,16 +145,16 @@ def draft_projection(draft:dict) -> dict:
     return {key:copy.deepcopy(value) for key,value in draft.items() if key not in ('native_review_facts','native_review_gate','evidence_hash')}
 
 
-def gate(outcomes:list,*,revised:bool,source_report:dict|None) -> dict:
+def gate(outcomes:list,*,revised:bool,source_report:dict|None,policy=None) -> dict:
     return {'version':1,'status':'revised_audited' if revised else 'audited','reviewer_independent':False,
-        'source_report':source_report,'outcomes':outcomes,'policy':POLICY.copy()}
+        'source_report':source_report,'outcomes':outcomes,'policy':copy.deepcopy(POLICY if policy is None else policy)}
 
 
 def validate_gate(value:dict) -> None:
     keys={'version','status','reviewer_independent','source_report','outcomes','policy'}
     if (not isinstance(value,dict) or set(value)!=keys or type(value['version']) is not int or value['version']!=1
             or value['status'] not in ('audited','revised_audited') or value['reviewer_independent'] is not False
-            or digest(value['policy'])!=digest(POLICY) or not isinstance(value['outcomes'],list)
+            or digest(value['policy']) not in {digest(item) for item in POLICIES.values()} or not isinstance(value['outcomes'],list)
             or len(value['outcomes'])!=(3 if value['status']=='revised_audited' else 2)):
         raise serializers.ValidationError('原始Python报告审查记录无效')
     for index,ref in enumerate([*value['outcomes'],*([value['source_report']] if value['source_report'] is not None else [])]):

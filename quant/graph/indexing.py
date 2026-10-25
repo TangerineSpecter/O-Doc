@@ -1,4 +1,5 @@
 """Bounded local indexing; no model request is performed by a read endpoint."""
+from quant.admissions.services import compact_prefetch as admission_prefetch
 from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
@@ -13,7 +14,7 @@ from .projection import projection
 
 def candidates(collection):
     return FactorCandidate.objects.filter(report__entry__anthology=collection, report__entry__is_valid=True).select_related(
-        'report__entry', 'report__run').prefetch_related('revisions', 'report__source', 'qualifications').defer('report__data', 'report__markdown')
+        'report__entry', 'report__run').prefetch_related('revisions', 'report__source', 'qualifications', admission_prefetch()).defer('report__data', 'report__markdown')
 
 
 def embedding_model():

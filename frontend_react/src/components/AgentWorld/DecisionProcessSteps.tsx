@@ -31,6 +31,6 @@ export function DecisionProcessSteps({guide}: {guide: DecisionProcessGuide}) {
             {guide.notes.map(note => <div key={note.title}><h4 className="text-xs font-semibold text-slate-700">{note.title}</h4><p className="mt-1 text-xs leading-6 text-slate-600">{note.detail}</p></div>)}
             {guide.upcoming && <p className="border-t border-slate-200 pt-3 text-xs leading-6 text-slate-600">当前限制：{guide.upcoming}</p>}
         </section>
-        <p className="text-xs text-slate-500">流程按代码核对：2026-10-25。自由活动的模型概率与系统抽签、冒险方式与每次模型选择独立列出；大乐透逐位选号包含本期已出票统计与近三期开奖；系统自动执行、跳过条件与循环上限按对应步骤说明；探索边界包含狂战士双手剑吸血的触发、扣血口径与恢复顺序，以及不屈分档减伤的临界血线与封顶、吟游诗人的乐曲互斥和节拍／共振／余音结算。</p>
+        <p className="text-xs text-slate-500">流程按代码核对：2026-10-26。自由活动的模型概率与系统抽签、冒险方式与每次模型选择独立列出；大乐透逐位选号包含本期已出票统计与近三期开奖；系统自动执行、跳过条件与循环上限按对应步骤说明；市场按小时汇总未判断可穿戴装备，进场后逐件决定买或不买，不按属性提升过滤。探索边界包含牧师系基础法杖与旧装备冻结权限、狂战士双手剑吸血的触发、扣血口径与恢复顺序，以及不屈分档减伤的临界血线与封顶、吟游诗人的乐曲互斥和节拍／共振／余音结算。</p>
     </div>;
 }

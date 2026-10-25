@@ -8,7 +8,7 @@ def publish_candidates(report: ResearchReport) -> None:
     for ordinal, data in enumerate(report.data.get('factors', [])):
         candidate, _ = FactorCandidate.objects.get_or_create(report=report, ordinal=ordinal, defaults={
             'id': digest(['factor-occurrence-v1', report.pk, ordinal])[:40],
-            'data': data, 'content_hash': digest(data), 'expression_hash': expression_hash(data), 'qualification_version': 1})
+            'data': data, 'content_hash': digest(data), 'expression_hash': expression_hash(data), 'qualification_version': 1, 'admission_version':1})
         from quant.verification.services import qualify
         qualify(candidate)
 
@@ -17,6 +17,7 @@ def candidate_data(candidate: FactorCandidate, vocabulary=None) -> dict:
     from .curation import curation_data
     from .grouping import fingerprints
     from quant.verification.services import projection as verification_projection
+    from quant.admissions.services import summary as admission_summary
     report = candidate.report
     ai_revision = candidate.data.get('formula_version', {}).get('origin') == 'ai_repair'
     curation = curation_data(candidate)
@@ -31,4 +32,4 @@ def candidate_data(candidate: FactorCandidate, vocabulary=None) -> dict:
         'created_at': candidate.created_at.isoformat(), 'model_name': 'AI 定义修订 · ' + report.run.model_name if ai_revision else '人工公式修订' if candidate.data.get('formula_version') else '本机受限表达式实验' if candidate.derived_checkpoint_id else report.run.model_name,
         'evidence_status': 'ai_revised_unverified' if ai_revision else 'authored_unverified' if candidate.data.get('formula_version') else 'local_simulation_unverified_platform' if candidate.derived_checkpoint_id else 'static_unverified', **curation, 'classification': classification,
         'fingerprints': fingerprints(candidate), 'occurrence_count': 1,
-        'verification': verification_projection(candidate)}
+        'verification': verification_projection(candidate), 'admission':admission_summary(candidate)}

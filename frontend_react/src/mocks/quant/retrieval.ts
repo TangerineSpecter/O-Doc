@@ -7,7 +7,7 @@ export async function mockHybridSearch(request: Request, candidates: QuantFactor
     const body = await request.json() as QuantSearchQuery;
     const q = body.q?.normalize('NFKC').trim().toLowerCase() || '';
     if (!q || q.length > 200 || !['none', 'raw', 'expression'].includes(body.groupBy || 'none')) return HttpResponse.json({code: 400, msg: '请输入 1–200 字符查询及有效分组', data: null}, {status: 400});
-    const rows = candidates.filter(row => (!body.role || row.data.role === body.role) && (!body.family || row.curation.family === body.family) && (!body.entryId || row.entryId === body.entryId) && (!body.taxonomyTerm || row.classification?.terms.some(term => term.id === body.taxonomyTerm)) && (!body.reuseStatus || row.verification?.reuseStatus === body.reuseStatus));
+    const rows = candidates.filter(row => (!body.role || row.data.role === body.role) && (!body.family || row.curation.family === body.family) && (!body.entryId || row.entryId === body.entryId) && (!body.taxonomyTerm || row.classification?.terms.some(term => term.id === body.taxonomyTerm)) && (!body.reuseStatus || row.verification?.reuseStatus === body.reuseStatus)&&(!body.admissionStage||row.admission?.stage===body.admissionStage));
     const groups = new Map<string, QuantFactorCandidate>();
     let occurrences = 0;
     for (const row of rows) {

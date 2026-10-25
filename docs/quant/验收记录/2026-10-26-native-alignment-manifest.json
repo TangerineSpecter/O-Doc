@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "schema_version": 52,
+  "model": "deepseek-flash",
+  "attempts": [
+    {
+      "summary": "2026-10-26-native-alignment-attempt1-summary.json",
+      "responses": "2026-10-26-native-alignment-attempt1-provider-responses.json",
+      "stages": "2026-10-26-native-alignment-attempt1-review-stages.json"
+    },
+    {
+      "summary": "2026-10-26-native-alignment-attempt2-summary.json",
+      "responses": "2026-10-26-native-alignment-attempt2-provider-responses.json",
+      "stages": "2026-10-26-native-alignment-attempt2-review-stages.json"
+    },
+    {
+      "summary": "2026-10-26-native-alignment-attempt3-summary.json",
+      "responses": "2026-10-26-native-alignment-attempt3-provider-responses.json",
+      "stages": "2026-10-26-native-alignment-attempt3-review-stages.json"
+    },
+    {
+      "summary": "2026-10-26-native-alignment-attempt4-summary.json",
+      "responses": "2026-10-26-native-alignment-attempt4-provider-responses.json",
+      "stages": "2026-10-26-native-alignment-attempt4-review-stages.json"
+    }
+  ],
+  "snapshot": "2026-10-26-native-alignment-snapshot.json",
+  "original_report_id": "c7c40cf320c94f4e81da145a9555bd93",
+  "original_data_hash": "b4726b4725e145787f82a499c5343e14fdbe68b6b70472dfae30d65a931f7128",
+  "artifact_hashes": {
+    "2026-10-26-native-alignment-attempt3-report.md": "0bc51b8e666e4add3b5f78e31f472cf66b66f9eaa524e36ef491a16f34d1a0c3",
+    "2026-10-26-native-alignment-attempt3-review-stages.json": "fa57fd0a765802e3c9731d0d338850e8c43a6fec68e4bcf8d223b3bd05c7eff5",
+    "2026-10-26-native-alignment-attempt3-provider-responses.json": "5808a23c900086fd011afb3b09a3c1a16e4e053bf9172702e175851d622bee97",
+    "2026-10-26-native-alignment-context.json": "e92783f4661c7e40565d4aa86f592f1804088be40daee0db8917dad1f5dabd6c",
+    "2026-10-26-native-alignment-attempt4-report.md": "240818abca642f1cac079e4c81f51ff7d7f6bbf0089d9e628dd075c558065cb2",
+    "2026-10-26-native-alignment-attempt2-summary.json": "f88791a7db5020ba80afde5eee9fd6684b523be067721a8392f14cbac237f62c",
+    "2026-10-26-native-alignment-attempt4-provider-responses.json": "4a2a0868f7cbac25c876c1c1b04a008e1ed9293eee02a37e5bbb09c74bf477f2",
+    "2026-10-26-native-alignment-attempt3-summary.json": "188ba18c8ee3965d4194e55ea65dee78150cd45df92ac7ed2c42dc3dc0f1d1d2",
+    "2026-10-26-native-alignment-attempt4-summary.json": "ef2a96f696e4c1b0200e472ddd30f7c19576d9dd3efa33bfd25eb67f81f21add",
+    "2026-10-26-native-alignment-attempt3-report.json": "e2804760f3eee53465fa0e2a0c912cf377a1d576383eabc07378df7fbabf62d3",
+    "2026-10-26-native-alignment-attempt2-provider-responses.json": "b3310b53547f1f99f7605dbbfeca40a8f30f4af90c6bfc1b9a08987734b00a12",
+    "2026-10-26-native-alignment-attempt4-report.json": "a80405391b611e906a152d920b31350ece477c5548bcf388cd5fe760330a86e4",
+    "2026-10-26-native-alignment-attempt1-summary.json": "eb4671255e9dfa9a7322cc697e683683793e6dcbf914f66678003a8fdd1289d7",
+    "2026-10-26-native-alignment-attempt4-review-stages.json": "c9b2c769027a579c6a57222e6f5b919e96d7bb7b515894b4929a7fd7d17234da",
+    "2026-10-26-native-alignment-model-context.json": "0652e4551ce38ee1ac9978bf11855fca7fe331cda82ad539d58567eef5f896ff",
+    "2026-10-26-native-alignment-snapshot.json": "91c6e755185ad23391fb36e9f34e58b5649034860d8b9ceb97df9eadc0cdc427",
+    "2026-10-26-native-alignment-attempt2-review-stages.json": "c78e3f50d6b45e0bc77145a8a69031a797b8e9a5c35c1ac5e4d17dbc16032d3f",
+    "2026-10-26-native-alignment-attempt1-review-stages.json": "d7bef9b4f4602a3dcec4f3a727dca144f2cacb592dd82e5e9a35042578f7bde9",
+    "2026-10-26-native-alignment-attempt1-provider-responses.json": "3840f6ab7a467c434291ee0ff770c225d51b0fa1c0c6a6ab775281b5151da4f7"
+  },
+  "independent_review": false,
+  "model_quality_release": false,
+  "manual_review": {
+    "attempt3": "not_passed: document projection mistaken for missing document; literal binding called non-adjustable",
+    "attempt4": "core facts checked; broad unknown about cancelled work still needs editorial precision; not an expert quality release"
+  }
+}

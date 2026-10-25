@@ -124,7 +124,7 @@ class MarketAutomationTests(TestCase):
         clear_equipment(gear.pk)
         self.assertFalse(MarketNoBuy.objects.filter(owner_id='admin', actor_id=self.a.pk, equipment_id=gear.pk).exists())
 
-    def test_candidate_filter_uses_wear_rules_and_improvement(self):
+    def test_candidate_filter_uses_wear_rules_without_attribute_gate(self):
         rules = {'version': 1, 'slot': 'weapon', 'equipment_type': 'sword', 'grip': 'one_handed',
                  'job_levels': {'job.warrior': 5}}
         snapshot = {'name': '长剑', 'slot': 'weapon', 'level': 1,
@@ -133,9 +133,8 @@ class MarketAutomationTests(TestCase):
         self.assertEqual(filter_candidates('admin', self.a.pk, rows, 'job.mage', 10), [])
         self.assertEqual(filter_candidates('admin', self.a.pk, rows, 'job.warrior', 4), [])
         self.assertEqual(len(filter_candidates('admin', self.a.pk, rows, 'job.warrior', 5)), 1)
-        current = {'stats': {'physical_attack': 20}}
-        self.assertEqual(filter_candidates('admin', self.a.pk, rows, 'job.warrior', 5,
-                                           slot='weapon', current=current), [])
+        self.assertEqual(len(filter_candidates('admin', self.a.pk, rows, 'job.warrior', 5,
+                                               slot='weapon')), 1)
 
     def test_plan_validation_clamps_budget_and_rejects_unknown_sku(self):
         context = {'available_budget': '100.00', 'tradable_skus': ['dish.stew'],
@@ -326,7 +325,7 @@ class MarketAutomationTests(TestCase):
              patch('system_settings.decision.routing.complete_json') as text:
             plan = ensure_plan('admin', self.a.pk, self.now)
         text.assert_not_called()
-        self.assertEqual(decision.call_count, 4)
+        self.assertEqual(decision.call_count, 3)
         self.assertTrue(all(size <= 1200 for size in sizes))
         plan.refresh_from_db()
         self.assertEqual(plan.status, 'active', plan.summary)
@@ -391,7 +390,7 @@ class MarketAutomationTests(TestCase):
             status='open')
         return yesterday
 
-    def test_carried_equipment_goal_extends_budget(self):
+    def test_daily_plan_does_not_carry_legacy_equipment_goal(self):
         self.yesterday_equipment_plan('20.00')
         facts = {'available': '100.00', 'needs': [], 'listings': [], 'equipment': [],
                  'shop_skus': set(), 'signature': 'sig-1'}
@@ -400,9 +399,9 @@ class MarketAutomationTests(TestCase):
             plan = ensure_plan('admin', self.a.pk, self.now)
         decision.assert_not_called()
         plan.refresh_from_db()
-        self.assertEqual(plan.budget, Decimal('20.00'))
-        self.assertEqual(plan.goals.filter(kind='equipment', slot='body').count(), 1)
-        self.assertIn('沿用昨日装备目标', plan.summary)
+        self.assertEqual(plan.budget, Decimal('0.00'))
+        self.assertFalse(plan.goals.filter(kind='equipment').exists())
+        self.assertNotIn('沿用昨日装备目标', plan.summary)
 
     def test_carried_equipment_goal_skipped_without_room(self):
         self.yesterday_equipment_plan('20.00')

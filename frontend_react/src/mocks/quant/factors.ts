@@ -1,3 +1,4 @@
+import {mockAdmissionSummary,flushMockAdmissions} from './admissions';
 import {mockQualificationSummary} from './qualification';
 import {mockVocabulary} from './vocabulary';
 import {mockClassification} from './vocabularyClassification';
@@ -72,12 +73,13 @@ export function collectMockFactors(entries: QuantEntryDetail[]): QuantFactorCand
         return {...row, entryTitle: entries.find(entry => entry.id === row.entryId)?.title || row.entryTitle, data: {...row.data, derivation: row.data.derivation ? {...row.data.derivation, localDemo: true} : undefined}, curation: current?.data || row.curation, currentRevisionId: current?.id || '', revisions};
     });
     const vocabularies = new Map(entries.map(entry => [entry.collId, mockVocabulary(entry.collId)]));
-    return [...derived, ...extracted].map(candidate => {
+    const result=[...derived, ...extracted].map(candidate => {
         const entry = entries.find(row => row.id === candidate.entryId);
         const vocabulary = entry && vocabularies.get(entry.collId);
         const source = entry?.sources?.find(row => row.id === candidate.sourceId);
         const unchecked = !!source?.payload.code?.includes('LOCAL_VERIFICATION_UNCHECKED') && !quantState().verificationIndexed[candidate.id];
         const verification = mockQualificationSummary(candidate, unchecked);
-        return vocabulary ? {...candidate, verification, classification: mockClassification(candidate, vocabulary, !candidate.data.formulaVersion && !candidate.data.derivation ? source?.payload.platform : '')} : candidate;
+        return vocabulary ? {...candidate, verification, admission:mockAdmissionSummary(candidate,entry!.collId), classification: mockClassification(candidate, vocabulary, !candidate.data.formulaVersion && !candidate.data.derivation ? source?.payload.platform : '')} : candidate;
     });
+    flushMockAdmissions();return result;
 }

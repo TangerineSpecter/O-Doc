@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.30",
+  "version": "combat-1.0.31",
   "status": "released",
   "engine_schema": 9,
   "files": {
@@ -36,8 +36,8 @@
       "rows": 798
     },
     "equipment_professions.csv": {
-      "sha256": "81b43d7126fb2ac4248edb99d3cd6dc63f8f98bd41f6f931b080db17b1769159",
-      "rows": 1262
+      "sha256": "89a164d7e8b1ed97b1772bbfcb161e57739b95e938a717e0a6649d91382063bb",
+      "rows": 1269
     },
     "equipment_templates.csv": {
       "sha256": "13b789337653ab9702dd5ba32ac2904efb829a1bed87c980f7e56991384bc5f1",

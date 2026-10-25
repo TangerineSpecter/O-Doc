@@ -1,4 +1,5 @@
 """Collection owner boundary for automatically archived and user-curated candidates."""
+from quant.admissions.services import compact_prefetch as admission_prefetch
 import json
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
@@ -17,6 +18,7 @@ class Query(serializers.Serializer):
     role = serializers.ChoiceField(choices=['', *ROLES], required=False)
     family = serializers.ChoiceField(choices=['', *FAMILIES], required=False)
     reuse_status = serializers.ChoiceField(choices=['', 'reusable', 'candidate', 'unchecked'], required=False)
+    admission_stage = serializers.ChoiceField(choices=['','unrecorded','candidate','reusable','calculated','historical','fixed_observation','registered_criteria_met'],required=False)
     taxonomy_term = serializers.CharField(max_length=48, required=False, allow_blank=True)
     entry_id = serializers.CharField(max_length=40, required=False, allow_blank=True)
     group_by = serializers.ChoiceField(choices=['none', 'raw', 'expression', 'merged', 'lineage'], default='none')
@@ -32,6 +34,9 @@ def matches(candidate: FactorCandidate, query: dict, vocabulary=None) -> bool:
         return False
     if query.get('entry_id') and query['entry_id'] != candidate.report.entry_id:
         return False
+    if query.get('admission_stage'):
+        from quant.admissions.services import summary
+        if summary(candidate)['stage']!=query['admission_stage']:return False
     if query.get('reuse_status'):
         from quant.verification.services import projection
         if projection(candidate)['reuse_status'] != query['reuse_status']: return False
@@ -53,7 +58,7 @@ class FactorView(QuantView):
     def candidates(self):
         return FactorCandidate.objects.filter(report__entry__anthology=self.collection,
             report__entry__is_valid=True).select_related('report__entry', 'report__run').prefetch_related(
-                'revisions', 'report__source', 'qualifications').defer('report__data', 'report__markdown', 'report__entry__content')
+                'revisions', 'report__source', 'qualifications', admission_prefetch()).defer('report__data', 'report__markdown', 'report__entry__content')
 
     def get(self, request, coll_id, factor_id=None, action=None):
         candidates = self.candidates()
@@ -75,7 +80,7 @@ class FactorView(QuantView):
                 target = get_object_or_404(candidates, pk=factor_id)
                 related = next(members for members, _, _ in grouped if any(row.pk == target.pk for row in members))
                 return success_result({'total': len(related), 'items': [candidate_data(row, vocabulary) for row in related[start:start + limit]]})
-            selected = [(members, head, meta) for members, head, meta in grouped if any(matches(row, values, vocabulary) for row in members)]
+            selected = [(members, head, meta) for members, head, meta in grouped if matches(head,{'admission_stage':values.get('admission_stage')},vocabulary) and any(matches(row,{**values,'admission_stage':''},vocabulary) for row in members)]
             return success_result({'total': len(selected), 'occurrence_total': sum(len(members) for members, _, _ in selected),
                 'items': [candidate_data(head, vocabulary) | {'occurrence_count': len(members), 'formula_lineage': meta}
                     for members, head, meta in selected[start:start + limit]]})
@@ -91,7 +96,8 @@ class FactorView(QuantView):
                 metadata = group_data(group, links)
                 term = values.get('q', '').casefold()
                 label_match = term and any(term in item.casefold() for item in metadata['names'] + metadata['aliases'])
-                if any(matches(row, values, vocabulary) for row in group) or label_match and any(matches(row, {**values, 'q': ''}, vocabulary) for row in group):
+                if not matches(group[0],{'admission_stage':values.get('admission_stage')},vocabulary):continue
+                if any(matches(row,{**values,'admission_stage':''},vocabulary) for row in group) or label_match and any(matches(row,{**values,'admission_stage':'','q':''},vocabulary) for row in group):
                     selected.append((group, metadata))
             return success_result({'total': len(selected), 'occurrence_total': sum(len(group) for group, _ in selected),
                 'items': [candidate_data(group[0], vocabulary) | {'occurrence_count': len(group), 'merged_group': metadata}

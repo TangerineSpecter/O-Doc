@@ -11,7 +11,7 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 51
+SCHEMA_VERSION = 53
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
@@ -27,6 +27,7 @@ from .taxonomy.sync import LABELS as VOCABULARY_LABELS
 LABELS |= VOCABULARY_LABELS
 from .verification.sync import LABELS as VERIFICATION_LABELS
 LABELS |= VERIFICATION_LABELS
+LABELS.add('quant.factoradmission')
 
 
 def complete_legacy_fields(data: list) -> None:
@@ -46,6 +47,9 @@ def complete_legacy_fields(data: list) -> None:
             row['fields'].setdefault('formula_version_id', '')
             row['fields'].setdefault('formula_selection_id', '')
             row['fields'].setdefault('qualification_version', 0)
+            row['fields'].setdefault('admission_version', 0)
+        if row.get('model') == 'quant.factorevidencelink':
+            row['fields'].setdefault('admission_version', 0)
 
 
 def manifest(data: list) -> dict:
@@ -259,6 +263,8 @@ def validate(data: list, meta=None) -> None:
         validate_comparisons(rows, anthologies, fail)
         from .verification.sync import validate_verification
         validate_verification(rows, fail)
+        from quant.admissions.sync import validate_admissions
+        validate_admissions(rows,fail)
         from .experiments.proposal_sync import validate_proposals
         validate_proposals(rows, fail)
         from .experiments.campaigns.sync import validate_campaigns

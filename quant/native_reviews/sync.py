@@ -36,7 +36,7 @@ def validate_workflows(rows:dict,fail) -> set[str]:
     selected=set()
     for identity,run in runs.items():
         version=run.get('feedback_workflow_version',0);report_id=run.get('audit_report_id','')
-        if type(version) is not int or version not in (0,1) or not isinstance(report_id,str) or len(report_id)>40:
+        if type(version) is not int or version not in (0,1,2) or not isinstance(report_id,str) or len(report_id)>40:
             fail('反馈事实审查版本无效')
         if report_id and not version:fail('旧单次反馈不能追加原稿复核引用')
         if not version:continue
@@ -53,7 +53,7 @@ def validate_workflows(rows:dict,fail) -> set[str]:
                 fail('原始Python报告复核引用跨来源、未来记录或循环')
             seen.add(previous['run']);current=parent
     frozen=('feedback_workflow_version','audit_report_id','entry_id','source_id','requirements','model_id','request_key','input_hash','planning_context')
-    for local in AIRun.objects.filter(pk__in=runs,feedback_workflow_version=1).values('id',*frozen):
+    for local in AIRun.objects.filter(pk__in=runs,feedback_workflow_version__in=(1,2)).values('id',*frozen):
         incoming=runs[local['id']]
         if any(digest(local[key])!=digest(incoming.get(AIRun._meta.get_field(key).name)) for key in frozen):
             fail('已有Python事实审查输入不可覆盖')
@@ -86,12 +86,13 @@ def _validate_run(run_id,run,rows,reports,all_steps,all_outcomes,fail):
                 or not re.fullmatch(r'[0-9a-f]{64}',model['configuration_hash'])):
             fail('Python审查模型身份无效')
         input_version=step.get('input',{}).get('version')
-        if type(input_version) is not int or input_version not in (1,2,3,4):fail('Python审查固定输入版本无效')
+        if type(input_version) is not int or input_version not in (1,2,3,4,5,6,7,8,9):fail('Python审查固定输入版本无效')
+        if (input_version>=5)!=(run['feedback_workflow_version']==2):fail('Python审查输入与冻结策略版本不一致')
         expected=input_snapshot(stage,ordinal,context,run['requirements'],model,draft=previous if ordinal>1 else None,source_report=source_ref,version=input_version)
-        if input_version in (2,3):
+        if input_version in (2,3) or input_version>=8:
             from .prompts import normalized
             actual_prompt=step.get('input',{}).get('prompt')
-            if normalized(actual_prompt)!=normalized(expected['prompt']):fail('历史审查提示或材料被改写')
+            if normalized(actual_prompt,span_order=input_version>=8)!=normalized(expected['prompt'],span_order=input_version>=8):fail('历史审查提示或材料被改写')
             expected['prompt']=actual_prompt
         if digest(step.get('input'))!=digest(expected) or step.get('content_hash')!=digest(expected):fail('Python审查固定输入被改写')
         if instant(step['created_at'])<instant(run['created_at']):fail('审查步骤早于请求')
@@ -117,10 +118,10 @@ def _validate_run(run_id,run,rows,reports,all_steps,all_outcomes,fail):
         if data['error'] or data['raw']['truncated']:fail('已完成审查不能同时失败或缺少完整返回')
         if ordinal==1:
             output={'analysis':source['data'],'origin':'report_snapshot','source_report':source_ref} if seeded else {
-                'analysis':analysis(decode(raw),context),'origin':'model','source_report':None}
+                'analysis':analysis(decode(raw),context,markdown_version=5 if input_version>=9 else 4),'origin':'model','source_report':None}
             previous=output['analysis']
         else:
-            output=audit(decode(raw),previous,context,can_revise=ordinal==2,max_issues=12 if input_version<4 else 24)
+            output=audit(decode(raw),previous,context,can_revise=ordinal==2,max_issues=12 if input_version<4 else 24,allow_encoded_analysis=input_version>=7,use_text_spans=input_version>=8,markdown_version=5 if input_version>=9 else 4)
             decisions.append(output['decision'])
             if output['decision']=='revise':previous=output['analysis'];revised=True
             if output['decision']=='reject' and ordinal!=len(steps):fail('拒绝审查后不能继续')
@@ -128,5 +129,5 @@ def _validate_run(run_id,run,rows,reports,all_steps,all_outcomes,fail):
         outcome_refs.append({'id':identity,'content_hash':record['content_hash']})
     if run['status']=='completed':
         if not decisions or decisions[-1]!='accept' or len(outcome_refs)!=(3 if revised else 2):fail('报告缺少已通过的最终AI事实复核')
-        expected={**previous,'native_review_gate':gate(outcome_refs,revised=revised,source_report=source_ref)}
+        expected={**previous,'native_review_gate':gate(outcome_refs,revised=revised,source_report=source_ref,policy=context['native_review_policy'])}
         if digest(run.get('result'))!=digest(expected):fail('最终报告与已审查原稿/修订稿不一致')

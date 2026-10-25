@@ -24,12 +24,12 @@ export function useQuantVerification(collection: string, candidate: string) {
         const controller = new AbortController(); indexController.current = controller;
         setIndexing({identity, busy: true, progress: '正在归集已有证据…', error: ''});
         try {
-            for (const kind of ['experiment', 'comparison', 'feedback'] as const) {
+            for (const kind of ['experiment', 'comparison', 'feedback','fixed_validation','native_python'] as const) {
                 let position = 0;
                 do {
                     const value = await quantApi.indexVerification(collection, candidate, kind, position, controller.signal);
                     if (controller.signal.aborted) return;
-                    setIndexing({identity, busy: true, error: '', progress: `正在归集${{experiment: '实验', comparison: '对照', feedback: '反馈'}[kind]}：${value.nextOffset} / ${value.total}`});
+                    setIndexing({identity, busy: true, error: '', progress: `正在归集${{experiment: '实验', comparison: '对照', feedback: '反馈',fixed_validation:'固定评价',native_python:'原始Python对照'}[kind]}：${value.nextOffset} / ${value.total}`});
                     if (!value.hasMore) break;
                     if (value.nextOffset <= position) throw new Error('归集分页没有推进，请重试');
                     position = value.nextOffset;

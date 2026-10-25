@@ -7,6 +7,8 @@ import {collectMockFactors} from './factors';
 import {collectMockFeedback} from './feedback';
 import {advanceRun} from './runs';
 import {publishMockReport} from './research';
+import {nativeAlignmentFixture} from './nativeAlignment';
+import {mockDatasetTimestamp} from './datasets';
 export interface MockNativePython {collection:string;input:NativePythonInput;data:NativePythonRecord;sourceCode:string;analysisSource?:string}
 const fail=(status:number,msg:string)=>HttpResponse.json({code:status,msg,data:null},{status});
 export const nativeMockEnvironment:NativeEnvironment={image_id:'sha256:'+'0'.repeat(64),os:'linux',architecture:'arm64',
@@ -23,17 +25,25 @@ export function mockNativeOptions(collection:string,factor:QuantFactorCandidate)
 function advance(record:MockNativePython) {
     const data=record.data;
     if (['pending','running'].includes(data.status)&&Date.now()-Date.parse(data.createdAt)>900){
-        const input=record.input;const mismatch=record.sourceCode.includes('LOCAL_NATIVE_FAIL');const dependency=record.sourceCode.includes('LOCAL_NATIVE_DEPENDENCY');
-        const count=input.rowCount;const comparison:NativeResult['comparison']=dependency?null:{status:mismatch?'fail':'pass',
-            counts:{total_rows:count,warmup_rows:input.warmupBars,compared_rows:count-input.warmupBars,common_valid:Math.max(0,count-20),left_missing:20,right_missing:20,both_missing:20,missing_mismatches:0,value_mismatches:mismatch?1:0,within_tolerance:Math.max(0,count-20-(mismatch?1:0))},
-            start:'2020-01-01T00:00:00Z',end:'2020-04-01T00:00:00Z',max_abs_error:mismatch?'0.1':'0',max_relative_error:mismatch?'0.1':'0',differences:mismatch?[{index:25,timestamp:'2020-01-26T00:00:00Z',left:0.1,right:0.2,kind:'value_mismatch'}]:[],limitations:['人工本地样例，不是原始函数实测']};
-        const result:NativeResult={version:1,method:'original-python-fixed-output-v1',status:dependency?'failed':'completed',reason:dependency?'dependency_unavailable':'',native_values:dependency?null:Array.from({length:count},(_,i)=>i<20?null:0),comparison,independent_validation:false,platform_equivalence:'unverified'};
+        const input=record.input;const dataset=quantState().datasets.find(row=>row.collection===record.collection&&row.data.id===input.datasetId);
+        const mismatch=record.sourceCode.includes('LOCAL_NATIVE_FAIL'),tail=record.sourceCode.includes('LOCAL_NATIVE_TAIL_MISSING');
+        const dependency=record.sourceCode.includes('LOCAL_NATIVE_DEPENDENCY')||!dataset;
+        const count=input.rowCount,warmup=input.warmupBars,common=Math.max(0,count-Math.max(20,warmup)-(tail?1:0)),bothMissing=Math.max(0,20-warmup);
+        const valueMismatch=mismatch&&common>0?1:0,at=(index:number)=>mockDatasetTimestamp(dataset!,input.offset+index);
+        const differences:NonNullable<NativeResult['comparison']>['differences']=[];
+        if(!dependency&&valueMismatch){const index=Math.min(count-1-(tail?1:0),Math.max(25,warmup));differences.push({index,timestamp:at(index),left:.1,right:.2,kind:'value_mismatch'});}
+        if(!dependency&&tail)differences.push({index:count-1,timestamp:at(count-1),left:0,right:null,kind:'missing_mismatch'});
+        const comparison:NativeResult['comparison']=dependency?null:{status:tail||valueMismatch?'fail':common?'pass':'inconclusive',
+            counts:{total_rows:count,warmup_rows:warmup,compared_rows:count-warmup,common_valid:common,left_missing:bothMissing,right_missing:bothMissing+(tail?1:0),both_missing:bothMissing,missing_mismatches:tail?1:0,value_mismatches:valueMismatch,within_tolerance:common-valueMismatch},
+            start:at(warmup),end:at(count-1),max_abs_error:common?(valueMismatch?'0.1':'0'):null,max_relative_error:common?(valueMismatch?'0.1':'0'):null,differences,limitations:['人工本地样例，不是原始函数实测']};
+        const result:NativeResult={version:1,method:'original-python-fixed-output-v1',status:dependency?'failed':'completed',reason:dependency?(dataset?'dependency_unavailable':'invalid_request'):'',native_values:dependency?null:Array.from({length:count},(_,i)=>i<20||tail&&i===count-1?null:valueMismatch&&i===differences[0].index ? .2 : 0),comparison,independent_validation:false,platform_equivalence:'unverified'};
         data.status=result.status;data.verdict=comparison?.status||null;data.resultJson=JSON.stringify(result);
         if (input.analyze&&!record.analysisSource){
             const factor=candidate(record.collection,data.candidateId);const entry=quantState().entries.find(row=>row.id===factor?.entryId);
             if (entry&&factor){
                 const saved=collectMockFeedback(entry,{requestKey:`native_review_${data.id}`,title:'原始Python验证 · 人工流程样例',targetSourceId:factor.sourceId,factorId:factor.id,experimentResultId:'',mode:'unknown',documentFormat:'json',
-                    document:JSON.stringify({kind:'LOCAL_NATIVE_PYTHON',verdict:data.verdict||'unavailable',parameters:input.parameters}),platform:'generic Python · local demo',notes:'未执行真实源码、模型或行情',analyze:true,modelId:''});
+                    document:JSON.stringify({kind:'LOCAL_NATIVE_PYTHON',verdict:data.verdict||'unavailable',parameters:input.parameters,
+                        alignmentAck:nativeAlignmentFixture(count,warmup,!dependency,tail)}),platform:'generic Python · local demo',notes:'未执行真实源码、模型或行情',analyze:true,modelId:''});
                 if (!(saved instanceof HttpResponse))record.analysisSource=saved.source.id;
             }
         }

@@ -236,7 +236,7 @@ class ReportRevision(ImmutableRecord):
 
 class FactorCandidate(ImmutableRecord):
     """An extraction or derived experiment formula, with immutable provenance."""
-    SNAPSHOT_FIELDS = ('report_id', 'ordinal', 'data', 'content_hash', 'expression_hash', 'derived_checkpoint_id', 'formula_version_id', 'qualification_version')
+    SNAPSHOT_FIELDS = ('report_id', 'ordinal', 'data', 'content_hash', 'expression_hash', 'derived_checkpoint_id', 'formula_version_id', 'qualification_version', 'admission_version')
     report = models.ForeignKey(ResearchReport, on_delete=models.CASCADE, related_name='factor_candidates')
     ordinal = models.PositiveSmallIntegerField()
     data = models.JSONField(default=dict)
@@ -249,6 +249,7 @@ class FactorCandidate(ImmutableRecord):
     formula_version_id = models.CharField(max_length=40, blank=True, default='')
     formula_selection_id = models.CharField(max_length=40, blank=True, default='')
     qualification_version = models.PositiveSmallIntegerField(default=0)
+    admission_version = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
         ordering = ['-created_at', 'id']
@@ -272,15 +273,35 @@ class FactorQualification(ImmutableRecord):
 
 class FactorEvidenceLink(ImmutableRecord):
     """Direct version-scoped evidence, reconstructed from the immutable target."""
-    SNAPSHOT_FIELDS = ('candidate_id', 'kind', 'target_id', 'data', 'content_hash')
+    SNAPSHOT_FIELDS = ('candidate_id', 'kind', 'target_id', 'data', 'content_hash', 'admission_version')
     candidate = models.ForeignKey(FactorCandidate, on_delete=models.CASCADE, related_name='verification_evidence')
     kind = models.CharField(max_length=20)
     target_id = models.CharField(max_length=40)
     data = models.JSONField(default=dict)
     content_hash = models.CharField(max_length=64)
+    admission_version = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['candidate', 'kind', 'target_id'], name='quant_factor_evidence_link')]
+
+
+class FactorAdmission(ImmutableRecord):
+    """Rule-based research layer for one formula and frozen observation scope."""
+    SNAPSHOT_FIELDS = ('candidate_id', 'qualification_id', 'evidence_id', 'policy_version', 'stage', 'outcome', 'data', 'content_hash')
+    candidate = models.ForeignKey(FactorCandidate, on_delete=models.CASCADE, related_name='admission_records')
+    qualification = models.ForeignKey(FactorQualification, on_delete=models.CASCADE, related_name='admission_records')
+    evidence = models.ForeignKey(FactorEvidenceLink, null=True, blank=True, on_delete=models.CASCADE, related_name='admission_records')
+    policy_version = models.PositiveSmallIntegerField(default=1)
+    stage = models.CharField(max_length=24)
+    outcome = models.CharField(max_length=32)
+    data = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ['-created_at', 'id']
+        constraints = [models.UniqueConstraint(fields=['candidate', 'policy_version'], condition=models.Q(evidence__isnull=True), name='quant_factor_admission_base'),
+            models.UniqueConstraint(fields=['evidence','policy_version'],condition=models.Q(evidence__isnull=False),name='quant_admission_evidence_policy')]
+        indexes = [models.Index(fields=['candidate', 'stage'], name='quant_admission_stage')]
 
 
 class FactorFormulaVersion(ImmutableRecord):

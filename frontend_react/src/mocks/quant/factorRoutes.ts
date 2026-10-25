@@ -1,3 +1,4 @@
+import {resolveAdmissionRoute,validAdmissionStage} from './admissions';
 import {resolveVerificationRoute} from './verification';
 import {mockClassificationLabels} from './vocabularyClassification';
 import {mockHybridSearch} from './retrieval';
@@ -19,6 +20,7 @@ export async function resolveFactorRoute(request: Request, entries: QuantEntryDe
     if (id === 'search' && !action && request.method === 'POST') return mockHybridSearch(request, items);
     const target = items.find(row => row.id === id);
     if (id && !target) return fail(404, '候选不存在或无权访问');
+    if (target && action === 'admissions')return resolveAdmissionRoute(request,target,collection);
     if (target && action === 'verification') return resolveVerificationRoute(request, target, collection);
     if (target && action === 'formula-versions') return resolveFormulaVersionRoute(request, target, items, detailAction);
     if (request.method === 'PATCH' && target && !action) {
@@ -38,26 +40,27 @@ export async function resolveFactorRoute(request: Request, entries: QuantEntryDe
     const role = params.get('role') || '', family = params.get('family') || '';
     const q = (params.get('q') || '').trim().toLowerCase();
     const reuseStatus = params.get('reuseStatus') || '';
+    const admissionStage=params.get('admissionStage')||params.get('admission_stage')||'';
     const taxonomyTerm = params.get('taxonomyTerm') || params.get('taxonomy_term') || '';
     const sourceEntry = params.get('entryId') || params.get('entry_id');
     const offset = Number(params.get('offset') || 0), limit = Number(params.get('limit') || 40);
-    if (!['', 'reusable', 'candidate', 'unchecked'].includes(reuseStatus) || !['none', 'raw', 'expression', 'merged', 'lineage'].includes(mode) || !['', 'factor', 'signal', 'filter', 'risk', 'execution', 'display'].includes(role) || !families.includes(family) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100 || q.length > 200) return fail(400, '候选筛选参数无效');
+    if (!validAdmissionStage(admissionStage)||!['', 'reusable', 'candidate', 'unchecked'].includes(reuseStatus) || !['none', 'raw', 'expression', 'merged', 'lineage'].includes(mode) || !['', 'factor', 'signal', 'filter', 'risk', 'execution', 'display'].includes(role) || !families.includes(family) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100 || q.length > 200) return fail(400, '候选筛选参数无效');
     if (target && action === 'occurrences') {
         items = items.filter(item => groupKey(item, mode, collection, allItems) === groupKey(target, mode, collection, allItems));
         return {total: items.length, items: items.slice(offset, offset + limit)};
     }
-    const matches = (row: QuantFactorCandidate, withTerm = true) => (!role || row.data.role === role) && (!family || row.curation.family === family) && (!sourceEntry || row.entryId === sourceEntry) && (!taxonomyTerm || row.classification?.terms.some(term => term.id === taxonomyTerm)) && (!reuseStatus || row.verification?.reuseStatus === reuseStatus) && (!withTerm || !q || `${row.data.name} ${row.data.summary} ${row.data.formula} ${row.data.expression ? JSON.stringify(row.data.expression) : ''} ${row.curation.name} ${row.curation.note} ${row.curation.tags.join(' ')} ${row.curation.aliases.join(' ')} ${row.entryTitle} ${mockClassificationLabels(row).join(' ')}`.toLowerCase().includes(q));
+    const matches = (row: QuantFactorCandidate, withTerm = true,withAdmission=true) => (!withAdmission||!admissionStage||row.admission?.stage===admissionStage)&& (!role || row.data.role === role) && (!family || row.curation.family === family) && (!sourceEntry || row.entryId === sourceEntry) && (!taxonomyTerm || row.classification?.terms.some(term => term.id === taxonomyTerm)) && (!reuseStatus || row.verification?.reuseStatus === reuseStatus) && (!withTerm || !q || `${row.data.name} ${row.data.summary} ${row.data.formula} ${row.data.expression ? JSON.stringify(row.data.expression) : ''} ${row.curation.name} ${row.curation.note} ${row.curation.tags.join(' ')} ${row.curation.aliases.join(' ')} ${row.entryTitle} ${mockClassificationLabels(row).join(' ')}`.toLowerCase().includes(q));
     if (mode === 'lineage') {
         const groups = new Map<string, QuantFactorCandidate[]>();
         for (const row of allItems) {const key = rootId(row); groups.set(key, [...(groups.get(key) || []), row]);}
         const state = quantState();
-        const selected = [...groups.entries()].filter(([, members]) => members.some(row => matches(row))).map(([root, members]) => {
+        const selected = [...groups.entries()].filter(([, members]) => members.some(row => matches(row,true,false))).map(([root, members]) => {
             const pointer = state.formulaHeads[root] || '';
             const current = state.formulaSelections.find(row => row.id === pointer)?.candidateId || root;
             const head = members.find(row => row.id === current) || members.find(row => row.id === root) || members[0];
             return {...head, occurrenceCount: members.length, formulaLineage: {id: 'lineage:' + root, rootCandidateId: root, currentCandidateId: current,
                 currentSelectionId: pointer, currentAvailable: members.some(row => row.id === current), versionsTotal: members.length}};
-        });
+        }).filter(row=>!admissionStage||row.admission?.stage===admissionStage);
         return {total: selected.length, occurrenceTotal: selected.reduce((sum, row) => sum + row.occurrenceCount, 0), items: selected.slice(offset, offset + limit)};
     }
     if (mode === 'merged') {
@@ -68,7 +71,7 @@ export async function resolveFactorRoute(request: Request, entries: QuantEntryDe
             seen.add(group.id);
             const members = allItems.filter(item => group.memberIds.includes(item.id));
             const labelMatch = !!q && [...group.names, ...group.aliases].some(label => label.toLowerCase().includes(q));
-            if (members.some(item => matches(item)) || labelMatch && members.some(item => matches(item, false))) {
+            if ((!admissionStage||members[0].admission?.stage===admissionStage)&&(members.some(item => matches(item,true,false)) || labelMatch && members.some(item => matches(item,false,false)))) {
                 selected.push({...members[0], occurrenceCount: members.length, mergedGroup: group});
             }
         }

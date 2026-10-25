@@ -99,21 +99,22 @@ def feedback(candidate_id, candidate, identity, payload, source_hash):
         'claim': 'uploaded_observation_not_verified_execution_or_live_profit'}
 
 
-def fixed_validation(candidate_id,candidate,identity,result,fixed_request,fixed_plan,dataset,source_result,source_plan,source_dataset):
+def fixed_validation(candidate_id,candidate,identity,result,fixed_request,fixed_plan,dataset,source_result,source_plan,source_dataset,*,include_incomplete=False):
     """Only a direct formula/parameter variant or its exact archived descendant."""
     original=experiment(candidate_id,candidate,'source',source_result,source_plan,source_dataset,fixed_plan['source']['request_id'])
     selected=fixed_plan['source']['attempt_id']
-    if result.get('status')!='completed' or not original or selected not in {r['id'] for r in original['attempts']}:
+    if (result.get('status')!='completed' and not include_incomplete) or not original or selected not in {r['id'] for r in original['attempts']}:
         return None
     from quant.validation_studies.evidence import audit_summary
     value=base(candidate,'fixed_validation',identity,digest(result)) | {
         'scope':'direct_fixed_formula_and_actual_parameters_new_interval','source_request_id':fixed_plan['source']['request_id'],
         'source_attempt_id':selected,'dataset_hash':fixed_request['dataset_hash'],'market':market(dataset),
         'mode':fixed_request['mode'],'config':copy.deepcopy(fixed_plan['config']),'recipe':copy.deepcopy(fixed_plan['recipe']),
-        'bounds':copy.deepcopy(fixed_request['bounds']),'metrics':metrics(result['output']['final']),
-        'baseline':metrics(result['output']['baseline']),'publication_audit':audit_summary(result['publication_audit']),
-        'levels':['fixed_observation'],'independent_validation':False,
+        'bounds':copy.deepcopy(fixed_request['bounds']),'metrics':metrics((result.get('output') or {}).get('final')),
+        'baseline':metrics((result.get('output') or {}).get('baseline')),'publication_audit':audit_summary(result['publication_audit']) if result.get('publication_audit') else None,
+        'levels':['fixed_observation'] if result['status']=='completed' else [],'independent_validation':False,
         'claim':'registered_fixed_observation_not_global_independence_or_profitability'}
+    if result['status']!='completed':value.update(result_status=result['status'],error=result.get('error',''))
     if result.get('version')==2:
         value['registered_criteria']=copy.deepcopy(fixed_plan['criteria'])
         value['criteria_assessment']=copy.deepcopy(result['criteria_assessment'])
