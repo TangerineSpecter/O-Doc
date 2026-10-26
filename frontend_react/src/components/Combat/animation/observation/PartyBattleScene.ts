@@ -4,7 +4,8 @@ import {LayeredPlayerActor} from '../playerAppearance/LayeredPlayerActor';
 import {identitySheet,outfitArts,independentWeapons} from '../playerAppearance/layeredPlayerArt';
 import {getProfessionAura} from '../../art/professionAuras';
 import {battleBackgroundArt} from '../../art/battleBackgroundArt';
-import type {BattleBackgroundId} from '../../art/battleBackgroundArt';
+import type {BattleBackgroundArt, BattleBackgroundId} from '../../art/battleBackgroundArt';
+import {loadPixelBattleBackground} from '../loadPixelBattleBackground';
 import {ObservationMonsterActor} from './ObservationMonsterActor';
 import {PartyEventCursor} from './partyEventCursor';
 
@@ -16,6 +17,9 @@ export class PartyBattleScene {
     private background=new Sprite();
     private units=new Map<string,UnitView>();
     private sheets=new Map<string,Texture>();
+    private backgrounds=new Map<string,Texture>();
+    private backgroundLoads=new Map<string,Promise<Texture|undefined>>();
+    private backgroundId='';
     private clock=0;
     private initialized=false;
     private disposed=false;
@@ -26,6 +30,23 @@ export class PartyBattleScene {
     private onVisibility=()=>this.sync();
     private reduced=matchMedia('(prefers-reduced-motion: reduce)');
     constructor(private host:HTMLElement,private snapshot:AdventurePartySnapshot) {}
+    private backgroundTexture(art:BattleBackgroundArt) {
+        const cached=this.backgrounds.get(art.id);
+        if(cached)return Promise.resolve(cached);
+        const pending=this.backgroundLoads.get(art.id);
+        if(pending)return pending;
+        const loading=loadPixelBattleBackground(art).then(canvas=>{
+            if(this.disposed){canvas.width=0;canvas.height=0;return undefined;}
+            const texture=Texture.from(canvas);
+            texture.source.scaleMode='nearest';
+            this.backgrounds.set(art.id,texture);
+            return texture;
+        }).finally(()=>{
+            if(this.backgroundLoads.get(art.id)===loading)this.backgroundLoads.delete(art.id);
+        });
+        this.backgroundLoads.set(art.id,loading);
+        return loading;
+    }
     async init() {
         await this.app.init({width:720,height:423,antialias:false,autoDensity:true,resolution:Math.min(devicePixelRatio||1,2),autoStart:false,preference:'webgl',background:0x304642});
         this.initialized=true;
@@ -49,10 +70,10 @@ export class PartyBattleScene {
         if(!this.initialized||!this.sheets.size||this.disposed)return;
         const version=++this.version;
         const art=battleBackgroundArt[snapshot.dungeonId as BattleBackgroundId];
-        if(art){
-            const texture=await Assets.load<Texture>(art.src);
+        if(art&&this.backgroundId!==art.id){
+            const texture=await this.backgroundTexture(art);
             if(this.disposed||version!==this.version)return;
-            texture.source.scaleMode='nearest';this.background.texture=texture;this.background.width=720;this.background.height=423;
+            if(texture){this.background.texture=texture;this.background.width=720;this.background.height=423;this.backgroundId=art.id;}
         }
         const present=new Set([...snapshot.players,...snapshot.enemies].map(v=>v.id));
         for(const [id,view] of this.units)if(!present.has(id)){view.actor.destroy();this.units.delete(id);}
@@ -71,7 +92,11 @@ export class PartyBattleScene {
                         actor.setHeadBehindBody(Boolean(unit.visual?.headBehindBody));
                         if(unit.visual?.appearanceOverlays)actor.setAppearanceOverlays(unit.visual.appearanceOverlays);
                         actor.scale.set(.19);
-                    }else{actor=await ObservationMonsterActor.load(unit.templateId||'');if(actor)actor.scale.set(.55);}
+                    }else{
+                        const monsterId=unit.templateId||(unit as any).template_id||'';
+                        actor=await ObservationMonsterActor.load(monsterId);
+                        if(actor)actor.scale.set(.55);
+                    }
                     if(this.disposed||version!==this.version){actor?.destroy();return;}
                     if(!actor)continue;
                     view={actor,unit,x:0,y:0};this.units.set(unit.id,view);this.world.addChild(actor);
@@ -86,9 +111,9 @@ export class PartyBattleScene {
             }
         }
         for(const event of this.eventCursor.take(snapshot.events)){
-            for(const action of event.payload.events||[]){
-                const actor=this.units.get(action.actorId||'');if(actor)actor.action=this.clock;
-                const target=this.units.get(action.targetId||'');
+            for(const action of event.payload?.events||[]){
+                const actor=this.units.get(action.actorId||(action as any).actor_id||'');if(actor)actor.action=this.clock;
+                const target=this.units.get(action.targetId||(action as any).target_id||'');
                 if(target&&(action.damage||action.healing||action.restored)){
                     if(action.damage)target.hit=this.clock;
                     const amount=action.damage?`−${action.damage}`:`+${action.healing||action.restored}`;
@@ -113,5 +138,5 @@ export class PartyBattleScene {
         }
     }
     private resize(){if(!this.initialized||this.disposed)return;const width=Math.max(1,this.host.clientWidth),height=Math.max(1,this.host.clientHeight);this.app.renderer.resize(width,height);this.world.scale.set(Math.min(width/720,height/423));}
-    dispose(){this.disposed=true;this.version++;this.resizeObserver.disconnect();document.removeEventListener('visibilitychange',this.onVisibility);if(this.initialized)this.app.destroy(true,{children:true});}
+    dispose(){this.disposed=true;this.version++;this.resizeObserver.disconnect();document.removeEventListener('visibilitychange',this.onVisibility);if(this.initialized)this.app.destroy(true,{children:true});for(const texture of this.backgrounds.values())texture.destroy(true);this.backgrounds.clear();this.backgroundLoads.clear();}
 }

@@ -34,8 +34,8 @@ class EquipmentRollTests(unittest.TestCase):
         self.assertEqual(affix_range(strength, 99, 'blue'), (48, 96))
         self.assertEqual(affix_range(strength, 99, 'gold'), (72, 144))
         self.assertEqual(affix_range(strength, 1, 'white'), (2, 3))
-        self.assertEqual(quality_base(206, 'blue'), 236)
-        self.assertEqual(quality_base(206, 'gold'), 267)
+        self.assertEqual(quality_base(206, 'blue', 99), 236)
+        self.assertEqual(quality_base(206, 'gold', 99), 267)
         critical = self.catalog.row('affixes', 'affix.critical')
         self.assertEqual(affix_range(critical, 99, 'gold'), (.0075, .03))
         self.assertEqual(affix_range(critical, 1, 'white'), (.0025, .01))
@@ -44,6 +44,29 @@ class EquipmentRollTests(unittest.TestCase):
         for level in (0, 100):
             with self.assertRaises(ValueError):
                 affix_range(strength, level, 'gold')
+
+    def test_early_levels_keep_a_larger_quality_gap(self):
+        self.assertEqual([quality_base(28, q, 10) for q in ('white', 'blue', 'gold')], [28, 37, 48])
+        self.assertEqual([quality_base(48, q, 20) for q in ('white', 'blue', 'gold')], [48, 62, 78])
+        self.assertEqual([quality_base(68, q, 30) for q in ('white', 'blue', 'gold')], [68, 85, 103])
+        self.assertEqual(quality_base(88, 'blue', 50), int(88 * 1.15))
+        self.assertEqual(quality_base(88, 'gold', 50), int(88 * 1.30))
+        for level in (0, 100):
+            with self.assertRaises(ValueError):
+                quality_base(28, 'gold', level)
+
+    def test_effective_snapshot_recalibrates_old_base_and_keeps_rolled_affixes(self):
+        c = self.catalog
+        old = {'template_id': 'equip.sword', 'slot': 'weapon', 'level': 10, 'quality': 'gold',
+               'stats': {'physical_attack': 28, 'strength': 2, 'critical': .01},
+               'affixes': [{'id': 'affix.strength', 'stat': 'strength', 'value': 2, 'min': 2, 'max': 4},
+                           {'id': 'affix.critical', 'stat': 'critical', 'value': .01, 'min': .01, 'max': .01}],
+               'name': '长剑', 'value': '0'}
+        effective = equipment.effective_snapshot(old, c)
+        self.assertEqual(effective['stats'], {'physical_attack': 48, 'strength': 2, 'critical': .01})
+        self.assertEqual(old['stats'], {'physical_attack': 28, 'strength': 2, 'critical': .01})
+        starter = equipment.generate(c, 'equip.training_sword', 1, 'white', random.Random(1), starter=True)
+        self.assertEqual(equipment.effective_snapshot(starter, c)['stats'], starter['stats'])
 
     def test_generated_values_use_actual_saved_bounds_and_quality_base(self):
         c = self.catalog

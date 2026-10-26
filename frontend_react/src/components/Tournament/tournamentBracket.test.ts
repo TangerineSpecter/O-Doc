@@ -7,10 +7,11 @@ import {
 } from '../../mocks/agentWorld/tournament';
 
 test('tournament 80-participant bracket data structure and rules', () => {
-    // 1. 确认共有 80 位特色居民参赛
+    // 1. 确认共有 80 位特色居民参赛，并提供选手头像定义
     assert.equal(mockTournamentActors.length, 80);
     assert.equal(currentTournament.participantCount, 80);
     assert.equal(currentTournament.roster.length, 80);
+    assert.ok(currentTournament.roster.every(r => typeof r.avatar === 'string'));
 
     // 2. 确认第一轮为超出 64 人的资格预选附加赛（preliminary）
     const prelim = currentTournament.rounds[0];
@@ -76,6 +77,7 @@ test('tournament 80-participant bracket data structure and rules', () => {
             assert.ok(detail, `Match report for ${m.id} must exist`);
             if (m.rightId) {
                 assert.ok(detail.report.participants && detail.report.participants.length === 2);
+                assert.ok(detail.report.participants.every(p => typeof p.avatar === 'string'));
                 assert.ok(detail.report.rounds && detail.report.rounds.length > 0);
             }
         }

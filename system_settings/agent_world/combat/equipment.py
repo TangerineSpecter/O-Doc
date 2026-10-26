@@ -3,7 +3,54 @@ import math
 from decimal import Decimal
 from .catalog import Catalog, numeric, cash
 from .equipment_names import equipment_name
-from .equipment_rolls import affix_range, quality_base
+from .equipment_rolls import QUALITIES, affix_range, quality_base
+
+BASE_STATS = ('physical_attack', 'magic_attack', 'hp', 'mp', 'physical_defense', 'magic_defense', 'healing')
+
+
+def base_stats(template: dict, level: int, quality: str, *, starter: bool = False) -> dict:
+    """Intrinsic stats before rolled affixes; the same budget applies to stored gear."""
+    stats = {}
+    for stat in BASE_STATS:
+        value = math.floor(numeric(template, stat + '_base') + numeric(template, stat + '_growth') * level)
+        if not starter:
+            value = quality_base(value, quality, level)
+        if value:
+            stats[{'hp': 'hp_max', 'mp': 'mp_max'}.get(stat, stat)] = value
+    if numeric(template, 'evasion'):
+        stats['evasion'] = numeric(template, 'evasion')
+    return stats
+
+
+def effective_snapshot(snapshot: dict, catalog: Catalog) -> dict:
+    """Recalculate intrinsic stats for existing gear while keeping its rolled affixes.
+
+    Stored snapshots remain frozen for facts, checkpoints and WebDAV. Only read
+    projections use this recalibration, so old drops immediately follow the current
+    quality curve without rewriting history.
+    """
+    if not isinstance(snapshot, dict):
+        return snapshot
+    template_id, level, quality = snapshot.get('template_id'), snapshot.get('level'), snapshot.get('quality')
+    template = catalog.index.get('equipment_templates', {}).get(template_id)
+    affixes = snapshot.get('affixes')
+    if (not isinstance(template_id, str) or not isinstance(template, dict) or type(level) is not int or
+            not 1 <= level <= 99 or quality not in QUALITIES or not isinstance(affixes, list) or
+            not isinstance(snapshot.get('stats'), dict) or any(
+                not isinstance(affix, dict) or not isinstance(affix.get('stat'), str) or
+                not isinstance(affix.get('value'), (int, float)) or isinstance(affix.get('value'), bool)
+                for affix in affixes)):
+        return snapshot
+    base = base_stats(template, level, quality)
+    rolled = {}
+    for affix in affixes:
+        stat, value = affix['stat'], affix['value']
+        rolled[stat] = rolled.get(stat, 0) + value
+    stats = {stat: value for stat, value in snapshot['stats'].items() if stat not in base and stat not in rolled}
+    stats.update(rolled)
+    for stat, value in base.items():
+        stats[stat] = value + rolled.get(stat, 0)
+    return {**snapshot, 'stats': stats}
 
 
 def allowed(catalog: Catalog, template_id: str, job: str, level: int, actual_level: int) -> bool:
@@ -59,15 +106,7 @@ def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, 
     template = catalog.row('equipment_templates', template_id)
     if not int(template['level_min']) <= level <= int(template['level_max']):
         raise ValueError('装备等级超出模板范围')
-    stats = {}
-    for stat in ('physical_attack', 'magic_attack', 'hp', 'mp', 'physical_defense', 'magic_defense', 'healing'):
-        value = math.floor(numeric(template, stat + '_base') + numeric(template, stat + '_growth') * level)
-        if not starter:
-            value = quality_base(value, quality)
-        if value:
-            stats[{'hp': 'hp_max', 'mp': 'mp_max'}.get(stat, stat)] = value
-    if numeric(template, 'evasion'):
-        stats['evasion'] = numeric(template, 'evasion')
+    stats = base_stats(template, level, quality, starter=starter)
     pool = [r for r in catalog.tables['equipment_affixes'] if r['equipment_id'] == template_id]
     affixes, positions = [], []
     for _ in range(int(catalog.row('qualities', quality)['affix_count'])):

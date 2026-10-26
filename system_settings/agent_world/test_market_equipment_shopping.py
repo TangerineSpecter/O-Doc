@@ -1,5 +1,6 @@
 """Hourly unjudged listings -> entry -> one comparison per equipment instance."""
 import random
+from copy import deepcopy
 from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -71,6 +72,8 @@ class EquipmentShoppingTests(TestCase):
     def test_no_goal_or_empty_slot_needed_and_weaker_stats_still_reach_model(self):
         item, _ = self.listing('weak-staff')
         item.snapshot['stats'] = {'magic_attack': 1}
+        # A legacy snapshot without an affix list cannot be recalibrated and is forwarded as-is.
+        item.snapshot['affixes'] = None
         item.save(update_fields=['snapshot'])
         self.plan(budget='0')
         rows = equipment_candidates('admin', self.a.pk)
@@ -84,6 +87,20 @@ class EquipmentShoppingTests(TestCase):
         self.assertIn('weapon', state['current_equipment'])
         self.assertIn('stats', state['current_equipment']['weapon'])
         self.assertTrue(MarketNoBuy.objects.filter(actor_id=self.a.pk, equipment_id=item.pk).exists())
+
+    def test_listing_projection_uses_effective_stats_without_rewriting_copy(self):
+        from .combat.equipment_effective import for_instance
+        from .market_queries import listings
+        item, listing = self.listing('legacy-blue')
+        original = deepcopy(listing.item['equipment_snapshot'])
+        item.snapshot['quality'] = 'blue'
+        item.snapshot['stats'] = {'magic_attack': 1}
+        item.save(update_fields=['snapshot'])
+        row = next(row for row in listings('admin', {'seller_id': self.b.pk, 'status': 'all'})['items']
+                   if row['id'] == listing.pk)
+        self.assertEqual(row['item']['equipment_snapshot']['stats'], for_instance(item)['stats'])
+        listing.refresh_from_db()
+        self.assertEqual(listing.item['equipment_snapshot'], original)
 
     def test_explicit_no_disappears_next_hour_and_new_instance_appears(self):
         one, _ = self.listing('staff-1')

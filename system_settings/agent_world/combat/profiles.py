@@ -64,11 +64,24 @@ def apply_loadout_changes(profile, catalog, changes, owner):
     return candidate
 
 
-def wearing(profile):
+def _worn(profile):
     by_id = {r.pk:r for r in EquipmentInstance.objects.filter(pk__in=profile.loadout.values(), actor_id=profile.pk, sold=False)}
     if len(by_id) != len(profile.loadout):
         raise ValueError('穿戴装备来源缺失')
-    return [by_id[key].snapshot for key in profile.loadout.values()]
+    return [by_id[key] for key in profile.loadout.values()]
+
+
+def wearing(profile, catalog=None):
+    """Effective worn stats, including the current quality curve for old drops."""
+    from .equipment_effective import snapshots
+    rows = _worn(profile)
+    effective = snapshots(rows, catalog)
+    return [effective[row.pk] for row in rows]
+
+
+def frozen_wearing(profile):
+    """Raw stored snapshots for departure artwork and frozen copies."""
+    return [row.snapshot for row in _worn(profile)]
 
 
 def _job_loadout(profile, catalog, job):
@@ -108,7 +121,8 @@ def _grant_weapon(owner, agent, catalog, job, key):
 
 
 def stats(profile, catalog=None):
-    return attributes.attributes(catalog or current(profile.catalog_id), profile.progression, wearing(profile))
+    catalog = catalog or current(profile.catalog_id)
+    return attributes.attributes(catalog, profile.progression, wearing(profile, catalog))
 
 
 def ensure(owner, agent, now=None):
@@ -261,7 +275,7 @@ def preview_reselect(profile, job):
     candidate = copy(profile)
     candidate.progression = progression
     candidate.loadout = _job_loadout(candidate, catalog, job)
-    worn = wearing(candidate)
+    worn = wearing(candidate, catalog)
     if 'weapon' not in candidate.loadout:
         worn.append(_reselect_weapon(catalog, job))
     return {'attributes': attributes.attributes(catalog, progression, worn), 'progression': progression,

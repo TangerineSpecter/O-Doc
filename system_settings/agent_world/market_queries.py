@@ -21,6 +21,20 @@ def listings(owner: str, arguments: dict) -> dict:
     if arguments.get('status', 'active') != 'all': rows = rows.filter(status=arguments.get('status','active'))
     if arguments.get('search'): rows = rows.filter(item__name__icontains=str(arguments['search'])[:200])
     items = list(rows.values()[size*(page-1):size*page])
+    from .combat.models import EquipmentInstance
+    from .combat.equipment_effective import for_instance
+    identities = {str(((row.get('item') or {}).get('source') or {}).get('equipment_id') or '')
+                  for row in items if ((row.get('item') or {}).get('source') or {}).get('kind') == 'combat_equipment'}
+    cache, effective = {}, {}
+    for gear in EquipmentInstance.objects.filter(pk__in=identities):
+        effective[gear.pk] = for_instance(gear, cache=cache)
+    for row in items:
+        item = row.get('item') or {}
+        source = item.get('source') or {}
+        snapshot = effective.get(str(source.get('equipment_id') or ''))
+        if source.get('kind') == 'combat_equipment' and isinstance(snapshot, dict):
+            item['equipment_snapshot'] = snapshot
+            row['item'] = item
     from .cooking_models import CookingCatalog
     catalog = CookingCatalog.objects.filter(pk=owner).first()
     icons = catalog.item_icons if catalog else {}

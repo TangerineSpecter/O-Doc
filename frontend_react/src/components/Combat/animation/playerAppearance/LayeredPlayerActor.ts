@@ -144,8 +144,12 @@ export class LayeredPlayerActor extends Container {
         }
     }
 
-    setAppearanceOverlays(overlays:AppearanceOverlayTransforms) {
-        this.battleOverlays=overlays;
+    setAppearanceOverlays(overlays?: Partial<AppearanceOverlayTransforms>) {
+        this.battleOverlays = {
+            leftHand: { ...DEFAULT_APPEARANCE_OVERLAYS.leftHand, ...overlays?.leftHand },
+            rightHand: { ...DEFAULT_APPEARANCE_OVERLAYS.rightHand, ...overlays?.rightHand },
+            weapon: { ...DEFAULT_APPEARANCE_OVERLAYS.weapon, ...overlays?.weapon },
+        };
         if(this.outfitId)this.configure({outfit:this.outfitId,weapon:this.weaponId,aura:'none',showBody:true,showOutfit:true,
             showWeapon:this.weaponLayer.visible,showRear:false,showGround:false,backdrop:'plain',paused:false});
     }

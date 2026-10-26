@@ -157,7 +157,7 @@ def archive_profile(profile, cutoff, *, apply: bool = True) -> dict:
     from .stock_validation import stock_changes
 
     if Exploration.objects.filter(actor_id=profile.pk, status__in=OPEN).exists():
-        return {'actor': profile.pk, 'archived': 0, 'reason': '居民有进行中的探索'}
+        return {'actor': profile.pk, 'archived': 0, 'reason': '居民有进行中的探索，结束后才会归档'}
     chain = CombatIntegrity.objects.select_for_update().get(pk=profile.pk)
     base = chain.archive_sequence
     facts = list(CombatFact.objects.filter(actor_id=profile.pk).order_by('sequence'))
@@ -173,7 +173,7 @@ def archive_profile(profile, cutoff, *, apply: bool = True) -> dict:
     ]
     if not checkpoints:
         return {'actor': profile.pk, 'archived': 0,
-                'reason': '缺少早于保留期的检查点，请先执行 checkpoint_combat_history'}
+                'reason': '还没有超过保留期的检查点；每日维护会自动追加，满保留期后才会归档'}
     boundary_fact = checkpoints[-1]
     boundary = boundary_fact.sequence - 1
     # 链只能从检查点开始：组队个人结算、武道大会奖品和打造来源若落在待删区间内，

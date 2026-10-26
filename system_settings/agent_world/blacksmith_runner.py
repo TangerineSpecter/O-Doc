@@ -150,12 +150,7 @@ def equipment_summary(profile, *, slot=None):
     from .combat.models import EquipmentInstance
     loadout = profile.loadout or {}
     rows = EquipmentInstance.objects.filter(owner_id=profile.owner_id, actor_id=profile.pk, sold=False)
-    def summary(row):
-        item = row.snapshot or {}
-        return {'id': row.pk, 'name': item.get('name', ''), 'slot': item.get('slot'),
-                'equipment_type': item.get('equipment_type'), 'level': item.get('level'),
-                'quality': item.get('quality'), 'stats': item.get('stats', {})}
-    worn = {row.pk: summary(row) for row in rows.filter(pk__in=loadout.values())}
+    worn_rows = list(rows.filter(pk__in=loadout.values()))
     counts = Counter((row.snapshot or {}).get('slot', '') for row in rows.only('snapshot'))
     stock = rows.exclude(pk__in=loadout.values())
     if slot:
@@ -167,9 +162,18 @@ def equipment_summary(profile, *, slot=None):
             stock = stock.filter(snapshot__slot=slot)
     else:
         stock = stock.none()
+    stock_rows = list(stock.order_by('-created_at', 'id')[:12])
+    from .combat.equipment_effective import snapshots as effective_snapshots
+    effective = effective_snapshots([*worn_rows, *stock_rows])
+    def summary(row):
+        item = effective[row.pk]
+        return {'id': row.pk, 'name': item.get('name', ''), 'slot': item.get('slot'),
+                'equipment_type': item.get('equipment_type'), 'level': item.get('level'),
+                'quality': item.get('quality'), 'stats': item.get('stats', {})}
+    worn = {row.pk: summary(row) for row in worn_rows}
     slots = ('weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'accessory', 'ring_1', 'ring_2')
     return {'loadout': {key: worn.get(loadout.get(key)) for key in slots},
-            'owned_by_slot': dict(counts), 'same_slot_stock': [summary(row) for row in stock.order_by('-created_at', 'id')[:12]]}
+            'owned_by_slot': dict(counts), 'same_slot_stock': [summary(row) for row in stock_rows]}
 
 
 def operations(action):

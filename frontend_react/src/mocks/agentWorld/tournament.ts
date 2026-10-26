@@ -30,6 +30,7 @@ const professions = ['狂战剑士', '疾风游侠', '秘法魔导师', '圣光�
 export interface TournamentActor {
     id: string;
     name: string;
+    avatar?: string;
     level: number;
     profession: string;
     stats: Record<string, number>;
@@ -38,6 +39,7 @@ export interface TournamentActor {
 export const mockTournamentActors: TournamentActor[] = extraNames.map((name, i) => ({
     id: i < residents.length ? residents[i].id : `local-resident-${i + 1}`,
     name,
+    avatar: i < residents.length ? residents[i].avatar : '',
     level: 18 + (i % 12),
     profession: professions[i % professions.length],
     stats: {
@@ -58,6 +60,7 @@ function buildParticipant(actorId: string): DuelParticipant {
     return {
         actorId: actor.id,
         name: actor.name,
+        avatar: actor.avatar || '',
         level: actor.level,
         profession: actor.profession,
         stats: {...actor.stats},
@@ -352,7 +355,7 @@ export const currentTournament: TournamentDetail = {
     week: week(0),
     status: 'completed',
     participantCount: mockTournamentActors.length, // 80 人
-    roster: mockTournamentActors.map(a => ({id: a.id, name: a.name})),
+    roster: mockTournamentActors.map(a => ({id: a.id, name: a.name, avatar: a.avatar || ''})),
     result: {
         podium: bracketData.podium,
         bronzeCandidates: bracketData.bronzeCandidates,
@@ -370,7 +373,7 @@ const previousTournament: TournamentDetail = {
     week: week(-7),
     status: 'completed',
     participantCount: 4,
-    roster: residents.map(({id, name}) => ({id, name})),
+    roster: residents.map(({id, name, avatar}) => ({id, name, avatar: avatar || ''})),
     result: {podium: {'1': residents[2].id, '2': residents[0].id, '3': residents[1].id}, bronzeCandidates: [residents[1].id, residents[3].id]},
     createdAt: at(-7),
     endedAt: at(-5),
@@ -440,7 +443,7 @@ const skippedTournament: TournamentDetail = {
     week: week(-14),
     status: 'skipped',
     participantCount: 1,
-    roster: residents.slice(0, 1).map(({id, name}) => ({id, name})),
+    roster: residents.slice(0, 1).map(({id, name, avatar}) => ({id, name, avatar: avatar || ''})),
     result: {},
     createdAt: at(-14),
     endedAt: at(-14),

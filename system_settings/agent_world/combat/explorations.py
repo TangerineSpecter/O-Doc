@@ -11,7 +11,7 @@ from .reservation_resources import quota_remaining
 from .models import Exploration, CombatEncounter, CombatRuntime, CombatConfig, CombatProfile, EquipmentInstance
 from .store import current
 from .permissions import local_runtime
-from .profiles import ensure, wearing, recover, adopt_catalog, OPEN
+from .profiles import ensure, frozen_wearing, wearing, recover, adopt_catalog, OPEN
 from .facts import append
 from . import engine, attributes, rewards, equipment
 from ..farm_gate import guarded
@@ -280,13 +280,13 @@ def depart(run_id, plan, now=None, *, party=None, start_wave=True):
         reschedule_after_exploration(run.owner_id,run.actor_id,now,duration,life_item_id=run.life_item_id)
     run.duration_seconds=duration
     profession_bonuses = rewards.profession_bonus_snapshot(agent)
-    run.snapshot={**run.snapshot,'plan':plan,'equipment':wearing(profile),'progression':profile.progression,
+    run.snapshot={**run.snapshot,'plan':plan,'equipment':frozen_wearing(profile),'progression':profile.progression,
                   'profession_bonuses':profession_bonuses}
     run.result={'energy':0,'experience':0,'kills':0,'potions_used':{},'elixirs_used':{},'rewards':[],'growth':[]}
     run.result.update(food=food, food_adjustment=food_adjustment,
                       elixirs_carried=[{key: entry[key] for key in ('recipe_id', 'stars', 'count')} for entry in elixirs])
     run.state={'player':engine.fighter(derived,agent.name,profile.progression['level'],hp=profile.hp,mp=profile.mp,
-        skills=profile.progression['skills'],passives=attributes.passives(catalog,profile.progression['skills'],wearing(profile))),
+        skills=profile.progression['skills'],passives=attributes.passives(catalog,profile.progression['skills'],wearing(profile,catalog))),
         'enemy':None,'potions':potions,'elixirs':elixirs,'elixir_cooldown':0,'elixir_used_encounter':-1,
         'encounter':0,'nonboss_kills':0,'boss_seen':False,'waiting_until':0,'food':food}
     charges=[consume(run,profile,10,'entry',now),consume(run,profile,2,0,now)]
@@ -527,7 +527,7 @@ def tick(run_id, expected_revision=None, now=None):
         player['hp']=max(1,math.floor(player['hp']/old['hp_max']*derived['hp_max']))
         player['mp']=math.floor(player['mp']/max(1,old['mp_max'])*derived['mp_max'])
         player.update(stats=derived,level=profile.progression['level'],skills=profile.progression['skills'],
-                      passives=attributes.passives(catalog,profile.progression['skills'],wearing(profile)))
+                      passives=attributes.passives(catalog,profile.progression['skills'],wearing(profile,catalog)))
         run.result['experience']+=experience;run.result['kills']+=1
         run.result['growth']+=growth
         earned=rewards.drops(

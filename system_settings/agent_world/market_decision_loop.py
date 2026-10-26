@@ -21,6 +21,7 @@ def process_preparation_equipment(runtime, ai_service, *, fact_ids=None, report=
     from .combat.equipment_market import pending_preparation_actions
     from .combat.models import CombatProfile
     from .combat.store import current
+    from .combat.equipment_effective import for_instance
     from system_settings.decision.routing import jev_enabled, choose_scene
 
     intents = pending_preparation_actions(runtime.owner, runtime.agent.pk)
@@ -36,6 +37,7 @@ def process_preparation_equipment(runtime, ai_service, *, fact_ids=None, report=
                  'profession': {'id': profile.progression['job'], 'name': job.get('name', profile.progression['job'])},
                  'level': profile.progression['level']}
 
+    catalog_cache = {}
     completed = []
 
     def notify(title, detail, status='info'):
@@ -53,10 +55,11 @@ def process_preparation_equipment(runtime, ai_service, *, fact_ids=None, report=
             result = runtime.execute('sell_combat_equipment', {
                 'request_id': stable + ':sell', 'equipment_id': item.pk})
         else:
+            snapshot = for_instance(item, cache=catalog_cache)
             state = {'character': character, 'equipment': {
-                'id': item.pk, 'name': item.snapshot.get('name', ''),
-                'slot': item.snapshot.get('slot', ''), 'level': item.snapshot.get('level', 0),
-                'quality': item.snapshot.get('quality', ''), 'stats': item.snapshot.get('stats', {}),
+                'id': item.pk, 'name': snapshot.get('name', ''),
+                'slot': snapshot.get('slot', ''), 'level': snapshot.get('level', 0),
+                'quality': snapshot.get('quality', ''), 'stats': snapshot.get('stats', {}),
                 'shop_sell_price': str(item.value)}}
             choices = {}
             for percent in (10, 20, 30, 40, 50):

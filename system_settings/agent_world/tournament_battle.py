@@ -25,7 +25,7 @@ class DuelCatalog:
 
 def participant(profile, name: str) -> tuple[dict, object, dict]:
     catalog = current(profile.catalog_id)
-    gear = wearing(profile)
+    gear = wearing(profile, catalog)
     progress = deepcopy(profile.progression)
     stats = attributes.attributes(catalog, progress, gear)
     passives = attributes.passives(catalog, progress['skills'], gear)

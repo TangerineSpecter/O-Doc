@@ -83,7 +83,7 @@ def award(party, runs, enemy, catalog):
         player['hp'] = max(1, int(player['hp']/old['hp_max']*derived['hp_max'])) if player['hp']>0 else 0
         player['mp'] = int(player['mp']/max(1,old['mp_max'])*derived['mp_max'])
         player.update(stats=derived, level=profile.progression['level'], skills=profile.progression['skills'],
-                      passives=attributes.passives(catalog, profile.progression['skills'], wearing(profile)))
+                      passives=attributes.passives(catalog, profile.progression['skills'], wearing(profile, catalog)))
         profile.hp, profile.mp = player['hp'], player['mp']
         profile.save()
         run.result['experience'] += amount

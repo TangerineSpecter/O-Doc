@@ -4,9 +4,12 @@ import {reportDiagnostic} from '../../utils/diagnostics';
 import CombatFighterStatus from './CombatFighterStatus';
 import type {PartyBattleScene} from './animation/observation/PartyBattleScene';
 
+const diagnosticStack = (error: unknown) => error instanceof Error ? error.stack : undefined;
+
 export default function PartyBattleStage({party, personalKills}: {party: AdventurePartySnapshot; personalKills: number}) {
     const host = useRef<HTMLDivElement>(null), scene = useRef<PartyBattleScene | null>(null), latest = useRef(party);
-    const [error, setError] = useState(false), [ready, setReady] = useState(false);
+    const [error, setError] = useState(false);
+    const [ready, setReady] = useState(false);
     const [attempt, setAttempt] = useState(0), [paused, setPaused] = useState(false);
     const pauseRef = useRef(paused);
     useEffect(() => {
@@ -14,10 +17,13 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
         const instance = scene.current;
         if (!instance) return;
         void instance.update(party).then(() => {
-            if (scene.current === instance) setError(false);
+            if (scene.current === instance) {
+                setError(false);
+            }
         }).catch(error => {
             if (scene.current !== instance) return;
-            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:update'}, error);
+            console.error('[PartyBattleStage:update failed]', error);
+            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:update', stack: diagnosticStack(error)}, error);
             setError(true);
         });
     }, [party]);
@@ -38,7 +44,8 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
             setReady(true);
         }).catch(error => {
             if (!active) return;
-            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:init'}, error);
+            console.error('[PartyBattleStage:init failed]', error);
+            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:init', stack: diagnosticStack(error)}, error);
             setError(true);
         });
         return () => {active = false; scene.current = null; instance?.dispose();};

@@ -5,7 +5,7 @@ import hashlib
 from django.db import transaction
 from .models import Exploration, CombatProfile, CombatRuntime
 from .facts import append
-from .profiles import equip, promote, wearing
+from .profiles import equip, frozen_wearing, promote, wearing
 from . import attributes
 from .store import current
 from .explorations import depart, finish, TERMINAL
@@ -340,9 +340,9 @@ def _promotion(run_id: str, *, planner=None, require_permit: bool=False) -> bool
                 derived=combat_stats(profile,catalog,locked.snapshot)
                 player={**locked.state['player'],'stats':derived,'level':profile.progression['level'],
                     'skills':profile.progression['skills'],'passives':attributes.passives(
-                        catalog,profile.progression['skills'],wearing(profile)),
+                        catalog,profile.progression['skills'],wearing(profile,catalog)),
                     'hp':profile.hp,'mp':profile.mp}
-                locked.snapshot={**locked.snapshot,'progression':profile.progression,'equipment':wearing(profile)}
+                locked.snapshot={**locked.snapshot,'progression':profile.progression,'equipment':frozen_wearing(profile)}
                 locked.state={**locked.state,'player':player}
                 locked.revision+=1;locked.save(update_fields=['snapshot','state','revision'])
                 state_key='promotion-state:'+hashlib.sha256(f'{run.pk}:{original_job}'.encode()).hexdigest()

@@ -78,10 +78,13 @@ def history(owner: str, actor_id: str, page: int = 1) -> dict:
     for operation in BlacksmithOperation.objects.filter(owner_id=owner, actor_id=actor_id,
             opportunity_id__in=[row.pk for row in activities]).order_by('piece_index').values():
         operations[operation['opportunity_id']].append(operation)
+    from .combat.equipment_effective import for_result
+    catalog_cache = {}
     result = []
     for action in activities:
         stages = action.result.get('stages', action.snapshot.get('stages', action.snapshot.get('decisions', [])))
-        pieces = operations[action.pk]
+        pieces = [{**row, 'result': for_result(row.get('result'), catalog_cache)}
+                  for row in operations[action.pk]]
         result.append({'id': action.pk, 'actor_id': actor_id,
             'actor_name': pieces[0]['actor_name'] if pieces else action.snapshot.get('actor_name', ''),
             'status': action.status, 'created_at': action.created_at, 'updated_at': action.updated_at,

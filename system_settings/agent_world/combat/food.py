@@ -158,5 +158,5 @@ def consume(run, selection: dict | None, duration: int) -> tuple[dict | None, st
 def combat_stats(profile, catalog, snapshot: dict) -> dict:
     from .attributes import attributes
     from .profiles import wearing
-    return attributes(catalog, profile.progression, wearing(profile),
+    return attributes(catalog, profile.progression, wearing(profile, catalog),
                       food_effects=(snapshot.get('food') or {}).get('effects'))

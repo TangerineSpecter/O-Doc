@@ -8,26 +8,39 @@ def iso(value):
     return local_time(value).isoformat() if value else None
 
 
-def summary(event: Tournament) -> dict:
+def summary(event: Tournament, avatars: dict | None = None) -> dict:
     due = event.rounds.filter(status='pending').order_by('number').first()
+    if avatars is None:
+        from system_settings.models import Agent
+        actor_ids = [row['id'] for row in event.roster if not row.get('avatar')]
+        avatars = dict(Agent.objects.filter(pk__in=actor_ids).values_list('id', 'avatar')) if actor_ids else {}
+    roster = [{'id': r['id'], 'name': r['name'], 'avatar': r.get('avatar') or avatars.get(r['id'], '')} for r in event.roster]
     return {'id': event.pk, 'week': event.week.isoformat(), 'status': event.status,
-            'participant_count': len(event.roster), 'roster': event.roster, 'result': event.result,
+            'participant_count': len(event.roster), 'roster': roster, 'result': event.result,
             'created_at': iso(event.created_at), 'ended_at': iso(event.ended_at),
             'next_round_at': iso(due.scheduled_at) if due else None}
 
 
 def match_summary(match: TournamentMatch) -> dict:
-    return {'id': match.pk, 'number': match.number, 'kind': match.kind, 'left_id': match.left_id,
-            'right_id': match.right_id, 'status': match.status, 'result': match.result, 'played_at': iso(match.played_at)}
+    return {'id': match.pk, 'number': match.number, 'kind': match.kind,
+            'left_id': match.left_id, 'right_id': match.right_id,
+            'status': match.status, 'result': match.result or {}, 'played_at': iso(match.played_at)}
 
 
-def detail(event: Tournament) -> dict:
-    return {**summary(event), 'rounds': [{'id': row.pk, 'number': row.number, 'phase': row.phase,
+def _reward_result(result, catalog_cache):
+    """Pending equipment rewards show the same effective stats as owned gear."""
+    from .combat.equipment_effective import for_result
+    return for_result(result, catalog_cache)
+
+
+def detail(event: Tournament, avatars: dict | None = None) -> dict:
+    catalog_cache = {}
+    return {**summary(event, avatars), 'rounds': [{'id': row.pk, 'number': row.number, 'phase': row.phase,
         'entrant_count': len(row.entrants), 'status': row.status, 'scheduled_at': iso(row.scheduled_at),
         'completed_at': iso(row.completed_at), 'matches': [match_summary(m) for m in row.matches.order_by('number')]}
         for row in event.rounds.order_by('number').prefetch_related('matches')],
         'rewards': [{'id': row.pk, 'place': row.place, 'actor_id': row.actor_id, 'status': row.status,
-                     'result': row.result, 'granted_at': iso(row.granted_at)} for row in event.rewards.order_by('place')]}
+                     'result': _reward_result(row.result, catalog_cache), 'granted_at': iso(row.granted_at)} for row in event.rewards.order_by('place')]}
 
 
 def overview(owner: str) -> dict:

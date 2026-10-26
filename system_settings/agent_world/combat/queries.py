@@ -3,7 +3,7 @@ from datetime import datetime
 from .models import CombatProfile, EquipmentInstance, Exploration, CombatFact, CombatEncounter, CombatConfig, CombatRuntime
 from .store import current
 from .catalog import bundled
-from . import attributes, engine, equipment
+from . import attributes, engine, equipment, equipment_effective
 from .profiles import stats
 from .permissions import local_runtime
 from ..inventory_stock import stock_quantity
@@ -43,9 +43,13 @@ def market_context(owner,agent):
         bound=False,locked=False).exclude(pk__in=profile.loadout.values() if profile else [])
     if listed:
         equipment_rows = equipment_rows.exclude(pk__in=listed)
+    equipment=list(equipment_rows.order_by('-created_at','pk').values('id','snapshot','value','catalog_id'))
+    equipment_effective.annotate_rows(equipment, catalog)
+    for row in equipment:
+        row.pop('catalog_id', None)
     return {'potions':[row for row in catalog.tables['potions'] if int(row['required_level'])<=level and row['enabled']=='1'],
         'materials':[row for row in catalog.tables['materials'] if stock_quantity(agent.pk,owner,'combat.'+row['id'])],
-        'equipment':list(equipment_rows.order_by('-created_at','pk').values('id','snapshot','value'))}
+        'equipment':equipment}
 
 
 def profile_view(owner,agent):
@@ -54,6 +58,7 @@ def profile_view(owner,agent):
     progression=profile.progression if profile else attributes.initial()
     derived=stats(profile,catalog) if profile else attributes.attributes(catalog,progression,[])
     equipment_items=list(EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False).order_by('-created_at').values())
+    equipment_effective.annotate_rows(equipment_items, catalog)
     from ..market_models import MarketListing
     active_listings = MarketListing.objects.filter(owner_id=owner, status='active').values('id', 'item')
     listed_ids = {}

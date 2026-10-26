@@ -1,21 +1,95 @@
 import {createPortal} from 'react-dom';
-import {useEffect, useRef} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
-import {Crown, Flame, Heart, Sparkles, Swords, X, Zap} from 'lucide-react';
+import {Bot, Crown, Flame, Heart, Sparkles, Swords, X, Zap} from 'lucide-react';
 import type {DuelEvent, DuelParticipant, TournamentMatchDetail} from '../../types/api/tournament';
 import {reasonLabel} from './tournamentLabels';
 
-function actionBadgeClass(action: string) {
-    if (action.includes('反击')) {
-        return 'bg-sky-50 text-sky-700 border-sky-200';
+function actionBadgeClass(event: DuelEvent) {
+    if (event.kind === 'heal' || event.kind === 'hot' || event.kind === 'passive_recovery') {
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200 font-medium';
     }
-    if (action.includes('斩') || action.includes('炎') || action.includes('雷') || action.includes('术') || action.includes('刺')) {
-        return 'bg-orange-50 text-orange-700 border-orange-200 font-semibold';
+    if (event.kind === 'potion') {
+        if (event.healing !== undefined) return 'bg-emerald-50 text-emerald-700 border-emerald-200 font-medium';
+        if (event.restored !== undefined) return 'bg-sky-50 text-sky-700 border-sky-200 font-medium';
+        return 'bg-slate-100 text-slate-700 border-slate-200 font-medium';
     }
-    return 'bg-slate-100 text-slate-700 border-slate-200';
+    if (event.kind === 'defend' || event.kind === 'modifier' || event.kind === 'shield') {
+        return 'bg-slate-100 text-slate-700 border-slate-200 font-medium';
+    }
+    if (event.kind === 'reflect' || event.kind === 'mp_share') {
+        return 'bg-sky-50 text-sky-700 border-sky-200 font-medium';
+    }
+    if (event.kind !== 'damage' && event.kind !== 'dot') {
+        return 'bg-slate-100 text-slate-700 border-slate-200 font-medium';
+    }
+
+    const action = event.action;
+    if (action.includes('反击') || action.includes('反伤')) {
+        return 'bg-sky-50 text-sky-700 border-sky-200 font-medium';
+    }
+    if (action.includes('普通攻击') || action === '攻击' || action.endsWith('攻击')) {
+        return 'bg-rose-50 text-rose-700 border-rose-200 font-medium';
+    }
+    if (action.includes('盾击')) {
+        return 'bg-orange-50 text-orange-700 border-orange-200 font-medium';
+    }
+    if (
+        action.includes('防') ||
+        action.includes('盾') ||
+        action.includes('闪') ||
+        action.includes('障') ||
+        action.includes('壁') ||
+        action.includes('铠') ||
+        action.includes('结界') ||
+        action.includes('庇佑') ||
+        action.includes('护')
+    ) {
+        return 'bg-slate-100 text-slate-700 border-slate-200 font-medium';
+    }
+    if (
+        action.includes('斩') ||
+        action.includes('炎') ||
+        action.includes('雷') ||
+        action.includes('术') ||
+        action.includes('刺') ||
+        action.includes('射') ||
+        action.includes('箭') ||
+        action.includes('击') ||
+        action.includes('弹') ||
+        action.includes('刃') ||
+        action.includes('袭') ||
+        action.includes('爆') ||
+        action.includes('咒') ||
+        action.includes('裂') ||
+        action.includes('破') ||
+        action.includes('音') ||
+        action.includes('光') ||
+        action.includes('狂怒') ||
+        action.includes('毒') ||
+        action.includes('爪') ||
+        action.includes('咬') ||
+        action.includes('拳') ||
+        action.includes('曲') ||
+        action.includes('乐') ||
+        action.includes('攻')
+    ) {
+        return 'bg-orange-50 text-orange-700 border-orange-200 font-medium';
+    }
+    return 'bg-slate-100 text-slate-700 border-slate-200 font-medium';
 }
 
-function EventRow({event, names, winnerId}: {event: DuelEvent; names: Record<string, string>; winnerId?: string}) {
+function EventRow({
+    event,
+    names,
+    winnerId,
+    avatar,
+}: {
+    event: DuelEvent;
+    names: Record<string, string>;
+    winnerId?: string;
+    avatar?: string;
+}) {
     const isActorWinner = event.actor === winnerId;
     const actorName = names[event.actor] || event.actor;
     const targetName = event.target ? (names[event.target] || event.target) : '';
@@ -23,7 +97,17 @@ function EventRow({event, names, winnerId}: {event: DuelEvent; names: Record<str
     return (
         <div className="flex flex-wrap items-center gap-1.5 py-1 text-xs">
             <span className={`inline-flex items-center gap-1 font-semibold ${isActorWinner ? 'text-amber-800' : 'text-slate-700'}`}>
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${isActorWinner ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                {avatar ? (
+                    <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200">
+                        {/^(https?:|data:|\/)/.test(avatar) ? (
+                            <img src={avatar} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                            <span className="text-[9px] leading-none">{avatar}</span>
+                        )}
+                    </span>
+                ) : (
+                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${isActorWinner ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                )}
                 {actorName}
             </span>
 
@@ -34,7 +118,7 @@ function EventRow({event, names, winnerId}: {event: DuelEvent; names: Record<str
                 </>
             )}
 
-            <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] leading-tight ${actionBadgeClass(event.action)}`}>
+            <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] leading-tight ${actionBadgeClass(event)}`}>
                 {event.action}
             </span>
 
@@ -69,12 +153,33 @@ function EventRow({event, names, winnerId}: {event: DuelEvent; names: Record<str
     );
 }
 
+function ParticipantAvatar({avatar, name, isWinner}: {avatar?: string; name: string; isWinner: boolean}) {
+    const [failed, setFailed] = useState(false);
+    const isImage = Boolean(avatar && /^(https?:|data:|\/)/.test(avatar));
+    if (isImage && !failed) {
+        return (
+            <img
+                src={avatar}
+                alt={name}
+                onError={() => setFailed(true)}
+                className="h-full w-full object-cover"
+            />
+        );
+    }
+    if (avatar && !isImage) {
+        return <span className="text-lg leading-none">{avatar}</span>;
+    }
+    return <Bot className={`h-5 w-5 ${isWinner ? 'text-white' : 'text-slate-400'}`} />;
+}
+
 function ParticipantCard({
     participant,
+    avatar,
     isWinner,
     finalResource,
 }: {
     participant: DuelParticipant;
+    avatar?: string;
     isWinner: boolean;
     finalResource?: {hp: number; mp: number};
 }) {
@@ -100,12 +205,12 @@ function ParticipantCard({
 
             <div>
                 <div className="flex items-center gap-2">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-sm ${
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl font-bold text-sm ${
                         isWinner
-                            ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-xs'
+                            ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-xs border border-amber-300'
                             : 'bg-slate-100 text-slate-600 border border-slate-200'
                     }`}>
-                        {participant.name.slice(0, 1)}
+                        <ParticipantAvatar avatar={avatar} name={participant.name} isWinner={isWinner} />
                     </div>
                     <div>
                         <div className="flex items-center gap-1.5">
@@ -169,10 +274,14 @@ export function TournamentReport({
     match,
     error,
     onClose,
+    residents,
+    roster,
 }: {
     match: TournamentMatchDetail | null;
     error: string;
     onClose: () => void;
+    residents?: {id: string; name: string; avatar?: string}[];
+    roster?: {id: string; name: string; avatar?: string}[];
 }) {
     const closeRef = useRef<HTMLButtonElement>(null);
     useEscapeDismissal(true, onClose);
@@ -183,7 +292,29 @@ export function TournamentReport({
         return () => { previous?.focus(); };
     }, []);
 
-    const names = Object.fromEntries((match?.report.participants || []).map(p => [p.actorId, p.name]));
+    const getParticipantId = (p: DuelParticipant) => p.actorId;
+
+    const avatarById = Object.fromEntries([
+        ...(residents || []).map(r => [r.id, r.avatar || '']),
+        ...(roster || []).map(r => [r.id, r.avatar || '']),
+    ]);
+    const avatarByName = Object.fromEntries([
+        ...(residents || []).map(r => [r.name, r.avatar || '']),
+        ...(roster || []).map(r => [r.name, r.avatar || '']),
+    ]);
+
+    const getParticipantAvatar = (p?: DuelParticipant) => {
+        if (!p) return '';
+        const id = getParticipantId(p);
+        return p.avatar || avatarById[id] || avatarByName[p.name] || '';
+    };
+
+    const names = Object.fromEntries([
+        ...(residents || []).map(r => [r.id, r.name]),
+        ...(roster || []).map(r => [r.id, r.name]),
+        ...(match?.report.participants || []).map(p => [getParticipantId(p), p.name]),
+    ]);
+
     const winnerId = match?.result?.winnerId;
     const participants = match?.report?.participants || [];
     const rounds = match?.report?.rounds || [];
@@ -262,13 +393,15 @@ export function TournamentReport({
                                 <div className="mb-5 grid gap-3 sm:grid-cols-2">
                                     <ParticipantCard
                                         participant={participants[0]}
-                                        isWinner={participants[0].actorId === winnerId}
-                                        finalResource={finalResourceMap.get(participants[0].actorId)}
+                                        avatar={getParticipantAvatar(participants[0])}
+                                        isWinner={Boolean(winnerId && (getParticipantId(participants[0]) === winnerId || participants[0].name === names[winnerId] || participants[0].name === winnerId))}
+                                        finalResource={finalResourceMap.get(getParticipantId(participants[0]))}
                                     />
                                     <ParticipantCard
                                         participant={participants[1]}
-                                        isWinner={participants[1].actorId === winnerId}
-                                        finalResource={finalResourceMap.get(participants[1].actorId)}
+                                        avatar={getParticipantAvatar(participants[1])}
+                                        isWinner={Boolean(winnerId && (getParticipantId(participants[1]) === winnerId || participants[1].name === names[winnerId] || participants[1].name === winnerId))}
+                                        finalResource={finalResourceMap.get(getParticipantId(participants[1]))}
                                     />
                                 </div>
                             )}
@@ -299,14 +432,17 @@ export function TournamentReport({
 
                                             {/* 该回合资源快照 */}
                                             <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                                                {round.resources.map(r => (
-                                                    <span key={r.actorId} className="font-mono">
-                                                        {names[r.actorId] || r.actorId}：
-                                                        <span className={r.hp <= 0 ? 'text-rose-600 font-bold' : 'text-slate-700'}>
-                                                            {r.hp} HP
+                                                {round.resources.map(r => {
+                                                    const aid = r.actorId;
+                                                    return (
+                                                        <span key={aid} className="font-mono">
+                                                            {names[aid] || aid}：
+                                                            <span className={r.hp <= 0 ? 'text-rose-600 font-bold' : 'text-slate-700'}>
+                                                                {r.hp} HP
+                                                            </span>
                                                         </span>
-                                                    </span>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
 
@@ -317,6 +453,7 @@ export function TournamentReport({
                                                     event={event}
                                                     names={names}
                                                     winnerId={winnerId}
+                                                    avatar={avatarById[event.actor] || avatarByName[names[event.actor] || event.actor]}
                                                 />
                                             ))}
                                         </div>

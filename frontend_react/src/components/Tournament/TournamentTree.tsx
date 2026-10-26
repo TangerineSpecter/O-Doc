@@ -1,12 +1,56 @@
 import {useEffect, useRef, useState} from 'react';
-import {Crown, Eye, Maximize2, Minimize2, Swords, Target, Trophy} from 'lucide-react';
+import {Bot, Crown, Eye, Maximize2, Minimize2, Swords, Target, Trophy} from 'lucide-react';
 import type {TournamentDetail} from '../../types/api/tournament';
 import {layoutTournamentTree} from './tournamentTreeLayout';
 import {TournamentTrophy} from './TournamentTrophy';
 import {Select} from '../common/Select';
 import './tournamentTree.css';
 
-export function TournamentTree({event, onMatch}: {event: TournamentDetail; onMatch: (id: string) => void}) {
+function ContenderAvatar({
+    avatar,
+    name,
+    isWinner,
+    isBye,
+}: {
+    avatar?: string;
+    name: string;
+    isWinner: boolean;
+    isBye: boolean;
+}) {
+    const [imgFailed, setImgFailed] = useState(false);
+    if (isBye) {
+        return <span className="tournament-avatar font-mono text-[10px] text-slate-400">—</span>;
+    }
+    const isImage = Boolean(avatar && /^(https?:|data:|\/)/.test(avatar));
+    const showImage = isImage && !imgFailed;
+
+    return (
+        <span className="tournament-avatar" aria-hidden="true">
+            {showImage ? (
+                <img
+                    src={avatar}
+                    alt={name}
+                    onError={() => setImgFailed(true)}
+                    className="h-full w-full object-cover"
+                />
+            ) : avatar && !isImage ? (
+                <span className="text-[10px] leading-none">{avatar}</span>
+            ) : (
+                <Bot className={`h-2.5 w-2.5 ${isWinner ? 'text-white' : 'text-slate-400'}`} />
+            )}
+        </span>
+    );
+}
+
+export function TournamentTree({
+    event,
+    onMatch,
+    residents,
+}: {
+    event: TournamentDetail;
+    onMatch: (id: string) => void;
+    residents?: {id: string; name: string; avatar?: string}[];
+}) {
     const [all, setAll] = useState(false);
     const [active, setActive] = useState<string | null>(null);
     const [fitMode, setFitMode] = useState<'fit' | 'expanded'>('fit');
@@ -45,7 +89,14 @@ export function TournamentTree({event, onMatch}: {event: TournamentDetail; onMat
         fitMode,
     });
 
-    const names = Object.fromEntries(event.roster.map(r => [r.id, r.name]));
+    const names = Object.fromEntries([
+        ...(residents || []).map(r => [r.id, r.name] as const),
+        ...event.roster.map(r => [r.id, r.name] as const),
+    ]);
+    const avatars = Object.fromEntries([
+        ...(residents || []).map(r => [r.id, r.avatar || ''] as const),
+        ...event.roster.map(r => [r.id, r.avatar || ''] as const),
+    ]);
     const champion = event.result?.podium?.['1'];
     const final = nodes.find(n => n.side === 'center');
     const hasEarlier = event.rounds.some(r => r.phase !== 'preliminary' && r.entrantCount > 32);
@@ -69,11 +120,25 @@ export function TournamentTree({event, onMatch}: {event: TournamentDetail; onMat
 
     const rosterOptions = [
         {value: '', label: '追踪选手全路径…'},
-        ...event.roster.map(r => ({
-            value: r.id,
-            label: r.name,
-            icon: champion === r.id ? <Crown className="h-3 w-3 text-amber-500 fill-amber-400" /> : undefined,
-        })),
+        ...event.roster.map(r => {
+            const av = avatars[r.id];
+            const isImage = Boolean(av && /^(https?:|data:|\/)/.test(av));
+            return {
+                value: r.id,
+                label: r.name,
+                icon: champion === r.id ? (
+                    <Crown className="h-3 w-3 text-amber-500 fill-amber-400" />
+                ) : av ? (
+                    <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-hidden rounded-[3px] border border-slate-200">
+                        {isImage ? (
+                            <img src={av} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                            <span className="text-[9px] leading-none">{av}</span>
+                        )}
+                    </span>
+                ) : undefined,
+            };
+        }),
     ];
 
     return (
@@ -285,7 +350,7 @@ export function TournamentTree({event, onMatch}: {event: TournamentDetail; onMat
                                         const isBye = !id;
                                         const isTracked = Boolean(active && id && id === active);
                                         const nameStr = id ? names[id] || id : '轮空';
-                                        const initial = id ? (names[id] || id).slice(0, 1) : '—';
+                                        const avatarUrl = id ? avatars[id] : undefined;
 
                                         return (
                                             <span
@@ -294,7 +359,13 @@ export function TournamentTree({event, onMatch}: {event: TournamentDetail; onMat
                                                 onMouseLeave={() => setActive(null)}
                                                 className={`tournament-contender ${isWinner ? 'is-winner' : ''} ${isLoser ? 'is-loser' : ''} ${isBye ? 'is-bye' : ''} ${isTracked ? 'is-active' : ''}`}
                                             >
-                                                <span className="tournament-avatar">{initial}</span>
+                                                <ContenderAvatar
+                                                    key={`${id || 'bye'}-${avatarUrl || 'none'}`}
+                                                    avatar={avatarUrl}
+                                                    name={nameStr}
+                                                    isWinner={isWinner}
+                                                    isBye={isBye}
+                                                />
                                                 <span className="tournament-contender-name">{nameStr}</span>
                                                 {isWinner ? (
                                                     <Crown size={11} className="shrink-0" />

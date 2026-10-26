@@ -2,7 +2,7 @@ export type TournamentStatus = 'active' | 'completed' | 'skipped';
 export interface TournamentResult {podium?: Record<string, string>; bronzeCandidates?: string[]}
 export interface TournamentSummary {
     id: string; week: string; status: TournamentStatus; participantCount: number;
-    roster: {id: string; name: string}[]; result: TournamentResult;
+    roster: {id: string; name: string; avatar?: string}[]; result: TournamentResult;
     createdAt: string; endedAt: string | null; nextRoundAt: string | null;
 }
 export interface MatchResult {winnerId?: string; loserId?: string; reason?: string}
@@ -27,8 +27,13 @@ export interface TournamentDetail extends TournamentSummary {rounds: TournamentR
 export interface TournamentOverview {event: TournamentDetail | null; autoEnabled: boolean; nextDrawAt: string}
 export interface TournamentHistory {items: TournamentSummary[]; total: number; page: number}
 export interface DuelParticipant {
-    actorId: string; name: string; profession: string; level: number;
-    stats: Record<string, number | string>; skills: Record<string, number>;
+    actorId: string;
+    name: string;
+    profession: string;
+    level: number;
+    avatar?: string;
+    stats: Record<string, number | string>;
+    skills: Record<string, number>;
 }
 export interface DuelEvent {
     actor: string; target?: string; action: string; kind: string;

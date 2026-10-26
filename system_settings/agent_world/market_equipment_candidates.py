@@ -1,6 +1,7 @@
 """Live, unjudged equipment listings shared by hourly summaries and shopping."""
 from collections import Counter
 
+from .combat.equipment_effective import snapshots as effective_snapshots
 from .combat.models import CombatProfile, EquipmentInstance
 from .market_models import MarketListing
 from .market_no_buy import _wearable, blocked_ids
@@ -34,6 +35,7 @@ def equipment_candidates(owner: str, actor_id: str, *, listing_ids=None) -> list
     identities.update(profile.loadout.values())
     gears = {item.pk: item for item in EquipmentInstance.objects.filter(
         pk__in=identities, owner_id=owner, sold=False)}
+    effective = effective_snapshots(gears.values())
     result, seen = [], set()
     for listing in rows:
         identity = str((listing.item.get('source') or {}).get('equipment_id') or '')
@@ -41,11 +43,11 @@ def equipment_candidates(owner: str, actor_id: str, *, listing_ids=None) -> list
         if (not gear or identity in blocked or identity in seen or gear.actor_id != listing.seller_id
                 or gear.bound or gear.locked or not gear.rules):
             continue
-        snapshot = gear.snapshot
+        snapshot = effective[gear.pk]
         slots = [slot for slot in SLOTS if _wearable(snapshot, gear.rules, job, level, slot)]
         if not slots:
             continue
-        current = {slot: gears[profile.loadout[slot]].snapshot
+        current = {slot: effective[gears[profile.loadout[slot]].pk]
                    for slot in slots if profile.loadout.get(slot) in gears}
         result.append({'listing_id': listing.pk, 'version': listing.version,
             'equipment_id': identity, 'snapshot': snapshot, 'rules': gear.rules,

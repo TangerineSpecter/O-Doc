@@ -10,6 +10,7 @@ from django.db import transaction
 from .models import CombatProfile, EquipmentInstance, Exploration, CombatRuntime
 from .profiles import equip, preview_equipment
 from .store import current
+from . import equipment_effective
 from ..farm_gate import farm_gate
 from ..inventory_stock import stock_quantity
 from ..market_spending import spending_context
@@ -113,8 +114,8 @@ def _record_gear_decision(run, item, action, source, target_slot='') -> bool:
         return True
 
 
-def _equipment_wire(item: EquipmentInstance) -> dict:
-    snapshot = item.snapshot or {}
+def _equipment_wire(item: EquipmentInstance, catalog_cache: dict | None = None) -> dict:
+    snapshot = equipment_effective.for_instance(item, cache=catalog_cache) or {}
     return {
         'id': item.pk, 'name': snapshot.get('name', ''), 'slot': snapshot.get('slot', ''),
         'equipment_type': snapshot.get('equipment_type', ''), 'level': snapshot.get('level', 0),
@@ -152,12 +153,12 @@ def _collect_loadout_changes(profile, before, changes):
             changes[slot] = profile.loadout.get(slot)
 
 
-def _decide_old_equipment(run, agent, profile, catalog, item, character, trace, key, check):
+def _decide_old_equipment(run, agent, profile, catalog, item, character, trace, key, check, catalog_cache):
     if item.bound or item.locked or item.sold:
         return
     choices = {'sell': '出售：下次进入居民集市时按商店回收价自动出售',
                'list': '上架：下次进入居民集市时再决定挂牌价格'}
-    state = {'character': character, 'displaced_equipment': _equipment_wire(item)}
+    state = {'character': character, 'displaced_equipment': _equipment_wire(item, catalog_cache)}
     selected, record = _choice(
         run, agent, key, state, choices, None,
         '这是刚被替换下来的旧装备。只判断将它出售还是上架，不判断新装备，也不处理探索方案。',
@@ -169,6 +170,7 @@ def _decide_old_equipment(run, agent, profile, catalog, item, character, trace, 
 
 def _process_equipment(run, agent, profile, catalog, trace, check, equipment_changes):
     character = _character(agent, profile, catalog, include_mbti=False)
+    catalog_cache = {}
     processed = decided_for_sale_or_listing(profile.pk)
     equipped_at_start = set(profile.loadout.values())
     items = list(EquipmentInstance.objects.filter(
@@ -211,7 +213,7 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
                 old = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, sold=False).first()
                 if old:
                     _decide_old_equipment(run, agent, profile, catalog, old, character,
-                                          trace, f'displaced:{item.pk}:{identity}', check)
+                                          trace, f'displaced:{item.pk}:{identity}', check, catalog_cache)
             continue
 
         current_by_slot = {}
@@ -226,12 +228,12 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
             for slot, old in current_by_slot.items():
                 key = 'replace' if len(current_by_slot) == 1 else 'replace:' + slot
                 choices[key] = {'action': 'replace', 'slot': slot,
-                                'current_equipment': _equipment_wire(old),
-                                'candidate_equipment': _equipment_wire(item)}
+                                'current_equipment': _equipment_wire(old, catalog_cache),
+                                'candidate_equipment': _equipment_wire(item, catalog_cache)}
             choices['sell'] = '出售候选装备：下次进入居民集市时按商店回收价自动出售'
             choices['list'] = '上架候选装备：下次进入居民集市时再决定挂牌价格'
-            state = {'character': character, 'candidate_equipment': _equipment_wire(item),
-                     'current_slot_equipment': {slot: _equipment_wire(old)
+            state = {'character': character, 'candidate_equipment': _equipment_wire(item, catalog_cache),
+                     'current_slot_equipment': {slot: _equipment_wire(old, catalog_cache)
                                                 for slot, old in current_by_slot.items()}}
             fallback = None
             question = 'equipment:' + item.pk
@@ -258,7 +260,7 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
                     old = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, sold=False).first()
                     if old:
                         _decide_old_equipment(run, agent, profile, catalog, old, character,
-                                              trace, f'displaced:{item.pk}:{identity}', check)
+                                              trace, f'displaced:{item.pk}:{identity}', check, catalog_cache)
             elif selected in ('sell', 'list'):
                 if _record_gear_decision(run, item, selected, record['source']):
                     processed.add(item.pk)
@@ -269,7 +271,7 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
         choices = {'sell': '出售：下次进入居民集市时按商店回收价自动出售',
                    'list': '上架：下次进入居民集市时再决定挂牌价格'}
         question = 'equipment:' + item.pk
-        state = {'character': character, 'candidate_equipment': _equipment_wire(item)}
+        state = {'character': character, 'candidate_equipment': _equipment_wire(item, catalog_cache)}
         selected, record = _choice(
             run, agent, question, state, choices, None,
             '角色当前不能穿戴这件装备。只判断出售或上架，不要选择更换。',

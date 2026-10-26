@@ -7,7 +7,11 @@ import {TournamentReport} from './TournamentReport';
 import {TournamentBracket} from './TournamentBracket';
 import {dateLabel, statusLabel} from './tournamentLabels';
 
-export default function TournamentPanel() {
+interface TournamentPanelProps {
+    residents?: {id: string; name: string; avatar?: string}[];
+}
+
+export default function TournamentPanel({residents}: TournamentPanelProps = {}) {
     const state = useTournament();
     const openTasks = useOpenTaskAllocation();
     const event = state.data?.event;
@@ -133,9 +137,11 @@ export default function TournamentPanel() {
                                                 match={state.match}
                                                 error={state.matchError}
                                                 onClose={() => state.setMatchId('')}
+                                                residents={residents}
+                                                roster={event?.roster}
                                             />
                                         )}
-                                        <TournamentBracket event={event} onMatch={state.setMatchId}/>
+                                        <TournamentBracket event={event} onMatch={state.setMatchId} residents={residents}/>
                                         <details className="rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-semibold text-slate-700">本届奖励与发放详情</summary><div className="mt-3"><TournamentRewards event={event}/></div></details>
                                     </>
                                 )}

@@ -59,6 +59,23 @@ class ExplorationTests(TestCase):
                 starter.refresh_from_db()
                 self.assertEqual(starter.snapshot, original_snapshot)
 
+    def test_existing_gear_displays_effective_base_stats_without_rewriting_snapshot(self):
+        from .models import EquipmentInstance
+        from .queries import profile_view
+        profile = ensure('admin', self.agent, self.now)
+        legacy = EquipmentInstance.objects.create(
+            pk='legacy-blue-sword', owner_id='admin', actor_id=self.agent.pk,
+            catalog_id=profile.catalog_id, template_id='equip.sword', bound=False,
+            snapshot={'template_id': 'equip.sword', 'slot': 'weapon', 'level': 10, 'quality': 'blue',
+                      'stats': {'physical_attack': 28, 'strength': 2},
+                      'affixes': [{'id': 'affix.strength', 'stat': 'strength', 'value': 2, 'min': 2, 'max': 4}],
+                      'name': '长剑', 'value': '0'})
+        original = json.loads(json.dumps(legacy.snapshot))
+        row = next(item for item in profile_view('admin', self.agent)['equipment'] if item['id'] == legacy.pk)
+        self.assertEqual(row['snapshot']['stats'], {'physical_attack': 37, 'strength': 2})
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.snapshot, original)
+
     def test_snapshot_reads_current_extended_head_layer_for_existing_run(self):
         from assets.models import Asset
         from .queries import snapshot

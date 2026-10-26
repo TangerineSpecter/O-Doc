@@ -4,12 +4,19 @@ from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 
 # Quality changes both the intrinsic gear budget and each rolled affix budget.
 _BASE_QUALITY = {'white': Decimal('1'), 'blue': Decimal('1.15'), 'gold': Decimal('1.30')}
+_EARLY_BASE = {'white': Decimal('0'), 'blue': Decimal('0.25'), 'gold': Decimal('0.55')}
+_EARLY_LEVEL = 50
+QUALITIES = tuple(_BASE_QUALITY)
 _FLAT_QUALITY = {'white': Decimal('1'), 'blue': Decimal('1.6'), 'gold': Decimal('2.4')}
 _RATIO_QUALITY = {'white': Decimal('1'), 'blue': Decimal('1.25'), 'gold': Decimal('1.5')}
 
 
-def quality_base(value: int, quality: str) -> int:
-    return int(Decimal(value) * _BASE_QUALITY[quality])
+def quality_base(value: int, quality: str, level: int) -> int:
+    """Early levels keep a larger quality share; the extra fades out by level 50."""
+    if not 1 <= level <= 99:
+        raise ValueError('装备等级须为 1 至 99')
+    extra = _EARLY_BASE[quality] * max(Decimal('0'), Decimal('1') - Decimal(level) / _EARLY_LEVEL)
+    return int(Decimal(value) * (_BASE_QUALITY[quality] + extra))
 
 
 def affix_range(definition: Mapping[str, str], level: int, quality: str) -> tuple[int | float, int | float]:
