@@ -69,12 +69,12 @@ PAYLOAD_FIELDS = {'provenance', 'feedback_version', 'title', 'target_source_id',
 
 def validate_payload(payload: dict) -> None:
     configured = isinstance(payload, dict) and payload.get('feedback_version') == 2
-    structured = isinstance(payload, dict) and payload.get('feedback_version') == 3
+    structured = isinstance(payload, dict) and payload.get('feedback_version') in (3,5)
     native = isinstance(payload,dict) and payload.get('feedback_version')==4
     from .execution import PAYLOAD_KEYS, validate_frozen
     required = (PAYLOAD_FIELDS | {'parameter_configuration', 'parameter_comparison'} if configured
                 else PAYLOAD_FIELDS | PAYLOAD_KEYS if structured else PAYLOAD_FIELDS|{'native_check'} if native else PAYLOAD_FIELDS)
-    if not isinstance(payload, dict) or set(payload) != required or payload['provenance'] != 'external_feedback' or type(payload['feedback_version']) is not int or payload['feedback_version'] not in (1, 2, 3,4):
+    if not isinstance(payload, dict) or set(payload) != required or payload['provenance'] != 'external_feedback' or type(payload['feedback_version']) is not int or payload['feedback_version'] not in (1, 2, 3,4,5):
         raise serializers.ValidationError('外部反馈版本或字段无效')
     if configured != (payload['document_format'] == 'mql_set'):
         raise serializers.ValidationError('参数配置格式与版本不一致')

@@ -8,7 +8,7 @@ import {persistQuantState, quantId, quantState} from './state';
 import {mockConfiguration} from './parameters';
 import {mockMemoryMarkdown} from './researchMemory';
 import {normalizeMockExecution, mockExecutionParameterComparison, localExecutionHash} from './platformEvidence';
-import type {QuantExecutionPreview} from '../../types/api/quantPlatformEvidence';
+import type {QuantComputedExecution,QuantExecutionPreview} from '../../types/api/quantPlatformEvidence';
 const fail = (status: number, msg: string) => HttpResponse.json({code: status, msg, data: null}, {status});
 
 export function collectMockFeedback(entry: QuantEntryDetail, input: QuantFeedbackInput) {
@@ -38,7 +38,7 @@ export function collectMockFeedback(entry: QuantEntryDetail, input: QuantFeedbac
     const existing = entry.sources?.find(row => row.id === identity);
     if (existing) return existing.payload.requestFingerprint === fingerprint ? {source: existing, notice: ''} : fail(409, '该反馈请求标识已用于其他材料');
     const source: QuantSource = {id: identity, materialId: identity, codeVersionId: null, createdAt: new Date().toISOString(), payload: {
-        provenance: 'external_feedback', feedbackVersion: executionPreview ? 3 : configuration ? 2 : 1,
+        provenance: 'external_feedback', feedbackVersion: executionPreview ? 5 : configuration ? 2 : 1,
         ...(executionPreview ? {executionPreviewJson: JSON.stringify(executionPreview)} : {}), ...(configuration ? {parameterConfiguration: configuration.configuration, parameterComparison: configuration.comparison} : {}), title: input.title, targetSourceId: input.targetSourceId, factorId: input.factorId || '',
         experimentResultId: input.experimentResultId || '', document: input.document, documentFormat: input.documentFormat, platform: input.platform || '', notes: input.notes || '', mode: input.mode, requestFingerprint: fingerprint}};
     (entry.sources ||= []).unshift(source);
@@ -59,16 +59,17 @@ export function mockFeedbackAnalysis(source?: QuantSource): QuantFeedbackAnalysi
     const parameter = document.match(/N=(\d+)/), metric = document.match(/net=(-?\d+(?:\.\d+)?%)/);
     const target = quantState().entries.flatMap(row => row.sources || []).find(row => row.id === source?.payload.targetSourceId);
     const configured = source?.payload.parameterConfiguration && target ? mockConfiguration(document, target) : undefined;
-    if (source?.payload.feedbackVersion === 3 && source.payload.executionPreviewJson && target) {
+    if (source && [3,5].includes(source.payload.feedbackVersion || 0) && source.payload.executionPreviewJson && target) {
         const frozen = JSON.parse(source.payload.executionPreviewJson) as QuantExecutionPreview;
         const status = frozen.execution_accounting.status;
+        const parameterComparison=mockExecutionParameterComparison(frozen,target,source.payload.feedbackVersion===5?2:1);
         const reference = status === 'mismatch' ? frozen.execution_accounting.reconciliation.mismatches[0]?.ref : 'accounting:net_profit';
         return {feedbackVersion: 1, evidenceStatus: 'external_report_unverified', evidenceHash: localExecutionHash([source.payload.executionPreviewJson, target.id]),
             title: `${source.payload.title || '执行证据'} · 本地演示解读`, summary: '人工执行证据流程样例：固定来源、核算投影与后续研究分开保留，未调用真实模型或平台核算引擎。',
             executionAssessment: {summary: status === 'mismatch' ? '人工样例显示余额核对差异，需先核查资料覆盖与口径。' : status === 'insufficient' ? '人工样例证据不足，缺失金额与净值保持未知。' : '人工样例余额相符，仅用于演示，不证明平台真实性或策略有效。',
-                findings: [{kind: status === 'mismatch' ? 'counters' : status === 'insufficient' ? 'limitation' : 'supports', claim: '仅引用当前固定人工核算依据；不把一致性或收益方向当作真实效果证明。', refs: [reference || 'execution:metadata']}],
+                findings: [{kind: status === 'mismatch' ? 'counters' : status === 'insufficient' ? 'limitation' : 'supports', claim: '仅引用当前固定人工核算依据；不把一致性或收益方向当作真实效果证明。', refs: [reference || 'execution:metadata']},...(parameterComparison.version===2?[{kind:'limitation' as const,claim:'人工样例：源码默认、初始赋值与报告声明分开，缺失映射不猜测。',refs:[parameterComparison.ref!]}]:[])],
                 unknowns: ['资料真实性、成交覆盖与原平台执行语义尚未独立验证。']},
-            computedExecutionJson: JSON.stringify({execution_summary: frozen.execution_summary, execution_parameter_comparison: mockExecutionParameterComparison(frozen, target)}),
+            computedExecutionJson: JSON.stringify({execution_summary: frozen.execution_summary, execution_parameter_comparison: parameterComparison}),
             reportedParameters: [], reportedMetrics: [], supportingEvidence: [], counterEvidence: [], comparison: '执行核算以固定结构化证据为依据；报告声明参数保留原名，不使用源码默认值补齐实际配置。',
             hypotheses: ['补充同口径资料后在独立行情复核，不直接启动交易。'], unknowns: ['本地为明确人工样例，真实核算与模型质量尚未验收。'], nextSteps: '核查当前固定证据引用，并使用新行情检验假设。'};
     }
@@ -87,5 +88,7 @@ export function mockFeedbackReport(run: QuantAIRun): QuantReport {
     const markdown = `# ${data.title}\n\n${data.summary}\n\n${data.nativeReview?'本机Python原始函数固定样本解读 · 本地人工流程样例':'外部报告解读 · 用户声明尚未独立验证'}\n\n${extracted}\n\n## 对照与差异\n\n${data.comparison}\n\n## 缺失信息\n\n${data.unknowns.join('\n\n')}\n\n## 后续研究\n\n${data.nextSteps}`;
     const nativeMarkdown=data.nativeReview?`\n\n## Python原始函数固定样本解读\n\n计算判定：${data.nativeReview.verdict}\n\n| 参数 | 本次实际值 |\n| --- | --- |\n${data.nativeReview.actualParameters.map(row=>`| ${row.name} | ${JSON.stringify(row.value)} |`).join('\n')}\n\n${data.nativeReview.interpretation}\n\n${data.nativeReview.parameterAssessment}\n\n${data.nativeReview.limitations.join('；')}`:'';
     const executionMarkdown = data.executionAssessment ? `\n\n## 结构化执行证据与核算\n\n${data.executionAssessment.summary}\n\n${data.executionAssessment.findings.map(row => `${row.kind}：${row.claim}\n\n依据：${row.refs.join('、')}`).join('\n\n')}\n\n${data.executionAssessment.unknowns.join('\n\n')}` : '';
-    return {id: quantId('report'), sourceId: run.sourceId!, runId: run.id, schemaVersion: 5, data, markdown: markdown + nativeMarkdown + executionMarkdown + mockMemoryMarkdown(run), originalMarkdown: markdown + nativeMarkdown + executionMarkdown + mockMemoryMarkdown(run), currentRevisionId: '', createdAt: new Date().toISOString(), revisions: []};
+    const compared=data.computedExecutionJson?(JSON.parse(data.computedExecutionJson) as QuantComputedExecution).execution_parameter_comparison:undefined;
+    const sourceParameters=compared?.version===2?`\n\n### 源码参数对照 · 本地人工样例\n\n${compared.rows.map(row=>`- ${row.name}：报告值 ${JSON.stringify(row.configured.value)}；${row.declaration?.binding_kind==='module_literal'?'初始赋值（非公开输入）':'默认声明'} ${row.declaration?.default_raw || '未知'}；${row.status}`).join('\n')}\n\n报告未提供：${compared.missing.map(row=>row.name).join('、') || '没有缺项'}。不补实际值。`:'';
+    return {id: quantId('report'), sourceId: run.sourceId!, runId: run.id, schemaVersion: 5, data, markdown: markdown + nativeMarkdown + executionMarkdown + sourceParameters + mockMemoryMarkdown(run), originalMarkdown: markdown + nativeMarkdown + executionMarkdown + sourceParameters + mockMemoryMarkdown(run), currentRevisionId: '', createdAt: new Date().toISOString(), revisions: []};
 }

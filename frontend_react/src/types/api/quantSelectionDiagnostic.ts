@@ -1,3 +1,4 @@
+import type {QuantSearchHistory} from './quantSearchHistory';
 export interface SelectionSplit {
     in_blocks:number[];winner_ids:string[];relative_oos_rank:number|null;logit:number|null;
     status:'ambiguous_is_tie'|'ambiguous_oos_median'|'reversal'|'retained';
@@ -14,7 +15,8 @@ export interface SelectionFamily {
     partitions:Record<'train'|'validation',[number,number]>;status:'completed'|'insufficient';reason:string;matrix_hash:string|null;analysis:SelectionAnalysis|null;
 }
 export interface QuantSelectionDiagnostic {
-    local_demo?:true;version:1;method:'cscv-fixed-family-mean-net-v1';policy:Record<string,string|number>;
+    local_demo?:true;version:1|2;method:'cscv-fixed-family-mean-net-v1';policy:Record<string,string|number>;
+    search_history?:QuantSearchHistory;
     scope:'one_recorded_request_per_fold_fixed_development_family';status:'completed'|'partial'|'insufficient';
     families:SelectionFamily[];final_holdout_used:false;independent_validation:false;limitations:string[];
     binding:{request_id:string;request_hash:string;result_id:string;result_hash:string;dataset_hash:string};

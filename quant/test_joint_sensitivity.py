@@ -169,7 +169,7 @@ class JointReviewTests(TestCase):
         from quant.sync import validate, metadata
         from utils.sync_manager import SyncManager, SyncError
         request, run = self.ready()
-        self.assertEqual(run.review_version, 12)
+        self.assertEqual(run.review_version, 14)
         evidence = for_run(run)
         joint = evidence['evidence']['parameter_joint_sensitivity']
         group = context(joint)
@@ -185,7 +185,7 @@ class JointReviewTests(TestCase):
         run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)
         self.assertEqual(run.result['scores'][0]['score'], 2)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 57)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 62)
         validate(snapshot, metadata(snapshot))
         forged = copy.deepcopy(snapshot)
         next(row['fields'] for row in forged if row['model'] == 'quant.airun' and row['pk'] == run.pk)['review_version'] = 4

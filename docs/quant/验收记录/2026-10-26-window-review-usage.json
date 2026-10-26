@@ -1,0 +1,11 @@
+[
+  {
+    "id": "a424e819d1754e51ac622195e9dcd6b8",
+    "status": "interrupted",
+    "attempt": 1,
+    "input_tokens": null,
+    "output_tokens": null,
+    "total_tokens": null,
+    "usage_complete": false
+  }
+]

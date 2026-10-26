@@ -743,7 +743,7 @@
     "star_rift": "星蚀裂隙"
   },
   "combat": {
-    "version": "combat-1.0.33",
+    "version": "combat-1.0.34",
     "tables": {
       "affixSlots": [
         {
@@ -32378,6 +32378,30 @@
         {
           "id": "element_factor_max",
           "value": "1.5"
+        },
+        {
+          "id": "monster_elite_hp_reduction",
+          "value": "200"
+        },
+        {
+          "id": "monster_boss_hp_reduction",
+          "value": "2000"
+        },
+        {
+          "id": "monster_boss_attack_reduction",
+          "value": "100"
+        },
+        {
+          "id": "party_monster_multiplier_2",
+          "value": "1.1"
+        },
+        {
+          "id": "party_monster_multiplier_3",
+          "value": "1.3"
+        },
+        {
+          "id": "party_monster_multiplier_4",
+          "value": "1.5"
         }
       ],
       "skillEffects": [
@@ -43937,7 +43961,7 @@
           "windResist": -0.15,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 1003,
+          "hpMax": 803,
           "mpMax": 124,
           "physicalAttack": 17,
           "magicAttack": 0,
@@ -43962,9 +43986,9 @@
           "windResist": -0.2,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 3549,
+          "hpMax": 1549,
           "mpMax": 140,
-          "physicalAttack": 143,
+          "physicalAttack": 43,
           "magicAttack": 0,
           "physicalDefense": 72,
           "magicDefense": 40,
@@ -44037,7 +44061,7 @@
           "windResist": -0.2,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 1680,
+          "hpMax": 1480,
           "mpMax": 180,
           "physicalAttack": 30,
           "magicAttack": 0,
@@ -44062,9 +44086,9 @@
           "windResist": -0.25,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 5695,
+          "hpMax": 3695,
           "mpMax": 196,
-          "physicalAttack": 142,
+          "physicalAttack": 42,
           "magicAttack": 0,
           "physicalDefense": 102,
           "magicDefense": 56,
@@ -44137,7 +44161,7 @@
           "windResist": 0.0,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 2884,
+          "hpMax": 2684,
           "mpMax": 260,
           "physicalAttack": 51,
           "magicAttack": 0,
@@ -44162,10 +44186,10 @@
           "windResist": 0.0,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 6768,
+          "hpMax": 4768,
           "mpMax": 276,
           "physicalAttack": 0,
-          "magicAttack": 398,
+          "magicAttack": 298,
           "physicalDefense": 56,
           "magicDefense": 104,
           "accuracy": 0.95,
@@ -44237,7 +44261,7 @@
           "windResist": 0.0,
           "lightResist": -0.15,
           "darkResist": 0.25,
-          "hpMax": 5215,
+          "hpMax": 5015,
           "mpMax": 380,
           "physicalAttack": 93,
           "magicAttack": 0,
@@ -44262,10 +44286,10 @@
           "windResist": 0.0,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 11943,
+          "hpMax": 9943,
           "mpMax": 396,
           "physicalAttack": 0,
-          "magicAttack": 565,
+          "magicAttack": 465,
           "physicalDefense": 80,
           "magicDefense": 149,
           "accuracy": 0.95,
@@ -44337,7 +44361,7 @@
           "windResist": 0.0,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 8843,
+          "hpMax": 8643,
           "mpMax": 524,
           "physicalAttack": 157,
           "magicAttack": 0,
@@ -44362,10 +44386,10 @@
           "windResist": 0.0,
           "lightResist": 0.0,
           "darkResist": 0.0,
-          "hpMax": 19935,
+          "hpMax": 17935,
           "mpMax": 540,
           "physicalAttack": 0,
-          "magicAttack": 516,
+          "magicAttack": 416,
           "physicalDefense": 110,
           "magicDefense": 204,
           "accuracy": 0.95,
@@ -44437,7 +44461,7 @@
           "windResist": 0.0,
           "lightResist": -0.25,
           "darkResist": 0.35,
-          "hpMax": 11420,
+          "hpMax": 11220,
           "mpMax": 740,
           "physicalAttack": 0,
           "magicAttack": 282,
@@ -44462,10 +44486,10 @@
           "windResist": 0.0,
           "lightResist": -0.25,
           "darkResist": 0.45,
-          "hpMax": 37575,
+          "hpMax": 35575,
           "mpMax": 780,
           "physicalAttack": 0,
-          "magicAttack": 1127,
+          "magicAttack": 1027,
           "physicalDefense": 159,
           "magicDefense": 295,
           "accuracy": 0.95,

@@ -140,7 +140,7 @@ class ValidationTests(TestCase):
         request=self.ready()
         automatic(request.result.pk,request.job.lease_token)
         ai=AIRun.objects.get(validation_result=request.result)
-        self.assertEqual(ai.review_version,12);self.assertEqual(ai.planning_context['version'],6)
+        self.assertEqual(ai.review_version,14);self.assertEqual(ai.planning_context['version'],6)
         from quant.experiments.review_evidence import for_run
         from quant.experiments.review_contract import review_prompt
         evidence=for_run(ai);self.assertEqual(evidence['evidence']['fixed_validation']['plan'],self.plan.data)

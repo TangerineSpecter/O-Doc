@@ -1,3 +1,4 @@
+import {mockSourceParameterComparison} from './sourceParameterComparison';
 /** Explicit artificial fixtures for the execution evidence UI, never a trading/accounting engine. */
 import {HttpResponse} from 'msw';
 import type {QuantSource} from '../../types/api/quant';
@@ -174,7 +175,8 @@ export function previewMockExecution(input: MockExecutionInput) {
     try {return {previewJson: JSON.stringify(normalizeMockExecution(input))};}
     catch (error) {return HttpResponse.json({code: 400, msg: error instanceof Error ? error.message : '执行资料无效', data: null}, {status: 400});}
 }
-export function mockExecutionParameterComparison(preview: QuantExecutionPreview, target: QuantSource): QuantExecutionParameterComparison {
+export function mockExecutionParameterComparison(preview: QuantExecutionPreview, target: QuantSource,version=2): QuantExecutionParameterComparison {
+    if(version===2)return mockSourceParameterComparison(preview.execution_evidence.parameters,target);
     return {version: 1, source_id: target.id, source_hash: mockSourceHash(target), rows: preview.execution_evidence.parameters.map(row => ({name: row.name,
         configured: {kind: 'string', value: row.value}, declaration: null, default: null, status: 'unmatched'})), missing: [],
         limitations: ['本地仅保留报告声明参数的原名和值；未运行真实声明解析、类型核对或参数映射。']};

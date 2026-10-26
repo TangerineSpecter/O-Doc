@@ -4,6 +4,9 @@ import copy
 
 def summary(data):
     value=copy.deepcopy(data)
+    if value.get('version')==2:
+        from .history import summary as history_summary
+        value['search_history']=history_summary(data['search_history'])
     for family in value['families']:
         if family['analysis']:
             family['analysis'].pop('splits',None)
@@ -15,7 +18,7 @@ def from_rows(run,rows,fail):
     context=run.get('planning_context',{})
     ref=context.get('selection_diagnostic')
     if ref is None:return None
-    if (run.get('review_version') not in (10,11,12) or not isinstance(ref,dict) or set(ref)!={'id','content_hash'}):
+    if (run.get('review_version') not in (10,11,12,13,14) or not isinstance(ref,dict) or set(ref)!={'id','content_hash'}):
         fail('搜索选择诊断的冻结引用无效')
     fields=rows.get('quant.selectiondiagnostic',{}).get(str(ref['id']),{})
     if not fields or fields.get('result')!=run.get('experiment_result') or fields.get('content_hash')!=ref['content_hash']:

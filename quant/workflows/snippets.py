@@ -48,7 +48,9 @@ def plan(payload: dict, structure: dict, requirements: str, model: dict,
     change = None
     if baseline and baseline['payload'] != payload:
         from quant.source_changes import preview
-        impact = preview(baseline['payload'], payload, baseline['analysis'])
+        # This exact preview forms part of immutable workflow-v1 snippet plans.
+        # New read-only scope analysis must not alter old prompts or restore hashes.
+        impact = preview(baseline['payload'], payload, baseline['analysis'], scoped=False)
         change = {key: impact[key] for key in ('method', 'status', 'changed_fields', 'code', 'structure', 'parameters', 'factors', 'omitted', 'limitations')}
     return {'version': VERSION, 'scope': SCOPE, 'context': context, 'units': units, 'change': change,
         'omitted': omitted, 'selected_chars': used,

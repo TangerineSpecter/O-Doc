@@ -59,7 +59,7 @@ class LibraryResearchTests(TestCase):
         _, dataset = self.prepare()
         extra = self.candidate('cross_source_candidate_01')
         request, run = self.reviewed_result()
-        self.assertEqual(run.review_version, 12)
+        self.assertEqual(run.review_version, 14)
         context = copy.deepcopy(run.planning_context)
         self.assertEqual([row['candidate_id'] for row in context['retrieved']], [extra.pk])
         evidence = for_run(run)

@@ -3,7 +3,7 @@ import {collectMockFactors} from './factors';
 import {buildSeed, initialSeed} from '../../components/Quant/experiments/plan';
 import {quantState} from './state';
 import {readResearchMemory, researchMemoryReference} from '../../utils/quantResearchMemory';
-import type {QuantExecutionPreview} from '../../types/api/quantPlatformEvidence';
+import type {QuantComputedExecution,QuantExecutionPreview} from '../../types/api/quantPlatformEvidence';
 import {applyNestedMockPlan} from './planningCapabilities';
 
 /** Synthetic plans exercise the same UI without interpreting arbitrary external code. */
@@ -22,9 +22,11 @@ export function mockFeedbackPlan(entry: QuantEntryDetail, source: QuantSource, r
         parameters: Object.fromEntries(recorded.parameters.map(row => [row.name, JSON.stringify(row.value)]))} : initialSeed(candidate), true);
     const execution = source.payload.executionPreviewJson ? JSON.parse(source.payload.executionPreviewJson) as QuantExecutionPreview : null;
     const accountingRef = execution?.execution_accounting.status === 'mismatch' ? execution.execution_accounting.reconciliation.mismatches[0]?.ref : execution ? 'accounting:net_profit' : null;
+    const compared=source.payload.feedbackVersion===5 && run.result.feedback?.computedExecutionJson?(JSON.parse(run.result.feedback.computedExecutionJson) as QuantComputedExecution).execution_parameter_comparison:undefined;
+    const parameterRef=compared?.version===2?compared.ref:undefined;
     const data = {version: 1, local_demo: true, origin: 'external_feedback', name: '反馈复核 · 邻近窗口实验',
         hypothesis: '人工样例：检验外部反馈的差异是否对邻近窗口敏感。', falsification: '新行情中方向反复改变或成本后优势消失。',
-        data_requirement: '新的同口径 OHLC 行情，覆盖窗口和三段分区；样例不计算真实表现。', evidence_refs: ['feedback', ...(accountingRef ? [accountingRef] : []), ...(readResearchMemory(run.researchMemoryJson)?.items.map(researchMemoryReference) || []).slice(0, accountingRef ? 10 : 11)],
+        data_requirement: '新的同口径 OHLC 行情，覆盖窗口和三段分区；样例不计算真实表现。', evidence_refs: ['feedback', ...(accountingRef ? [accountingRef] : []), ...(parameterRef?[parameterRef]:[]), ...(readResearchMemory(run.researchMemoryJson)?.items.map(researchMemoryReference) || []).slice(0, 11-(accountingRef?1:0)-(parameterRef?1:0))],
         seeds: [{id: candidate.id, candidate: candidate.data, bindings: Object.fromEntries(seed.bindings.map(row => [row.name, row.column])),
             parameters: Object.fromEntries(seed.parameters.map(row => [row.name, row.value])),
             variants: seed.variants.map(group => Object.fromEntries(group.map(row => [row.name, row.value])))}],

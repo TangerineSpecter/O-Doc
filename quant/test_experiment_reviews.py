@@ -32,13 +32,17 @@ def response(evidence=None):
         temporal=evidence['evidence']['temporal_parameter_stability']
         value['temporal_parameter_review']={'status':temporal['status'],'planned_windows':temporal['planned_windows'],
             'text':'逐窗保留失败和缺测；共同离散候选仍需新数据复核。','evidence_refs':['temporal_parameter_stability']}
+        windows = [{"outer_fold": row['outer_fold'], "inner_fold": row['inner_fold'],
+            "text": '人工逐窗解释：实际参数、各段指标和失败仍须结合原始记录核对。', 'evidence_refs': [key]}
+            for key,row in evidence['evidence'].items() if key.startswith('temporal_window:')]
+        if windows:value['temporal_parameter_review']['window_reviews']=windows
     return value
 
 
 def acknowledge_selection(value,run):
     if run.kind=='experiment_review' and run.planning_context.get('selection_diagnostic'):
         value['selection_review']=selection_response()['selection_review']
-    if run.kind=='experiment_review' and run.review_version==12:
+    if run.kind=='experiment_review' and run.review_version in (12,13,14):
         from quant.experiments.review_evidence import for_run
         generated=response(for_run(run))
         if 'temporal_parameter_review' in generated:value['temporal_parameter_review']=generated['temporal_parameter_review']

@@ -5,7 +5,11 @@ from quant.research.contracts import digest
 
 def archive(result,computed):
     if result.data['status'] not in ('completed','partial'):return None
-    data={**computed,'binding':{'request_id':result.request_id,'request_hash':result.request.content_hash,
+    existing=SelectionDiagnostic.objects.filter(result=result).first()
+    if existing:return existing
+    from .history_store import freeze
+    from .history import attach
+    data={**attach(computed,freeze(result)),'binding':{'request_id':result.request_id,'request_hash':result.request.content_hash,
         'result_id':result.pk,'result_hash':result.content_hash,'dataset_hash':result.request.plan['dataset_hash']}}
     record,_=SelectionDiagnostic.objects.get_or_create(id=digest(['selection-diagnostic-v1',result.pk])[:40],
         defaults={'result':result,'data':data,'content_hash':digest(data)})

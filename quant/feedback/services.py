@@ -29,7 +29,7 @@ def collect(entry, raw: dict, *, native_check=None):
         payload.update(feedback_version=2, parameter_configuration=parse(data['document']))
     if 'execution_adapter' in data:
         from .execution import freeze
-        payload.update(feedback_version=3, **freeze(data['document'], data['execution_adapter'], data['execution_options']))
+        payload.update(feedback_version=5, **freeze(data['document'], data['execution_adapter'], data['execution_options']))
     target, _, _ = linked(entry, payload)
     if native_check is not None:
         from quant.native_python.evidence import linked_summary

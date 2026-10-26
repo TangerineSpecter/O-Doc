@@ -188,7 +188,7 @@ class StrategyExperimentTests(TestCase):
         self.assertTrue(any(row['operation'] == 'formula_mutation' for row in request.result.data['output']['attempts']))
         start_review(request.result, request_key='strategy_review_0000001')
         ai = AIRun.objects.get(kind='experiment_review')
-        self.assertEqual(ai.review_version, 12)
+        self.assertEqual(ai.review_version, 14)
         facts = for_run(ai)
         self.assertEqual(facts['evidence']['execution']['config']['strategy'], self.input['config']['strategy'])
         self.assertIn('trades_sample', facts['evidence']['holdout']['execution'])

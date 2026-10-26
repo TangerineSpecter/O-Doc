@@ -3,7 +3,7 @@ import {beforeEach,test} from 'node:test';
 import {resolveQuantRoute} from './routes.ts';
 import {quantState,resetQuantStateForTests} from './state.ts';
 import {readVerification} from '../../utils/quantVerification.ts';
-import {readValidation,readPreview} from '../../utils/quantValidation.ts';
+import {readValidation,readPreview,readAudit} from '../../utils/quantValidation.ts';
 import {readSelectionDiagnostic} from '../../utils/quantSelectionDiagnostic.ts';
 import {buildSeed,initialSeed} from '../../components/Quant/experiments/plan.ts';
 import {strategyDraft,buildStrategy} from '../../utils/quantStrategy.ts';
@@ -29,6 +29,44 @@ async function setup(strategy=false,criteria?:QuantValidationInput['criteria'],v
     const plan=await call<QuantValidation>('validations/','POST',input);
     return {source,plan,input,entry,candidate};
 }
+
+test('local native supplied rows block fresh, including warmup and cancelled or restored requests',async()=>{
+    const {plan,candidate}=await setup();const market=await dataset('native-target',151);
+    const preview=async()=>readPreview((await call<{previewJson:string}>(`validations/${plan.id}/preview/`,'POST',{datasetId:market.id})).previewJson);
+    assert.equal((await preview()).fresh_allowed,true);
+    const seed=buildSeed(candidate,initialSeed(candidate),false);
+    const input:import('../../types/api/quantNativePython.ts').NativePythonInput={requestKey:'native_used_sample_local01',name:'已供原函数的人工片段',sourceId:candidate.sourceId,datasetId:market.id,
+        bindings:seed.bindings,parameters:seed.parameters,entrypoint:'factor',arguments:[{name:'close',kind:'series',column:'close'}],index:'range',outputColumn:'',offset:90,rowCount:50,seconds:10,
+        absoluteTolerance:1e-9,relativeTolerance:1e-8,warmupBars:20,analyze:false};
+    assert.equal((await call<Response>(`factors/${candidate.id}/native-python/`,'POST',{...input,warmupBars:21})).status,400);
+    const native=await call<import('../../types/api/quantNativePython.ts').NativePythonRecord>(`factors/${candidate.id}/native-python/`,'POST',input);
+    assert.ok(native.id);
+    const used=await preview();assert.equal(used.audit.version,2);assert.equal(used.fresh_allowed,false);
+    const conflict=used.audit.conflicts.find(row=>row.key===`native_python:${native.id}`)!;
+    assert.deepEqual(conflict.native_sample,{offset:90,row_count:50,scope:'all_supplied_rows_including_warmup'});
+    assert.equal((await call<Response>(`validations/${plan.id}/run/`,'POST',{datasetId:market.id,mode:'fresh'})).status,400);
+    await call(`native-python/${native.id}/cancel/`,'POST',{});
+    resetQuantStateForTests();assert.equal((await preview()).fresh_allowed,false);
+    const replicated=await call<QuantValidation>(`validations/${plan.id}/run/`,'POST',{datasetId:market.id,mode:'replication'});
+    assert.equal(replicated.evaluation?.mode,'replication');
+    scenario('error');assert.equal((await call<Response>(`validations/${plan.id}/preview/`,'POST',{datasetId:market.id})).status,503);
+    scenario('empty');assert.equal((await call<{total:number}>(`validations/?sourceRequestId=${plan.sourceRequestId}`)).total,0);
+    scenario('slow');assert.equal((await preview()).fresh_allowed,false);
+});
+
+test('audit reader binds native sample to v2, rejecting ambiguous or forged native ranges',()=>{
+    const old={version:1,scope:'same_owner_private_quant_exact_market_or_identical_rows_v1',complete_scan:true,conflict_count:0,conflicts:[],omitted_conflicts:0,
+        range_status:'no_tracked_conflict',external_prior_use:'unattested',global_independent_validation:false,limitations:[]};
+    assert.equal(readAudit(old).version,1);
+    const current={...old,version:2,scope:'same_owner_private_quant_exact_market_or_identical_rows_with_native_v2',conflict_count:1,range_status:'reused',conflicts:[{
+        key:'native_python:one',kind:'native_python',collection_id:'local-quant',start:'2024-01-01T00:00:00Z',end:'2024-01-30T00:00:00Z',reason:'overlapping_exact_market',native_sample:{offset:0,row_count:30,scope:'all_supplied_rows_including_warmup'}}]};
+    assert.equal(readAudit(current).conflicts[0].native_sample?.offset,0);
+    for (const change of [{row_count:29},{offset:true},{scope:'output_after_warmup_only'},{offset:20000}]) {
+        const bad=structuredClone(current);Object.assign(bad.conflicts[0].native_sample,change);assert.throws(()=>readAudit(bad));
+    }
+    assert.throws(()=>readAudit({...current,version:1}));
+    const wrong=structuredClone(current);wrong.conflicts[0].end='2023-01-01';assert.throws(()=>readAudit(wrong));
+});
 test('local registration, fresh data, artificial result and automatic report use isolated typed routes',async()=>{
     const {plan,input}=await setup(true);
     assert.equal(readValidation(plan).demo,true);assert.equal(plan.evaluation,null);
@@ -142,4 +180,36 @@ test('new artificial experiments archive typed selection diagnostics and explain
     const legacy=structuredClone(complete);delete legacy.selectionDiagnostic;
     assert.equal(readValidation(quantState().validations[0].data).criteria,undefined);
     assert.equal(legacy.selectionDiagnostic,undefined);
+});
+
+
+test('local cross-request accounting keeps cancelled and unpublished attempts, freezes history and rejects damaged counts',async()=>{
+    const {source}=await setup(false,undefined,true);
+    const first=quantState().experiments.find(row=>row.data.id===source.id)!;
+    const create=async(key:string)=>await call<QuantExperiment>('experiments/','POST',{...structuredClone(first.input),requestKey:key});
+    const stopped=await create('history_local_cancelled_001');await call(`experiments/${stopped.id}/cancel/`,'POST',{});
+    const pending=await create('history_local_pending_0001');
+    const next=await create('history_local_current_0001');
+    quantState().experiments.find(row=>row.data.id===next.id)!.data.createdAt='2021-01-01T00:00:00Z';
+    const complete=await call<QuantExperiment>(`experiments/${next.id}/`);
+    const data=readSelectionDiagnostic(complete.selectionDiagnostic!.dataJson,next.id),history=data.search_history!;
+    assert.equal(data.version,2);assert.equal(history.request_count,4);assert.equal(history.without_published_result,1);
+    assert.equal(history.attempt_count,source.attemptCount+complete.attemptCount);
+    assert.equal(history.manifest.find(row=>row.request_id===stopped.id)?.outcome?.status,'cancelled');
+    assert.equal(history.manifest.find(row=>row.request_id===pending.id)?.outcome,null);
+    await call(`experiments/${pending.id}/cancel/`,'POST',{});resetQuantStateForTests();
+    const restored=await call<QuantExperiment>(`experiments/${next.id}/`);
+    assert.deepEqual(readSelectionDiagnostic(restored.selectionDiagnostic!.dataJson,next.id).search_history,history);
+    for(const mutation of [(v:typeof data)=>{v.search_history!.attempt_count=0;},(v:typeof data)=>{v.search_history!.status_counts.rejected=0;},(v:typeof data)=>{v.search_history!.manifest.pop();},(v:typeof data)=>{v.version=1;},(v:typeof data)=>{v.search_history!.complete_scan=false;}]) {
+        const bad=structuredClone(data);mutation(bad);assert.throws(()=>readSelectionDiagnostic(JSON.stringify(bad),next.id));
+    }
+    const old=structuredClone(data);old.version=1;delete old.search_history;assert.equal(readSelectionDiagnostic(JSON.stringify(old),next.id).version,1);
+    const state=quantState(),entry=state.entries.find(row=>row.runs.some(run=>run.experimentResultId===complete.reviewContext?.experimentResultId))!;
+    const run=entry.runs.find(row=>row.experimentResultId===complete.reviewContext?.experimentResultId)!;run.createdAt='2020-01-01T00:00:00Z';
+    const report=await call<QuantExperiment>(`experiments/${next.id}/`);
+    assert.equal(report.reviews![0].run.result.review!.selectionReview!.searchHistoryFacts!.attemptCount,history.attempt_count);
+    assert.match(report.reviews![0].report!.markdown,/跨请求尝试记录/);
+    scenario('error');assert.equal((await call<Response>(`experiments/${next.id}/`)).status,503);
+    scenario('empty');assert.equal((await call<{total:number}>('experiments/')).total,0);
+    scenario('slow');assert.equal((await call<QuantExperiment>(`experiments/${next.id}/`)).id,next.id);
 });

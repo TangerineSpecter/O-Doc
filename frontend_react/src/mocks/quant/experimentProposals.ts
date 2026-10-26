@@ -1,3 +1,5 @@
+import {mockHistoryFacts} from './searchHistory';
+import {mockWindowReviews} from './windowReview';
 import {readJointSensitivity} from '../../utils/quantJointSensitivity';
 import {readTemporalSensitivity} from '../../utils/quantTemporalSensitivity';
 import type {QuantAIRun, QuantExperimentAnalysis} from '../../types/api/quant';
@@ -16,13 +18,15 @@ export function mockExperimentReview(run: QuantAIRun): QuantExperimentAnalysis {
     const temporal = readTemporalSensitivity(record.data.temporalSensitivityJson);
     if (temporal) {
         review.rubricVersion='experiment-research-v2';
-        review.temporalParameterReviewVersion=1;
+        review.temporalParameterReviewVersion=2;
         review.temporalParameterReview={status:temporal.status,plannedWindows:temporal.planned_windows,
-            text:'人工样例：逐窗保留完整对照、缺测及失败，不用最后窗口或均值代替共同支持；本地样例不构成真实参数推荐。',evidenceRefs:['temporal_parameter_stability']};
+            text:'人工样例：逐窗保留完整对照、缺测及失败，不用最后窗口或均值代替共同支持；本地样例不构成真实参数推荐。',evidenceRefs:['temporal_parameter_stability'],windowReviews:mockWindowReviews(record,temporal)};
     }
     if(record.data.selectionDiagnostic) {
         review.selectionReviewVersion=1;
         review.selectionReview={text:'人工样例：分块排名反转只用于展示选择风险与并列歧义，没有计算真实行情或证明独立验证。',evidenceRefs:['selection_diagnostic']};
+        const diagnostic=JSON.parse(record.data.selectionDiagnostic.dataJson);
+        if(diagnostic.search_history)review.selectionReview.searchHistoryFacts=mockHistoryFacts(diagnostic.search_history);
     }
     const seed = record.input.seeds[0];
     const candidate = collectMockFactors(quantState().entries.filter(row => row.collId === record.collection && row.isValid)).find(row => row.id === seed.candidateId);

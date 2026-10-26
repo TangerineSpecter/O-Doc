@@ -247,6 +247,9 @@ def monster(catalog: Catalog, template: dict, level: int) -> dict:
     rank = catalog.row('monster_ranks', template['rank'])
     hp = math.floor((numeric(profile, 'hp_constant') + numeric(profile, 'hp_linear') * level + numeric(profile, 'hp_quadratic') * level ** 2) * numeric(profile, 'hp_multiplier') * numeric(rank, 'hp_multiplier'))
     attack = math.floor((numeric(profile, 'attack_constant') + numeric(profile, 'attack_linear') * level + numeric(profile, 'attack_quadratic') * level ** 2) * numeric(profile, 'attack_multiplier') * numeric(rank, 'attack_multiplier') * float(template.get('attack_multiplier',1)))
+    # Apply rank reductions before party scaling. Missing rules retain frozen catalogs.
+    hp = max(1, hp - int(catalog.rules.get(f"monster_{template['rank']}_hp_reduction", 0)))
+    attack = max(1, attack - int(catalog.rules.get(f"monster_{template['rank']}_attack_reduction", 0)))
     defense = numeric(profile, 'defense_constant') + numeric(profile, 'defense_linear') * level
     resists = {}
     for row in catalog.tables.get('monster_resists', []):

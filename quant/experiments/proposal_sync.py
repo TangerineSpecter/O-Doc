@@ -14,7 +14,7 @@ def validate_proposals(rows: dict, fail) -> None:
         return run.get('status') == 'completed' and (
             (run.get('kind') == 'feedback_review' and run.get('result', {}).get('feedback_planning_version') == 1 and bool(run.get('result', {}).get('feedback_proposal')))
             or
-            (run.get('kind') == 'experiment_review' and run.get('review_version') in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) and bool(run.get('result', {}).get('proposal')))
+            (run.get('kind') == 'experiment_review' and run.get('review_version') in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) and bool(run.get('result', {}).get('proposal')))
             or (run.get('kind') == 'analyze' and run.get('result', {}).get('initial_planning_version') == 1 and bool(run.get('result', {}).get('initial_proposal'))))
     seen = set()
     for identity, fields in proposals.items():

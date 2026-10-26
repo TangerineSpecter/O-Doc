@@ -16,10 +16,11 @@ export interface QuantValidation {
         currentAuditJson?: string; reviews?: {run: QuantAIRun; report: QuantReport | null}[]};
 }
 export interface QuantValidationAudit {
-    version: 1; scope: 'same_owner_private_quant_exact_market_or_identical_rows_v1'; complete_scan: boolean;
+    version: 1|2; scope: 'same_owner_private_quant_exact_market_or_identical_rows_v1'|'same_owner_private_quant_exact_market_or_identical_rows_with_native_v2'; complete_scan: boolean;
     conflict_count: number; range_status: 'reused' | 'no_tracked_conflict' | 'unknown_incomplete_scan';
     external_prior_use: 'unattested'; global_independent_validation: false; limitations: string[];
-    conflicts: {key: string; kind: string; start: string; end: string; reason: string; collection_id: string}[];
+    conflicts: {key: string; kind: string; start: string; end: string; reason: string; collection_id: string;
+        native_sample?:{offset:number;row_count:number;scope:'all_supplied_rows_including_warmup'}}[];
     omitted_conflicts: number;
 }
 export interface QuantValidationPreview {

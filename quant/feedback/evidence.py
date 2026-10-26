@@ -32,7 +32,7 @@ def project(payload: dict, target: dict, factor: dict | None, experiment: dict |
         if payload['parameter_comparison'] != expected:
             raise ValidationError('参数配置对照必须匹配固定来源快照')
         context['parameter_comparison'] = expected
-    if payload.get('feedback_version') == 3:
+    if payload.get('feedback_version') in (3,5):
         from .execution import model_context
         # The complete immutable source remains available in the UI and restore
         # validation; only the deterministic sufficient summary enters the model.

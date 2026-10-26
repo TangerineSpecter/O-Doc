@@ -1,6 +1,7 @@
 """Versioned party arithmetic. Pure functions; no database, wall clock or model calls."""
 import math
 from decimal import Decimal, ROUND_HALF_UP
+from .catalog import Catalog
 
 CADENCE = {1: 15, 2: 8, 3: 5, 4: 3}
 MULTIPLIER = {1: 1, 2: 1.5, 3: 2, 4: 2.5}
@@ -9,8 +10,10 @@ MIN_JOIN_SECONDS = 600
 SCALED = ('hp_max', 'physical_attack', 'magic_attack', 'physical_defense', 'magic_defense')
 
 
-def scaled_monster(stats, count):
-    return {key: math.floor(value * MULTIPLIER[count]) if key in SCALED else value for key, value in stats.items()}
+def scaled_monster(catalog: Catalog, stats: dict, count: int) -> dict:
+    # Rewards retain MULTIPLIER; old frozen catalogs retain their original difficulty.
+    multiplier = catalog.rules.get(f'party_monster_multiplier_{count}', MULTIPLIER[count])
+    return {key: math.floor(value * multiplier) if key in SCALED else value for key, value in stats.items()}
 
 
 def speed(entity):
@@ -65,7 +68,7 @@ def spawn_enemies(catalog, dungeon, players, state, rng, identity, number):
             sid = row['monster_id']
             level = max(int(row['level_min']), min(int(row['level_max']), mean+rng.randint(-2, 2)))
         template = catalog.row('monsters', sid)
-        stats = scaled_monster(attributes.monster(catalog, template, level), count)
+        stats = scaled_monster(catalog, attributes.monster(catalog, template, level), count)
         multiplier = float(catalog.row('monster_profiles', template['profile']).get('speed_multiplier', 1))
         stats['speed'] = max(1, int((5+2*(level-1))*multiplier))
         enemy = engine.fighter(stats, template['name'], level, rank=template['rank'])

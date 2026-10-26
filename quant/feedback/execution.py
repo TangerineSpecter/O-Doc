@@ -46,10 +46,13 @@ def validate_frozen(payload: dict) -> None:
         raise serializers.ValidationError('平台执行证据与原文、固定口径或确定性核算不一致')
 
 
-def parameter_comparison(evidence: dict, target: dict) -> dict:
+def parameter_comparison(evidence: dict, target: dict, *, version=1) -> dict:
     from quant.parameters.comparison import compare
     snapshot = {'parameters': [{'name': row['name'], 'raw_value': str(row['value'])}
                                for row in evidence['parameters']]}
+    if version==2:
+        from quant.parameters.source_comparison import compare as compare_source
+        return compare_source(snapshot,target)
     result = compare(snapshot, target)
     result['limitations'] = result['limitations'][:2] + [
         '实际参数是导入报告的声明，不证明真实运行配置；源码默认值仅作对照，不补齐缺失实际值。',
@@ -64,12 +67,13 @@ def summary(payload: dict) -> dict:
 
 def model_context(payload: dict, target: dict) -> dict:
     return {'execution_summary': summary(payload),
-            'execution_parameter_comparison': parameter_comparison(payload['execution_evidence'], target)}
+            'execution_parameter_comparison': parameter_comparison(payload['execution_evidence'], target,
+                version=2 if payload['feedback_version']==5 else 1)}
 
 
 def presentation(payload: dict) -> dict:
     """Opaque envelope protects literal parameter names from API key conversion."""
-    if payload.get('feedback_version') != 3:
+    if payload.get('feedback_version') not in (3,5):
         return payload
     result = {key: value for key, value in payload.items() if key not in PAYLOAD_KEYS}
     result['execution_preview_json'] = json.dumps({key: payload[key] for key in

@@ -3,6 +3,7 @@ import type {MockExperiment} from './experiments';
 import type {QuantSelectionDiagnostic,SelectionFamily,SelectionAnalysis} from '../../types/api/quantSelectionDiagnostic';
 import {analyzeSelectionBlocks,selectionPolicy} from '../../utils/quantSelectionDiagnostic';
 import {quantState,quantId} from './state';
+import {mockSearchHistory} from './searchHistory';
 export function mockSelectionDiagnostic(record:MockExperiment) {
     const output=JSON.parse(record.data.resultJson!).output;
     const count=quantState().datasets.find(row=>row.data.id===record.input.datasetId)!.data.rowCount;
@@ -19,7 +20,7 @@ export function mockSelectionDiagnostic(record:MockExperiment) {
             status:analysis?.status || 'insufficient',reason:analysis?(analysis.status==='insufficient'?'all_combinations_ambiguous':''):evaluated.length<2?'insufficient_distinct_candidates':'insufficient_development_intervals',matrix_hash:analysis?'a'.repeat(64):null,analysis};
     });
     const done=families.filter(row=>row.status==='completed').length;
-    const data:QuantSelectionDiagnostic={local_demo:true,version:1,method:'cscv-fixed-family-mean-net-v1',policy:selectionPolicy,
+    const data:QuantSelectionDiagnostic={local_demo:true,version:2,search_history:mockSearchHistory(record),method:'cscv-fixed-family-mean-net-v1',policy:selectionPolicy,
         scope:'one_recorded_request_per_fold_fixed_development_family',status:done && done===families.length?'completed':done?'partial':'insufficient',families,final_holdout_used:false,independent_validation:false,
         limitations:['纯local人工收益块只用于界面验证，没有执行源公式、读取价格收益或调用模型。','并列组合保留歧义；范围不是置信区间，低反转率不证明盈利或显著性。'],
         binding:{request_id:record.data.id,request_hash:record.data.contentHash,result_id:`result-${record.data.id}`,result_hash:'artificial-local-result',dataset_hash:'artificial-local-dataset'}};

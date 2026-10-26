@@ -7,9 +7,10 @@ from quant.source_structure.common import Outline
 from quant.workflows.contracts import source_context
 from .diff import compare_code
 from .quotes import QuoteMatcher, project_items
+from .python_bindings import PARSER as SCOPED_PARSER, scoped_preview
 
 
-def preview_outline(payload: dict) -> dict:
+def preview_outline(payload: dict, *, scoped: bool = True) -> dict:
     """HTTP previews have tighter work bounds than persisted workflow parsing.
 
     In particular the existing lexical parser scans tokens per declaration.
@@ -26,7 +27,8 @@ def preview_outline(payload: dict) -> dict:
     if over_budget:
         outline.warn('只读影响预览超过更紧的结构解析工作量上限；保留原文位置，结构依赖记为未知。')
         return outline.finish('limited', 'none')
-    return analyze(payload)
+    value = analyze(payload)
+    return scoped_preview(payload, value) if scoped else value
 
 
 def _range(node: dict | None) -> dict | None:
@@ -48,9 +50,13 @@ def _node_coverage(nodes: list[dict], start: int, end: int) -> bool:
 
 
 def structure_impact(old: dict, new: dict, ranges: list[dict], *, limited: bool,
-                     context_changed: bool) -> tuple[dict, bool]:
+                     context_changed: bool, scoped: bool = True) -> tuple[dict, bool]:
     before, after = {row['id']: row for row in old['nodes']}, {row['id']: row for row in new['nodes']}
     uncertain_reasons = []
+    for value in (old, new):
+        for reason in value.get('binding_uncertainties', []):
+            if reason not in uncertain_reasons:
+                uncertain_reasons.append(reason)
     if old['language'] != new['language']:
         uncertain_reasons.append('源码语言改变，结构节点之间不能证明对应关系。')
     if any(value['status'] not in ('parsed', 'no_code') for value in (old, new)):
@@ -120,17 +126,21 @@ def structure_impact(old: dict, new: dict, ranges: list[dict], *, limited: bool,
     for row in result:
         if row['id'] in visited - seeds and row['impact'] != 'direct':
             row['impact'] = 'potential'
-            row['reasons'].append('旧或新源码的同名候选读取/调用可到达变更节点；不是运行时依赖证明。')
+            resolved = old['parser'] == new['parser'] == SCOPED_PARSER
+            row['reasons'].append('旧或新源码的词法绑定及赋值读取链可到达变更节点；不是运行时数据流证明。'
+                                  if resolved else '旧或新源码的同名候选读取/调用可到达变更节点；不是运行时依赖证明。')
     counts = {key: sum(row['change'] == key for row in result)
               for key in ('added', 'removed', 'changed', 'moved', 'identical')}
     counts.update({key: sum(row['impact'] == key for row in result) for key in ('direct', 'potential', 'unknown')})
     return ({'old_status': old['status'], 'new_status': new['status'],
              'old_parser': old['parser'], 'new_parser': new['parser'],
              'total_nodes': len(result), 'omitted_nodes': 0, 'counts': counts, 'nodes': result,
-             'limitations': ['结构图仅记录语法同名候选，不证明运行时依赖或等价。', *uncertain_reasons]}, uncertain)
+             'limitations': [('Python作用域预览仅解析词法绑定与赋值读取，其余保留语法同名候选；均不证明运行时依赖或等价。'
+                              if scoped else '结构图仅记录语法同名候选，不证明运行时依赖或等价。'),
+                             *uncertain_reasons]}, uncertain)
 
 
-def preview(old_payload: dict, new_payload: dict, report_data: dict) -> dict:
+def preview(old_payload: dict, new_payload: dict, report_data: dict, *, scoped: bool = True) -> dict:
     """Compare immutable inputs without altering reports, candidates or runs."""
     if any(not isinstance(value, dict) for value in (old_payload, new_payload, report_data)):
         raise ValidationError('源码影响预览需要两份来源对象和原始报告对象')
@@ -140,7 +150,7 @@ def preview(old_payload: dict, new_payload: dict, report_data: dict) -> dict:
             raise ValidationError('来源源码、语言和引文文本必须是字符串')
     old_code, new_code = old_payload.get('code', ''), new_payload.get('code', '')
     code, ranges = compare_code(old_code, new_code)
-    old, new = preview_outline(old_payload), preview_outline(new_payload)
+    old, new = preview_outline(old_payload, scoped=scoped), preview_outline(new_payload, scoped=scoped)
     changed_fields = sorted(key for key in set(old_payload) | set(new_payload)
                             if (key not in old_payload or key not in new_payload
                                 or old_payload[key] != new_payload[key]))
@@ -151,7 +161,7 @@ def preview(old_payload: dict, new_payload: dict, report_data: dict) -> dict:
     other_context = {key: value for key, value in old_context.items() if key != 'code'} != {
         key: value for key, value in new_context.items() if key != 'code'}
     structure, uncertain = structure_impact(old, new, ranges, limited=code['status'] == 'limited',
-                                          context_changed=other_context)
+                                          context_changed=other_context, scoped=scoped)
     matcher = QuoteMatcher(old_payload, new_payload)
     groups, omitted = {}, {}
     for key, limit in (('parameters', 100), ('factors', 20)):

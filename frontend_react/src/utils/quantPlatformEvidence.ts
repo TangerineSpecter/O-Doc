@@ -21,6 +21,17 @@ const valueRow = (value: unknown) => object(value) && ['name', 'value', 'unit', 
 const issue = (value: unknown) => object(value) && ['code', 'message', 'ref'].every(key => text(value[key]));
 const parameterValue = (value: unknown) => object(value) && ['unknown', 'int', 'float', 'bool', 'string'].includes(String(value.kind)) && (value.value === null || ['string', 'boolean'].includes(typeof value.value) || typeof value.value === 'number' && Number.isFinite(value.value));
 const declaration = (value: unknown) => object(value) && ['name', 'type', 'default_raw', 'quote'].every(key => text(value[key])) && integer(value.line);
+const sourceScalar=(value:unknown):boolean=>object(value) && (
+    value.kind==='unknown'?value.value===null:value.kind==='bool'?typeof value.value==='boolean':
+    value.kind==='string'?typeof value.value==='string':value.kind==='int'?typeof value.value==='number' && Number.isSafeInteger(value.value):
+    value.kind==='float' && typeof value.value==='number' && Number.isFinite(value.value));
+function sourceDeclaration(value:unknown,language:unknown):boolean {
+    if(!declaration(value) || !object(value))return false;
+    if(language==='mql4')return true;
+    if(!['exposed_input','function_default','module_literal','transformed_input','unresolved_write'].includes(String(value.binding_kind)) || !text(value.scope) || !sourceScalar(value.default_value) || !['input_declaration','annotation_hint','literal_syntax'].includes(String(value.type_basis)) || !object(value.declared_constraints))return false;
+    return Object.entries(value.declared_constraints).every(([key,item])=>object(item) && text(item.raw) && (
+        ['minval','maxval','step'].includes(key)?sourceScalar(item.literal):key==='options' && (item.literals===null || Array.isArray(item.literals) && item.literals.length<=32 && item.literals.every(sourceScalar))));
+}
 
 export function readExecutionOptions(json?: string): QuantExecutionOptions {
     if (!json) return defaultExecutionOptions();
@@ -29,7 +40,14 @@ export function readExecutionOptions(json?: string): QuantExecutionOptions {
     return value as unknown as QuantExecutionOptions;
 }
 function comparison(value: unknown): value is QuantExecutionParameterComparison {
-    return object(value) && value.version === 1 && text(value.source_id) && text(value.source_hash) && Array.isArray(value.rows) && value.rows.every(row => object(row) && text(row.name) && parameterValue(row.configured) && (row.declaration === null || declaration(row.declaration)) && (row.default === null || parameterValue(row.default)) && ['same', 'different', 'type_mismatch', 'default_unknown', 'unknown_type', 'unmatched', 'ambiguous'].includes(String(row.status))) && Array.isArray(value.missing) && value.missing.every(declaration) && strings(value.limitations);
+    if(!object(value) || ![1,2].includes(Number(value.version)) || typeof value.version!=='number' || !text(value.source_id) || !text(value.source_hash) || !Array.isArray(value.rows) || value.rows.length>300 || !Array.isArray(value.missing) || value.missing.length>300 || !strings(value.limitations))return false;
+    const modern=value.version===2;
+    if(modern?(value.parser!=='source-parameters-2' || !text(value.source_language) || !['partial','limited','unparsed','unsupported'].includes(String(value.parser_status))):('parser' in value || 'source_language' in value || 'parser_status' in value))return false;
+    if(modern && (!text(value.ref) || !strings(value.refs) || value.refs.length>601 || new Set(value.refs).size!==value.refs.length || value.refs.some(ref=>ref.length>160 || !ref) || value.refs[0]!==value.ref || JSON.stringify(value.refs)!==JSON.stringify([value.ref,...value.rows.map(row=>object(row)?row.ref:null),...value.missing.map(row=>object(row)?row.ref:null)])))return false;
+    const readDeclaration=(row:unknown)=>modern?sourceDeclaration(row,value.source_language):declaration(row);
+    const readScalar=modern?sourceScalar:parameterValue;
+    const statuses=['same','different','type_mismatch','default_unknown','unknown_type','unmatched','ambiguous',...(modern?['unresolved','constraint_mismatch','literal_same','literal_differs']:[])];
+    return value.rows.every(row=>object(row) && text(row.name) && readScalar(row.configured) && (row.declaration===null || readDeclaration(row.declaration)) && (row.default===null || readScalar(row.default)) && statuses.includes(String(row.status))) && value.missing.every(readDeclaration);
 }
 function summary(value: unknown) {
     if (!object(value) || value.version !== 1 || value.method !== 'execution-evidence-summary-v1' || !text(value.evidence_hash) || !text(value.accounting_hash) || !['reconciled', 'mismatch', 'insufficient'].includes(String(value.status)) || !object(value.metadata) || !counts(value.counts) || !object(value.counts) || !integer(value.counts.known_net_trades) || !integer(value.counts.negative_net_trades) || !object(value.metrics) || !Array.isArray(value.parameters) || !Array.isArray(value.reported_comparison) || !Array.isArray(value.sample_records) || value.sample_records.length > 12 || !integer(value.omitted_records) || value.sample_records.length + value.omitted_records !== value.counts.records || !strings(value.limitations) || !strings(value.refs) || new Set(value.refs).size !== value.refs.length) return false;

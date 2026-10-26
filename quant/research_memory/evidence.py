@@ -107,7 +107,7 @@ def feedback_record(identity: str, source: dict, entry: dict, target: dict, refe
     # evidence has a dedicated complete-metrics projection rather than feeding
     # a second copy of a potentially large raw report to a later model.
     feedback = copy.deepcopy(payload)
-    if payload.get('feedback_version') == 3:
+    if payload.get('feedback_version') in (3,5):
         from quant.feedback.execution import PAYLOAD_KEYS, summary
         feedback = {key: value for key, value in feedback.items() if key not in PAYLOAD_KEYS | {'document'}}
         feedback.update(document_hash=payload['execution_evidence']['document_hash'], execution_summary=summary(payload))

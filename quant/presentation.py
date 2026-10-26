@@ -12,7 +12,7 @@ def run_data(run: AIRun) -> dict:
             from .feedback.execution import analysis_presentation
             data['result'] = {'feedback': analysis_presentation(run.result)}
     from .experiments.library_contract import summary
-    data['library_retrieval'] = summary(run.planning_context) if run.review_version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) else None
+    data['library_retrieval'] = summary(run.planning_context) if run.review_version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) else None
     data['feedback_memory'] = ({key: run.planning_context[key] for key in ('candidate_ids', 'history_ids')}
                                if run.kind == 'feedback_review' and run.planning_context else None)
     import json

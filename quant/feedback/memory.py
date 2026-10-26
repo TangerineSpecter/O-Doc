@@ -9,7 +9,7 @@ METHOD = 'feedback-research-1'
 
 def history_item(identity: str, source: dict) -> dict:
     payload = source['payload']
-    if payload.get('feedback_version') == 3:
+    if payload.get('feedback_version') in (3,5):
         from .execution import summary
         return {'id': identity, 'content_hash': source['content_hash'],
                 **{key: payload[key] for key in ('title', 'document_format', 'mode', 'platform', 'notes')},

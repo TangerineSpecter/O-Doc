@@ -71,7 +71,7 @@ export function freezeMockResearchMemory(run: QuantAIRun, entry: QuantEntryDetai
         const reason = mockMemoryRelevance(target, parents, sameMarket(historicalDataset));
         if (!reason.rank_score) continue;
         let payload = fields(source.payload, Object.keys(source.payload).filter(key => key !== 'requestFingerprint'));
-        if (source.payload.feedbackVersion === 3) {
+        if ([3,5].includes(source.payload.feedbackVersion || 0)) {
             const preview = parse(source.payload.executionPreviewJson);
             const evidence = object(preview.execution_evidence) ? preview.execution_evidence : {};
             // Newly frozen model context uses the bounded fixed summary. The full

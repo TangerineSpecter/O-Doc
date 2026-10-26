@@ -7,7 +7,7 @@ import {DecisionProcessSteps} from './DecisionProcessSteps';
 
 export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
     const [open, setOpen] = useState(false);
-    // 同一入口展示完整领域流程，包括每日组队探索预约、资源预留与共同出发、小时市场未判断装备摘要与进场后逐件拒买标记、自由活动概率抽签、独立决策、牧师系基础法杖及旧实例权限边界、组队加入与结算、双手剑吸血、不屈分档减伤及吟游诗人音律边界、过期收尾及中断恢复边界；大乐透逐位输入含本期下注统计与近三期开奖。
+    // 同一入口展示完整领域流程，包括每日组队探索预约、资源预留与共同出发、小时市场未判断装备摘要与进场后逐件拒买标记、自由活动概率抽签、独立决策、牧师系基础法杖及旧实例权限边界、组队加入与结算、精英和Boss削弱及组队1.1/1.3/1.5倍难度与原奖励边界、双手剑吸血、不屈分档减伤及吟游诗人音律边界、过期收尾及中断恢复边界；大乐透逐位输入含本期下注统计与近三期开奖。
     const guide = decisionProcessGuides[kind];
     return <>
         <button type="button" aria-label={`查看${guide.title}`} title={`${guide.title}：${guide.subtitle}`}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "source_artifact_hashes": {
+    "2026-10-25-real-plan-loop-research-snapshot.json": "f17b61df4ff9c34179d0b6ebcd4cafb1f62c72f2f223f7175569800f2e3edfb3",
+    "2026-10-26-nested-planning-plan.json": "70d869a1ce775700eba653a0b9fe3c66fb0fcdb8e112b14a6cca2c9e2aae6890",
+    "2026-10-26-nested-planning-experiment.json": "8cd82905716646a13160ec1455f5cb65f9bab8daf2e2d03e5b24dc87dd1e81ba"
+  },
+  "artifact_hashes": {
+    "2026-10-26-window-review-input.json": "95044d7c3f5ba7146537a9c613dd4d06dcd6cbd63fb03619bad6e9e5bf1195f9",
+    "2026-10-26-window-review-request-options.json": "806809b62d4d8874d931e92875e95cf2d6501824a8424183e8ef7f9a3171d268",
+    "2026-10-26-window-review-usage.json": "049dba89ae87ccd750722b26324b308d01cf5423c8ed2c5bca7095e4d8d0e508",
+    "2026-10-26-window-review-execution-summary-original.json": "caebc6f6a1311ec4c594db1de054f3965cc236837479076702cea34551e4557c",
+    "2026-10-26-window-review-summary.json": "cfe067b4fead14976b28491d61d116af7b5bd13017ebde7096108cef95324078",
+    "2026-10-26-window-review-delta.json": "6d981931e8361b1f47cf6792eea20fab1f6afbee9e92356283915aedbbae1c97"
+  },
+  "boundary": "one user-authorized provider call timed out; no captured complete response or new report; credentials excluded; copied captured plan is not fabricated proposal lineage",
+  "provider_calls": 1,
+  "automatic_retries": false,
+  "new_source_executions": 0,
+  "business_database_writes": 0,
+  "independent_validation": false
+}

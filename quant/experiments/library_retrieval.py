@@ -74,9 +74,9 @@ def validate_from_rows(run, rows, base):
     validate_context(run.get('planning_context'), base, candidates, rows.get('quant.factorrelation', {}),
         collection_id=str(entries[str(run['entry'])]['anthology']), source_ids=source_ids)
 
-    if run.get('review_version') in (6, 7, 8, 9, 10, 11, 12):
+    if run.get('review_version') in (6, 7, 8, 9, 10, 11, 12, 13, 14):
         context = run.get('planning_context', {})
-        version = 6 if run['review_version'] in (11, 12) else 5 if run['review_version'] == 10 else 4 if run['review_version'] == 9 else 2 if run['review_version'] == 6 else 3
+        version = 6 if run['review_version'] in (11, 12, 13, 14) else 5 if run['review_version'] == 10 else 4 if run['review_version'] == 9 else 2 if run['review_version'] == 6 else 3
         if context.get('version') != version or 'research_memory' not in context or context['research_memory'].get('version') != (3 if version in (5, 6) else 2 if version == 4 else version - 1):
             raise ValidationError('新版实验解读缺少历史研究快照')
         from quant.research_memory import validate_from_rows as validate_memory

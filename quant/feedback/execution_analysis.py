@@ -3,6 +3,7 @@ import copy
 import json
 
 from rest_framework import serializers
+from quant.research.contracts import digest
 
 KEYS = {'execution_assessment', 'execution_summary', 'execution_parameter_comparison'}
 
@@ -53,7 +54,8 @@ def validate(value: dict, context: dict | None, *, model_output=False) -> dict:
             or summary.get('status') not in ('reconciled', 'mismatch', 'insufficient')
             or not isinstance(summary.get('metrics'), dict) or not isinstance(summary.get('reported_comparison'), list)):
         raise serializers.ValidationError('核算摘要版本或引用无效')
-    legal = set(summary['refs'])
+    compared=frozen['execution_parameter_comparison']
+    legal = set(summary['refs']) | (set(compared['refs']) if compared.get('version')==2 else set())
     for row in summary['metrics'].values():
         if (not isinstance(row, dict) or set(row) != {'value', 'unit', 'status', 'reason', 'ref'}
                 or row['status'] not in ('computed', 'unavailable') or
@@ -66,6 +68,14 @@ def validate(value: dict, context: dict | None, *, model_output=False) -> dict:
     _validate_render_snapshot(summary, frozen['execution_parameter_comparison'])
     if any(ref not in legal for row in assessment['findings'] for ref in row['refs']):
         raise serializers.ValidationError('AI 核算解读引用了未提供的事实')
+    if compared.get('version')==2:
+        if not any(compared['ref'] in row['refs'] for row in assessment['findings']):
+            raise serializers.ValidationError('AI须引用固定源码参数对照并解释实际值、初始值及缺失范围')
+        issues=[row for row in compared['rows'] if row['status']!='same']
+        if (issues or compared['missing']) and not any(row['kind'] in ('counters','limitation') and
+                (compared['ref'] in row['refs'] or set(row['refs']) & {item['ref'] for item in issues+compared['missing']})
+                for row in assessment['findings']):
+            raise serializers.ValidationError('存在参数差异或未知时，AI须保留反驳或限制')
     mismatch_refs = {row['ref'] for row in summary['reported_comparison'] if isinstance(row, dict)
                      and row.get('status') == 'mismatch' and isinstance(row.get('ref'), str)}
     reconciliation = summary.get('reconciliation')
@@ -79,7 +89,7 @@ def validate(value: dict, context: dict | None, *, model_output=False) -> dict:
         raise serializers.ValidationError('存在核对差异时，AI 须明确引用差异作为反驳证据')
     if summary['status'] == 'insufficient' and not any(row['kind'] == 'limitation' for row in assessment['findings']):
         raise serializers.ValidationError('证据不足时，AI 须明确说明局限')
-    if structured and any(key in value and value[key] != expected for key, expected in frozen.items()):
+    if structured and any(key in value and digest(value[key]) != digest(expected) for key, expected in frozen.items()):
         raise serializers.ValidationError('AI 不得修改确定性核算证据')
     return {**frozen, 'execution_assessment': assessment}
 
@@ -98,6 +108,14 @@ def _validate_render_snapshot(summary: dict, compared: dict) -> None:
     if any(row.get('declaration') is not None and (not isinstance(row['declaration'], dict)
             or not isinstance(row['declaration'].get('default_raw'), str)) for row in compared['rows']):
         raise serializers.ValidationError('冻结源码参数对照结构无效')
+    if compared.get('version')==2:
+        refs=compared.get('refs')
+        if (compared.get('parser')!='source-parameters-2' or not isinstance(compared.get('source_language'),str)
+                or compared.get('parser_status') not in ('partial','limited','unparsed','unsupported')
+                or not isinstance(refs,list) or len(refs)>601 or any(not isinstance(ref,str) or not 1<=len(ref)<=160 for ref in refs)
+                or len(set(refs))!=len(refs) or not isinstance(compared.get('ref'),str)
+                or refs!=[compared['ref']]+[row.get('ref') for row in compared['rows']+compared['missing']]):
+            raise serializers.ValidationError('新版源码参数事实引用无效')
 
 
 def instruction(context: dict) -> str:
@@ -106,6 +124,14 @@ def instruction(context: dict) -> str:
     shape = {'summary': '解释核算结果与研究价值，区分记录一致与真实性', 'findings': [
         {'kind': 'supports/counters/limitation', 'claim': '有限结论', 'refs': ['accounting:net_profit']}],
         'unknowns': ['尚未解决的口径、真实性、时间、平台机制或运行配置缺口']}
+    extra=('参数对照v2来自固定源码语法，不是平台运行证明。公开input、function_default和module_literal分开；'
+        'module_literal仅为初始字面赋值，不证明运行时全程不变或公开可调，修改源码赋值须新版本；不可建议在平台设置界面直接修改它，不能将其变成已验证的参数建议。'
+        'literal_same/literal_differs只比较该初始值；transformed_input、重写、重复名称、动态默认、外部配置和未解析声明保留未知。'
+        'Python注解仅为静态提示，不是运行时类型强制；Pine具名minval/maxval/options是声明约束，step是界面增量，不证明最优区间。'
+        'parser_status为partial/limited/unparsed/unsupported均不能称完整语言解析；未提供实际值不填默认值。'
+        'findings.refs还允许execution_parameter_comparison.refs，必须至少一条finding引用其ref总览并解释实际值/默认值/初始赋值/缺失。'
+        '存在差异、未知或missing时须有counters或limitation引用对应参数或总览；数值核算反驳仍须引用真实金额差异，不能拿参数差异替代。'
+        if context.get('execution_parameter_comparison',{}).get('version')==2 else '')
     return ('\n当前为结构化平台执行证据。原文完整归档但不进入本次模型请求；feedback.document 为空。'
         'reported_parameters、reported_metrics、supporting_evidence、counter_evidence 四个旧逐字提取数组必须全部为空；'
         '不得用源码、notes 或摘要补造原文 quote。数值、币种、费用净毛口径及完整异常计数以 execution_summary 为准；'
@@ -116,7 +142,7 @@ def instruction(context: dict) -> str:
         'insufficient 时必须提出 limitation。摘要保留全部异常总数，样例有省略数，不能把样例当全量。'
         '余额不是净值；导入净值只能证明给定采样点，不代表逐笔/盘中最大回撤。未知成本、现金流、时区不得默认为零或本地时间。'
         '参数对照中 configured 是报告声明值，default 是源码声明值；缺失和未匹配须保留，不能把默认值当运行参数。'
-        '核对通过只表示给定记录在该口径下数值一致，不证明报告真实、源码实际执行或收益可复现。')
+        '核对通过只表示给定记录在该口径下数值一致，不证明报告真实、源码实际执行或收益可复现。'+extra)
 
 
 def markdown(result: dict) -> list[str]:
@@ -132,9 +158,14 @@ def markdown(result: dict) -> list[str]:
     compared = result['execution_parameter_comparison']
     for row in compared['rows']:
         default = row['declaration']['default_raw'] if row['declaration'] else '未匹配源码声明'
-        parts.append(f"- {row['name']} 与源码对照：{row['status']}；源码默认声明：{default}")
+        role=(row['declaration'] or {}).get('binding_kind')
+        label='源码初始赋值（非公开输入）' if role in ('module_literal','unresolved_write') else '源码默认声明'
+        parts.append(f"- {row['name']} 与源码对照：{row['status']}；{label}：{default}")
     if compared['missing']:
         parts.append('源码存在但缺少运行值：' + '、'.join(row['name'] for row in compared['missing']))
+    if compared.get('version')==2:
+        parts += [f"参数语法对照：{compared['source_language']} / {compared['parser_status']}（不是编译或运行验证）"]
+        parts += ['- '+text for text in compared['limitations']]
     parts += ['### 声明指标与计算值的差异']
     parts += [f"- {row['name']}：声明 {row['reported']}；计算 {row['computed']}；{row['status']} · {row['ref']}" for row in summary['reported_comparison']] or ['未提供可核对的声明指标。']
     parts += [f"- {row['kind']}：{row['claim']}\n\n事实引用：{', '.join(row['refs'])}" for row in data['findings']]

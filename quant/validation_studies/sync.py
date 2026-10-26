@@ -6,27 +6,31 @@ from quant.models import ValidationPlan,ValidationRequest,ValidationResult
 from quant.research.contracts import digest
 from .contracts import PlanInput,build,bounds
 from .calculation import evaluate
-from .usage import LIMIT,SCOPE,audit,market_fact,record
+from .usage import LIMIT,scope,audit,market_fact,record
 from .criteria import FIELDS,assess
 
 LABELS={'quant.validationplan','quant.validationrequest','quant.validationresult'}
 
 
 def check_audit(value,dataset,limits,rows,anthologies,owner,excluded,fail):
-    if not isinstance(value,dict) or value.get('version')!=1 or value.get('scope')!=SCOPE:
+    if not isinstance(value,dict) or type(value.get('version')) is not int or value.get('version') not in (1,2) or value.get('scope')!=scope(value['version']):
         fail('固定验证数据使用审计版本无效')
+    version=value['version']
     manifest=value.get('manifest')
     totals=value.get('totals')
     if (not isinstance(manifest,list) or len(manifest)>LIMIT or not isinstance(totals,dict)
-            or set(totals)!={'dataset','experiment','comparison','fixed_validation'}
+            or set(totals)!=({'dataset','experiment','comparison','fixed_validation'}|({'native_python'} if version==2 else set()))
             or any(type(n) is not int or n<0 for n in totals.values()) or type(value.get('complete_scan')) is not bool):
         fail('固定验证审计覆盖范围无效')
     models={'dataset':'quant.marketdataset','experiment':'quant.experimentrequest','comparison':'quant.factorcomparison','fixed_validation':'quant.validationrequest'}
-    checked=[]; keys=set(); counts={kind:0 for kind in models}
+    if version==2:models['native_python']='quant.nativepythonrequest'
+    checked=[]; keys=set(); counts={kind:0 for kind in models}; markets={}; timestamps={}
     for fact in manifest:
         if not isinstance(fact,dict): fail('固定验证审计记录无效')
         kind,identity=fact.get('kind'),fact.get('id')
-        raw=rows.get(models.get(kind,''),{}).get(identity,{})
+        if not isinstance(kind,str) or kind not in models or not isinstance(identity,str) or not 1<=len(identity)<=40:
+            fail('固定验证审计引用标识无效')
+        raw=rows.get(models[kind],{}).get(identity,{})
         dataset_id=identity if kind=='dataset' else raw.get('dataset')
         market=rows.get('quant.marketdataset',{}).get(str(dataset_id),{})
         collection=anthologies.get(str(market.get('anthology')), {})
@@ -34,15 +38,27 @@ def check_audit(value,dataset,limits,rows,anthologies,owner,excluded,fail):
                 or collection.get('permission')!='private' or (kind=='fixed_validation' and identity==excluded)
                 or (kind=='dataset' and identity==dataset['id'])):
             fail('固定验证审计引用缺失、越权或包含自身')
-        market_data=market_fact(dataset_id,market['anthology'],parse_datetime(str(market['created_at'])),market['content_hash'],market['snapshot'])
-        expected=record(kind,identity,raw['content_hash'],dataset_id,market_data,raw['data']['bounds'] if kind=='fixed_validation' else None)
-        if fact!=expected or fact['key'] in keys: fail('固定验证审计记录与不可变事实不一致')
+        if dataset_id not in markets:
+            markets[dataset_id]=market_fact(dataset_id,market['anthology'],parse_datetime(str(market['created_at'])),market['content_hash'],market['snapshot'])
+        market_data=markets[dataset_id]
+        used_bounds=raw['data']['bounds'] if kind=='fixed_validation' else None
+        native_sample=None
+        if kind=='native_python':
+            from .native_usage import bounds as native_bounds,sample
+            data=raw.get('plan',{}).get('dataset',{})
+            if raw.get('anthology')!=market.get('anthology'):fail('原始Python审计来源不属于该行情文集')
+            if dataset_id not in timestamps:timestamps[dataset_id]=[row['timestamp'] for row in market['snapshot']['rows']]
+            try:used_bounds=native_bounds(data.get('offset'),data.get('row_count'),timestamps[dataset_id])
+            except ValidationError:fail('固定验证原始Python使用片段无效')
+            native_sample=sample(data['offset'],data['row_count'])
+        expected=record(kind,identity,raw['content_hash'],dataset_id,market_data,used_bounds,native_sample)
+        if digest(fact)!=digest(expected) or fact['key'] in keys: fail('固定验证审计记录与不可变事实不一致')
         keys.add(fact['key']);counts[kind]+=1;checked.append(expected)
     if checked!=sorted(checked,key=lambda item:item['key']) or any(counts[k]>totals[k] for k in counts):
         fail('固定验证审计排序或计数无效')
     if value['complete_scan'] and counts!=totals: fail('固定验证完整审计缺少记录')
-    expected=audit(dataset['snapshot'],limits,{'manifest':checked,'totals':totals,'complete_scan':value['complete_scan']})
-    if value!=expected: fail('固定验证审计结论与明细不一致')
+    expected=audit(dataset['snapshot'],limits,{'version':version,'manifest':checked,'totals':totals,'complete_scan':value['complete_scan']})
+    if digest(value)!=digest(expected): fail('固定验证审计结论与明细不一致')
 
 
 def validate_studies(rows,anthologies,fail):
@@ -80,8 +96,10 @@ def validate_studies(rows,anthologies,fail):
                 or identity!=digest(['validation-request-v1',fields['plan']])[:40] or fields.get('content_hash')!=digest(data)):
             fail('固定验证行情预约身份、唯一性或哈希无效')
         seen.add(fields['plan'])
-        if set(data)!={'version','plan_hash','dataset_hash','mode','bounds','audit','imported_after_registration','fresh_allowed','claim'} or data.get('version')!=1 or data.get('mode') not in ('fresh','replication'):
+        if set(data)!={'version','plan_hash','dataset_hash','mode','bounds','audit','imported_after_registration','fresh_allowed','claim'} or type(data.get('version')) is not int or data.get('version') not in (1,2) or data.get('mode') not in ('fresh','replication'):
             fail('固定验证预约合同无效')
+        if data['version']==2 and data.get('audit',{}).get('version')!=2:
+            fail('新版固定验证预约须保留原始Python使用审计')
         try: limits=bounds(plan['data'],dataset['snapshot'])
         except ValidationError: fail('固定验证行情无法覆盖登记的完整区间')
         after=parse_datetime(str(dataset['created_at']))>parse_datetime(str(plan['created_at']))
@@ -112,6 +130,8 @@ def validate_studies(rows,anthologies,fail):
                 fail('固定验证收益、成本或交易账本无法从冻结方案重放')
             check_audit(data['publication_audit'],{'id':request['dataset'],**dataset},request['data']['bounds'],rows,anthologies,
                 anthologies[str(plan['anthology'])]['user_id'],fields['request'],fail)
+            if request['data']['version']==2 and data['publication_audit']['version']!=2:
+                fail('新版固定验证成果不能降级为旧使用审计')
         elif data['output'] is not None or data['publication_audit'] is not None:
             fail('未完成的固定验证不能携带完整成果')
         if version==2 and (type(data.get('version')) is not int or digest(data['criteria_assessment'])!=digest(assess(plan['data']['criteria'],data['status'],data['output'],request['data'],data['publication_audit']))):

@@ -43,13 +43,24 @@ export interface QuantExecutionSummary {
     anomalies: {total: number; by_code: Record<string, number>; examples: QuantExecutionAccounting['anomalies']; omitted: number};
     sample_records: Omit<QuantExecutionRecord, 'provenance'>[]; omitted_records: number; limitations: string[]; refs: string[];
 }
+export interface QuantSourceParameterDeclaration {
+    name:string;type:string;declaration?:string;default_raw:string;line:number;quote:string;
+    binding_kind?:'exposed_input'|'function_default'|'module_literal'|'transformed_input'|'unresolved_write';
+    ref?:string;scope?:string;default_value?:import('./quantParameters').QuantParameterValue;
+    type_basis?:'input_declaration'|'annotation_hint'|'literal_syntax';
+    declared_constraints?:Partial<Record<'minval'|'maxval'|'step',{raw:string;literal:import('./quantParameters').QuantParameterValue}>> & {
+        options?:{raw:string;literals:import('./quantParameters').QuantParameterValue[]|null};
+    };
+}
 export interface QuantExecutionParameterComparison {
-    version: 1; source_id: string; source_hash: string;
-    rows: {name: string; configured: import('./quantParameters').QuantParameterValue;
-        declaration: {name: string; type: string; declaration: string; default_raw: string; line: number; quote: string} | null;
+    version: 1|2; source_id: string; source_hash: string;
+    parser?:'source-parameters-2';source_language?:string;parser_status?:'partial'|'limited'|'unparsed'|'unsupported';
+    ref?:string;refs?:string[];
+    rows: {name: string; ref?:string; configured: import('./quantParameters').QuantParameterValue;
+        declaration: QuantSourceParameterDeclaration | null;
         default: import('./quantParameters').QuantParameterValue | null;
-        status: 'same' | 'different' | 'type_mismatch' | 'default_unknown' | 'unknown_type' | 'unmatched' | 'ambiguous'}[];
-    missing: {name: string; type: string; default_raw: string; line: number; quote: string}[]; limitations: string[];
+        status: 'same' | 'different' | 'type_mismatch' | 'default_unknown' | 'unknown_type' | 'unmatched' | 'ambiguous' | 'unresolved' | 'constraint_mismatch' | 'literal_same' | 'literal_differs'}[];
+    missing: QuantSourceParameterDeclaration[]; limitations: string[];
 }
 export interface QuantExecutionPreview {
     local_demo?: boolean; execution_evidence: QuantExecutionEvidence; execution_accounting: QuantExecutionAccounting;

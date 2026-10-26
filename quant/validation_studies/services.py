@@ -50,7 +50,7 @@ def start(plan,dataset,mode):
         raise ValidationError('当前不满足登记后导入且无已知重用的条件；核对审计、导入新数据，或明确改为普通复核')
     active=ValidationJob.objects.filter(request__plan__anthology=plan.anthology,status__in=('pending','running'))
     if sum(recover(job).status in ('pending','running') for job in active)>=4: raise Conflict('最多同时保留4个固定验证')
-    data={'version':1,'plan_hash':plan.content_hash,'dataset_hash':dataset.content_hash,'mode':mode,**prepared}
+    data={'version':2,'plan_hash':plan.content_hash,'dataset_hash':dataset.content_hash,'mode':mode,**prepared}
     request=ValidationRequest.objects.create(id=digest(['validation-request-v1',plan.pk])[:40],plan=plan,dataset=dataset,data=data,content_hash=digest(data))
     job=ValidationJob.objects.create(request=request,owner_id=plan.anthology.user_id,lease_until=timezone.now()+timedelta(minutes=3))
     transaction.on_commit(lambda:dispatch(job.pk))

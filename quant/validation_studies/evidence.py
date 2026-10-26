@@ -3,8 +3,20 @@ from quant.experiments.review_evidence import metric_evidence
 
 
 def audit_summary(value):
-    return {key:value[key] for key in ('scope','complete_scan','totals','conflict_count','range_status',
+    result={key:value[key] for key in ('scope','complete_scan','totals','conflict_count','range_status',
         'external_prior_use','global_independent_validation','limitations')}
+    if value['version']==2:
+        # Preserve a concrete native-use counterexample before filling the
+        # remaining bounded sample; never silently suggest the sample is all.
+        conflicts=value['conflicts']
+        native=next((row for row in conflicts if row['kind']=='native_python'),None)
+        selected=([native] if native else [])+[row for row in conflicts if row is not native]
+        selected=selected[:12]
+        records={row['key']:row for row in value['manifest']}
+        result.update(version=2,conflict_sample=[dict(row,**({'native_sample':records[row['key']]['native_sample']}
+            if row['kind']=='native_python' else {})) for row in selected],
+            omitted_conflict_count=value['conflict_count']-len(selected))
+    return result
 
 
 def project(plan,request,result):
@@ -26,10 +38,10 @@ def for_result(result):
 
 
 def from_rows(run,rows,fail):
-    if run.get('review_version') not in (9,10,11,12):
+    if run.get('review_version') not in (9,10,11,12,13,14):
         if run.get('validation_result'): fail('历史解读不能追加固定验证引用')
         return None
-    if not run.get('validation_result') and run.get('review_version') in (10,11,12):
+    if not run.get('validation_result') and run.get('review_version') in (10,11,12,13,14):
         if run.get('planning_context',{}).get('fixed_validation') is not None: fail('普通解读不可夹带固定验证上下文')
         return None
     result=rows.get('quant.validationresult',{}).get(str(run.get('validation_result')), {})

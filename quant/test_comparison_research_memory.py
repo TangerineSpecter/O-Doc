@@ -155,7 +155,7 @@ class ComparisonResearchMemoryTests(TestCase):
         with patch('django.utils.timezone.now', return_value=timezone.now() + timedelta(seconds=1)), self.captureOnCommitCallbacks(execute=True):
             calculate(request.job.pk)
         run = AIRun.objects.get(experiment_result=request.result)
-        self.assertEqual(run.review_version, 12)
+        self.assertEqual(run.review_version, 14)
         evidence = review_evidence(run)
         ref = f'memory:comparison:{failed.pk}'
         self.assertIn(ref, evidence['evidence'])

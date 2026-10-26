@@ -1,4 +1,5 @@
 import type {QuantSelectionDiagnostic,SelectionSplit} from '../types/api/quantSelectionDiagnostic';
+import {readSearchHistory} from './quantSearchHistory';
 export const selectionPolicy={version:1,blocks:8,minimum_block_intervals:5,score:'arithmetic_mean_cost_adjusted_return',tie_absolute_tolerance:1e-12,maximum_candidates:32,maximum_intervals:20000,remainder:'drop_oldest_development_intervals'};
 const finite=(v:unknown):v is number=>typeof v==='number' && Number.isFinite(v);
 const count=(v:unknown):v is number=>finite(v) && Number.isSafeInteger(v) && v>=0;
@@ -37,9 +38,10 @@ function same(a:unknown,b:unknown,key=''):boolean {
     return a===b;
 }
 export function readSelectionDiagnostic(raw:string,requestId:string):QuantSelectionDiagnostic {
-    if(raw.length>300000)throw new Error('选择诊断超过读取上限');
+    if(raw.length>600000)throw new Error('选择诊断超过读取上限');
     const value=JSON.parse(raw) as QuantSelectionDiagnostic;
-    if(!object(value) || value.version!==1 || value.method!=='cscv-fixed-family-mean-net-v1' || !same(value.policy,selectionPolicy) || value.scope!=='one_recorded_request_per_fold_fixed_development_family' || value.final_holdout_used!==false || value.independent_validation!==false || !object(value.binding) || value.binding.request_id!==requestId || Object.values(value.binding).some(v=>typeof v!=='string' || !v) || !Array.isArray(value.limitations) || value.limitations.some(v=>typeof v!=='string') || !Array.isArray(value.families) || value.families.length>5)throw new Error('选择诊断版本、来源或独立性声明无效');
+    if(!object(value) || ![1,2].includes(value.version) || value.version===1 && (raw.length>300000 || 'search_history' in value) || value.method!=='cscv-fixed-family-mean-net-v1' || !same(value.policy,selectionPolicy) || value.scope!=='one_recorded_request_per_fold_fixed_development_family' || value.final_holdout_used!==false || value.independent_validation!==false || !object(value.binding) || value.binding.request_id!==requestId || Object.values(value.binding).some(v=>typeof v!=='string' || !v) || !Array.isArray(value.limitations) || value.limitations.some(v=>typeof v!=='string') || !Array.isArray(value.families) || value.families.length>5)throw new Error('选择诊断版本、来源或独立性声明无效');
+    if(value.version===2)value.search_history=readSearchHistory(value.search_history,requestId);
     for(const family of value.families) {
         if(!object(family) || !(family.fold===null || count(family.fold) && family.fold>=1 && family.fold<=5) || !ids(family.attempt_ids) || !ids(family.evaluated_ids) || family.attempt_ids.length>32 || family.attempted!==family.attempt_ids.length || !object(family.status_counts) || !same(Object.keys(family.status_counts).sort(),['budget_stopped','cancelled','evaluated','rejected']) || Object.values(family.status_counts).some(v=>!count(v)) || Object.values(family.status_counts).reduce((a,b)=>a+b,0)!==family.attempted || !count(family.distinct_evaluated) || !count(family.evaluated_duplicates) || family.distinct_evaluated+family.evaluated_duplicates!==family.status_counts.evaluated || family.evaluated_ids.length!==family.distinct_evaluated || family.evaluated_ids.some(id=>!family.attempt_ids.includes(id)) || !object(family.partitions))throw new Error('搜索家族计数或尝试清单不一致');
         for(const part of ['train','validation'] as const) {const bounds=family.partitions[part];if(!Array.isArray(bounds) || bounds.length!==2 || !bounds.every(count) || bounds[1]<=bounds[0])throw new Error('开发区间无效');}

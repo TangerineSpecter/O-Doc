@@ -34,8 +34,8 @@ class PartyRuleTests(SimpleTestCase):
 
     def test_only_hp_attack_defense_scale(self):
         base = {'hp_max':100,'physical_attack':20,'magic_attack':0,'physical_defense':10,'magic_defense':8,'speed':10,'mp_max':50,'accuracy':.95,'critical':.05}
-        value = scaled_monster(base,4)
-        self.assertEqual((value['hp_max'],value['physical_attack'],value['magic_defense']), (250,50,20))
+        value = scaled_monster(self.catalog,base,4)
+        self.assertEqual((value['hp_max'],value['physical_attack'],value['magic_defense']), (150,30,12))
         self.assertEqual((value['speed'],value['mp_max'],value['accuracy'],value['critical']), (10,50,.95,.05))
 
     def test_party_experience_preserves_single_formula_and_level_decay(self):

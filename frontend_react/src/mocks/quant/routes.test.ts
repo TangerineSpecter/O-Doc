@@ -62,6 +62,12 @@ test('多内层参数复核 local 贯穿详情、AI解读和恢复，失败与�
     const reviewed=await invoke<Experiment>(base+`experiments/${started.id}/`);
     assert.match(reviewed.reviews![0].report!.markdown,/跨窗口参数复核/);
     assert.equal(reviewed.reviews![0].run.result.review!.temporalParameterReview!.plannedWindows,9);
+    const windowReview=reviewed.reviews![0].run.result.review!;
+    assert.equal(windowReview.temporalParameterReviewVersion,2);
+    assert.equal(windowReview.temporalParameterReview!.windowReviews!.length,9);
+    assert.deepEqual(windowReview.temporalParameterReview!.windowReviews![0].facts.baselines[0].plannedParameters,plan.seeds[0].parameters);
+    assert.match(reviewed.reviews![0].report!.markdown,/外折3 · 内层3/);
+    assert.match(reviewed.reviews![0].report!.markdown,/人工逐窗样例/);
     assert.equal((await invoke<{items:Experiment[]}>(base+'experiments/')).items.find(row=>row.id===started.id)!.temporalSensitivityJson,undefined);
     resetQuantStateForTests();assert.equal((await invoke<Experiment>(base+`experiments/${started.id}/`)).temporalSensitivityJson,reviewed.temporalSensitivityJson);
     assert.equal((await invoke<Response>(base+`experiments/${started.id}/`,'GET',undefined,false)).status,403);
@@ -168,7 +174,7 @@ test('v3执行反馈独立重新冻结原文与口径，报告和实验方案引
         mode: 'backtest', documentFormat: 'json', document: JSON.stringify(document, null, 2), platform: '用户声明MT4', notes: '仅为人工样例', analyze: true, modelId: '', executionAdapter: 'standard-execution-json-v1', executionOptionsJson: JSON.stringify(localExecutionDefaultOptions)};
     const forged = {previewJson: '{"status":"reconciled","net_profit":"999999"}', executionPreviewJson: 'untrusted'};
     const saved = await invoke<{source: Source}>(path + 'feedback/', 'POST', {...input, ...forged});
-    assert.equal(saved.source.payload.feedbackVersion, 3); assert.equal(saved.source.payload.document, input.document); assert.equal(saved.source.payload.platform, input.platform); assert.equal(saved.source.payload.notes, input.notes);
+    assert.equal(saved.source.payload.feedbackVersion, 5); assert.equal(saved.source.payload.document, input.document); assert.equal(saved.source.payload.platform, input.platform); assert.equal(saved.source.payload.notes, input.notes);
     const frozen = saved.source.payload.executionPreviewJson!, frozenData = readExecutionPreview(frozen);
     assert.equal(frozenData.execution_accounting.status, 'mismatch'); assert.equal(frozenData.execution_evidence.options.currency, ''); assert.equal(frozenData.execution_evidence.metadata.currency, 'USD');
     assert.equal(frozenData.execution_evidence.parameters[1].name, 'Magic_Number_原名'); assert.equal(frozenData.execution_evidence.parameters[1].value, '001.20'); assert.doesNotMatch(frozen, /999999/);
@@ -232,6 +238,8 @@ test('同一实现保存版本冻结完整来源并预览明确基线，历史�
     const response = await invoke<{impactJson: string}>(url), result = readSourceImpact(response.impactJson, {sourceId: target.id, reportId: report.id, baselineSourceId: originalSource.id});
     assert.equal(result.relationship, 'same_material'); assert.equal(result.baseline.report_id, report.id); assert.equal(result.target.source_hash, target.contentHash); assert.equal(result.baseline.source_hash, originalSource.contentHash);
     assert.equal(result.local_demo, true); assert.deepEqual(result.impact.recommendation.can_reuse_stages, false); assert.equal(result.impact.recommendation.start_stage, 'normalize');
+    assert.equal(result.impact.structure.new_parser, 'local-presentation-only');
+    assert.ok(result.impact.structure.limitations.some(message => message.includes('没有运行后端Python作用域/赋值链解析')));
     assert.ok(result.impact.changed_fields.includes('code') && result.impact.changed_fields.includes('dependencies') && result.impact.changed_fields.includes('language_version'));
     assert.equal(result.impact.code.hunks[0].old_text, oldCode); assert.equal(result.impact.code.hunks[0].new_text, nextCode); assert.equal(result.impact.code.hunks[0].old_truncated, false);
     assert.equal(result.impact.parameters[0].quotes[0].quote, '本地 momentum 示例函数'); assert.equal(result.impact.parameters[0].quotes[0].status, 'moved');
@@ -1750,4 +1758,34 @@ test('策略 local 首轮AI方案→显式配置→账本→复核下一轮，�
     setScenario('empty'); assert.equal((await invoke<{total: number}>(`${base}experiments/`)).total, 0); assert.equal((await invoke<Response>(exportPath)).status, 404);
     setScenario('error'); assert.equal((await invoke<Response>(`${base}experiments/${started.id}/`)).status, 503); assert.equal((await invoke<Response>(exportPath)).status, 503);
     setScenario('slow'); assert.equal(readExperiment(await invoke<Experiment>(`${base}experiments/${started.id}/`)).strategy!.version, 1); assert.equal((await invoke<import('../../types/api/quantStrategyExport.ts').QuantStrategyExport>(exportPath)).artifacts[0].id, archived.id);
+});
+
+test('Pine与Python反馈保留运行声明、函数默认和初始赋值，刷新不升级旧记录',async()=>{
+    const {sourceParameterDemoCode}=await import('./sourceParameterComparison.ts');
+    const {localExecutionSamples}=await import('./platformEvidence.ts');
+    const {readComputedExecution}=await import('../../utils/quantPlatformEvidence.ts');
+    type Source=import('../../types/api/quant.ts').QuantSource;
+    for(const language of ['pine','python'] as const) {
+        const {entry}=await invoke<{entry:QuantEntryDetail}>(base+'intake/','POST',{requestKey:`source_parameter_demo_${language}`,title:`参数对照 ${language}`,language,code:sourceParameterDemoCode[language],analyze:false});
+        const target=entry.sources![0],path=`${base}entries/${entry.id}/`;
+        const document=JSON.parse(localExecutionSamples.json);document.parameters=[{name:'N',value:'10',unit:'bar'},{name:language==='pine'?'RSIOverSold':'RSI_OVERSOLD',value:'30',unit:'RSI points'}];
+        const saved=await invoke<{source:Source}>(path+'feedback/','POST',{requestKey:`source_parameter_feedback_${language}`,title:'人工参数配置对照',targetSourceId:target.id,
+            mode:'backtest',documentFormat:'json',document:JSON.stringify(document),executionAdapter:'standard-execution-json-v1',executionOptionsJson:'{}',analyze:true});
+        assert.equal(saved.source.payload.feedbackVersion,5);
+        const owner=quantState().entries.find(row=>row.id===entry.id)!,run=owner.runs.find(row=>row.sourceId===saved.source.id)!;run.createdAt='2020-01-01T00:00:00Z';
+        const completed=await invoke<QuantEntryDetail>(path),report=completed.reports!.find(row=>row.runId===run.id)!;
+        const raw=run.result.feedback!.computedExecutionJson!,comparison=readComputedExecution(raw).execution_parameter_comparison;
+        assert.equal(comparison.version,2);assert.equal(comparison.source_language,language);
+        assert.equal(comparison.rows[0].configured.value,10);assert.equal(comparison.rows[0].default!.value,20);
+        assert.equal(comparison.rows[0].status,'different');assert.equal(comparison.rows[1].status,'literal_differs');
+        assert.equal(comparison.rows[1].declaration!.binding_kind,'module_literal');assert.equal(comparison.rows[1].default!.value,50);
+        assert.deepEqual(comparison.missing.map(row=>row.name),['Mode']);
+        assert.ok(run.result.feedback!.executionAssessment!.findings.some(row=>row.refs.includes(comparison.ref!) && row.kind==='limitation'));
+        assert.match(report.markdown,/初始赋值（非公开输入）/);assert.match(report.markdown,/报告未提供：Mode/);
+        resetQuantStateForTests();const restored=await invoke<QuantEntryDetail>(path);
+        assert.equal(restored.reports!.find(row=>row.id===report.id)!.data.computedExecutionJson,raw);
+        setScenario('error');assert.equal((await invoke<Response>(path)).status,503);
+        setScenario('empty');assert.equal((await invoke<Response>(path)).status,404);
+        setScenario('slow');assert.equal((await invoke<QuantEntryDetail>(path)).id,entry.id);setScenario('sample');
+    }
 });

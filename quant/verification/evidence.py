@@ -85,7 +85,7 @@ def feedback(candidate_id, candidate, identity, payload, source_hash):
             'parser_status':'native_python_summary','accounting_status':'not_applicable','counts':{},
             'levels':[],'structured':True,'platform_authenticated':False,
             'claim':'native_summary_analysis_not_additional_independent_or_financial_evidence'}
-    structured = payload.get('feedback_version') == 3
+    structured = payload.get('feedback_version') in (3,5)
     accounting = payload.get('execution_accounting', {})
     mode = payload['mode']
     return base(candidate, 'feedback', identity, source_hash) | {'scope': 'explicit_user_reported_factor_link',

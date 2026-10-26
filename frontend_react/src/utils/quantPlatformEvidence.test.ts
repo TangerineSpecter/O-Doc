@@ -18,7 +18,7 @@ test('执行证据 decoder 与本地明确人工模板一致，固定十进制�
         assert.equal(value.execution_evidence.records[0].kind, 'trade');
         assert.equal(value.execution_evidence.records[0].sequence, 1);
         assert.ok(value.execution_summary.refs.includes('accounting:net_profit'));
-        const comparison = mockExecutionParameterComparison(preview, {id: 'source', contentHash: 'source-hash'} as QuantSource);
+        const comparison = mockExecutionParameterComparison(preview, {id:'source',materialId:'material',codeVersionId:null,createdAt:'2026-01-01T00:00:00Z',payload:{language:'mql4',code:'input int N=20;'}} satisfies QuantSource);
         const computed = readComputedExecution(JSON.stringify({execution_summary: value.execution_summary, execution_parameter_comparison: comparison}));
         assert.equal(computed.execution_parameter_comparison.source_id, 'source');
         assert.equal(computed.execution_summary.parameters[0].value, '20');
@@ -63,4 +63,18 @@ test('执行原文按编码完整读取并限制 UTF-8 字节，旧预览键绑�
     const args = ['collection', 'entry', 'raw', 'standard-execution-json-v1', JSON.stringify(defaultExecutionOptions()), 'source-a'] as const;
     const key = executionPreviewKey(...args);
     for (let index = 0; index < args.length; index++) {const changed = [...args]; changed[index] += '-changed'; assert.notEqual(executionPreviewKey(...changed as unknown as Parameters<typeof executionPreviewKey>), key);}
+});
+
+test('v2参数对照严格读取初始值、来源引用与类型，旧v1仍可读取且不能伪装新字段',async()=>{
+    const {sourceParameterDemoCode}=await import('../mocks/quant/sourceParameterComparison.ts');
+    const source:QuantSource={id:'source-v2',materialId:'source-material',codeVersionId:null,createdAt:'2026-01-01T00:00:00Z',payload:{language:'pine',code:sourceParameterDemoCode.pine}};
+    const preview=normalizeMockExecution(input()),comparison=mockExecutionParameterComparison(preview,source);
+    const value={execution_summary:preview.execution_summary,execution_parameter_comparison:comparison};
+    assert.equal(readComputedExecution(JSON.stringify(value)).execution_parameter_comparison.version,2);
+    for(const mutation of [(v:typeof value)=>{v.execution_parameter_comparison.version=1;},(v:typeof value)=>{v.execution_parameter_comparison.refs!.pop();},
+        (v:typeof value)=>{v.execution_parameter_comparison.rows[0].configured.value=true;},(v:typeof value)=>{v.execution_parameter_comparison.rows[0].declaration!.binding_kind='unknown' as never;}]) {
+        const bad=structuredClone(value);mutation(bad);assert.throws(()=>readComputedExecution(JSON.stringify(bad)));
+    }
+    const legacy=mockExecutionParameterComparison(preview,source,1);
+    assert.equal(readComputedExecution(JSON.stringify({...value,execution_parameter_comparison:legacy})).execution_parameter_comparison.version,1);
 });

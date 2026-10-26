@@ -117,7 +117,7 @@ class ResearchMemoryIntegrationTests(TestCase):
     def test_new_review_uses_cross_source_experiment_and_feedback_with_all_trials(self):
         current, dataset, previous, feedback = self.history()
         request, run = self.calculate_candidate(current, dataset, 'research_memory_current_experiment')
-        self.assertEqual(run.review_version, 12)
+        self.assertEqual(run.review_version, 14)
         self.assertEqual(run.planning_context['version'], 6)
         selected = {(item['kind'], item['id']): item for item in self.memory(run)['items']}
         self.assertIn(('experiment', previous.result.pk), selected)

@@ -47,6 +47,18 @@ test('源码影响拒绝错配身份、非法差异范围、坏计数和伪造�
     assert.throws(() => readSourceImpact('{'), /无法读取/);
 });
 
+test('只读Python作用域预览保留解析器、赋值链依据与未知边界，不放行阶段复用', () => {
+    const value = fixture(), structure = value.impact.structure;
+    structure.old_parser = structure.new_parser = 'python-3.11-scoped-preview-v1';
+    structure.nodes[1].impact = 'potential';
+    structure.nodes[1].reasons = ['旧或新源码的词法绑定及赋值读取链可到达变更节点；不是运行时数据流证明。'];
+    structure.counts.potential = 1;
+    structure.limitations = ['动态目标、外部依赖及可变对象写入仍未知；不证明未受影响。'];
+    const parsed = readSourceImpact(JSON.stringify(value), expected);
+    assert.deepEqual(parsed.impact.structure, structure);
+    assert.equal(parsed.impact.recommendation.can_reuse_stages, false);
+});
+
 test('分析默认仅跟随基准报告材料的权威当前指针，legacy缺指针不猜时间', () => {
     const source = (id: string, materialId: string, current: string | null, createdAt: string): QuantSource => ({id, materialId, materialCurrentSourceId: current, contentHash: `hash-${id}`, createdAt, payload: {code: id, language: 'python'}} as QuantSource);
     const old = source('old', 'impl-a', 'current', '2026-01-01'), current = source('current', 'impl-a', 'current', '2026-01-02'), unrelated = source('unrelated', 'impl-b', 'unrelated', '2026-02-01');

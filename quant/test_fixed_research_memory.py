@@ -66,7 +66,7 @@ class FixedMemoryTests(TestCase):
         from quant.experiments.reviews import start_review
         with patch('django.utils.timezone.now',return_value=timezone.now()+timedelta(seconds=2)):
             ai=start_review(self.source.result,request_key='fixed_history_review_00001')
-        self.assertEqual(ai.review_version,12);self.assertEqual(ai.planning_context['version'],6)
+        self.assertEqual(ai.review_version,14);self.assertEqual(ai.planning_context['version'],6)
         from quant.experiments.review_evidence import for_run
         facts=for_run(ai);history=ai.planning_context['research_memory']
         self.assertTrue(any(r['kind']=='fixed_validation' for r in history['items']))

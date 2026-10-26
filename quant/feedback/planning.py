@@ -36,6 +36,10 @@ def evidence(context: dict, config: dict) -> dict:
     facts = ({ref: {'ref': ref, 'evidence_hash': summary['evidence_hash'], 'accounting_hash': summary['accounting_hash']}
               for ref in summary['refs']} | {'execution_summary': summary,
                   'execution_parameter_comparison': context['execution_parameter_comparison']} if summary else {})
+    compared=context.get('execution_parameter_comparison',{})
+    if compared.get('version')==2:
+        facts.update({ref:{'ref':ref,'source_id':compared['source_id'],'source_hash':compared['source_hash']}
+            for ref in compared['refs']})
     return {'version': 'feedback-plan-1', 'planning_options': parents,
             'evidence': {'feedback': context['feedback'], 'source': context['target_source'],
                          'factor': context['factor'], 'experiment': context['experiment'],
@@ -85,6 +89,7 @@ def planning_prompt(context: dict) -> str:
     exact_refs += [f"history:{row['id']}" for row in context.get('research_memory',{}).get('history',[])]
     exact_refs += [f"memory:{row['kind']}:{row['id']}" for row in (memory or {}).get('items',[])]
     exact_refs += context.get('execution_summary',{}).get('refs',[])
+    exact_refs += context.get('execution_parameter_comparison',{}).get('refs',[])
     if context.get('native_check'):exact_refs.append('native_check')
     memory_instruction = instruction(memory) if memory is not None else ''
     capabilities = context.get('research_memory', {}).get('planning_capabilities')
@@ -96,6 +101,8 @@ def planning_prompt(context: dict) -> str:
                              if memory_instruction else '证据引用仅限feedback、source、存在时的factor/experiment以及history:历史记录ID。')
     if 'execution_summary' in context:
         reference_instruction += '本次还允许 execution_summary.refs 中的精确引用；必须同时引用 feedback。参数组只能成为待验证候选，核算一致不能作为自动执行或提升质量分的依据。'
+        if context.get('execution_parameter_comparison',{}).get('version')==2:
+            reference_instruction += '还可引用execution_parameter_comparison.refs中的确定性源码参数对照；初始赋值不是公开输入，修改源码初始值需新源码版本，不能当作平台设置。'
     if context.get('native_check'):
         reference_instruction += '本次固定父代基线是native_check中明确的实际参数与输入，不是源码默认值；native_check只能证明本次输出对照。'
     if memory and memory.get('version') in (2,3):

@@ -8,7 +8,7 @@ METRICS = ('total_return', 'max_drawdown', 'entries', 'turnover', 'exposure_frac
            'missing_signals', 'bars', 'start', 'end')
 
 
-def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, planning_options: list | None = None, library_context: dict | None = None, sensitivity: bool = False, joint_sensitivity: bool = False, research_memory: dict | None = None, fixed_validation: dict | None = None, selection_diagnostic: dict | None = None, temporal_sensitivity: bool = False) -> dict:
+def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, planning_options: list | None = None, library_context: dict | None = None, sensitivity: bool = False, joint_sensitivity: bool = False, research_memory: dict | None = None, fixed_validation: dict | None = None, selection_diagnostic: dict | None = None, temporal_sensitivity: bool = False, window_reviews: bool = False, context_encoding: bool = False) -> dict:
     """Do not send raw CSV, equity paths, returns, credentials or unrelated research."""
     output = outcome.get('output') or {}
     evidence = {
@@ -89,6 +89,9 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
         temporal = temporal_analysis(plan, attempts)
         if temporal is not None:
             evidence['temporal_parameter_stability'] = model_evidence(temporal)
+    if window_reviews:
+        from .window_review import project as window_project
+        evidence.update(window_project(plan, snapshot, attempts, canonical_pairs=context_encoding))
     if research_memory is not None:
         from quant.research_memory import summary
         value['research_memory'] = summary(research_memory)
@@ -98,6 +101,9 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
         evidence['fixed_validation'] = copy.deepcopy(fixed_validation)
     if selection_diagnostic is not None:
         evidence['selection_diagnostic']=copy.deepcopy(selection_diagnostic)
+    if context_encoding:
+        from .context_encoding import VERSION
+        value['model_context_encoding'] = VERSION
     # Explicit failure instead of silently dropping evidence or truncating failed trials.
     if len(json.dumps(value, ensure_ascii=False, allow_nan=False)) > 160000:
         raise ValidationError('本次实验解读材料超过上限，请缩小单批实验后重试')
@@ -114,23 +120,23 @@ def metric_evidence(metric):
 
 def for_result(result, version: int = 2, context: dict | None = None, fixed=None) -> dict:
     request = result.request
-    if version not in (9,10,11,12) and ('strategy' in request.plan['config']) != (version == 8):
+    if version not in (9,10,11,12,13,14) and ('strategy' in request.plan['config']) != (version == 8):
         raise ValidationError('策略执行实验必须使用匹配版本的解读契约')
     from .planning_context import for_result as planning_options
-    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) and (not isinstance(context, dict) or context.get('version') != (6 if version in (11, 12) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12) else 2 if version == 6 else 1)):
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) and (not isinstance(context, dict) or context.get('version') != (6 if version in (11, 12, 13, 14) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12, 13, 14) else 2 if version == 6 else 1)):
         raise ValidationError('新版实验解读缺少冻结的跨库研究上下文')
     from quant.validation_studies.evidence import for_result as fixed_evidence
     from quant.search_diagnostics.services import from_reference
     from quant.search_diagnostics.evidence import summary as diagnostic_summary
-    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version in (10, 11, 12) else None
-    if version == 9 and not fixed or fixed and version not in (9,10,11,12):
+    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version in (10, 11, 12, 13, 14) else None
+    if version == 9 and not fixed or fixed and version not in (9,10,11,12,13,14):
         raise ValidationError('固定验证解读版本与结果引用不匹配')
-    if version in (9,10,11,12) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
+    if version in (9,10,11,12,13,14) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
         raise ValidationError('固定验证冻结上下文不一致')
     return project(request.plan, request.dataset.snapshot, result.data,
         list(request.checkpoints.values_list('attempt', flat=True)),
-        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) else planning_options(result) if version == 2 else None,
-        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10, 11, 12), joint_sensitivity=version in (5, 6, 7, 8, 9, 10, 11, 12), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10, 11, 12) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None, temporal_sensitivity=version==12)
+        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) else planning_options(result) if version == 2 else None,
+        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14), joint_sensitivity=version in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10, 11, 12, 13, 14) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None, temporal_sensitivity=version in (12,13,14), window_reviews=version in (13,14), context_encoding=version==14)
 
 
 def evidence_hash(evidence: dict) -> str:

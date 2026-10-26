@@ -44,6 +44,11 @@ def analysis(context):
         'findings': [{'kind': 'counters' if summary['status'] == 'mismatch' else 'limitation',
                       'claim': '保留负面事实及缺失口径，不能据此证明源码实际运行', 'refs': [ref]}],
         'unknowns': ['平台原件真实性及盘中未采样净值']}
+    compared=context.get('execution_parameter_comparison',{})
+    if compared.get('version')==2:
+        value['execution_assessment']['findings'].append({'kind':'limitation',
+            'claim':'人工测试：源码默认、初始赋值与报告声明分开，动态或缺失映射仍未知，不补运行值。',
+            'refs':[compared['ref']]})
     return value
 
 
@@ -90,7 +95,7 @@ class ExecutionFeedbackTests(TestCase):
         self.assertNotEqual(source.payload['execution_accounting']['content_hash'], computed['execution_accounting']['content_hash'])
         projected = json.loads(saved.json()['data']['source']['payload']['executionPreviewJson'])
         self.assertEqual(projected['execution_evidence'], source.payload['execution_evidence'])
-        self.assertEqual(source.payload['feedback_version'], 3)
+        self.assertEqual(source.payload['feedback_version'], 5)
         self.assertFalse(Job.objects.exists())
 
     def test_model_receives_compact_negative_facts_and_rejects_fabricated_refs_or_quotes(self):
@@ -252,7 +257,7 @@ class ExecutionPlanningTests(TestCase):
         context = for_run(run); value = analysis(context); parent = options(context)[0]
         value['feedback_proposal'] = {'name': '费用与参数反证', 'hypothesis': '参数变化不能稳定解释平台负收益',
             'falsification': '新行情不同成本下符号不稳', 'data_requirement': '同口径全新行情',
-            'evidence_refs': ['feedback', 'accounting:net_profit', long_ref],
+            'evidence_refs': ['feedback', 'accounting:net_profit', long_ref,context['execution_parameter_comparison']['ref']],
             'seeds': [{'candidate_id': parent['id'], 'variants': [[{'name': 'N', 'value': 10}]]}],
             'config': {'seed': 42, 'max_candidates': 4, 'generations': 2, 'threshold': 0, 'fee_bps': 5,
                        'slippage_bps': 5, 'gap': 2, 'seconds': 5}}
@@ -261,6 +266,7 @@ class ExecutionPlanningTests(TestCase):
         with patch('quant.worker.complete', return_value=json.dumps(value)): execute(run.pk)
         run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)
         proposal = ExperimentProposal.objects.get(run=run)
+        self.assertIn(context['execution_parameter_comparison']['ref'],proposal.data['evidence_refs'])
         self.assertIn('accounting:net_profit', proposal.data['evidence_refs'])
         self.assertIn(long_ref, proposal.data['evidence_refs'])
         self.assertFalse(ExperimentJob.objects.exists())

@@ -1,4 +1,6 @@
+import {mockHistoryMarkdown} from './searchHistory';
 import type {QuantExperimentAnalysis, QuantAIRun, QuantReport} from '../../types/api/quant';
+import {mockWindowMarkdown} from './windowReview';
 import {quantId} from './state';
 import {mockMemoryMarkdown} from './researchMemory';
 export const experimentReviewSample: QuantExperimentAnalysis = {
@@ -22,5 +24,5 @@ export function mockExperimentReport(run: QuantAIRun): QuantReport {
     const selection=data.selectionReview?`\n\n## 搜索选择与过拟合风险\n\n${data.selectionReview.text}\n\n证据：selection_diagnostic`:'';
     const temporal=data.temporalParameterReview?`\n\n## 跨窗口参数复核\n\n计划${data.temporalParameterReview.plannedWindows}个内层窗口 · ${{sampled_region:'存在待复核共同离散区域',no_supported_region:'没有共同支持区域',insufficient_comparison:'完整跨窗口对照不足'}[data.temporalParameterReview.status]}\n\n${data.temporalParameterReview.text}\n\n证据：temporal_parameter_stability`:'';
     return {id: quantId('report'), sourceId: run.sourceId || '', runId: run.id, schemaVersion: 4, data,
-        markdown: markdown + temporal + selection + proposalMarkdown + mockMemoryMarkdown(run), originalMarkdown: markdown + temporal + selection + proposalMarkdown + mockMemoryMarkdown(run), currentRevisionId: '', revisions: [], createdAt: new Date().toISOString()};
+        markdown: markdown + temporal + mockWindowMarkdown(data) + selection + mockHistoryMarkdown(data.selectionReview?.searchHistoryFacts) + proposalMarkdown + mockMemoryMarkdown(run), originalMarkdown: markdown + temporal + mockWindowMarkdown(data) + selection + mockHistoryMarkdown(data.selectionReview?.searchHistoryFacts) + proposalMarkdown + mockMemoryMarkdown(run), currentRevisionId: '', revisions: [], createdAt: new Date().toISOString()};
 }

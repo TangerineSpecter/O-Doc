@@ -1,4 +1,6 @@
+import {mockHistoryFacts,mockHistoryMarkdown} from './searchHistory';
 /** Typed artificial UI workflow. No formula execution, independence proof or provider calls. */
+import {mockNativeUsage} from './validationNativeUsage';
 import {HttpResponse} from 'msw';
 import type {QuantValidation,QuantValidationInput,QuantValidationAudit,QuantValidationPreview} from '../../types/api/quantValidation';
 import type {QuantAIRun,QuantReport} from '../../types/api/quant';
@@ -15,8 +17,9 @@ function audit(collection: string,dataset: MockDataset,start: string,end: string
         if (Date.parse(other.data.start)<=Date.parse(end) && Date.parse(other.data.end)>=Date.parse(start)) conflicts.push({key:`dataset:${other.data.id}`,kind:'dataset',start:other.data.start,end:other.data.end,reason:'overlapping_exact_market',collection_id:collection});
     }
     for (const other of quantState().validations.filter(r=>r.collection===collection && r.data.id!==exclude && r.data.evaluation?.datasetId===dataset.data.id)) conflicts.push({key:`fixed_validation:${other.data.id}`,kind:'fixed_validation',start,end,reason:'overlapping_exact_market',collection_id:collection});
-    return {version:1,scope:'same_owner_private_quant_exact_market_or_identical_rows_v1',complete_scan:true,conflict_count:conflicts.length,conflicts:conflicts.slice(0,100),omitted_conflicts:Math.max(0,conflicts.length-100),range_status:conflicts.length?'reused':'no_tracked_conflict',external_prior_use:'unattested',global_independent_validation:false,
-        limitations:['本地人工审计样例，仅用于界面流程；不覆盖真实后端完整审计。','登记后导入不证明外部未使用，当前使用状态可因新增记录变化。']};
+    const native=mockNativeUsage(collection,dataset,start,end);conflicts.unshift(...native.conflicts);
+    return {version:2,scope:'same_owner_private_quant_exact_market_or_identical_rows_with_native_v2',complete_scan:native.complete,conflict_count:conflicts.length,conflicts:conflicts.slice(0,100),omitted_conflicts:Math.max(0,conflicts.length-100),range_status:conflicts.length?'reused':native.complete?'no_tracked_conflict':'unknown_incomplete_scan',external_prior_use:'unattested',global_independent_validation:false,
+        limitations:['本地人工审计样例，仅用于界面流程；不覆盖真实后端完整审计。','登记后导入不证明外部未使用，当前使用状态可因新增记录变化。','人工样例计入原始Python预约提供的完整片段，包含预热；失败和取消仍保留使用记录。']};
 }
 function preview(record: MockValidation,dataset: MockDataset): QuantValidationPreview {
     const source=quantState().experiments.find(r=>r.collection===record.collection && r.data.id===record.input.sourceRequestId)!;
@@ -43,6 +46,8 @@ function report(record: MockValidation) {
     if(source.data.selectionDiagnostic) {
         review.selectionReviewVersion=1;
         review.selectionReview={text:'人工样例：来源搜索的分块诊断与本次固定评价分开，不据此提升独立性。',evidenceRefs:['selection_diagnostic']};
+        const diagnostic=JSON.parse(source.data.selectionDiagnostic.dataJson);
+        if(diagnostic.search_history)review.selectionReview.searchHistoryFacts=mockHistoryFacts(diagnostic.search_history);
     }
     if (assessment) {
         review.criteriaReviewVersion=1;
@@ -53,7 +58,7 @@ function report(record: MockValidation) {
         targetLanguage:'',targetVersion:'',requirements:'',modelId:'local',modelName:'本地人工样例',status:'completed',result:{review},error:'',adoptedImplementationId:null,createdAt:now,updatedAt:now};
     const markdown=`# 固定验证解读 · 本地人工样例\n\n${review.summary}\n\n## 参数与研究评分\n\n本页沿用人工净值和研究评价样例，不据此推荐参数或宣称收益。真实报告将引用固定方案、费用、区间、基线和重用审计，并对五个研究维度评分；证据不足显示未知。\n\n## 证据边界\n\n单次评价不证明参数稳定或最优，外部使用及全局独立性未知。`;
     const criteriaMarkdown=assessment?`\n\n## 登记标准的代码判定\n\n${criteriaStatusLabels[assessment.status as keyof typeof criteriaStatusLabels]}；${criteriaEligibilityLabels[assessment.eligibility as keyof typeof criteriaEligibilityLabels]}。`:'';
-    const saved: QuantReport={id:quantId('report'),sourceId:context!.sourceId,runId:id,schemaVersion:3,data:{format:'experiment_review',title:review.title,summary:review.summary},originalMarkdown:markdown+criteriaMarkdown,markdown:markdown+criteriaMarkdown,currentRevisionId:'',createdAt:now,revisions:[]};
+    const saved: QuantReport={id:quantId('report'),sourceId:context!.sourceId,runId:id,schemaVersion:3,data:{format:'experiment_review',title:review.title,summary:review.summary},originalMarkdown:markdown+criteriaMarkdown+mockHistoryMarkdown(review.selectionReview?.searchHistoryFacts),markdown:markdown+criteriaMarkdown+mockHistoryMarkdown(review.selectionReview?.searchHistoryFacts),currentRevisionId:'',createdAt:now,revisions:[]};
     entry.runs.unshift(run);entry.reports ||= [];entry.reports.unshift(saved);evaluation.reviews=[{run,report:saved}];
 }
 export async function resolveValidationRoute(request: Request,collection: string,id?: string,action?: string) {
@@ -93,7 +98,7 @@ export async function resolveValidationRoute(request: Request,collection: string
             if (action==='preview') return {previewJson:JSON.stringify(prepared)};
             if (!['fresh','replication'].includes(input.mode || '')) return fail(400,'请选择验证模式');
             if (input.mode==='fresh' && !prepared.fresh_allowed) return fail(400,'当前不满足新数据验证资格');
-            record.data.evaluation={id:quantId('validation-request'),datasetId:dataset.data.id,mode:input.mode!,status:'pending',error:'',cancelRequested:false,requestJson:JSON.stringify({...prepared,mode:input.mode}),resultId:null,resultJson:null,reviews:[]};
+            record.data.evaluation={id:quantId('validation-request'),datasetId:dataset.data.id,mode:input.mode!,status:'pending',error:'',cancelRequested:false,requestJson:JSON.stringify({version:2,...prepared,mode:input.mode}),resultId:null,resultJson:null,reviews:[]};
         } catch(cause) {return fail(400,cause instanceof Error?cause.message:'验证输入无效');}
     } else if (request.method==='POST' && action==='cancel') {
         if (record.data.evaluation?.status==='pending') {

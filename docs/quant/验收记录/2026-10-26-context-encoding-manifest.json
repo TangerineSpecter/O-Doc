@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "basis_input": "2026-10-26-window-review-input.json",
+  "artifact_hashes": {
+    "2026-10-26-context-encoding-summary.json": "f6fc266a88661e336ffd483729c7a1ae3b0dda7b4b7b0433bfd70e22baae12d8"
+  },
+  "scope": "derived statistics only; no new DB records, model calls, source execution or market calculation"
+}

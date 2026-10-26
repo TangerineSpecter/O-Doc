@@ -67,7 +67,10 @@ export async function resolveNativePython(request:Request,collection:string,iden
         }
         if (request.method!=='POST'||action)return fail(405,'不支持此操作');
         const input=await request.json() as NativePythonInput;
+        const warmup=input.warmupBars??0;
+        if (!Number.isInteger(warmup) || warmup<0 || warmup>2000 || input.rowCount-warmup<30) return fail(400,'共同预热后至少保留30行');
         if (!/^[A-Za-z0-9_-]{16,64}$/.test(input.requestKey||'')||!input.name?.trim()||!Array.isArray(input.arguments)||!input.arguments.length||!Number.isInteger(input.rowCount)||input.rowCount<30||input.rowCount>20000)return fail(400,'请填写完整的原始函数固定验证方案');
+        input.warmupBars=warmup;
         const old=quantState().nativePython.find(row=>row.collection===collection&&row.input.requestKey===input.requestKey);
         if (old)return JSON.stringify(old.input)===JSON.stringify(input)?advance(old):fail(409,'验证标识已用于其他方案');
         const options=mockNativeOptions(collection,factor);if (!options.source||input.sourceId!==options.source.id)return fail(400,'原始Python来源不一致');

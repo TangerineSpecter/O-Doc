@@ -1,0 +1,5 @@
+{
+  "max_tokens": 32000,
+  "deadline_seconds": 120,
+  "allow_retries": false
+}

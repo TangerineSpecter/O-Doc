@@ -111,7 +111,7 @@ class SensitivityReviewTests(TestCase):
 
     def test_v4_api_prompt_sync_and_no_execution_on_restore(self):
         request, run = self.ready()
-        self.assertEqual(run.review_version, 12)
+        self.assertEqual(run.review_version, 14)
         evidence = for_run(run)
         self.assertIn('parameter_sensitivity', evidence['evidence'])
         self.assertIn('抽样点', prompt(run))
@@ -124,7 +124,7 @@ class SensitivityReviewTests(TestCase):
         self.client.force_authenticate(user=None)
         self.assertNotEqual(self.client.get(self.path + request.pk + '/').status_code, 200)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 57)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 62)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertEqual(for_run(AIRun.objects.get(pk=run.pk)), evidence)

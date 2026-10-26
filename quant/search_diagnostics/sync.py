@@ -6,7 +6,7 @@ from quant.research.contracts import digest
 from .calculation import compute
 
 
-def validate_diagnostics(rows,fail):
+def validate_diagnostics(rows,fail,anthologies):
     records=rows.get('quant.selectiondiagnostic',{});seen=set()
     for identity,fields in records.items():
         source=rows.get('quant.experimentresult',{}).get(str(fields.get('result')), {})
@@ -15,8 +15,9 @@ def validate_diagnostics(rows,fail):
         data=fields.get('data')
         if (not source or not request or not dataset or source['data']['status'] not in ('completed','partial')
                 or fields['result'] in seen or identity!=digest(['selection-diagnostic-v1',fields['result']])[:40]
-                or not isinstance(data,dict) or fields.get('content_hash')!=digest(data)
-                or len(json.dumps(data,allow_nan=False))>300000):
+                or not isinstance(data,dict) or type(data.get('version')) is not int or data.get('version') not in (1,2)
+                or fields.get('content_hash')!=digest(data)
+                or len(json.dumps(data,allow_nan=False))>(600000 if data.get('version')==2 else 300000)):
             fail('搜索选择诊断身份、唯一性或绑定无效')
         seen.add(fields['result'])
         from quant.research_memory.contract import instant
@@ -37,6 +38,12 @@ def validate_diagnostics(rows,fail):
         complete=sum(row['status']=='completed' for row in adjusted['families'])
         adjusted['status']='completed' if complete and complete==len(adjusted['families']) else 'partial' if complete else 'insufficient'
         adjusted['binding']=binding
+        if data['version']==2:
+            from .history_store import validate as validate_history
+            validate_history(data.get('search_history'),{'id':source['request'],**request},dataset,
+                fields['created_at'],rows,anthologies,fail)
+            from .history import attach
+            adjusted=attach(adjusted,data['search_history'])
         if digest(data)!=digest(adjusted):fail('搜索诊断的家族、排名、歧义界或计数无法重放')
     for local in SelectionDiagnostic.objects.filter(pk__in=records):
         fields=records[local.pk]

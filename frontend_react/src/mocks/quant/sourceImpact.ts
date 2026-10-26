@@ -74,7 +74,7 @@ function preview(old: QuantSource, target: QuantSource, report: QuantReport): Qu
         structure: {old_status: oldCode ? 'partial' : 'no_code', new_status: newCode ? 'partial' : 'no_code', old_parser: 'local-presentation-only', new_parser: 'local-presentation-only',
             total_nodes: node.length, omitted_nodes: 0, counts: {added: Number(!oldCode && !!newCode), removed: Number(!!oldCode && !newCode), changed: Number(!!oldCode && !!newCode && codeChanged), moved: 0,
                 identical: Number(!!oldCode && oldCode === newCode), direct: 0, potential: 0, unknown: Number(!!node.length && !!changed.length)}, nodes: node,
-            limitations: ['人工模块范围样例，没有真实结构解析或跨节点依赖分析。']}, parameters, factors,
+            limitations: ['人工模块范围样例，没有运行后端Python作用域/赋值链解析或跨节点依赖分析；同名不证明引用。']}, parameters, factors,
         omitted: {parameters: Math.max(0, (Array.isArray(data.parameters) ? data.parameters.length : 0) - parameters.length), factors: Math.max(0, (Array.isArray(data.factors) ? data.factors.length : 0) - factors.length)},
         recommendation: {action: 'full_reanalysis', start_stage: 'normalize', can_reuse_stages: false,
             reasons: ['保留旧报告与引用作为基线，按目标快照从归一阶段完整重新分析。', '逐字引用和本地结构样例不提供安全复用旧结论的证明。']},

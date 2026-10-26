@@ -295,11 +295,21 @@ export interface QuantFactorQuery {
 
 export interface QuantReviewFinding {text: string; evidenceRefs: string[]}
 export interface QuantExperimentAnalysis {
-    temporalParameterReviewVersion?:1;
-    temporalParameterReview?:{status:import('./quantTemporalSensitivity').TemporalParameterStatus;plannedWindows:number;text:string;evidenceRefs:string[]};
+    temporalParameterReviewVersion?:1|2;
+    temporalParameterReview?:{status:import('./quantTemporalSensitivity').TemporalParameterStatus;plannedWindows:number;text:string;evidenceRefs:string[];
+        windowReviews?:{outerFold:number;innerFold:number;text:string;evidenceRefs:string[];facts:{
+            ranges:Record<'train'|'validation',{start:string;end:string}|null>;startedAttempts:number;completeInnerAttempts:number;
+            partialInnerAttempts:number;missingInnerAttempts:number;failedAttempts:number;
+            baselines:{seedId:string;plannedParameters:{name:string;value:unknown}[];attemptId:string|null;attemptStatus:string;effectiveParameters:{name:string;value:unknown}[]|null;completeMetrics:boolean}[];
+        }}[]};
     criteriaReviewVersion?:1;
     selectionReviewVersion?:1;
-    selectionReview?:{text:string;evidenceRefs:string[]};
+    selectionReview?:{text:string;evidenceRefs:string[];searchHistoryFacts?:{
+        version:1;scope:import('./quantSearchHistory').QuantSearchHistory['scope'];market:{symbol:string;timeframe:string};observedAt:string;completeScan:boolean;
+        eligibleRequests:number;requestCount:number;attemptCount:number;
+        statusCounts:{evaluated:number;rejected:number;cancelled:number;budgetStopped:number};reservedCandidateBudget:number;
+        withoutPublishedResult:number;externalTrials:'unattested';independentValidation:false;
+    }};
     criteriaReview?:import('./quantValidationCriteria').QuantCriteriaReview;
     memoryNote?: string;
     memoryAssessment?: import('./quantResearchMemory').QuantMemoryAssessment[];
