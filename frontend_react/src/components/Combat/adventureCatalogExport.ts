@@ -112,14 +112,14 @@ const conditionLabels: Record<string, string> = {always: '始终可用', not_act
 const damageTypeLabels: Record<string, string> = {physical: '物理', magic: '魔法'};
 const gripLabels: Record<string, string> = {one_handed: '单手', two_handed: '双手'};
 const groupLabels: Record<string, string> = {
-    reduction: '伤害减免', shield: '护盾', evasion: '闪避', attack: '攻击', burn: '灼烧', regeneration: '恢复',
+    reduction: '伤害减免', shield: '护盾', mp_share: '法力分担', evasion: '闪避', attack: '攻击', burn: '灼烧', regeneration: '恢复',
     accuracy: '命中', physical_defense: '物理防御', shield_wall_reduction: '圣盾减伤', shield_wall_reflect: '圣盾反击',
     holy_aegis: '圣光庇护', decay: '衰弱', defense: '防御', contract: '契约', damage_taken: '受到伤害', poison: '中毒',
 };
 const targetLabels: Record<string, string> = {enemy: '敌方', self: '自身'};
 const kindLabels: Record<string, string> = {active: '主动技能', passive: '被动技能', monster: '魔物技能', heal: '生命恢复', mana: '魔力恢复'};
 const effectCodeLabels: Record<string, string> = {
-    damage: '伤害', modifier: '属性变化', passive_percent: '被动属性提升', shield: '护盾', passive_recovery: '战斗恢复',
+    damage: '伤害', modifier: '属性变化', passive_percent: '被动属性提升', shield: '护盾', mp_share: '法力分担', passive_recovery: '战斗恢复',
     attack_accuracy: '命中加成', heal: '治疗', dot: '持续伤害', passive_cost: '消耗降低', passive_flat: '被动属性加成',
     attack_critical: '暴击加成', hot: '持续治疗', reflect: '反伤', shield_break: '破盾', missing_hp_damage: '损失生命增伤',
     passive_low_hp: '低血量减伤', passive_damage: '伤害提升', passive_duration: '减益延长', summon: '召唤',

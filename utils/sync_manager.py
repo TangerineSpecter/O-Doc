@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -210,7 +211,7 @@ class SyncManager:
             raise SyncError('量化快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>15:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>16:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 1:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
@@ -284,7 +285,7 @@ class SyncManager:
         from quant.sync import SCHEMA_VERSION as quant_schema_version
         if remote_meta and remote_meta.get('quant_schema_version', 0) > quant_schema_version:
             raise SyncError('量化快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>15:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>16:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 1:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
@@ -670,6 +671,19 @@ class SyncManager:
             if base:
                 base_data, base_revisions = travel_sync.compact(base.get('data') or [], base.get('revisions') or {})
                 base = {**base, 'data': base_data, 'revisions': base_revisions}
+        from system_settings.agent_world.combat import archive as combat_archive
+        archive_markers = combat_archive.merged_markers(
+            [local_data, remote.get('data') or [], (base or {}).get('data') or []]
+        )
+        if archive_markers:
+            local_data, local_revisions = combat_archive.compact(local_data, local_revisions, archive_markers)
+            remote_data, remote_revisions = combat_archive.compact(
+                remote.get('data') or [], remote.get('revisions') or {}, archive_markers)
+            remote = {**remote, 'data': remote_data, 'revisions': remote_revisions}
+            if base:
+                base_data, base_revisions = combat_archive.compact(
+                    base.get('data') or [], base.get('revisions') or {}, archive_markers)
+                base = {**base, 'data': base_data, 'revisions': base_revisions}
         from system_settings.agent_world.memory.sync import validate_source as validate_memories, metadata as memory_metadata, merge_aggregates
         guard('居民记忆', lambda: validate_memories(local_data, memory_metadata(local_data)))
         guard('居民记忆', lambda: validate_memories(remote.get('data') or [], remote.get('meta')))
@@ -719,6 +733,8 @@ class SyncManager:
         sparse_cities = travel_sync.enabled()
         if sparse_cities:
             data_list, revisions = travel_sync.compact(data_list, revisions)
+        from system_settings.agent_world.combat import archive as combat_archive
+        data_list, revisions = combat_archive.compact(data_list, revisions)
         media = self.media.build_v2_media_manifest(previous_media)
         if callable(report):
             report(
@@ -730,6 +746,12 @@ class SyncManager:
             report(f'媒体上传完成：新增 {uploaded} 个（{self.media.format_size(uploaded_bytes)}），其余复用远端 blob。', 92)
         snapshot_dir = f'{self.remote.v2_snapshots_dir}/{snapshot_id}'
         self.remote.client.ensure_directory(snapshot_dir)
+        # 小体积摘要让下一次同步先判断清单是否一致，避免每次都下载整份 revisions.json。
+        index_digest = {
+            'format': 1,
+            'revisions': {'count': len(revisions), 'sha256': self.manifest_digest(revisions)},
+            'media': {'count': len(media), 'sha256': self.manifest_digest(media)},
+        }
         meta = {
             **self.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list),
             'snapshot_id': snapshot_id,
@@ -740,6 +762,7 @@ class SyncManager:
             'record_count': len(data_list),
             'media_count': len(media),
             'media_bytes': sum(item.get('size', 0) for item in media.values()),
+            'index_digest': index_digest,
         }
         # Logical size of a complete restore point. Media blobs are shared across
         # snapshots, so this is not the extra physical space consumed remotely.
@@ -788,6 +811,8 @@ class SyncManager:
                 )
 
         travel_sync.prune_states()
+        from system_settings.agent_world.combat import archive as combat_archive
+        combat_archive.prune_states()
 
 
     @farm_sync_guard
@@ -843,7 +868,10 @@ class SyncManager:
 
 
     def _read_aligned_head(self, base_snapshot_id):
-        """读取当前指针、修订和媒体清单。数据正文留到确认有变更后再下载。"""
+        """读取当前指针和媒体清单；修订摘要命中时跳过整份 revisions.json 下载。
+
+        数据正文与修订清单都留到确认有变更后再下载。
+        """
         pointer = self.remote.read_json(self.remote.v2_current_file)
         if not pointer or pointer.get('format') != self.SNAPSHOT_FORMAT:
             return None
@@ -854,13 +882,64 @@ class SyncManager:
         if meta.get('format') != self.SNAPSHOT_FORMAT:
             return None
         self.validate_remote_snapshot_version(meta)
-        revisions = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'revisions.json'), required=True)
+        revisions_matched = self._local_index_digest_matches(meta.get('index_digest'))
+        revisions = None
+        if not revisions_matched:
+            revisions = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'revisions.json'), required=True)
+            if not isinstance(revisions, dict):
+                raise SyncError('远端修订或媒体清单格式不正确')
+            travel_sync.validate_revisions(meta, revisions)
         media = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'media_manifest.json'), required=True)
-        if not isinstance(revisions, dict) or not isinstance(media, dict):
+        if not isinstance(media, dict):
             raise SyncError('远端修订或媒体清单格式不正确')
-        travel_sync.validate_revisions(meta, revisions)
         meta.setdefault('snapshot_id', snapshot_id)
-        return {'meta': meta, 'revisions': revisions, 'media': media}
+        return {
+            'meta': meta, 'revisions': revisions, 'media': media,
+            'revisions_matched': revisions_matched,
+        }
+
+    @staticmethod
+    def manifest_digest(manifest):
+        """稳定摘要：逐键排序后拼接，避免整份清单进入同一段序列化内存。"""
+        digest = hashlib.sha256()
+        for key in sorted(manifest):
+            payload = json.dumps(
+                [key, manifest[key]], ensure_ascii=False, sort_keys=True,
+                separators=(',', ':'), default=str,
+            )
+            digest.update(payload.encode('utf-8'))
+            digest.update(b'\n')
+        return digest.hexdigest()
+
+    def _local_revision_entries(self):
+        """本机修订清单的投影，字段与发布时的 revisions.json 完全一致。"""
+        from system_settings.models import SyncEntityState
+        device_id = get_device_id()
+        entries = {}
+        for state in SyncEntityState.objects.all().iterator(chunk_size=2000):
+            if (
+                state.model_label == 'system_settings.systemsetting'
+                and state.object_pk in LOCAL_ONLY_SYSTEM_SETTING_KEYS
+            ):
+                continue
+            entries[revision_key(state.model_label, state.object_pk)] = {
+                'hash': state.content_hash or '',
+                'revision_at': state.revision_at.isoformat(),
+                'origin_device': state.origin_device or device_id,
+                'deleted': bool(state.is_deleted),
+            }
+        return entries
+
+    def _local_index_digest_matches(self, index_digest):
+        expected = (index_digest or {}).get('revisions') or {}
+        if not expected.get('sha256'):
+            return False
+        self._repair_miskeyed_revisions()
+        entries = self._local_revision_entries()
+        return (
+            len(entries) == expected.get('count')
+            and self.manifest_digest(entries) == expected['sha256']
+        )
 
 
     def _repair_miskeyed_revisions(self):
@@ -955,7 +1034,7 @@ class SyncManager:
     def _local_matches_head(self, head):
         if travel_sync.enabled() and not head['meta'].get(travel_sync.META_KEY):
             return False
-        if not self._revisions_match_stored_index(head['revisions']):
+        if not head.get('revisions_matched') and not self._revisions_match_stored_index(head['revisions']):
             return False
         local_media = self.media.compose_media_manifest(head.get('media'), allow_missing=True)
         if local_media is None:
@@ -966,7 +1045,7 @@ class SyncManager:
     @staticmethod
     def _unchanged_sync_result(head):
         return (
-            {'meta': head['meta'], 'revisions': head['revisions'], 'media': head['media']},
+            {'meta': head['meta'], 'revisions': head.get('revisions') or {}, 'media': head['media']},
             {'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0, 'unchanged': True},
             '',
         )
@@ -1013,14 +1092,19 @@ class SyncManager:
             local_data = self.build_snapshot_data(compact_travel=True)
             local_revisions = self._build_revision_manifest(local_data)
             local_media = self.media.build_v2_media_manifest(head.get('media'))
-            if (
-                self._revision_content_same(local_revisions, head['revisions'])
-                and self._media_manifest_same(local_media, head.get('media'))
-            ):
+            same_revisions = (
+                head.get('revisions_matched')
+                or self._revision_content_same(local_revisions, head['revisions'])
+            )
+            if same_revisions and self._media_manifest_same(local_media, head.get('media')):
                 report('数据与媒体均未变化，已跳过全量合并与上传。', 100)
                 return self._unchanged_sync_result(head)
 
-            summary = self._revision_change_summary(head['revisions'], local_revisions)
+            summary = (
+                {'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0, 'unchanged': False}
+                if head.get('revisions_matched')
+                else self._revision_change_summary(head['revisions'], local_revisions)
+            )
             report('正在发布新的 v2 合并快照。', 75)
             snapshot = self.publish_v2_snapshot(
                 source=source, runner_id=runner_id, base_snapshot_id=base_snapshot_id,

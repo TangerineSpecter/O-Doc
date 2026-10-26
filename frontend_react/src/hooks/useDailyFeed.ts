@@ -11,7 +11,7 @@ export function shanghaiDay(value = new Date()) {
     return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageSize = 30, includeDecisions = false) {
+export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageSize = 20, includeDecisions = false) {
     const [items, setItems] = useState<DailyFeedEvent[]>([]);
     const [result, setResult] = useState<DailyFeedResult | null>(null);
     const [loading, setLoading] = useState(true);

@@ -2,6 +2,8 @@ import { Briefcase } from 'lucide-react';
 
 export interface ProfessionBadgeProps {
     professionName?: string | null;
+    /** 等级，仅在战斗职业等具备等级的入口传入；为空时不显示等级。 */
+    level?: number | null;
     size?: 'xs' | 'sm' | 'md';
     variant?: 'purple' | 'amber' | 'indigo' | 'slate';
     showEmpty?: boolean;
@@ -13,6 +15,7 @@ export interface ProfessionBadgeProps {
 
 export function ProfessionBadge({
     professionName,
+    level,
     size = 'md',
     variant = 'purple',
     showEmpty = false,
@@ -21,6 +24,8 @@ export function ProfessionBadge({
     showIcon = true,
     icon: IconComponent = Briefcase,
 }: ProfessionBadgeProps) {
+    const shownLevel = level && level > 0 ? level : null;
+
     if (!professionName) {
         if (!showEmpty) return null;
         return (
@@ -63,10 +68,13 @@ export function ProfessionBadge({
     return (
         <span
             className={`inline-flex shrink-0 items-center rounded-md border transition-all ${variantClasses} ${sizeClasses} ${className}`}
-            title={`职业：${professionName}`}
+            title={`职业：${professionName}${shownLevel ? ` · 等级：Lv.${shownLevel}` : ''}`}
         >
             {showIcon && <IconComponent className={`${iconSizes} shrink-0 ${iconColors}`} />}
             <span className="truncate max-w-[140px]">{professionName}</span>
+            {shownLevel && (
+                <span className="text-[10px] font-semibold tabular-nums opacity-90">Lv.{shownLevel}</span>
+            )}
         </span>
     );
 }

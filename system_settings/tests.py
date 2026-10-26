@@ -509,6 +509,49 @@ class SyncManagerTests(TestCase):
         self.assertFalse(SyncEntityState.objects.filter(model_label__contains=':').exists())
         self.assertTrue(SyncEntityState.objects.filter(model_label='auth.user', object_pk=f'username:{user.username}').exists())
 
+    def test_aligned_unchanged_sync_skips_revisions_download(self):
+        client, manager, snapshot = self._publish_aligned_snapshot()
+        snapshot_id = snapshot['meta']['snapshot_id']
+        reads = []
+        original = manager.remote.read_json
+
+        def record(path, *args, **kwargs):
+            reads.append(path)
+            return original(path, *args, **kwargs)
+
+        with patch.object(manager.remote, 'read_json', side_effect=record):
+            result, summary, safety_backup = manager.sync_v2(base_snapshot_id=snapshot_id)
+
+        self.assertTrue(summary['unchanged'])
+        self.assertEqual(safety_backup, '')
+        self.assertEqual(result['meta']['snapshot_id'], snapshot_id)
+        self.assertNotIn(manager.remote.snapshot_path(snapshot_id, 'revisions.json'), reads)
+        self.assertIn(manager.remote.snapshot_path(snapshot_id, 'media_manifest.json'), reads)
+
+    def test_aligned_sync_downloads_revisions_when_digest_differs(self):
+        client, manager, snapshot = self._publish_aligned_snapshot()
+        snapshot_id = snapshot['meta']['snapshot_id']
+        meta_path = manager.remote.snapshot_path(snapshot_id, 'snapshot_meta.json')
+        broken = json.loads(client.get_file_content(meta_path))
+        broken['index_digest'] = {
+            'format': 1,
+            'revisions': {'count': 1, 'sha256': '0' * 64},
+            'media': broken.get('index_digest', {}).get('media', {}),
+        }
+        client.files[meta_path] = json.dumps(broken).encode('utf-8')
+        reads = []
+        original = manager.remote.read_json
+
+        def record(path, *args, **kwargs):
+            reads.append(path)
+            return original(path, *args, **kwargs)
+
+        with patch.object(manager.remote, 'read_json', side_effect=record):
+            result, summary, safety_backup = manager.sync_v2(base_snapshot_id=snapshot_id)
+
+        self.assertTrue(summary['unchanged'])
+        self.assertIn(manager.remote.snapshot_path(snapshot_id, 'revisions.json'), reads)
+
     def test_local_change_publishes_without_full_merge(self):
         client, manager, snapshot = self._publish_aligned_snapshot()
         snapshot_id = snapshot['meta']['snapshot_id']

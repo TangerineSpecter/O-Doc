@@ -106,6 +106,92 @@ class FrozenHistoryTests(TestCase):
         run = self.trip('new-trip')
         self.assertEqual(run.status, 'active')
 
+    def test_archived_facts_keep_checkpoint_boundary_and_still_validate(self):
+        from django.utils import timezone
+        from .archive import archive_owners, append_checkpoint
+
+        run = self.trip()
+        explorations.finish(run.pk, now=self.now + timedelta(seconds=15))
+        profile = CombatProfile.objects.get(pk=self.agent.pk)
+        checkpoint = append_checkpoint(profile)
+        self.assertIsNotNone(checkpoint)
+        CombatFact.objects.filter(pk=checkpoint.pk).update(
+            created_at=timezone.now() - timedelta(days=10),
+        )
+
+        results = archive_owners(None, 7, apply=True)
+        archived = next(item for item in results if item.get('actor') == self.agent.pk)
+        self.assertGreater(archived.get('archived', 0), 0)
+
+        chain = CombatIntegrity.objects.get(pk=self.agent.pk)
+        self.assertGreater(chain.archive_sequence, 0)
+        self.assertTrue(chain.archive_digest)
+        self.assertFalse(CombatFact.objects.filter(
+            actor_id=self.agent.pk, sequence__lte=chain.archive_sequence).exists())
+        self.assertTrue(CombatFact.objects.filter(pk=checkpoint.pk).exists())
+
+        data = compact_source(self.exported())
+        validate_source(data, metadata(data))
+
+        # 归档后仍能继续产生并校验新事实。
+        second = self.trip('after-archive')
+        explorations.finish(second.pk, now=self.now + timedelta(seconds=30))
+        data = compact_source(self.exported())
+        validate_source(data, metadata(data))
+
+    def test_combat_archive_compact_drops_only_archived_facts(self):
+        from .archive import compact, merged_markers
+
+        data = [
+            {'model': 'system_settings.combatintegrity', 'pk': 'a',
+             'fields': {'archive_sequence': 4, 'archive_digest': 'x'}},
+            {'model': 'system_settings.combatfact', 'pk': 'f1', 'fields': {'actor_id': 'a', 'sequence': 3}},
+            {'model': 'system_settings.combatfact', 'pk': 'f2', 'fields': {'actor_id': 'a', 'sequence': 5}},
+            {'model': 'system_settings.combatfact', 'pk': 'g1', 'fields': {'actor_id': 'b', 'sequence': 1}},
+        ]
+        revisions = {
+            'system_settings.combatfact:f1': {'hash': '1'},
+            'system_settings.combatfact:f2': {'hash': '2'},
+            'system_settings.combatfact:g1': {'hash': '3'},
+        }
+        markers = merged_markers([data])
+        kept, kept_revisions = compact(data, revisions, markers)
+        self.assertEqual({row['pk'] for row in kept if row['model'] == FACT}, {'f2', 'g1'})
+        self.assertEqual(set(kept_revisions),
+                         {'system_settings.combatfact:f2', 'system_settings.combatfact:g1'})
+
+    def test_daily_maintenance_appends_checkpoint_once(self):
+        from .. import worker
+
+        worker._combat_maintenance_day = None
+        worker._combat_attempt_at = 0.0
+        run = self.trip()
+        explorations.finish(run.pk, now=self.now + timedelta(seconds=15))
+
+        worker.maintain_combat_history()
+        first = CombatFact.objects.filter(kind='checkpoint').count()
+        self.assertGreaterEqual(first, CombatProfile.objects.count())
+        worker.maintain_combat_history()
+        self.assertEqual(CombatFact.objects.filter(kind='checkpoint').count(), first)
+
+    def test_archived_snapshot_rejects_tampered_archive_digest(self):
+        from django.utils import timezone
+        from .archive import archive_owners, append_checkpoint
+
+        run = self.trip()
+        explorations.finish(run.pk, now=self.now + timedelta(seconds=15))
+        profile = CombatProfile.objects.get(pk=self.agent.pk)
+        checkpoint = append_checkpoint(profile)
+        CombatFact.objects.filter(pk=checkpoint.pk).update(
+            created_at=timezone.now() - timedelta(days=10),
+        )
+        archive_owners(None, 7, apply=True)
+        data = compact_source(self.exported())
+        chain_row = next(row for row in data if row['model'] == CHAIN)
+        chain_row['fields']['archive_digest'] = '0' * 64
+        with self.assertRaisesMessage(Exception, '战斗事实链缺失或发生分叉'):
+            validate_source(data, metadata(data))
+
     def test_live_exploration_pins_old_rules_until_finished(self):
         run = self.trip()
         new_version = 'combat-future'
@@ -148,7 +234,7 @@ class FrozenHistoryTests(TestCase):
         snapshot = manager.build_snapshot_data()
         self.assertEqual([row['pk'] for row in snapshot if row['model'] == CATALOG], [self.catalog.version])
         meta = manager.build_snapshot_meta(data_list=snapshot)
-        self.assertEqual(meta['combat_schema_version'], 14)
+        self.assertEqual(meta['combat_schema_version'], 16)
         self.assertEqual(meta['combat_checkpoints'].keys(), {self.agent.pk})
         original = copy.deepcopy(EquipmentInstance.objects.get(actor_id=self.agent.pk).snapshot)
         for _ in range(2):

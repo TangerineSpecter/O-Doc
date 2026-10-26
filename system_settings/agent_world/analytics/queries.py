@@ -171,7 +171,12 @@ def load_facts(request, owner, start, end):
     if TravelJourney.objects.filter(owner_id=owner, status='completed', returned_at__isnull=True).exists():
         facts.unknown.add('部分旧旅行未记录返程时间，未计入区间完成成果。')
     # The immutable departure fact is the actual start, not preparing/created_at or mutable updated_at.
-    for row in window(CombatFact.objects.filter(owner_id=owner, kind='depart')):
+    # 归档会删除保留期之前的 depart 事实，已归档探索改由仍保留的 Exploration 行提供时间与归属。
+    departures = {str(row.exploration_id): row for row in window(CombatFact.objects.filter(owner_id=owner, kind='depart'))}
+    for row in window(Exploration.objects.filter(owner_id=owner)).exclude(status__in=('preparing', 'failed')):
+        departed = departures.pop(row.pk, None)
+        add('exploration:'+row.pk, row.actor_id, departed.created_at if departed else row.created_at, 'exploration')
+    for row in departures.values():
         add('exploration:'+row.exploration_id, row.actor_id, row.created_at, 'exploration')
     facts.explorations = list(window(Exploration.objects.filter(owner_id=owner), 'ended_at'))
     facts.wins = list(load_combat_kills(owner, actor_ids=actors, start=start, end=end))

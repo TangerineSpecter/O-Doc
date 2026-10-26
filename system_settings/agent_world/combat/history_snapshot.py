@@ -30,15 +30,21 @@ def aggregate_frame(rows: dict, actor: str, *, frozen: bool) -> dict:
 
 
 def verify_chain(ordered: list[dict], chain: dict, actor: str, owner: str) -> None:
-    previous = ''
-    for sequence, row in enumerate(ordered, 1):
+    base = int(chain.get('archive_sequence') or 0)
+    previous = chain.get('archive_digest') or ''
+    if base and (not previous or not ordered or ordered[0].get('kind') != 'checkpoint' or
+                 ordered[0].get('sequence') != base + 1):
+        raise ValueError('战斗事实归档边界无效，不能固化')
+    for offset, row in enumerate(ordered, 1):
+        sequence = base + offset
         content = {key: row[key] for key in ('id', 'actor_id', 'owner_id', 'sequence', 'kind',
                    'exploration_id', 'elapsed_seconds', 'payload', 'previous_hash')}
         if (row['actor_id'] != actor or row['owner_id'] != owner or row['sequence'] != sequence or
                 row['previous_hash'] != previous or digest(content) != row['digest']):
             raise ValueError('历史事实链缺失或发生分叉，不能固化')
         previous = row['digest']
-    if not ordered or chain['head'] != len(ordered) or chain['digest'] != previous or chain['owner_id'] != owner:
+    if (not ordered or chain['head'] != base + len(ordered) or chain['digest'] != previous
+            or chain['owner_id'] != owner):
         raise ValueError('历史事实链终点不一致，不能固化')
 
 

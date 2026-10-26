@@ -14,7 +14,7 @@ def validate_import(data: list[dict], meta: dict | None) -> None:
     from utils.sync_manager import SyncError
     has_food = any(row['model'] == RUN and ('food_version' in row['fields'].get('snapshot', {}) or
                    (row['fields'].get('snapshot', {}).get('prepared_plan') or {}).get('food')) for row in data)
-    if has_food and (not meta or meta.get('combat_schema_version', 0) not in (7, 8, 9, 10, 11, 12, 13, 14, 15) or
+    if has_food and (not meta or meta.get('combat_schema_version', 0) not in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16) or
                      meta.get('cooking_schema_version', 0) != 4):
         raise SyncError('美食冒险快照缺少新版战斗或烹饪同步协议')
     validate_source(data, meta, require_manifest=has_food)
@@ -34,6 +34,10 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
     from utils.sync_manager import SyncError
     runs = {str(row['pk']): row['fields'] for row in data if row['model'] == RUN}
     facts = [row['fields'] for row in data if row['model'] == FACT]
+    # 已归档探索不再携带出发事实，只保留结算快照；保留期内的探索仍逐条核对。
+    archived = {str(row['pk']) for row in data if row['model'] == 'system_settings.combatintegrity'
+                and int(row['fields'].get('archive_sequence') or 0)}
+    retained = {fact.get('exploration_id') for fact in facts if fact.get('exploration_id')}
     expected = metadata(data)
     if require_manifest and (not meta or any(meta.get(key) != value for key, value in expected.items())):
         raise SyncError('美食冒险清单或效果规则缺失或不一致')
@@ -55,6 +59,8 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
                 continue
             if type(snapshot['food_version']) is not int or snapshot['food_version'] != food_effects.VERSION:
                 raise ValueError('美食效果版本无效')
+            if run['actor_id'] in archived and identity not in retained:
+                continue
             departures = [fact for fact in facts if fact['exploration_id'] == identity and fact['kind'] == 'depart']
             if len(departures) != 1:
                 raise ValueError('美食出发缺少唯一事实')

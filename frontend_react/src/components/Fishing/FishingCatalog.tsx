@@ -19,7 +19,11 @@ export function FishingCatalog({active = true, residents = [], initialAgentId = 
     const [filter, setFilter] = useState<CollectionFilter>('all');
     const [selectedId, setSelectedId] = useState('');
     const {data, loading, error, reload} = useFishingCatalog(actor, active);
-    const allFish = Object.entries(data?.rules.fish || {});
+    // 目录存在 PostgreSQL jsonb 中，键序不保留，展示前按解锁等级与鱼等级重排。
+    const spots = Object.entries(data?.rules.spots || {}).sort(([, a], [, b]) => a.requiredLevel - b.requiredLevel);
+    const spotRank = new Map(spots.map(([id], index) => [id, index]));
+    const allFish = Object.entries(data?.rules.fish || {}).sort(([aId, a], [bId, b]) =>
+        (spotRank.get(a.spot) ?? 0) - (spotRank.get(b.spot) ?? 0) || a.level - b.level || aId.localeCompare(bId));
     const collected = allFish.filter(([id]) => (data?.discovery[id]?.count || 0) > 0).length;
     const spotFish = allFish.filter(([, fish]) => fish.spot === spot);
     const visible = spotFish.filter(([id, fish]) => {
@@ -40,7 +44,7 @@ export function FishingCatalog({active = true, residents = [], initialAgentId = 
         {loading && <div role="status" className="flex flex-1 items-center justify-center gap-2 py-8 text-xs text-slate-400"><Loader2 className="h-4 w-4 animate-spin"/>正在翻开钓鱼图鉴…</div>}
         {data && !loading && <>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <div aria-label="钓点筛选" className="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-slate-200/60 bg-slate-100 p-1 scrollbar-hide">{Object.entries(data.rules.spots).map(([id, location]) => <button type="button" key={id} aria-pressed={spot === id} onClick={() => setSpot(id)} className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${spot === id ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-500 hover:text-slate-700'}`}><MapPin className="h-3 w-3"/>{location.name}<span className={`ml-0.5 text-[9px] ${spot === id ? 'text-teal-500' : 'text-slate-400'}`}>Lv.{location.requiredLevel}</span></button>)}</div>
+                <div aria-label="钓点筛选" className="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-slate-200/60 bg-slate-100 p-1 scrollbar-hide">{spots.map(([id, location]) => <button type="button" key={id} aria-pressed={spot === id} onClick={() => setSpot(id)} className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${spot === id ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-500 hover:text-slate-700'}`}><MapPin className="h-3 w-3"/>{location.name}<span className={`ml-0.5 text-[9px] ${spot === id ? 'text-teal-500' : 'text-slate-400'}`}>Lv.{location.requiredLevel}</span></button>)}</div>
                 <div className="ml-auto flex items-center gap-1.5">{filters.map(item => {
                 const count = spotFish.filter(([id]) => item.id === 'all' || (item.id === 'caught' ? Boolean(data.discovery[id]?.count) : !data.discovery[id]?.count)).length;
                 return <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors ${filter === item.id ? 'border-teal-200 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>{item.label}<span className="opacity-60">{count}</span></button>;

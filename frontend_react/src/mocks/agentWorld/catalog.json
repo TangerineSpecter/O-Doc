@@ -743,7 +743,7 @@
     "star_rift": "星蚀裂隙"
   },
   "combat": {
-    "version": "combat-1.0.31",
+    "version": "combat-1.0.33",
     "tables": {
       "affixSlots": [
         {
@@ -32552,13 +32552,27 @@
         {
           "id": "skill.player.005.r1.e1",
           "skillLevelId": "skill.player.005.r1",
-          "code": "shield",
-          "stat": "magic_attack",
-          "value": "1.0",
-          "duration": "2",
+          "code": "modifier",
+          "stat": "reduction",
+          "value": "0.1",
+          "duration": "3",
           "target": "self",
           "damageType": "",
-          "group": "shield",
+          "group": "reduction",
+          "hits": "1",
+          "chance": "1",
+          "element": ""
+        },
+        {
+          "id": "skill.player.005.r1.e2",
+          "skillLevelId": "skill.player.005.r1",
+          "code": "mp_share",
+          "stat": "",
+          "value": "0.3",
+          "duration": "3",
+          "target": "self",
+          "damageType": "",
+          "group": "mp_share",
           "hits": "1",
           "chance": "1",
           "element": ""
@@ -32566,13 +32580,27 @@
         {
           "id": "skill.player.005.r2.e1",
           "skillLevelId": "skill.player.005.r2",
-          "code": "shield",
-          "stat": "magic_attack",
-          "value": "1.1",
-          "duration": "2",
+          "code": "modifier",
+          "stat": "reduction",
+          "value": "0.15",
+          "duration": "3",
           "target": "self",
           "damageType": "",
-          "group": "shield",
+          "group": "reduction",
+          "hits": "1",
+          "chance": "1",
+          "element": ""
+        },
+        {
+          "id": "skill.player.005.r2.e2",
+          "skillLevelId": "skill.player.005.r2",
+          "code": "mp_share",
+          "stat": "",
+          "value": "0.4",
+          "duration": "3",
+          "target": "self",
+          "damageType": "",
+          "group": "mp_share",
           "hits": "1",
           "chance": "1",
           "element": ""
@@ -32580,13 +32608,27 @@
         {
           "id": "skill.player.005.r3.e1",
           "skillLevelId": "skill.player.005.r3",
-          "code": "shield",
-          "stat": "magic_attack",
-          "value": "1.2",
-          "duration": "2",
+          "code": "modifier",
+          "stat": "reduction",
+          "value": "0.2",
+          "duration": "3",
           "target": "self",
           "damageType": "",
-          "group": "shield",
+          "group": "reduction",
+          "hits": "1",
+          "chance": "1",
+          "element": ""
+        },
+        {
+          "id": "skill.player.005.r3.e2",
+          "skillLevelId": "skill.player.005.r3",
+          "code": "mp_share",
+          "stat": "",
+          "value": "0.5",
+          "duration": "3",
+          "target": "self",
+          "damageType": "",
+          "group": "mp_share",
           "hits": "1",
           "chance": "1",
           "element": ""
@@ -32638,7 +32680,7 @@
           "skillLevelId": "skill.player.007.r1",
           "code": "damage",
           "stat": "physical_attack",
-          "value": "1.25",
+          "value": "1.5",
           "duration": "0",
           "target": "enemy",
           "damageType": "physical",
@@ -32650,9 +32692,9 @@
         {
           "id": "skill.player.007.r1.e2",
           "skillLevelId": "skill.player.007.r1",
-          "code": "attack_accuracy",
+          "code": "attack_critical",
           "stat": "",
-          "value": "0.08",
+          "value": "0.1",
           "duration": "0",
           "target": "enemy",
           "damageType": "",
@@ -32666,7 +32708,7 @@
           "skillLevelId": "skill.player.007.r2",
           "code": "damage",
           "stat": "physical_attack",
-          "value": "1.375",
+          "value": "1.7",
           "duration": "0",
           "target": "enemy",
           "damageType": "physical",
@@ -32678,9 +32720,9 @@
         {
           "id": "skill.player.007.r2.e2",
           "skillLevelId": "skill.player.007.r2",
-          "code": "attack_accuracy",
+          "code": "attack_critical",
           "stat": "",
-          "value": "0.088",
+          "value": "0.15",
           "duration": "0",
           "target": "enemy",
           "damageType": "",
@@ -32694,7 +32736,7 @@
           "skillLevelId": "skill.player.007.r3",
           "code": "damage",
           "stat": "physical_attack",
-          "value": "1.5",
+          "value": "2.0",
           "duration": "0",
           "target": "enemy",
           "damageType": "physical",
@@ -32706,9 +32748,9 @@
         {
           "id": "skill.player.007.r3.e2",
           "skillLevelId": "skill.player.007.r3",
-          "code": "attack_accuracy",
+          "code": "attack_critical",
           "stat": "",
-          "value": "0.096",
+          "value": "0.2",
           "duration": "0",
           "target": "enemy",
           "damageType": "",
@@ -39298,7 +39340,7 @@
           "costPerLevel": "0.6",
           "costRankFactor": "1.0",
           "cooldownRounds": "4",
-          "description": "护盾量为 1.0 倍魔攻",
+          "description": "减伤 10%，30% 伤害由法力承担",
           "enabled": "1"
         },
         {
@@ -39310,7 +39352,7 @@
           "costPerLevel": "0.6",
           "costRankFactor": "1.15",
           "cooldownRounds": "4",
-          "description": "护盾量为 1.0 倍魔攻",
+          "description": "减伤 15%，40% 伤害由法力承担",
           "enabled": "1"
         },
         {
@@ -39322,7 +39364,7 @@
           "costPerLevel": "0.6",
           "costRankFactor": "1.3",
           "cooldownRounds": "4",
-          "description": "护盾量为 1.0 倍魔攻",
+          "description": "减伤 20%，50% 伤害由法力承担",
           "enabled": "1"
         },
         {
@@ -39370,7 +39412,7 @@
           "costPerLevel": "0.4",
           "costRankFactor": "1.0",
           "cooldownRounds": "2",
-          "description": "1.25 倍物攻，命中加成 8 个百分点",
+          "description": "1.5 倍物攻，本技能暴击加成 10 个百分点",
           "enabled": "1"
         },
         {
@@ -39382,7 +39424,7 @@
           "costPerLevel": "0.4",
           "costRankFactor": "1.15",
           "cooldownRounds": "2",
-          "description": "1.25 倍物攻，命中加成 8 个百分点",
+          "description": "1.7 倍物攻，本技能暴击加成 15 个百分点",
           "enabled": "1"
         },
         {
@@ -39394,7 +39436,7 @@
           "costPerLevel": "0.4",
           "costRankFactor": "1.3",
           "cooldownRounds": "2",
-          "description": "1.25 倍物攻，命中加成 8 个百分点",
+          "description": "2 倍物攻，本技能暴击加成 20 个百分点",
           "enabled": "1"
         },
         {
@@ -42857,7 +42899,7 @@
         },
         {
           "id": "skill.player.007",
-          "name": "精准射击",
+          "name": "弱点射击",
           "professionId": "job.ranger",
           "learnLevel": "10",
           "kind": "active",

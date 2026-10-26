@@ -117,14 +117,14 @@ class ResidentDailyFeedTests(TestCase):
         for days in range(1, 33):
             self.activity(self.actor, days)
         first = self.client.get('/api/settings/agent-world/daily-feed/', {'actor_id': self.actor.pk}).data['data']
-        self.assertEqual(len(first['items']), 30)
+        self.assertEqual(len(first['items']), 20)
         self.assertTrue(first['hasMore'])
         self.assertEqual(first['allTotal'], 1)
         self.assertEqual(first['actorCounts'], {self.other.pk: 1})
         second = self.client.get('/api/settings/agent-world/daily-feed/', {
             'actor_id': self.actor.pk, 'cursor': first['nextCursor'],
         }).data['data']
-        self.assertEqual(len(second['items']), 2)
+        self.assertEqual(len(second['items']), 12)
         self.assertFalse(second['hasMore'])
         self.assertFalse({row['id'] for row in first['items']} & {row['id'] for row in second['items']})
 

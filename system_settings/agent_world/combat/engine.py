@@ -49,7 +49,7 @@ def available(catalog: Catalog, player: dict, enemy: dict, tick: int, style: dic
         if any(e['code'] in ('heal', 'hot') for e in effects) and h < 1:
             choices.append(2 * (1 - h) * (1 + t + c))
         for fx in effects:
-            if fx['code'] not in ('modifier', 'shield'):
+            if fx['code'] not in ('modifier', 'shield', 'mp_share'):
                 continue
             receiver = player if fx['target'] == 'self' else enemy
             if any(s['group'] == fx['group'] for s in receiver['states']):

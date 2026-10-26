@@ -27,10 +27,11 @@ def stock_changes(row: dict, balance: Counter) -> None:
             balance[material['sku']] -= material['quantity']
 
 
-def expected_stock(rows: dict, actor: str, owner: str, facts: list[dict]) -> Counter:
+def expected_stock(rows: dict, actor: str, owner: str, facts: list[dict], base_stock=None) -> Counter:
     from utils.sync_manager import SyncError
 
-    balance = Counter()
+    # 已归档事实的净变化由 `CombatIntegrity.archive_stock` 提供，避免重放旧回合。
+    balance = Counter(base_stock or {})
     # The full hash-verified chain is retained even after sealing. Counting quantities
     # needs no historical catalog and avoids counting pre-checkpoint external trades twice.
     for fact in facts:

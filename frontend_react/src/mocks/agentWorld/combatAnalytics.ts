@@ -8,6 +8,7 @@ export const combatAnalyticsResidents:CombatAnalyticsResident[]=residents.map((r
     const elapsed=index===0?54:index===1?9:0;
     return {id:resident.id,name:resident.name,avatar:'',departed:false,professionName:resident.professionName,
         job:index===1?'job.priest':'job.warrior',jobName:index===1?'牧师':'战士',
+        jobLevel:index===1?12:35,
         explorations:participated?1:0,settled:participated?1:0,completed:participated?1:0,ongoing:0,
         fallen:0,recalled:0,exhausted:0,otherEnded:0,kills,bossKills:participated?1:0,
         experience:index===0?54:index===1?35:0,elapsedSeconds:elapsed,longestSeconds:elapsed,averageSeconds:elapsed,

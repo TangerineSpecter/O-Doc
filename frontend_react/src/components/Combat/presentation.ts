@@ -41,6 +41,10 @@ export const equipmentTypeLabels: Record<string, string> = {instrument:'乐器',
 export function equipmentSlotLabel(slot: string, equipmentType?: string) {
     return slot === 'accessory' && equipmentType === 'ring' ? '戒指' : slotLabels[slot] || slot;
 }
+/** 装备类型标签（布甲/重甲/长剑…）；未分类装备回退“通用”，不显示部位名。 */
+export function equipmentTypeLabel(equipmentType?: string) {
+    return equipmentTypeLabels[equipmentType || ''] || equipmentType || equipmentTypeLabels.generic;
+}
 export const statusLabels: Record<string, string> = {waiting_party:'等待下一波加入', preparing: '准备出发', active: '探索中', battle: '交战', searching: '寻找怪物', paused: '已暂停', promotion: '等待 Agent 转职', promotion_failed: '转职选择待重试', completed: '探索完成', recalled: '已召回', fallen: '倒地', failed: '准备失败', exhausted: '资源不足', interrupted: '系统中断', done: '已结束'};
 export const qualityLabels: Record<string, string> = {white: '白装', blue: '蓝装', gold: '金装'};
 export function appendCombatEvents(previous: CombatEvent[], incoming: CombatEvent[]) {
@@ -50,7 +54,7 @@ export function appendCombatEvents(previous: CombatEvent[], incoming: CombatEven
 }
 export const elapsed = (seconds: number) => `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
 
-const effectNames: Record<string, string> = {damage:'伤害', heal:'治疗', shield:'护盾', shield_break:'破盾伤害', summon:'召唤伤害', reflect:'反伤', hot:'持续治疗', dot:'持续伤害', modifier:'属性变化', passive_cost:'魔力消耗降低', passive_percent:'属性增幅', passive_flat:'属性加成', passive_element:'属性精通', passive_recovery:'回合恢复', passive_equipment_percent:'装备精通增幅', passive_equipment_flat:'装备精通加成', passive_conversion:'属性转化', passive_damage:'伤害增幅', passive_low_hp:'低血量减伤', passive_duration:'减益延长', attack_critical:'本次暴击加成', attack_accuracy:'本次命中加成', attack_penetration:'防御穿透', missing_hp_damage:'损失生命伤害加成', shared_hit:'共享命中与暴击', attack_lifesteal:'吸血'};
+const effectNames: Record<string, string> = {damage:'伤害', heal:'治疗', shield:'护盾', mp_share:'法力分担', shield_break:'破盾伤害', summon:'召唤伤害', reflect:'反伤', hot:'持续治疗', dot:'持续伤害', modifier:'属性变化', passive_cost:'魔力消耗降低', passive_percent:'属性增幅', passive_flat:'属性加成', passive_element:'属性精通', passive_recovery:'回合恢复', passive_equipment_percent:'装备精通增幅', passive_equipment_flat:'装备精通加成', passive_conversion:'属性转化', passive_damage:'伤害增幅', passive_low_hp:'低血量减伤', passive_duration:'减益延长', attack_critical:'本次暴击加成', attack_accuracy:'本次命中加成', attack_penetration:'防御穿透', missing_hp_damage:'损失生命伤害加成', shared_hit:'共享命中与暴击', attack_lifesteal:'吸血'};
 const effectStats: Record<string, string> = {physical_attack:'物理攻击', magic_attack:'魔法攻击', physical_defense:'物理防御', magic_defense:'魔法防御', hp_max:'最大生命', mp_max:'最大魔力', critical_damage:'暴击伤害', weapon_attack:'武器攻击', attack:'攻击', defense:'防御', reduction:'减伤', damage_taken:'受到伤害', elite_boss:'对精英与Boss', strength_to_magic:'力量转为魔法攻击', spirit_to_magic:'精神转为魔法攻击', poison:'中毒', burn:'灼烧'};
 /** Old immutable catalogs described per-round recovery using the solo round's seconds. */
 export function skillDescription(description: string) {
@@ -89,7 +93,7 @@ export function effectText(effect: CombatRow) {
         return `每个交战回合行动前恢复最大${resource}的 ${Number((value * 100).toFixed(2))}%`;
     }
     const scaled = ['damage','heal','shield','shield_break','summon','hot','dot'].includes(effect.code || '');
-    const percent = ['modifier','reflect','passive_percent','passive_element','passive_equipment_percent','passive_cost','passive_damage','passive_low_hp','attack_critical','attack_accuracy','attack_penetration','missing_hp_damage','attack_lifesteal'].includes(effect.code || '') || isRatioStat(effect.stat || '');
+    const percent = ['modifier','reflect','mp_share','passive_percent','passive_element','passive_equipment_percent','passive_cost','passive_damage','passive_low_hp','attack_critical','attack_accuracy','attack_penetration','missing_hp_damage','attack_lifesteal'].includes(effect.code || '') || isRatioStat(effect.stat || '');
     const magnitude = effect.code === 'shared_hit' ? '' : scaled ? `${value} ×${stat}` : `${stat}${percent ? formatEffectPercent(value) : value}`;
     const condition = String(effect.code || '').startsWith('passive_equipment_')
         ? `（${String(effect.group || '').endsWith('_armor_set') ? '头、身体、手、脚四件齐穿' : '装备'}${equipmentTypeLabels[String(effect.group || '').replace(/_set$/, '')] || effect.group || '对应类型'}时）`

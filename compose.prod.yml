@@ -41,6 +41,7 @@ services:
       POSTGRES_PORT: 5432
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
+      ODOC_COMBAT_ARCHIVE_DAYS: ${ODOC_COMBAT_ARCHIVE_DAYS:-7}
       ODOC_SYSTEM_LOG_DIR: /app/runtime/system_logs
       ODOC_TOKEN_USAGE_DETAIL_DIR: /app/runtime/token_usage_details
       ODOC_CHROMA_PATH: /app/runtime/chroma_data

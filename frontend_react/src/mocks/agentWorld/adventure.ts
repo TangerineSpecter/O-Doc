@@ -58,11 +58,11 @@ const localPartyRewards: CombatReward[] = [
 export const localParty: import('../../types/api/combat').AdventurePartySnapshot = {
     id:'local-party',version:3,leaderId:residents[0].id,status:'active',dungeonId:'dungeon.moss_cave',teamKills:21,wave:2,round:8,phase:'battle',roundSeconds:3,
     actionOrder:[residents[1].id,'local-monster-1',residents[0].id,residents[3].id,residents[2].id],endsAt:new Date(Date.now()+30*60_000).toISOString(),
-    players:residents.slice(0,4).map((r,i)=>({id:r.id,name:r.name,level:70,jobId:['job.spellblade','job.sharpshooter','job.highpriest','job.cryomancer'][i],jobName:['盾卫','神射手','神官','冰术师'][i],hp:i===1?200:i===3?0:800-i*100,mp:300,stats:{hpMax:1000,mpMax:600,dexterity:30+i*10},states:i===0?[{code:'modifier',name:'盾墙·全队减伤',remaining:2}]:[],revived:i===1})),
+    players:residents.slice(0,4).map((r,i)=>({id:r.id,name:r.name,level:70,jobId:['job.spellblade','job.sharpshooter','job.highpriest','job.cryomancer'][i],jobName:['盾卫','神射手','神官','冰术师'][i],hp:i===1?200:i===3?0:800-i*100,mp:300,stats:{hpMax:1000,mpMax:600,dexterity:30+i*10},states:i===0?[{code:'modifier',name:'盾墙·全队减伤',remaining:2}]:i===3?[{code:'modifier',name:'魔法屏障',remaining:2},{code:'mp_share',name:'魔法屏障',remaining:2}]:[],revived:i===1})),
     enemies:[0,1,2,3].map(i=>({id:`local-monster-${i}`,templateId:['monster.moss_beast','monster.cave_bat','monster.cave_crystal_lizard','monster.slime'][i],name:['苔石兽','洞穴蝙蝠','洞穴晶蜥','软泥怪'][i],rank:i===0?'elite':'normal',level:18,hp:i===2?0:450,mp:80,stats:{hpMax:1000,mpMax:100},states:[],taunt:{actorId:residents[0].id,expires:10}})),
     events:[{id:'local-party-event',sequence:3,kind:'round',payload:{round:8,events:[
         {kind:'revive',actorId:residents[2].id,actor:residents[2].name,targetId:residents[1].id,target:residents[1].name,action:'复活术',healing:200},
-        {kind:'damage',actorId:'local-monster-1',actor:'洞穴蝙蝠',targetId:residents[3].id,target:residents[3].name,action:'普通攻击',damage:500},
+        {kind:'damage',actorId:'local-monster-1',actor:'洞穴蝙蝠',targetId:residents[3].id,target:residents[3].name,action:'普通攻击',damage:500,mp_paid:40},
         {kind:'loot_roll',rolls:localPartyRewards.map(reward=>({rewardId:reward.id,winnerId:residents[0].id,rounds:[{[residents[0].id]:91,[residents[1].id]:32,[residents[2].id]:65,[residents[3].id]:78}],reward}))},
     ]}}],
 };

@@ -12,7 +12,7 @@ from ..models import WorldLedger
 from ..farm_models import AgentFarm, FarmOperation
 from ..travel_models import TravelJourney
 from ..social_models import Moment, MomentComment
-from ..combat.models import CombatFact, CombatEncounter, Exploration
+from ..combat.models import CombatFact, CombatEncounter, CombatProfile, Exploration
 from ..investment_models import InvestmentDecision, InvestmentTrade
 from .views import AnalyticsParams
 
@@ -308,6 +308,15 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertEqual(result['combatComparison'],self.fetch()['combatComparison'])
         self.assertEqual([row['id'] for row in self.fetch(self.b.pk)['combatComparison']],[self.b.pk])
 
+    def test_archived_runs_still_count_after_depart_fact_is_deleted(self):
+        # 归档删除 depart 事实后，统计仍需按仍保留的探索行计入已结算记录。
+        archived = self.exploration('archived-run', self.a, departed=False)
+        Exploration.objects.filter(pk=archived.pk).update(created_at=self.at)
+        never_started = self.exploration('never-started', self.a, status='failed', departed=False, kills=0)
+        Exploration.objects.filter(pk=never_started.pk).update(created_at=self.at)
+        row = next(row for row in self.fetch()['combatComparison'] if row['id']==self.a.pk)
+        self.assertEqual((row['explorations'],row['settled'],row['completed']), (1,1,1))
+
     def test_empty_ongoing_and_foreign_owner_records(self):
         self.exploration('foreign', self.a, owner='other', kills=99)
         self.exploration('only-active', self.b, status='paused', kills=0, elapsed=0)
@@ -317,6 +326,19 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertEqual(rows[self.b.pk]['ongoing'],1)
         self.assertIsNone(rows[self.b.pk]['successRate'])
         self.assertIsNone(rows[self.b.pk]['killsPerHour'])
+
+    def test_job_level_uses_progression_then_snapshot_and_stays_empty_without_data(self):
+        run = self.exploration('snapshot-later', self.b)
+        row = next(row for row in self.fetch()['combatComparison'] if row['id']==self.b.pk)
+        self.assertEqual((row['jobName'],row['jobLevel']),(None,None))
+        CombatProfile.objects.create(pk=self.a.pk, owner_id='admin', actor_name=self.a.name,
+            catalog_id='test', progression={'job':'job.priest','level':7})
+        self.exploration('with-profile', self.a)
+        run.snapshot = {**run.snapshot, 'progression': {'job':'job.mage','level':12}}
+        run.save(update_fields=['snapshot'])
+        rows = {row['id']:row for row in self.fetch()['combatComparison']}
+        self.assertEqual((rows[self.a.pk]['jobName'],rows[self.a.pk]['jobLevel']),('牧师',7))
+        self.assertEqual((rows[self.b.pk]['jobName'],rows[self.b.pk]['jobLevel']),('法师',12))
 
     def party_kill(self, run, unit, *, template='monster.slime', rank='normal', shared=None, at=None, owner='admin'):
         from ..combat.party_models import AdventureEvent

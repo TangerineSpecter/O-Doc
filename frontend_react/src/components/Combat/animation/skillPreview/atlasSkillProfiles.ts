@@ -15,7 +15,7 @@ export const atlasSkillProfiles:AtlasSkillProfile[]=[
     profile(2,'护体','armor',1,'sword','#99b8bf','#e1f5ef','self'),
     {...profile(4,'魔力弹','bolt',1,'staff','#82cbe7','#e2ffff'),release:.5,impact:.95,duration:1.7},
     {...profile(5,'魔法屏障','barrier',1,'staff','#a5eff3','#f0fff7','self'),release:.6,duration:3},
-    profile(7,'精准射击','aim',1,'bow','#a8c987','#eff3c7','enemy','shot'),
+    profile(7,'弱点射击','aim',1,'bow','#a8c987','#eff3c7','enemy','shot'),
     profile(8,'闪身','evade',1,'bow','#bddce0','#f0ffff','self','dash'),
     profile(10,'治愈术','heal',1,'holy_staff','#a6d69b','#f0ffd4','self'),
     profile(11,'圣光','holybolt',1,'holy_staff','#e9c983','#fff7da'),

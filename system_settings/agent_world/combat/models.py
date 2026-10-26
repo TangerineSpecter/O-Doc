@@ -128,6 +128,11 @@ class CombatIntegrity(models.Model):
     head = models.PositiveBigIntegerField(default=0)
     digest = models.CharField(max_length=64, blank=True)
     frame = models.CharField(max_length=64, blank=True)
+    # 归档只发生在检查点边界：sequence <= archive_sequence 的事实已删除，
+    # 链从 archive_digest 继续校验，archive_stock 保存被删事实的物资净变化。
+    archive_sequence = models.PositiveBigIntegerField(default=0)
+    archive_digest = models.CharField(max_length=64, blank=True, default='')
+    archive_stock = models.JSONField(default=dict, blank=True)
 
 
 class CombatRuntime(models.Model):

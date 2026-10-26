@@ -1,7 +1,8 @@
 import {ArrowUpRight, RefreshCw} from 'lucide-react';
-import {useEffect, useRef} from 'react';
+import {useRef} from 'react';
 import type {AgentRelationNode} from '../../types/api/setting';
 import {useDailyFeed} from '../../hooks/useDailyFeed';
+import useLoadMoreOnScroll from '../../hooks/useLoadMoreOnScroll';
 import ResidentActivityTimeline from './ResidentActivityTimeline';
 import WorldDialog from './WorldDialog';
 import AgentAvatar from './AgentAvatar';
@@ -11,16 +12,15 @@ import './residentActivityTransition.css';
 export default function ResidentActivityDialog({agent, onClose, onViewComplete}: {agent: AgentRelationNode; onClose: () => void; onViewComplete?: () => void}) {
     const feed = useDailyFeed(agent.id, 'all', 10, true);
     const scrollRoot = useRef<HTMLDivElement>(null);
-    const loadMoreTarget = useRef<HTMLDivElement>(null);
     const {loading, loadingMore, error, result, loadMore} = feed;
-    useEffect(() => {
-        if (loading || loadingMore || error || !result?.hasMore || !scrollRoot.current || !loadMoreTarget.current) return;
-        const observer = new IntersectionObserver(entries => {
-            if (entries.some(entry => entry.isIntersecting)) void loadMore();
-        }, {root: scrollRoot.current, rootMargin: '0px 0px 100px 0px'});
-        observer.observe(loadMoreTarget.current);
-        return () => observer.disconnect();
-    }, [loading, loadingMore, error, result?.hasMore, loadMore]);
+    const loadMoreTarget = useLoadMoreOnScroll({
+        hasMore: Boolean(result?.hasMore),
+        loading: loading || loadingMore,
+        disabled: Boolean(error),
+        rootRef: scrollRoot,
+        rootMargin: '0px 0px 100px 0px',
+        onLoadMore: () => {void loadMore();},
+    });
     return <WorldDialog title={`${agent.name}的最近活动`} description="活动结果与已保存的模型选择，按时间从新到旧排列。" size="compact" fixedHeight onClose={onClose}>
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-4 flex shrink-0 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3"><AgentAvatar name={agent.name} avatar={agent.avatar}/><div className="flex-1"><p className="text-sm font-semibold text-slate-800">{agent.name}</p><p className="mt-1 text-xs text-slate-400">最近的活动结果与选择判断</p></div><button type="button" aria-label="刷新居民活动" title="刷新" disabled={feed.loading || feed.loadingMore} onClick={feed.reload} className="rounded-md border border-slate-200 bg-white p-2 text-slate-400 transition-colors hover:border-orange-200 hover:text-orange-600"><RefreshCw className={`h-4 w-4 ${feed.loading ? 'motion-safe:animate-spin' : ''}`}/></button></div>

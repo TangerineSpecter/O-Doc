@@ -19,18 +19,26 @@ def count(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
 
+def job_level(progression):
+    """战斗职业等级来自推进快照；缺失或非法时返回 None，由前端隐藏等级而不伪造 1 级。"""
+    value = (progression or {}).get('level')
+    return value if type(value) is int and 1 <= value <= 99 else None
+
+
 def aggregate_combat(residents, runs, kills):
     profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys())}
     rows = {}
     for actor, resident in residents.items():
         profile = profiles.get(actor)
-        job_id = profile.progression.get('job', 'job.novice') if profile and profile.progression else None
+        progression = profile.progression if profile and profile.progression else None
+        job_id = progression.get('job', 'job.novice') if progression else None
         job_name = JOB_NAMES.get(job_id, job_id) if job_id else None
         rows[actor] = {
             **resident,
             'professionName': resident.get('professionName'),
             'job': job_id,
             'jobName': job_name,
+            'jobLevel': job_level(progression) if progression else None,
             'explorations': 0, 'settled': 0, 'completed': 0,
             'ongoing': 0, 'fallen': 0, 'recalled': 0, 'exhausted': 0, 'otherEnded': 0,
             'kills': 0, 'bossKills': 0, 'experience': 0, 'elapsedSeconds': 0,
@@ -42,10 +50,13 @@ def aggregate_combat(residents, runs, kills):
         if row is None or run.pk in seen:
             continue
         if not row.get('jobName'):
-            snap_job = (run.snapshot.get('progression') or {}).get('job')
+            snap_progression = run.snapshot.get('progression') or {}
+            snap_job = snap_progression.get('job')
             if snap_job:
                 row['job'] = snap_job
                 row['jobName'] = JOB_NAMES.get(snap_job, snap_job)
+                if row.get('jobLevel') is None:
+                    row['jobLevel'] = job_level(snap_progression)
         seen.add(run.pk)
         row['explorations'] += 1
         if run.status in OPEN:
@@ -89,9 +100,13 @@ def aggregate_combat(residents, runs, kills):
 
 
 def load_combat_statistics(owner, start, end, residents):
-    # Actual departures, not preparation requests or mutable timestamps, define the cohort.
-    ids = CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
-        created_at__gte=start, created_at__lt=end).values_list('exploration_id', flat=True).distinct()
+    # 归档会删除保留期之前的 depart 事实，因此用仍保留的探索行补齐已结算记录；
+    # depart 事实用于精确覆盖未归档区间，准备失败（failed）与尚未出发不计数。
+    ids = set(CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
+        created_at__gte=start, created_at__lt=end).values_list('exploration_id', flat=True))
+    ids.update(Exploration.objects.filter(owner_id=owner, actor_id__in=residents,
+        created_at__gte=start, created_at__lt=end).exclude(status__in=('preparing', 'failed'))
+        .values_list('pk', flat=True))
     runs = list(Exploration.objects.filter(owner_id=owner, actor_id__in=residents, pk__in=ids))
     kills = load_combat_kills(owner, exploration_ids=[run.pk for run in runs], actor_ids=residents)
     return aggregate_combat(residents, runs, kills)

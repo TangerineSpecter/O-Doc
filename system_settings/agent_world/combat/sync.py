@@ -21,7 +21,7 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>15:
+    if meta and meta.get('combat_schema_version',0)>16:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     if meta is not None and meta.get('combat_schema_version', 0) < 15 and any(row['model'] in (LABEL+'adventureplanningday', LABEL+'adventurereservation') for row in data):
         raise SyncError('组队探索预约需要战斗同步15')
@@ -76,6 +76,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             raise SyncError('战斗固化检查点或运行目录清单不一致')
     from .equipment_snapshot import validate as validate_gear, slot_matches, permitted
     from .frozen_validation import validate_progression, validate_consumption
+    archived_actors=set()
     for actor,profile in profiles.items():
         chain=chains[actor]
         ordered=sorted(facts[actor],key=lambda r:r['sequence'])
@@ -102,8 +103,16 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             raise SyncError('战斗固化检查点缺失或无效') from exc
         if (CATALOG, profile['catalog_id']) not in rows:
             raise SyncError('居民当前运行目录缺失')
-        previous = ''
-        for sequence,row in enumerate(ordered,1):
+        base = int(chain.get('archive_sequence') or 0)
+        if base:
+            archived_actors.add(actor)
+            stock_plan = chain.get('archive_stock') or {}
+            if not isinstance(stock_plan, dict) or any(
+                    not str(key).startswith('combat.') or type(value) is not int for key, value in stock_plan.items()):
+                raise SyncError('战斗归档库存基线无效')
+        previous = chain.get('archive_digest') or ''
+        for offset,row in enumerate(ordered):
+            sequence = base + offset + 1
             content={k:row[k] for k in ('id','actor_id','owner_id','sequence','kind','exploration_id','elapsed_seconds','payload','previous_hash')}
             if row['sequence']!=sequence or row['previous_hash']!=previous or digest(content)!=row['digest'] or row['owner_id']!=profile['owner_id']:raise SyncError('战斗事实链缺失或发生分叉')
             previous=row['digest'];payload=row['payload'];kind=row['kind']
@@ -175,7 +184,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                     equipment_id=op.get('equipment_id')
                     judged=any((fact.get('payload') or {}).get('equipment_id')==equipment_id
                                and (fact.get('payload') or {}).get('action')=='list'
-                               and fact['sequence']<row['sequence'] for fact in ordered)
+                               and fact['sequence']<row['sequence'] for fact in ordered) or bool(base and equipment_id in expected_gear)
                     if (not listing or not judged or equipment_id not in expected_gear
                             or listing['seller_id']!=actor
                             or (listing.get('item') or {}).get('source',{}).get('equipment_id')!=equipment_id):
@@ -215,7 +224,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                     expected_gear[equipment_id]=deepcopy(payload['snapshot'])
                     expected_rules[equipment_id]=deepcopy(payload.get('equipment_rules'))
                     validate_gear(expected_gear[equipment_id], expected_rules[equipment_id])
-        if chain['head']!=len(ordered) or chain['digest']!=previous or progression!=profile['progression']:raise SyncError('战斗成长或事实链终点不一致')
+        if chain['head']!=base+len(ordered) or chain['digest']!=previous or progression!=profile['progression']:raise SyncError('战斗成长或事实链终点不一致')
         equipment=[r for (m,_),r in rows.items() if m==GEAR and r['actor_id']==actor]
         if {r['id'] for r in equipment}!=set(expected_gear):raise SyncError('装备缺少掉落或绑定来源')
         for item in equipment:
@@ -241,7 +250,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                 if item['owner_id']!=profile['owner_id']:raise SyncError('战斗库存归属不一致')
                 actual[item['source']['sku']]+=item['quantity']
         from .stock_validation import expected_stock
-        stock = expected_stock(rows, actor, profile['owner_id'], ordered)
+        stock = expected_stock(rows, actor, profile['owner_id'], ordered, chain.get('archive_stock'))
         if {k:v for k,v in stock.items() if v}!={k:v for k,v in actual.items() if v}:raise SyncError('战斗库存与消费、掉落事实不一致')
         frame = aggregate_frame(rows, actor, frozen=True)
         if digest(frame)!=chain['frame']:raise SyncError('战斗快照包含独立合并的装备、成长或探索状态')
@@ -258,8 +267,13 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
         if run['record_id'] and (LABEL+'agentrunrecord',run['record_id']) not in rows:raise SyncError('探索回顾记录缺失')
         from .explorations import TERMINAL
         if run['status'] in TERMINAL:
-            terminal=[r for r in facts[run['actor_id']] if r['kind']=='terminal' and r['exploration_id']==pk]
             record=rows.get((LABEL+'agentrunrecord',run['record_id']))
+            retained=any(f['exploration_id']==pk for f in facts[run['actor_id']])
+            if run['actor_id'] in archived_actors and not retained:
+                # 已归档的旧探索只保留结算行与回顾记录，逐回合事实不再参与校验。
+                if not record:raise SyncError('已归档探索缺少结算回顾记录')
+                continue
+            terminal=[r for r in facts[run['actor_id']] if r['kind']=='terminal' and r['exploration_id']==pk]
             if len(terminal)!=1 or not record:raise SyncError('探索终态缺少唯一结算和回顾来源')
             payload=terminal[0]['payload']
             if payload['status']!=run['status'] or payload['record_id']!=run['record_id'] or payload['report']!=run['result'].get('report') or payload['returned']!=run['result'].get('returned_potions'):
@@ -380,5 +394,5 @@ def metadata(data=None):
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
     # 12: forge receipts establish equipment provenance and consume maze materials.
-    return {'combat_schema_version':15,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+    return {'combat_schema_version':16,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

@@ -91,6 +91,7 @@ export default function ResidentCombatCard({
                             <h3 className="text-sm font-bold text-slate-900 truncate">{row.name}</h3>
                             <ProfessionBadge
                                 professionName={row.jobName}
+                                level={row.jobLevel}
                                 size="xs"
                                 variant="indigo"
                                 showEmpty

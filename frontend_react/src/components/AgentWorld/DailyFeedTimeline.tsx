@@ -10,6 +10,7 @@ import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed'
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
 import {shanghaiDay, useDailyFeed} from '../../hooks/useDailyFeed';
 import useHorizontalWheelScroll from '../../hooks/useHorizontalWheelScroll';
+import useLoadMoreOnScroll from '../../hooks/useLoadMoreOnScroll';
 import AgentActivityCard from './AgentActivityCard';
 import AgentActivitySummary from './AgentActivitySummary';
 import AgentAvatar from './AgentAvatar';
@@ -267,6 +268,12 @@ export default function DailyFeedTimeline({actorId, residents, onOpen, onSummary
     const [category, setCategory] = useState<DailyFeedCategory>('all');
     const tabsScrollRef = useHorizontalWheelScroll<HTMLDivElement>();
     const feed = useDailyFeed(actorId, category);
+    const loadMoreRef = useLoadMoreOnScroll({
+        hasMore: Boolean(feed.result?.hasMore),
+        loading: feed.loading || feed.loadingMore,
+        disabled: Boolean(feed.error),
+        onLoadMore: () => {void feed.loadMore();},
+    });
     useEffect(() => {if (refreshToken) feed.reload();}, [refreshToken, feed.reload]);
     const today = shanghaiDay();
     // 页眉和居民计数保留今日口径，下面的活动列表跨日期展示。
@@ -309,8 +316,12 @@ export default function DailyFeedTimeline({actorId, residents, onOpen, onSummary
                 : feed.items.map(event => category === 'record'
                     ? <RecordCard key={event.id} event={event} residents={residents} onOpen={onOpen}/>
                     : <EventCard key={event.id} event={event} residents={residents} onOpen={onOpen}/>)}
-            {feed.error && <p className="text-center text-xs text-red-600">{feed.error}</p>}
-            {feed.result?.hasMore && <button type="button" disabled={feed.loadingMore} onClick={() => void feed.loadMore()} className="w-full rounded-xl border border-slate-200 bg-white py-3 text-xs font-medium text-slate-600 hover:border-orange-200 disabled:opacity-50">{feed.loadingMore ? '加载中…' : '加载更多'}</button>}
+            {feed.error && <p role="alert" className="text-center text-xs text-red-600">{feed.error}{feed.result?.hasMore ? <button type="button" onClick={() => void feed.loadMore()} className="ml-2 underline">重试</button> : null}</p>}
+            {feed.result?.hasMore
+                ? <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center py-4">
+                    {feed.loadingMore ? <StarLoader variant="pill" size="sm" message="正在加载更早的活动…"/> : <span className="text-xs text-slate-400">向下滚动加载更多</span>}
+                </div>
+                : <p className="py-4 text-center text-xs text-slate-400">已经到底了，暂无更多活动</p>}
         </div> : <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-500">暂无{category === 'all' ? '' : tabs.find(tab => tab.value === category)?.label}活动</div>}
     </section>;
 }

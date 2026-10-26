@@ -1,6 +1,7 @@
 import {useState, type ComponentType} from 'react';
 import type {CombatEquipment} from '../../types/api/combat';
 import {
+    equipmentTypeLabel,
     formatRatio,
     isRatioStat,
     normalizeStatKey,
@@ -75,6 +76,8 @@ export function DiabloEquipmentSlot({
     const gear = item?.snapshot;
     const isGold = gear?.quality === 'gold';
     const isBlue = gear?.quality === 'blue';
+    // 装备类型（布甲/重甲/长剑等）；未分类装备显示“通用”，不重复部位名称
+    const typeLabel = equipmentTypeLabel(gear?.equipmentType || item?.displayType);
 
     // 剔除词条影响，计算纯白字基础属性 (精准对齐下划线与驼峰命名)
     const baseStats = gear
@@ -260,9 +263,11 @@ export function DiabloEquipmentSlot({
                                         {qualityLabels[gear.quality] || gear.quality}
                                     </span>
                                 </div>
-                                <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-                                    <span>{label}</span>
-                                    <span className="font-mono text-orange-600 font-semibold">装等 Lv.{gear.level}</span>
+                                <div className="mt-1 flex items-center justify-between gap-1.5">
+                                    <span className="truncate rounded bg-orange-50 px-1.5 py-0.2 text-[10px] font-semibold text-orange-700">
+                                        {typeLabel}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-[11px] text-orange-600 font-semibold">装等 Lv.{gear.level}</span>
                                 </div>
                             </div>
 

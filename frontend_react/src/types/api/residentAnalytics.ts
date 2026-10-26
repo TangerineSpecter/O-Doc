@@ -40,6 +40,7 @@ export interface CombatAnalyticsResident extends AnalyticsResident {
     professionName?: string | null;
     job?: string | null;
     jobName?: string | null;
+    jobLevel?: number | null;
     explorations: number; settled: number; completed: number; ongoing: number;
     fallen: number; recalled: number; exhausted: number; otherEnded: number;
     kills: number; bossKills: number; experience: number; elapsedSeconds: number;

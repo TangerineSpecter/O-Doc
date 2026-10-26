@@ -99,7 +99,8 @@ def damage(raw, kind: str, attacker_level: int, target: dict, *, penetration=0, 
     return max(1, math.floor(result))
 
 
-def hurt(target: dict, amount: int) -> tuple[int, int, dict | None]:
+def hurt(target: dict, amount: int) -> tuple[int, int, dict | None, int]:
+    """Settle post-mitigation damage: shield first, then the mana share pays its ratio."""
     shield = next((s for s in target['states'] if s['code'] == 'shield'), None)
     absorbed = min(amount, shield['remaining']) if shield else 0
     broken = None
@@ -109,9 +110,17 @@ def hurt(target: dict, amount: int) -> tuple[int, int, dict | None]:
             if shield['group'] == HOLY_AEGIS_SHIELD_GROUP:
                 broken = dict(shield)
             target['states'].remove(shield)
-    taken = min(target['hp'], amount - absorbed)
+    remaining = amount - absorbed
+    share = next((s for s in target['states'] if s['code'] == 'mp_share'), None)
+    paid = 0
+    if share and remaining > 0:
+        # Fraction keeps a 30% share of 80 at 24 instead of flooring binary dust to 23.
+        paid = min(math.floor(Fraction(remaining) * Fraction(str(share['value']))), max(0, target.get('mp', 0)))
+        if paid:
+            target['mp'] -= paid
+    taken = min(target['hp'], remaining - paid)
     target['hp'] -= taken
-    return taken, absorbed, broken
+    return taken, absorbed, broken, paid
 
 
 def status(target: dict, effect: dict) -> None:
@@ -217,10 +226,13 @@ def _reflect_damage(catalog: Catalog, bearer: dict, attacker: dict, raw_by_type:
     # it is then mitigated by the attacker's matching defense, without crit or recursion.
     for kind, raw in raw_by_type.items():
         amount = damage(raw * reflect, kind, bearer['level'], attacker)
-        taken, absorbed, broken = hurt(attacker, amount)
-        events.append({'actor': bearer['name'], 'target': attacker['name'], 'actor_id':bearer.get('id'), 'target_id':attacker.get('id'), 'action': '盾墙·反伤',
-                       'kind': 'damage', 'damage': taken, 'absorbed': absorbed,
-                       'hit': True, 'critical': False})
+        taken, absorbed, broken, paid = hurt(attacker, amount)
+        event = {'actor': bearer['name'], 'target': attacker['name'], 'actor_id':bearer.get('id'), 'target_id':attacker.get('id'), 'action': '盾墙·反伤',
+                 'kind': 'damage', 'damage': taken, 'absorbed': absorbed,
+                 'hit': True, 'critical': False}
+        if paid:
+            event['mp_paid'] = paid
+        events.append(event)
         if broken:
             events.extend(_shield_break(catalog, attacker, bearer, broken, tick, rng))
         if attacker['hp'] <= 0:
@@ -236,8 +248,10 @@ def upkeep(fighter: dict, tick: int, events: list[dict], *, opponent=None, catal
                 continue
             if code == 'dot':
                 amount = damage(state['raw'], state['damage_type'], state['source_level'], fighter)
-                taken, absorbed, broken = hurt(fighter, amount)
+                taken, absorbed, broken, paid = hurt(fighter, amount)
                 event = {'actor': fighter['name'], 'action': state['name'], 'damage': taken, 'absorbed': absorbed, 'kind': 'dot'}
+                if paid:
+                    event['mp_paid'] = paid
                 if state.get('element'):
                     event['element'] = state['element']
                 events.append(event)
@@ -320,13 +334,15 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
                             variation=rng.uniform(.95, 1.05), critical=value(attacker, 'critical_damage') if critical else 1,
                             extra=extra*(1+passive(attacker,'passive_bard_resonance') if not summon and resonance(attacker,target,tick) else 1), element_factor=factor,
                             incoming_reduction=max((s['value'] for s in attacker['states'] if s.get('stat')=='outgoing_reduction'),default=0)) if landed else 0
-            taken, absorbed, broken = hurt(target, amount)
+            taken, absorbed, broken, paid = hurt(target, amount)
             if not summon and attacker is not target:
                 echo_damage += taken
             if not summon and effect['damage_type'] == 'physical' and attacker is not target:
                 lifesteal_damage += taken
             event = {'actor': attacker['name'], 'target': target['name'], 'actor_id':attacker.get('id'), 'target_id':target.get('id'), 'action': action_name, 'kind': 'damage',
                      'damage': taken, 'absorbed': absorbed, 'hit': landed, 'critical': landed and critical}
+            if paid:
+                event['mp_paid'] = paid
             if landed and element and abs(factor - 1) > 1e-9:
                 event['element'] = element
             events.append(event)
@@ -348,7 +364,7 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
         code = fx['code']
         if code == 'shield_break':
             continue
-        if code not in ('heal', 'shield', 'hot', 'dot', 'modifier', 'reflect'):
+        if code not in ('heal', 'shield', 'hot', 'dot', 'modifier', 'reflect', 'mp_share'):
             continue
         receiver = attacker if fx['target'] in ('self', 'ally', 'all_allies') else target
         if (receiver is target and (not successful or target['hp'] <= 0)) or rng.random() >= float(fx['chance']):
@@ -361,7 +377,7 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
             events.append({'actor': attacker['name'], 'target':receiver['name'], 'actor_id':attacker.get('id'), 'target_id':receiver.get('id'), 'action': name, 'kind': 'heal', 'healing': restored})
             continue
         state = {'code': code, 'group': fx['group'], 'stat': fx['stat'], 'value': float(fx['value']), 'name': name}
-        if code in ('modifier', 'reflect'):
+        if code in ('modifier', 'reflect', 'mp_share'):
             if receiver is target and fx['stat'] in ('attack', 'defense', 'physical_defense', 'magic_defense'):
                 duration += max((int(f['value']) for f in attacker['passives'] if f['code'] == 'passive_duration'), default=0)
             state['expires'] = tick + duration

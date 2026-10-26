@@ -43,7 +43,7 @@ class DailyFeedView(APIView):
             except ValueError:
                 return valid_result('活动游标无效', status=400)
         try:
-            size = int(request.query_params.get('page_size', '30'))
+            size = int(request.query_params.get('page_size', '20'))
             if not 1 <= size <= 30:
                 raise ValueError()
         except (TypeError, ValueError):

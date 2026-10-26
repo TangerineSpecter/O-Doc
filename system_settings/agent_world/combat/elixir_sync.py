@@ -28,6 +28,10 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
         raise SyncError('炼金药水冒险清单缺失或不一致')
     runs = {str(row['pk']): row['fields'] for row in data if row['model'] == RUN}
     facts = [row['fields'] for row in data if row['model'] == FACT and row['fields'].get('kind') == 'depart']
+    # 已归档探索不再携带出发事实，只保留携带与结算快照。
+    archived = {str(row['pk']) for row in data if row['model'] == 'system_settings.combatintegrity'
+                and int(row['fields'].get('archive_sequence') or 0)}
+    retained = {str(fact.get('exploration_id')) for fact in facts}
     try:
         for identity, run in runs.items():
             snapshot = run.get('snapshot') or {}
@@ -89,6 +93,8 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
             if result.get('elixirs_carried') is not None:
                 if [{k: row[k] for k in ('recipe_id', 'stars', 'count')} for row in carried] != result['elixirs_carried']:
                     raise ValueError('炼金结算携带清单不一致')
+            if run['actor_id'] in archived and identity not in retained:
+                continue
             departures = [fact for fact in facts if str(fact.get('exploration_id')) == identity]
             if len(departures) != 1:
                 raise ValueError('炼金出发缺少唯一事实')

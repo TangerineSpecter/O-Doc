@@ -305,6 +305,7 @@ export default function CombatResidentsRanking({
                                     <td className="whitespace-nowrap px-3 py-3 text-left">
                                         <ProfessionBadge
                                             professionName={row.jobName}
+                                            level={row.jobLevel}
                                             size="xs"
                                             variant="indigo"
                                             showEmpty

@@ -1,5 +1,5 @@
 import type {CombatEquipment} from '../../types/api/combat';
-import {equipmentSlotLabel, equipmentTypeLabels, formatRatio, isRatioStat, normalizeStatKey, statLabels} from './presentation';
+import {equipmentSlotLabel, equipmentTypeLabel, formatRatio, isRatioStat, normalizeStatKey, statLabels} from './presentation';
 import {ElementBadge} from './ElementBadge';
 import {EquipmentPortrait} from './atlas/EquipmentPortrait';
 import {CircleDollarSign, Coins, Heart, ShieldCheck, Sparkles} from 'lucide-react';
@@ -135,7 +135,7 @@ export default function EquipmentCard({
                     {/* 顶部第 2 行：固定在名称正下方的「通用/类型」标签 + 右侧「金币价格」+ (绑定/收藏) */}
                     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         <span className="rounded bg-orange-50 px-1.5 py-0.2 text-[10px] font-semibold text-orange-700">
-                            {equipmentTypeLabels[displayType || 'generic'] || displayType || '通用'}
+                            {equipmentTypeLabel(displayType)}
                         </span>
                         {gear.slot === 'weapon' && (
                             <ElementBadge element={gear.element} size="xs" />

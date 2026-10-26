@@ -20,7 +20,7 @@ JOB_KEYS = dict(zip(
       'archer assassin cleric naturalist swordmaster spellblade paladin berserker '
      'pyromancer cryomancer warlock summoner sharpshooter hunter shadowdancer '
      'trickster highpriest inquisitor druid warden').split(), strict=True))
-SKILL_NAMES = ('重斩 护体 健壮 魔力弹 魔法屏障 冥想 精准射击 闪身 灵巧 治愈术 圣光 信念 '
+SKILL_NAMES = ('重斩 护体 健壮 魔力弹 魔法屏障 冥想 弱点射击 闪身 灵巧 治愈术 圣光 信念 '
                 '连斩 剑术精通 盾击 坚壁 灼烧术 元素专注 虚弱咒 秘术节流 蓄力箭 鹰眼 背刺 致命技巧 '
                 '恢复祷言 治疗精通 荆棘术 自然韧性 破甲斩 剑意 盾墙 磐石之躯 圣盾_Holy_Aegis 圣铠 狂怒击 不屈 '
                '炎爆 炽热 暴风雪 寒霜护体 衰败咒 咒术延展 魔灵契约_Spirit_Pact 契约精通 穿透箭 精准要害 '
@@ -80,7 +80,7 @@ def player_effects() -> dict[str, list[dict]]:
     return {
         '重斩': [damage(1.35)], '护体': [status('reduction', .20, 2, 'self')],
         '魔力弹': [damage(1.35, True)], '魔法屏障': [shield(1)],
-        '精准射击': [damage(1.25), effect('attack_accuracy', '', .08)],
+        '弱点射击': [damage((1.5, 1.7, 2.0)), effect('attack_critical', '', (.10, .15, .20))],
         '闪身': [status('evasion', .10, 2, 'self')], '治愈术': [heal(1.2)], '圣光': [damage(1.25, True)],
         '连斩': [damage(.85, hits=2)], '盾击': [damage(1.1), status('attack', -.15, 1)],
         '灼烧术': [damage(1.1, True), dot(.20)], '虚弱咒': [status('attack', -.20, 3)],
@@ -111,6 +111,9 @@ def skill_description(name: str, description: str, rank: int) -> str:
     if name == '圣愈':
         recovery = (.01, .02, .03)[rank - 1]
         return f'战斗中每 15 秒恢复最大生命与最大法力各 {recovery * 100:g}%'
+    if name == '弱点射击':
+        damage, critical = (1.5, 1.7, 2.0)[rank - 1], (10, 15, 20)[rank - 1]
+        return f'{damage:g} 倍物攻，本技能暴击加成 {critical} 个百分点'
     if name != '魔灵契约 (Spirit Pact)':
         return description
     scale = 1 + .1 * (rank - 1)

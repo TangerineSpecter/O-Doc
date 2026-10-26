@@ -195,7 +195,7 @@ class RuleTests(SimpleTestCase):
 
     def test_element_factor_follows_channel_damage_and_stays_bounded(self):
         c = self.catalog
-        self.assertEqual(c.version, 'combat-1.0.31')
+        self.assertEqual(c.version, 'combat-1.0.33')
         defender = engine.fighter({'hp_max': 1000, 'mp_max': 10, 'physical_defense': 60}, '守方', 10)
         self.assertEqual(effects.damage(150, 'physical', 10, defender, variation=1), 100)
         defender['defending'] = True

@@ -14,6 +14,7 @@ test('shared kills appear for both members while world kills are distinct and de
     assert.equal(member.combatComparison.length,1);assert.equal(member.wins,2);
     assert.equal(member.combatComparison[0].bossKills,1);assert.equal(member.combatComparison[0].successRate,100);
     assert.equal(member.combatComparison[0].experience,35);assert.equal(member.combatComparison[0].potions,3);
+    assert.equal(member.combatComparison[0].jobName,'牧师');assert.equal(member.combatComparison[0].jobLevel,12);
 });
 
 test('empty and dates without departures have no fabricated success rates or monster details',()=>{

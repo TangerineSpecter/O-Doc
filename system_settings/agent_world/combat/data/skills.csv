@@ -5,7 +5,7 @@ skill.player.003,健壮,job.warrior,20,passive,1
 skill.player.004,魔力弹,job.mage,10,active,1
 skill.player.005,魔法屏障,job.mage,15,active,1
 skill.player.006,冥想,job.mage,20,passive,1
-skill.player.007,精准射击,job.ranger,10,active,1
+skill.player.007,弱点射击,job.ranger,10,active,1
 skill.player.008,闪身,job.ranger,15,active,1
 skill.player.009,灵巧,job.ranger,20,passive,1
 skill.player.010,治愈术,job.priest,10,active,1

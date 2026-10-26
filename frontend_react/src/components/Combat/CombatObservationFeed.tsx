@@ -170,14 +170,18 @@ function AttackCard({action, playerName}: {action: CombatAction; playerName?: st
                             未命中
                         </span>
                     ) : isCrit ? (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-amber-200/80 bg-amber-50/90 px-1.5 py-0.5 font-mono text-xs font-black text-amber-600 shadow-2xs">
-                            <span className="text-[8px] font-bold text-amber-600">暴击</span>
-                            −{damage}
+                        <span className="flex flex-col items-end gap-0.5 font-mono text-xs font-black text-amber-600 tabular-nums">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-amber-200/80 bg-amber-50/90 px-1.5 py-0.5 shadow-2xs">
+                                <span className="text-[8px] font-bold text-amber-600">暴击</span>
+                                −{damage}
+                            </span>
+                            {action.mp_paid ? <span className="text-[9px] font-semibold text-indigo-600">法力 −{action.mp_paid}</span> : null}
                         </span>
                     ) : damage != null ? (
                         <span className="flex flex-col items-end gap-0.5 font-mono text-xs font-bold text-slate-800 tabular-nums">
                             <span>−{damage}</span>
                             {action.absorbed ? <span className="text-[9px] font-semibold text-sky-600">吸收 {action.absorbed}</span> : null}
+                            {action.mp_paid ? <span className="text-[9px] font-semibold text-indigo-600">法力 −{action.mp_paid}</span> : null}
                         </span>
                     ) : null}
                 </div>
@@ -212,8 +216,10 @@ function AttackCard({action, playerName}: {action: CombatAction; playerName?: st
                         闪避
                     </span>
                 ) : damage != null ? (
-                    <span className="font-mono text-xs font-bold text-rose-600 tabular-nums">
-                        −{damage}
+                    <span className="flex flex-col items-end gap-0.5 font-mono text-xs font-bold text-rose-600 tabular-nums">
+                        <span>−{damage}</span>
+                        {action.absorbed ? <span className="text-[9px] font-semibold text-sky-600">吸收 {action.absorbed}</span> : null}
+                        {action.mp_paid ? <span className="text-[9px] font-semibold text-indigo-600">法力 −{action.mp_paid}</span> : null}
                     </span>
                 ) : null}
             </div>
