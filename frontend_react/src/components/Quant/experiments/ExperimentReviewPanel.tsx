@@ -8,7 +8,7 @@ import {createRequestKey} from '../../../utils/requestKey';
 import {QuantButton} from '../ui';
 import {ReportMarkdown} from '../ReportMarkdown';
 import {ResearchMemory} from '../ResearchMemory';
-export function ExperimentReviewPanel({collection, experiment, reload, openReport, prepareProposal, startCampaign, openFactor}: {openFactor: (id: string, name: string) => void; startCampaign: (proposal: QuantExperimentProposal) => void; prepareProposal: (proposal: QuantExperimentProposal) => void;collection: string; experiment: QuantExperiment; reload: () => void; openReport: (entryId: string, reportId: string) => void}) {
+export function ExperimentReviewPanel({collection, experiment, reload, openReport, prepareProposal, startCampaign, openFactor, nested}: {nested?: boolean;openFactor: (id: string, name: string) => void; startCampaign: (proposal: QuantExperimentProposal) => void; prepareProposal: (proposal: QuantExperimentProposal) => void;collection: string; experiment: QuantExperiment; reload: () => void; openReport: (entryId: string, reportId: string) => void}) {
     const [busy, setBusy] = useState(false), [error, setError] = useState(''), [key, setKey] = useState(createRequestKey);
     const latest = experiment.reviews?.[0], active = experiment.reviews?.find(row => ['pending', 'running'].includes(row.run.status));
     const completed = experiment.reviews?.find(row => row.report);
@@ -40,6 +40,7 @@ export function ExperimentReviewPanel({collection, experiment, reload, openRepor
         {(error || latest?.run.error) && <p role="alert" className="text-sm text-red-600">{error || latest?.run.error}</p>}
         {!latest && <p className="text-xs leading-6 text-slate-500">尚无解读。默认模型未配置或任务繁忙时，计算结果仍保留，可稍后生成。</p>}
         {report && <>{report.currentRevisionId && <p className="text-xs text-slate-500">正文已有人工修订；摘要和评分保留 AI 原稿。</p>}<p className="text-sm leading-7 text-slate-700">{report.data.summary}</p><p className="text-xs text-slate-500">实验研究评价：{report.data.totalScore === null || report.data.totalScore === undefined ? '证据不足，暂无总分' : `${report.data.totalScore} / 100`}，不代表实盘盈利能力。</p>
+            {nested && <p className="text-xs leading-6 text-slate-600">{report.data.rubricVersion==='experiment-research-v2'?'参数评价已核对全部计划内层窗口；缺测保持未知，没有共同稳定区域时最多2/5分。':'此历史报告按单窗口参数规则评价，不能作为全部内层稳定性评分；重新解读可生成新版，原报告保留。'}</p>}
             <details><summary className="cursor-pointer text-sm text-orange-700">阅读报告、参数结论与下一轮假设</summary><div className="mt-4"><ReportMarkdown text={report.markdown}/></div></details>
             {context && <QuantButton onClick={() => openReport(context.entryId, report.id)}>打开报告与修订历史</QuantButton>}</>}
         {report?.data.format === 'experiment_review' && report.data.planningNote && <p className="text-xs leading-6 text-slate-600">方案判断：{report.data.planningNote}</p>}

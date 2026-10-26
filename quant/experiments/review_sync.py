@@ -9,7 +9,7 @@ def review_evidence_from_rows(run: dict, rows: dict, fail) -> dict:
     entry = rows.get('quant.entry', {}).get(str(run.get('entry')), {})
     if not request or request.get('anthology') != entry.get('anthology'):
         fail('实验解读引用缺失或跨文集')
-    if run.get('review_version') not in (9,10) and ('strategy' in request['plan']['config']) != (run.get('review_version') == 8):
+    if run.get('review_version') not in (9,10,11,12) and ('strategy' in request['plan']['config']) != (run.get('review_version') == 8):
         fail('策略执行实验解读版本不匹配')
     seed = request['plan']['seeds'][0]['id']
     candidate = rows.get('quant.factorcandidate', {}).get(seed, {})
@@ -19,7 +19,7 @@ def review_evidence_from_rows(run: dict, rows: dict, fail) -> dict:
     dataset = rows.get('quant.marketdataset', {}).get(str(request.get('dataset')), {})
     attempts = [row for row in rows.get('quant.experimentcheckpoint', {}).values() if row.get('request') == result.get('request')]
     from .planning_context import from_rows
-    context = run.get('planning_context') if run.get('review_version') in (3, 4, 5, 6, 7, 8, 9, 10) else None
+    context = run.get('planning_context') if run.get('review_version') in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) else None
     if context is not None:
         from .library_retrieval import validate_from_rows
         validate_from_rows(run, rows, from_rows(str(result['request']), rows))
@@ -29,7 +29,7 @@ def review_evidence_from_rows(run: dict, rows: dict, fail) -> dict:
     diagnostic=diagnostic_from_rows(run,rows,fail)
     evidence = project(request['plan'], dataset['snapshot'], result['data'],
         [row['attempt'] for row in sorted(attempts, key=lambda row: row['ordinal'])],
-        planning_options=context['options'] if context is not None else from_rows(str(result['request']), rows) if run.get('review_version', 1) == 2 else None, library_context=context, sensitivity=run.get('review_version') in (4, 5, 6, 7, 8, 9, 10), joint_sensitivity=run.get('review_version') in (5, 6, 7, 8, 9, 10), research_memory=context.get('research_memory') if run.get('review_version') in (6, 7, 8, 9, 10) else None, fixed_validation=fixed,selection_diagnostic=diagnostic)
+        planning_options=context['options'] if context is not None else from_rows(str(result['request']), rows) if run.get('review_version', 1) == 2 else None, library_context=context, sensitivity=run.get('review_version') in (4, 5, 6, 7, 8, 9, 10, 11, 12), joint_sensitivity=run.get('review_version') in (5, 6, 7, 8, 9, 10, 11, 12), research_memory=context.get('research_memory') if run.get('review_version') in (6, 7, 8, 9, 10, 11, 12) else None, fixed_validation=fixed,selection_diagnostic=diagnostic,temporal_sensitivity=run.get('review_version')==12)
     if run['status'] == 'completed' and validate_review(run['result'], evidence) != run['result']:
         fail('实验解读内容或证据哈希不一致')
     return evidence

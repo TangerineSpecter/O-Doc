@@ -11,11 +11,12 @@ from .contracts import model_context,draft_projection,MAX_RAW
 from .policy import NAMES
 
 
-def input_snapshot(stage:str,ordinal:int,context:dict,requirements:str,model:dict,*,draft=None,source_report=None,version=None) -> dict:
+def input_snapshot(stage:str,ordinal:int,context:dict,requirements:str,model:dict,*,draft=None,source_report=None,version=None,resume_run_id='',retained_from=None) -> dict:
     if version is None:version=9 if context['native_review_policy']['version']==2 else 4
     value={'version':version,'method':'native-report-review-v1','stage':stage,'ordinal':ordinal,
         'context_hash':digest(context),'context':model_context(context),'requirements':requirements,
         'model':copy.deepcopy(model),'draft':draft_projection(draft) if draft is not None else None,'source_report':source_report}
+    if version>=10:value.update(resume_run_id=resume_run_id,retained_from=copy.deepcopy(retained_from))
     if version>=2:
         from . import prompts
         prompt_version=8 if version>=9 else 7 if version>=8 else 6 if version>=7 else 5 if version>=6 else 4 if version>=5 else 3 if version>=4 else 2 if version>=3 else 1
@@ -23,9 +24,10 @@ def input_snapshot(stage:str,ordinal:int,context:dict,requirements:str,model:dic
     return value
 
 
-def start(run,stage:str,ordinal:int,context:dict,config:dict,check,*,draft=None,source_report=None):
-    model={} if stage=='native_draft' and source_report else model_identity(config)
-    value=input_snapshot(stage,ordinal,context,run.requirements,model,draft=draft,source_report=source_report)
+def start(run,stage:str,ordinal:int,context:dict,config:dict,check,*,draft=None,source_report=None,retained_from=None):
+    model={} if retained_from or stage=='native_draft' and source_report else model_identity(config)
+    continuation=({'version':10,'resume_run_id':run.native_resume_run_id,'retained_from':retained_from} if run.native_resume_run_id else {})
+    value=input_snapshot(stage,ordinal,context,run.requirements,model,draft=draft,source_report=source_report,**continuation)
     with collection_lock(run.entry.anthology_id),transaction.atomic():
         check()
         step=WorkflowStep.objects.create(id=digest(['workflow-step-1',run.pk,ordinal])[:40],run=run,
@@ -46,10 +48,11 @@ def usage(run_id:str,stage:str) -> dict:
         for key in ('input_tokens','output_tokens','total_tokens')}}
 
 
-def finish(step,status:str,output:dict,raw:str,error:str,started:float,run,check):
+def finish(step,status:str,output:dict,raw:str,error:str,started:float,run,check,*,retained_from=None):
     value={'version':2,'method':'native-report-review-v1','status':status,'output':output,'raw':raw_capture(raw),'error':error,
         'elapsed_ms':max(0,round((time.monotonic()-started)*1000)),'usage':usage(run.pk,step.stage) if step.input['model'] else {
             'request_count':0,'event_ids':[],'input_tokens':None,'output_tokens':None,'total_tokens':None}}
+    if retained_from:value.update(version=3,reused_from=copy.deepcopy(retained_from),elapsed_ms=0)
     with collection_lock(run.entry.anthology_id),transaction.atomic():
         check()
         return WorkflowOutcome.objects.create(id=digest(['workflow-outcome-1',step.pk])[:40],step=step,data=value,content_hash=digest(value))

@@ -55,7 +55,7 @@ class WorkflowTests(TestCase):
         for stage, prompt in zip([s for s in STAGES if s in MODEL_STAGES], prompts):
             self.assertIn(NAMES[stage], prompt)
         self.assertNotIn(self.payload['code'], prompts[-1])
-        self.assertEqual(run.workflow_version, 14)
+        self.assertEqual(run.workflow_version, 16)
         for text in prompts[:-1]: self.assertIn('source_structure', text)
         self.assertNotIn('source_structure', prompts[-1])
         structure = run.workflow_steps.get(stage='normalize').outcome.data['output']['structure']

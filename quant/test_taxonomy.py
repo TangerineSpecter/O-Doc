@@ -175,7 +175,7 @@ class VocabularyWorkflowTests(TestCase):
 
     def test_ai_uses_frozen_vocabulary_retry_and_explicit_normalize_restart(self):
         old = self.failed_research()
-        self.assertEqual(old.workflow_version, 14)
+        self.assertEqual(old.workflow_version, 16)
         original_ref = old.workflow_steps.get(stage='normalize').input['vocabulary_ref']
         self.assertEqual(self.edit().status_code, 200)
         resumed = self.retry(old)

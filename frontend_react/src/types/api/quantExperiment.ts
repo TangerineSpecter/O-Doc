@@ -8,7 +8,7 @@ export interface QuantFormulaTransform {
     recipientPath?: number[]; donorPath?: number[];
 }
 export interface QuantWalkForwardPolicy {
-    version: 1; mode: 'expanding' | 'rolling'; folds: number;
+    version: 1 | 2; innerFolds?: number; mode: 'expanding' | 'rolling'; folds: number;
     trainBars: number; validationBars: number; testBars: number; warmupBars: number;
 }
 export interface QuantExperimentConfig {
@@ -38,7 +38,7 @@ export interface QuantExperiment {
     reviews?: {run: QuantAIRun; report: QuantReport | null; proposal?: QuantExperimentProposal | null}[];
     derivedCandidates?: {id: string; name: string; attemptId: string}[];
     originProposal?: QuantExperimentProposal | null;
-    jointSensitivityJson?: string; sensitivityJson?: string; planJson?: string; resultJson?: string | null; attemptsJson?: string;
+    temporalSensitivityJson?: string; jointSensitivityJson?: string; sensitivityJson?: string; planJson?: string; resultJson?: string | null; attemptsJson?: string;
 }
 
 export interface QuantExperimentProposal {

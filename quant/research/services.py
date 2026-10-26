@@ -95,9 +95,9 @@ def publish_report(run) -> ResearchReport | None:
     validate_strategy_admission(run.result, run.workflow_version)
     from .findings import validate_admission
     validate_admission(run.result, run.workflow_version)
-    if 'source_memory_version' in run.result and run.workflow_version not in (12,13,14,15):
+    if 'source_memory_version' in run.result and run.workflow_version not in (12,13,14,15,16,17):
         raise ValidationError('历史源码报告不能追加未冻结的研究记忆')
-    if 'factor_repair' in run.result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15):
+    if 'factor_repair' in run.result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         raise ValidationError('AI 定义修订须绑定支持的阶段工作流')
     existing = ResearchReport.objects.filter(run=run).first()
     if existing:

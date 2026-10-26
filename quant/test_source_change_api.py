@@ -75,7 +75,7 @@ class SourceChangeAPITests(TestCase):
         self.assertEqual(same['relationship'], 'same_source')
         self.assertEqual(same['impact']['status'], 'identical')
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 53)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 57)
         validate(snapshot, metadata(snapshot))
 
     def test_cross_material_requires_explicit_baseline_and_never_claims_new_version(self):

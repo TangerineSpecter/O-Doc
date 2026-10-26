@@ -11,19 +11,25 @@ from quant.factors.expression import validate_expression, finite_number, paramet
 from quant.research.contracts import digest
 from .expression import calculate
 from .backtest import partitions, simulate
+from .nested import RULE as NESTED_RULE, selection_metric, selection_key
 
 VERSION = 'quant-local-search-2'
-SUPPORTED_VERSIONS = ('quant-local-search-1', VERSION, 'quant-local-search-3', 'quant-local-search-4', 'quant-local-search-5', 'quant-local-search-6')
+SUPPORTED_VERSIONS = tuple(f'quant-local-search-{number}' for number in range(1, 9))
 FIELDS = {'open', 'high', 'low', 'close', 'volume'}
 
 
 def engine_for(config):
+    if config.get('walk_forward', {}).get('version') == 2:
+        return 'quant-local-search-8' if 'strategy' in config else 'quant-local-search-7'
     if 'strategy' in config:
         return 'quant-local-search-6' if 'walk_forward' in config else 'quant-local-search-5'
     return 'quant-local-search-4' if 'walk_forward' in config else 'quant-local-search-3' if 'evolution' in config else VERSION
 
 
 def validate_engine(version, config):
+    if version in ('quant-local-search-7', 'quant-local-search-8') or config.get('walk_forward', {}).get('version') == 2:
+        if version != engine_for(config): raise ValidationError('嵌套验证配置与引擎版本不一致')
+        return
     if 'strategy' in config:
         if version != engine_for(config): raise ValidationError('策略执行配置与引擎版本不一致')
         return
@@ -125,7 +131,7 @@ def combine(a: dict, b: dict, operation: str) -> dict:
 def pareto(attempts: list[dict]) -> list[dict]:
     eligible = [item for item in attempts if item['status'] == 'evaluated']
     def objectives(item):
-        data = item['metrics']['train']
+        data = selection_metric(item, 'train')
         return (data['total_return'], -data['max_drawdown'], -data['turnover'], -item['complexity'])
     def dominates(a, b):
         aa, bb = objectives(a), objectives(b)
@@ -178,7 +184,7 @@ def run_batch(snapshot: dict, seeds: list[dict], config: dict, *, check=None, ch
     validate_plan(seeds, config)
     engine_version = engine_version or engine_for(config)
     validate_engine(engine_version, config)
-    if engine_version in ('quant-local-search-4', 'quant-local-search-6'):
+    if engine_version in ('quant-local-search-4', 'quant-local-search-6', 'quant-local-search-7', 'quant-local-search-8'):
         from .walk_forward import run_walk_forward
         return run_walk_forward(snapshot, seeds, {key: value for key, value in config.items() if key != 'walk_forward'},
             config['walk_forward'], check=check, checkpoint=checkpoint, engine_version=engine_version)
@@ -186,7 +192,7 @@ def run_batch(snapshot: dict, seeds: list[dict], config: dict, *, check=None, ch
         check=check, checkpoint=checkpoint, engine_version=engine_version)
 
 
-def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=None, engine_version):
+def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=None, engine_version, inner_partitions=None):
     """Internal execution on caller-validated chronological boundaries.
 
     The public batch and temporal runner validate their own split contracts.
@@ -208,6 +214,8 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
     def evaluate(value, parents, operation, generation, requested_parameters=None, transformation=None):
         item = {'id': f'attempt-{len(attempts) + 1}', 'parents': parents, 'operation': operation,
             'generation': generation, 'requested_parameters': requested_parameters, 'status': 'pending', 'reason': '', 'metrics': {}}
+        if inner_partitions:
+            item['inner_evaluation'] = {'version': 1, 'planned_folds': len(inner_partitions), 'folds': [], 'summary': None}
         if transformation is not None:
             item['transformation'] = copy.deepcopy(transformation)
         attempts.append(item)
@@ -221,16 +229,21 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
                 return item
             known.add(item['fingerprint'])
             trial = item['recipe']
-            inputs = {key: [row[column] for row in development] for key, column in trial['bindings'].items()}
-            values = calculate(trial['expression'], inputs, trial['parameters'], expected=trial['output_type'], check=guard)
-            for part in ('train', 'validation'):
-                start, end = split[part]
-                result = simulate_config(development, values, config, record_trades=False, start=start, end=end, threshold=config['threshold'],
-                    fee_bps=config['fee_bps'], slippage_bps=config['slippage_bps'], output_type=trial['output_type'], check=guard)
-                item['metrics'][part] = {key: value for key, value in result.items() if key not in ('curve', 'returns')}
-            if any(item['metrics'][part].get('execution', {}).get('status') == 'insolvent' for part in ('train', 'validation')):
+            if inner_partitions:
+                from .nested import evaluate as evaluate_inner
+                metrics = evaluate_inner(item, development, inner_partitions, config, guard)
+            else:
+                inputs = {key: [row[column] for row in development] for key, column in trial['bindings'].items()}
+                values = calculate(trial['expression'], inputs, trial['parameters'], expected=trial['output_type'], check=guard)
+                for part in ('train', 'validation'):
+                    start, end = split[part]
+                    result = simulate_config(development, values, config, record_trades=False, start=start, end=end, threshold=config['threshold'],
+                        fee_bps=config['fee_bps'], slippage_bps=config['slippage_bps'], output_type=trial['output_type'], check=guard)
+                    item['metrics'][part] = {key: value for key, value in result.items() if key not in ('curve', 'returns')}
+                metrics = list(item['metrics'].values())
+            if any(metric.get('execution', {}).get('status') == 'insolvent' for metric in metrics):
                 item['status'], item['reason'] = 'rejected', '开发区间策略净值耗尽；保留亏损和资金缺口，不参与父代选择'
-            elif any(item['metrics'][part]['missing_signals'] == item['metrics'][part]['bars'] for part in ('train', 'validation')):
+            elif any(metric['missing_signals'] == metric['bars'] for metric in metrics):
                 item['status'], item['reason'] = 'rejected', '训练或验证期全部信号缺失，无法评价'
             else:
                 item['status'] = 'evaluated'
@@ -316,26 +329,28 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
         stopped = 'time_budget'
     frontier = pareto(attempts)
     # Fixed risk-adjusted selection on validation only. Not a calibrated score.
-    frontier.sort(key=lambda item: (-(item['metrics']['validation']['total_return'] - item['metrics']['validation']['max_drawdown']),
-        item['metrics']['validation']['turnover'], item['complexity'], item['fingerprint']))
+    frontier.sort(key=selection_key)
     selected = frontier[0] if frontier else None
     final, baseline = None, None
     if selected and stopped not in ('time_budget', 'cancelled'):
         try:
             guard()
             trial = recipes[selected['id']]
-            values = calculate(trial['expression'], {key: [row[column] for row in rows] for key, column in trial['bindings'].items()},
+            final_origin = inner_partitions[-1]['calculation_start'] if inner_partitions else 0
+            final_rows = rows[final_origin:]
+            values = calculate(trial['expression'], {key: [row[column] for row in final_rows] for key, column in trial['bindings'].items()},
                 trial['parameters'], expected=trial['output_type'], check=guard)
             start, end = split['holdout']
+            start, end = start - final_origin, end - final_origin
             options = dict(start=start, end=end, threshold=config['threshold'], fee_bps=config['fee_bps'], slippage_bps=config['slippage_bps'], output_type=trial['output_type'], check=guard)
-            final = simulate_config(rows, values, config, **options)
-            baseline = simulate_config(rows, values, config, baseline=True, **options)
+            final = simulate_config(final_rows, values, config, **options)
+            baseline = simulate_config(final_rows, values, config, baseline=True, **options)
         except (TimeoutError, InterruptedError) as exc:
             stopped = 'time_budget' if isinstance(exc, TimeoutError) else 'cancelled'
             final, baseline = None, None
     output = {'engine_version': engine_version, 'dataset_hash': digest(snapshot), 'config': config, 'partitions': split,
         'seed_plan': [{'id': seed['id'], 'source_hash': digest(seed['candidate']), 'bindings': seed['bindings'], 'parameters': seed['parameters'], 'variants': seed.get('variants', [])} for seed in seeds],
-        'attempts': attempts, 'selection_rule': 'train_pareto_then_validation_return_minus_drawdown_v1',
+        'attempts': attempts, 'selection_rule': NESTED_RULE if inner_partitions else 'train_pareto_then_validation_return_minus_drawdown_v1',
         'frontier_ids': [item['id'] for item in frontier], 'selected_id': selected['id'] if selected else '',
         'holdout_status': 'not_evaluated' if final is None else 'excluded_from_this_batch_selection_prior_usage_unattested',
         'holdout': final, 'buy_hold_baseline': baseline, 'stop_reason': stopped or 'generation_complete',

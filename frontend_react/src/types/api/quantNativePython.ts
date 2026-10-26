@@ -15,8 +15,9 @@ export interface NativePythonInput {
 export interface NativePythonRecord {
     id:string;candidateId:string;name:string;createdAt:string;status:string;cancelRequested:boolean;error:string;
     verdict:'pass'|'fail'|'inconclusive'|null;contentHash:string;planJson?:string;resultJson?:string|null;
-    analysis?:{sourceId:string;entryId:string;runId:string|null;status:string;error:string;reportId:string|null;previousReportId?:string|null;audit?:import('./quantNativeReview').NativeReviewWorkflow|null}|null;
+    analysis?:{sourceId:string;entryId:string;runId:string|null;status:string;error:string;reportId:string|null;previousReportId?:string|null;audit?:import('./quantNativeReview').NativeReviewWorkflow|null;historyTotal?:number;history?:NativeReviewHistoryItem[]}|null;
 }
+export interface NativeReviewHistoryItem {runId:string;status:string;error:string;createdAt:string;modelName:string;reportId:string|null;audit:import('./quantNativeReview').NativeReviewWorkflow|null}
 export interface NativeEnvironment {
     image_id:string;os:string;architecture:string;runtime:{protocol:string;python:string;numpy:string;pandas:string;machine:string;supervisor_sha256:string;child_sha256:string};
     limits:{network:string;source_uid:number;host_mounts:false;memory_mib:number;cpus:number;pids:number;tmp_mib:number;maximum_seconds:number;root_filesystem:string};

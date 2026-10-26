@@ -1,0 +1,1200 @@
+{
+  "version": 1,
+  "method": "all-planned-inner-sampled-regions-1",
+  "outer_folds": 3,
+  "inner_folds": 3,
+  "planned_windows": 9,
+  "axis_rule": {
+    "version": 1,
+    "minimum_points": 3,
+    "return_spread_limit": 0.02,
+    "drawdown_spread_limit": 0.02,
+    "baseline_return_loss_limit": 0.02,
+    "baseline_drawdown_increase_limit": 0.02,
+    "requires_positive_return": true,
+    "requires_entries": true,
+    "minimum_signal_coverage": 0.9,
+    "maximum_missing_fraction_spread": 0.05,
+    "selection_partitions": [
+      "train",
+      "validation"
+    ],
+    "interpolation_allowed": false
+  },
+  "joint_rule": {
+    "version": 1,
+    "minimum_points": 4,
+    "return_spread_limit": 0.02,
+    "drawdown_spread_limit": 0.02,
+    "baseline_return_loss_limit": 0.02,
+    "baseline_drawdown_increase_limit": 0.02,
+    "requires_positive_return": true,
+    "requires_entries": true,
+    "minimum_signal_coverage": 0.9,
+    "maximum_missing_fraction_spread": 0.05,
+    "selection_partitions": [
+      "train",
+      "validation"
+    ],
+    "interpolation_allowed": false,
+    "minimum_dimensions": 2,
+    "complete_cartesian_grid": true,
+    "categorical_mode": "fixed_context"
+  },
+  "maximum_score_without_common_region": 2,
+  "limitations": [
+    "全部计划外折及内层窗口分别比较，不拼接收益或跨时间归因；后折可使用前折已过去历史，窗口不是独立重复样本。",
+    "共同区段是每个窗口支持的已测离散集合交集；不补缺角、不跨越失败或未执行点，不推断中间值或连续参数范围。",
+    "每窗沿用单/联合参数v1固定正收益、入场、覆盖、相对基线及极差规则，不能用均值掩盖某窗失败。",
+    "同一原始父代、固定其他参数和分类模式分别比较；公式变异与组合仍不用于参数归因。",
+    "仅使用内层训练/验证，不读取外层测试；预热按实际计算记录，受控表达式结果不等于原平台表现。",
+    "共同区段仍需新数据复核，不提供统计显著性、最优参数、跨请求多重检验控制或金融有效性证明。"
+  ],
+  "families": [
+    {
+      "seed_id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+      "name": "close_relative_rolling_mean_deviation",
+      "baseline_parameters": {
+        "period": 14
+      },
+      "axes": [
+        {
+          "parameter": "period",
+          "baseline_value": 14,
+          "windows": [
+            {
+              "outer_fold": 1,
+              "inner_fold": 1,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-29T05:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-29T08:00:00+00:00",
+                  "end": "2024-01-29T18:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-1",
+              "points": [
+                {
+                  "attempt_id": "attempt-2",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.013068564731390842,
+                      "max_drawdown": 0.009208180405378852
+                    },
+                    "validation": {
+                      "total_return": -0.00029466124669164095,
+                      "max_drawdown": 0.006558395431472186
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-3",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.013306008694029314,
+                      "max_drawdown": 0.008718240708446734
+                    },
+                    "validation": {
+                      "total_return": -0.00029466124669164095,
+                      "max_drawdown": 0.006558395431472186
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-1",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.009836836396667437,
+                      "max_drawdown": 0.011733891923594975
+                    },
+                    "validation": {
+                      "total_return": 0.0038123497668380857,
+                      "max_drawdown": 0.005970070554848328
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-4",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.006830403326592238,
+                      "max_drawdown": 0.013543711985637086
+                    },
+                    "validation": {
+                      "total_return": 0.0038123497668380857,
+                      "max_drawdown": 0.005970070554848328
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-5",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.0003642130569909696,
+                      "max_drawdown": 0.016339231318677983
+                    },
+                    "validation": {
+                      "total_return": -0.00029466124669164095,
+                      "max_drawdown": 0.006558395431472186
+                    }
+                  }
+                }
+              ],
+              "supported_values": []
+            },
+            {
+              "outer_fold": 1,
+              "inner_fold": 2,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-29T15:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-29T18:00:00+00:00",
+                  "end": "2024-01-30T04:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-1",
+              "points": [
+                {
+                  "attempt_id": "attempt-2",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.004665875699763511,
+                      "max_drawdown": 0.012642108592041401
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-3",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.0027367610447335267,
+                      "max_drawdown": 0.019057765308409524
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-1",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.0034091351055416386,
+                      "max_drawdown": 0.018024293610193087
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-4",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "训练段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.0020281602145231226,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-5",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "训练段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.006196571027730413,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                }
+              ],
+              "supported_values": [
+                {
+                  "period": [
+                    7,
+                    10,
+                    14
+                  ]
+                }
+              ]
+            },
+            {
+              "outer_fold": 1,
+              "inner_fold": 3,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-30T01:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-30T04:00:00+00:00",
+                  "end": "2024-01-30T14:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-1",
+              "points": [
+                {
+                  "attempt_id": "attempt-2",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.014890926531832882,
+                      "max_drawdown": 0.012642108592041401
+                    },
+                    "validation": {
+                      "total_return": -0.00953054067545267,
+                      "max_drawdown": 0.00953054067545267
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-3",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.012942178189737419,
+                      "max_drawdown": 0.019057765308409524
+                    },
+                    "validation": {
+                      "total_return": -0.014515124150872638,
+                      "max_drawdown": 0.014515124150872638
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-1",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.013621395380302603,
+                      "max_drawdown": 0.018024293610193087
+                    },
+                    "validation": {
+                      "total_return": -0.010458312878948384,
+                      "max_drawdown": 0.010458312878948384
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-4",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.008128761641384985,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": -0.00732155458733541,
+                      "max_drawdown": 0.00732155458733541
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-5",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.003917926562075902,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": -0.00732155458733541,
+                      "max_drawdown": 0.00732155458733541
+                    }
+                  }
+                }
+              ],
+              "supported_values": []
+            },
+            {
+              "outer_fold": 2,
+              "inner_fold": 1,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-29T15:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-29T18:00:00+00:00",
+                  "end": "2024-01-30T04:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-7",
+              "points": [
+                {
+                  "attempt_id": "attempt-8",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.004665875699763511,
+                      "max_drawdown": 0.012642108592041401
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-9",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.0027367610447335267,
+                      "max_drawdown": 0.019057765308409524
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-7",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": true,
+                  "eligibility_reasons": [],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.0034091351055416386,
+                      "max_drawdown": 0.018024293610193087
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-10",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "训练段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.0020281602145231226,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-11",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "训练段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.006196571027730413,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": 0.010143930112315624,
+                      "max_drawdown": 0.0032489883427621047
+                    }
+                  }
+                }
+              ],
+              "supported_values": [
+                {
+                  "period": [
+                    7,
+                    10,
+                    14
+                  ]
+                }
+              ]
+            },
+            {
+              "outer_fold": 2,
+              "inner_fold": 2,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-30T01:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-30T04:00:00+00:00",
+                  "end": "2024-01-30T14:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-7",
+              "points": [
+                {
+                  "attempt_id": "attempt-8",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.014890926531832882,
+                      "max_drawdown": 0.012642108592041401
+                    },
+                    "validation": {
+                      "total_return": -0.00953054067545267,
+                      "max_drawdown": 0.00953054067545267
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-9",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.012942178189737419,
+                      "max_drawdown": 0.019057765308409524
+                    },
+                    "validation": {
+                      "total_return": -0.014515124150872638,
+                      "max_drawdown": 0.014515124150872638
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-7",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.013621395380302603,
+                      "max_drawdown": 0.018024293610193087
+                    },
+                    "validation": {
+                      "total_return": -0.010458312878948384,
+                      "max_drawdown": 0.010458312878948384
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-10",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.008128761641384985,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": -0.00732155458733541,
+                      "max_drawdown": 0.00732155458733541
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-11",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.003917926562075902,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": -0.00732155458733541,
+                      "max_drawdown": 0.00732155458733541
+                    }
+                  }
+                }
+              ],
+              "supported_values": []
+            },
+            {
+              "outer_fold": 2,
+              "inner_fold": 3,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-30T11:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-30T14:00:00+00:00",
+                  "end": "2024-01-31T00:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-7",
+              "points": [
+                {
+                  "attempt_id": "attempt-8",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.019664405785010608,
+                      "max_drawdown": 0.012642108592041401
+                    },
+                    "validation": {
+                      "total_return": -0.015537017654793206,
+                      "max_drawdown": 0.015537017654793206
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-9",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.012584836517471665,
+                      "max_drawdown": 0.019057765308409524
+                    },
+                    "validation": {
+                      "total_return": -0.015537017654793206,
+                      "max_drawdown": 0.015537017654793206
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-7",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.017434979137407103,
+                      "max_drawdown": 0.018024293610193087
+                    },
+                    "validation": {
+                      "total_return": -0.015537017654793206,
+                      "max_drawdown": 0.015537017654793206
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-10",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.015602719589544733,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": -0.011363775889994154,
+                      "max_drawdown": 0.011363775889994154
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-11",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.011360666668322361,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": -0.001072875869561618,
+                      "max_drawdown": 0.006350798763116616
+                    }
+                  }
+                }
+              ],
+              "supported_values": []
+            },
+            {
+              "outer_fold": 3,
+              "inner_fold": 1,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-30T01:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-30T04:00:00+00:00",
+                  "end": "2024-01-30T14:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-12",
+              "points": [
+                {
+                  "attempt_id": "attempt-13",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.014890926531832882,
+                      "max_drawdown": 0.012642108592041401
+                    },
+                    "validation": {
+                      "total_return": -0.00953054067545267,
+                      "max_drawdown": 0.00953054067545267
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-14",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.012942178189737419,
+                      "max_drawdown": 0.019057765308409524
+                    },
+                    "validation": {
+                      "total_return": -0.014515124150872638,
+                      "max_drawdown": 0.014515124150872638
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-12",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.013621395380302603,
+                      "max_drawdown": 0.018024293610193087
+                    },
+                    "validation": {
+                      "total_return": -0.010458312878948384,
+                      "max_drawdown": 0.010458312878948384
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-15",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.008128761641384985,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": -0.00732155458733541,
+                      "max_drawdown": 0.00732155458733541
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-16",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.003917926562075902,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": -0.00732155458733541,
+                      "max_drawdown": 0.00732155458733541
+                    }
+                  }
+                }
+              ],
+              "supported_values": []
+            },
+            {
+              "outer_fold": 3,
+              "inner_fold": 2,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-30T11:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-30T14:00:00+00:00",
+                  "end": "2024-01-31T00:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-12",
+              "points": [
+                {
+                  "attempt_id": "attempt-13",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.019664405785010608,
+                      "max_drawdown": 0.012642108592041401
+                    },
+                    "validation": {
+                      "total_return": -0.015537017654793206,
+                      "max_drawdown": 0.015537017654793206
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-14",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.012584836517471665,
+                      "max_drawdown": 0.019057765308409524
+                    },
+                    "validation": {
+                      "total_return": -0.015537017654793206,
+                      "max_drawdown": 0.015537017654793206
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-12",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.017434979137407103,
+                      "max_drawdown": 0.018024293610193087
+                    },
+                    "validation": {
+                      "total_return": -0.015537017654793206,
+                      "max_drawdown": 0.015537017654793206
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-15",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.015602719589544733,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": -0.011363775889994154,
+                      "max_drawdown": 0.011363775889994154
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-16",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.011360666668322361,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": -0.001072875869561618,
+                      "max_drawdown": 0.006350798763116616
+                    }
+                  }
+                }
+              ],
+              "supported_values": []
+            },
+            {
+              "outer_fold": 3,
+              "inner_fold": 3,
+              "ranges": {
+                "train": {
+                  "start": "2024-01-27T13:00:00+00:00",
+                  "end": "2024-01-30T21:00:00+00:00"
+                },
+                "validation": {
+                  "start": "2024-01-31T00:00:00+00:00",
+                  "end": "2024-01-31T10:00:00+00:00"
+                }
+              },
+              "baseline_attempt_id": "attempt-12",
+              "points": [
+                {
+                  "attempt_id": "attempt-13",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段收益不为正"
+                  ],
+                  "value": 7,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.005183854349915418,
+                      "max_drawdown": 0.020834701279263568
+                    },
+                    "validation": {
+                      "total_return": -0.00975475416496041,
+                      "max_drawdown": 0.010375514198486924
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-14",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "训练段收益不为正",
+                    "验证段收益不为正"
+                  ],
+                  "value": 10,
+                  "metrics": {
+                    "train": {
+                      "total_return": -0.001795175890924594,
+                      "max_drawdown": 0.025762396042347313
+                    },
+                    "validation": {
+                      "total_return": -0.011365138684288456,
+                      "max_drawdown": 0.011365138684288456
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-12",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段没有入场",
+                    "验证段收益不为正"
+                  ],
+                  "value": 14,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.0029860884399610654,
+                      "max_drawdown": 0.021751884881673567
+                    },
+                    "validation": {
+                      "total_return": 0.0,
+                      "max_drawdown": 0.0
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-15",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段没有入场",
+                    "验证段收益不为正"
+                  ],
+                  "value": 20,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.004955361179880047,
+                      "max_drawdown": 0.022223014556393306
+                    },
+                    "validation": {
+                      "total_return": 0.0,
+                      "max_drawdown": 0.0
+                    }
+                  }
+                },
+                {
+                  "attempt_id": "attempt-16",
+                  "status": "evaluated",
+                  "reason": "",
+                  "comparable": true,
+                  "eligible": false,
+                  "eligibility_reasons": [
+                    "验证段没有入场",
+                    "验证段收益不为正"
+                  ],
+                  "value": 28,
+                  "metrics": {
+                    "train": {
+                      "total_return": 0.013200243889494923,
+                      "max_drawdown": 0.02279046761011616
+                    },
+                    "validation": {
+                      "total_return": 0.0,
+                      "max_drawdown": 0.0
+                    }
+                  }
+                }
+              ],
+              "supported_values": []
+            }
+          ],
+          "comparison_regions": [
+            {
+              "period": [
+                7,
+                10,
+                14,
+                20,
+                28
+              ]
+            }
+          ],
+          "regions": [],
+          "status": "no_supported_region"
+        }
+      ],
+      "contexts": [],
+      "excluded_variants": []
+    }
+  ],
+  "status": "no_supported_region",
+  "excluded_combination_ids": [
+    "attempt-6"
+  ]
+}

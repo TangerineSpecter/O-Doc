@@ -2,6 +2,7 @@ import {strategySnapshot, strategyDraft, buildStrategy} from '../../utils/quantS
 import type {QuantEntryDetail, QuantReport} from '../../types/api/quant';
 import {collectMockFactors} from './factors';
 import {buildSeed, initialSeed} from '../../components/Quant/experiments/plan';
+import {applyNestedMockPlan} from './planningCapabilities';
 
 /** Explicit synthetic fixture, never claims to interpret arbitrary pasted source. */
 export function mockInitialPlan(entry: QuantEntryDetail, report: QuantReport) {
@@ -42,6 +43,10 @@ export function mockInitialPlan(entry: QuantEntryDetail, report: QuantReport) {
         data.hypothesis = '人工样例：固定模式，比较周期与阈值的完整四点组合，保留失败和未执行点。';
         data.seeds[0].variants = [{lookback: 20, threshold: .02}, {lookback: 30, threshold: .01}, {lookback: 30, threshold: .02}];
         report.data.initialPlanningNote = '人工联合参数样例：周期 20/30、阈值 0.01/0.02，基线加三组变体组成完整网格，未计算真实行情。';
+    }
+    if ((entry.sources?.find(row => row.id === report.sourceId)?.payload.code || '').includes('LOCAL_NESTED_PLANNING')) {
+        applyNestedMockPlan(data);
+        report.data.initialPlanningNote = '人工样例演示AI直接给出多内层验证方案；窗口20及邻近15/25、预热25根与成本均为待核对假设，不代表实证最优或已运行。';
     }
     report.proposal = {id: `initial-${report.id}`.slice(0, 40), createdAt: report.createdAt,
         contentHash: 'local-demo-initial-proposal', dataJson: JSON.stringify(data), candidates: [structuredClone(candidate)]};

@@ -34,6 +34,7 @@ test('automatic admission is scoped and bad/unknown records cannot self-approve 
     assert.throws(()=>readAdmission(JSON.stringify({...raw,stage:'globally_verified'})));
     assert.equal(admissionValues([{name:'N',value:0},{name:'enabled',value:false}]),'N=0；enabled=false');
     assert.equal(admissionValues(undefined),'未知');
+    assert.equal(admissionValues({p0:21},{p0:'period'}),'period (p0)=21');
 });
 test('history raises only its own formula; selecting a new version does not inherit the ancestor filter',async()=>{
     const {candidate,entry}=await source();
@@ -67,4 +68,9 @@ test('legacy layer indexing is explicit and paged; source evidence collection ne
     await call(path,'POST',{offset:0,limit:1});assert.equal((await call<AdmissionPage>(path)).summary.stage,'reusable');
     const indexed=await call<{claim:string}>(`factors/${candidate.id}/verification/`,'POST',{kind:'fixed_validation',offset:0,limit:1});
     assert.equal(indexed.claim,'legacy_index_only_no_execution');
+});
+test('local evidence failure is inspectable and retryable, without a missing mock fallback',async()=>{
+    const {candidate}=await seed('LOCAL_ADMISSION_ERROR_ONCE');const path=`factors/${candidate.id}/admissions/`;
+    const failed=await call<Response>(path);assert.equal(failed.status,500);assert.match(await failed.text(),/重试后恢复/);
+    const retried=await call<AdmissionPage>(path);assert.equal(retried.summary.stage,'reusable');assert.equal(readAdmission(retried.items[0].dataJson).local_demo,true);
 });

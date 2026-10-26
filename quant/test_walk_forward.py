@@ -321,7 +321,10 @@ class WalkForwardPlanningTests(TestCase):
         evidence = for_result(round.experiment.result, version=run.review_version, context=run.planning_context)
         self.assertEqual(evidence['evidence']['walk_forward']['tested_folds'], 3)
         self.assertIn('fold:3', evidence['evidence'])
-        with patch('quant.worker.complete', return_value=json.dumps(proposals.proposed(round.experiment.result))):
+        proposed=proposals.proposed(round.experiment.result)
+        from quant.experiments.review_contract import validate_review
+        validate_review(proposed,evidence)
+        with patch('quant.worker.complete', return_value=json.dumps(proposed)):
             analyze(run.pk)
         run.refresh_from_db()
         self.assertEqual(run.status, 'completed', run.error)

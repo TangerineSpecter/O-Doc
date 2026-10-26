@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "kind": "isolated_django_apiclient_wire_synthetic_data",
+  "application": "1.5.50",
+  "schema_version": 53,
+  "migration": "0028_factorcandidate_admission_version_and_more",
+  "artifacts": {
+    "2026-10-26-factor-admission-wire.json": "c4db948ee8074f6dc906ada99aab05b88a130041d33fd2ed6fcc33f3064850a6"
+  },
+  "case": {
+    "completed_records": 3,
+    "after_cancelled_records": 4,
+    "criteria_met_records_retained": 1,
+    "review_records_after_cancel": 1,
+    "cancelled_metrics": {},
+    "cancelled_publication_audit": null
+  },
+  "model_calls": 0,
+  "original_platform_executions": 0,
+  "controlled_expression_calculation": "isolated synthetic fixture",
+  "full_snapshot_restore_evidence": "quant.test_admissions and quant.test_verification",
+  "production_database_changed": false,
+  "remote_multi_device_acceptance": false,
+  "financial_or_expert_certification": false
+}

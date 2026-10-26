@@ -87,6 +87,11 @@ def planning_prompt(context: dict) -> str:
     exact_refs += context.get('execution_summary',{}).get('refs',[])
     if context.get('native_check'):exact_refs.append('native_check')
     memory_instruction = instruction(memory) if memory is not None else ''
+    capabilities = context.get('research_memory', {}).get('planning_capabilities')
+    if capabilities is not None:
+        from quant.experiments.planning_capabilities import validate, instruction as planning_instruction
+        validate(capabilities)
+        memory_instruction += planning_instruction()
     reference_instruction = ('证据引用限feedback、source、存在时的factor/experiment、history:历史记录ID，以及存在时的memory:experiment:ID或memory:feedback:ID。'
                              if memory_instruction else '证据引用仅限feedback、source、存在时的factor/experiment以及history:历史记录ID。')
     if 'execution_summary' in context:

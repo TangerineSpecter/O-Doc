@@ -23,5 +23,6 @@ export function mockSelectionDiagnostic(record:MockExperiment) {
         scope:'one_recorded_request_per_fold_fixed_development_family',status:done && done===families.length?'completed':done?'partial':'insufficient',families,final_holdout_used:false,independent_validation:false,
         limitations:['纯local人工收益块只用于界面验证，没有执行源公式、读取价格收益或调用模型。','并列组合保留歧义；范围不是置信区间，低反转率不证明盈利或显著性。'],
         binding:{request_id:record.data.id,request_hash:record.data.contentHash,result_id:`result-${record.data.id}`,result_hash:'artificial-local-result',dataset_hash:'artificial-local-dataset'}};
+    if (record.input.config.walkForward?.version === 2) data.limitations.push('仅针对各外折最后内层窗口的人工固定家族样例，不覆盖整个嵌套搜索或跨请求校正。');
     return {id:quantId('selection-diagnostic'),contentHash:'artificial-local-diagnostic',createdAt:new Date().toISOString(),dataJson:JSON.stringify(data)};
 }

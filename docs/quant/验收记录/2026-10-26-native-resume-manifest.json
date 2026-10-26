@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "basis_manifest": "2026-10-26-native-alignment-manifest.json",
+  "artifacts": {
+    "2026-10-26-native-resume-provider-responses.json": "f0d61410cce78ff59acfe60386b9a60075c47a75d2fb9b35a6a4ef9cfd70851f",
+    "2026-10-26-native-resume-review-stages.json": "b067a2047f0dbc00f4bf6d999886c80f68a37b6ac712edbf69b6e4f5c65ee579",
+    "2026-10-26-native-resume-replay-delta.json": "deb6bfc25f645f3da077e1a8cf961a1aa1dd0423547bc47f750e6bd27957b016",
+    "2026-10-26-native-resume-replay-wire.json": "312f4b35e4187e0dda18965a92153aca5800e01923f197fcb05c372f02a18c80",
+    "2026-10-26-native-resume-replay-summary.json": "fa460781e400197bdecdcfbfcace8e8d99ed3f84d5cdb976e5024f5c76cc20e6"
+  },
+  "original_capture_export_error": "API response datetime serialization failed after both real model calls; no original run snapshot exported",
+  "replay_boundary": "new task identity with identical frozen inputs, prompts, raw responses and parsed outputs; no new model calls"
+}

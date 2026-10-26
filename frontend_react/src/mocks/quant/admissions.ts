@@ -10,6 +10,7 @@ import {persistQuantState,quantState} from './state';
 export interface MockAdmission {candidateId:string;row:AdmissionPage['items'][number]}
 const stages:ResearchStage[]=['unrecorded','candidate','reusable','calculated','historical','fixed_observation','registered_criteria_met'];
 let dirty=false;
+const failedOnce=new Set<string>();
 function scopes(e:DirectVerification):{scopes:AdmissionScope[];outcome:string} {
     const common={scope_key:`local-scope-${e.target_id}`,observed_stage:null} as const;
     if(e.kind==='experiment')return {outcome:e.attempts.some(row=>row.status==='evaluated')?(e.result_status==='completed'?'computed':'partial_computation'):'no_computation',scopes:e.attempts.map(row=>({...common,observation_id:row.id,stage:row.status==='evaluated'?(e.result_status==='completed'?'historical':'calculated'):'reusable',market:e.market,parameters:row.parameters,bindings:row.bindings,config:{...e.config},sample:{...row.metrics},status:row.status,reason:row.reason}))};
@@ -49,6 +50,11 @@ export function mockAdmissionSummary(candidate:QuantFactorCandidate,collection:s
     return {version:1,stage:rows.length?rows.reduce((best,row)=>stages.indexOf(best)>stages.indexOf(row.stage)?best:row.stage,'candidate' as ResearchStage):'unrecorded',recordCount:rows.length,reviewCount:rows.filter(row=>['blocked','output_mismatch','criteria_not_met','no_computation','comparison_inconclusive','partial_computation','criteria_unknown'].includes(row.outcome)).length,criteriaMetCount:rows.filter(row=>row.outcome==='criteria_met').length,criteriaNotMetCount:rows.filter(row=>row.outcome==='criteria_not_met').length,scope:'exact_formula_and_observation_configuration'};
 }
 export async function resolveAdmissionRoute(request:Request,candidate:QuantFactorCandidate,collection:string) {
+    const code=quantState().entries.find(row=>row.id===candidate.entryId)?.sources?.find(row=>row.id===candidate.sourceId)?.payload.code||'';
+    if(request.method==='GET'&&code.includes('LOCAL_ADMISSION_SLOW'))await new Promise(resolve=>setTimeout(resolve,1500));
+    if(request.method==='GET'&&code.includes('LOCAL_ADMISSION_ERROR_ONCE')&&!failedOnce.has(candidate.id)){
+        failedOnce.add(candidate.id);return HttpResponse.json({code:500,msg:'人工分层接口错误样例，重试后恢复',data:null},{status:500});
+    }
     const params=new URL(request.url).searchParams;
     const body=request.method==='POST'?await request.json() as {offset?:number;limit?:number}:{};
     const offset=body.offset??Number(params.get('offset')||0),limit=body.limit??Number(params.get('limit')||20);

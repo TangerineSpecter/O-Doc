@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "application": "1.5.53",
+  "schema_version": 56,
+  "artifact_hashes": {
+    "2026-10-26-nested-planning-input.json": "e1ba2a65835e0b2f04e2052fb85987cb3a4e7bff8c6e36aed109d473d69accd6",
+    "2026-10-26-nested-planning-response.json": "9f90f2d7ca76c4937625ce5bd2dc3c891538d2d5f4447150066b82ab9df50e94",
+    "2026-10-26-nested-planning-plan.json": "70d869a1ce775700eba653a0b9fe3c66fb0fcdb8e112b14a6cca2c9e2aae6890",
+    "2026-10-26-nested-planning-usage.json": "2a3eb56f1dbb7cac6018bfa7e6a8d4a04249a8725c5cc526863e311c3471cbed",
+    "2026-10-26-nested-planning-summary.json": "4e32c285a9b109ecf86395d448287463d91f7074ca5b5eca8b43cd8e78f72b8e",
+    "2026-10-26-nested-planning-experiment.json": "8cd82905716646a13160ec1455f5cb65f9bab8daf2e2d03e5b24dc87dd1e81ba"
+  },
+  "model_scope": "one_actual_v16_planning_call_on_prior_captured_v14_analysis_not_new_full_report",
+  "experiment_scope": "controlled_expression_on_previously_used_pinned_public_BTCUSDT_2024_01_1h_data_not_independent_validation",
+  "oracle_scope": "all_102_inner_and_outer_metrics_checked_against_independent_Decimal_SMA_deviation_ledger",
+  "secrets_exported": false,
+  "source_executions": 0,
+  "business_database_writes": 0,
+  "new_full_report_published": false
+}

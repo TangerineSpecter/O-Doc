@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "application": "1.5.54",
+  "schema_version": 57,
+  "method": "all-planned-inner-sampled-regions-1",
+  "source_artifact_hashes": {
+    "2026-10-26-nested-planning-plan.json": "70d869a1ce775700eba653a0b9fe3c66fb0fcdb8e112b14a6cca2c9e2aae6890",
+    "2026-10-26-nested-planning-experiment.json": "8cd82905716646a13160ec1455f5cb65f9bab8daf2e2d03e5b24dc87dd1e81ba"
+  },
+  "artifact_hashes": {
+    "2026-10-26-temporal-parameter-stability.json": "cb251aa7a3a18a449fb15dc047502a4000a10d7c1967a17f18a700ce7324bd79"
+  },
+  "status": "no_supported_region",
+  "planned_windows": 9,
+  "new_provider_calls": 0,
+  "new_source_executions": 0,
+  "new_searches": 0,
+  "business_database_writes": 0,
+  "scope": "deterministic_development_projection_on_previously_used_market_data_not_independent_validation"
+}

@@ -60,7 +60,7 @@ export function readVerification(text: string): DirectVerification {
             || !(value.heldout as Record<string, unknown>[]).every(row => textFields(row, ['attempt_id', 'status']) && metric(row.metrics) && row.prior_usage === 'unattested' && object(row.partitions))) throw new Error('实验指标、参数或输入字段不完整');
         if (object(value.config) && value.config.strategy !== undefined) {
             readStrategy(value.config.strategy, Number(value.config.threshold));
-            if (!['quant-local-search-5', 'quant-local-search-6'].includes(String(value.engine_version))) throw new Error('策略执行证据与引擎版本不一致');
+            if (!['quant-local-search-5', 'quant-local-search-6', 'quant-local-search-8'].includes(String(value.engine_version))) throw new Error('策略执行证据与引擎版本不一致');
         }
     } else if (value.kind === 'fixed_validation') {
         if (!textFields(value,['source_request_id','source_attempt_id','dataset_hash']) || !object(value.market) || !textFields(value.market,['symbol','timeframe']) || !object(value.config) || !['threshold','fee_bps','slippage_bps'].every(k=>object(value.config) && finite(value.config[k])) || !object(value.recipe) || !object(value.recipe.parameters) || !object(value.bounds) || !textFields(value.bounds,['start_timestamp','end_timestamp']) || !metric(value.metrics) || !metric(value.baseline,true) || !['fresh','replication'].includes(String(value.mode)) || value.independent_validation!==false || (value.result_status===undefined||value.result_status==='completed'? !object(value.publication_audit)||value.publication_audit.global_independent_validation!==false||!finite(value.publication_audit.conflict_count):value.publication_audit!==null)) throw new Error('固定验证直接证据不完整或夸大独立性');

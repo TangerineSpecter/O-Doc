@@ -6,26 +6,27 @@ from rest_framework import serializers
 from quant.research.analysis import Analysis, validate_analysis, validate_source_evidence
 from quant.research.contracts import digest
 from quant.parameters import domains
+from quant.experiments.planning_capabilities import contract as planning_capabilities
 
-VERSION = 14
+VERSION = 16
 STAGES = ('normalize', 'identify', 'parameters', 'research', 'extract', 'compare', 'review', 'plan', 'publish')
 NAMES = dict(zip(STAGES, ('整理来源', '识别资料', '参数与静态检查', '研究分析', '提取因子', '检索比对', '评价与审查', '设计实验', '发布报告')))
-INCREMENTAL_VERSION = 15
+INCREMENTAL_VERSION = 17
 NAMES['snippets'] = '片段静态解读'
 NAMES['repair'] = '修订候选定义'
 MODEL_STAGES = {'snippets', 'identify', 'parameters', 'research', 'extract', 'repair', 'review', 'plan'}
 
 
 def uses_snippets(version: int) -> bool:
-    return type(version) is int and version in (3, 5, 7, 9, 11, 13, 15)
+    return type(version) is int and version in (3, 5, 7, 9, 11, 13, 15, 17)
 
 
 def uses_vocabulary(version: int) -> bool:
-    return type(version) is int and version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+    return type(version) is int and version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
 
 
 def uses_repairs(version: int) -> bool:
-    return type(version) is int and version in (8, 9, 10, 11, 12, 13, 14, 15)
+    return type(version) is int and version in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
 
 
 def stages(version: int) -> tuple:
@@ -99,7 +100,9 @@ def input_snapshot(stage: str, source_id: str, payload: dict, requirements: str,
         'tool_version': f'quant-research-stages-{version}', **({'library': library} if stage == 'compare' else {}),
         **({'local_context_hash': digest(snippet_plan)} if uses_snippets(version) and stage in MODEL_STAGES - {'snippets'} else {}),
         **({'vocabulary_ref': vocabulary_ref} if stage == 'normalize' and uses_vocabulary(version) else {}),
-        **({'snippet_plan': snippet_plan} if stage == 'snippets' else {})}
+        **({'snippet_plan': snippet_plan} if stage == 'snippets' else {}),
+        **({'planning_capabilities': planning_capabilities()}
+            if version in (16, 17) and stage == 'plan' else {})}
 
 
 def combined(outputs: dict) -> dict:

@@ -31,7 +31,7 @@ def context(request, attempt_id: str = '') -> dict:
 
 
 def from_facts(plan: dict, result: dict, dataset: dict, request_id: str, result_id: str, result_hash: str, attempt_id: str = '') -> dict:
-    if plan['engine_version'] not in ('quant-local-search-5', 'quant-local-search-6') or 'strategy' not in plan['config']:
+    if plan['engine_version'] not in ('quant-local-search-5', 'quant-local-search-6', 'quant-local-search-8') or 'strategy' not in plan['config']:
         raise ValidationError('请先创建具有明确策略执行规则的实验；指标不能直接作为EA')
     output = result.get('output') or {}
     identity = attempt_id or output.get('selected_id')

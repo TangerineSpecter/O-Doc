@@ -182,9 +182,9 @@ def execute(run_id: str) -> None:
                 from .research.analysis import validate_source_evidence
                 from quant.experiments.initial_planning import validate_strategy_admission
                 validate_strategy_admission(result, run.workflow_version)
-                if 'source_memory_version' in result and run.workflow_version not in (12,13,14,15):
+                if 'source_memory_version' in result and run.workflow_version not in (12,13,14,15,16,17):
                     raise ValidationError('历史源码工作流不能追加未冻结的研究记忆')
-                if 'factor_repair' in result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15):
+                if 'factor_repair' in result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
                     raise ValidationError('此历史工作流不接受 AI 定义修订成果')
                 if result.get('extraction_version') != 1:
                     raise ValidationError('新分析需要完整的候选提取结果；没有候选应明确说明原因')

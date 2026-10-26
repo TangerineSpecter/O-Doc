@@ -54,6 +54,8 @@ def analyze(plan: dict, attempts: list[dict]) -> dict:
         fold = max((row['fold'] for row in attempts), default=0)
         result = analyze(plan | {'config': {key: val for key, val in plan['config'].items() if key != 'walk_forward'}},
                          [row for row in attempts if row['fold'] == fold])
+        if plan['config']['walk_forward'].get('version') == 2:
+            result['limitations'].insert(0, '嵌套验证仅描述该外折最后已启动内层窗口的参数敏感度；不代表所有内层稳定性，实际选择使用完整内层均值。')
         result['limitations'].insert(0, f'仅分析最后已启动的第 {fold} 折；不同时间折的组合不拼成一个联合区域。')
         return result
     families = []

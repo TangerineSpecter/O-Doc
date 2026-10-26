@@ -112,7 +112,7 @@ class ComparisonResearchMemoryTests(TestCase):
     def test_feedback_assessment_must_cover_direct_comparisons_and_proposal_can_cite_them(self):
         left, _, dataset, _, failed = self.prepare()
         run = self.feedback(left)
-        self.assertEqual(run.planning_context['version'], 4)
+        self.assertEqual(run.planning_context['version'], 5)
         context = feedback_evidence(run)
         ref = f'memory:comparison:{failed.pk}'
         value = self.value(run, feedback_fixtures.response())
@@ -155,7 +155,7 @@ class ComparisonResearchMemoryTests(TestCase):
         with patch('django.utils.timezone.now', return_value=timezone.now() + timedelta(seconds=1)), self.captureOnCommitCallbacks(execute=True):
             calculate(request.job.pk)
         run = AIRun.objects.get(experiment_result=request.result)
-        self.assertEqual(run.review_version, 10)
+        self.assertEqual(run.review_version, 12)
         evidence = review_evidence(run)
         ref = f'memory:comparison:{failed.pk}'
         self.assertIn(ref, evidence['evidence'])
@@ -257,6 +257,7 @@ class ComparisonResearchMemoryTests(TestCase):
         original = feedback_memory.freeze
         def legacy(source):
             value = original(source)
+            value.pop('planning_capabilities',None)
             value.update(version=2, method='feedback-research-2', library_memory=freeze([option(left.pk, left.data)],
                 str(self.collection.pk), source_id=source.pk, version=1))
             return value

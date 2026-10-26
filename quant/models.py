@@ -119,6 +119,7 @@ class AIRun(Record):
     planning_context = models.JSONField(default=dict)
     feedback_workflow_version=models.PositiveSmallIntegerField(default=0)
     audit_report_id=models.CharField(max_length=40,blank=True)
+    native_resume_run_id=models.CharField(max_length=40,blank=True)
     workflow_version = models.PositiveSmallIntegerField(default=0)
     resume_run_id = models.CharField(max_length=40, blank=True)
     restart_stage = models.CharField(max_length=30, blank=True)

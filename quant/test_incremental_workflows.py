@@ -134,7 +134,7 @@ class IncrementalWorkflowTests(TestCase):
         original = copy.deepcopy(ResearchReport.objects.get(run=old).data)
         source2 = self.version(self.code.replace('x * 2', 'x * 3'))
         run2 = self.start(source2, 'incremental_first_0001', old)
-        self.assertEqual(run2.workflow_version, 15)
+        self.assertEqual(run2.workflow_version, 17)
         self.assertEqual(self.finish(run2).call_count, 7)
         source3 = self.version(self.code.replace('x * 2', 'x * 4'))
         run3 = self.start(source3, 'incremental_second_0001', run2)
@@ -175,7 +175,7 @@ class IncrementalWorkflowTests(TestCase):
         third = self.start(source3, 'incremental_metadata_02', second)
         self.assertEqual(self.finish(third).call_count, 6)
         self.assertTrue(all(unit['reused_from'] for unit in third.workflow_steps.get(stage='snippets').input['snippet_plan']['units']))
-        self.assertEqual(old.workflow_version, 14)
+        self.assertEqual(old.workflow_version, 16)
         self.assertEqual(old.workflow_steps.count(), 10)
         snapshot = SyncManager().build_snapshot_data(); validate(snapshot, metadata(snapshot))
 

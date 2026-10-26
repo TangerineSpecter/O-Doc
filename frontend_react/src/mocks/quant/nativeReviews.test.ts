@@ -46,6 +46,14 @@ test('reviewing saved legacy report retains it and records one revision without 
 test('final rejection and cancellation never publish a new mock report',async()=>{
     const {entry,run}=prepare('LOCAL_NATIVE_REVIEW_REJECT');const before=entry.reports!.length;
     finish(entry,run);assert.equal(run.status,'failed');assert.equal(entry.reports!.length,before);assert.equal(run.nativeReviewWorkflow?.stages[2].decision,'reject');
+    assert.equal(run.nativeReviewWorkflow?.canResume,false);
+    const forbidden=await invoke(entry,'','POST',{kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:run.id,requestKey:'native_rejected_resume01'}) as Response;
+    assert.equal(forbidden.status,400);
+    const input={kind:'feedback_review',sourceId:run.sourceId,requestKey:'native_rejected_full_new01'};
+    const full=await invoke(entry,'','POST',input) as QuantAIRun;
+    assert.equal((await invoke(entry,'','POST',input) as QuantAIRun).id,full.id);
+    finish(entry,full);assert.equal(full.nativeReviewWorkflow?.stages[0].reusedFrom,undefined);
+    assert.equal(run.status,'failed');assert.equal(entry.reports!.length,before);
     const other=prepare();await invoke(other.entry,`${other.run.id}/cancel/`,'POST');finish(other.entry,other.run);assert.equal(other.run.status,'cancelled');assert.ok(!other.entry.reports!.some(row=>row.runId===other.run.id));
 });
 test('raw review reader rejects incomplete, forged failed and unsupported records',()=>{
@@ -63,4 +71,60 @@ test('missing positions keep zero, no-valid rows and unknown source failures dis
     const unavailable=nativeAlignmentFixture(60,0,false);assert.equal(readNativeAlignment(JSON.stringify(unavailable)).missing_mismatch_total,null);
     assert.throws(()=>readNativeAlignment(JSON.stringify({...unavailable,left_first_valid_index:0})),/未知/);
     assert.throws(()=>readNativeAlignment(JSON.stringify({...valid,missing_mismatch_total:1})),/数量不一致/);
+});
+test('failed audit resumes the original draft with one new mock call and retains its history',async()=>{
+    const {entry,run}=prepare('LOCAL_NATIVE_REVIEW_AUDIT_FAILURE');finish(entry,run);
+    assert.equal(run.status,'failed');assert.equal(run.nativeReviewWorkflow?.canResume,true);
+    const original=structuredClone(quantState().nativeReviewRecords[0]);
+    const input={kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:run.id,requestKey:'native_resume_mock_audit01'};
+    const next=await invoke(entry,'','POST',input) as QuantAIRun;
+    assert.equal((await invoke(entry,'','POST',input) as QuantAIRun).id,next.id);
+    finish(entry,next);assert.equal(next.status,'completed');assert.equal(run.status,'failed');
+    assert.equal(next.nativeReviewWorkflow?.stages.reduce((n,row)=>n+(row.usage?.requestCount||0),0),1);
+    assert.equal(next.nativeReviewWorkflow?.stages[0].reusedFrom?.runId,run.id);
+    const proof=await invoke(entry,`${next.id}/workflow/native_draft/`) as NativeReviewEvidence;
+    const parsed=readNativeReview(proof.outcomeJson!);assert.equal(parsed.version,3);assert.equal(parsed.raw.text,'');
+    assert.deepEqual(parsed.output,readNativeReview(original.evidence.native_draft!.outcomeJson!).output);
+    assert.deepEqual(quantState().nativeReviewRecords.find(row=>row.runId===run.id),original);
+    assert.equal(next.researchMemoryJson,run.researchMemoryJson);assert.equal(next.requirements,run.requirements);
+});
+test('final audit retry reuses the saved revision and cancelled runs keep their draft',async()=>{
+    const {entry,run}=prepare('LOCAL_NATIVE_REVIEW_REAUDIT_FAILURE');finish(entry,run);
+    const next=await invoke(entry,'','POST',{kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:run.id,requestKey:'native_resume_mock_final01'}) as QuantAIRun;
+    finish(entry,next);assert.equal(next.status,'completed');assert.equal(next.nativeReviewWorkflow?.gateStatus,'revised_audited');
+    assert.equal(next.nativeReviewWorkflow?.stages.filter(row=>row.reusedFrom).length,2);
+    assert.equal(next.nativeReviewWorkflow?.stages.reduce((n,row)=>n+(row.usage?.requestCount||0),0),1);
+    const other=prepare();other.run.createdAt=new Date(Date.now()-700).toISOString();advanceRun(other.run,other.source);
+    assert.equal(other.run.nativeReviewWorkflow?.stages.length,1);await invoke(other.entry,`${other.run.id}/cancel/`,'POST');
+    advanceRun(other.run,other.source);assert.equal(other.run.nativeReviewWorkflow?.canResume,true);
+    const resumed=await invoke(other.entry,'','POST',{kind:'feedback_review',sourceId:other.run.sourceId,nativeResumeRunId:other.run.id,requestKey:'native_resume_mock_cancel01'}) as QuantAIRun;
+    finish(other.entry,resumed);assert.equal(resumed.status,'completed');assert.equal(resumed.nativeReviewWorkflow?.stages[0].usage?.requestCount,0);
+});
+test('resume cannot change the source, model, requirements or claim copied output as a new execution',async()=>{
+    const {entry,run}=prepare('LOCAL_NATIVE_REVIEW_AUDIT_FAILURE');finish(entry,run);
+    for(const values of [{modelId:'different'},{requirements:'different'},{auditReportId:'other'},{nativeResumeRunId:'missing'}]){
+        const result=await invoke(entry,'','POST',{kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:run.id,requestKey:quantId('resume'),...values}) as Response;
+        assert.equal(result.status,400);
+    }
+    const next=await invoke(entry,'','POST',{kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:run.id,requestKey:'native_resume_mock_reader01'}) as QuantAIRun;
+    finish(entry,next);const proof=await invoke(entry,`${next.id}/workflow/native_draft/`) as NativeReviewEvidence;
+    const parsed=readNativeReview(proof.outcomeJson!);
+    assert.throws(()=>readNativeReview(JSON.stringify({...parsed,reused_from:{}})),/原记录/);
+    assert.throws(()=>readNativeReview(JSON.stringify({...parsed,raw:{...parsed.raw,text:'invented'}})),/新执行/);
+    assert.throws(()=>readNativeReview(JSON.stringify({...parsed,usage:{...parsed.usage,request_count:1}})),/新执行/);
+});
+test('a transient local resume error creates no task and the same request key retries once',async()=>{
+    const {entry,run}=prepare('LOCAL_NATIVE_REVIEW_AUDIT_FAILURE LOCAL_NATIVE_RESUME_ERROR_ONCE');finish(entry,run);
+    const before=entry.runs.length,input={kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:run.id,requestKey:'native_resume_error_once01'};
+    const error=await invoke(entry,'','POST',input) as Response;assert.equal(error.status,500);assert.equal(entry.runs.length,before);
+    const next=await invoke(entry,'','POST',input) as QuantAIRun;finish(entry,next);assert.equal(next.status,'completed');
+    assert.equal((await invoke(entry,'','POST',input) as QuantAIRun).id,next.id);assert.equal(entry.runs.length,before+1);
+});
+test('cancelling before checkpoint copy still finds the original ancestor revision',async()=>{
+    const {entry,run}=prepare('LOCAL_NATIVE_REVIEW_REAUDIT_FAILURE');finish(entry,run);
+    const child=await invoke(entry,'','POST',{kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:run.id,requestKey:'native_resume_before_copy01'}) as QuantAIRun;
+    await invoke(entry,`${child.id}/cancel/`,'POST');assert.equal(child.nativeReviewWorkflow?.stages.length,0);
+    const next=await invoke(entry,'','POST',{kind:'feedback_review',sourceId:run.sourceId,nativeResumeRunId:child.id,requestKey:'native_resume_ancestor_copy01'}) as QuantAIRun;
+    finish(entry,next);assert.equal(next.status,'completed');assert.equal(next.nativeReviewWorkflow?.stages[1].reusedFrom?.runId,run.id);
+    assert.equal(next.nativeReviewWorkflow?.stages.reduce((n,row)=>n+(row.usage?.requestCount||0),0),1);
 });

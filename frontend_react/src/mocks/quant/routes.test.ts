@@ -22,6 +22,54 @@ const invoke = async <T>(path: string, method = 'GET', body?: unknown, authorize
     return await resolveQuantRoute(request) as T;
 };
 
+test('新的AI设计样例直接产出多内层方案，能力记录可读且准备前不执行', async () => {
+    const {readProposal} = await import('../../components/Quant/experiments/proposal.ts');
+    const {entry} = await invoke<{entry: QuantEntryDetail}>(base+'intake/','POST',{
+        requestKey:'nested_planning_local_001',title:'多内层AI规划',language:'python',code:'# LOCAL_NESTED_PLANNING\nN=20\ndef factor(close): return close/close.shift(N)-1'});
+    entry.runs[0].createdAt='2020-01-01T00:00:00Z';
+    const ready=await invoke<QuantEntryDetail>(base+`entries/${entry.id}/`);
+    const proposal=ready.reports![0].proposal!;
+    const parsed=readProposal(proposal);
+    assert.equal(parsed.config.walkForward!.version,2);assert.equal(parsed.config.walkForward!.innerFolds,3);
+    assert.equal(parsed.config.walkForward!.warmupBars,25);
+    assert.match(JSON.parse(proposal.dataJson).data_requirement,/133/);
+    assert.equal(quantState().experiments.length,0);
+    const stage=await invoke<import('../../types/api/quantWorkflow.ts').QuantStageEvidence>(base+`entries/${entry.id}/runs/${ready.runs[0].id}/workflow/plan/`);
+    assert.equal(JSON.parse(stage.inputJson).planning_capabilities.maximum_attempts,32);
+    assert.equal(JSON.parse(stage.inputJson).planning_capabilities.scope,'design_capability_not_market_data_execution_authority_or_validation');
+    assert.equal((await invoke<Response>(base+`entries/${entry.id}/runs/${ready.runs[0].id}/workflow/plan/`,'GET',undefined,false)).status,403);
+    setScenario('error');assert.equal((await invoke<Response>(base+`entries/${entry.id}/runs/${ready.runs[0].id}/workflow/plan/`)).status,503);
+    setScenario('sample');assert.equal((await invoke<QuantEntryDetail>(base+`entries/${entry.id}/`)).reports![0].proposal!.dataJson,proposal.dataJson);
+});
+
+test('多内层参数复核 local 贯穿详情、AI解读和恢复，失败与未知保留',async()=>{
+    const {readProposal}=await import('../../components/Quant/experiments/proposal.ts');
+    const {readExperiment}=await import('../../components/Quant/experiments/readout.ts');
+    const source=await invoke<{entry:QuantEntryDetail}>(base+'intake/','POST',{requestKey:'temporal_stability_source',title:'跨窗口参数复核',code:'N=20\ndef factor(close): return close/close.shift(N)-1'});
+    source.entry.runs[0].createdAt='2020-01-01T00:00:00Z';
+    const detail=await invoke<QuantEntryDetail>(base+`entries/${source.entry.id}/`),plan=readProposal(detail.reports![0].proposal!);
+    plan.config.walkForward={version:2,mode:'expanding',folds:3,innerFolds:3,trainBars:40,validationBars:10,testBars:10,warmupBars:0};plan.config.maxCandidates=16;
+    const rows=Array.from({length:180},(_,index)=>`${new Date(Date.UTC(2024,0,index+1)).toISOString()},100,102,99,101,500`);
+    const dataset=await invoke<{id:string}>(base+'datasets/','POST',{name:'人工窗口行情',symbol:'SYNTHETIC',timeframe:'1d',timezone:'UTC',priceAdjustment:'',source:'人工样例',csvText:['timestamp,open,high,low,close,volume',...rows].join('\n')});
+    type Experiment=import('../../types/api/quantExperiment.ts').QuantExperiment;
+    const started=await invoke<Experiment>(base+'experiments/','POST',{requestKey:'temporal_stability_run01',name:'跨窗口人工实验',datasetId:dataset.id,seeds:plan.seeds,config:plan.config});
+    assert.equal(readExperiment(started).temporalSensitivity!.planned_windows,9);
+    assert.equal(readExperiment(started).temporalSensitivity!.status,'insufficient_comparison');
+    quantState().experiments.find(row=>row.data.id===started.id)!.data.createdAt='2020-01-01T00:00:00Z';
+    const completed=await invoke<Experiment>(base+`experiments/${started.id}/`),run=completed.reviews![0].run;
+    assert.equal(readExperiment(completed).temporalSensitivity!.families[0].axes[0].windows.length,9);
+    quantState().entries.find(row=>row.id===run.entryId)!.runs.find(row=>row.id===run.id)!.createdAt='2020-01-01T00:00:00Z';
+    const reviewed=await invoke<Experiment>(base+`experiments/${started.id}/`);
+    assert.match(reviewed.reviews![0].report!.markdown,/跨窗口参数复核/);
+    assert.equal(reviewed.reviews![0].run.result.review!.temporalParameterReview!.plannedWindows,9);
+    assert.equal((await invoke<{items:Experiment[]}>(base+'experiments/')).items.find(row=>row.id===started.id)!.temporalSensitivityJson,undefined);
+    resetQuantStateForTests();assert.equal((await invoke<Experiment>(base+`experiments/${started.id}/`)).temporalSensitivityJson,reviewed.temporalSensitivityJson);
+    assert.equal((await invoke<Response>(base+`experiments/${started.id}/`,'GET',undefined,false)).status,403);
+    setScenario('empty');assert.equal((await invoke<{total:number}>(base+'experiments/')).total,0);
+    setScenario('error');assert.equal((await invoke<Response>(base+`experiments/${started.id}/`)).status,503);
+    setScenario('slow');assert.equal(readExperiment(await invoke<Experiment>(base+`experiments/${started.id}/`)).temporalSensitivity!.planned_windows,9);
+});
+
 test('同一来源重新分析保留两份原稿、完整参数和修订正文，可直接对照', async () => {
     const {entry} = await invoke<{entry: QuantEntryDetail}>(base + 'intake/', 'POST', {requestKey: 'report_comparison_local_001', title: '重复分析对照', language: 'python', code: 'N=20\ndef factor(close): return close / close.shift(N)-1'});
     entry.runs[0].createdAt = '2020-01-01T00:00:00Z';
@@ -48,7 +96,7 @@ test('源码问题清单保留严重度、原文和人工修订边界，空清�
         return invoke<QuantEntryDetail>(base + `entries/${entry.id}/`);
     };
     const entry = await collect('LOCAL_CRITICAL_FINDING', 'source_findings_critical_001'), report = entry.reports![0];
-    assert.equal(entry.runs[0].workflow?.version, 14);
+    assert.equal(entry.runs[0].workflow?.version, 16);
     assert.equal(report.data.sourceFindingsVersion, 1);
     assert.equal(report.data.sourceFindings?.[0].severity, 'critical');
     assert.equal(report.data.sourceFindings?.[0].evidence[0].quote, '# LOCAL_CRITICAL_FINDING');

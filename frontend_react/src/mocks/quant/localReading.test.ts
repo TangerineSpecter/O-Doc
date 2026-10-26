@@ -35,7 +35,7 @@ test('local跨源码研究展示片段复用，保留历史合同与新增有界
     const second = await nextVersion('N=20\ndef factor(x): return x * 3\n');
     const run2 = await invoke<QuantAIRun>(path + 'runs/', 'POST', {kind: 'analyze', sourceId: second.id, resumeRunId: run1.id, requestKey: 'local_incremental_run002'});
     run2.createdAt = '2020-01-01T00:00:00Z'; await invoke(path);
-    assert.equal(run2.workflow?.version, 15); assert.equal(run2.workflow?.stages.length, 11);
+    assert.equal(run2.workflow?.version, 17); assert.equal(run2.workflow?.stages.length, 11);
     assert.equal(run2.workflow?.maxModelCalls, 8); assert.equal(run2.workflow?.maxSeconds, 960);
     const third = await nextVersion('N=20\ndef factor(x): return x * 4\n');
     const run3 = await invoke<QuantAIRun>(path + 'runs/', 'POST', {kind: 'analyze', sourceId: third.id, resumeRunId: run2.id, requestKey: 'local_incremental_run003'});

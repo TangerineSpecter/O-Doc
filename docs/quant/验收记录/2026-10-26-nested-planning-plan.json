@@ -1,0 +1,223 @@
+{
+  "validated": {
+    "initial_planning_version": 1,
+    "initial_proposal": {
+      "name": "close_relative_rolling_mean_deviation_period_wf_v2",
+      "hypothesis": "在固定 close 口径、费用与滑点各 5bps、gap=2 的 walk-forward 设定下，围绕默认 period=14 的 7–28 根 bar 窗口邻域中，至少一个非默认 period 的正偏离信号在扣除成本后，其内层验证收益减回撤均值优于基线，并在至少 2/3 个外层测试折中保持非负超额；若不存在，则该正偏离延续方向无稳定窗口证据。",
+      "falsification": "若 3 个外层测试折中没有任何非默认 period 在至少 2 折保持非负超额，或全部候选扣除成本后的内层验证收益减回撤均值不高于 0，或全部非默认 period 均不优于基线，则判定该窗口邻域假设不成立/不支持。均值回归方向不在本批做多规则的可识别范围内，不能据此宣称均值回归有效或无效。",
+      "data_requirement": "单标的、bar 级 close 序列，频率、品种、复权/连续合约口径须由用户明确；至少 max(60,2+28+40+3×10+3×10+2×(2+1))=136 根有效行情，且不超过 20000 根；窗口按 bar 计，收益区间按开盘到下一开盘解释。未提供行情，无法声称已具备足够数据或已运行。sma 缺失语义按本地引擎声明执行，原 pandas rolling 的 min_periods 未验证。",
+      "evidence_refs": [
+        "factor:0"
+      ],
+      "seeds": [
+        {
+          "factor_index": 0,
+          "bindings": [
+            {
+              "name": "close",
+              "column": "close"
+            }
+          ],
+          "variants": [
+            [
+              {
+                "name": "period",
+                "value": 7
+              }
+            ],
+            [
+              {
+                "name": "period",
+                "value": 10
+              }
+            ],
+            [
+              {
+                "name": "period",
+                "value": 20
+              }
+            ],
+            [
+              {
+                "name": "period",
+                "value": 28
+              }
+            ]
+          ]
+        }
+      ],
+      "config": {
+        "seed": 42,
+        "max_candidates": 16,
+        "generations": 2,
+        "threshold": 0,
+        "fee_bps": 5,
+        "slippage_bps": 5,
+        "gap": 2,
+        "seconds": 30,
+        "walk_forward": {
+          "version": 2,
+          "mode": "expanding",
+          "folds": 3,
+          "inner_folds": 3,
+          "train_bars": 40,
+          "validation_bars": 10,
+          "test_bars": 10,
+          "warmup_bars": 28
+        }
+      }
+    },
+    "initial_planning_note": "可检验范围：仅针对 factor:0 的便携表达式 s_t=close_t/sma(close_t, period)-1，围绕源码默认 period=14 做 7/10/20/28 根 bar 的邻域比较。基线由服务端读取默认值，不把 14 当成运行配置或最优参数。portable_qualification 的 automatic_experiment_ready=true 仅限该提取表达式及声明默认配置；原 8 行 Python 的 pandas min_periods、运行时依赖与原平台 sma 等价性未验证，不能声称与原函数等价。未提供行情，不能声称已运行、已验证、最优或获利；作者“always profitable”主张无证据，本方案不验证该主张。阈值 0 有无量纲分界语义（高于/低于滚动均值），但本批沿用默认数值序列 >threshold 做多，只检验正偏离延续方向，不检验均值回归的空头腿；若需检验均值回归方向，应另提条件取反/布尔过滤或做空方向方案，本批不能声称已比较。费用 5bps、滑点 5bps、gap=2 是实验假设，不贴合实际账户；未优化显示、执行或风控模块。walk_forward 采用 v2 expanding：3 外折、3 内折、train 40、validation 10、test 10、warmup 28，按开盘到下一开盘收益区间解释；warmup=28 是为覆盖最长候选 period=28 的 AI 实验假设，不是源码约束。最低数据长度=max(60,2+28+40+3×10+3×10+2×(2+1))=136 根，不超过 20000；品种、频率、复权/连续口径未知，须用户后续选择。候选为基线+4 个变体=5 个，3 外折共 15 次候选尝试，<=max_candidates=16；内层实际评估数增加但共享 30 秒时限，不把内层折数乘进候选预算。内层共享历史，summary 才是完整内层选择均值；外层测试只在选择后评价，不挑测试最好的折，不承诺统计显著性。"
+  },
+  "proposal": {
+    "version": 1,
+    "name": "close_relative_rolling_mean_deviation_period_wf_v2",
+    "hypothesis": "在固定 close 口径、费用与滑点各 5bps、gap=2 的 walk-forward 设定下，围绕默认 period=14 的 7–28 根 bar 窗口邻域中，至少一个非默认 period 的正偏离信号在扣除成本后，其内层验证收益减回撤均值优于基线，并在至少 2/3 个外层测试折中保持非负超额；若不存在，则该正偏离延续方向无稳定窗口证据。",
+    "falsification": "若 3 个外层测试折中没有任何非默认 period 在至少 2 折保持非负超额，或全部候选扣除成本后的内层验证收益减回撤均值不高于 0，或全部非默认 period 均不优于基线，则判定该窗口邻域假设不成立/不支持。均值回归方向不在本批做多规则的可识别范围内，不能据此宣称均值回归有效或无效。",
+    "data_requirement": "单标的、bar 级 close 序列，频率、品种、复权/连续合约口径须由用户明确；至少 max(60,2+28+40+3×10+3×10+2×(2+1))=136 根有效行情，且不超过 20000 根；窗口按 bar 计，收益区间按开盘到下一开盘解释。未提供行情，无法声称已具备足够数据或已运行。sma 缺失语义按本地引擎声明执行，原 pandas rolling 的 min_periods 未验证。",
+    "evidence_refs": [
+      "factor:0"
+    ],
+    "seeds": [
+      {
+        "id": "8ad1fb3c214f382be9696ef1c10849a8be940581",
+        "candidate": {
+          "name": "close_relative_rolling_mean_deviation",
+          "role": "factor",
+          "family": "mean_reversion",
+          "summary": "在 bar t 计算 close 相对其过去 period 个 bar 滚动均值的相对偏离。该模块是第 5–6 行可分离的连续数值计算，剥离了第 7–8 行未来收益项后可作为 t 时刻因子候选；机制分类为均值回归/价格结构提议，不证明有效。",
+          "formula": "s_t = close_t / mean_t - 1；mean_t = 过去 period 个 bar 的 close 算术均值（rolling mean）。",
+          "inputs": [
+            {
+              "name": "close",
+              "meaning": "frame[\"close\"] 价格序列字段；源码只引用单一 close 字段，资产范围、数据频率与复权口径未声明。",
+              "availability": "bar t 的 close 在数据发布后可得；具体发布延迟、频率、复权口径未知。",
+              "missing_policy": "源码未声明 close 缺失处理；expression 的 sma 缺失策略依赖平台，pandas rolling 的 min_periods 默认行为未声明且未验证。"
+            }
+          ],
+          "output_type": "numeric_series",
+          "units": "无量纲；为价格相对滚动均值的相对偏离比例（close/mean - 1）。",
+          "timeframe": "计算窗口为 period 个 bar；适用周期与数据频率未声明，无法换算为自然时间；period 默认 14 仅为函数默认值，不是最优或运行配置。",
+          "parameters": [
+            {
+              "name": "period",
+              "type": "int",
+              "default_value": "14",
+              "category": "signal",
+              "meaning": "滚动均值窗口长度，单位为 bar；文档字符串未说明数据频率，因此无法换算为自然时间（第5行 `.rolling(period)`）。源码未说明该默认值的依据。",
+              "constraints": "源码未声明取值范围、步长或枚举，故不提供 domain。只有实现含义上的隐含要求：窗口长度须为整数，且 `.rolling(period)` 能接受该值；至于 period ≥ 1 是否严格必需、是否允许 0 或负值，源码均未明示（未知）。period 与 horizon 在源码中无相互约束声明。",
+              "effect": "period 增大时，均值更平滑、偏离度 signal 变化更慢（推断，未经回测）；period 减小时，信号更敏感。该参数只作用于第5–6行信号构造，不进入第7行标签构造。源码未提供任何敏感性或最优参数证据。",
+              "suggestion": "待验证：先确认 frame 的数据频率与复权口径，再对 period 做敏感性检查（例如在多个候选窗口上比较信号自相关与换手）；建议范围仅为验证起点，非实证最优，且不得以默认值14冒充实际运行配置。",
+              "evidence": "第1行默认值 period=14；第5行使用 rolling(period).mean() 构造滚动均值。"
+            }
+          ],
+          "dependencies": [
+            "frame[\"close\"] 为外部传入的 DataFrame 列；源码 imports 为空，.rolling/.mean 的运行时依赖未验证",
+            "参数 period",
+            "滚动均值 min_periods 的缺失语义未在源码中声明"
+          ],
+          "limitations": "本候选是剥离第 7–8 行未来收益项后的 t 时刻模块，不等同于原函数返回值。源码未声明 frame 的数据频率、复权口径、资产范围与 close 数据源；period 的合法下限与取值范围未声明。expression 仅在假设滚动均值可由 sma(close, period) 表达时给出；pandas .rolling(period).mean() 的 min_periods 默认行为未声明，平台 sma 语义可能不同，前 period-1 个 bar 的缺失结果依赖运行时。若 mean 为 0 或 close 缺失，可能出现 inf/NaN，具体行为未验证。未回测，不证明有效、稳健或参数最优。原第 7–8 行若被当作因子使用会引入未来信息泄漏，本候选未包含该部分。",
+          "tags": [
+            "mechanism:mean_reversion",
+            "mechanism:price_structure",
+            "structure:time_series",
+            "data:price",
+            "usage:factor",
+            "usage:signal",
+            "tunability:signal"
+          ],
+          "expression": {
+            "op": "sub",
+            "args": [
+              {
+                "op": "div",
+                "args": [
+                  {
+                    "op": "input",
+                    "name": "close"
+                  },
+                  {
+                    "op": "sma",
+                    "args": [
+                      {
+                        "op": "input",
+                        "name": "close"
+                      },
+                      {
+                        "op": "parameter",
+                        "name": "period"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "constant",
+                "value": 1
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "field": "code",
+              "quote": "def indicator(frame, period=14, horizon=1):"
+            },
+            {
+              "field": "code",
+              "quote": "    mean = frame[\"close\"].rolling(period).mean()"
+            },
+            {
+              "field": "code",
+              "quote": "    signal = frame[\"close\"] / mean - 1"
+            }
+          ]
+        },
+        "bindings": {
+          "close": "close"
+        },
+        "parameters": {
+          "period": 14
+        },
+        "variants": [
+          {
+            "period": 7
+          },
+          {
+            "period": 10
+          },
+          {
+            "period": 20
+          },
+          {
+            "period": 28
+          }
+        ]
+      }
+    ],
+    "config": {
+      "seed": 42,
+      "max_candidates": 16,
+      "generations": 2,
+      "threshold": 0,
+      "fee_bps": 5,
+      "slippage_bps": 5,
+      "gap": 2,
+      "seconds": 30,
+      "walk_forward": {
+        "version": 2,
+        "mode": "expanding",
+        "folds": 3,
+        "inner_folds": 3,
+        "train_bars": 40,
+        "validation_bars": 10,
+        "test_bars": 10,
+        "warmup_bars": 28
+      }
+    },
+    "evidence_hash": "8ad174a3b9a0f8a60e63716af658f6a9022bd72dce41313cae068262c9af5a3a",
+    "status": "unverified_requires_fresh_validation",
+    "constraint_status": "engine_types_and_windows_checked_other_constraints_require_review",
+    "origin": "source_analysis",
+    "baseline_status": "source_declared_defaults_not_actual_live_settings"
+  }
+}

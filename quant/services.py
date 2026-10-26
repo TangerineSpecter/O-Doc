@@ -159,12 +159,17 @@ def _run_input(entry: Entry, data: dict, existing=None) -> dict:
         resume_run_id = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
         restart_stage = serializers.ChoiceField(choices=stages(INCREMENTAL_VERSION), required=False, allow_blank=True, default='')
         audit_report_id=serializers.CharField(max_length=40,required=False,allow_blank=True,default='')
+        native_resume_run_id=serializers.CharField(max_length=40,required=False,allow_blank=True,default='')
     serializer = Input(data=data)
     serializer.is_valid(raise_exception=True)
     values = dict(serializer.validated_data)
     if values['kind']!='feedback_review' and values['audit_report_id']:
         raise ValidationError('仅原始Python验证反馈支持复核已有报告')
     if not values['audit_report_id']:values.pop('audit_report_id')
+    if values['native_resume_run_id']:
+        if values['kind']!='feedback_review' or values.get('audit_report_id') or values.get('resume_run_id') or values.get('restart_stage'):
+            raise ValidationError('Python事实审查续作不能同时改换报告或其他阶段来源')
+    else:values.pop('native_resume_run_id')
     resume_id = values.pop('resume_run_id')
     restart_stage = values.pop('restart_stage')
     if restart_stage and not resume_id:
@@ -198,7 +203,7 @@ def _run_input(entry: Entry, data: dict, existing=None) -> dict:
             if restart_stage:
                 values['restart_stage'] = restart_stage
         if resume_id:
-            previous = get_object_or_404(AIRun, pk=resume_id, entry=entry, kind='analyze', workflow_version__in=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
+            previous = get_object_or_404(AIRun, pk=resume_id, entry=entry, kind='analyze', workflow_version__in=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17))
             values['workflow_version'] = previous.workflow_version
             from .worker import recover
             allowed = ('failed', 'cancelled', 'interrupted', 'completed') if restart_stage else ('failed', 'cancelled', 'interrupted')

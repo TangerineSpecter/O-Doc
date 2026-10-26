@@ -117,8 +117,8 @@ class ResearchMemoryIntegrationTests(TestCase):
     def test_new_review_uses_cross_source_experiment_and_feedback_with_all_trials(self):
         current, dataset, previous, feedback = self.history()
         request, run = self.calculate_candidate(current, dataset, 'research_memory_current_experiment')
-        self.assertEqual(run.review_version, 10)
-        self.assertEqual(run.planning_context['version'], 5)
+        self.assertEqual(run.review_version, 12)
+        self.assertEqual(run.planning_context['version'], 6)
         selected = {(item['kind'], item['id']): item for item in self.memory(run)['items']}
         self.assertIn(('experiment', previous.result.pk), selected)
         self.assertIn(('feedback', feedback.source_id), selected)
@@ -151,8 +151,8 @@ class ResearchMemoryIntegrationTests(TestCase):
     def test_feedback_receives_library_history_without_changing_quoted_current_values(self):
         current, _, previous, historical = self.history()
         run, path, values = self.feedback(current, 'research_memory_current_feedback')
-        self.assertEqual(run.planning_context['version'], 4)
-        self.assertEqual(run.planning_context['method'], 'feedback-research-4')
+        self.assertEqual(run.planning_context['version'], 5)
+        self.assertEqual(run.planning_context['method'], 'feedback-research-5')
         # Same-source history stays distinct from collection-wide retrieval.
         self.assertEqual(run.planning_context['history_ids'], [])
         items = self.memory(run)['items']
@@ -290,7 +290,7 @@ class ResearchMemoryIntegrationTests(TestCase):
         older, same = archived
         with patch('django.utils.timezone.now', return_value=current_time):
             run, _, _ = self.feedback(candidate, 'research_memory_ms_current')
-        self.assertEqual(run.planning_context['version'], 4)
+        self.assertEqual(run.planning_context['version'], 5)
         self.assertEqual(run.planning_context['history_ids'], [older.pk])
         self.assertNotIn(same.pk, {item['id'] for item in self.memory(run)['items']})
         context = feedback_evidence(run)

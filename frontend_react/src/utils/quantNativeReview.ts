@@ -6,9 +6,14 @@ export const nativeReviewIssues:Record<string,string>={side_inversion:'左右侧
 export function readNativeReview(text:string):NativeReviewOutcome {
     if(text.length>2500000)throw new Error('审查记录超过读取上限');
     const value:unknown=JSON.parse(text);
-    if(!object(value)||value.version!==2||value.method!=='native-report-review-v1'||!['completed','failed'].includes(String(value.status))||typeof value.error!=='string'
+    if(!object(value)||![2,3].includes(Number(value.version))||typeof value.version!=='number'||value.method!=='native-report-review-v1'||!['completed','failed'].includes(String(value.status))||typeof value.error!=='string'
         ||typeof value.elapsed_ms!=='number'||!object(value.raw)||typeof value.raw.text!=='string'||typeof value.raw.total_chars!=='number'||typeof value.raw.truncated!=='boolean'
         ||typeof value.raw.sha256!=='string'||!object(value.output))throw new Error('审查记录版本或原始返回不完整');
+    if(value.version===3&&(!object(value.reused_from)||Object.keys(value.reused_from).sort().join(',')!=='content_hash,input_hash,outcome_id,run_id,step_id'
+        ||!Object.values(value.reused_from).every(item=>typeof item==='string'&&item.length>0&&item.length<=100)
+        ||value.status!=='completed'||value.error||value.elapsed_ms!==0||value.raw.text||value.raw.total_chars!==0||value.raw.truncated
+        ||!object(value.usage)||value.usage.request_count!==0||!Array.isArray(value.usage.event_ids)||value.usage.event_ids.length
+        ||value.usage.input_tokens!==null||value.usage.output_tokens!==null||value.usage.total_tokens!==null))throw new Error('复用阶段缺少完整原记录或伪装成新执行');
     if(value.status==='failed'&&(Object.keys(value.output).length||!value.error))throw new Error('失败审查不能携带正式成果');
     if(value.output.decision!==undefined&&!Object.prototype.hasOwnProperty.call(nativeReviewDecisions,String(value.output.decision)))throw new Error('未知审查判断');
     const issues=value.output.issues;

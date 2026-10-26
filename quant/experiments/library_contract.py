@@ -61,14 +61,19 @@ def summary(context):
 def validate_context(context, base, candidates, relations, *, collection_id, source_ids):
     """Historical selection is frozen; validate selected evidence, not today's ranking pool."""
     required = {'version', 'method', 'scan_limit', 'scanned', 'eligible', 'omitted_for_size', 'options', 'retrieved'}
-    if isinstance(context, dict) and context.get('version') in (2, 3, 4, 5):
+    if isinstance(context, dict) and context.get('version') in (2, 3, 4, 5, 6):
         required.add('research_memory')
-    if isinstance(context, dict) and context.get('version') in (4,5):
+    if isinstance(context, dict) and context.get('version') in (4,5,6):
         required.add('fixed_validation')
-    if isinstance(context,dict) and context.get('version')==5 and 'selection_diagnostic' in context:
+    if isinstance(context,dict) and context.get('version') in (5,6) and 'selection_diagnostic' in context:
         required.add('selection_diagnostic')
-    if not isinstance(context, dict) or set(context) != required or type(context['version']) is not int or context['version'] not in (1, 2, 3, 4, 5) or context['method'] != METHOD or context['scan_limit'] != LIMIT:
+    if isinstance(context,dict) and context.get('version') == 6:
+        required.add('planning_capabilities')
+    if not isinstance(context, dict) or set(context) != required or type(context['version']) is not int or context['version'] not in (1, 2, 3, 4, 5, 6) or context['method'] != METHOD or context['scan_limit'] != LIMIT:
         raise ValidationError('跨库研究上下文版本无效')
+    if context['version'] == 6:
+        from .planning_capabilities import validate
+        validate(context['planning_capabilities'])
     if any(type(context[key]) is not int or not 0 <= context[key] <= LIMIT for key in ('scanned', 'eligible', 'omitted_for_size')) or context['eligible'] > context['scanned']:
         raise ValidationError('跨库研究扫描统计无效')
     options, retrieved = context['options'], context['retrieved']

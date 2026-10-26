@@ -23,7 +23,7 @@ def validate_workflows(rows: dict, fail) -> None:
     # Workflow identity is a business fact, even though execution state may
     # change during recovery. A rehashed snapshot cannot downgrade it away.
     frozen = ('workflow_version', 'resume_run_id', 'restart_stage', 'source_id', 'requirements', 'model_id', 'entry_id')
-    for local in AIRun.objects.filter(pk__in=runs, workflow_version__in=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)).values('id', *frozen):
+    for local in AIRun.objects.filter(pk__in=runs, workflow_version__in=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)).values('id', *frozen):
         for key in frozen:
             field = AIRun._meta.get_field(key).name
             if local[key] != runs[local['id']].get(field, '' if field == 'restart_stage' else None):
@@ -57,7 +57,7 @@ def validate_workflows(rows: dict, fail) -> None:
         run = runs.get(row.get('run'), {})
         ordinal, stage = row.get('ordinal'), row.get('stage')
         order = stages(run.get('workflow_version', 0))
-        if (run.get('kind') != 'analyze' or run.get('workflow_version') not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) or type(ordinal) is not int
+        if (run.get('kind') != 'analyze' or run.get('workflow_version') not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) or type(ordinal) is not int
                 or not 1 <= ordinal <= len(order) or stage != order[ordinal - 1]
                 or identity != digest(['workflow-step-1', row['run'], ordinal])[:40]
                 or not isinstance(row.get('input'), dict) or row.get('content_hash') != digest(row['input'])):
@@ -67,7 +67,7 @@ def validate_workflows(rows: dict, fail) -> None:
         version = run.get('workflow_version', 0)
         previous_id = run.get('resume_run_id', '')
         restart_stage = run.get('restart_stage', '')
-        if type(version) is not int or version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) or not isinstance(previous_id, str):
+        if type(version) is not int or version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) or not isinstance(previous_id, str):
             fail('研究工作流版本无效')
         if restart_stage not in ('', *stages(version)) or restart_stage and not previous_id:
             fail('重跑阶段或原研究引用无效')
@@ -86,7 +86,7 @@ def validate_workflows(rows: dict, fail) -> None:
             old_source = sources.get(old.get('resolved_source') or old.get('source'), {})
             child_source = sources.get(child.get('source'), {})
             valid_link = (uses_snippets(child.get('workflow_version')) and not child_restart and old.get('status') == 'completed'
-                and old.get('workflow_version') in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) and old_source.get('material') == child_source.get('material')) if cross_source else (
+                and old.get('workflow_version') in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) and old_source.get('material') == child_source.get('material')) if cross_source else (
                 old.get('workflow_version') == child.get('workflow_version') and old.get('status') in allowed)
             if (parent in seen or old.get('entry') != run['entry'] or old.get('kind') != 'analyze' or not valid_link):
                 fail('阶段重试链缺失、循环或来源不一致')

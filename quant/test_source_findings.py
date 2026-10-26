@@ -74,7 +74,7 @@ class SourceFindingsWorkflowTests(TestCase):
 
     def test_new_report_api_manual_revision_and_sync_preserve_findings(self):
         entry, run = self.start(); model = self.finish(run, response())
-        self.assertEqual(run.status, 'completed', run.error); self.assertEqual(run.workflow_version, 14)
+        self.assertEqual(run.status, 'completed', run.error); self.assertEqual(run.workflow_version, 16)
         self.assertTrue(any('source_findings_note' in call.args[1] for call in model.call_args_list))
         report = ResearchReport.objects.get(run=run)
         data = self.client.get(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/').json()['data']

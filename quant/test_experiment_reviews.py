@@ -28,12 +28,20 @@ def response(evidence=None):
     value=_response()
     if evidence and 'selection_diagnostic' in evidence['evidence']:
         value['selection_review']=selection_response()['selection_review']
+    if evidence and 'temporal_parameter_stability' in evidence['evidence']:
+        temporal=evidence['evidence']['temporal_parameter_stability']
+        value['temporal_parameter_review']={'status':temporal['status'],'planned_windows':temporal['planned_windows'],
+            'text':'逐窗保留失败和缺测；共同离散候选仍需新数据复核。','evidence_refs':['temporal_parameter_stability']}
     return value
 
 
 def acknowledge_selection(value,run):
     if run.kind=='experiment_review' and run.planning_context.get('selection_diagnostic'):
         value['selection_review']=selection_response()['selection_review']
+    if run.kind=='experiment_review' and run.review_version==12:
+        from quant.experiments.review_evidence import for_run
+        generated=response(for_run(run))
+        if 'temporal_parameter_review' in generated:value['temporal_parameter_review']=generated['temporal_parameter_review']
     return value
 
 

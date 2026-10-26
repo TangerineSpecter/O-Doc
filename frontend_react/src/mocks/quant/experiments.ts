@@ -5,6 +5,7 @@ import {temporalSnapshot, temporalWindows, validateTemporalBudget} from '../../u
 import {demoTemporalResult} from './temporalResult';
 import {evolutionSnapshot, readEvolution} from '../../utils/quantEvolution';
 import {mockSensitivity} from './sensitivity';
+import {mockTemporalSensitivity} from './temporalSensitivity';
 import type {MockLibraryContext} from './libraryResearch';
 import {findMockProposal} from './experimentProposals';
 import {attachMockProposal, presentMockProposal} from './experimentProposals';
@@ -21,7 +22,7 @@ import {checkParameterDomains} from '../../utils/quantParameterDomain';
 import {persistQuantState, quantId, quantState} from './state';
 export interface MockExperiment {strategyArtifacts?: import('../../types/api/quantStrategyExport').QuantStrategyArtifact[]; collection: string; input: QuantExperimentInput; data: QuantExperiment; libraryContexts?: Record<string, MockLibraryContext>; proposals?: Record<string, QuantExperimentProposal>}
 const fail = (status: number, msg: string) => HttpResponse.json({code: status, msg, data: null}, {status});
-const summary = ({selectionDiagnostic: _selectionDiagnostic, jointSensitivityJson: _jointSensitivity, sensitivityJson: _sensitivity, planJson: _plan, resultJson: _result, attemptsJson: _attempts, reviews: _reviews, reviewContext: _reviewContext, derivedCandidates: _derived, originProposal: _origin, ...data}: QuantExperiment) => data;
+const summary = ({temporalSensitivityJson: _temporalSensitivity, selectionDiagnostic: _selectionDiagnostic, jointSensitivityJson: _jointSensitivity, sensitivityJson: _sensitivity, planJson: _plan, resultJson: _result, attemptsJson: _attempts, reviews: _reviews, reviewContext: _reviewContext, derivedCandidates: _derived, originProposal: _origin, ...data}: QuantExperiment) => data;
 function validate(input: QuantExperimentInput, collection: string) {
     if (!input || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 || !/^[A-Za-z0-9_-]{16,64}$/.test(input.requestKey || '')) throw new Error('实验名称或请求标识无效');
     const dataset = quantState().datasets.find(row => row.collection === collection && row.data.id === input.datasetId);
@@ -74,6 +75,7 @@ function advance(record: MockExperiment) {
     }
     record.data.sensitivityJson = mockSensitivity(record);
     record.data.jointSensitivityJson = mockJointSensitivity(record);
+    record.data.temporalSensitivityJson = mockTemporalSensitivity(record);
     const candidate = collectMockFactors(quantState().entries.filter(row => row.collId === record.collection && row.isValid)).find(row => row.id === record.input.seeds[0].candidateId);
     const entry = candidate && quantState().entries.find(row => row.id === candidate.entryId);
     if (entry && candidate && record.data.resultJson) {
@@ -100,14 +102,16 @@ export async function resolveExperimentRoute(request: Request, collection: strin
             if (existing) return JSON.stringify(existing.input) === JSON.stringify(input) ? existing.data : fail(409, '请求标识已用于不同实验');
             if (records.filter(row => ['pending', 'running'].includes(row.data.status)).length >= 4) return fail(409, '最多同时保留 4 个实验');
             const config = input.config;
-            const plan = {version: 1, engine_version: config.strategy ? config.walkForward ? 'quant-local-search-6' : 'quant-local-search-5' : config.walkForward ? 'quant-local-search-4' : config.evolution ? 'quant-local-search-3' : 'quant-local-search-2', name: input.name, dataset_hash: dataset.data.contentHash,
+            const plan = {version: 1, engine_version: config.strategy ? config.walkForward ? config.walkForward.version === 2 ? 'quant-local-search-8' : 'quant-local-search-6' : 'quant-local-search-5' : config.walkForward ? config.walkForward.version === 2 ? 'quant-local-search-7' : 'quant-local-search-4' : config.evolution ? 'quant-local-search-3' : 'quant-local-search-2', name: input.name, dataset_hash: dataset.data.contentHash,
                 seeds: input.seeds.map(seed => ({id: seed.candidateId, candidate: candidates.find(row => row.id === seed.candidateId)!.data,
                     bindings: Object.fromEntries(seed.bindings.map(row => [row.name, row.column])), parameters: Object.fromEntries(seed.parameters.map(row => [row.name, row.value])), variants: seed.variants.map(values => Object.fromEntries(values.map(row => [row.name, row.value])))})),
                 config: {...(config.strategy ? {strategy: strategySnapshot(config.strategy)} : {}), seed: config.seed, max_candidates: config.maxCandidates, generations: config.generations, threshold: config.threshold, fee_bps: config.feeBps, slippage_bps: config.slippageBps, gap: config.gap, seconds: config.seconds, ...(config.evolution ? {evolution: evolutionSnapshot(config.evolution)} : {}), ...(config.walkForward ? {walk_forward: temporalSnapshot(config.walkForward)} : {})}};
             const originProposal = attachMockProposal(plan, input.proposalId, collection);
             const data: QuantExperiment = {id: quantId('experiment'), name: input.name, datasetId: input.datasetId, createdAt: new Date().toISOString(),
                 originProposal, status: 'pending', cancelRequested: false, error: '本地模拟实验任务，不执行真实回测', attemptCount: 0, contentHash: 'local-demo-plan', planJson: JSON.stringify(plan), resultJson: null, attemptsJson: '[]'};
-            quantState().experiments.unshift({collection, input, data}); persistQuantState(); return data;
+            const record: MockExperiment={collection,input,data};
+            data.temporalSensitivityJson=mockTemporalSensitivity(record);
+            quantState().experiments.unshift(record); persistQuantState(); return data;
         } catch (cause) {return fail(400, cause instanceof Error ? cause.message : '实验请求无效');}
     }
     const record = records.find(row => row.data.id === id);

@@ -7,6 +7,7 @@ export function mockSensitivity(record: MockExperiment): string {
     const data: QuantSensitivity = {version: 1, rule: {version: 1, minimum_points: 3, return_spread_limit: .02, drawdown_spread_limit: .02, baseline_return_loss_limit: .02, baseline_drawdown_increase_limit: .02, requires_positive_return: true, requires_entries: true, minimum_signal_coverage: .9, maximum_missing_fraction_spread: .05, selection_partitions: ['train', 'validation'], interpolation_allowed: false},
         limitations: ['人工构造的 local 展示样例，未计算导入行情；不用于推荐真实参数。', '未执行、失败与多参数变体不构成稳定区段；不使用留出结果。'], families: [], excluded_combination_ids: attempts.filter(row => !['source_candidate', 'parameter_variant'].includes(row.operation)).map(row => row.id)};
     if (record.input.config.walkForward) data.limitations.push('参数归因仅比较最后已启动折，不跨折合并。');
+    if (record.input.config.walkForward?.version === 2) data.limitations.push('嵌套搜索仅描述最后外折最后已启动的内层窗口，实际选择使用全部内层汇总。');
     for (const seed of record.input.seeds) {
         const base = attempts.find(row => row.operation === 'source_candidate' && row.parents[0] === seed.candidateId);
         const baseline = Object.fromEntries(seed.parameters.map(row => [row.name, row.value]));

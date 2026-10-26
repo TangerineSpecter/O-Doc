@@ -10,6 +10,52 @@ import type {QuantExperimentInput, QuantExperiment} from '../../../types/api/qua
 import type {QuantParameterPredicate, QuantParameterOperand} from '../../../types/api/quantParameters.ts';
 const candidate = {id: 'fixture', curation: {name: '动量'}, data: mockFactors({payload: {code: 'fixture'}} as Parameters<typeof mockFactors>[0])[0]} as QuantFactorCandidate;
 
+async function temporalParameterFixture() {
+    const {demoTemporalResult} = await import('../../../mocks/quant/temporalResult.ts');
+    const {mockTemporalSensitivity} = await import('../../../mocks/quant/temporalSensitivity.ts');
+    const input: QuantExperimentInput = {requestKey:'all_inner_fixture_01',name:'跨窗口参数',datasetId:'fixture',seeds:[buildSeed(candidate,initialSeed(candidate),true)],
+        config:{seed:42,maxCandidates:16,generations:2,threshold:0,feeBps:5,slippageBps:5,gap:1,seconds:30,walkForward:{version:2,mode:'expanding',folds:3,innerFolds:3,trainBars:40,validationBars:10,testBars:10,warmupBars:0}}};
+    const demo=demoTemporalResult(input,'2024-01-01T00:00:00Z','2024-06-28T00:00:00Z',180,[]);
+    const record={collection:'fixture',input,data:{name:input.name,attemptsJson:JSON.stringify(demo.attempts)}} as import('../../../mocks/quant/experiments.ts').MockExperiment;
+    return JSON.parse(mockTemporalSensitivity(record)) as import('../../../types/api/quantTemporalSensitivity.ts').QuantTemporalSensitivity;
+}
+
+test('全部计划内层证据读取保留缺测失败，不能把最后一窗冒充共同支持',async()=>{
+    const {readTemporalSensitivity}=await import('../../../utils/quantTemporalSensitivity.ts');
+    const value=await temporalParameterFixture();
+    assert.equal(readTemporalSensitivity(JSON.stringify(value))!.planned_windows,9);
+    assert.equal(value.families[0].axes[0].windows.length,9);
+    assert.equal(readTemporalSensitivity('null'),undefined);assert.equal(readTemporalSensitivity(),undefined);
+    for(const corruption of ['count','missing','duplicate','baseline','region','interpolation']) {
+        const bad=structuredClone(value),axis=bad.families[0].axes[0];
+        if(corruption==='count')bad.planned_windows=8;
+        if(corruption==='missing')axis.windows.pop();
+        if(corruption==='duplicate')axis.windows[1].inner_fold=1;
+        if(corruption==='baseline')axis.windows[0].baseline_attempt_id='unrelated-attempt';
+        if(corruption==='region'||corruption==='interpolation') {axis.status='sampled_region';bad.status='sampled_region';axis.regions=[{[axis.parameter]:corruption==='interpolation'?[1,2,3]:axis.windows[0].points.map(point=>point.value as number)}];}
+        assert.throws(()=>readTemporalSensitivity(JSON.stringify(bad)),corruption);
+    }
+});
+
+test('共同离散区段要求逐窗全部支持，零收益和真实缺失分开读取',async()=>{
+    const {readTemporalSensitivity}=await import('../../../utils/quantTemporalSensitivity.ts');
+    const value=await temporalParameterFixture(),axis=value.families[0].axes[0];
+    const region={[axis.parameter]:axis.windows[0].points.map(point=>point.value as number)};
+    value.status='sampled_region';axis.status='sampled_region';axis.regions=[region];axis.comparison_regions=[region];
+    for(const window of axis.windows) {
+        window.baseline_attempt_id=`attempt-${window.outer_fold}-base`;window.supported_values=[region];
+        window.points.forEach((point,index)=>Object.assign(point,{attempt_id:`attempt-${window.outer_fold}-${index}`,status:'evaluated',comparable:true,eligible:true,eligibility_reasons:[],metrics:{train:{total_return:.1,max_drawdown:.01},validation:{total_return:.1,max_drawdown:.01}}}));
+        window.baseline_attempt_id=window.points.find(point=>point.value===axis.baseline_value)!.attempt_id;
+    }
+    assert.equal(readTemporalSensitivity(JSON.stringify(value))!.status,'sampled_region');
+    const first=axis.windows[0].points[0];first.metrics.validation!.total_return=0;
+    assert.throws(()=>readTemporalSensitivity(JSON.stringify(value)));
+    first.eligible=false;first.eligibility_reasons=['验证段收益不为正'];axis.regions=[];axis.status='no_supported_region';value.status='no_supported_region';
+    assert.equal(readTemporalSensitivity(JSON.stringify(value))!.families[0].axes[0].windows[0].points[0].metrics.validation!.total_return,0);
+    first.metrics.validation=null;first.comparable=false;axis.comparison_regions=[];axis.status='insufficient_comparison';value.status='insufficient_comparison';
+    assert.equal(readTemporalSensitivity(JSON.stringify(value))!.families[0].axes[0].windows[0].points[0].metrics.validation,null);
+});
+
 test('v4 条件算术按十进制有理数比较，覆盖符号、除法与数值/精度边界', async () => {
     const {evaluateParameterCondition, validateParameterCondition, describeParameterCondition} = await import('../../../utils/quantParameterConditions.ts');
     const binary = (operator: 'add' | 'sub' | 'mul' | 'div', left: QuantParameterOperand, right: QuantParameterOperand): QuantParameterOperand => ({operator, left, right});
@@ -243,6 +289,42 @@ test('滚动窗口、总预算与逐折展示保持冻结策略，拒绝损坏�
     assert.deepEqual(value.config, [['threshold', '0']]);
     demo.attempts[0].fold = 0;
     assert.throws(() => readExperiment({...experiment, attemptsJson: JSON.stringify(demo.attempts)}), /折号/);
+});
+
+test('多内层时序验证保留各窗口、均值与失败，拒绝错配或篡改汇总', async () => {
+    const {defaultWalkForward, buildTemporal, temporalDraft, temporalSnapshot, temporalWindows, readTemporal} = await import('../../../utils/quantTemporal.ts');
+    const {demoTemporalResult} = await import('../../../mocks/quant/temporalResult.ts');
+    const policy = {...defaultWalkForward, version: 2 as const, innerFolds: 3};
+    assert.deepEqual(readTemporal(temporalSnapshot(policy)), policy);
+    assert.deepEqual(buildTemporal(temporalDraft(policy)), policy);
+    for (const inner_folds of [1, 5, true, 2.5, null]) assert.throws(() => readTemporal({...temporalSnapshot(policy), inner_folds}));
+    assert.throws(() => temporalWindows(105, policy, 1), /106/);
+    for (const mode of ['rolling', 'expanding'] as const) {
+        const folds = temporalWindows(180, {...policy, mode}, 1);
+        assert.equal(folds[2].partitions.holdout[1], 179);
+        for (const fold of folds) {
+            assert.equal(fold.inner_windows!.length, 3);
+            assert.deepEqual(fold.partitions.validation, fold.inner_windows![2].partitions.validation);
+            assert.equal(fold.inner_windows![0].partitions.validation[1], fold.inner_windows![1].partitions.validation[0]);
+        }
+    }
+    const input: QuantExperimentInput = {requestKey: 'nested_fixture_001', name: '嵌套验证', datasetId: 'fixture-data', seeds: [buildSeed(candidate, initialSeed(candidate), true)],
+        config: {seed: 42, maxCandidates: 16, generations: 3, threshold: 0, feeBps: 5, slippageBps: 5, gap: 1, seconds: 30, walkForward: policy}};
+    const demo = demoTemporalResult(input, '2024-01-01T00:00:00Z', '2024-06-28T00:00:00Z', 180, []);
+    const row = {planJson: JSON.stringify({version: 1, engine_version: 'quant-local-search-7', name: input.name, seeds: [], config: {threshold: 0, walk_forward: temporalSnapshot(policy)}}), attemptsJson: JSON.stringify(demo.attempts), resultJson: JSON.stringify(demo.envelope)} as QuantExperiment;
+    const view = readExperiment(row);
+    assert.equal(view.attempts[0].inner!.folds.length, 3);
+    assert.equal(view.attempts[0].inner!.summary!.validation.totalReturn, demo.attempts[0].inner_evaluation!.summary!.validation.total_return);
+    assert.equal(view.attempts[1].inner!.summary, undefined);
+    assert.equal(view.attempts[1].status, 'rejected');
+    assert.equal(readExperiment({...row, resultJson: null}).temporal, undefined);
+    for (const corruption of ['summary', 'fold', 'missing', 'engine']) {
+        const bad = structuredClone(demo.attempts);
+        if (corruption === 'summary') bad[0].inner_evaluation!.summary!.validation.total_return += .1;
+        if (corruption === 'fold') bad[0].inner_evaluation!.folds[1].number = 3;
+        if (corruption === 'missing') delete bad[0].inner_evaluation;
+        assert.throws(() => readExperiment({...row, attemptsJson: JSON.stringify(bad), planJson: corruption === 'engine' ? row.planJson!.replace('search-7', 'search-4') : row.planJson}));
+    }
 });
 
 

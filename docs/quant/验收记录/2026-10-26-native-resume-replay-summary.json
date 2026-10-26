@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "application": "1.5.51",
+  "schema_version": 54,
+  "model": "deepseek-flash",
+  "parent_run_id": "775d6f88b3a84f408e962f06922b96ad",
+  "replay_run_id": "0b784848604a43f29677d693453d24f6",
+  "status": "failed",
+  "new_report_count": 0,
+  "captured_provider_calls": 2,
+  "captured_tokens": 62502,
+  "new_provider_calls": 0,
+  "source_executions": 0,
+  "retained_stages": 1,
+  "decisions": [
+    "revise",
+    "reject"
+  ],
+  "parent_unchanged": true,
+  "prior_reports_unchanged": true,
+  "restore_calls": 0,
+  "restored_jobs": 0,
+  "model_quality_release": false,
+  "independent_validation": false,
+  "artifact_identity": "offline_reconstruction_new_identity_original_capture_preserved"
+}

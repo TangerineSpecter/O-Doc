@@ -95,7 +95,7 @@ def validate_research(rows: dict, fail) -> None:
                 fail('结构化报告任务类型不一致')
             from quant.experiments.initial_planning import validate_strategy_admission
             validate_strategy_admission(run.get('result', {}), run.get('workflow_version', 0))
-            if 'factor_repair' in run.get('result', {}) and run.get('workflow_version') not in (8, 9, 10, 11, 12, 13, 14, 15):
+            if 'factor_repair' in run.get('result', {}) and run.get('workflow_version') not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
                 fail('AI 修订成果缺少支持的阶段工作流')
             expected = validate_analysis(run['result'])
             if (fields['schema_version'] == 3) != (expected.get('extraction_version') == 1):

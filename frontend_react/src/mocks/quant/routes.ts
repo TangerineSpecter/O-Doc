@@ -1,5 +1,5 @@
 import {resolveValidationRoute} from './validations';
-import {validateMockAudit,mockNativeReviewEvidence} from './nativeReviews';
+import {validateMockAudit,mockNativeReviewEvidence,mockNativeContinuationFault} from './nativeReviews';
 import {resolveNativePython} from './nativePython';
 import {supplementMockSource} from './sourceSupplements';
 import {resolveStrategyExport} from './strategyExports';
@@ -228,9 +228,10 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
                 if (JSON.stringify(previous.input) !== JSON.stringify(input)) return fail(409, '请求键已用于其他任务');
                 return entry.runs.find(row => row.id === previous.runId);
             }
+            if(await mockNativeContinuationFault(entry,input))return fail(500,'人工本地续作错误样例：未创建新任务，请再次点击续作重试');
             if (input.restartStage && !input.resumeRunId) return fail(400, '指定重跑阶段时须选择原研究任务');
             if (input.resumeRunId) {
-                const old = entry.runs.find(row => row.id === input.resumeRunId && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(row.workflow?.version || 0));
+                const old = entry.runs.find(row => row.id === input.resumeRunId && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(row.workflow?.version || 0));
                 if (!old) return fail(404, '阶段研究不存在');
                 const allowed = input.restartStage ? ['completed', 'failed', 'cancelled', 'interrupted'] : ['failed', 'cancelled', 'interrupted'];
                 const crossSource = old.sourceId !== input.sourceId;

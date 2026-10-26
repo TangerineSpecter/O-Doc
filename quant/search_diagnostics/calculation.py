@@ -17,7 +17,8 @@ LIMITATIONS=[
 
 
 def schedules(output):
-    return output['walk_forward']['folds'] if output.get('walk_forward') else [
+    return [{**fold, 'calculation_start': fold['inner_windows'][-1]['calculation_start']}
+        if 'inner_windows' in fold else fold for fold in output['walk_forward']['folds']] if output.get('walk_forward') else [
         {'number':None,'calculation_start':0,'partitions':output['partitions'],
          'attempt_ids':[row['id'] for row in output['attempts']]}]
 
@@ -47,6 +48,8 @@ def compute(plan,snapshot,output,*,seconds=10,check=lambda:None):
         'status':'insufficient','families':[],'final_holdout_used':False,'independent_validation':False,
         'limitations':copy.deepcopy(LIMITATIONS)}
     if not output:return result
+    if plan['config'].get('walk_forward', {}).get('version') == 2:
+        result['limitations'].append('嵌套搜索仅重放各外折最后内层窗口的固定家族；不覆盖全部内层选择过程或跨请求多重尝试，不替代嵌套外层评价。')
     for schedule in schedules(output):
         value,items=family(output['attempts'],schedule);result['families'].append(value)
         if len(items)<2:value['reason']='insufficient_distinct_candidates';continue

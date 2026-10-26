@@ -111,6 +111,8 @@ def analyze(plan: dict, attempts: list[dict]) -> dict:
         fold = max((row['fold'] for row in attempts), default=0)
         value = analyze({**plan, 'config': {key: val for key, val in plan['config'].items() if key != 'walk_forward'}},
             [row for row in attempts if row['fold'] == fold])
+        if plan['config']['walk_forward'].get('version') == 2:
+            value['limitations'].insert(0, '嵌套验证仅描述该外折最后已启动内层窗口的参数敏感度；不代表所有内层稳定性，实际选择使用完整内层均值。')
         value['limitations'].insert(0, f'仅比较最后已启动的第 {fold} 折训练/验证尝试；不跨折混合参数归因。')
         return value
     families = []

@@ -13,9 +13,9 @@ export function readAdmission(text:string):AdmissionData {
         ||value.independent_validation!==false||value.platform_equivalence!=='unverified'||value.economic_effectiveness!=='unassessed')throw new Error('分层记录缺少固定范围或规则版本');
     return value as unknown as AdmissionData;
 }
-export function admissionValues(value:unknown):string {
+export function admissionValues(value:unknown,names?:unknown):string {
     if(Array.isArray(value))return value.map(row=>object(row)?`${row.original_name||row.name||'未知'}=${JSON.stringify(row.value??row.column??null)}`:'未知').join('；')||'无';
-    if(object(value))return Object.entries(value).map(([key,item])=>`${key}=${JSON.stringify(item)}`).join('；')||'无';
+    if(object(value))return Object.entries(value).map(([key,item])=>`${object(names)&&typeof names[key]==='string'&&names[key]!==key?`${names[key]} (${key})`:key}=${JSON.stringify(item)}`).join('；')||'无';
     return '未知';
 }
 export function admissionRange(value:unknown):string {

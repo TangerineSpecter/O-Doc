@@ -59,14 +59,18 @@ def validate_input(entry, values: dict, existing=None) -> dict:
         raise ValidationError('请选择当前研究的外部反馈')
     from quant.native_reviews.policy import prepare
     prepare(source,values,existing)
+    from quant.native_reviews.resume import prepare as prepare_resume
+    previous=prepare_resume(entry,source,values,existing)
     from .contracts import prompt
     from .memory import freeze, for_source as memory_for_source
-    selection = existing.planning_context if existing and existing.kind == 'feedback_review' else freeze(source)
+    selection = existing.planning_context if existing and existing.kind == 'feedback_review' else previous.planning_context if previous else freeze(source)
     context = for_source(source)
     if selection:
         context['research_memory'] = memory_for_source(source, selection)
         values['planning_context'] = selection
     memory = selection.get('library_memory') if selection else None
+    if previous and len(prompt(context,values.get('requirements','')))>210000:
+        raise ValidationError('续作的固定上下文超过本次上限，请新建完整解读以重选历史；原件保持不变')
     while memory and memory['items'] and len(prompt(context, values.get('requirements', ''))) > 210000:
         # Drop only whole optional historical records. Current feedback and
         # linked calculation evidence must never disappear to fit a prompt.

@@ -13,16 +13,18 @@ DEFAULT_POLICY = {'version': 1, 'mode': 'expanding', 'folds': 3,
 
 
 def validate_policy(policy: dict) -> None:
-    if not isinstance(policy, dict) or set(policy) != set(DEFAULT_POLICY):
+    if not isinstance(policy, dict) or set(policy) != set(DEFAULT_POLICY) | ({'inner_folds'} if policy.get('version') == 2 else set()):
         raise ValidationError('滚动验证配置字段无效')
-    if any(type(policy[key]) is not int for key in set(DEFAULT_POLICY) - {'mode'}):
+    if any(type(policy[key]) is not int for key in set(policy) - {'mode'}):
         raise ValidationError('滚动验证窗口和折数必须为整数')
-    if policy['version'] != 1 or policy['mode'] not in ('expanding', 'rolling'):
+    if policy['version'] not in (1, 2) or policy['mode'] not in ('expanding', 'rolling'):
         raise ValidationError('滚动验证版本或训练窗口模式无效')
     if (not 2 <= policy['folds'] <= 5 or not 20 <= policy['train_bars'] <= 20000
             or not 5 <= policy['validation_bars'] <= 20000 or not 5 <= policy['test_bars'] <= 20000
             or not 0 <= policy['warmup_bars'] <= 2000):
         raise ValidationError('滚动验证为 2–5 折，训练至少 20 段、验证/测试至少 5 段，预热 0–2000 根')
+    if policy['version'] == 2 and not 2 <= policy['inner_folds'] <= 4:
+        raise ValidationError('嵌套验证的内层折数须为 2–4')
 
 
 def windows(size: int, policy: dict, gap: int) -> list[dict]:
@@ -35,7 +37,8 @@ def windows(size: int, policy: dict, gap: int) -> list[dict]:
     validate_policy(policy)
     if type(size) is not int or not 60 <= size <= 20000 or type(gap) is not int or not 1 <= gap <= 2000:
         raise ValidationError('行情须为 60–20000 根，隔离间隔须为 1–2000 根')
-    needed = (2 + policy['warmup_bars'] + policy['train_bars'] + policy['validation_bars']
+    inner_count = policy.get('inner_folds', 1)
+    needed = (2 + policy['warmup_bars'] + policy['train_bars'] + inner_count * policy['validation_bars']
         + policy['folds'] * policy['test_bars'] + 2 * (gap + 1))
     if size < needed:
         raise ValidationError(f'当前滚动验证至少需要 {needed} 根行情，实际 {size} 根；请调整窗口或增加数据')
@@ -44,14 +47,21 @@ def windows(size: int, policy: dict, gap: int) -> list[dict]:
     folds = []
     for index in range(policy['folds']):
         shift = index * policy['test_bars']
-        train_start = initial_start + (shift if policy['mode'] == 'rolling' else 0)
-        train_end = initial_start + policy['train_bars'] + shift
-        validation_start = train_end + gap + 1
-        validation_end = validation_start + policy['validation_bars']
+        inner = []
+        for inner_index in range(inner_count):
+            advance = shift + inner_index * policy['validation_bars']
+            train_start = initial_start + (advance if policy['mode'] == 'rolling' else 0)
+            train_end = initial_start + policy['train_bars'] + advance
+            validation_start = train_end + gap + 1
+            validation_end = validation_start + policy['validation_bars']
+            inner.append({'number': inner_index + 1, 'calculation_start': train_start - 1 - policy['warmup_bars'],
+                'partitions': {'train': [train_start, train_end], 'validation': [validation_start, validation_end]}})
         test_start = validation_end + gap + 1
-        folds.append({'number': index + 1, 'calculation_start': train_start - 1 - policy['warmup_bars'],
+        folds.append({'number': index + 1, 'calculation_start': inner[0]['calculation_start'],
             'partitions': {'train': [train_start, train_end], 'validation': [validation_start, validation_end],
                 'holdout': [test_start, test_start + policy['test_bars']]}})
+        if policy['version'] == 2:
+            folds[-1]['inner_windows'] = inner
     return folds
 
 

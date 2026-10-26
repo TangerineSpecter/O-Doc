@@ -4,7 +4,7 @@ import time
 from rest_framework.exceptions import ValidationError
 from utils.ai_service import AIService
 from utils.token_usage import usage_scope
-from quant.models import ResearchReport
+from quant.models import ResearchReport,AIRun
 from quant.feedback.evidence import for_run
 from . import storage
 from .contracts import decode,analysis,audit,gate
@@ -17,16 +17,21 @@ def execute(run,config:dict,complete,check,progress) -> dict:
     context=for_run(run);policy=context['native_review_policy'];calls=0;outcomes=[];source_report=None
     report=ResearchReport.objects.get(pk=run.audit_report_id) if run.audit_report_id else None
     if report:source_report={'id':report.pk,'content_hash':report.content_hash}
+    from .resume import checkpoints
+    retained=checkpoints(AIRun.objects.get(pk=run.native_resume_run_id)) if run.native_resume_run_id else {}
 
     def stage(name:str,ordinal:int,*,draft=None):
         nonlocal calls
         check()
         if time.monotonic()-started>=policy['max_seconds']:raise NativeReviewBudget('Python报告审查达到时间预算，未发布新报告')
-        step=storage.start(run,name,ordinal,context,config,check,draft=draft,source_report=source_report)
+        checkpoint=retained.get(name);reference=checkpoint['reference'] if checkpoint else None
+        step=storage.start(run,name,ordinal,context,config,check,draft=draft,source_report=source_report,retained_from=reference)
         progress('stage',NAMES[name],'info',{})
         began=time.monotonic();raw=''
         try:
-            if name=='native_draft' and report:
+            if checkpoint:
+                output=copy.deepcopy(checkpoint['output'])
+            elif name=='native_draft' and report:
                 output={'analysis':copy.deepcopy(report.data),'origin':'report_snapshot','source_report':source_report}
             else:
                 if calls>=policy['max_model_calls']:raise NativeReviewBudget('Python报告审查达到调用预算，未发布新报告')
@@ -43,7 +48,7 @@ def execute(run,config:dict,complete,check,progress) -> dict:
                 value=decode(raw)
                 render_version=5 if step.input['version']>=9 else 4
                 output={'analysis':analysis(value,context,markdown_version=render_version),'origin':'model','source_report':None} if name=='native_draft' else audit(value,draft,context,can_revise=name=='native_audit',allow_encoded_analysis=step.input['version']>=7,use_text_spans=step.input['version']>=8,markdown_version=render_version)
-            outcome=storage.finish(step,'completed',output,raw,'',began,run,check)
+            outcome=storage.finish(step,'completed',output,raw,'',began,run,check,retained_from=reference)
             outcomes.append({'id':outcome.pk,'content_hash':outcome.content_hash})
             return output
         except Exception as error:

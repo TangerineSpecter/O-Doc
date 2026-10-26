@@ -13,6 +13,7 @@ export function mockJointSensitivity(record: MockExperiment): string {
         const last = Math.max(0, ...attempts.map(row => row.fold || 0)); attempts = attempts.filter(row => row.fold === last);
         data.limitations.push(`仅展示最后已启动的第 ${last} 折，不跨折合并。`);
     }
+    if (record.input.config.walkForward?.version === 2) data.limitations.push('嵌套搜索仅描述最后外折最后已启动的内层窗口，实际选择使用全部内层汇总。');
     for (const seed of record.input.seeds) {
         const baseline = Object.fromEntries(seed.parameters.map(row => [row.name, row.value]));
         const base = attempts.find(row => row.operation === 'source_candidate' && row.parents[0] === seed.candidateId);

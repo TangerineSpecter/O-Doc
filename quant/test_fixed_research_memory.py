@@ -66,7 +66,7 @@ class FixedMemoryTests(TestCase):
         from quant.experiments.reviews import start_review
         with patch('django.utils.timezone.now',return_value=timezone.now()+timedelta(seconds=2)):
             ai=start_review(self.source.result,request_key='fixed_history_review_00001')
-        self.assertEqual(ai.review_version,10);self.assertEqual(ai.planning_context['version'],5)
+        self.assertEqual(ai.review_version,12);self.assertEqual(ai.planning_context['version'],6)
         from quant.experiments.review_evidence import for_run
         facts=for_run(ai);history=ai.planning_context['research_memory']
         self.assertTrue(any(r['kind']=='fixed_validation' for r in history['items']))
@@ -102,7 +102,7 @@ class FixedMemoryTests(TestCase):
             return json.dumps(result)
         with patch('quant.worker.complete',side_effect=complete) as model:execute(ai.pk)
         ai.refresh_from_db();self.assertEqual(ai.status,'completed',ai.error)
-        self.assertEqual(ai.workflow_version,14);self.assertEqual(ai.result['source_memory_version'],1)
+        self.assertEqual(ai.workflow_version,16);self.assertEqual(ai.result['source_memory_version'],1)
         memory=ai.result['research_memory'];self.assertTrue(any(r['kind']=='fixed_validation' for r in memory['items']))
         self.assertIn('历史研究依据',ai.report.markdown)
         proposal=ExperimentProposal.objects.get(run=ai)
@@ -122,7 +122,7 @@ class FixedMemoryTests(TestCase):
                 'target_source_id':candidate.report.source_id,'factor_id':candidate.pk,'document':'窗口在不同区间表现不同，尚需新数据。','mode':'backtest'},format='json')
         self.assertEqual(response.status_code,200,response.data)
         feedback=AIRun.objects.get(kind='feedback_review')
-        self.assertEqual(feedback.planning_context['version'],4)
+        self.assertEqual(feedback.planning_context['version'],5)
         self.assertTrue(any(r['kind']=='fixed_validation' for r in feedback.planning_context['library_memory']['items']))
         from quant.services import queue
         from quant.worker import execute

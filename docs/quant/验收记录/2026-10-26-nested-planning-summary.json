@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "application": "1.5.53",
+  "schema_version": 56,
+  "model": "deepseek-flash",
+  "maximum_provider_calls": 1,
+  "maximum_seconds": 120,
+  "source_executions": 0,
+  "business_database_writes": 0,
+  "new_full_report_published": false,
+  "prior_fixture_unchanged": true,
+  "scope": "one_new_planning_stage_on_captured_prior_analysis_not_a_new_full_report",
+  "status": "validated",
+  "proposal_present": true,
+  "validation_policy": {
+    "version": 2,
+    "mode": "expanding",
+    "folds": 3,
+    "inner_folds": 3,
+    "train_bars": 40,
+    "validation_bars": 10,
+    "test_bars": 10,
+    "warmup_bars": 28
+  },
+  "minimum_rows": 136,
+  "parameters": {
+    "period": 14
+  },
+  "engine": "quant-local-search-7",
+  "elapsed_seconds": 51.944,
+  "provider_calls": 1,
+  "total_tokens": 23152
+}

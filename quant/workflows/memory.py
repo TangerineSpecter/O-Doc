@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 
 
 def uses_history(version):
-    return type(version) is int and version in (12,13,14,15)
+    return type(version) is int and version in (12,13,14,15,16,17)
 
 
 def options(factors):

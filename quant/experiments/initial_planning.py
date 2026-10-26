@@ -83,15 +83,18 @@ def initial_data(result: dict, report_id: str) -> dict:
 
 def validate_strategy_admission(result: dict, version: int) -> None:
     proposal = result.get('initial_proposal')
-    if isinstance(proposal, dict) and 'strategy' in proposal.get('config', {}) and version not in (10, 11, 12, 13, 14, 15):
+    if isinstance(proposal, dict) and 'strategy' in proposal.get('config', {}) and version not in (10, 11, 12, 13, 14, 15, 16, 17):
         raise ValidationError('旧版来源分析不得夹带新版策略执行假设')
 
 
-def initial_prompt(*, strategy: bool = False) -> str:
+def initial_prompt(*, strategy: bool = False, nested: bool = False) -> str:
     from quant.strategies.prompts import INITIAL
     legacy = _initial_prompt()
     if strategy:
         legacy = legacy.replace('数值序列按大于threshold做多，否则空仓；布尔序列按条件做多。', '省略strategy时数值序列按大于threshold做多，否则空仓；布尔序列按条件做多。')
+    if nested:
+        from .planning_capabilities import instruction
+        legacy += instruction()
     return legacy + (INITIAL if strategy else '')
 
 

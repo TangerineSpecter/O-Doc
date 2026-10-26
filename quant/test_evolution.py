@@ -165,7 +165,7 @@ class EvolutionIntegrationTests(TestCase):
             if b is None: self.assertIsNone(a)
             else: self.assertAlmostEqual(a,b,places=8)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 53)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 57)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertFalse(ExperimentJob.objects.exists())

@@ -1,5 +1,5 @@
 import {researchStageLabels} from '../../utils/quantAdmission';
-import type {ResearchStage} from '../../types/api/quantAdmission';
+import type {AdmissionSummary,ResearchStage} from '../../types/api/quantAdmission';
 import {reuseLabels} from '../../utils/quantVerification';
 import type {ReuseStatus} from '../../types/api/quantVerification';
 import {useQuantVocabulary} from '../../hooks/useQuantVocabulary';
@@ -29,6 +29,7 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
     const [datasets, setDatasets] = useState(false);
     const [vocabularyOpen, setVocabularyOpen] = useState(false);
     const [taxonomyTerm, setTaxonomyTerm] = useState('');
+    const [admissionOverrides,setAdmissionOverrides]=useState<Record<string,{base:QuantFactorCandidate;summary:AdmissionSummary}>>({});
     const [admissionStage,setAdmissionStage]=useState<ResearchStage|''>('');
     const [reuseStatus, setReuseStatus] = useState<ReuseStatus | ''>('');
     const vocabulary = useQuantVocabulary(collection);
@@ -49,15 +50,17 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
     const keywords = useQuantFactors(collection, {q, role, family, taxonomyTerm, reuseStatus, admissionStage, offset, groupBy, limit: 40}, !hybrid.active);
     const {search: requestSearch} = hybrid;
     const startSearch = useCallback(() => {if (groupBy === 'merged' || groupBy === 'lineage') return; setOffset(0); void requestSearch();}, [requestSearch, groupBy]);
-    const controller = hybrid.active ? {items: hybrid.data?.items.slice(offset, offset + 40) || [], total: hybrid.data?.total || 0,
+    const sourceController = hybrid.active ? {items: hybrid.data?.items.slice(offset, offset + 40) || [], total: hybrid.data?.total || 0,
         loading: hybrid.loading, error: hybrid.error, reload: startSearch} : keywords;
+    const controller={...sourceController,items:sourceController.items.map(row=>admissionOverrides[row.id]?.base===row?{...row,admission:admissionOverrides[row.id].summary}:row)};
     const activeGroup = controller.items.find(row => (row.formulaLineage?.id || row.id) === selected || row.id === selected) || controller.items[0];
     const candidate = (inspection?.key === selectionKey ? inspection.candidate : null) || activeGroup;
     const experimentCandidates = candidate && !controller.items.some(row => row.id === candidate.id) ? [candidate, ...controller.items] : controller.items;
     const {reload: reloadKeywords} = keywords;
     const {cancel: cancelSearch} = hybrid;
     // Editing or returning from another panel refreshes records without another paid query.
-    const reload = useCallback(() => {cancelSearch(); reloadKeywords();}, [cancelSearch, reloadKeywords]);
+    const reload = useCallback(() => {cancelSearch(); setAdmissionOverrides({}); reloadKeywords();}, [cancelSearch, reloadKeywords]);
+    const admissionChanged=useCallback((id:string,value:AdmissionSummary)=>{const base=sourceController.items.find(row=>row.id===id);if(base)setAdmissionOverrides(previous=>previous[id]?.base===base&&JSON.stringify(previous[id].summary)===JSON.stringify(value)?previous:{...previous,[id]:{base,summary:value}});if(admissionStage&&value.stage!==admissionStage)reload();},[sourceController.items,admissionStage,reload]);
     const saved = useCallback((updated: QuantFactorCandidate) => {setEditing(null); setInspection({key: selectionKey, candidate: updated}); reload();}, [reload, selectionKey]);
     const vocabularyChanged = useCallback(() => {setInspection(null); vocabulary.reload(); reload();}, [vocabulary, reload]);
     if (comparisons) return <ComparisonLibrary collection={collection} initialCandidate={comparisonCandidate} initialId={comparisonId} register={register} request={request} openSource={openSource} close={() => request(() => {setComparisons(false); reload();})}/>;
@@ -78,7 +81,7 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
             {controller.loading ? <div role="status" className={`${cardClass} text-sm text-slate-500`}>{hybrid.loading ? '正在结合文字与语义检索…' : '正在加载候选库…'}</div> : controller.error ? <div role="alert" className={`${cardClass} space-y-3 text-sm text-red-600`}><p>{controller.error}</p><QuantButton onClick={controller.reload}>重试</QuantButton></div> : !controller.items.length ? <QuantEmpty title={q || role || family || taxonomyTerm || reuseStatus || admissionStage ? '没有匹配的候选' : '候选会随着研究自动积累'} description="收集资料并生成新版 AI 报告后，可分离的计算、信号与过滤条件会自动入库。旧报告可重新分析以提取候选。" /> : <>
                 <div className="flex items-center justify-between gap-4 text-xs text-slate-500"><span>{controller.total} {groupBy === 'none' ? '条候选记录' : '组候选'} · 结构与实证分开展示</span><span>{offset + 1}–{offset + controller.items.length}</span></div>
                 <div className="grid items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]"><div className="max-h-[45dvh] space-y-2 overflow-auto scrollbar-hide lg:max-h-[70dvh]" aria-label="候选列表">{controller.items.map(item => <button key={item.id} onClick={() => {setSelected(item.formulaLineage?.id || item.id); setInspection(null);}} aria-pressed={activeGroup?.id === item.id} className={`w-full rounded-2xl border p-4 text-left transition ${activeGroup?.id === item.id ? 'border-orange-200 bg-orange-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}><div className="mb-2 flex justify-between gap-2 text-xs text-slate-500"><span>{factorRoles[item.data.role]}</span><span>{factorFamilies[item.curation.family]}</span></div><h3 className="break-words text-sm font-semibold text-slate-900">{item.curation.name}</h3><p className="mt-2 line-clamp-2 text-xs leading-6 text-slate-500">{item.data.summary}</p>{item.searchMatch && <p className="mt-2 text-xs leading-6 text-slate-600">命中：{[...item.searchMatch.keywordFields, ...(item.searchMatch.semanticSimilarity !== null ? ['语义相关'] : [])].join('、')}</p>}<p className="mt-2 text-xs text-slate-600">{item.admission?researchStageLabels[item.admission.stage]:'分层待归集'}{item.admission?.reviewCount?` · ${item.admission.reviewCount}条需复核`:''}</p><p className="mt-3 truncate text-[11px] text-slate-400">{item.formulaLineage ? `研究版 · ${item.formulaLineage.versionsTotal} 个版本 · ` : item.data.formulaVersion ? '公式修订 · ' : item.data.derivation ? '实验衍生 · ' : '来源 · '}{item.entryTitle}{item.occurrenceCount > 1 ? ` · 共 ${item.occurrenceCount} 条记录` : ''}</p></button>)}</div>
-                    {candidate && <FactorDetail register={register} request={request} openComparison={id => request(() => {setComparisonId(id); setComparisonCandidate(undefined); setComparisons(true);})} collection={collection} versions={() => setFormulaEditing(candidate)} compare={() => request(() => {setComparisonCandidate(candidate); setComparisonId(''); setComparisons(true);})} openExperiment={id => {setExperimentId(id); setExperiments(true);}} candidate={candidate} graph={() => openGraph(candidate)} openSource={openSource} edit={() => setEditing(candidate)} sources={groupBy === 'none' || groupBy === 'lineage' ? undefined : () => setSources(candidate)} />}</div>
+                    {candidate && <FactorDetail admissionChanged={admissionChanged} register={register} request={request} openComparison={id => request(() => {setComparisonId(id); setComparisonCandidate(undefined); setComparisons(true);})} collection={collection} versions={() => setFormulaEditing(candidate)} compare={() => request(() => {setComparisonCandidate(candidate); setComparisonId(''); setComparisons(true);})} openExperiment={id => {setExperimentId(id); setExperiments(true);}} candidate={candidate} graph={() => openGraph(candidate)} openSource={openSource} edit={() => setEditing(candidate)} sources={groupBy === 'none' || groupBy === 'lineage' ? undefined : () => setSources(candidate)} />}</div>
                 {controller.total > 40 && <div className="flex justify-end gap-3"><QuantButton disabled={offset === 0} onClick={() => setOffset(value => Math.max(0, value - 40))}>上一页</QuantButton><QuantButton disabled={offset + controller.items.length >= controller.total} onClick={() => setOffset(value => value + 40)}>下一页</QuantButton></div>}
             </>}
         </div>

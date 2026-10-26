@@ -20,6 +20,7 @@ export function mockExperimentReport(run: QuantAIRun): QuantReport {
     const markdown = `# ${data.title}\n\n${data.summary}\n\n## 参数研究\n\n${data.parameterAssessment[0].text}\n\n证据：${data.parameterAssessment[0].evidenceRefs.join("、")}\n\n## 下一轮待验证假设\n\n${data.nextHypotheses[0].text}\n\n检验：${data.nextHypotheses[0].test}\n\n否证条件：${data.nextHypotheses[0].falsification}\n\n新数据要求：${data.nextHypotheses[0].dataRequirement}\n\n## 研究评价\n\n各维度与总分均未评估；本地样例不代表真实研究成果。`;
     const proposalMarkdown = data.proposal ? `\n\n## 下一轮可执行方案\n\n${data.planningNote}\n\n${data.proposal.hypothesis}\n\n否证条件：${data.proposal.falsification}\n\n行情要求：${data.proposal.dataRequirement}` : '';
     const selection=data.selectionReview?`\n\n## 搜索选择与过拟合风险\n\n${data.selectionReview.text}\n\n证据：selection_diagnostic`:'';
+    const temporal=data.temporalParameterReview?`\n\n## 跨窗口参数复核\n\n计划${data.temporalParameterReview.plannedWindows}个内层窗口 · ${{sampled_region:'存在待复核共同离散区域',no_supported_region:'没有共同支持区域',insufficient_comparison:'完整跨窗口对照不足'}[data.temporalParameterReview.status]}\n\n${data.temporalParameterReview.text}\n\n证据：temporal_parameter_stability`:'';
     return {id: quantId('report'), sourceId: run.sourceId || '', runId: run.id, schemaVersion: 4, data,
-        markdown: markdown + selection + proposalMarkdown + mockMemoryMarkdown(run), originalMarkdown: markdown + selection + proposalMarkdown + mockMemoryMarkdown(run), currentRevisionId: '', revisions: [], createdAt: new Date().toISOString()};
+        markdown: markdown + temporal + selection + proposalMarkdown + mockMemoryMarkdown(run), originalMarkdown: markdown + temporal + selection + proposalMarkdown + mockMemoryMarkdown(run), currentRevisionId: '', revisions: [], createdAt: new Date().toISOString()};
 }

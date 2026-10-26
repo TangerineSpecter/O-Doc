@@ -150,7 +150,7 @@ def validate_attempts(attempts, plan, fail):
         previous[attempt['id']] = attempt
 
 
-def validate_output(envelope, request, dataset, checkpoints, fail, *, split=None):
+def validate_output(envelope, request, dataset, checkpoints, fail, *, split=None, nested=False):
     output, plan = envelope['output'], request['plan']
     if 'walk_forward' in plan['config']:
         from .temporal_snapshot import validate_output as validate_temporal
@@ -165,8 +165,9 @@ def validate_output(envelope, request, dataset, checkpoints, fail, *, split=None
     if output.get('seed_plan') != seeds or output.get('attempts') != [row['attempt'] for row in checkpoints]:
         fail('实验输入/输出与检查点不一致')
     frontier = pareto(output['attempts'])
-    frontier.sort(key=lambda item: (-(item['metrics']['validation']['total_return'] - item['metrics']['validation']['max_drawdown']), item['metrics']['validation']['turnover'], item['complexity'], item['fingerprint']))
-    if output.get('frontier_ids') != [item['id'] for item in frontier] or output.get('selected_id') != (frontier[0]['id'] if frontier else '') or output.get('selection_rule') != 'train_pareto_then_validation_return_minus_drawdown_v1':
+    from .nested import RULE as NESTED_RULE, selection_key
+    frontier.sort(key=selection_key)
+    if output.get('frontier_ids') != [item['id'] for item in frontier] or output.get('selected_id') != (frontier[0]['id'] if frontier else '') or output.get('selection_rule') != (NESTED_RULE if nested else 'train_pareto_then_validation_return_minus_drawdown_v1'):
         fail('实验选择依据不一致')
     if output.get('stop_reason') not in ('cancelled', 'time_budget', 'candidate_budget', 'generation_complete'):
         fail('实验终止原因无效')

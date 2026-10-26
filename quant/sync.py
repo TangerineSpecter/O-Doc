@@ -11,7 +11,7 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 53
+SCHEMA_VERSION = 57
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
@@ -41,6 +41,7 @@ def complete_legacy_fields(data: list) -> None:
             row['fields'].setdefault('validation_result', None)
             row['fields'].setdefault('feedback_workflow_version',0)
             row['fields'].setdefault('audit_report_id','')
+            row['fields'].setdefault('native_resume_run_id','')
         if row.get('model') == 'quant.codeversion':
             row['fields'].setdefault('strategy_artifact_id', '')
         if row.get('model') == 'quant.factorcandidate':
@@ -203,16 +204,16 @@ def validate(data: list, meta=None) -> None:
                     fail('网页快照与原始分析来源不一致')
         elif version_entry(fields.get('source_version')) != eid or fields.get('source') or fields.get('resolved_source'):
             fail('代码任务来源无效')
-        if fields.get('kind')=='analyze' and fields.get('result',{}).get('source_memory_version') and fields.get('workflow_version') not in (12,13,14,15):
+        if fields.get('kind')=='analyze' and fields.get('result',{}).get('source_memory_version') and fields.get('workflow_version') not in (12,13,14,15,16,17):
             fail('历史源码分析不能追加未冻结的研究记忆')
         if fields.get('kind') == 'analyze':
             from .research.findings import validate_admission
             validate_admission(fields.get('result', {}), fields.get('workflow_version', 0))
-        if type(fields.get('review_version', 1)) is not int or fields.get('review_version', 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) or (fields['kind'] != 'experiment_review' and fields.get('review_version', 1) != 1):
+        if type(fields.get('review_version', 1)) is not int or fields.get('review_version', 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) or (fields['kind'] != 'experiment_review' and fields.get('review_version', 1) != 1):
             fail('实验解读输入版本无效')
-        if not isinstance(fields.get('planning_context', {}), dict) or (fields['kind'] != 'feedback_review' and (fields.get('review_version', 1) in (3, 4, 5, 6, 7, 8, 9, 10)) != bool(fields.get('planning_context'))):
+        if not isinstance(fields.get('planning_context', {}), dict) or (fields['kind'] != 'feedback_review' and (fields.get('review_version', 1) in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12)) != bool(fields.get('planning_context'))):
             fail('跨库研究上下文与解读版本不一致')
-        if fields.get('review_version') == 9 and not fields.get('validation_result') or fields.get('validation_result') and fields.get('review_version') not in (9,10):
+        if fields.get('review_version') == 9 and not fields.get('validation_result') or fields.get('validation_result') and fields.get('review_version') not in (9,10,11,12):
             fail('固定验证解读版本与结果引用不匹配')
         if fields['kind'] != 'experiment_review' and fields.get('experiment_result'):
             fail('非实验解读任务包含实验引用')

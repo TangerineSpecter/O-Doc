@@ -49,7 +49,7 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
         from quant.repairs.prompts import INSTRUCTION
         instructions += INSTRUCTION + domain_prompt()
     elif stage == 'plan':
-        instructions += initial_prompt(strategy=version in (10, 11, 12, 13, 14, 15))
+        instructions += initial_prompt(strategy=version in (10, 11, 12, 13, 14, 15, 16, 17), nested=version in (16, 17))
     else:
         instructions += '\n输出结构：' + json.dumps(SHAPES[stage], ensure_ascii=False)
     if stage == 'review':
@@ -61,7 +61,10 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
     # Planning only needs the frozen factors and research constraints; source was
     # already validated in extraction. Other stages retain exact original text.
     context = {'requirements': requirements, 'previous': {key: outputs[key] for key in DEPENDENCIES[stage]}}
-    if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15) and stage in ('review', 'plan'):
+    if version in (16, 17) and stage == 'plan':
+        from quant.experiments.planning_capabilities import contract
+        context['planning_capabilities'] = contract()
+    if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) and stage in ('review', 'plan'):
         from quant.verification.prompts import context as qualification_context, INSTRUCTION as QUALIFICATION_INSTRUCTION
         context['portable_qualification'] = qualification_context(outputs['extract']['factors'])
         instructions += QUALIFICATION_INSTRUCTION

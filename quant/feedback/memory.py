@@ -46,16 +46,21 @@ def freeze(source) -> dict:
     from quant.research_memory import freeze as freeze_library
     context = source_context(source)
     context['research_memory'] = for_source(source, selection)
-    return {**selection, 'version': 4, 'method': 'feedback-research-4',
+    from quant.experiments.planning_capabilities import contract
+    return {**selection, 'version': 5, 'method': 'feedback-research-5', 'planning_capabilities': contract(),
             'library_memory': freeze_library(options(context), str(source.material.entry.anthology_id),
                 exclude_result_id=payload['experiment_result_id'] or None, source_id=source.pk, version=3)}
 
 
 def project(selection: dict, source_id: str, source: dict, candidates: dict, sources: dict) -> dict:
-    if isinstance(selection, dict) and type(selection.get('version')) is int and selection['version'] in (2, 3, 4):
-        if set(selection) != {'version', 'method', 'candidate_ids', 'history_ids', 'library_memory'} or selection['method'] != f"feedback-research-{selection['version']}":
+    if isinstance(selection, dict) and type(selection.get('version')) is int and selection['version'] in (2, 3, 4, 5):
+        required = {'version', 'method', 'candidate_ids', 'history_ids', 'library_memory'} | ({'planning_capabilities'} if selection['version'] == 5 else set())
+        if set(selection) != required or selection['method'] != f"feedback-research-{selection['version']}":
             raise ValidationError('跨来源反馈研究记忆版本无效')
-        legacy = {key: value for key, value in selection.items() if key != 'library_memory'}
+        if selection['version'] == 5:
+            from quant.experiments.planning_capabilities import validate
+            validate(selection['planning_capabilities'])
+        legacy = {key: value for key, value in selection.items() if key not in ('library_memory', 'planning_capabilities')}
         legacy.update(version=1, method=METHOD)
         from quant.research_memory.contract import instant
         normalized_source = {**source, 'created_at': instant(source['created_at']).isoformat(timespec='milliseconds')}
@@ -66,7 +71,8 @@ def project(selection: dict, source_id: str, source: dict, candidates: dict, sou
                 normalized_sources[identity] = {**row, 'created_at': instant(row['created_at']).isoformat(timespec='milliseconds')}
         value = project(legacy, source_id, normalized_source, candidates, normalized_sources)
         import copy
-        return {**value, 'method': selection['method'], 'library_memory': copy.deepcopy(selection['library_memory'])}
+        return {**value, 'method': selection['method'], 'library_memory': copy.deepcopy(selection['library_memory']),
+            **({'planning_capabilities': copy.deepcopy(selection['planning_capabilities'])} if selection['version'] == 5 else {})}
     if (not isinstance(selection, dict) or set(selection) != {'version', 'method', 'candidate_ids', 'history_ids'}
             or type(selection['version']) is not int or selection['version'] != 1 or selection['method'] != METHOD):
         raise ValidationError('反馈研究记忆版本无效')
@@ -114,7 +120,7 @@ def from_rows(run: dict, rows: dict) -> dict:
     sources = {key: {**value, 'entry_id': materials.get(str(value['material']), {}).get('entry')}
                for key, value in rows.get('quant.sourcerevision', {}).items()}
     value = project(run['planning_context'], str(run['source']), sources[str(run['source'])], candidates, sources)
-    if run['planning_context'].get('version') in (2, 3, 4):
+    if run['planning_context'].get('version') in (2, 3, 4, 5):
         from .sync import context_from_rows
         from .planning import options
         from quant.research_memory import validate_from_rows as validate_memory
@@ -123,7 +129,7 @@ def from_rows(run: dict, rows: dict) -> dict:
         context = context_from_rows(sources[str(run['source'])], rows, fail)
         context['research_memory'] = value
         entry = rows['quant.entry'][str(sources[str(run['source'])]['entry_id'])]
-        if value['library_memory'].get('version') != run['planning_context']['version'] - 1:
+        if value['library_memory'].get('version') != (3 if run['planning_context']['version'] == 5 else run['planning_context']['version'] - 1):
             raise ValidationError('反馈研究记忆不能升级或降级历史合同')
         validate_memory(value['library_memory'], rows, collection_id=str(entry['anthology']), latest_at=run['created_at'],
                         options=options(context), exclude_result_id=sources[str(run['source'])]['payload']['experiment_result_id'] or None,

@@ -49,7 +49,7 @@ test('词表修订保留历史、歧义、稳定含义、请求幂等和私有�
 test('local词表失败与空数据可处理；新研究冻结 v4 引用，同源续跑保留原词表', async () => {
     const {entry} = await invoke<{entry: QuantEntryDetail}>(base + 'intake/', 'POST', {requestKey: 'vocabulary_workflow_fixture01', code: 'N=20\nLOCAL_WORKFLOW_FAIL_RESEARCH', language: 'python'});
     const old = entry.runs[0]; old.createdAt = '2020-01-01T00:00:00Z'; await invoke(base + `entries/${entry.id}/`);
-    assert.equal(old.workflow?.version, 14); assert.equal(old.workflow?.maxModelCalls, 7);
+    assert.equal(old.workflow?.version, 16); assert.equal(old.workflow?.maxModelCalls, 7);
     const initial = await invoke<QuantVocabulary>(base + 'vocabulary/');
     const term = initial.catalog.terms.find(row => row.id === 'mechanism:momentum')!;
     const changed = await invoke<QuantVocabulary>(base + 'vocabulary/', 'POST', {term: {...term, label: '动量统一测试'}, expectedRevisionId: '', reason: 'local 调整', requestKey: 'vocabulary_workflow_edit01'});

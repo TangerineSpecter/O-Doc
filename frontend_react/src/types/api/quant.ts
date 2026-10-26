@@ -137,6 +137,7 @@ export type QuantVerificationInput = Pick<
 export type QuantBacktestInput = Omit<QuantBacktest, 'id' | 'entryId' | 'createdAt' | 'updatedAt'>;
 export interface QuantRunInput {
     auditReportId?:string;
+    nativeResumeRunId?:string;
     resumeRunId?: string;
     restartStage?: import('./quantWorkflow').ResearchStage | '';
     kind: 'explain' | 'convert' | 'analyze' | 'experiment_review' | 'feedback_review';
@@ -294,6 +295,8 @@ export interface QuantFactorQuery {
 
 export interface QuantReviewFinding {text: string; evidenceRefs: string[]}
 export interface QuantExperimentAnalysis {
+    temporalParameterReviewVersion?:1;
+    temporalParameterReview?:{status:import('./quantTemporalSensitivity').TemporalParameterStatus;plannedWindows:number;text:string;evidenceRefs:string[]};
     criteriaReviewVersion?:1;
     selectionReviewVersion?:1;
     selectionReview?:{text:string;evidenceRefs:string[]};

@@ -86,7 +86,7 @@ test('new source analysis consumes fixed outcome history, explains its use and p
     const originalNow=Date.now;Date.now=()=>originalNow()+5000;
     let completed:QuantEntryDetail;
     try {completed=await call<QuantEntryDetail>(`entries/${entry.id}/`);} finally {Date.now=originalNow;}
-    const run=completed.runs[0];assert.equal(run.workflow?.version,14);
+    const run=completed.runs[0];assert.equal(run.workflow?.version,16);
     const {readResearchMemory}=await import('../../utils/quantResearchMemory.ts');
     const memory=readResearchMemory(run.researchMemoryJson);assert.equal(memory?.version,3);
     const historical=memory!.items.find(r=>r.kind==='fixed_validation');assert.ok(historical);

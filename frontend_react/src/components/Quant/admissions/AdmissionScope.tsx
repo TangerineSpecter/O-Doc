@@ -9,7 +9,7 @@ export function AdmissionScope({value}:{value:Scope}) {
         {value.observed_stage&&value.observed_stage!==value.stage&&<p className="text-orange-700">已有{researchStageLabels[value.observed_stage]}，结构准入仍有阻断。</p>}
         {value.sample_status==='planned_not_completed'&&<p className="text-orange-700">评价未完成，以下是冻结计划范围。</p>}
         <p>{market?`${market.symbol||'标的未知'} · ${market.timeframe||'周期未知'} · ${market.price_adjustment||'价格口径未知'}`:'市场范围见原始证据'}<br/>{admissionRange(value.sample)}</p>
-        {value.parameters!==undefined&&<p className="break-words">实际参数：{admissionValues(value.parameters)}</p>}
+        {value.parameters!==undefined&&<p className="break-words">实际参数：{admissionValues(value.parameters,value.recipe?.parameter_names)}</p>}
         {value.bindings!==undefined&&<p className="break-words">输入绑定：{admissionValues(value.bindings)}</p>}
         {value.config&&<p>费用：{value.config.fee_bps===undefined?'未知':`${value.config.fee_bps} bps`}；滑点：{value.config.slippage_bps===undefined?'未知':`${value.config.slippage_bps} bps`}；阈值：{value.config.threshold===undefined?'未知':String(value.config.threshold)}。</p>}
         {value.reason&&<p className="break-words">未完成原因：{value.reason}</p>}

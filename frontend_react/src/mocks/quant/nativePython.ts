@@ -43,7 +43,7 @@ function advance(record:MockNativePython) {
             if (entry&&factor){
                 const saved=collectMockFeedback(entry,{requestKey:`native_review_${data.id}`,title:'原始Python验证 · 人工流程样例',targetSourceId:factor.sourceId,factorId:factor.id,experimentResultId:'',mode:'unknown',documentFormat:'json',
                     document:JSON.stringify({kind:'LOCAL_NATIVE_PYTHON',verdict:data.verdict||'unavailable',parameters:input.parameters,
-                        alignmentAck:nativeAlignmentFixture(count,warmup,!dependency,tail)}),platform:'generic Python · local demo',notes:'未执行真实源码、模型或行情',analyze:true,modelId:''});
+                        alignmentAck:nativeAlignmentFixture(count,warmup,!dependency,tail)}),platform:'generic Python · local demo',notes:'未执行真实源码、模型或行情'+(input.name.includes('LOCAL_NATIVE_RESUME_ERROR_ONCE')?' LOCAL_NATIVE_RESUME_ERROR_ONCE':'')+(record.sourceCode.includes('LOCAL_NATIVE_REVIEW_AUDIT_FAILURE')?' LOCAL_NATIVE_REVIEW_AUDIT_FAILURE':record.sourceCode.includes('LOCAL_NATIVE_REVIEW_REAUDIT_FAILURE')?' LOCAL_NATIVE_REVIEW_REAUDIT_FAILURE':record.sourceCode.includes('LOCAL_NATIVE_REVIEW_REJECT')?' LOCAL_NATIVE_REVIEW_REJECT':''),analyze:true,modelId:''});
                 if (!(saved instanceof HttpResponse))record.analysisSource=saved.source.id;
             }
         }
@@ -51,7 +51,8 @@ function advance(record:MockNativePython) {
     if (record.analysisSource){
         const factor=candidate(record.collection,data.candidateId);const entry=quantState().entries.find(row=>row.id===factor?.entryId);
         const source=entry?.sources?.find(row=>row.id===record.analysisSource);const run=entry?.runs.find(row=>row.sourceId===source?.id);
-        if (entry&&run){advanceRun(run,source);publishMockReport(entry);data.analysis={sourceId:source!.id,entryId:entry.id,runId:run.id,status:run.status,error:run.error||'',reportId:entry.reports?.find(row=>row.runId===run.id)?.id||null,previousReportId:entry.reports?.find(row=>row.sourceId===source!.id&&row.runId!==run.id)?.id||null,audit:run.nativeReviewWorkflow||null};}
+        if (entry&&run){advanceRun(run,source);publishMockReport(entry);const earlier=entry.runs.filter(row=>row.sourceId===source!.id&&row.id!==run.id);data.analysis={sourceId:source!.id,entryId:entry.id,runId:run.id,status:run.status,error:run.error||'',reportId:entry.reports?.find(row=>row.runId===run.id)?.id||null,previousReportId:entry.reports?.find(row=>row.sourceId===source!.id&&row.runId!==run.id)?.id||null,audit:run.nativeReviewWorkflow||null,
+            historyTotal:earlier.length,history:earlier.slice(0,10).map(row=>({runId:row.id,status:row.status,error:row.error||'',createdAt:row.createdAt,modelName:row.modelName,reportId:entry.reports?.find(report=>report.runId===row.id)?.id||null,audit:row.nativeReviewWorkflow||null}))};}
     }
     persistQuantState();return data;
 }

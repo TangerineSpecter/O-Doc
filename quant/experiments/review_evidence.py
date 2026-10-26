@@ -8,7 +8,7 @@ METRICS = ('total_return', 'max_drawdown', 'entries', 'turnover', 'exposure_frac
            'missing_signals', 'bars', 'start', 'end')
 
 
-def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, planning_options: list | None = None, library_context: dict | None = None, sensitivity: bool = False, joint_sensitivity: bool = False, research_memory: dict | None = None, fixed_validation: dict | None = None, selection_diagnostic: dict | None = None) -> dict:
+def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, planning_options: list | None = None, library_context: dict | None = None, sensitivity: bool = False, joint_sensitivity: bool = False, research_memory: dict | None = None, fixed_validation: dict | None = None, selection_diagnostic: dict | None = None, temporal_sensitivity: bool = False) -> dict:
     """Do not send raw CSV, equity paths, returns, credentials or unrelated research."""
     output = outcome.get('output') or {}
     evidence = {
@@ -47,6 +47,12 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
             evidence[attempt['id']]['transformation'] = attempt['transformation']
         if 'fold' in attempt:
             evidence[attempt['id']]['fold'] = attempt['fold']
+        if 'inner_evaluation' in attempt:
+            nested = attempt['inner_evaluation']
+            evidence[attempt['id']]['inner_evaluation'] = {**copy.deepcopy(nested),
+                'folds': [{'number': row['number'], 'metrics': {name: metric_evidence(metric)
+                    for name, metric in row['metrics'].items()}} for row in nested['folds']],
+                'metric_scope': 'top_level_metrics_are_last_started_inner_fold; selection_uses_complete_inner_summary'}
     if output.get('walk_forward'):
         evidence['walk_forward'] = output['walk_forward']['summary']
         for fold in output['walk_forward']['folds']:
@@ -68,12 +74,21 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
             candidate = next(item['candidate'] for item in library_context['options'] if item['id'] == row['candidate_id'])
             evidence[f"library:{row['candidate_id']}"] = {**row, 'name': candidate['name'],
                 'source_evidence': candidate['evidence'], 'status': 'not_evaluated_in_this_result'}
+    if library_context is not None and library_context.get('version') == 6:
+        from .planning_capabilities import validate
+        validate(library_context.get('planning_capabilities'))
+        value['planning_capabilities'] = copy.deepcopy(library_context['planning_capabilities'])
     if sensitivity:
         from .sensitivity import analyze
         evidence['parameter_sensitivity'] = analyze(plan, attempts)
     if joint_sensitivity:
         from .joint_sensitivity import analyze as joint_analysis
         evidence['parameter_joint_sensitivity'] = joint_analysis(plan, attempts)
+    if temporal_sensitivity:
+        from .temporal_sensitivity import analyze as temporal_analysis, model_evidence
+        temporal = temporal_analysis(plan, attempts)
+        if temporal is not None:
+            evidence['temporal_parameter_stability'] = model_evidence(temporal)
     if research_memory is not None:
         from quant.research_memory import summary
         value['research_memory'] = summary(research_memory)
@@ -99,23 +114,23 @@ def metric_evidence(metric):
 
 def for_result(result, version: int = 2, context: dict | None = None, fixed=None) -> dict:
     request = result.request
-    if version not in (9,10) and ('strategy' in request.plan['config']) != (version == 8):
+    if version not in (9,10,11,12) and ('strategy' in request.plan['config']) != (version == 8):
         raise ValidationError('策略执行实验必须使用匹配版本的解读契约')
     from .planning_context import for_result as planning_options
-    if version in (3, 4, 5, 6, 7, 8, 9, 10) and (not isinstance(context, dict) or context.get('version') != (5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10) else 2 if version == 6 else 1)):
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) and (not isinstance(context, dict) or context.get('version') != (6 if version in (11, 12) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12) else 2 if version == 6 else 1)):
         raise ValidationError('新版实验解读缺少冻结的跨库研究上下文')
     from quant.validation_studies.evidence import for_result as fixed_evidence
     from quant.search_diagnostics.services import from_reference
     from quant.search_diagnostics.evidence import summary as diagnostic_summary
-    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version==10 else None
-    if version == 9 and not fixed or fixed and version not in (9,10):
+    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version in (10, 11, 12) else None
+    if version == 9 and not fixed or fixed and version not in (9,10,11,12):
         raise ValidationError('固定验证解读版本与结果引用不匹配')
-    if version in (9,10) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
+    if version in (9,10,11,12) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
         raise ValidationError('固定验证冻结上下文不一致')
     return project(request.plan, request.dataset.snapshot, result.data,
         list(request.checkpoints.values_list('attempt', flat=True)),
-        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10) else planning_options(result) if version == 2 else None,
-        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10), joint_sensitivity=version in (5, 6, 7, 8, 9, 10), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None)
+        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) else planning_options(result) if version == 2 else None,
+        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10, 11, 12), joint_sensitivity=version in (5, 6, 7, 8, 9, 10, 11, 12), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10, 11, 12) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None, temporal_sensitivity=version==12)
 
 
 def evidence_hash(evidence: dict) -> str:

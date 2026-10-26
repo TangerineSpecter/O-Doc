@@ -4,6 +4,7 @@ import {buildSeed, initialSeed} from '../../components/Quant/experiments/plan';
 import {quantState} from './state';
 import {readResearchMemory, researchMemoryReference} from '../../utils/quantResearchMemory';
 import type {QuantExecutionPreview} from '../../types/api/quantPlatformEvidence';
+import {applyNestedMockPlan} from './planningCapabilities';
 
 /** Synthetic plans exercise the same UI without interpreting arbitrary external code. */
 export function mockFeedbackPlan(entry: QuantEntryDetail, source: QuantSource, report: QuantReport, run: QuantAIRun) {
@@ -31,6 +32,10 @@ export function mockFeedbackPlan(entry: QuantEntryDetail, source: QuantSource, r
         evidence_hash: execution ? run.result.feedback?.evidenceHash || 'local-demo-feedback' : 'local-demo-feedback',
         feedback_evidence_hash: execution ? run.result.feedback?.evidenceHash || 'local-demo-feedback' : 'local-demo-feedback', status: 'unverified_requires_fresh_validation',
         constraint_status: 'local_demo_not_validated', baseline_status: recorded ? 'recorded_experiment_inputs' : candidate.data.formulaVersion?.origin === 'ai_repair' ? 'ai_revised_definition_defaults_not_native_or_live_settings' : candidate.data.formulaVersion ? 'authored_definition_defaults_not_actual_live_settings' : 'source_declared_defaults_not_actual_live_settings'};
+    if ((source.payload.document || '').includes('LOCAL_NESTED_PLANNING')) {
+        applyNestedMockPlan(data);
+        report.data.feedbackPlanningNote = '本地人工反馈样例：多内层方案和预热仍是假设，反馈不构成收益验证，不自动执行。';
+    }
     report.proposal = {id: `feedback-plan-${report.id}`.slice(0, 40), createdAt: report.createdAt,
         contentHash: 'local-demo-feedback-plan', dataJson: JSON.stringify(data), candidates: [structuredClone(candidate)]};
 }

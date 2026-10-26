@@ -33,6 +33,8 @@ def capture(value:dict,fail) -> str:
 def validate_workflows(rows:dict,fail) -> set[str]:
     runs=rows.get('quant.airun',{});reports=rows.get('quant.researchreport',{})
     sources=rows.get('quant.sourcerevision',{});all_steps=rows.get('quant.workflowstep',{});all_outcomes=rows.get('quant.workflowoutcome',{})
+    from .resume import validate_links
+    validate_links(runs,rows,fail)
     selected=set()
     for identity,run in runs.items():
         version=run.get('feedback_workflow_version',0);report_id=run.get('audit_report_id','')
@@ -52,10 +54,10 @@ def validate_workflows(rows:dict,fail) -> set[str]:
                     or instant(previous['created_at'])>instant(current['created_at'])):
                 fail('原始Python报告复核引用跨来源、未来记录或循环')
             seen.add(previous['run']);current=parent
-    frozen=('feedback_workflow_version','audit_report_id','entry_id','source_id','requirements','model_id','request_key','input_hash','planning_context')
+    frozen=('feedback_workflow_version','audit_report_id','native_resume_run_id','entry_id','source_id','requirements','model_id','request_key','input_hash','planning_context')
     for local in AIRun.objects.filter(pk__in=runs,feedback_workflow_version__in=(1,2)).values('id',*frozen):
         incoming=runs[local['id']]
-        if any(digest(local[key])!=digest(incoming.get(AIRun._meta.get_field(key).name)) for key in frozen):
+        if any(digest(local[key])!=digest(incoming.get(AIRun._meta.get_field(key).name,'' if key=='native_resume_run_id' else None)) for key in frozen):
             fail('已有Python事实审查输入不可覆盖')
     for run_id in selected:
         _validate_run(run_id,runs[run_id],rows,reports,all_steps,all_outcomes,fail)
@@ -71,6 +73,9 @@ def _validate_run(run_id,run,rows,reports,all_steps,all_outcomes,fail):
     source=reports.get(run.get('audit_report_id')) if run.get('audit_report_id') else None
     source_ref={'id':run['audit_report_id'],'content_hash':source['content_hash']} if source else None
     decisions=[]
+    from .resume import from_rows
+    parent_id=run.get('native_resume_run_id','')
+    retained=from_rows(parent_id,rows) if parent_id else {}
     for ordinal,(step_id,step) in enumerate(steps,1):
         stage=STAGES[ordinal-1]
         if step.get('ordinal')!=ordinal or step.get('stage')!=stage or step_id!=digest(['workflow-step-1',run_id,ordinal])[:40]:
@@ -79,16 +84,19 @@ def _validate_run(run_id,run,rows,reports,all_steps,all_outcomes,fail):
         if ordinal==2 and previous is None:fail('审查缺少原始解读')
         model=step.get('input',{}).get('model')
         seeded=ordinal==1 and source is not None
-        if seeded:
+        checkpoint=retained.get(stage);reference=checkpoint['reference'] if checkpoint else None
+        if seeded or checkpoint:
             if model!={}:fail('读取已有原稿不能伪装为新模型调用')
         elif (not isinstance(model,dict) or set(model)!={'model_id','model_name','provider_type','configuration_hash'}
                 or any(not isinstance(value,str) or len(value)>200 for value in model.values()) or model['model_id']!=run['model_id']
                 or not re.fullmatch(r'[0-9a-f]{64}',model['configuration_hash'])):
             fail('Python审查模型身份无效')
         input_version=step.get('input',{}).get('version')
-        if type(input_version) is not int or input_version not in (1,2,3,4,5,6,7,8,9):fail('Python审查固定输入版本无效')
+        if type(input_version) is not int or input_version not in (1,2,3,4,5,6,7,8,9,10):fail('Python审查固定输入版本无效')
+        if (input_version==10)!=bool(parent_id):fail('Python审查续作输入缺少固定父请求')
         if (input_version>=5)!=(run['feedback_workflow_version']==2):fail('Python审查输入与冻结策略版本不一致')
-        expected=input_snapshot(stage,ordinal,context,run['requirements'],model,draft=previous if ordinal>1 else None,source_report=source_ref,version=input_version)
+        expected=input_snapshot(stage,ordinal,context,run['requirements'],model,draft=previous if ordinal>1 else None,source_report=source_ref,version=input_version,
+            resume_run_id=parent_id,retained_from=reference)
         if input_version in (2,3) or input_version>=8:
             from .prompts import normalized
             actual_prompt=step.get('input',{}).get('prompt')
@@ -103,20 +111,29 @@ def _validate_run(run_id,run,rows,reports,all_steps,all_outcomes,fail):
             break
         identity,record=outcomes[0];data=record.get('data',{})
         fields={'version','method','status','output','raw','error','elapsed_ms','usage'}
-        if (not isinstance(data,dict) or set(data)!=fields or type(data['version']) is not int or data['version']!=2
+        if checkpoint:fields.add('reused_from')
+        if (not isinstance(data,dict) or set(data)!=fields or type(data['version']) is not int or data['version']!=(3 if checkpoint else 2)
                 or data['method']!='native-report-review-v1' or data['status'] not in ('completed','failed')
                 or type(data['elapsed_ms']) is not int or data['elapsed_ms']<0 or not isinstance(data['output'],dict)
                 or data['error'] not in ('','invalid_model_output','model_request_failed','budget_exhausted')
                 or identity!=digest(['workflow-outcome-1',step_id])[:40] or record.get('content_hash')!=digest(data)
                 or instant(record['created_at'])<instant(step['created_at'])):fail('Python审查结果合同或哈希无效')
         usage(data['usage'],fail);raw=capture(data['raw'],fail)
-        if seeded and (raw or data['usage']['request_count'] or any(data['usage'][key] is not None for key in ('input_tokens','output_tokens','total_tokens'))):
+        if (seeded or checkpoint) and (raw or data['usage']['request_count'] or any(data['usage'][key] is not None for key in ('input_tokens','output_tokens','total_tokens'))):
             fail('历史原稿读取不能产生新模型返回或用量')
+        if checkpoint and (data['status']!='completed' or data.get('reused_from')!=reference or data['elapsed_ms']!=0):
+            fail('复用阶段不得修改原记录指纹或伪造新执行')
         if data['status']=='failed':
             if not data['error'] or data['output'] or ordinal!=len(steps) or run['status']=='completed':fail('失败审查不能发布或继续')
             break
         if data['error'] or data['raw']['truncated']:fail('已完成审查不能同时失败或缺少完整返回')
-        if ordinal==1:
+        if checkpoint:
+            output=checkpoint['output']
+            if ordinal==1:previous=output['analysis']
+            else:
+                decisions.append(output['decision'])
+                if output['decision']=='revise':previous=output['analysis'];revised=True
+        elif ordinal==1:
             output={'analysis':source['data'],'origin':'report_snapshot','source_report':source_ref} if seeded else {
                 'analysis':analysis(decode(raw),context,markdown_version=5 if input_version>=9 else 4),'origin':'model','source_report':None}
             previous=output['analysis']
