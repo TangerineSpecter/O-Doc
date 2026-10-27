@@ -1,6 +1,7 @@
 """Read MT4 tester HTML as data; never execute or render uploaded HTML."""
 from html.parser import HTMLParser
 import re
+from .parameters import filter_report_parameters
 
 
 MAX_HTML_BYTES = 20 * 1024 * 1024
@@ -134,6 +135,21 @@ EVENT_COLUMNS = (
 )
 
 
+def normalize_metric_prefixes(metrics):
+    """Remove separator colons only from recognized standalone row prefixes."""
+    prefixes = {'最大', '平均', '最多', '最小', 'maximal', 'average', 'maximum'}
+    normalized = []
+    for row in metrics:
+        cells = list(row)
+        first = next((i for i, cell in enumerate(cells) if cell.strip() and cell.strip() not in ('—', '——', '--', '-')), None)
+        if first is not None:
+            prefix = cells[first].strip().rstrip(':：').strip()
+            if prefix.casefold() in prefixes:
+                cells[first] = prefix
+        normalized.append(cells)
+    return normalized
+
+
 def parse_report(data):
     """Return source strings, grouped statistics, and chronological event rows.
 
@@ -178,13 +194,14 @@ def parse_report(data):
             metrics.append(row)
     if 'symbol' not in fields or not metrics:
         raise ReportError('没有识别到 MT4 策略测试报告')
+    parameters = filter_report_parameters(_parameters(fields.pop('parameters', '')))
     return {
         'title': ''.join(parser.title).strip(),
         'server': parser.meta.get('server', ''),
         'build': parser.meta.get('version', ''),
         'fields': fields,
-        'parameters': _parameters(fields.get('parameters', '')),
-        'metrics': metrics,
+        'parameters': parameters,
+        'metrics': normalize_metric_prefixes(metrics),
         'events': events,
         'image_references': parser.images,
     }

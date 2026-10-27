@@ -39,6 +39,58 @@ class ArchiveAPITests(TestCase):
     def url(self, suffix=''):
         return f'/api/quant/{self.collection.pk}/mt4/experts/{self.expert.pk}/{suffix}'
 
+    def test_structured_requirements_roundtrip_and_validation(self):
+        values = {'category': '趋势EA', 'minimum_capital': '500.25', 'timeframe': '5M',
+                  'account_requirement': '低点差', 'requirements': '原有文本\n保留为额外补充'}
+        response = self.client.patch(self.url(), values, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        actual = self.client.get(self.url()).data['data']['expert']
+        for key, value in values.items():
+            self.assertEqual(actual[key], value)
+        for key, value in [('minimum_capital', '-1'), ('minimum_capital', '5美元'),
+                           ('timeframe', '2M'), ('account_requirement', '高杠杆'), ('category', '自定义')]:
+            self.assertEqual(self.client.patch(self.url(), {key: value}, format='json').status_code, 400)
+
+    def test_existing_report_returns_clean_prefixes_without_rewriting_saved_metrics(self):
+        metrics = [['最大:', '获利交易', '67.13', '亏损交易', '-25.23'],
+                   ['平均：', '连续获利', '3', '连续亏损', '1']]
+        test = MT4Backtest.objects.create(expert=self.expert, title='回测', data={'metrics': metrics})
+        expected = [['最大', '获利交易', '67.13', '亏损交易', '-25.23'],
+                    ['平均', '连续获利', '3', '连续亏损', '1']]
+        detail = self.client.get(self.url(f'tests/{test.pk}/')).data['data']['backtest']
+        summary = self.client.get(self.url()).data['data']['backtests'][0]
+        self.assertEqual(detail['data']['metrics'], expected)
+        self.assertEqual(summary['data']['metrics'], expected)
+        test.refresh_from_db()
+        self.assertEqual(test.data['metrics'], metrics)
+
+    def test_report_parameter_projection_filters_comments_and_magic_without_rewriting(self):
+        parameters = [{'name': 'comm2', 'value': '"Max spread:"'}, {'name': 'MaxSpread', 'value': '5'},
+                      {'name': 'Trade_Lot_Settings', 'value': '"Trade lot:"'}, {'name': 'Comments', 'value': '"EA"'},
+                      {'name': 'magic', 'value': '999222'}, {'name': 'commission', 'value': '2'},
+                      {'name': 'MagicMultiplier', 'value': '3'}]
+        data = {'parameters': parameters, 'fields': {'symbol': 'EURUSD', 'parameters': 'comm2="Max spread:"; magic=999222'}}
+        record = MT4Backtest.objects.create(expert=self.expert, title='回测', data=data)
+        expected = [parameters[1], parameters[5], parameters[6]]
+        detail = self.client.get(self.url(f'tests/{record.pk}/')).data['data']['backtest']['data']
+        summary = self.client.get(self.url()).data['data']['backtests'][0]['data']
+        for report in (detail, summary):
+            self.assertEqual(report['parameters'], expected)
+            self.assertEqual(report['fields'], {'symbol': 'EURUSD'})
+        record.refresh_from_db()
+        self.assertEqual(record.data, data)
+
+        projected = dict(detail)
+        projected['parameters'] = [{'name': 'MaxSpread', 'value': '6'}, {'name': 'new_value', 'value': '7'}]
+        response = self.client.patch(self.url(f'tests/{record.pk}/'), {'title': '编辑后', 'data': projected}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(record.data['fields']['parameters'], data['fields']['parameters'])
+        self.assertEqual([item['name'] for item in record.data['parameters']],
+                         ['comm2', 'MaxSpread', 'Trade_Lot_Settings', 'Comments', 'magic', 'new_value'])
+        self.assertEqual(record.data['parameters'][1]['value'], '6')
+        self.assertEqual([item['name'] for item in response.data['data']['data']['parameters']], ['MaxSpread', 'new_value'])
+
     def test_preview_save_duplicate_and_owner_boundary(self):
         preview = self.client.post(self.url('preview/'), {'asset_id': self.asset.pk}, format='json')
         self.assertEqual(preview.status_code, 200, preview.data)
@@ -79,7 +131,7 @@ class ArchiveAPITests(TestCase):
         manager = SyncManager()
         snapshot = manager.build_snapshot_data()
         meta = metadata(snapshot)
-        self.assertEqual(meta['quant_schema_version'], 76)
+        self.assertEqual(meta['quant_schema_version'], 77)
         self.assertTrue(any(row['model'] == 'quant.mt4attachment' for row in snapshot))
         media = manager.media.compose_media_manifest()
         self.assertIn(self.asset.file_path, media)
@@ -90,6 +142,29 @@ class ArchiveAPITests(TestCase):
         restored = MT4Backtest.objects.get(pk=test.pk)
         self.assertEqual(restored.data['events'][0]['sequence'], '1')
         self.assertTrue(restored.attachments.filter(asset_id=self.asset.pk).exists())
+
+    def test_structured_requirements_snapshot_roundtrip(self):
+        self.expert.minimum_capital = '500.25'
+        self.expert.timeframe = '5M'
+        self.expert.account_requirement = '低点差'
+        self.expert.requirements = '原有文本'
+        self.expert.category = '马丁EA'
+        self.expert.save()
+        manager = SyncManager()
+        snapshot = manager.build_snapshot_data()
+        meta = metadata(snapshot)
+        incomplete = json.loads(json.dumps(snapshot))
+        expert_row = next(row for row in incomplete if row['model'] == 'quant.mt4expert')
+        del expert_row['fields']['timeframe']
+        with self.assertRaises(SyncError):
+            validate(incomplete, metadata(incomplete))
+        with self.assertRaises(SyncError):
+            validate(snapshot, {**meta, 'quant_schema_version': 76})
+        MT4Expert.objects.all().delete()
+        manager.apply_snapshot_data(snapshot, remote_meta=meta)
+        restored = MT4Expert.objects.get(pk=self.expert.pk)
+        self.assertEqual((restored.minimum_capital, restored.timeframe, restored.account_requirement, restored.requirements),
+                         ('500.25', '5M', '低点差', '原有文本'))
 
     def test_missing_referenced_report_is_not_silently_invalidated(self):
         test = MT4Backtest.objects.create(expert=self.expert, title='回测', data={})

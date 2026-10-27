@@ -11,7 +11,7 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 76
+SCHEMA_VERSION = 77
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
@@ -112,6 +112,8 @@ def validate(data: list, meta=None) -> None:
         fail('AI研究与动态连接器需要量化同步版本75或更高')
     if 'quant_schema_version' in meta and schema_version < 76 and any(rows.get(label) for label in ('quant.mt4expert', 'quant.mt4backtest', 'quant.mt4attachment')):
         fail('回测文集需要量化同步版本76或更高')
+    if 'quant_schema_version' in meta and schema_version < 77 and rows.get('quant.mt4expert'):
+        fail('结构化 EA 要求需要量化同步版本77或更高')
     anthologies = {str(row['pk']): row['fields'] for row in data if row.get('model') == 'anthology.anthology'}
     from .experiments.sync import validate_datasets
     from .experiments.snapshot import validate_experiments

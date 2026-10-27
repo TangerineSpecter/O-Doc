@@ -4,23 +4,36 @@ import type {MT4Expert, MT4ExpertInput, MT4Parameter} from '../../types/api/mt4A
 import {QuantButton, QuantField, QuantModal, inputClass} from '../Quant/ui';
 import {Select} from '../common/Select';
 
-const blank: MT4ExpertInput = {name: '', category: '', version: '', sourceUrl: '', forumUrl: '', requirements: '', notes: '', tradingLogic: '', parameters: [], parameterSets: []};
+const blank: MT4ExpertInput = {name: '', category: '', version: '', sourceUrl: '', forumUrl: '', minimumCapital: '', timeframe: '', accountRequirement: '', requirements: '', notes: '', tradingLogic: '', parameters: [], parameterSets: []};
+const options = (values: string[]) => [{value: '', label: '未填写'}, ...values.map(value => ({value, label: value}))];
+const categories = options(['马丁EA', '趋势EA', '震荡EA']);
+const timeframes = options(['1M', '5M', '15M', '30M', '1H', '4H', '1D']);
+const accountRequirements = options(['无要求', '低点差']);
 
 export function ExpertForm({initial, save, close, busy, error}: {initial?: MT4Expert; save: (data: MT4ExpertInput) => void; close: () => void; busy: boolean; error: string}) {
     const [data, setData] = useState<MT4ExpertInput>(initial || blank);
     const [presetName, setPresetName] = useState('');
     const change = (field: keyof MT4ExpertInput, value: string) => setData(current => ({...current, [field]: value}));
     const parameter = (index: number, changes: Partial<MT4Parameter>) => setData(current => ({...current, parameters: current.parameters.map((item, i) => i === index ? {...item, ...changes} : item)}));
-    return <QuantModal title={initial ? '编辑 EA' : '新建 EA'} close={close} busy={busy} wide footer={<><QuantButton onClick={close}>取消</QuantButton><QuantButton primary disabled={busy || !data.name.trim()} onClick={() => save(data)}>保存 EA</QuantButton></>}>
+    const capitalValid = !data.minimumCapital || /^\d+(?:\.\d+)?$/.test(data.minimumCapital);
+    return <QuantModal title={initial ? '编辑 EA' : '新建 EA'} close={close} busy={busy} wide footer={<><QuantButton onClick={close}>取消</QuantButton><QuantButton primary disabled={busy || !data.name.trim() || !capitalValid} onClick={() => save(data)}>保存 EA</QuantButton></>}>
         <div className="grid gap-4 sm:grid-cols-2">
             <QuantField label="EA 名称" value={data.name} onChange={v => change('name', v)} required />
-            <QuantField label="类型" value={data.category} onChange={v => change('category', v)} placeholder="例如马丁 EA" />
+            <div className="space-y-2 text-sm font-semibold text-slate-700"><span>类型</span><Select menuPortal value={data.category} options={categories} onChange={v => change('category', v)} /></div>
             <QuantField label="版本" value={data.version} onChange={v => change('version', v)} />
             <QuantField label="EA 地址" value={data.sourceUrl} onChange={v => change('sourceUrl', v)} placeholder="https://" />
             <QuantField label="论坛地址" value={data.forumUrl} onChange={v => change('forumUrl', v)} placeholder="https://" />
         </div>
         <div className="mt-5 space-y-4">
-            <QuantField label="官方最低要求" value={data.requirements} onChange={v => change('requirements', v)} multiline rows={3} placeholder="资金、时间框架、账户要求等；没有可留空" />
+            <section className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-700">官方最低要求</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block space-y-2 text-sm font-semibold text-slate-700"><span>最低资金（美元）</span><input className={`${inputClass} font-normal`} type="text" inputMode="decimal" maxLength={18} value={data.minimumCapital} onChange={e => {const value = e.target.value; if (/^\d*(?:\.\d*)?$/.test(value)) change('minimumCapital', value);}} placeholder="例如 500" />{!capitalValid && <span className="block text-xs font-normal text-red-600">请输入完整的非负数字</span>}</label>
+                    <div className="space-y-2 text-sm font-semibold text-slate-700"><span>时间框架</span><Select menuPortal value={data.timeframe} options={timeframes} onChange={v => change('timeframe', v)} /></div>
+                    <div className="space-y-2 text-sm font-semibold text-slate-700"><span>账户要求</span><Select menuPortal value={data.accountRequirement} options={accountRequirements} onChange={v => change('accountRequirement', v)} /></div>
+                    <QuantField label="额外补充" value={data.requirements} onChange={v => change('requirements', v)} multiline rows={3} placeholder="其他要求；没有可留空" />
+                </div>
+            </section>
             <QuantField label="注意事项" value={data.notes} onChange={v => change('notes', v)} multiline rows={3} />
             <QuantField label="观察到的交易逻辑" value={data.tradingLogic} onChange={v => change('tradingLogic', v)} multiline rows={4} />
             <section className="space-y-3">

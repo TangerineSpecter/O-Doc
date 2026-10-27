@@ -8,6 +8,8 @@ interface OutlineContentProps {
     icon?: React.ReactNode;
     docs: ArticleNode[];
     flatCount: number;
+    badgeText?: string;
+    emptyText?: string;
     onSelectDoc: (articleId: string) => void;
     onBackHome: () => void;
 }
@@ -19,6 +21,8 @@ export default function OutlineContent(
         icon,
         docs,
         flatCount,
+        badgeText,
+        emptyText,
         onSelectDoc,
         onBackHome
     }: OutlineContentProps) {
@@ -88,7 +92,7 @@ export default function OutlineContent(
                             <div
                                 className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 shadow-sm">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                共 {flatCount} 篇文档
+                                {badgeText || `共 ${flatCount} 篇文档`}
                             </div>
                         </div>
                     </div>
@@ -107,7 +111,13 @@ export default function OutlineContent(
             {/* List Content */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
                 <div className="flex flex-col">
-                    {docs.map(item => renderRow(item))}
+                    {docs.length > 0 ? (
+                        docs.map(item => renderRow(item))
+                    ) : (
+                        <div className="py-8 text-center text-sm text-slate-400">
+                            {emptyText || '暂无内容'}
+                        </div>
+                    )}
                 </div>
                 <div className="mt-12 text-center text-slate-300 text-xs">
                     — 文档目录结束 —

@@ -2,7 +2,7 @@ export interface MT4Parameter {name: string; value: string; label?: string; type
 export interface MT4ParameterSet {name: string; parameters: MT4Parameter[]}
 export interface MT4Expert {
     id: string; name: string; category: string; version: string; sourceUrl: string; forumUrl: string;
-    requirements: string; notes: string; tradingLogic: string; parameters: MT4Parameter[]; parameterSets: MT4ParameterSet[];
+    minimumCapital: string; timeframe: string; accountRequirement: string; requirements: string; notes: string; tradingLogic: string; parameters: MT4Parameter[]; parameterSets: MT4ParameterSet[];
     createdAt: string; updatedAt: string;
 }
 export type MT4ExpertInput = Omit<MT4Expert, 'id' | 'createdAt' | 'updatedAt'>;

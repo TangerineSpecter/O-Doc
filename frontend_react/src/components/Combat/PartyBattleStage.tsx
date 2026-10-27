@@ -4,11 +4,9 @@ import {reportDiagnostic} from '../../utils/diagnostics';
 import CombatFighterStatus from './CombatFighterStatus';
 import type {PartyBattleScene} from './animation/observation/PartyBattleScene';
 
-const diagnosticStack = (error: unknown) => error instanceof Error ? error.stack : undefined;
-
 export default function PartyBattleStage({party, personalKills}: {party: AdventurePartySnapshot; personalKills: number}) {
     const host = useRef<HTMLDivElement>(null), scene = useRef<PartyBattleScene | null>(null), latest = useRef(party);
-    const [error, setError] = useState(false);
+    const [error, setError] = useState(false), [errorMessage, setErrorMessage] = useState('');
     const [ready, setReady] = useState(false);
     const [attempt, setAttempt] = useState(0), [paused, setPaused] = useState(false);
     const pauseRef = useRef(paused);
@@ -19,12 +17,14 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
         void instance.update(party).then(() => {
             if (scene.current === instance) {
                 setError(false);
+                setErrorMessage('');
             }
         }).catch(error => {
             if (scene.current !== instance) return;
             console.error('[PartyBattleStage:update failed]', error);
-            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:update', stack: diagnosticStack(error)}, error);
+            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:update'}, error);
             setError(true);
+            setErrorMessage(error instanceof Error ? error.message : String(error));
         });
     }, [party]);
     useEffect(() => {
@@ -41,12 +41,14 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
             if (!active) return;
             instance.setPaused(pauseRef.current);
             setError(false);
+            setErrorMessage('');
             setReady(true);
         }).catch(error => {
             if (!active) return;
             console.error('[PartyBattleStage:init failed]', error);
-            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:init', stack: diagnosticStack(error)}, error);
+            reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:init'}, error);
             setError(true);
+            setErrorMessage(error instanceof Error ? error.message : String(error));
         });
         return () => {active = false; scene.current = null; instance?.dispose();};
     }, [attempt]);
@@ -74,7 +76,8 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
             {!ready && !error && <p role="status" className="absolute inset-0 flex items-center justify-center text-xs text-white">加载战斗画面…</p>}
             {error && <div role="status" className="absolute inset-x-4 top-[35%] rounded-xl bg-white/95 px-3 py-2 text-xs text-amber-800">
                 <p>画面暂未加载，战斗状态与记录仍可查看。</p>
-                <button type="button" onClick={() => {setError(false); setReady(false); setAttempt(value => value + 1);}} className="mt-2 rounded-lg border border-amber-200 px-2 py-1">重新加载画面</button>
+                {errorMessage && <p className="mt-1 text-[10px] text-rose-600/80 font-mono break-all">{errorMessage}</p>}
+                <button type="button" onClick={() => {setError(false); setErrorMessage(''); setReady(false); setAttempt(value => value + 1);}} className="mt-2 rounded-lg border border-amber-200 px-2 py-1">重新加载画面</button>
             </div>}
             <div className="scrollbar-hide absolute inset-x-3 bottom-3 hidden max-h-[42%] grid-cols-2 gap-[12%] overflow-y-auto sm:grid" aria-label="场景内战斗状态">{hud}</div>
         </div>

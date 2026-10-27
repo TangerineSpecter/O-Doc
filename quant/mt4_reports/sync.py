@@ -10,6 +10,8 @@ def validate_mt4(rows, anthologies, assets, fail):
     experts = rows.get('quant.mt4expert', {})
     tests = rows.get('quant.mt4backtest', {})
     for expert in experts.values():
+        if not all(field in expert for field in ('minimum_capital', 'timeframe', 'account_requirement', 'requirements')):
+            fail('回测 EA 的官方要求不完整，拒绝恢复')
         collection = anthologies.get(str(expert.get('anthology')), {})
         if (collection.get('type') != 'backtest' or collection.get('permission') != 'private'
                 or not collection.get('user_id') or not isinstance(expert.get('name'), str)

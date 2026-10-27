@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from quant.models import MT4Attachment, MT4Backtest, MT4Expert
+from .parser import normalize_metric_prefixes
+from .parameters import preserve_hidden_parameters, project_report_parameters
 
 
 def _parameters(value):
@@ -19,7 +21,7 @@ def _parameters(value):
 class ExpertSerializer(serializers.ModelSerializer):
     class Meta:
         model = MT4Expert
-        fields = ['id', 'name', 'category', 'version', 'source_url', 'forum_url', 'requirements',
+        fields = ['id', 'name', 'category', 'version', 'source_url', 'forum_url', 'requirements', 'minimum_capital', 'timeframe', 'account_requirement',
                   'notes', 'trading_logic', 'parameters', 'parameter_sets', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -40,11 +42,31 @@ class ExpertSerializer(serializers.ModelSerializer):
         return value
 
 
+class ReportDataField(serializers.JSONField):
+    def to_representation(self, value):
+        value = super().to_representation(value)
+        if isinstance(value, dict):
+            value = project_report_parameters(value)
+            if isinstance(value.get('metrics'), list):
+                value['metrics'] = normalize_metric_prefixes(value['metrics'])
+        return value
+
+
 class TestSerializer(serializers.ModelSerializer):
+    data = ReportDataField()
+
     class Meta:
         model = MT4Backtest
         fields = ['id', 'expert_id', 'title', 'description', 'conclusion', 'data', 'report_hash', 'created_at', 'updated_at']
         read_only_fields = ['id', 'expert_id', 'report_hash', 'created_at', 'updated_at']
+
+    def update(self, instance, validated_data):
+        if 'data' in validated_data:
+            data = preserve_hidden_parameters(instance.data, validated_data['data'])
+            if len(data.get('parameters', [])) > 200:
+                raise serializers.ValidationError('参数须为不超过 200 项的列表（包含原始报告隐藏项）')
+            validated_data['data'] = data
+        return super().update(instance, validated_data)
 
     def validate_data(self, value):
         if not isinstance(value, dict):
@@ -67,7 +89,7 @@ class TestSerializer(serializers.ModelSerializer):
 class TestSummarySerializer(TestSerializer):
     # The summary query must supply this projection; it never reads deferred
     # `data`, avoiding an extra query or deserializing large event histories.
-    data = serializers.JSONField(source='_summary_data', read_only=True)
+    data = ReportDataField(source='_summary_data', read_only=True)
 
 
 class AttachmentSerializer(serializers.ModelSerializer):

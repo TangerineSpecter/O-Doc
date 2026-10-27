@@ -28,6 +28,24 @@ def make_zip(files):
 
 
 class MT4ReportTests(unittest.TestCase):
+    def test_report_filters_annotations_and_magic_but_keeps_real_parameters(self):
+        data = HTML.decode('gb18030').replace('label="a;b"; lot=0.01;',
+            'comm2="Max spread:"; MaxSpread=5; Trade_Lot_Settings="Trade lot:"; '
+            'start_lot=0.01; increment=0.02; tp_in_money=3; Comments="DRIVER EURUSD"; magic=999222; '
+            'Magic_Number=12; commission=1.5; MagicMultiplier=2; mode="a;b"; Lot_Settings=4;')
+        report = parse_report(data.encode('gb18030'))
+        self.assertEqual([p['name'] for p in report['parameters']],
+                         ['MaxSpread', 'start_lot', 'increment', 'tp_in_money', 'commission', 'MagicMultiplier', 'mode', 'Lot_Settings'])
+        self.assertEqual(report['parameters'][-2]['value'], '"a;b"')
+        self.assertNotIn('parameters', report['fields'])
+
+    def test_metric_prefix_colons_are_normalized_without_touching_values(self):
+        data = HTML.replace(b'</table><img', '<tr><td>最大:</td><td>获利交易</td><td>67.13</td><td>亏损交易</td><td>-25.23</td></tr><tr><td>平均：</td><td>连续获利</td><td>3</td><td>连续亏损</td><td>1</td></tr><tr><td>普通标签:</td><td>8 (30.17)</td></tr></table><img'.encode('gb18030'))
+        metrics = parse_report(data)['metrics']
+        self.assertIn(['最大', '获利交易', '67.13', '亏损交易', '-25.23'], metrics)
+        self.assertIn(['平均', '连续获利', '3', '连续亏损', '1'], metrics)
+        self.assertIn(['普通标签:', '8 (30.17)'], metrics)
+
     def test_report_preserves_events_and_parameter_strings(self):
         report = parse_report(HTML)
         self.assertEqual(report['fields']['symbol'], 'EURUSD')
