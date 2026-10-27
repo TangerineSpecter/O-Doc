@@ -128,10 +128,12 @@ export const lifeItems: LifeItem[] = residents.flatMap((r, index) => ['farm', 'c
     source: ['cooking', 'alchemy', 'fishing', 'exploration'].includes(activity) ? 'interleaved' as const : 'schedule' as const,
     actualStartedAt: i % 5 < 2 ? at(8 + i) : null, actualEndedAt: i % 5 === 0 ? at(9 + i) : null, actualEnergyCost: i % 5 < 2 ? '4' : null,
     id: `local-life-${index}-${i}`, actorId: r.id, originalAt: at(8 + i), scheduledAt: at(8 + i), activity, taskId: `local-task-${activity}`,
-    status: ['completed', 'running', 'pending', 'failed', 'cancelled'][i % 5], intent: `本地样例：${r.name}的${activity}计划，检查不同状态的展示`,
+    status: index === 0 && i === 2 ? 'deferred' : ['completed', 'running', 'pending', 'failed', 'cancelled'][i % 5], intent: `本地样例：${r.name}的${activity}计划，检查不同状态的展示`,
     budget: String(100 + i * 10), spent: i % 5 === 0 ? '48.00' : '0.00', recordId: 'local-run',
-    result: {reason: i % 5 === 3 ? '体力不足，等待恢复后重试（本地样例）' : '已完成本轮行动并保存结算'},
-    retryAvailable: i % 5 === 3, revisions: [{id: 'local-revision', before: {status: 'pending'}, after: {status: 'success'}, reason: '本地样例执行记录', createdAt: at(9)}],
+    result: index === 0 && i === 2 ? {} : {reason: i % 5 === 3 ? '体力不足，等待恢复后重试（本地样例）' : i % 5 === 4 ? '活动条件变化，取消本次安排（本地样例）' : '已完成本轮行动并保存结算'},
+    retryAvailable: i % 5 === 3, revisions: index === 0 && i === 2
+        ? [{id: 'local-revision-delay', before: {status: 'pending', scheduledAt: at(9)}, after: {status: 'deferred', scheduledAt: at(10)}, reason: '居民正在执行其他任务，请稍后重试', createdAt: at(9)}]
+        : [{id: 'local-revision', before: {status: 'pending'}, after: {status: 'success'}, reason: '本地样例执行记录', createdAt: at(9)}],
 })));
 export const goals: LifeGoal[] = residents.map(r => ({id: `goal-${r.id}`, actorId: r.id, title: '为下一次旅行攒够 5000 橘币',
     condition: {kind: 'savings', amount: '5000'}, progress: r.money, status: 'active', reason: '一边经营农场，一边记录生活。'}));

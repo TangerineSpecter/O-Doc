@@ -15,7 +15,7 @@ import {resolveCookingRoute} from './cooking';
 import {resolveAlchemyRoute} from './alchemy';
 import {fishingAnalyticsMock} from './fishingAnalytics';
 import {lotteryAnalyticsMock} from './lotteryAnalytics';
-import {lifeScheduleResponse} from './lifeSchedule';
+import {lifeScheduleResponse, projectLifeStatusReason} from './lifeSchedule';
 import {localCombatPreparation} from './combatPreparation';
 import {combatAnalyticsMock} from './combatAnalytics';
 import {localEquipmentPreview} from './combatEquipmentPreview';
@@ -91,7 +91,9 @@ function schedule(url: URL) {
     const start = url.searchParams.get('start')?.slice(0, 10) || day;
     const end = url.searchParams.get('end')?.slice(0, 10) || day;
     let rows = list(forActor(lifeItems, url));
-    if (!(start <= day && day <= end)) rows = rows.map(i => ({...i, scheduledAt: `${start}${i.scheduledAt.slice(10)}`, originalAt: `${start}${i.originalAt.slice(10)}`}));
+    if (!(start <= day && day < end)) rows = rows.map(i => ({...i, scheduledAt: `${start}${i.scheduledAt.slice(10)}`, originalAt: `${start}${i.originalAt.slice(10)}`,
+        reservation: i.reservation ? {...i.reservation, prepareAt: `${start}${i.reservation.prepareAt.slice(10)}`,
+            startsAt: `${start}${i.reservation.startsAt.slice(10)}`, endsAt: `${start}${i.reservation.endsAt.slice(10)}`} : undefined}));
     return lifeScheduleResponse(rows, url);
 }
 
@@ -172,10 +174,10 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     const lifeMatch = path.match(/\/life\/schedule\/([^/]+)\/$/);
     if (lifeMatch) {const item = lifeItems.find(r => r.id === lifeMatch[1])!; if (!item) return null;
         if (writing && item.reservation) {
-            if (body.action === 'cancel') for (const member of lifeItems.filter(r => r.reservation?.id === item.reservation!.id)) {member.status='cancelled'; member.reservation={...member.reservation!,status:'cancelled',reason:String(body.reason||'人工取消')};}
-            return item;
+            if (body.action === 'cancel') for (const member of lifeItems.filter(r => r.reservation?.id === item.reservation!.id)) {member.status='cancelled'; member.result={reason:String(body.reason||'人工取消')}; member.reservation={...member.reservation!,status:'cancelled',reason:String(body.reason||'人工取消')};}
+            return projectLifeStatusReason(item);
         }
-        if (writing) {item.status = body.action === 'cancel' ? 'cancelled' : 'pending'; item.result = {reason: String(body.reason || '本地模拟操作')};} return item satisfies LifeItem;}
+        if (writing) {item.status = body.action === 'cancel' ? 'cancelled' : 'pending'; item.result = {reason: String(body.reason || '本地模拟操作')};} return projectLifeStatusReason(item) satisfies LifeItem;}
     if (path.includes('/life/profiles/')) return {id: path.split('/').slice(-2)[0], preferences: '喜欢旅行、农场和制作美食。', direction: '攒钱探索新的目的地。', ...body};
     if (path === `${base}/farms/`) return list(farms);
     const farmMatch = path.match(/\/farms\/([^/]+)\/(history\/)?$/);

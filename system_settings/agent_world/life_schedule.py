@@ -416,14 +416,14 @@ def recover(config, now=None, *, resume_actor=None, delay_reason=None):
     settings = {**DEFAULTS, **config.settings}
     rows = list(LifeItem.objects.select_for_update().filter(owner_id=config.pk, status__in=OPEN).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at', 'id'))
     occupied={}
+    from .life_activities import is_interleaved, is_reserved
     for row in rows:
         if row.activity != 'market_prepare' and row.status!='paused' and local_time(row.scheduled_at)>=now:
             occupied.setdefault(row.actor_id,[]).append((row.pk,local_time(row.scheduled_at)))
     last = {}
     for item in rows:
-        from .life_activities import is_interleaved
-        if is_interleaved(item):
-            continue  # Idle opportunities never enter legacy catch-up or cross-day allocation.
+        if is_interleaved(item) or is_reserved(item):
+            continue  # These have their own deadlines and must not enter legacy catch-up.
         if item.activity == 'market_prepare':
             if not resume_actor or item.actor_id == resume_actor:
                 from .life_market import recover_daily_market
@@ -464,4 +464,4 @@ def recover(config, now=None, *, resume_actor=None, delay_reason=None):
             point = window(settings, point.date()+timedelta(days=1))[0]
         last[item.actor_id] = point
         occupied.setdefault(item.actor_id,[]).append((item.pk,point))
-        revise(item, delay_reason or ('暂停恢复顺延' if item.status == 'paused' else '故障或离线后顺延，保持原顺序'), scheduled_at=point, status='deferred')
+        revise(item, delay_reason or ('暂停恢复顺延' if item.status == 'paused' else '超过计划时间后由系统顺延，保持原顺序；具体延迟原因未记录'), scheduled_at=point, status='deferred')

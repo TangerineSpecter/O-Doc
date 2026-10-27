@@ -1,7 +1,7 @@
 """账号隔离的生活配置、目标、日程和调整接口。"""
 from datetime import datetime, timedelta
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef, Q, Subquery
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -55,6 +55,13 @@ def item_data(item, detail=False, settled_exploration_ids=None, facts=None):
     if item.context.get('adventure_reservation_id'):
         from .combat.reservation_views import summary
         value['reservation'] = summary(item)
+    if status == 'deferred':
+        if hasattr(item, '_latest_revision_reason'):
+            value['status_reason'] = item._latest_revision_reason or ''
+        else:
+            value['status_reason'] = item.revisions.order_by('-created_at', '-id').values_list('reason', flat=True).first() or ''
+    else:
+        value['status_reason'] = (item.result or {}).get('reason', '')
     if detail:
         from .life_interleaving_usage import summary as usage_summary
         value['activity_usage'] = usage_summary(item)
@@ -208,9 +215,9 @@ class LifeScheduleView(APIView):
             if start.tzinfo is None:start=start.replace(tzinfo=SHANGHAI)
             if end.tzinfo is None:end=end.replace(tzinfo=SHANGHAI)
             if not timedelta(0)<end-start<=timedelta(days=366):raise ValueError('查询范围须为1至366天')
-            qs=qs.filter(scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end))
+            from .life_schedule_query import select_source, source_counts, status_summary, with_display_time
+            qs=with_display_time(qs).filter(_display_at__gte=storage_time(start),_display_at__lt=storage_time(end))
             if request.query_params.get('actor_id'):qs=qs.filter(actor_id=request.query_params['actor_id'])
-            from .life_schedule_query import select_source, source_counts, status_summary
             counts = source_counts(qs)
             qs = select_source(qs, request.query_params.get('source', 'all'))
             from .combat.models import Exploration
@@ -219,7 +226,10 @@ class LifeScheduleView(APIView):
                 life_item_id=OuterRef('pk'), record_id=OuterRef('record_id'),
                 owner_id=owner_of(request), ended_at__isnull=False, status__in=EXECUTION_COMPLETED,
             )
-            qs = qs.annotate(_settled_exploration=Exists(settled_exploration))
+            from .life_models import LifeRevision
+            latest_revision = LifeRevision.objects.filter(item_id=OuterRef('pk')).order_by('-created_at', '-id')
+            qs = qs.annotate(_settled_exploration=Exists(settled_exploration),
+                             _latest_revision_reason=Subquery(latest_revision.values('reason')[:1]))
             summary = status_summary(qs)
             requested_status=request.query_params.get('status')
             if requested_status in ('completed','failed'):
@@ -236,7 +246,7 @@ class LifeScheduleView(APIView):
             from .life_facts import batch_actuals
             from .combat.reservation_views import planning_summary
             exploration_planning = planning_summary(owner_of(request), start, end, request.query_params.get('actor_id', ''))
-            ordered=qs.order_by('scheduled_at','id')
+            ordered=qs.order_by('_display_at','id')
             if view in ('today', 'week'):
                 limit = 1 if view == 'today' else 7
                 if end-start>timedelta(days=limit):raise ValueError(f'日程查询范围不能超过{limit}天')

@@ -1,4 +1,6 @@
 import {LifeReservationSummary} from './LifeReservationSummary';
+import {lifeScheduleTime} from './lifeScheduleTime';
+import {explainLifeReason} from './lifeReasonText';
 import {LifeDomainDetails} from './LifeDomainDetails';
 import {LifeSourceBadge} from './LifeSourceBadge';
 import {BlacksmithActivityDetails} from '../Blacksmith/BlacksmithHistory';
@@ -33,6 +35,11 @@ import WorldDialog from '../AgentWorld/WorldDialog';
 import {getLifeItem, changeLifeItem} from '../../api/agentLife';
 import type {LifeItem} from '../../types/api/agentLife';
 import {activityLabels, statusLabels, showsLifeBudget} from './lifeLabels';
+
+function revisionTime(value: unknown): string {
+    if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) return '';
+    return new Date(value).toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'});
+}
 
 function ActivityIcon({activity, className}: {activity?: string; className?: string}) {
     switch (activity) {
@@ -203,7 +210,7 @@ export default function LifeItemDetails({
                                         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
                                             <Clock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                                             <span className="font-mono">
-                                                {new Date(item.scheduledAt).toLocaleString('zh-CN', {
+                                                {new Date(lifeScheduleTime(item)).toLocaleString('zh-CN', {
                                                     timeZone: 'Asia/Shanghai',
                                                 })}
                                             </span>
@@ -296,16 +303,16 @@ export default function LifeItemDetails({
 
                         {item.result?.reason && !(item.activity === 'blacksmith' && Array.isArray(item.result.operations)) && (
                             <div className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs">
-                                {item.status === 'failed' ? (
+                                {['failed', 'cancelled'].includes(item.status) ? (
                                     <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
                                 ) : (
                                     <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                                 )}
                                 <div className="space-y-0.5">
                                     <span className="font-semibold text-slate-700">
-                                        {item.status === 'failed' ? '执行失败原因' : '实际执行结果'}
+                                        {item.status === 'failed' ? '执行失败原因' : item.status === 'cancelled' ? '取消原因' : '实际执行结果'}
                                     </span>
-                                    <p className="text-slate-600 leading-relaxed">{item.result.reason}</p>
+                                    <p className="text-slate-600 leading-relaxed">{explainLifeReason(item.result.reason)}</p>
                                 </div>
                             </div>
                         )}
@@ -383,7 +390,11 @@ export default function LifeItemDetails({
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="mt-1.5 text-slate-700 leading-relaxed">{r.reason}</p>
+                                            {revisionTime(r.before.scheduledAt ?? r.before.scheduled_at) && revisionTime(r.after.scheduledAt ?? r.after.scheduled_at) &&
+                                                (r.before.scheduledAt ?? r.before.scheduled_at) !== (r.after.scheduledAt ?? r.after.scheduled_at) && (
+                                                <p className="mt-1.5 text-slate-600">时间：{revisionTime(r.before.scheduledAt ?? r.before.scheduled_at)} → {revisionTime(r.after.scheduledAt ?? r.after.scheduled_at)}</p>
+                                            )}
+                                            <p className="mt-1.5 text-slate-700 leading-relaxed">原因：{explainLifeReason(r.reason)}</p>
                                         </div>
                                     ))}
                                 </div>

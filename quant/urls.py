@@ -25,8 +25,20 @@ from .verification.views import VerificationView
 from .admissions.views import AdmissionView
 from .native_python.views import NativeView
 from .graph.correlation_views import CorrelationView
+from .mt4_reports.views import ExpertView as MT4ExpertView, PreviewView as MT4PreviewView, TestView as MT4TestView, AttachmentView as MT4AttachmentView, VisionView as MT4VisionView, ZipChartView
 
 urlpatterns = [
+    path('<str:coll_id>/mt4/experts/', MT4ExpertView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/', MT4ExpertView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/preview/', MT4PreviewView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/recognize/', MT4VisionView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/tests/', MT4TestView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/tests/<str:test_id>/', MT4TestView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/tests/<str:test_id>/zip-chart/', ZipChartView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/attachments/', MT4AttachmentView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/attachments/<str:ref_id>/', MT4AttachmentView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/tests/<str:test_id>/attachments/', MT4AttachmentView.as_view()),
+    path('<str:coll_id>/mt4/experts/<str:expert_id>/tests/<str:test_id>/attachments/<str:ref_id>/', MT4AttachmentView.as_view()),
     path('<str:coll_id>/ai-studies/', StudyView.as_view()),
     path('<str:coll_id>/ai-studies/<str:study_id>/', StudyView.as_view()),
     path('<str:coll_id>/ai-studies/<str:study_id>/<str:action>/', StudyView.as_view()),

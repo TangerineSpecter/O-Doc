@@ -1,6 +1,7 @@
 """Appointment orchestration. No model calls or paid preparation under the coordinator lock."""
 from copy import deepcopy
 from datetime import timedelta
+import logging
 from django.db import transaction
 from ..farm_gate import farm_gate
 from ..life_time import local_time
@@ -8,6 +9,8 @@ from ..life_models import LifeItem
 from .reservation_models import AdventureReservation
 from .models import Exploration, CombatRuntime
 from . import explorations
+
+logger = logging.getLogger(__name__)
 
 
 def publish(row):
@@ -30,15 +33,35 @@ def cancel(row, reason, *, now=None):
     if row.status == 'active':
         raise ValueError('预约已出发，请通过探索入口召回成员')
     for member in row.snapshot['members'].values():
+        item = LifeItem.objects.filter(pk=member['item_id']).first()
+        member_reason = (item.result or {}).get('reason', '') if item and item.status == 'failed' else ''
         run = Exploration.objects.filter(pk=member['run_id']).first()
         if run and run.ended_at is None:
             explorations.finish(run.pk, 'failed', reason, now)
         member['status'] = 'cancelled'
-        LifeItem.objects.filter(pk=member['item_id']).update(status='cancelled', result={'reason': reason})
+        detail = f'{reason}；该成员：{member_reason}' if member_reason and member_reason != reason else reason
+        LifeItem.objects.filter(pk=member['item_id']).update(status='cancelled', result={'reason': detail})
     row.status = 'cancelled'
     row.snapshot['reason'] = reason
     CombatRuntime.objects.filter(pk=row.pk).update(authorized=False)
     publish(row)
+
+
+def cancel_expired(row, *, now=None):
+    """Record only facts observable at settlement, not a guessed historical cause."""
+    if row.status in ('completed', 'cancelled'):
+        return
+    members = row.snapshot['members'].values()
+    run_ids = [member['run_id'] for member in members]
+    runs = list(Exploration.objects.filter(pk__in=run_ids))
+    ready = sum(run.status == 'preparing' and run.phase == 'waiting_reservation' and not run.ended_at for run in runs)
+    authorized = permitted(row)
+    reason = (f'预约时间已过，未补打探索。收尾时本机预约授权{"有效" if authorized else "未生效"}；'
+              f'已建立准备记录 {len(runs)}/{len(run_ids)} 人，等待出发 {ready}/{len(run_ids)} 人。'
+              '这些是收尾时的状态，无法单凭它们确定错过出发的具体原因。')
+    logger.warning('组队预约到期未出发 reservation=%s owner=%s authorized=%s preparations=%s ready=%s members=%s',
+                   row.pk, row.owner_id, authorized, len(runs), ready, len(run_ids))
+    cancel(row, reason, now=now)
 
 
 def prepare_member(row, actor, member, now):
@@ -86,6 +109,8 @@ def start(row, now):
     ready = []
     remaining = int((local_time(row.ends_at)-now).total_seconds())
     for actor, member in row.snapshot['members'].items():
+        if member.get('status') in ('failed', 'cancelled'):
+            continue
         run = Exploration.objects.filter(pk=member['run_id'], status='preparing', phase='waiting_reservation').first()
         try:
             if remaining < 600 or not run or not CombatRuntime.objects.filter(pk=run.pk, authorized=True).exists():
@@ -167,7 +192,7 @@ def tick(config, now=None):
                     publish(row)
                 continue
             if now >= local_time(row.ends_at):
-                cancel(row, '预约时间已过，未补打探索', now=now)
+                cancel_expired(row, now=now)
             elif not permitted(row):
                 continue
             elif now >= local_time(row.starts_at):

@@ -51,3 +51,25 @@ class ScheduleSourceTests(TestCase):
     def test_invalid_source_and_full_range_fail_closed(self):
         for params in ({'source': 'bad'}, {'view': 'today', 'end': '2026-10-26'}):
             self.assertEqual(self.client.get(self.url, {**self.params, **params}).status_code, 400)
+
+    def test_list_and_detail_show_latest_deferred_reason_and_cancel_result(self):
+        from .life_models import LifeRevision
+        item = LifeItem.objects.get(pk='source-000')
+        item.status = 'deferred'; item.result = {'reason': '旧结果'}; item.save()
+        LifeRevision.objects.create(item=item, reason='先前原因', created_at=self.at)
+        LifeRevision.objects.create(item=item, reason='居民正在执行其他任务', created_at=self.at + timedelta(minutes=1))
+        cancelled = LifeItem.objects.get(pk='source-001')
+        cancelled.status = 'cancelled'; cancelled.result = {'reason': '预约时间已过'}; cancelled.save()
+        rows = {row['id']: row for row in self.get(view='today')['items']}
+        self.assertEqual(rows[item.pk]['status_reason'], '居民正在执行其他任务')
+        self.assertEqual(rows[cancelled.pk]['status_reason'], '预约时间已过')
+        detail = self.client.get(self.url + item.pk + '/')
+        self.assertEqual(detail.data['data']['status_reason'], '居民正在执行其他任务')
+        self.assertEqual(len(detail.data['data']['revisions']), 2)
+        self.assertEqual(self.client.get(self.url + 'foreign/').status_code, 404)
+
+    def test_deferred_without_revision_has_no_invented_reason(self):
+        item = LifeItem.objects.get(pk='source-000')
+        item.status = 'deferred'; item.result = {'reason': '上次活动结果'}; item.save()
+        row = next(row for row in self.get(view='today')['items'] if row['id'] == item.pk)
+        self.assertEqual(row['status_reason'], '')

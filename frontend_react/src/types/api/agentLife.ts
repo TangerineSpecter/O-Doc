@@ -51,6 +51,7 @@ export interface LifeItem {
     domainDetail?: {kind: 'exploration' | 'fishing' | 'blacksmith'; id: string} | null;
     id: string; actorId: string; originalAt: string; scheduledAt: string; activity: string; taskId: string;
     status: string; intent: string; budget: string; spent: string; recordId: string;
+    statusReason?: string;
     result: {reason?: string; piecesMade?: number; operations?: import('./blacksmith').BlacksmithPiece[];
         stages?: Record<string, unknown>[]}; context?: Record<string, unknown> & {
         lotteryPlan?: {roundId: string; quantity: number}; lotteryNumbers?: number[][]; lotteryAttempts?: number;

@@ -51,6 +51,7 @@ class Anthology(models.Model):
             ('learning', '学习文集'),
             ('novel', '小说文集'),
             ('quant', '量化文集'),
+            ('backtest', '回测文集'),
         ],
         default='article',
         verbose_name='文集类型',

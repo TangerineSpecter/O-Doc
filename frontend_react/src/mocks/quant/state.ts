@@ -1,4 +1,6 @@
 import type {MockStudy} from './studies';
+import type {MT4MockRow} from '../mt4/routes';
+import {sampleMT4Row} from '../mt4/routes';
 import type {MockConnector,MockConnectorResponse} from './connectors';
 import type {MockAdmission} from './admissions';
 import type {MockNativeReview} from './nativeReviews';
@@ -16,7 +18,7 @@ import type {Anthology} from '../../types/api/anthology';
 import type {QuantEntryDetail, QuantRunInput, QuantFactorCandidate} from '../../types/api/quant';
 import {quantAssets, quantCollection, quantEntries, type MockQuantAsset} from './fixtures';
 
-export interface QuantMockState {aiStudies:MockStudy[];connectors:MockConnector[];connectorResponses:MockConnectorResponse[];connectorSamples:Record<string,unknown>;admissionRecords:MockAdmission[];admissionIndexed:Record<string,boolean>;nativeReviewRecords:MockNativeReview[];nativePython:MockNativePython[];validations: MockValidation[];verificationIndexed: Record<string, boolean>; vocabularies: Record<string, MockVocabularyBook>; formulaEdits: MockFormulaEdit[]; formulaSelections: MockFormulaSelection[]; formulaRoots: Record<string, string>; formulaHeads: Record<string, string>; materialCurrentSources: Record<string, string>; comparisons: MockComparison[]; factorMerges: MockFactorMerge[]; batches: MockBatch[]; campaigns: MockCampaign[]; derivedFactors: QuantFactorCandidate[]; experiments: MockExperiment[]; datasets: MockDataset[]; graph: MockGraphState; factorRevisions: Record<string, QuantFactorCandidate['revisions']>; collections: Anthology[]; entries: QuantEntryDetail[]; assets: MockQuantAsset[]; requestKeys: Record<string, {input: QuantRunInput; runId: string}>; removedCollectionIds: string[]}
+export interface QuantMockState {mt4Records: MT4MockRow[];aiStudies:MockStudy[];connectors:MockConnector[];connectorResponses:MockConnectorResponse[];connectorSamples:Record<string,unknown>;admissionRecords:MockAdmission[];admissionIndexed:Record<string,boolean>;nativeReviewRecords:MockNativeReview[];nativePython:MockNativePython[];validations: MockValidation[];verificationIndexed: Record<string, boolean>; vocabularies: Record<string, MockVocabularyBook>; formulaEdits: MockFormulaEdit[]; formulaSelections: MockFormulaSelection[]; formulaRoots: Record<string, string>; formulaHeads: Record<string, string>; materialCurrentSources: Record<string, string>; comparisons: MockComparison[]; factorMerges: MockFactorMerge[]; batches: MockBatch[]; campaigns: MockCampaign[]; derivedFactors: QuantFactorCandidate[]; experiments: MockExperiment[]; datasets: MockDataset[]; graph: MockGraphState; factorRevisions: Record<string, QuantFactorCandidate['revisions']>; collections: Anthology[]; entries: QuantEntryDetail[]; assets: MockQuantAsset[]; requestKeys: Record<string, {input: QuantRunInput; runId: string}>; removedCollectionIds: string[]}
 export const quantMockStoragePrefix = 'odoc:local:quant:v1:';
 const memoryStates = new Map<string, QuantMockState>();
 export const mockScenario = () => typeof location === 'undefined' ? 'sample' : new URLSearchParams(location.search).get('mockState') || 'sample';
@@ -33,6 +35,7 @@ export function quantState(): QuantMockState {
                 const parsed: unknown = JSON.parse(saved);
                 if (typeof parsed === 'object' && parsed && 'collections' in parsed && 'entries' in parsed && 'assets' in parsed && 'requestKeys' in parsed) {
                     const state = parsed as QuantMockState;
+                    state.mt4Records ||= [];
                     state.aiStudies ||= []; state.connectors ||= []; state.connectorResponses ||= []; state.connectorSamples ||= {};
                     state.admissionRecords ||= []; state.admissionIndexed ||= {};
                     state.nativePython ||= [];
@@ -60,7 +63,7 @@ export function quantState(): QuantMockState {
         } catch { /* An unavailable browser storage must not make local mode call the backend. */ }
     }
     const empty = mockScenario() === 'empty';
-    const state: QuantMockState = {aiStudies:[],connectors:[],connectorResponses:[],connectorSamples:{},admissionRecords:[],admissionIndexed:{},nativeReviewRecords:[],nativePython:[],validations: [], verificationIndexed: {}, vocabularies: {}, formulaEdits: [], formulaSelections: [], formulaRoots: {}, formulaHeads: {}, materialCurrentSources: {}, comparisons: [], factorMerges: [], batches: [], campaigns: [], derivedFactors: [], experiments: [], datasets: empty ? [] : [sampleDataset()], graph: {cache: {}, jobs: []}, factorRevisions: {}, collections: [{...clone(quantCollection), count: empty ? 0 : quantCollection.count}], entries: empty ? [] : clone(quantEntries), assets: empty ? [] : clone(quantAssets), requestKeys: {}, removedCollectionIds: []};
+    const state: QuantMockState = {mt4Records: empty ? [] : [sampleMT4Row()],aiStudies:[],connectors:[],connectorResponses:[],connectorSamples:{},admissionRecords:[],admissionIndexed:{},nativeReviewRecords:[],nativePython:[],validations: [], verificationIndexed: {}, vocabularies: {}, formulaEdits: [], formulaSelections: [], formulaRoots: {}, formulaHeads: {}, materialCurrentSources: {}, comparisons: [], factorMerges: [], batches: [], campaigns: [], derivedFactors: [], experiments: [], datasets: empty ? [] : [sampleDataset()], graph: {cache: {}, jobs: []}, factorRevisions: {}, collections: [{...clone(quantCollection), count: empty ? 0 : quantCollection.count}, ...([{collId: 'local-mt4', title: 'MT4 回测（本地演示）', type: 'backtest' as const, count: empty ? 0 : 1, iconId: 'activity', isTop: false, description: '演示 EA 和回测资料', articles: empty ? [] : [{entryId: 'local-mt4-expert', title: 'Driver-EURUSD（本地演示）', date: '10-27'}], permission: 'private' as const, canManage: true}])], entries: empty ? [] : clone(quantEntries), assets: empty ? [] : clone(quantAssets), requestKeys: {}, removedCollectionIds: []};
     memoryStates.set(key, state);
     return state;
 }

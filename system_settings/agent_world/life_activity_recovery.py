@@ -68,10 +68,10 @@ def recover_exploration(identity, now):
     item = LifeItem.objects.filter(pk=run.life_item_id).first()
     if run.status == 'preparing' and run.snapshot.get('reservation_id'):
         from .combat.reservation_models import AdventureReservation
-        from .combat.reservation_execution import cancel
+        from .combat.reservation_execution import cancel_expired
         appointment = AdventureReservation.objects.filter(pk=run.snapshot['reservation_id']).first()
         if appointment and appointment.status in ('reserved', 'preparing') and now >= local_time(appointment.ends_at):
-            cancel(appointment, '预约时间已过，未补打探索', now=now)
+            cancel_expired(appointment, now=now)
         return
     runtime = local_runtime(run)
     end = deadline(run)

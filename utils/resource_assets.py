@@ -343,12 +343,13 @@ def is_asset_referenced(asset):
 
 def is_asset_used_by_quant(resource_id):
     """Historical references survive soft deletion so research evidence remains recoverable."""
-    from quant.models import Attachment
-    return Attachment.objects.filter(asset_id=resource_id).exists()
+    from quant.models import Attachment, MT4Attachment
+    return (Attachment.objects.filter(asset_id=resource_id).exists()
+            or MT4Attachment.objects.filter(asset_id=resource_id).exists())
 
 
 def get_quant_resource_usage(resource_ids=None, *, owner=None):
-    from quant.models import Attachment
+    from quant.models import Attachment, MT4Attachment
     refs = Attachment.objects.select_related('entry__anthology')
     if owner is not None:
         refs = refs.filter(entry__anthology__user_id=owner)
@@ -358,4 +359,12 @@ def get_quant_resource_usage(resource_ids=None, *, owner=None):
     for ref in refs.order_by('created_at', 'pk'):
         usage.setdefault(ref.asset_id, {'id': ref.entry_id, 'title': ref.entry.title,
                                        'collId': ref.entry.anthology_id})
+    mt4_refs = MT4Attachment.objects.select_related('expert__anthology')
+    if owner is not None:
+        mt4_refs = mt4_refs.filter(expert__anthology__user_id=owner)
+    if resource_ids is not None:
+        mt4_refs = mt4_refs.filter(asset_id__in=resource_ids)
+    for ref in mt4_refs.order_by('created_at', 'pk'):
+        usage.setdefault(ref.asset_id, {'id': ref.expert_id, 'title': ref.expert.name,
+                                       'collId': ref.expert.anthology_id})
     return usage

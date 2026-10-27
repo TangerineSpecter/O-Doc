@@ -1,4 +1,6 @@
-import {LifeReservationSummary} from './LifeReservationSummary';
+import {lifeScheduleTime} from './lifeScheduleTime';
+import {LifeStatusReason} from './LifeStatusReason';
+import {lifeStatusReason} from './lifeReasonText';
 import {LifeSourceBadge} from './LifeSourceBadge';
 import type {ElementType} from 'react';
 import {
@@ -157,7 +159,6 @@ export default function LifeScheduleCard({
     density = 'compact',
     viewMode = 'week',
 }: LifeScheduleCardProps) {
-    if (item.reservation) return <button type="button" onClick={onClick} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm"><span className="text-xs font-semibold text-slate-700">{actorName} · <LifeSourceBadge item={item}/></span><LifeReservationSummary item={item}/><span className="mt-1 block text-[10px] text-slate-500">{statusLabels[item.status] || item.status}</span></button>;
     const config = activityConfig[item.activity] || {
         icon: Activity,
         badgeColor: 'bg-orange-50 text-orange-700 border-orange-100',
@@ -169,7 +170,7 @@ export default function LifeScheduleCard({
         className: 'bg-slate-50 text-slate-600 border-slate-200',
     };
 
-    const dateObj = new Date(item.scheduledAt);
+    const dateObj = new Date(lifeScheduleTime(item));
     const timeString = dateObj.toLocaleTimeString('zh-CN', {
         timeZone: 'Asia/Shanghai',
         hour: '2-digit',
@@ -184,7 +185,8 @@ export default function LifeScheduleCard({
 
     const showBudget = showsLifeBudget(item);
     const hasSpent = parseFloat(item.spent || '0') > 0;
-    const tooltipText = `${activityLabels[item.activity] || item.activity} · ${actorName || '居民'}\n时间：${fullTimeString}\n状态：${statusInfo.label}${item.intent ? `\n意图：${item.intent}` : ''}${showBudget ? `\n预算：${item.budget} · 已用：${item.spent}` : ''}`;
+    const statusReason = lifeStatusReason(item);
+    const tooltipText = `${activityLabels[item.activity] || item.activity} · ${actorName || '居民'}\n时间：${fullTimeString}\n状态：${statusInfo.label}${statusReason ? `\n${statusReason.label}：${statusReason.text}` : ''}${item.intent ? `\n意图：${item.intent}` : ''}${showBudget ? `\n预算：${item.budget} · 已用：${item.spent}` : ''}`;
 
     // ==========================================
     // 列表/看板视图专用卡片
@@ -246,6 +248,7 @@ export default function LifeScheduleCard({
                             )}
                         </span>
                     </div>
+                    <LifeStatusReason item={item}/>
                 </button>
             );
         }
@@ -295,13 +298,7 @@ export default function LifeScheduleCard({
                     </span>
                 </div>
 
-                {/* 失败简述展示 */}
-                {item.status === 'failed' && item.result?.reason && (
-                    <div className="mt-2 ml-1.5 rounded-lg border border-rose-200 bg-rose-50/90 p-2 text-[11px] text-rose-700 leading-tight">
-                        <span className="font-semibold">失败原因：</span>
-                        <span className="line-clamp-2">{item.result.reason}</span>
-                    </div>
-                )}
+                <LifeStatusReason item={item}/>
 
                 {/* 意图说明 */}
                 {item.intent && item.status !== 'failed' && (
@@ -392,6 +389,7 @@ export default function LifeScheduleCard({
                         )}
                     </div>
                 </div>
+                <LifeStatusReason item={item}/>
             </button>
         );
     }
@@ -439,6 +437,7 @@ export default function LifeScheduleCard({
                     </p>
                 </div>
             )}
+            <LifeStatusReason item={item}/>
 
             {showBudget && (
                 <div className="mt-1.5 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-1.5 pl-1.5 text-[10px] text-slate-400">

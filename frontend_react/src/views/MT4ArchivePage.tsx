@@ -1,0 +1,43 @@
+import {useState} from 'react';
+import {useNavigate, useParams} from 'react-router-dom';
+import {Plus} from 'lucide-react';
+import {mt4Api} from '../api/mt4Archive';
+import {useMT4Archive} from '../hooks/useMT4Archive';
+import {ExpertForm} from '../components/MT4Archive/ExpertForm';
+import {TestForm} from '../components/MT4Archive/TestForm';
+import {TestDetail} from '../components/MT4Archive/TestDetail';
+import {EditTestForm} from '../components/MT4Archive/EditTestForm';
+import {CompareTests} from '../components/MT4Archive/CompareTests';
+import {Attachments} from '../components/MT4Archive/Attachments';
+import {QuantButton, cardClass} from '../components/Quant/ui';
+import ConfirmationModal from '../components/common/ConfirmationModal';
+import {reportMetric} from '../utils/mt4Report';
+
+export default function MT4ArchivePage() {
+    const {collId = ''} = useParams();
+    const navigate = useNavigate();
+    const archive = useMT4Archive(collId);
+    const [form, setForm] = useState<'create' | 'edit' | 'test' | 'edit-test' | 'compare' | null>(null);
+    const [query, setQuery] = useState('');
+    const [removing, setRemoving] = useState<'expert' | 'test' | null>(null);
+    const detail = archive.detail;
+    const visibleTests = (detail?.backtests || []).filter(item => [item.title, item.description, item.data.fields?.symbol || '', item.data.fields?.period || '', ...(item.data.parameters || []).map(parameter => `${parameter.name} ${parameter.label || ''} ${parameter.value}`)].join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+    return <main className="mx-auto max-w-7xl space-y-4 px-4 py-6 text-slate-800 sm:px-6">
+        {archive.error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{archive.error}</div>}
+        {archive.test && detail ? <TestDetail collection={collId} expertId={detail.expert.id} detail={archive.test} reload={archive.refreshTest} back={() => archive.setTest(null)} edit={() => setForm('edit-test')} remove={() => setRemoving('test')}/> : detail ? <>
+            <header className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><QuantButton onClick={() => {archive.setDetail(null); void archive.run(archive.reload);}}>返回列表</QuantButton><div><h1 className="text-xl font-bold">{detail.expert.name}</h1><p className="mt-1 text-xs text-slate-500">{[detail.expert.category, detail.expert.version].filter(Boolean).join(' · ') || 'MT4 EA 档案'}</p></div></div><div className="flex flex-wrap gap-2"><QuantButton disabled={detail.backtests.length < 2} onClick={() => setForm('compare')}>对比回测</QuantButton><QuantButton onClick={() => setForm('edit')}>编辑 EA</QuantButton><QuantButton danger onClick={() => setRemoving('expert')}>删除</QuantButton><QuantButton primary onClick={() => setForm('test')}><Plus size={15}/>添加回测</QuantButton></div></header>
+            <section className={cardClass}><h2 className="mb-3 text-base font-bold">EA 信息</h2><div className="grid gap-4 sm:grid-cols-2">{[['官方最低要求', detail.expert.requirements], ['注意事项', detail.expert.notes], ['观察到的交易逻辑', detail.expert.tradingLogic]].map(([label, value]) => <div key={label}><p className="text-xs text-slate-500">{label}</p><p className="mt-1 whitespace-pre-wrap text-sm">{value || '暂无记录'}</p></div>)}<div><p className="text-xs text-slate-500">来源</p><div className="mt-1 flex gap-3 text-sm text-orange-700">{detail.expert.sourceUrl && <a href={detail.expert.sourceUrl} target="_blank" rel="noreferrer">EA 地址 ↗</a>}{detail.expert.forumUrl && <a href={detail.expert.forumUrl} target="_blank" rel="noreferrer">论坛地址 ↗</a>}{!detail.expert.sourceUrl && !detail.expert.forumUrl && '暂无链接'}</div></div></div></section>
+            <section className={cardClass}><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-bold">回测记录 · {detail.backtests.length}</h2><input aria-label="筛选回测记录" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索品种、时间或参数" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-500 sm:w-64"/></div>{visibleTests.length ? <div className="divide-y divide-slate-100">{visibleTests.map(item => <button key={item.id} className="flex w-full flex-wrap items-center justify-between gap-4 py-3 text-left hover:text-orange-700" onClick={() => void archive.run(() => archive.openTest(item.id))}><span><span className="block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-slate-500">{item.data.fields?.symbol || '未填写品种'} · {item.data.fields?.period || '未填写周期'}</span><span className="mt-1 block text-xs text-slate-400">{(item.data.parameters || []).slice(0, 3).map(p => `${p.label || p.name}=${p.value}`).join(' · ') || '未填写参数'}</span></span><span className="text-xs tabular-nums text-slate-500">净盈利 {reportMetric(item.data, ['总净盈利', 'total net profit']) || '—'} · 最大回撤 {reportMetric(item.data, ['最大亏损', 'maximal drawdown']) || '—'} 查看 →</span></button>)}</div> : <p className="text-sm text-slate-500">{detail.backtests.length ? '没有符合筛选条件的回测。' : '还没有回测记录，导入 MT4 报告或手工添加。'}</p>}</section>
+            <section className={cardClass}><Attachments collection={collId} expertId={detail.expert.id} testId={null} attachments={detail.attachments} reload={archive.refreshDetail}/></section>
+        </> : <>
+            <header className="flex items-center justify-between gap-3"><div><button className="text-xs text-slate-500 hover:text-orange-700" onClick={() => navigate('/')}>← 返回文集</button><h1 className="mt-2 text-xl font-bold">MT4 回测文集</h1><p className="mt-1 text-sm text-slate-500">管理 EA 档案、参数与历史回测报告</p></div><QuantButton primary onClick={() => setForm('create')}><Plus size={15}/>新建 EA</QuantButton></header>
+            <section className={cardClass}>{archive.loading ? <p className="text-sm text-slate-500">正在加载 EA…</p> : archive.experts.length ? <div className="divide-y divide-slate-100">{archive.experts.map(item => <button key={item.id} className="flex w-full items-center justify-between gap-4 py-4 text-left hover:text-orange-700" onClick={() => void archive.run(() => archive.openExpert(item.id))}><span><strong className="text-sm">{item.name}</strong><span className="mt-1 block text-xs text-slate-500">{[item.category, item.version].filter(Boolean).join(' · ') || 'MT4 EA'}</span></span><span className="text-xs text-slate-400">查看 →</span></button>)}</div> : archive.error ? <div className="py-4 text-sm text-slate-500">无法加载 EA 列表。 <QuantButton onClick={() => void archive.run(archive.reload)}>重试</QuantButton></div> : <p className="py-8 text-center text-sm text-slate-500">还没有 EA。创建一个档案，开始保存回测记录。</p>}</section>
+        </>}
+        {form === 'create' && <ExpertForm busy={archive.busy} error={archive.error} close={() => setForm(null)} save={data => void archive.run(async () => {const row = await mt4Api.createExpert(collId, data); await archive.reload(); await archive.openExpert(row.id); setForm(null);})}/>}
+        {form === 'edit' && detail && <ExpertForm initial={detail.expert} busy={archive.busy} error={archive.error} close={() => setForm(null)} save={data => void archive.run(async () => {await mt4Api.updateExpert(collId, detail.expert.id, data); await archive.refreshDetail(); setForm(null);})}/>}
+        {form === 'test' && detail && <TestForm collection={collId} expert={detail.expert} close={() => setForm(null)} saved={async () => {setForm(null); await archive.run(archive.refreshDetail);}}/>}
+        {form === 'edit-test' && detail && archive.test && <EditTestForm test={archive.test.backtest} busy={archive.busy} error={archive.error} close={() => setForm(null)} save={data => void archive.run(async () => {await mt4Api.updateTest(collId, detail.expert.id, archive.test!.backtest.id, data); await archive.refreshTest(); await archive.refreshDetail(); setForm(null);})}/>}
+        {form === 'compare' && detail && <CompareTests tests={detail.backtests} close={() => setForm(null)}/>}
+        <ConfirmationModal isOpen={Boolean(removing)} title={removing === 'expert' ? '删除 EA 档案？' : '删除回测记录？'} description={removing === 'expert' ? '该 EA 及其回测记录将从列表隐藏，附件仍保留在资源库。' : '该记录将从列表隐藏，原报告和附件仍保留。'} isLoading={archive.busy} onClose={() => setRemoving(null)} onConfirm={() => void archive.run(async () => {if (!detail) return; if (removing === 'expert') {await mt4Api.deleteExpert(collId, detail.expert.id); archive.setDetail(null); await archive.reload();} else if (archive.test) {await mt4Api.deleteTest(collId, detail.expert.id, archive.test.backtest.id); archive.setTest(null); await archive.refreshDetail();} setRemoving(null);})}/>
+    </main>;
+}

@@ -1,4 +1,5 @@
 import {resolveStudyRoute} from './studies';
+import {resolveMT4Route} from '../mt4/routes';
 import {resolveConnectorRoute} from './connectors';
 import {resolveValidationRoute} from './validations';
 import {validateMockAudit,mockNativeReviewEvidence,mockNativeContinuationFault} from './nativeReviews';
@@ -54,6 +55,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     if (path === '/api/quant/models/' && request.method === 'GET') return quantModels;
     const route = path.slice('/api/quant/'.length).split('/').filter(Boolean).map(decodeURIComponent);
     const [collId, domain, entryId, section, id, action] = route;
+    if (domain === 'mt4') return resolveMT4Route(request, collId, route.slice(2));
     const state = quantState();
     const collection = state.collections.find(row => row.collId === collId && row.type === 'quant');
     if (!collection) return fail(404, '量化文集不存在或无权访问');

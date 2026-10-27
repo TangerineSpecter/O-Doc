@@ -101,6 +101,19 @@ class ReservationTests(TestCase):
         tick(self.config,local_time(row.starts_at))
         row.refresh_from_db();self.assertEqual(row.status,'cancelled')
         self.assertFalse(Exploration.objects.filter(status='active').exists())
+        for item in LifeItem.objects.filter(context__adventure_reservation_id=row.pk):
+            self.assertIn('就绪成员不足两人',item.result['reason'])
+            self.assertIn('预约准备未完成或已错过可参与时间',item.result['reason'])
+
+    def test_prepare_failure_reason_survives_team_cancellation(self):
+        row=self.book()
+        with patch('system_settings.agent_world.combat.reservation_execution.prepare_member', side_effect=ValueError('准备失败：体力不足')):
+            tick(self.config,self.now)
+        tick(self.config,local_time(row.starts_at))
+        row.refresh_from_db();self.assertEqual(row.status,'cancelled')
+        for item in LifeItem.objects.filter(context__adventure_reservation_id=row.pk):
+            self.assertIn('就绪成员不足两人',item.result['reason'])
+            self.assertIn('准备失败：体力不足',item.result['reason'])
 
     def test_snapshot_missing_member_and_revision_fork_rejected(self):
         row=self.book()
@@ -142,6 +155,55 @@ class ReservationTests(TestCase):
         from ..life_interleaving_candidates import available_window
         self.assertEqual(available_window('admin',self.agents[0].pk,self.now),0)
         self.assertEqual(available_window('admin',self.agents[0].pk,self.now-timedelta(minutes=40)),25*60)
+        self.assertEqual(available_window('admin',self.agents[0].pk,local_time(row.starts_at)),0)
+        self.assertEqual(available_window('admin',self.agents[0].pk,local_time(row.ends_at)-timedelta(seconds=1)),0)
+        self.assertGreater(available_window('admin',self.agents[0].pk,local_time(row.ends_at)),0)
+
+    def test_legacy_recovery_does_not_reschedule_or_pause_appointments(self):
+        row=self.book()
+        from ..life_schedule import recover
+        self.config.paused_agents=[self.agents[0].pk]
+        self.config.save()
+        recover(self.config, self.now+timedelta(minutes=43))
+        for item in LifeItem.objects.filter(context__adventure_reservation_id=row.pk):
+            self.assertEqual(local_time(item.scheduled_at),local_time(row.prepare_at))
+            self.assertEqual(item.status,'pending')
+            self.assertFalse(item.revisions.exists())
+        row.refresh_from_db()
+        self.assertEqual(row.status,'reserved')
+
+    def test_legacy_displaced_reservations_are_filtered_and_ordered_by_prepare_time(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        row = self.book()
+        items = list(LifeItem.objects.filter(context__adventure_reservation_id=row.pk))
+        for item in items:
+            item.scheduled_at = storage_time(local_time(row.prepare_at) + timedelta(days=1))
+            item.save(update_fields=['scheduled_at'])
+        for index in range(101):
+            when = local_time(row.prepare_at) + timedelta(minutes=index + 1)
+            LifeItem.objects.create(pk=f'schedule-order-{index:03}', owner_id='admin', actor_id=self.agents[0].pk,
+                activity='rest', original_at=storage_time(when), scheduled_at=storage_time(when))
+        client = APIClient()
+        client.force_authenticate(get_user_model().objects.create_superuser('admin', password='test'))
+        day = local_time(row.prepare_at).date()
+        url = '/api/settings/agent-world/life/schedule/'
+        params = {'start': day.isoformat(), 'end': (day + timedelta(days=1)).isoformat()}
+        first = client.get(url, {**params, 'source': 'all', 'page': 1}).data['data']
+        second = client.get(url, {**params, 'source': 'all', 'page': 2}).data['data']
+        self.assertEqual(first['total'], 103)
+        self.assertEqual(first['counts']['reservation'], 2)
+        self.assertEqual(first['summary']['total'], 103)
+        self.assertEqual({item['id'] for item in first['items'][:2]}, {item.pk for item in items})
+        self.assertEqual(len(second['items']), 3)
+        for view in ('today', 'week'):
+            result = client.get(url, {**params, 'source': 'reservation', 'view': view}).data['data']
+            self.assertEqual({item['id'] for item in result['items']}, {item.pk for item in items})
+        next_day = client.get(url, {'start': (day + timedelta(days=1)).isoformat(),
+                                    'end': (day + timedelta(days=2)).isoformat(), 'source': 'reservation'}).data['data']
+        self.assertEqual(next_day['total'], 0)
+        self.assertEqual(LifeItem.objects.filter(pk__in=[item.pk for item in items],
+            scheduled_at=storage_time(local_time(row.prepare_at) + timedelta(days=1))).count(), 2)
 
     def test_main_schedule_change_cancels_entire_unstarted_team(self):
         row=self.book()
@@ -212,6 +274,28 @@ class ReservationTests(TestCase):
         row=self.book();tick(self.config,self.now)
         from ..life_activity_recovery import recover_exploration
         run=Exploration.objects.first()
+        run.phase='waiting_reservation';run.save(update_fields=['phase'])
         recover_exploration(run.pk,local_time(row.ends_at)+timedelta(seconds=6))
         row.refresh_from_db();self.assertEqual(row.status,'cancelled')
+        self.assertIn('收尾时本机预约授权有效',row.snapshot['reason'])
+        self.assertIn('已建立准备记录 2/2 人，等待出发 1/2 人',row.snapshot['reason'])
+        self.assertIn('无法单凭它们确定',row.snapshot['reason'])
+        self.assertTrue(all(item.result['reason']==row.snapshot['reason'] for item in LifeItem.objects.filter(context__adventure_reservation_id=row.pk)))
         self.assertFalse(Exploration.objects.filter(status='completed').exists())
+
+    def test_expired_unpermitted_appointment_records_observed_state_without_starting(self):
+        from .models import CombatRuntime
+        row=self.book()
+        CombatRuntime.objects.filter(pk=row.pk).update(authorized=False)
+        tick(self.config, local_time(row.starts_at))
+        self.assertFalse(Exploration.objects.exists())
+        tick(self.config, local_time(row.ends_at))
+        row.refresh_from_db()
+        self.assertEqual(row.status,'cancelled')
+        self.assertIn('收尾时本机预约授权未生效',row.snapshot['reason'])
+        self.assertIn('已建立准备记录 0/2 人，等待出发 0/2 人',row.snapshot['reason'])
+        reason=row.snapshot['reason']
+        tick(self.config, local_time(row.ends_at)+timedelta(minutes=1))
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['reason'],reason)
+        self.assertFalse(Exploration.objects.exists())

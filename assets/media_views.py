@@ -25,7 +25,7 @@ def serve_legacy_media(request, path):
     if 'html_notes' in parts:
         raise Http404
     # Private research files always go through the authenticated resource API.
-    if Asset.objects.filter(file_path=path).filter(Q(source_type='quant') | Q(quant_references__isnull=False)).exists():
+    if Asset.objects.filter(file_path=path).filter(Q(source_type='quant') | Q(quant_references__isnull=False) | Q(mt4_references__isnull=False)).exists():
         raise Http404
     related = Asset.objects.filter(file_path=path).filter(
         Q(article_references__article__content_format='html')

@@ -69,9 +69,10 @@ export const SortableCollectionCard = ({
     const isImageCollection = item.type === 'image';
     const isLearningCollection = item.type === 'learning';
     const isQuantCollection = item.type === 'quant';
+    const isBacktestCollection = item.type === 'backtest';
     const isNovelCollection = item.type === 'novel';
-    const navigateTarget = isQuantCollection ? 'quant' : isNovelCollection ? 'novel' : isLearningCollection ? 'learning' : isAgentCollection ? 'article' : isImageCollection ? 'image' : isBookCollection ? 'book' : 'article';
-    const countTitle = isQuantCollection ? `${item.count} 条研究` : isNovelCollection ? `${item.count} 章` : isLearningCollection ? `${item.count} 份已完成练习` : isAgentCollection ? `${item.count} 条帖子` : isImageCollection ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
+    const navigateTarget = isBacktestCollection ? 'backtest' : isQuantCollection ? 'quant' : isNovelCollection ? 'novel' : isLearningCollection ? 'learning' : isAgentCollection ? 'article' : isImageCollection ? 'image' : isBookCollection ? 'book' : 'article';
+    const countTitle = isBacktestCollection ? `${item.count} 个 EA` : isQuantCollection ? `${item.count} 条研究` : isNovelCollection ? `${item.count} 章` : isLearningCollection ? `${item.count} 份已完成练习` : isAgentCollection ? `${item.count} 条帖子` : isImageCollection ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
     const bookPreviews = isBookCollection ? (item.articles || []).slice(0, 12) : [];
     const imagePreviews = isImageCollection ? (item.articles || []).slice(0, 12) : [];
     const renderAgentAvatar = (avatar?: string, name?: string) => {
@@ -251,6 +252,12 @@ export const SortableCollectionCard = ({
                             <Smile className="w-4 h-4 text-slate-300" />
                         </div>
                         <span className="text-[10px]">(^_^) 嘻嘻，啥也看不到嗷～</span>
+                    </button>
+                ) : isBacktestCollection ? (
+                    <button onClick={() => onNavigate('backtest', {collId: item.collId})} className="h-full w-full rounded-xl p-3 text-left hover:bg-orange-50">
+                        <p className="text-xs font-semibold text-orange-600">MT4 回测文集</p>
+                        <p className="mt-2 text-sm text-slate-600">{item.count} 个 EA · 回测报告与交易记录</p>
+                        <p className="mt-1 text-xs text-slate-400 line-clamp-2">{item.articles.map(a => a.title).join(' · ') || '创建 EA 档案并导入报告'}</p>
                     </button>
                 ) : isQuantCollection ? (
                     <button onClick={() => onNavigate('quant', {collId: item.collId})} className="h-full w-full rounded-xl p-3 text-left hover:bg-orange-50 whitespace-nowrap shrink-0">

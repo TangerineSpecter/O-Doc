@@ -350,7 +350,7 @@ def _plan_cycle(config, scheduler, now):
         if trip:
             TravelRuntime.objects.update_or_create(pk=trip.pk, defaults={'authorized': True})
     # 90秒正常轮询容差内的 due 由执行器消费，不能反复向后挪。
-    if LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lt=storage_time(now - timedelta(seconds=90))).exists():
+    if main_items(LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lt=storage_time(now - timedelta(seconds=90)))).exists():
         recover(config, now)
     ensure_cycle(config, now)
     ensure_daily_market(config, now)

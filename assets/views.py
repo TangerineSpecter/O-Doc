@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_visible_anthology_ids(request):
-    queryset = Anthology.objects.filter(is_valid=True).exclude(type='quant')
+    queryset = Anthology.objects.filter(is_valid=True).exclude(type__in=['quant', 'backtest'])
     if request.user and request.user.is_authenticated:
         current_user_id = get_current_user_identifier(request)
         queryset = queryset.filter(Q(permission='public') | Q(user_id=current_user_id))
@@ -51,7 +51,7 @@ def get_visible_anthology_ids(request):
 def can_read_asset(request, asset):
     # Research attachments stay private even if another domain references them.
     # Historical quant references also protect files from deleted research.
-    if asset.source_type == 'quant' or asset.quant_references.exists():
+    if asset.source_type == 'quant' or asset.quant_references.exists() or asset.mt4_references.exists():
         return bool(request.user and request.user.is_authenticated
                     and asset.uploader == get_current_user_identifier(request))
     if request.user and request.user.is_authenticated:
@@ -424,7 +424,7 @@ class ResourceDownloadView(APIView):
                 response['Content-Disposition'] = f'attachment; filename="{asset.original_name}"'
             response['Content-Length'] = asset.file_size
             response['X-Content-Type-Options'] = 'nosniff'
-            if (asset.source_type == 'quant' or asset.quant_references.exists()
+            if (asset.source_type == 'quant' or asset.quant_references.exists() or asset.mt4_references.exists()
                     or asset.article_references.filter(role__in=['source', 'preview']).exists()):
                 response['Content-Security-Policy'] = "default-src 'none'; sandbox;"
                 response['Cache-Control'] = 'no-store'
@@ -455,7 +455,7 @@ class ResourceUploadView(APIView):
                     return valid_result('请登录后上传量化研究附件', status=401)
                 from pathlib import Path
                 extension = Path(uploaded_file.name).suffix.lower()
-                allowed = {'.py', '.pine', '.mq4', '.mqh', '.mq5', '.ipynb', '.txt', '.md', '.json',
+                allowed = {'.py', '.pine', '.mq4', '.mqh', '.mq5', '.ex4', '.ipynb', '.txt', '.md', '.json',
                            '.csv', '.tsv', '.yaml', '.yml', '.pdf', '.html', '.htm', '.zip', '.png', '.jpg', '.jpeg', '.gif', '.webp'}
                 if extension not in allowed:
                     return valid_result('暂不支持此量化附件类型，请使用脚本、文档、图片或 ZIP 文件', status=400)
@@ -481,7 +481,7 @@ class ResourceUploadView(APIView):
                     uploaded_file.seek(0)
                     if signature != b'%PDF-':
                         return valid_result('PDF 文件内容无效', status=400)
-                elif extension not in {'.png', '.jpg', '.jpeg', '.gif', '.webp'}:
+                elif extension not in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.ex4'}:
                     sample = uploaded_file.read(65536)
                     uploaded_file.seek(0)
                     valid_text = False

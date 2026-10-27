@@ -25,14 +25,14 @@ def get_visible_anthology_queryset(request):
         current_user_id = get_current_user_identifier(request)
         return queryset.filter(
             Q(user_id=current_user_id)
-            | (Q(permission='public') & ~Q(type__in=['learning', 'quant']))
+            | (Q(permission='public') & ~Q(type__in=['learning', 'quant', 'backtest']))
         )
-    return queryset.filter(permission='public').exclude(type__in=['learning', 'quant'])
+    return queryset.filter(permission='public').exclude(type__in=['learning', 'quant', 'backtest'])
 
 
 def get_owned_anthology_queryset(request):
     queryset = Anthology.objects.filter(user_id=get_current_user_identifier(request), is_valid=True)
-    return queryset if request.user.is_authenticated else queryset.exclude(type__in=['learning', 'novel', 'quant'])
+    return queryset if request.user.is_authenticated else queryset.exclude(type__in=['learning', 'novel', 'quant', 'backtest'])
 
 
 class AnthologyCreateView(APIView):
@@ -124,6 +124,14 @@ class AnthologyListView(APIView):
                         item_summaries = [{'entry_id': entry.pk, 'title': entry.title,
                                            'date': entry.updated_at.strftime('%m-%d')}
                                           for entry in entries[:3]]
+                elif anthology.type == 'backtest':
+                    from quant.models import MT4Expert
+                    experts = MT4Expert.objects.filter(anthology=anthology, is_valid=True)
+                    item_count = experts.count()
+                    if not anthology.hide_cover_content:
+                        item_summaries = [{'entry_id': expert.pk, 'title': expert.name,
+                                           'date': expert.updated_at.strftime('%m-%d')}
+                                          for expert in experts[:3]]
                 elif anthology.type == 'image':
                     image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
                     item_count = image_qs.count()
@@ -205,13 +213,13 @@ class AnthologyListView(APIView):
                     'can_manage': bool(request.user.is_authenticated and anthology.user_id == get_current_user_identifier(request)),
                     'type': anthology.type
                 }
-                if anthology.type == 'quant':
+                if anthology.type in ('quant', 'backtest'):
                     anthology_data['updated_at'] = anthology.updated_at
 
                 if anthology.type == 'learning':
                     anthology_data['pending_count'] = Exercise.objects.filter(course_id=anthology.pk, status__in=ACTIVE).count()
                     anthology_data['rag_not_synced_count'] = 0
-                if anthology.type == 'quant':
+                if anthology.type in ('quant', 'backtest'):
                     anthology_data['rag_not_synced_count'] = 0
                 if anthology.type == 'novel':
                     anthology_data['rag_not_synced_count'] = 0

@@ -768,3 +768,7 @@ class NativePythonJob(Record):
     lease_token=models.CharField(max_length=40,default=stable_id)
     lease_until=models.DateTimeField(null=True)
     cancel_requested=models.BooleanField(default=False)
+
+
+# Register MT4 archive records with the existing synchronized quant app.
+from .mt4_reports.models import MT4Attachment, MT4Backtest, MT4Expert  # noqa: E402,F401

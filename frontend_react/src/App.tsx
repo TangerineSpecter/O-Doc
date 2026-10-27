@@ -9,6 +9,7 @@ import ArticleOutline from './views/ArticleOutline';
 import ImageAnthologyPage from './views/ImageAnthologyPage';
 import BookAnthologyPage from './views/BookAnthologyPage';
 const QuantPage = lazy(() => import('./views/QuantPage'));
+const MT4ArchivePage = lazy(() => import('./views/MT4ArchivePage'));
 const NovelPage = lazy(() => import('./views/NovelPage'));
 const LearningPage = lazy(() => import('./views/LearningPage'));
 const BookAnalysisPage = lazy(() => import('./views/BookAnalysisPage'));
@@ -34,6 +35,11 @@ initializeNovelNavigation();
 function LearningRoute() {
     const {collId, exerciseId} = useParams();
     return <LearningPage key={`${collId}:${exerciseId || "home"}`}/>;
+}
+
+function MT4ArchiveRoute() {
+    const {collId} = useParams();
+    return <MT4ArchivePage key={collId}/>;
 }
 
 function hasAuthToken() {
@@ -81,6 +87,8 @@ function HomeRoute() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'backtest') {
+            const {collId} = params as {collId: string}; navigate(`/backtest/${encodeURIComponent(collId)}`);
         } else if (viewName === 'quant') {
             const {collId, entryId} = params as {collId: string; entryId?: string};
             navigate(entryId ? `/quant/${encodeURIComponent(collId)}/entries/${encodeURIComponent(entryId)}` : `/quant/${encodeURIComponent(collId)}`);
@@ -265,6 +273,7 @@ function AppWithRouter() {
             <Route path="/novel/:collId" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage/></Suspense>}/>
             <Route path="/novel/:collId/read" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage readerOnly/></Suspense>}/>
             <Route path="/quant/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开量化研究…</div>}><QuantPage/></Suspense></Layout></RequireAuth>}/>
+            <Route path="/backtest/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开回测文集…</div>}><MT4ArchiveRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/quant/:collId/entries/:entryId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开量化研究…</div>}><QuantPage/></Suspense></Layout></RequireAuth>}/>
             <Route path="/learning/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开学习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/learning/:collId/exercises/:exerciseId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开练习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>

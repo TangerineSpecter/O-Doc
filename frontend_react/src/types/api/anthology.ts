@@ -1,4 +1,4 @@
-export type AnthologyType = 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel' | 'quant';
+export type AnthologyType = 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel' | 'quant' | 'backtest';
 
 // 定义文章摘要类型
 export interface ArticleSummary {

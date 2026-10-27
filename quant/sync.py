@@ -11,7 +11,7 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 75
+SCHEMA_VERSION = 76
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
@@ -30,6 +30,7 @@ LABELS |= VERIFICATION_LABELS
 LABELS.add('quant.factoradmission')
 from .studies.sync import LABELS as STUDY_LABELS
 LABELS |= STUDY_LABELS
+LABELS |= {'quant.mt4expert', 'quant.mt4backtest', 'quant.mt4attachment'}
 
 
 def complete_legacy_fields(data: list) -> None:
@@ -109,6 +110,8 @@ def validate(data: list, meta=None) -> None:
         fail('冻结统计解读需要量化同步版本74或更高，拒绝降级解释')
     if 'quant_schema_version' in meta and schema_version < 75 and any(rows.get(label) for label in STUDY_LABELS):
         fail('AI研究与动态连接器需要量化同步版本75或更高')
+    if 'quant_schema_version' in meta and schema_version < 76 and any(rows.get(label) for label in ('quant.mt4expert', 'quant.mt4backtest', 'quant.mt4attachment')):
+        fail('回测文集需要量化同步版本76或更高')
     anthologies = {str(row['pk']): row['fields'] for row in data if row.get('model') == 'anthology.anthology'}
     from .experiments.sync import validate_datasets
     from .experiments.snapshot import validate_experiments
@@ -118,6 +121,11 @@ def validate(data: list, meta=None) -> None:
     for anthology in anthologies.values():
         if anthology.get('type') == 'quant' and anthology.get('permission') != 'private':
             fail('量化文集必须保持私密，拒绝恢复')
+        if anthology.get('type') == 'backtest' and anthology.get('permission') != 'private':
+            fail('回测文集必须保持私密，拒绝恢复')
+
+    from .mt4_reports.sync import validate_mt4
+    validate_mt4(rows, anthologies, assets, fail)
 
     def version_entry(version_id):
         version = versions.get(str(version_id), {})

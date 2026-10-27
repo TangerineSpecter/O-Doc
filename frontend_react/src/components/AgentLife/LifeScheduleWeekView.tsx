@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import {Calendar} from 'lucide-react';
 import type {LifeItem} from '../../types/api/agentLife';
 import LifeScheduleCard from './LifeScheduleCard';
+import {lifeScheduleTime} from './lifeScheduleTime';
 
 interface LifeScheduleWeekViewProps {
     loading?: boolean;
@@ -37,7 +38,7 @@ export default function LifeScheduleWeekView({
                 {days.map((day) => {
                     const dayDate = dayjs(day);
                     const isToday = day === todayShanghai;
-                    const dayItems = items.filter((i) => dateKey(i.scheduledAt) === day);
+                    const dayItems = items.filter((i) => dateKey(lifeScheduleTime(i)) === day);
                     const weekdayIndex = dayDate.day();
                     const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
 

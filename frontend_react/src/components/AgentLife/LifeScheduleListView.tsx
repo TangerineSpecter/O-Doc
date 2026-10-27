@@ -3,6 +3,7 @@ import {ChevronLeft, ChevronRight, Inbox} from 'lucide-react';
 import type {LifeItem} from '../../types/api/agentLife';
 import LifeScheduleCard from './LifeScheduleCard';
 import {boardStatusColumns} from './lifeLabels';
+import {lifeScheduleTime} from './lifeScheduleTime';
 
 interface LifeScheduleListViewProps {
     items: LifeItem[];
@@ -42,7 +43,7 @@ export default function LifeScheduleListView({
         // 每列内部按计划时间升序排序
         map.forEach((list) => {
             list.sort(
-                (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+                (a, b) => new Date(lifeScheduleTime(a)).getTime() - new Date(lifeScheduleTime(b)).getTime()
             );
         });
         return map;

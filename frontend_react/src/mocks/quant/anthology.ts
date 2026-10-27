@@ -7,7 +7,7 @@ import {quantCollectionId} from './fixtures';
 
 const originalCollections: Anthology[] = homepageFixtures.map(row => ({...row, type: 'article' as const, permission: row.permission === 'private' ? 'private' : 'public', isTop: Boolean(row.isTop)}));
 const fail = (status: number, msg: string) => HttpResponse.json({code: status, msg, data: null}, {status});
-const allowedTypes: AnthologyType[] = ['article', 'image', 'agent', 'book', 'learning', 'novel', 'quant'];
+const allowedTypes: AnthologyType[] = ['article', 'image', 'agent', 'book', 'learning', 'novel', 'quant', 'backtest'];
 const owner = (request: Request) => Boolean(request.headers.get('Authorization'));
 
 export async function resolveQuantAnthology(request: Request): Promise<unknown> {
@@ -40,7 +40,7 @@ export async function resolveQuantAnthology(request: Request): Promise<unknown> 
     if (path === '/api/anthology/create' && request.method === 'POST') {
         if (!body.title?.trim() && body.type !== 'novel') return fail(400, '请填写文集名称');
         const type = allowedTypes.includes(body.type as AnthologyType) ? body.type! : 'article';
-        const row: Anthology = {collId: quantId('collection'), title: body.title || '未命名小说', description: body.description || '', iconId: body.iconId || 'book', type, permission: type === 'quant' || type === 'learning' ? 'private' : body.permission || 'public', isTop: Boolean(body.isTop), sort: body.sort || 0, hideCoverContent: body.hideCoverContent || false, count: 0, articles: [], userId: 'local-user', canManage: true, updatedAt: new Date().toISOString()};
+        const row: Anthology = {collId: quantId('collection'), title: body.title || '未命名小说', description: body.description || '', iconId: body.iconId || 'book', type, permission: type === 'quant' || type === 'learning' || type === 'backtest' ? 'private' : body.permission || 'public', isTop: Boolean(body.isTop), sort: body.sort || 0, hideCoverContent: body.hideCoverContent || false, count: 0, articles: [], userId: 'local-user', canManage: true, updatedAt: new Date().toISOString()};
         state.collections.push(row); persistQuantState(); return row;
     }
     const mutate = path.match(/^\/api\/anthology\/(update|delete)\/([^/]+)$/);
@@ -55,8 +55,8 @@ export async function resolveQuantAnthology(request: Request): Promise<unknown> 
             state.entries.filter(item => item.collId === id).forEach(item => {item.isValid = false;});
             persistQuantState(); return null;
         }
-        if ((row.type === 'quant' || body.type === 'quant') && body.type && row.type !== body.type) return fail(400, '量化文集不能与其他类型互转');
-        Object.assign(row, body, {collId: row.collId, permission: row.type === 'quant' || row.type === 'learning' ? 'private' : body.permission || row.permission, updatedAt: new Date().toISOString()});
+        if ((['quant', 'backtest'].includes(row.type || '') || ['quant', 'backtest'].includes(body.type || '')) && body.type && row.type !== body.type) return fail(400, '量化及回测文集不能与其他类型互转');
+        Object.assign(row, body, {collId: row.collId, permission: row.type === 'quant' || row.type === 'learning' || row.type === 'backtest' ? 'private' : body.permission || row.permission, updatedAt: new Date().toISOString()});
         if (!state.collections.some(item => item.collId === id)) state.collections.push(row);
         persistQuantState(); return row;
     }

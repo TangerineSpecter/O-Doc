@@ -161,7 +161,7 @@ class SnapshotMedia:
         # 封面 Asset 只服务书架时可以安全失效，避免其残留资源记录继续阻断同步。
         if missing_cover_ids:
             body_asset_ids = set(Book.objects.filter(is_valid=True).values_list('asset_id', flat=True))
-            for asset in Asset.objects.filter(id__in=set(missing_cover_ids) - body_asset_ids).exclude(quant_references__isnull=False):
+            for asset in Asset.objects.filter(id__in=set(missing_cover_ids) - body_asset_ids).exclude(quant_references__isnull=False).exclude(mt4_references__isnull=False):
                 metadata = asset.metadata if isinstance(asset.metadata, dict) else {}
                 if metadata.get('book_cover') and not asset.linked_article_id:
                     asset.is_valid = False
@@ -174,7 +174,7 @@ class SnapshotMedia:
         # 代表本机已不存在的附件/图片，保留有效记录只会让每次快照再次失败。
         book_body_asset_ids = self.book_body_asset_ids()
         missing_asset_ids = []
-        for asset in Asset.objects.filter(is_valid=True).exclude(id__in=book_body_asset_ids).exclude(quant_references__isnull=False):
+        for asset in Asset.objects.filter(is_valid=True).exclude(id__in=book_body_asset_ids).exclude(quant_references__isnull=False).exclude(mt4_references__isnull=False):
             rel_path = self.normalize_rel_path(asset.file_path)
             if rel_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, rel_path)):
                 missing_asset_ids.append(asset.id)

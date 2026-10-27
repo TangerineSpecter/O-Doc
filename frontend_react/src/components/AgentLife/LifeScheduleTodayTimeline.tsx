@@ -1,4 +1,5 @@
-import {LifeReservationSummary} from './LifeReservationSummary';
+import {lifeScheduleTime} from './lifeScheduleTime';
+import {LifeStatusReason} from './LifeStatusReason';
 import {LifeSourceBadge} from './LifeSourceBadge';
 import {useEffect, useMemo, useState, type ElementType} from 'react';
 import {
@@ -383,7 +384,7 @@ export default function LifeScheduleTodayTimeline({
     // 升序排列
     const sortedItems = useMemo(() => {
         return items.slice().sort((a, b) => {
-            return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+            return new Date(lifeScheduleTime(a)).getTime() - new Date(lifeScheduleTime(b)).getTime();
         });
     }, [items]);
 
@@ -466,13 +467,13 @@ export default function LifeScheduleTodayTimeline({
     // 移动端时间轴切分：当前时刻之前 vs 当前时刻之后
     const pastItems = useMemo(() => {
         return displayItems.filter(
-            (i) => parseShanghaiMinutes(i.scheduledAt) <= currentTime.minutes
+            (i) => parseShanghaiMinutes(lifeScheduleTime(i)) <= currentTime.minutes
         );
     }, [displayItems, currentTime.minutes]);
 
     const futureItems = useMemo(() => {
         return displayItems.filter(
-            (i) => parseShanghaiMinutes(i.scheduledAt) > currentTime.minutes
+            (i) => parseShanghaiMinutes(lifeScheduleTime(i)) > currentTime.minutes
         );
     }, [displayItems, currentTime.minutes]);
 
@@ -934,10 +935,10 @@ function Day24HourRibbon({
 
                 {/* 日程任务在轨道上的点位 */}
                 {items.map((item) => {
-                    const m = parseShanghaiMinutes(item.scheduledAt);
+                    const m = parseShanghaiMinutes(lifeScheduleTime(item));
                     const pct = Math.min(99, Math.max(1, (m / 1440) * 100));
                     const actMeta = getActivityMeta(item.activity);
-                    const timeStr = formatShanghaiTime(item.scheduledAt);
+                    const timeStr = formatShanghaiTime(lifeScheduleTime(item));
 
                     return (
                         <button
@@ -1002,7 +1003,7 @@ function CompactGridCard({
         nodeText: 'text-slate-500',
         icon: Clock,
     };
-    const timeStr = formatShanghaiTime(item.scheduledAt);
+    const timeStr = formatShanghaiTime(lifeScheduleTime(item));
     const showBudget = showsLifeBudget(item);
     const hasSpent = parseFloat(item.spent || '0') > 0;
     const isFailed = item.status === 'failed';
@@ -1025,7 +1026,6 @@ function CompactGridCard({
                         : 'border-slate-200 bg-white hover:border-orange-300 hover:shadow-2xs'
             }`}
         >
-            <LifeReservationSummary item={item}/>
             {/* 左侧活动标识彩条 */}
             <span
                 className={`absolute bottom-2 left-0 top-2 w-1 rounded-r-full ${actMeta.accentBar}`}
@@ -1068,6 +1068,8 @@ function CompactGridCard({
                     </span>
                 </div>
             </div>
+
+            <LifeStatusReason item={item}/>
 
             {/* 底行：执行模式/失败提示 + 预算/支出 + 详情操作 */}
             <div className="mt-2 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-1.5 pl-1.5 text-[10px] min-w-0">

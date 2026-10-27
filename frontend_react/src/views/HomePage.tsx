@@ -97,7 +97,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             await updateCollection(editingCollection.collId!, data);
         } else {
             const created = await addCollection(data);
-            if (data.type === 'novel' || data.type === 'quant') onNavigate(data.type, {collId: created.collId});
+            if (data.type === 'novel' || data.type === 'quant' || data.type === 'backtest') onNavigate(data.type, {collId: created.collId});
         }
     };
 
@@ -170,7 +170,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                             setIsFilterOpen(false);
                                         }}
                                     >
-                                        {selectedType === 'quant' ? '量化文集' : selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : selectedType === 'book' ? '图书文集' : selectedType === 'novel' ? '小说文集' : selectedType === 'learning' ? '学习文集' : 'Agent'} ({filteredDisplayCollections.length})
+                                        {selectedType === 'quant' ? '量化文集' : selectedType === 'backtest' ? '回测文集' : selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : selectedType === 'book' ? '图书文集' : selectedType === 'novel' ? '小说文集' : selectedType === 'learning' ? '学习文集' : 'Agent'} ({filteredDisplayCollections.length})
                                         <ChevronDown className={`w-4 h-4 transition-transform ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
@@ -193,6 +193,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                             </button>
                                             <button onClick={() => handleTypeSelect('learning')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">学习文集{selectedType === 'learning' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('quant')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">量化文集{selectedType === 'quant' && <Check className="w-4 h-4 text-orange-500" />}</button>
+                                            <button onClick={() => handleTypeSelect('backtest')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">回测文集{selectedType === 'backtest' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('novel')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">小说文集{selectedType === 'novel' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('book')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">图书文集{selectedType === 'book' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('agent')}
