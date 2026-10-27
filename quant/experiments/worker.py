@@ -86,11 +86,13 @@ def execute(job_id: str) -> None:
             status = 'cancelled' if active.cancel_requested or output['stop_reason'] == 'cancelled' else 'partial' if output['stop_reason'] == 'time_budget' else 'completed'
             if status == 'cancelled':
                 output['holdout'], output['buy_hold_baseline'], output['holdout_status'] = None, None, 'not_evaluated'
+                if 'label_holdout' in output: output['label_holdout'] = None
                 output['stop_reason'] = 'cancelled'
                 if 'walk_forward' in output:
                     from .temporal import summarize
                     temporal = output['walk_forward']
                     temporal['folds'][-1].update(holdout=None, buy_hold_baseline=None, holdout_status='not_evaluated', stop_reason='cancelled')
+                    if 'label_holdout' in temporal['folds'][-1]: temporal['folds'][-1]['label_holdout'] = None
                     temporal['summary'] = summarize(temporal['folds'], job.request.plan['config']['walk_forward']['folds'])
             result = finish(job.request, status, output=output)
             from quant.search_diagnostics.services import archive as archive_diagnostic

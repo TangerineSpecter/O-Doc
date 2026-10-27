@@ -24,6 +24,8 @@ def edit(parent: FactorCandidate, request_key: str, definition_json: str, reason
     value = definition(raw)
     from quant.factors.contracts import Candidate
     parent_definition = definition({key: parent.data[key] for key in Candidate().fields if key != 'evidence'})
+    from quant.parameters.bindings import validate_inheritance
+    validate_inheritance(value['parameters'], parent_definition['parameters'])
     if digest(value) == digest(parent_definition):
         raise ValidationError('公式定义没有改变，请修改定义后再保存新版本')
     root = root_of(parent)

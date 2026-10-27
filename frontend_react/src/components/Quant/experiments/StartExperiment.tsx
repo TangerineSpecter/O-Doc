@@ -17,8 +17,11 @@ import {Select} from '../../common/Select';
 import {QuantButton, QuantField, QuantModal} from '../ui';
 import {buildSeed, initialSeed, type SeedDraft} from './plan';
 import {SeedEditor} from './SeedEditor';
+import {LabelSearchSettings} from './LabelSearchSettings';
+import {freezeLabelTarget} from '../../../utils/quantLabels';
+import {validateLabelWindows} from '../../../utils/quantLabelSearch';
 const defaults: QuantExperimentConfig = {seed: 42, maxCandidates: 16, generations: 3, threshold: 0, feeBps: 5, slippageBps: 5, gap: 1, seconds: 30};
-const fields: [Exclude<keyof QuantExperimentConfig, 'evolution' | 'walkForward' | 'strategy'>, string][] = [['maxCandidates', '最多尝试数（1–32）'], ['generations', '代数（1–4）'], ['seconds', '时间预算（1–60 秒）'], ['seed', '随机种子'], ['threshold', '做多信号阈值'], ['feeBps', '单侧费用（bps）'], ['slippageBps', '单侧滑点（bps）'], ['gap', '分段隔离 K 线数']];
+const fields: [Exclude<keyof QuantExperimentConfig, 'evolution' | 'walkForward' | 'strategy' | 'labelTarget'>, string][] = [['maxCandidates', '最多尝试数（1–32）'], ['generations', '代数（1–4）'], ['seconds', '时间预算（1–60 秒）'], ['seed', '随机种子'], ['threshold', '做多信号阈值'], ['feeBps', '单侧费用（bps）'], ['slippageBps', '单侧滑点（bps）'], ['gap', '分段隔离 K 线数']];
 export function StartExperiment({collection, candidates, initial, close, saved, register, proposal}: {proposal?: QuantExperimentProposal;collection: string; candidates: QuantFactorCandidate[]; initial?: string; close: () => void; saved: (value: QuantExperiment) => void; register: QuantRegisterDraft}) {
     const [prepared] = useState(() => proposal ? readProposal(proposal) : undefined);
     const available = candidates.filter(row => row.data.expression && ['numeric_series', 'boolean_series'].includes(row.data.outputType));
@@ -27,10 +30,11 @@ export function StartExperiment({collection, candidates, initial, close, saved, 
     const [name, setName] = useState(prepared?.name || '参数与组合研究'), [offset, setOffset] = useState(0), [datasetId, setDatasetId] = useState('');
     const datasets = useQuantDatasets(collection, offset, datasetId);
     const dataset = datasets.detail;
-    const [config, setConfig] = useState(() => Object.fromEntries(fields.map(([key]) => [key, String((prepared?.config || defaults)[key])])) as Record<Exclude<keyof QuantExperimentConfig, 'evolution' | 'walkForward' | 'strategy'>, string>);
+    const [config, setConfig] = useState(() => Object.fromEntries(fields.map(([key]) => [key, String((prepared?.config || defaults)[key])])) as Record<Exclude<keyof QuantExperimentConfig, 'evolution' | 'walkForward' | 'strategy' | 'labelTarget'>, string>);
     const [evolution, setEvolution] = useState(() => evolutionDraft(prepared?.config.evolution, !prepared || !!prepared.config.evolution));
     const [strategy, setStrategy] = useState(() => strategyDraft(prepared?.config.strategy, prepared?.config.threshold ?? defaults.threshold));
     const [temporal, setTemporal] = useState(() => temporalDraft(prepared?.config.walkForward));
+    const [label,setLabel]=useState(()=>({enabled:!!prepared?.config.labelTarget,horizon:String(prepared?.config.labelTarget?.horizonBars || 5)}));
     const [neighbors, setNeighbors] = useState(!prepared), [busy, setBusy] = useState(false), [error, setError] = useState(''), [dirty, setDirty] = useState(false);
     const [identity, setIdentity] = useState(() => createRequestKey());
     const change = () => {setDirty(true); setIdentity(createRequestKey());};
@@ -62,8 +66,10 @@ export function StartExperiment({collection, candidates, initial, close, saved, 
     } catch (cause) {temporalError = cause instanceof Error ? cause.message : '滚动验证配置无效';}
     let strategyError = '';
     try {buildStrategy(strategy, Number(config.threshold));} catch (cause) {strategyError = cause instanceof Error ? cause.message : '策略规则无效';}
+    let labelError='';
+    try{if(label.enabled){if(!/^\d+$/.test(label.horizon))throw new Error('标签期限须为1–2000整数');const target=freezeLabelTarget({version:1,horizonBars:Number(label.horizon)});if(dataset)validateLabelWindows(target,dataset.rowCount,{gap:Number(config.gap),walkForward:buildTemporal(temporal)});}}catch(cause){labelError=cause instanceof Error?cause.message:'标签目标无效';}
     const start = async () => {
-        if (busy || !dataset || preparationError || evolutionError || temporalError || strategyError || !seeds.length) return;
+        if (busy || !dataset || preparationError || evolutionError || temporalError || strategyError || labelError || !seeds.length) return;
         setBusy(true); setError('');
         try {
             if (Object.values(config).some(value => !value.trim() || !Number.isFinite(Number(value)))) throw new Error('请填写有效预算、阈值和费用');
@@ -74,6 +80,7 @@ export function StartExperiment({collection, candidates, initial, close, saved, 
             if (policy) values.evolution = policy;
             const walkForward = buildTemporal(temporal);
             if (walkForward) values.walkForward = walkForward;
+            if(label.enabled)values.labelTarget={version:1,horizonBars:Number(label.horizon)};
             const result = await quantApi.startExperiment(collection, {proposalId: proposal?.id, requestKey: identity, name, datasetId: dataset.id, config: values, seeds});
             setDirty(false); saved(result);
         } catch (cause) {setError(cause instanceof Error ? cause.message : '实验创建失败，方案仍保留');}
@@ -95,8 +102,9 @@ export function StartExperiment({collection, candidates, initial, close, saved, 
         <EvolutionSettings draft={evolution} change={value => {change(); setEvolution(value);}}/>
         <StrategySettings draft={strategy} threshold={config.threshold} change={value => {change(); setStrategy(value);}}/>
         <TemporalSettings draft={temporal} change={value => {change(); setTemporal(value);}}/>
+        <LabelSearchSettings draft={label} change={value=>{change();setLabel(value);}}/>
         <details className="rounded-xl border border-slate-200 p-4"><summary className="text-sm font-semibold text-slate-700">预算、成交与成本假设</summary><p className="my-3 text-xs leading-6 text-slate-500">初始费用、滑点均为单侧 5 bps（0.05%）的模拟假设，请按数据用途调整。布尔信号不使用数值阈值。关闭滚动验证时，训练/验证/留出约为 60%/20%/20%；开启时按逐折窗口执行。不包含原平台的盘中成交、T+1 或停牌约束。</p><div className="grid gap-4 sm:grid-cols-2">{fields.map(([key, label]) => <QuantField key={key} label={label} value={config[key]} type="number" onChange={value => {change(); setConfig(current => ({...current, [key]: value}));}} />)}</div></details>
-        {(error || preparationError || evolutionError || temporalError || strategyError) && <p role="alert" className="text-sm text-red-600">{error || preparationError || evolutionError || temporalError || strategyError}</p>}
-        <div className="flex justify-end gap-3"><QuantButton onClick={close} disabled={busy}>取消</QuantButton><QuantButton primary onClick={() => void start()} disabled={busy || datasets.loading || !dataset || dataset.rowCount < 60 || !!preparationError || !!evolutionError || !!temporalError || !!strategyError || !seeds.length}>{busy ? '正在提交…' : '保存方案并启动本机实验'}</QuantButton></div>
+        {(error || preparationError || evolutionError || temporalError || strategyError || labelError) && <p role="alert" className="text-sm text-red-600">{error || preparationError || evolutionError || temporalError || strategyError || labelError}</p>}
+        <div className="flex justify-end gap-3"><QuantButton onClick={close} disabled={busy}>取消</QuantButton><QuantButton primary onClick={() => void start()} disabled={busy || datasets.loading || !dataset || dataset.rowCount < 60 || !!preparationError || !!evolutionError || !!temporalError || !!strategyError || !!labelError || !seeds.length}>{busy ? '正在提交…' : '保存方案并启动本机实验'}</QuantButton></div>
     </fieldset></QuantModal>;
 }

@@ -18,6 +18,9 @@ def selection_metric(attempt: dict, part: str) -> dict:
 
 
 def selection_key(attempt: dict) -> tuple:
+    from quant.label_studies.search import selection_key as label_key
+    key = label_key(attempt)
+    if key is not None: return key
     metric = selection_metric(attempt, 'validation')
     return (-(metric['total_return'] - metric['max_drawdown']), metric['turnover'], attempt['complexity'], attempt['fingerprint'])
 
@@ -30,6 +33,7 @@ def evaluate(item: dict, rows: list, schedules: list[dict], config: dict, guard)
     for schedule in schedules:
         guard()
         current = {'number': schedule['number'], 'metrics': {}}
+        if 'label_target' in config: current['label_metrics'] = {}; item['label_evaluation']['metrics'] = current['label_metrics']
         record['folds'].append(current)
         item['metrics'] = current['metrics']
         origin = schedule['calculation_start']
@@ -42,6 +46,14 @@ def evaluate(item: dict, rows: list, schedules: list[dict], config: dict, guard)
                 threshold=config['threshold'], fee_bps=config['fee_bps'], slippage_bps=config['slippage_bps'],
                 output_type=trial['output_type'], check=guard)
             current['metrics'][part] = {key: value for key, value in result.items() if key not in ('curve', 'returns')}
+            if 'label_target' in config:
+                record['summary'] = aggregate(record['folds'], record['planned_folds'])
+                from quant.label_studies.search import evaluate_part
+                evaluate_part(current['label_metrics'], part, development, signals, config, start-origin, end-origin, guard)
     record['summary'] = aggregate(record['folds'], record['planned_folds'])
+    if 'label_target' in config:
+        from quant.label_studies.search import mean
+        record['label_summary'] = mean(record['folds'], record['planned_folds'])
+        item['label_evaluation'] = copy.deepcopy(item['label_evaluation'])
     item['metrics'] = copy.deepcopy(item['metrics'])
     return [metric for fold in record['folds'] for metric in fold['metrics'].values()]

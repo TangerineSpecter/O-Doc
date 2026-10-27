@@ -1,4 +1,6 @@
 import {mockHistoryFacts,mockHistoryMarkdown} from './searchHistory';
+import {freezeLabelTarget,readLabelTarget} from '../../utils/quantLabels';
+import {mockLabelEvaluation} from './labelStudies';
 /** Typed artificial UI workflow. No formula execution, independence proof or provider calls. */
 import {mockNativeUsage} from './validationNativeUsage';
 import {HttpResponse} from 'msw';
@@ -76,11 +78,15 @@ export async function resolveValidationRoute(request: Request,collection: string
         if (!attempt || !Number.isInteger(input.intervals) || input.intervals<5 || input.intervals>2000 || !Number.isInteger(input.seconds) || input.seconds<1 || input.seconds>60) return fail(400,'尝试或预算无效');
         const existing=records.find(r=>r.input.requestKey===input.requestKey);
         if (existing) return JSON.stringify(existing.input)===JSON.stringify(input)?existing.data:fail(409,'登记标识已用于其他方案');
-        let criteria;
-        try {criteria=input.criteria===undefined?undefined:freezeCriteria(input.criteria);} catch(cause) {return fail(400,cause instanceof Error?cause.message:'登记标准无效');}
+        let criteria,labelTarget;
+        try {criteria=input.criteria===undefined?undefined:freezeCriteria(input.criteria);
+            const inherited=JSON.parse(source.data.planJson!).config.label_target;
+            labelTarget=input.labelTarget===undefined?(inherited?readLabelTarget(inherited):undefined):freezeLabelTarget(input.labelTarget);
+            if(labelTarget && input.intervals-labelTarget.horizon_bars+1<5)throw new Error('剔除跨界标签后至少保留5对');
+        } catch(cause) {return fail(400,cause instanceof Error?cause.message:'登记标准无效');}
         const dataset=quantState().datasets.find(r=>r.data.id===source.input.datasetId)!;
         const config=JSON.parse(source.data.planJson!).config;
-        const plan={version:criteria?2:1,...(criteria?{criteria}:{}),local_demo:true,engine_version:'quant-fixed-validation-1',name:input.name,recipe:{...attempt.recipe,parameters:attempt.requested_parameters || {}},
+        const plan={version:labelTarget?3:criteria?2:1,...(criteria?{criteria}:{}),...(labelTarget?{label_target:labelTarget}:{}),local_demo:true,engine_version:labelTarget?'quant-fixed-validation-2':'quant-fixed-validation-1',name:input.name,recipe:{...attempt.recipe,parameters:attempt.requested_parameters || {}},
             config:{threshold:config.threshold,fee_bps:config.fee_bps,slippage_bps:config.slippage_bps,...(config.strategy?{strategy:config.strategy}:{})},required_history:0,
             target:{symbol:input.symbol || dataset.data.symbol,timeframe:input.timeframe || dataset.data.timeframe,after_timestamp:dataset.data.end},source:{attempt_id:input.attemptId},intervals:input.intervals,seconds:input.seconds};
         const data: QuantValidation={id:quantId('validation'),name:input.name,sourceRequestId:input.sourceRequestId,createdAt:new Date().toISOString(),contentHash:'artificial-local-validation',planJson:JSON.stringify(plan),evaluation:null};
@@ -105,8 +111,8 @@ export async function resolveValidationRoute(request: Request,collection: string
             record.resultCreatedAt=new Date().toISOString();const evaluation=record.data.evaluation;
             evaluation.status='cancelled';evaluation.error='本地模拟停止，预约记录保留';
             const plan=JSON.parse(record.data.planJson);
-            if (plan.version===2) {evaluation.resultId=quantId('validation-result');evaluation.resultJson=JSON.stringify({version:2,status:'cancelled',error:evaluation.error,output:null,publication_audit:null,
-                criteria_assessment:assessCriteria(plan.criteria,'cancelled',null,JSON.parse(evaluation.requestJson),null)});}
+            if (plan.version===2 || plan.version===3) {evaluation.resultId=quantId('validation-result');evaluation.resultJson=JSON.stringify({version:plan.version,status:'cancelled',error:evaluation.error,output:null,publication_audit:null,
+                ...(plan.criteria?{criteria_assessment:assessCriteria(plan.criteria,'cancelled',null,JSON.parse(evaluation.requestJson),null)}:{})});}
         }
     } else if (request.method==='POST' && action==='review') {
         if (record.data.evaluation?.status!=='completed') return fail(400,'尚无完整固定验证');
@@ -123,10 +129,18 @@ export async function resolveValidationRoute(request: Request,collection: string
                 const engine=JSON.parse(source.data.planJson!).engine_version;
                 const sample=demoExperimentResult(source.input,prepared.bounds.start_timestamp,prepared.bounds.end_timestamp,engine).envelope.output;
                 record.resultCreatedAt=new Date().toISOString();evaluation.status='completed';evaluation.resultId=quantId('validation-result');
-                const plan=JSON.parse(record.data.planJson),output={engine_version:'quant-fixed-validation-1',final:sample.holdout,baseline:sample.buy_hold_baseline,selection:'fixed_registered_recipe_no_search_or_test_based_selection',independent_validation:false};
+                const plan=JSON.parse(record.data.planJson);
+                let labelEvaluation;
+                if(plan.version===3){
+                    let origin=0;while(origin<dataset.data.rowCount && mockDatasetTimestamp(dataset,origin)!==prepared.bounds.start_timestamp)origin++;
+                    labelEvaluation=mockLabelEvaluation(plan.label_target,plan.intervals,prepared.bounds.start_timestamp,prepared.bounds.end_timestamp,
+                        mockDatasetTimestamp(dataset,origin+plan.intervals-plan.label_target.horizon_bars));
+                }
+                const output={engine_version:plan.engine_version,final:sample.holdout,baseline:sample.buy_hold_baseline,selection:'fixed_registered_recipe_no_search_or_test_based_selection',independent_validation:false,
+                    ...(labelEvaluation?{label_evaluation:labelEvaluation}:{})};
                 const publication=JSON.parse(evaluation.currentAuditJson);
                 evaluation.resultJson=JSON.stringify({version:plan.version,status:'completed',error:'',output,publication_audit:publication,
-                    ...(plan.version===2?{criteria_assessment:assessCriteria(plan.criteria,'completed',output,JSON.parse(evaluation.requestJson),publication)}:{})});
+                    ...(plan.criteria?{criteria_assessment:assessCriteria(plan.criteria,'completed',output,JSON.parse(evaluation.requestJson),publication)}:{})});
                 report(record);
             }
         }

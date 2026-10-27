@@ -30,9 +30,11 @@ class IdleRecoveryProjectionTests(SimpleTestCase):
         self.assertEqual((before['hp'], before['mp']), (0, 75))
         self.assertEqual(before['recovery']['hp']['next_at'], rest.isoformat())
         at = self.projection(1800, hp=0, rest=rest)
-        self.assertEqual((at['hp'], at['mp']), (47, 90))
-        self.assertEqual(at['recovery']['hp']['full_at'], (rest + timedelta(minutes=90)).isoformat())
-        self.assertEqual(self.projection(2100, hp=0, rest=rest)['hp'], 58)
+        self.assertEqual((at['hp'], at['mp']), (238, 90))
+        self.assertEqual(before['recovery']['hp']['full_at'], rest.isoformat())
+        self.assertIsNone(at['recovery']['hp']['next_at'])
+        self.assertIsNone(at['recovery']['hp']['full_at'])
+        self.assertEqual(self.projection(2100, hp=0, rest=rest)['hp'], 238)
 
     def test_long_absence_caps_resources_and_stops_refresh(self):
         result = self.projection(86400)
@@ -79,6 +81,26 @@ class IdleRecoveryProfileTests(TestCase):
         self.assertEqual((self.profile.hp, self.profile.mp, self.profile.recovered_at), (1, 0, baseline))
         recover(self.profile, point)
         self.assertEqual((first['hp'], first['mp']), (self.profile.hp, self.profile.mp))
+
+    def test_expired_rest_matches_preview_and_recovers_once(self):
+        from .profiles import recover_expired_rest, stats
+        from .models import CombatFact
+        derived = stats(self.profile)
+        rest = self.base + timedelta(minutes=30)
+        self.profile.hp = 0
+        self.profile.rest_until = rest
+        self.profile.save()
+        self.assertFalse(recover_expired_rest(self.profile, rest - timedelta(seconds=1)))
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.hp, 0)
+        preview = project(0, 0, derived['hp_max'], derived['mp_max'], self.base, rest, now=rest)
+        self.assertTrue(recover_expired_rest(self.profile, rest))
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.hp, derived['hp_max'])
+        self.assertEqual((self.profile.hp, self.profile.mp), (preview['hp'], preview['mp']))
+        self.assertIsNone(self.profile.rest_until)
+        self.assertFalse(recover_expired_rest(self.profile, rest + timedelta(minutes=5)))
+        self.assertEqual(CombatFact.objects.filter(actor_id=self.profile.pk, kind='rest_recovery').count(), 1)
 
     def test_open_exploration_disables_idle_projection(self):
         from . import explorations

@@ -16,6 +16,9 @@ import {publishMockReport} from './research';
 import {HttpResponse} from 'msw';
 import type {QuantExperiment, QuantExperimentInput, QuantExperimentProposal} from '../../types/api/quantExperiment';
 import {demoExperimentResult} from './experimentResult';
+import {decorateLabelSearch} from './labelSearch';
+import {experimentEngine,validateLabelWindows} from '../../utils/quantLabelSearch';
+import {freezeLabelTarget} from '../../utils/quantLabels';
 import {mockSelectionDiagnostic} from './selectionDiagnostic';
 import {collectMockFactors} from './factors';
 import {checkParameterDomains} from '../../utils/quantParameterDomain';
@@ -37,6 +40,7 @@ function validate(input: QuantExperimentInput, collection: string) {
         if (config.generations < 2 || input.seeds.reduce((sum, seed) => sum + 1 + seed.variants.length, 0) >= config.maxCandidates) throw new Error('请为公式演化保留代数与尝试额度');
     }
     if (config.walkForward) {temporalWindows(dataset.data.rowCount, config.walkForward, config.gap); validateTemporalBudget(config.walkForward, input.seeds, config);}
+    if(config.labelTarget)validateLabelWindows(freezeLabelTarget(config.labelTarget),dataset.data.rowCount,config);
     const n = dataset.data.rowCount, a = Math.floor(n * .6), b = Math.floor(n * .8);
     if (!config.walkForward && [a - 2, b - 1 - a - config.gap, n - 1 - b - config.gap].some(size => size < 5)) throw new Error('隔离后的各段至少保留 5 个收益区间');
     if (!Array.isArray(input.seeds) || input.seeds.length < 1 || input.seeds.length > Math.min(8, config.maxCandidates) || new Set(input.seeds.map(seed => seed.candidateId)).size !== input.seeds.length) throw new Error('需要 1–8 个不同父代');
@@ -68,6 +72,7 @@ function advance(record: MockExperiment) {
             try {checkParameterDomains(frozen[0].candidate.parameters, attempt.requested_parameters || {});}
             catch (error) {attempt.status = 'rejected'; attempt.reason = error instanceof Error ? error.message : '参数约束不满足'; attempt.metrics = {} as typeof attempt.metrics;}
         }
+        decorateLabelSearch(demo,record.input,dataset.start,dataset.end,dataset.rowCount);
         record.data.attemptCount = demo.attempts.length;
         record.data.attemptsJson = JSON.stringify(demo.attempts);
         record.data.resultJson = JSON.stringify(demo.envelope);
@@ -102,10 +107,10 @@ export async function resolveExperimentRoute(request: Request, collection: strin
             if (existing) return JSON.stringify(existing.input) === JSON.stringify(input) ? existing.data : fail(409, '请求标识已用于不同实验');
             if (records.filter(row => ['pending', 'running'].includes(row.data.status)).length >= 4) return fail(409, '最多同时保留 4 个实验');
             const config = input.config;
-            const plan = {version: 1, engine_version: config.strategy ? config.walkForward ? config.walkForward.version === 2 ? 'quant-local-search-8' : 'quant-local-search-6' : 'quant-local-search-5' : config.walkForward ? config.walkForward.version === 2 ? 'quant-local-search-7' : 'quant-local-search-4' : config.evolution ? 'quant-local-search-3' : 'quant-local-search-2', name: input.name, dataset_hash: dataset.data.contentHash,
+            const plan = {version: 1, engine_version: experimentEngine(config), name: input.name, dataset_hash: dataset.data.contentHash,
                 seeds: input.seeds.map(seed => ({id: seed.candidateId, candidate: candidates.find(row => row.id === seed.candidateId)!.data,
                     bindings: Object.fromEntries(seed.bindings.map(row => [row.name, row.column])), parameters: Object.fromEntries(seed.parameters.map(row => [row.name, row.value])), variants: seed.variants.map(values => Object.fromEntries(values.map(row => [row.name, row.value])))})),
-                config: {...(config.strategy ? {strategy: strategySnapshot(config.strategy)} : {}), seed: config.seed, max_candidates: config.maxCandidates, generations: config.generations, threshold: config.threshold, fee_bps: config.feeBps, slippage_bps: config.slippageBps, gap: config.gap, seconds: config.seconds, ...(config.evolution ? {evolution: evolutionSnapshot(config.evolution)} : {}), ...(config.walkForward ? {walk_forward: temporalSnapshot(config.walkForward)} : {})}};
+                config: {...(config.labelTarget?{label_target:freezeLabelTarget(config.labelTarget)}:{}),...(config.strategy ? {strategy: strategySnapshot(config.strategy)} : {}), seed: config.seed, max_candidates: config.maxCandidates, generations: config.generations, threshold: config.threshold, fee_bps: config.feeBps, slippage_bps: config.slippageBps, gap: config.gap, seconds: config.seconds, ...(config.evolution ? {evolution: evolutionSnapshot(config.evolution)} : {}), ...(config.walkForward ? {walk_forward: temporalSnapshot(config.walkForward)} : {})}};
             const originProposal = attachMockProposal(plan, input.proposalId, collection);
             const data: QuantExperiment = {id: quantId('experiment'), name: input.name, datasetId: input.datasetId, createdAt: new Date().toISOString(),
                 originProposal, status: 'pending', cancelRequested: false, error: '本地模拟实验任务，不执行真实回测', attemptCount: 0, contentHash: 'local-demo-plan', planJson: JSON.stringify(plan), resultJson: null, attemptsJson: '[]'};

@@ -28,8 +28,10 @@ def project(plan,request,result):
         'final':metric_evidence(output['final']),'baseline':metric_evidence(output['baseline']),
         'selection':output['selection'],'independent_validation':False,
         'scope':'one_frozen_formula_one_interval_no_search_not_parameter_stability_proof'}
-    if result.get('version')==2:
+    if 'criteria_assessment' in result:
         value['criteria_assessment']=result['criteria_assessment']
+    if plan.get('version') == 3:
+        value['label_evaluation'] = output['label_evaluation']
     return value
 
 
@@ -38,10 +40,10 @@ def for_result(result):
 
 
 def from_rows(run,rows,fail):
-    if run.get('review_version') not in (9,10,11,12,13,14):
+    if run.get('review_version') not in (9,10,11,12,13,14,15):
         if run.get('validation_result'): fail('历史解读不能追加固定验证引用')
         return None
-    if not run.get('validation_result') and run.get('review_version') in (10,11,12,13,14):
+    if not run.get('validation_result') and run.get('review_version') in (10,11,12,13,14,15):
         if run.get('planning_context',{}).get('fixed_validation') is not None: fail('普通解读不可夹带固定验证上下文')
         return None
     result=rows.get('quant.validationresult',{}).get(str(run.get('validation_result')), {})

@@ -19,12 +19,13 @@ def finish(request,status,error='',output=None):
     published=audit(request.dataset.snapshot,request.data['bounds'],universe(request.plan.anthology.user_id,request.dataset_id,request.pk)) if output else None
     data={'version':1,'status':status,'error':error,'output':output,'publication_audit':published,
         'claim':'fixed_evaluation_observation_not_global_independent_validation'}
-    if request.plan.data['version']==2:
+    if 'criteria' in request.plan.data:
         from .criteria import assess
         data.update(version=2,criteria_assessment=assess(request.plan.data['criteria'],status,output,request.data,published))
+    if request.plan.data['version']==3: data['version']=3
     if len(json.dumps(data,allow_nan=False))>6_000_000:
         data.update(status='failed',error='固定验证结果超过同步大小上限；未截断账本，登记与数据使用记录保留',output=None,publication_audit=None)
-        if data['version']==2:
+        if 'criteria' in request.plan.data:
             data['criteria_assessment']=assess(request.plan.data['criteria'],'failed',None,request.data,None)
     result,_=ValidationResult.objects.get_or_create(id=digest(['validation-result-v1',request.pk])[:40],
         defaults={'request':request,'data':data,'content_hash':digest(data)})

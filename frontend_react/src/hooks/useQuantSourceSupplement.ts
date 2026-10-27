@@ -31,7 +31,7 @@ export function useQuantSourceSupplement(collection: string, entry: string, sour
             if (existing.length+input.length>4) throw new Error('每次最多补交4份依赖文件');
             const added = await Promise.all(Array.from(input).map(async file=>{
                 if (file.size>400000) throw new Error('单份依赖文件过大，请保留本次研究需要的源码');
-                const code=decodeSourceFile(await file.arrayBuffer(),file.name,encoding).code;
+                const code=decodeSourceFile(await file.arrayBuffer(),file.name,encoding,language==='tongdaxin').code;
                 if (!code.trim() || code.length>100000 || code.includes('\0')) throw new Error('依赖源码需为非空文本，单份不超过100000字符');
                 return {name:file.name,code};
             }));

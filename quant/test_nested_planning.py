@@ -66,7 +66,7 @@ class SourceNestedPlanningTests(TestCase):
         value = initial_response(); value['initial_proposal']['config'].update(max_candidates=16,walk_forward=copy.deepcopy(POLICY))
         value['initial_proposal']['data_requirement'] = '至少108根同口径日线，成本为假设，尚未提供新行情'
         entry, run = self.ready(value)
-        self.assertEqual(run.workflow_version,16)
+        self.assertEqual(run.workflow_version,25)
         step = run.workflow_steps.get(stage='plan')
         self.assertEqual(step.input['planning_capabilities'],contract())
         from quant.workflows.prompts import prompt
@@ -109,7 +109,7 @@ class ReviewNestedPlanningTests(TestCase):
         self.prepare();self.input['config']=copy.deepcopy(CONFIG)
         request=self.start();execute(request.job.pk)
         run=start_review(request.result,request_key='nested_ai_review_01',model_id=self.model.pk)
-        self.assertEqual(run.review_version,14);self.assertEqual(run.planning_context['version'],6)
+        self.assertEqual(run.review_version,15);self.assertEqual(run.planning_context['version'],6)
         self.assertEqual(run.planning_context['planning_capabilities'],contract())
         evidence=for_run(run)
         self.assertEqual(evidence['planning_capabilities'],contract())

@@ -128,6 +128,8 @@ class InitialPlanningTests(TestCase):
 
     def test_explicit_no_plan_and_legacy_results_remain_valid(self):
         row = initial_response(); row['initial_proposal'] = None
+        self.payload['code'] = self.payload['code'].replace('N=20', 'N=load_config()')
+        row['parameters'][0]['default_value'] = ''
         row['factors'][0]['parameters'][0]['default_value'] = ''
         self.ready(row)
         self.assertFalse(ExperimentProposal.objects.exists())

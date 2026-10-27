@@ -9,6 +9,8 @@ const statusLabels: Record<QuantSourceStructure['status'], string> = {
 };
 
 export function SourceStructure({value, code}: {value: QuantSourceStructure; code: string}) {
+    const providedFiles = value.parser === 'python-provided-file-bindings-v1';
+    const scoped = providedFiles || value.parser === 'python-3.11-scoped-preview-v1';
     const [nodeId, setNodeId] = useState('');
     const [sliceId, setSliceId] = useState('');
     const node = value.nodes.find(row => row.id === nodeId) || value.nodes.find(row => row.kind !== 'module') || value.nodes[0];
@@ -18,8 +20,8 @@ export function SourceStructure({value, code}: {value: QuantSourceStructure; cod
     const snippet = part ? code.split(/\r\n|\n|\r/).slice(part.startLine - 1, part.endLine).join('\n') : '';
     return <section className="space-y-4" aria-label="源码结构与片段">
         <div><h4 className="font-semibold text-slate-800">源码结构 · {statusLabels[value.status]}</h4>
-            <p className="mt-2 text-xs leading-6 text-slate-500">{value.localDemo ? '人工 local 样例，不代表实际解析结果。' : `${value.parser} · ${value.lineCount} 行 · ${value.nodes.length} 个结构节点`}
-                同名引用仅是候选关联，不代表运行时调用或已验证的数据依赖。</p></div>
+            <p className="mt-2 text-xs leading-6 text-slate-500">{value.localDemo ? '人工 local 样例，不代表实际解析结果。' : `${value.parser} · ${value.lineCount} 行 · ${value.nodes.length} 个结构节点。`}
+                {providedFiles ? '逐文件词法绑定与显式导入仅建立静态候选，不表示模块实际加载或依赖已经运行验证。' : scoped ? '词法绑定与读取关系仅是静态候选，不代表实际运行时数据流。' : '同名引用仅是候选关联，不代表运行时调用或已验证的数据依赖。'}</p></div>
         {value.diagnostics.length > 0 && <ul className="space-y-1 text-xs leading-6 text-slate-600">{value.diagnostics.map((row, index) =>
             <li key={index}>{row.line ? `第 ${row.line} 行：` : ''}{row.message}</li>)}</ul>}
         <div className="grid gap-4 xl:grid-cols-[minmax(180px,1fr)_minmax(0,2fr)]">
@@ -35,16 +37,16 @@ export function SourceStructure({value, code}: {value: QuantSourceStructure; cod
                     <Select value={part.id} onChange={setSliceId} options={value.slices.map(row => ({value: row.id, label: `原文第 ${row.startLine}–${row.endLine} 行`}))}/></label>
                     <CodeEditor value={snippet} language={language} readOnly compact firstLine={part.startLine}/></>}
                 {node && <div><h5 className="text-xs font-medium text-slate-600">{node.name} 中的符号引用 · {references.length}</h5>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">调用与读取按源码语法记录；变量遮蔽、动态分派和外部库未求解。</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{providedFiles ? '按各文件词法作用域和显式导入记录调用与读取；动态分派、模块初始化和外部安装包仍待核对。' : scoped ? '已区分普通形参、局部名和模块名；动态对象、分支顺序与外部库仍待核对。' : '调用与读取按源码语法记录；变量遮蔽、动态分派和外部库未求解。'}</p>
                     <ul className="mt-2 max-h-48 space-y-2 overflow-auto text-xs scrollbar-hide">{references.slice(0, 80).map((row, index) => <li key={index} className="break-all">
                         <span className="text-slate-500">第 {row.line} 行 · {row.kind === 'call' ? '调用写法' : '符号读取'} · </span><code>{row.name}</code>
-                        {row.candidateIds.map(id => {const target = value.nodes.find(item => item.id === id); return target && <button key={id} className="ml-2 text-orange-700 hover:underline" onClick={() => {setNodeId(id); setSliceId('');}}>同名候选 {target.name} · 第 {target.startLine} 行</button>;})}
+                        {row.candidateIds.map(id => {const target = value.nodes.find(item => item.id === id); return target && <button key={id} className="ml-2 text-orange-700 hover:underline" onClick={() => {setNodeId(id); setSliceId('');}}>{scoped ? '静态候选' : '同名候选'} {target.name} · 第 {target.startLine} 行</button>;})}
                     </li>)}</ul>{references.length > 80 && <p className="mt-2 text-xs text-slate-500">此处显示前 80 项，剩余记录可在阶段输出中查看。</p>}
                     {!references.length && <p className="mt-2 text-xs text-slate-500">未记录到引用；不据此认定没有外部依赖。</p>}
                 </div>}
             </div>
         </div>
-        {value.imports.length > 0 && <details><summary className="cursor-pointer text-xs text-slate-600">外部导入 · {value.imports.length} 项 · 未加载依赖文件</summary>
+        {value.imports.length > 0 && <details><summary className="cursor-pointer text-xs text-slate-600">{providedFiles ? '导入声明' : '外部导入'} · {value.imports.length} 项 · {providedFiles ? '仅匹配提供的文件，未实际加载' : '未加载依赖文件'}</summary>
             <ul className="mt-2 max-h-48 space-y-2 overflow-auto text-xs scrollbar-hide">{value.imports.map((row, index) => <li className="break-all" key={index}>第 {row.line} 行 · <code>{row.name}</code>{row.alias && ` → ${row.alias}`}</li>)}</ul></details>}
     </section>;
 }

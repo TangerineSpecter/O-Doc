@@ -17,6 +17,16 @@ export function mockFactors(source?: QuantSource): QuantFactorData[] {
         parameters: arithmetic ? mockArithmeticParameters(source.payload.code) : conditional ? mockConditionalParameters(source.payload.code) : [{name: 'lookback', type: 'int', defaultValue: short ? '10' : '20', category: 'signal', meaning: '历史窗口', constraints: '正整数', effect: '改变比较跨度', suggestion: '比较相邻窗口的稳定性，尚无经验证的最佳值', evidence: '本地模拟参数，不是对原代码的识别', ...(constrained ? {domain: {version: 1 as const, minimum: 5, maximum: 30, step: 5, stepOrigin: 0, choices: [], relations: [], evidence: [{field: 'code' as const, quote: source.payload.code.slice(0, 500)}]}} : {})}], dependencies: ['价格序列与一致的复权口径'], limitations: '未调用真实模型，未回测或验证平台等价性。', tags: ['动量', '演示'],
         expression: {op: 'sub', args: [{op: 'div', args: [{op: 'input', name: 'close'}, {op: 'lag', args: [{op: 'input', name: 'close'}, {op: 'parameter', name: 'lookback'}]}]}, {op: 'constant', value: 1}]},
         evidence: [{field: 'code', quote: source.payload.code.slice(0, 500)}]}];
+    if (source.payload.language === 'tongdaxin' && source.payload.code.includes('LOCAL_TDX_PARAMETER_TABLE')) {
+        const candidate = result[0];
+        candidate.name = '参数表 · 通达信人工流程样例';
+        candidate.formula = 'close / lag(close, N) - 1';
+        candidate.parameters = [{...candidate.parameters[0], name: 'N', evidence: '人工预制参数表，不解析本次粘贴的源码或表格',
+            domain: {version: 5, minimum: 2, maximum: 60, step: null, stepOrigin: null, choices: [], relations: [], conditions: [],
+                evidence: [{field: 'description', quote: '参数,最小,最大,缺省'}, {field: 'description', quote: 'N,2,60,20'}]}}];
+        candidate.expression = {op: 'sub', args: [{op: 'div', args: [{op: 'input', name: 'close'},
+            {op: 'lag', args: [{op: 'input', name: 'close'}, {op: 'parameter', name: 'N'}]}]}, {op: 'constant', value: 1}]};
+    }
     if (source.payload.code.includes('LOCAL_AI_REPAIR')) result[0].expression = null;
     if (arithmetic) result[0].name = '算术参数 · 本地演示候选';
     if (source.payload.code.includes('LOCAL_JOINT_PARAMETERS')) {

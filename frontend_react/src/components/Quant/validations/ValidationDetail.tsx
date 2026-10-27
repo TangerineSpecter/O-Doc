@@ -10,6 +10,7 @@ import {QuantButton} from '../ui';
 import {BindValidation} from './BindValidation';
 import {ValidationAudit} from './ValidationAudit';
 import {RegisteredCriteriaResult} from './RegisteredCriteriaResult';
+import {LabelEvaluation} from './LabelEvaluation';
 export function ValidationDetail({collection,plan,busy,act,datasets,openReport}: {collection: string;plan: QuantValidation;busy: boolean;act: (action: ()=>Promise<QuantValidation>)=>Promise<void>;datasets: ()=>void;openReport: (entry: string,report: string)=>void}) {
     let value: ReturnType<typeof readValidation>;
     try {value=readValidation(plan);} catch {return <p role="alert" className="text-sm text-red-600">固定验证数据版本或内容无法读取，原记录保留，请刷新或升级客户端。</p>;}
@@ -33,6 +34,7 @@ export function ValidationDetail({collection,plan,busy,act,datasets,openReport}:
         <p className="text-xs leading-6 text-slate-500">公式和参数已冻结。{evaluation?.mode==='replication'?'本次为普通复核，允许已用数据。':'新数据资格仅指已记录的登记和区间条件。'}一次固定验证不证明参数最优或全局独立。</p>
         {error && <p role="alert" className="text-sm leading-7 text-amber-800">{error}</p>}
         {value.criteria && <RegisteredCriteriaResult criteria={value.criteria} assessment={value.assessment} currentAudit={value.currentAudit}/>}
+        {value.labelTarget && <LabelEvaluation target={value.labelTarget} value={value.labelEvaluation}/>}
         {!evaluation && <BindValidation collection={collection} plan={plan} busy={busy} act={act} datasets={datasets}/>}
         {evaluation?.status==='completed' && <section className="space-y-3 border-t border-slate-100 pt-4"><div className="flex flex-wrap items-center justify-between gap-2"><h5 className="text-sm font-semibold">AI 固定验证解读与研究评分</h5><QuantButton disabled={busy || !!runningReview} onClick={()=>void act(()=>quantValidations.review(collection,plan.id,createRequestKey()))}>{runningReview?'AI 正在解读…':review?'重新解读':'生成 / 重试解读'}</QuantButton></div>
             {!review && <p className="text-xs leading-6 text-slate-500">计算完成后自动尝试生成一份报告；未配置模型或调用失败时，可配置后重试。原始计算事实一直保留。</p>}

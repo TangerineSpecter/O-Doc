@@ -1,13 +1,14 @@
 """Executable library options and reproducible selection reasons, without ORM or models."""
 import json
 from rest_framework.exceptions import ValidationError
-from quant.factors.expression import expression_hash
+from quant.factors.expression import expression_hash, expression_hash_without_parameter_origins
 from quant.research.contracts import digest
 from .contracts import unpack_seed
 from .proposal_contract import validate_values
 from .search import recipe, combine, FIELDS
 
 METHOD = 'related-library-v1'
+METHOD_V2 = 'related-library-v2'
 LIMIT = 2000
 EXTRA_LIMIT = 4
 
@@ -45,8 +46,8 @@ def reason(data, parents, semantic=None):
         'rank_score': round(min(len(shared_tags), 4) + int(same_family) * 2 + similarity * 4, 8)}
 
 
-def structural_key(value):
-    return expression_hash(value['candidate'])
+def structural_key(value, method=METHOD):
+    return expression_hash_without_parameter_origins(value['candidate']) if method == METHOD_V2 else expression_hash(value['candidate'])
 
 
 def summary(context):
@@ -58,7 +59,7 @@ def summary(context):
         'claim': 'semantic_and_contract_relevance_only_not_performance'}
 
 
-def validate_context(context, base, candidates, relations, *, collection_id, source_ids):
+def validate_context(context, base, candidates, relations, *, collection_id, source_ids, method=METHOD):
     """Historical selection is frozen; validate selected evidence, not today's ranking pool."""
     required = {'version', 'method', 'scan_limit', 'scanned', 'eligible', 'omitted_for_size', 'options', 'retrieved'}
     if isinstance(context, dict) and context.get('version') in (2, 3, 4, 5, 6):
@@ -69,7 +70,7 @@ def validate_context(context, base, candidates, relations, *, collection_id, sou
         required.add('selection_diagnostic')
     if isinstance(context,dict) and context.get('version') == 6:
         required.add('planning_capabilities')
-    if not isinstance(context, dict) or set(context) != required or type(context['version']) is not int or context['version'] not in (1, 2, 3, 4, 5, 6) or context['method'] != METHOD or context['scan_limit'] != LIMIT:
+    if not isinstance(context, dict) or set(context) != required or type(context['version']) is not int or context['version'] not in (1, 2, 3, 4, 5, 6) or context['method'] != method or context['scan_limit'] != LIMIT:
         raise ValidationError('跨库研究上下文版本无效')
     if context['version'] == 6:
         from .planning_capabilities import validate
@@ -80,7 +81,7 @@ def validate_context(context, base, candidates, relations, *, collection_id, sou
     if not isinstance(options, list) or not isinstance(retrieved, list) or len(retrieved) + context['omitted_for_size'] > min(EXTRA_LIMIT, context['eligible']) or len(options) != len(base) + len(retrieved) or options[:len(base)] != base:
         raise ValidationError('跨库研究基础父代或检索数量不一致')
     identities = {row['id'] for row in base}
-    known = {structural_key(row) for row in base}
+    known = {structural_key(row, method) for row in base}
     for selected, info in zip(options[len(base):], retrieved):
         if not isinstance(selected, dict) or not isinstance(info, dict) or set(info) != {'candidate_id', 'source_id', 'report_id', 'entry_id', 'entry_title', 'reason', 'selection'}:
             raise ValidationError('跨库候选出处不完整')
@@ -91,7 +92,7 @@ def validate_context(context, base, candidates, relations, *, collection_id, sou
         if any(info[key] != candidate[key] for key in ('source_id', 'report_id', 'entry_id')) or not isinstance(info['entry_title'], str):
             raise ValidationError('跨库候选来源引用不一致')
         expected = option(identity, candidate['data'])
-        if digest(selected) != digest(expected) or structural_key(selected) in known or not compatible(selected, base):
+        if digest(selected) != digest(expected) or structural_key(selected, method) in known or not compatible(selected, base):
             raise ValidationError('跨库候选契约、基线、去重或组合类型无效')
         details = info['reason']
         semantic = details.get('semantic') if isinstance(details, dict) else None
@@ -103,4 +104,4 @@ def validate_context(context, base, candidates, relations, *, collection_id, sou
                 raise ValidationError('跨库语义关联不对应所选父代')
         if details != reason(selected['candidate'], base, semantic) or info['selection'] not in ('related', 'diversity'):
             raise ValidationError('跨库检索理由或排序依据不一致')
-        identities.add(identity); known.add(structural_key(selected))
+        identities.add(identity); known.add(structural_key(selected, method))

@@ -2,6 +2,7 @@ import {readStrategy} from '../../../utils/quantStrategy';
 import {isParameterText} from '../../../utils/quantParameterValues';
 import {readTemporal} from '../../../utils/quantTemporal';
 import {readEvolution} from '../../../utils/quantEvolution';
+import {readLabelTarget} from '../../../utils/quantLabels';
 import type {QuantExperimentConfig, QuantExperimentProposal, QuantExperimentSeed} from '../../../types/api/quantExperiment';
 import type {SeedDraft} from './plan';
 const object = (value: unknown): Record<string, unknown> => {
@@ -21,6 +22,7 @@ export function readProposal(proposal: QuantExperimentProposal) {
     if (rawConfig.strategy !== undefined) config.strategy = readStrategy(rawConfig.strategy, config.threshold);
     if (rawConfig.evolution !== undefined) config.evolution = readEvolution(rawConfig.evolution);
     if (rawConfig.walk_forward !== undefined) config.walkForward = readTemporal(rawConfig.walk_forward);
+    if(rawConfig.label_target!==undefined){const target=readLabelTarget(rawConfig.label_target);config.labelTarget={version:1,horizonBars:target.horizon_bars};}
     const seeds: QuantExperimentSeed[] = list(data.seeds, 8).map(value => {
         const seed = object(value);
         return {candidateId: text(seed.id), bindings: Object.entries(object(seed.bindings)).map(([name, value]) => {

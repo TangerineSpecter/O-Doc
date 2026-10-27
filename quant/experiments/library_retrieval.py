@@ -4,10 +4,10 @@ from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 from quant.models import FactorCandidate, FactorRelation
 from .planning_context import for_result as base_options
-from .library_contract import METHOD, LIMIT, EXTRA_LIMIT, option, compatible, reason, structural_key
+from .library_contract import METHOD, METHOD_V2, LIMIT, EXTRA_LIMIT, option, compatible, reason, structural_key
 
 
-def retrieve(result):
+def retrieve(result, *, method=METHOD):
     base = base_options(result)
     parents = list(FactorCandidate.objects.filter(pk__in=[row['id'] for row in base]).select_related('report__entry'))
     parent_ids = {row.pk for row in parents}
@@ -27,16 +27,16 @@ def retrieve(result):
         item = {'relation_id': edge.pk, 'parent_id': parent, 'similarity': edge.evidence['similarity']}
         if identity not in semantic or (item['similarity'], item['relation_id']) > (semantic[identity]['similarity'], semantic[identity]['relation_id']):
             semantic[identity] = item
-    known = {structural_key(row) for row in base}
+    known = {structural_key(row, method) for row in base}
     eligible = []
     for record in records:
         try:
             candidate = option(record.pk, record.data)
-            if structural_key(candidate) in known or not compatible(candidate, base):
+            if structural_key(candidate, method) in known or not compatible(candidate, base):
                 continue
         except (ValidationError, ValueError, TypeError, KeyError, OverflowError):
             continue
-        known.add(structural_key(candidate))
+        known.add(structural_key(candidate, method))
         explanation = reason(record.data, base, semantic.get(record.pk))
         info = {'candidate_id': record.pk, 'source_id': record.report.source_id, 'report_id': record.report_id,
             'entry_id': record.report.entry_id, 'entry_title': record.report.entry.title, 'reason': explanation, 'selection': 'related'}
@@ -56,7 +56,7 @@ def retrieve(result):
         length = len(json.dumps(row, ensure_ascii=False))
         if size + length <= 32000:
             bounded.append(row); size += length
-    return {'version': 1, 'method': METHOD, 'scan_limit': LIMIT, 'scanned': len(records), 'eligible': len(eligible),
+    return {'version': 1, 'method': method, 'scan_limit': LIMIT, 'scanned': len(records), 'eligible': len(eligible),
         'omitted_for_size': len(selected) - len(bounded), 'options': base + [row[0] for row in bounded],
         'retrieved': [row[1] for row in bounded]}
 
@@ -72,11 +72,12 @@ def validate_from_rows(run, rows, base):
             'report_id': str(fields.get('report')), 'entry_id': str(report.get('entry')), 'collection_id': str(entry.get('anthology'))}
     source_ids = {candidates[row['id']]['source_id'] for row in base}
     validate_context(run.get('planning_context'), base, candidates, rows.get('quant.factorrelation', {}),
-        collection_id=str(entries[str(run['entry'])]['anthology']), source_ids=source_ids)
+        collection_id=str(entries[str(run['entry'])]['anthology']), source_ids=source_ids,
+        method=METHOD_V2 if run.get('review_version') == 15 else METHOD)
 
-    if run.get('review_version') in (6, 7, 8, 9, 10, 11, 12, 13, 14):
+    if run.get('review_version') in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
         context = run.get('planning_context', {})
-        version = 6 if run['review_version'] in (11, 12, 13, 14) else 5 if run['review_version'] == 10 else 4 if run['review_version'] == 9 else 2 if run['review_version'] == 6 else 3
+        version = 6 if run['review_version'] in (11, 12, 13, 14, 15) else 5 if run['review_version'] == 10 else 4 if run['review_version'] == 9 else 2 if run['review_version'] == 6 else 3
         if context.get('version') != version or 'research_memory' not in context or context['research_memory'].get('version') != (3 if version in (5, 6) else 2 if version == 4 else version - 1):
             raise ValidationError('新版实验解读缺少历史研究快照')
         from quant.research_memory import validate_from_rows as validate_memory

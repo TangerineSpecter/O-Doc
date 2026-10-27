@@ -3,6 +3,7 @@ import {Select} from '../../common/Select';
 import {CodeEditor} from '../CodeEditor';
 import {QuantButton, QuantField} from '../ui';
 import {detectQuantLanguage} from '../../../utils/quantLanguage';
+import {TongdaxinParameterHelp} from '../TongdaxinParameterHelp';
 
 export function MaterialEditor({material, ordinal, change, remove}: {material: QuantMaterial; ordinal: number; change: (value: QuantMaterial) => void; remove: () => void}) {
     const patch = (value: Partial<QuantMaterial>) => change({...material, ...value});
@@ -16,6 +17,7 @@ export function MaterialEditor({material, ordinal, change, remove}: {material: Q
             ]} /></label>
             <div><p className="mb-2 text-sm font-semibold">资料 {ordinal} 源码</p><CodeEditor value={material.code} onChange={code => patch({code})} language={material.language === 'auto' ? detectQuantLanguage(material.code) : material.language} /></div>
             <QuantField label={`资料 ${ordinal} 说明`} value={material.description} onChange={description => patch({description})} multiline rows={3} />
+            {(material.language === 'tongdaxin' || material.language === 'auto' && detectQuantLanguage(material.code) === 'tongdaxin') && <TongdaxinParameterHelp fieldLabel={`资料 ${ordinal} 说明`}/>}
             <QuantField label={`资料 ${ordinal} 来源网址`} value={material.url} onChange={url => patch({url})} />
             <QuantButton danger onClick={remove}>移除此份资料</QuantButton>
         </div>

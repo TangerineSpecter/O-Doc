@@ -42,7 +42,7 @@ def response(evidence=None):
 def acknowledge_selection(value,run):
     if run.kind=='experiment_review' and run.planning_context.get('selection_diagnostic'):
         value['selection_review']=selection_response()['selection_review']
-    if run.kind=='experiment_review' and run.review_version in (12,13,14):
+    if run.kind=='experiment_review' and run.review_version in (12,13,14,15):
         from quant.experiments.review_evidence import for_run
         generated=response(for_run(run))
         if 'temporal_parameter_review' in generated:value['temporal_parameter_review']=generated['temporal_parameter_review']

@@ -16,6 +16,10 @@ class StartInput(serializers.Serializer):
     config = serializers.DictField()
     proposal_id = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
 
+    def validate_config(self, value):
+        from quant.label_studies.search import normalize
+        return normalize(value)
+
 
 def unpack_seed(raw: dict, candidate: dict) -> dict:
     if set(raw) != {'candidate_id', 'bindings', 'parameters', 'variants'}:
@@ -55,9 +59,13 @@ def validate_frozen(plan: dict, dataset: dict) -> None:
     validate_engine(plan['engine_version'], plan['config'])
     if 'walk_forward' in plan['config']:
         from .temporal import windows
-        windows(len(dataset['rows']), plan['config']['walk_forward'], plan['config']['gap'])
+        schedules = windows(len(dataset['rows']), plan['config']['walk_forward'], plan['config']['gap'])
+        splits = [split for schedule in schedules for split in [schedule['partitions'],
+            *[row['partitions'] for row in schedule.get('inner_windows', [])]]]
     else:
-        partitions(len(dataset['rows']), gap=plan['config']['gap'])
+        splits = [partitions(len(dataset['rows']), gap=plan['config']['gap'])]
+    from quant.label_studies.search import validate_windows
+    validate_windows(plan['config'], splits)
     if len(json.dumps(plan, allow_nan=False)) > 500_000:
         raise ValidationError('实验方案超过大小上限')
     for seed in plan['seeds']:

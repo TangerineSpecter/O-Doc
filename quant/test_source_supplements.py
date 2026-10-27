@@ -80,6 +80,52 @@ class SourceSupplementTests(TestCase):
         self.assertEqual(ResearchReport.objects.count(),2)
         data=SyncManager().build_snapshot_data();validate(data,metadata(data))
 
+    def test_tongdaxin_table_attachment_reanalysis_preserves_legacy_report_and_old_bounds(self):
+        self.payload.update(language='tongdaxin', code='MOM:C/REF(C,N)-1;', description='参数表稍后补交')
+        with patch('quant.workflows.contracts.VERSION', 23): parent = self.prepare(analyze=True)
+        old = AIRun.objects.get(source=parent)
+        with patch('quant.worker.complete', return_value=json.dumps(fixtures.result())): execute(old.pk)
+        old.refresh_from_db(); self.assertEqual(old.status, 'completed', old.error)
+        self.assertEqual(old.result['parameter_binding_version'], 1)
+        self.assertEqual(json.loads(old.result['parameter_inventory_json'])['status'], 'unsupported')
+        report = ResearchReport.objects.get(run=old); original = copy.deepcopy(report.data); original_hash = report.content_hash
+        self.input['files'] = [{'name': '参数/原表.csv', 'code': '参数,最小,最大,缺省\r\nN,2,60,20\r\n'}]
+        child = self.submit(); run = AIRun.objects.get(source=child)
+        with patch('quant.worker.complete', return_value=json.dumps(fixtures.result())): execute(run.pk)
+        run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)
+        self.assertEqual(run.workflow_version, 25)
+        row = run.result['parameters'][0]
+        self.assertEqual(row['domain']['maximum'], 60)
+        self.assertEqual(row['source_binding']['file'], '参数/原表.csv')
+        self.assertEqual(row['source_binding']['scope'], '<external_parameters:file>')
+        self.assertEqual(source_lines(child.payload['code'])[row['source_binding']['line'] - 1].strip(), 'N,2,60,20')
+        self.path = self.path.replace(f'/sources/{parent.pk}/', f'/sources/{child.pk}/')
+        self.input.update(request_key='tdx_table_replacement_01', expected_source_id=child.pk)
+        self.input['files'][0]['code'] = '参数\t最小\t最大\t缺省\nN\t2\t80\t20\n'
+        revised = self.submit(); new = AIRun.objects.get(source=revised)
+        with patch('quant.worker.complete', return_value=json.dumps(fixtures.result())): execute(new.pk)
+        new.refresh_from_db(); self.assertEqual(new.status, 'completed', new.error)
+        self.assertEqual(new.result['parameters'][0]['domain']['maximum'], 80)
+        run.refresh_from_db(); self.assertEqual(run.result['parameters'][0]['domain']['maximum'], 60)
+        report.refresh_from_db(); self.assertEqual(report.data, original); self.assertEqual(report.content_hash, original_hash)
+        snapshot = SyncManager().build_snapshot_data(); validate(snapshot, metadata(snapshot))
+        from quant.models import WorkflowStep
+        WorkflowStep.objects.all().delete()
+        validate(snapshot, metadata(snapshot))
+        with patch('quant.worker.complete', side_effect=AssertionError('restore must be offline')):
+            SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
+        self.assertEqual(ResearchReport.objects.get(run=old).content_hash, original_hash)
+        self.assertFalse(Job.objects.exists())
+
+    def test_csv_parameters_are_not_accepted_as_python_dependencies(self):
+        self.prepare()
+        for name in ('parameters.csv', 'parameters.tsv'):
+            self.input['files'] = [{'name': name, 'code': '参数,最小,最大,缺省\nN,2,60,20'}]
+            response = self.client.post(self.path, self.input, format='json')
+            self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(SourceRevision.objects.count(), 1)
+        self.assertFalse(AIRun.objects.exists())
+
     def test_idempotence_stale_source_and_cross_entry_permissions(self):
         self.prepare();child=self.submit()
         self.assertEqual(self.submit().pk,child.pk)
@@ -89,6 +135,37 @@ class SourceSupplementTests(TestCase):
         self.input['request_key']='supplement_stale_source_01'
         self.assertEqual(self.client.post(self.path,self.input,format='json').status_code,409)
         self.assertEqual(self.client.post(self.path.replace(self.entry.pk,'foreign-entry'),self.input,format='json').status_code,404)
+
+    def test_automatic_bundle_analysis_separates_files_and_rebuilds_without_local_steps(self):
+        self.payload['code'] = 'from helper import calc\ndef main(x): return calc(x)\n'
+        self.prepare(analyze=True)
+        old = AIRun.objects.get(source=self.source)
+        with patch('quant.worker.complete', return_value=json.dumps(fixtures.result())): execute(old.pk)
+        self.input['files'] = [{'name': 'helper.py', 'code': 'N=20\nM=N*2\ndef calc(x): return x*M\n'}]
+        child = self.submit(); run = AIRun.objects.get(source=child)
+        with patch('quant.worker.complete', return_value=json.dumps(fixtures.result())) as model: execute(run.pk)
+        run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)
+        self.assertEqual(run.workflow_version, 25)
+        normalized = run.workflow_steps.get(stage='normalize').outcome.data['output']['structure']
+        self.assertEqual(normalized['parser'], 'python-provided-file-bindings-v1')
+        context = json.loads(model.call_args_list[1].args[1].split('材料：', 1)[1])
+        self.assertTrue(any(row['owner'] == '__source__.py::main' and 'helper.py::calc' in row['static_candidates']
+            for row in context['source_structure']['references']))
+        self.assertEqual(ResearchReport.objects.get(run=run).source_id, child.pk)
+        snapshot = SyncManager().build_snapshot_data()
+        from quant.models import WorkflowStep
+        normalize_id = run.workflow_steps.get(stage='normalize').pk
+        WorkflowStep.objects.all().delete()
+        validate(snapshot, metadata(snapshot))
+        bad = copy.deepcopy(snapshot)
+        outcome = next(row for row in bad if row['model'] == 'quant.workflowoutcome' and row['fields']['step'] == normalize_id)
+        graph = outcome['fields']['data']['output']['structure']
+        # Rehashing a fabricated cross-file candidate is rejected on a fresh
+        # device by reconstruction from original file texts and identities.
+        row = next(row for row in graph['references'] if row['candidate_ids'])
+        row['candidate_ids'] = []
+        outcome['fields']['content_hash'] = digest(outcome['fields']['data'])
+        with self.assertRaises(SyncError): validate(bad, metadata(bad))
 
     def test_unsafe_names_and_unchanged_inputs_do_not_create_work(self):
         self.prepare()

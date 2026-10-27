@@ -20,16 +20,17 @@ export function validateMaterials(items: QuantMaterial[]): string {
     return '';
 }
 
-export function decodeSourceFile(bytes: ArrayBuffer, name: string, encoding = 'auto'): QuantMaterial {
+export function decodeSourceFile(bytes: ArrayBuffer, name: string, encoding = 'auto', allowParameterTable = false): QuantMaterial {
     if (bytes.byteLength > 600000) throw new Error(`${name} 超过单文件 600 KB 上限。`);
     const extension = name.split('.').pop()?.toLowerCase();
-    if (!['py', 'pine', 'mq4', 'mqh', 'tdx', 'txt', 'md'].includes(extension || '')) throw new Error('请选择 .py、.pine、.mq4、.mqh、.tdx、.txt 或 .md 源文件。');
+    const table = allowParameterTable && ['csv', 'tsv'].includes(extension || '');
+    if (!table && !['py', 'pine', 'mq4', 'mqh', 'tdx', 'txt', 'md'].includes(extension || '')) throw new Error(allowParameterTable ? '请选择源文件或 .csv、.tsv 参数表。' : '请选择 .py、.pine、.mq4、.mqh、.tdx、.txt 或 .md 源文件。');
     const raw = new Uint8Array(bytes);
     const codec = encoding === 'auto' ? raw[0] === 0xff && raw[1] === 0xfe ? 'utf-16le' : raw[0] === 0xfe && raw[1] === 0xff ? 'utf-16be' : 'utf-8' : encoding;
     let text: string;
     try {text = new TextDecoder(codec, {fatal: true}).decode(raw);} catch {throw new Error(`${name} 无法按所选编码读取，请检查编码。`);}
     if (!text.trim() || text.includes('\0')) throw new Error(`${name} 为空或包含二进制内容。`);
-    const material = {...emptyMaterial(), title: name, language: ({py: 'python', pine: 'pine', mq4: 'mql4', mqh: 'mql4'} as const)[extension as 'py'] || detectQuantLanguage(text)};
+    const material = {...emptyMaterial(), title: name, language: table ? 'text' as const : ({py: 'python', pine: 'pine', mq4: 'mql4', mqh: 'mql4'} as const)[extension as 'py'] || detectQuantLanguage(text)};
     if (extension === 'md') material.description = text;
     else material.code = text;
     const error = validateMaterials([material]);

@@ -30,7 +30,7 @@ def validate_campaigns(rows, anthologies, fail):
             fail('连续研究解读重复或缺失')
         step, run = rounds[step_id], runs[run_id]
         campaign = campaigns[str(step['campaign'])]
-        if identity != digest(['research-evaluation-v1', step_id])[:40] or run.get('kind') != 'experiment_review' or run.get('review_version') not in (2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14) or run.get('validation_result'):
+        if identity != digest(['research-evaluation-v1', step_id])[:40] or run.get('kind') != 'experiment_review' or run.get('review_version') not in (2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15) or run.get('validation_result'):
             fail('连续研究解读身份或版本无效')
         if (results.get(str(run.get('experiment_result')), {}).get('request') != step['experiment']
                 or results.get(str(run.get('experiment_result')), {}).get('data', {}).get('status') != 'completed'

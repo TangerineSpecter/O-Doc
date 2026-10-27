@@ -48,6 +48,8 @@ def compute(plan,snapshot,output,*,seconds=10,check=lambda:None):
         'status':'insufficient','families':[],'final_holdout_used':False,'independent_validation':False,
         'limitations':copy.deepcopy(LIMITATIONS)}
     if not output:return result
+    if 'label_target' in plan['config']:
+        result['limitations'].append('本请求按标签Rank IC选择；这里仍只诊断成本后交易收益排名，不能替代标签选择、全内层或跨请求统计检验。')
     if plan['config'].get('walk_forward', {}).get('version') == 2:
         result['limitations'].append('嵌套搜索仅重放各外折最后内层窗口的固定家族；不覆盖全部内层选择过程或跨请求多重尝试，不替代嵌套外层评价。')
     for schedule in schedules(output):

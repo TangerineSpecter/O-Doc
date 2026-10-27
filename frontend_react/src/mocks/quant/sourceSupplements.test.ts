@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {beforeEach,test} from 'node:test';
 import type {QuantEntryDetail} from '../../types/api/quant.ts';
+import type {QuantStageEvidence} from '../../types/api/quantWorkflow.ts';
 import type {QuantSourceSupplementInput,QuantSourceSupplementResult} from '../../types/api/quantSourceSupplement.ts';
 import {resolveQuantRoute} from './routes.ts';
 import {quantState,resetQuantStateForTests} from './state.ts';
@@ -35,9 +36,21 @@ test('补充创建新快照并只排队一次；原始文件、SHA与全局行�
     assert.equal(child.materialCurrentSourceId,child.id);
     assert.equal(result.entry.runs.length,1);
     assert.equal(result.entry.runs[0].sourceId,child.id);
+    assert.equal(result.entry.runs[0].workflow?.version,25);
     const replay=await invoke<QuantSourceSupplementResult>(path,'POST',input);
     assert.equal(replay.sourceId,child.id);assert.equal(replay.entry.runs.length,1);
     assert.equal(quantState().entries.find(row=>row.id===entry.id)!.sources!.find(row=>row.id===source.id)!.payload.code,source.payload.code);
+    result.entry.runs[0].createdAt='2020-01-01T00:00:00Z';
+    await invoke(base+`entries/${entry.id}/`);
+    assert.equal(result.entry.runs[0].result.analysis?.parameterBindingVersion,2);
+    assert.equal(result.entry.runs[0].result.analysis?.parameters[0].sourceBinding?.status,'resolved');
+    assert.equal(result.entry.runs[0].result.analysis?.parameters[0].sourceBinding?.status,'resolved');
+    assert.match(result.entry.runs[0].result.analysis!.parameters[0].sourceBinding!.status === 'resolved' ? result.entry.runs[0].result.analysis!.parameters[0].sourceBinding!.file : '',/人工流程样例/);
+    const evidence=await invoke<QuantStageEvidence>(base+`entries/${entry.id}/runs/${result.entry.runs[0].id}/workflow/normalize/`);
+    assert.equal(evidence.structure?.localDemo,true);
+    assert.deepEqual(evidence.structure?.nodes.map(row=>row.name),child.payload.files!.map(row=>`${row.name}::<module>`));
+    assert.equal(evidence.structure?.references.length,0);
+    assert.match(evidence.structure!.diagnostics[0].message,/不运行Python解析器/);
     resetQuantStateForTests();
     const restored=await invoke<QuantEntryDetail>(base+`entries/${entry.id}/`);
     assert.equal(restored.sources![0].payload.files![1].code,input.files[0].code);
@@ -69,4 +82,41 @@ test('无模型仍保留补充，错误态与跨条目引用明确返回失败�
     Object.defineProperty(globalThis,'location',{value:new URL('http://localhost/?mockState=error'),writable:true,configurable:true});
     const failure=await invoke<Response>(path,'POST',input);assert.equal(failure.status,503);
     assert.equal(quantState().entries.find(row=>row.id===entry.id)!.sources!.length,count);
+});
+
+test('通达信参数表人工样例展示范围、刷新保留，CSV补充限对应语言',async()=>{
+    const {checkParameterDomains} = await import('../../utils/quantParameterDomain.ts');
+    const {decodeSourceFile} = await import('../../utils/quantIntake.ts');
+    const bytes=new TextEncoder().encode('参数\t最小\t最大\t缺省\nN\t2\t60\t20').buffer;
+    assert.equal(decodeSourceFile(bytes,'参数表.tsv','auto',true).code,'参数\t最小\t最大\t缺省\nN\t2\t60\t20');
+    assert.throws(()=>decodeSourceFile(bytes,'参数表.tsv'),/源文件/);
+    const {entry} = await invoke<{entry:QuantEntryDetail}>(base+'intake/','POST',{
+        requestKey:'tdx_parameter_table_local01',title:'通达信参数表人工演示',language:'tongdaxin',
+        code:'{ LOCAL_TDX_PARAMETER_TABLE }\nMOM:C/REF(C,N)-1;',description:'参数,最小,最大,缺省\nN,2,60,20'});
+    entry.runs[0].createdAt='2020-01-01T00:00:00Z';
+    const path=base+`entries/${entry.id}/`;
+    const ready=await invoke<QuantEntryDetail>(path),report=ready.reports![0],parameter=report.data.parameters![0];
+    assert.equal(report.data.parameterBindingVersion,2);assert.equal(parameter.name,'N');
+    assert.equal(parameter.domain!.version,5);assert.equal(parameter.domain!.maximum,60);
+    assert.equal(parameter.sourceBinding?.status,'resolved');
+    if(parameter.sourceBinding?.status==='resolved') assert.equal(parameter.sourceBinding.kind,'external_parameter');
+    assert.doesNotThrow(()=>checkParameterDomains([parameter],{N:20}));
+    assert.throws(()=>checkParameterDomains([parameter],{N:61}),/上限/);
+    const source=ready.sources![0];
+    const supplement=await invoke<QuantSourceSupplementResult>(path+`sources/${source.id}/supplements/`,'POST',{
+        requestKey:'tdx_parameter_table_attach01',expectedSourceId:source.id,reason:'补交原始参数表人工样例',
+        files:[{name:'参数表.tsv',code:'参数\t最小\t最大\t缺省\nN\t2\t60\t20'}],analyze:false});
+    assert.equal(supplement.entry.sources![0].payload.files![1].name,'参数表.tsv');
+    resetQuantStateForTests();
+    const restored=await invoke<QuantEntryDetail>(path);
+    assert.deepEqual(restored.reports!.find(row=>row.id===report.id)!.data.parameters![0],parameter);
+    const python=await prepare();
+    const refused=await invoke<Response>(python.path,'POST',{...python.input,files:[{name:'参数.csv',code:'参数,最小,最大,缺省\nN,2,60,20'}]});
+    assert.equal(refused.status,400);
+    Object.defineProperty(globalThis,'location',{value:new URL('http://localhost/?mockState=error'),writable:true,configurable:true});
+    assert.equal((await invoke<Response>(path)).status,503);
+    Object.defineProperty(globalThis,'location',{value:new URL('http://localhost/?mockState=empty'),writable:true,configurable:true});
+    assert.equal((await invoke<Response>(path)).status,404);
+    Object.defineProperty(globalThis,'location',{value:new URL('http://localhost/?mockState=slow'),writable:true,configurable:true});
+    assert.equal((await invoke<QuantEntryDetail>(path)).reports!.find(row=>row.id===report.id)!.data.parameters![0].domain!.version,5);
 });

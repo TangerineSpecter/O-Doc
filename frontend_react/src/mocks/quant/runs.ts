@@ -1,4 +1,6 @@
+import {mockParameterBindings} from './parameterBindings';
 import {mockRepair} from './repairs';
+import {mockSourceChangeReview} from './sourceChangeReview';
 import {prepareMockNativeReview,advanceMockNativeReview,refreshMockNativeResume} from './nativeReviews';
 import {mockSourceFindings} from './findings';
 import {workflowSample, advanceWorkflow} from './workflows';
@@ -59,9 +61,14 @@ export function advanceRun(run: QuantAIRun, source?: QuantSource) {
             run.result.analysis.totalScore = null;
         }
         if (run.result.analysis) {
-            if ([14, 15, 16, 17].includes(run.workflow?.version || 0)) Object.assign(run.result.analysis, mockSourceFindings(source));
+            if ([18, 20, 22, 24, 26, 27].includes(run.workflow?.version || 0)) {
+                const entry = quantState().entries.find(row => row.id === run.entryId);
+                if (entry) Object.assign(run.result.analysis, mockSourceChangeReview(run, entry));
+            }
+            if ([14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27].includes(run.workflow?.version || 0)) Object.assign(run.result.analysis, mockSourceFindings(source));
             Object.assign(run.result.analysis, {extractionVersion: 1, extractionNote: '本地演示提取；真实来源需要实际模型分析。', factors: mockFactors(source)});
-            if ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(run.workflow?.version || 0)) run.result.analysis.factorRepair = mockRepair(source, run.result.analysis.factors || []);
+            if ([21, 22, 23, 24, 25, 26, 27].includes(run.workflow?.version || 0)) mockParameterBindings(run.result.analysis, [23, 24, 25, 26, 27].includes(run.workflow?.version || 0), [25, 26, 27].includes(run.workflow?.version || 0) ? 2 : 1);
+            if ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27].includes(run.workflow?.version || 0)) run.result.analysis.factorRepair = mockRepair(source, run.result.analysis.factors || []);
             if ((run.workflow?.version || 0)>=12) {const owner=quantState().entries.find(e=>e.id===run.entryId);if (owner) {freezeMockResearchMemory(run,owner);Object.assign(run.result.analysis,{sourceMemoryVersion:1,...mockMemoryAssessment(run)});}}
             if ((source?.payload.code?.includes('LOCAL_LIBRARY_WINDOW_10') || source?.payload.code?.includes('LOCAL_ARITHMETIC_PARAMETERS')) && run.result.analysis.factors?.[0]) run.result.analysis.parameters = structuredClone(run.result.analysis.factors[0].parameters);
         }

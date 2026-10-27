@@ -18,7 +18,7 @@ def project(hp: int, mp: int, hp_max: int, mp_max: int, recovered_at,
     hp_base = max(base, rest) if rest else base
     resting = bool(rest and now < rest)
     if rest and not resting:
-        hp = max(1, int(hp_max * .2))
+        hp = hp_max
     hp_blocks = max(0, int((now - hp_base).total_seconds() // BLOCK_SECONDS))
     if not resting:
         hp = min(hp_max, hp + hp_step * hp_blocks)
@@ -34,10 +34,8 @@ def project(hp: int, mp: int, hp_max: int, mp_max: int, recovered_at,
 
     hp_timing = resource(hp, hp_max, hp_step, hp_base)
     if resting:
-        restored = max(1, int(hp_max * .2))
-        blocks = max(0, (hp_max - restored + hp_step - 1) // hp_step)
         hp_timing['next_at'] = rest.isoformat()
-        hp_timing['full_at'] = (rest + timedelta(seconds=blocks * BLOCK_SECONDS)).isoformat()
+        hp_timing['full_at'] = rest.isoformat()
     mp_timing = resource(mp, mp_max, mp_step, mp_base)
     deadlines = [value for value in (hp_timing['next_at'], mp_timing['next_at']) if value]
     return {'hp': hp, 'mp': mp, 'recovery': {

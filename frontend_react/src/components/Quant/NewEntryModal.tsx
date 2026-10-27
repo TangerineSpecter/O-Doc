@@ -5,6 +5,7 @@ import { detectQuantLanguage } from '../../utils/quantLanguage';
 import { Select } from '../common/Select';
 import { QuantButton, QuantField, QuantModal } from './ui';
 import { CodeEditor } from './CodeEditor';
+import {TongdaxinParameterHelp} from './TongdaxinParameterHelp';
 import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
 import type { QuantIntakeInput } from '../../types/api/quant';
@@ -56,6 +57,7 @@ export function NewEntryModal({ collection, controller, register, close, created
             <CodeEditor value={draft.code} onChange={v => patch('code', v)} language={draft.language === 'auto' ? detectQuantLanguage(draft.code) : draft.language} />
         </div>
         <QuantField label="作者说明、使用方法或你关注的问题" value={draft.description} onChange={v => patch('description', v)} multiline rows={4} />
+        {(draft.language === 'tongdaxin' || draft.language === 'auto' && detectQuantLanguage(draft.code) === 'tongdaxin') && <TongdaxinParameterHelp fieldLabel="作者说明、使用方法或你关注的问题"/>}
         <QuantField label="来源网址" value={draft.url} onChange={v => patch('url', v)} placeholder="https://…" />
         <p className="text-xs leading-5 text-slate-500">分析时会尝试获取公开网页正文并保存快照。需要登录、验证或动态加载的内容，请同时粘贴代码与说明；系统不会执行网页或源码。</p>
         <label className="space-y-2 text-sm font-semibold text-slate-700"><span className="block">分析模型</span>

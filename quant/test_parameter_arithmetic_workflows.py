@@ -56,7 +56,9 @@ class ArithmeticParameterStageTests(SimpleTestCase):
 
 
 class ArithmeticWorkflowTests(TestCase):
-    setUp = analysis_fixtures.AnalysisTests.setUp
+    def setUp(self):
+        analysis_fixtures.AnalysisTests.setUp(self)
+        self.payload['code'] += '\nslow=26\nenabled=True\n'
     collect = analysis_fixtures.AnalysisTests.collect
 
     def test_stage_rerun_and_restore_keep_arithmetic_tree_and_source_evidence(self):
@@ -70,7 +72,8 @@ class ArithmeticWorkflowTests(TestCase):
         self.assertEqual(provider.call_count, 6)
         first_step = run.workflow_steps.get(stage='parameters')
         parameters = first_step.outcome.data['output']['parameters']
-        self.assertEqual(parameters, value['parameters'])
+        self.assertEqual([{key: item for key, item in row.items() if key != 'source_binding'} for row in parameters], value['parameters'])
+        self.assertTrue(all(row['source_binding']['status'] == 'resolved' for row in parameters))
         path = f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/runs/'
         inputs = {'kind': 'analyze', 'source_id': run.source_id, 'model_id': self.model.pk,
                   'request_key': 'arithmetic_workflow_plan_rerun', 'resume_run_id': run.pk, 'restart_stage': 'plan'}
@@ -106,7 +109,9 @@ class ArithmeticWorkflowTests(TestCase):
 
 
 class ArithmeticFeedbackTests(TestCase):
-    setUp = analysis_fixtures.AnalysisTests.setUp
+    def setUp(self):
+        analysis_fixtures.AnalysisTests.setUp(self)
+        self.payload['code'] += '\nslow=26\nenabled=True\n'
     collect = analysis_fixtures.AnalysisTests.collect
 
     def ready(self, *, division=False):

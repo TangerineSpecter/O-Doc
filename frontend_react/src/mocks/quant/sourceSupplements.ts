@@ -28,7 +28,8 @@ export async function supplementMockSource(entry:QuantEntryDetail,sourceId:strin
     const files:Pick<QuantSourceFile,'name'|'code'|'role'>[] = source.payload.files?.map(({name,code,role})=>({name,code,role})) || [{name:`__source__.${extension}`,code:source.payload.code,role:'primary'}];
     let changed=false;
     for (const file of body.files) {
-        if (!file || typeof file.name!=='string' || !/^[\p{L}\p{N}\p{M}_./ -]{1,160}$/u.test(file.name) || file.name.split('/').some(part=>!part || part==='.' || part==='..' || part!==part.trim()) || !/\.(py|pine|mq4|mqh|tdx|txt)$/i.test(file.name) || typeof file.code!=='string' || !file.code.trim() || file.code.length>100000 || file.code.includes('\0') || names.has(normalized(file.name))) return fail(400,'文件名或源码无效，不能使用越界路径或重复文件');
+        if (!file || typeof file.name!=='string' || !/^[\p{L}\p{N}\p{M}_./ -]{1,160}$/u.test(file.name) || file.name.split('/').some(part=>!part || part==='.' || part==='..' || part!==part.trim()) || !/\.(py|pine|mq4|mqh|tdx|txt|csv|tsv)$/i.test(file.name) || typeof file.code!=='string' || !file.code.trim() || file.code.length>100000 || file.code.includes('\0') || names.has(normalized(file.name))) return fail(400,'文件名或源码无效，不能使用越界路径或重复文件');
+        if (/\.(csv|tsv)$/i.test(file.name) && source.payload.language!=='tongdaxin') return fail(400,'CSV/TSV参数表仅用于通达信来源');
         names.add(normalized(file.name));
         const existing=files.find(row=>normalized(row.name)===normalized(file.name));
         if (existing && (existing.role==='primary' || existing.name!==file.name)) return fail(400,'不能覆盖主源码；替换依赖须使用完全相同的文件名');

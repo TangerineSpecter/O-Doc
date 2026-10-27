@@ -6,7 +6,7 @@ export function ParameterDomain({name, domain, authored = false}: {name: string;
     return <div className="mt-2 space-y-1 text-xs leading-6 text-slate-600">
         <p><span className="font-medium">本机实验将检查：</span>{describeParameterDomain(name, domain)}</p>
         <details><summary className="cursor-pointer">约束原文与适用边界</summary>
-            <p>{authored ? '本公式版本的作者声明；不等同于原始源码事实或已验证的参数规律。' : 'AI 提取的声明约束，语义仍需核对；'}未结构化的文字约束不会自动执行。</p>
+            <p>{authored ? '本公式版本的作者声明；不等同于原始源码事实或已验证的参数规律。' : domain.version === 5 ? '从用户提供的参数表读取的范围；不是实际运行配置或经验证的最优范围。' : 'AI 提取的声明约束，语义仍需核对；'}未结构化的文字约束不会自动执行。</p>
             {domain.evidence.map((row, index) => <blockquote key={index} className="mt-2 whitespace-pre-wrap break-words border-l-2 border-slate-200 pl-3">{row.quote}</blockquote>)}
         </details>
     </div>;

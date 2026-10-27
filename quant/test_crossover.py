@@ -170,7 +170,7 @@ class CrossoverIntegrationTests(TestCase):
         returned = next(row for row in json.loads(detail['attemptsJson']) if row['id'] == attempt['id'])
         self.assertEqual(returned['transformation'], attempt['transformation'])
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 62)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 70)
         validate(snapshot, metadata(snapshot))
         forged = copy.deepcopy(snapshot)
         row = next(row['fields'] for row in forged if row['model'] == 'quant.experimentcheckpoint' and row['fields']['attempt']['id'] == attempt['id'])

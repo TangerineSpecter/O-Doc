@@ -115,7 +115,7 @@ def fixed_validation(candidate_id,candidate,identity,result,fixed_request,fixed_
         'levels':['fixed_observation'] if result['status']=='completed' else [],'independent_validation':False,
         'claim':'registered_fixed_observation_not_global_independence_or_profitability'}
     if result['status']!='completed':value.update(result_status=result['status'],error=result.get('error',''))
-    if result.get('version')==2:
+    if 'criteria_assessment' in result:
         value['registered_criteria']=copy.deepcopy(fixed_plan['criteria'])
         value['criteria_assessment']=copy.deepcopy(result['criteria_assessment'])
         value['criteria_context']={'mode':fixed_request['mode'],
@@ -123,4 +123,7 @@ def fixed_validation(candidate_id,candidate,identity,result,fixed_request,fixed_
             'audit':audit_summary(fixed_request['audit'])}
         if result['criteria_assessment']['eligibility']=='fresh_scope_criteria_met':
             value['levels'].append('registered_criteria_met')
+    if fixed_plan.get('version') == 3:
+        value['label_target'] = copy.deepcopy(fixed_plan['label_target'])
+        value['label_evaluation'] = copy.deepcopy((result.get('output') or {}).get('label_evaluation'))
     return value

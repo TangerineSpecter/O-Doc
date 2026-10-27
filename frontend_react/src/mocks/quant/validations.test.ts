@@ -17,18 +17,97 @@ beforeEach(()=>{storage.clear();resetQuantStateForTests();scenario('sample');});
 const base='/api/quant/local-quant/';
 const call=async<T>(path:string,method='GET',body?:unknown)=>await resolveQuantRoute(new Request('http://localhost'+base+path,{method,headers:{Authorization:'Token local-demo-token','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})})) as T;
 const dataset=async(name:string,count:number)=>await call<{id:string}>('datasets/','POST',{name,csvText:'timestamp,open,high,low,close,volume\n'+Array.from({length:count},(_,i)=>`${new Date(Date.UTC(2024,0,i+1)).toISOString()},100,102,99,101,1000`).join('\n'),symbol:'VALIDATION-UI',timeframe:'1d',timezone:'UTC',source:'artificial UI fixture',priceAdjustment:''});
-async function setup(strategy=false,criteria?:QuantValidationInput['criteria'],variants=false) {
+async function setup(strategy=false,criteria?:QuantValidationInput['criteria'],variants=false,labelTarget?:QuantValidationInput['labelTarget']) {
     const {entry}=await call<{entry:QuantEntryDetail}>('intake/','POST',{requestKey:'fixed_validation_source_001',code:'N=20\nclose.pct_change(N)',language:'python'});
     entry.runs[0].createdAt='2020-01-01T00:00:00Z';await call(`entries/${entry.id}/`);
     const candidate=(await call<{items:QuantFactorCandidate[]}>(`factors/?entryId=${entry.id}`)).items[0];
     const market=await dataset('source',90),draft=strategyDraft();draft.enabled=strategy;
-    const created=await call<QuantExperiment>('experiments/','POST',{requestKey:'fixed_validation_experiment_001',name:'UI source',datasetId:market.id,seeds:[buildSeed(candidate,initialSeed(candidate),variants)],config:{seed:1,maxCandidates:8,generations:1,threshold:0,feeBps:5,slippageBps:5,gap:1,seconds:5,...(strategy?{strategy:buildStrategy(draft,0)}:{})}});
+    const created=await call<QuantExperiment>('experiments/','POST',{requestKey:'fixed_validation_experiment_001',name:'UI source',datasetId:market.id,seeds:[buildSeed(candidate,initialSeed(candidate),variants)],config:{seed:1,maxCandidates:8,generations:1,threshold:0,feeBps:5,slippageBps:5,gap:1,seconds:5,...(strategy?{strategy:buildStrategy(draft,0)}:{}),...(labelTarget?{labelTarget}:{})}});
     quantState().experiments.find(r=>r.data.id===created.id)!.data.createdAt='2020-01-01T00:00:00Z';
     const source=await call<QuantExperiment>(`experiments/${created.id}/`);
-    const input:QuantValidationInput={requestKey:'registered_fixed_validation_01',sourceRequestId:source.id,attemptId:'attempt-1',name:'New fixed data',symbol:'',timeframe:'',intervals:10,seconds:10,...(criteria?{criteria}:{})};
+    const input:QuantValidationInput={requestKey:'registered_fixed_validation_01',sourceRequestId:source.id,attemptId:'attempt-1',name:'New fixed data',symbol:'',timeframe:'',intervals:10,seconds:10,...(criteria?{criteria}:{}),...(labelTarget?{labelTarget}:{})};
     const plan=await call<QuantValidation>('validations/','POST',input);
     return {source,plan,input,entry,candidate};
 }
+
+test('预登记远期标签人工样例贯穿范围、结果、恢复及失败状态，不冒充收益或显著性',async()=>{
+    const {plan,input}=await setup(false,{minTotalReturn:0},false,{version:1,horizonBars:3});
+    assert.equal(readValidation(plan).labelTarget?.horizon_bars,3);
+    assert.equal((await call<Response>('validations/','POST',{...input,requestKey:'label_invalid_horizon_01',labelTarget:{version:1,horizonBars:8}})).status,400);
+    const market=await dataset('label-target-artificial',151);
+    const bound=await call<QuantValidation>(`validations/${plan.id}/run/`,'POST',{datasetId:market.id,mode:'fresh'});
+    assert.equal(bound.evaluation?.status,'pending');
+    const ready=await call<QuantValidation>(`validations/${plan.id}/`),value=readValidation(ready);
+    assert.equal(value.labelEvaluation?.window.purged_origins,3);
+    assert.equal(value.labelEvaluation?.window.possible_pairs,8);
+    assert.equal(value.labelEvaluation?.p_value,null);
+    assert.match(value.labelEvaluation!.limitations[0],/人工展示/);
+    assert.ok(value.criteria);assert.ok(value.assessment);
+    const original=ready.evaluation!.resultJson;
+    resetQuantStateForTests();assert.equal((await call<QuantValidation>(`validations/${plan.id}/`)).evaluation!.resultJson,original);
+    const bad=structuredClone(ready),raw=JSON.parse(bad.evaluation!.resultJson!);
+    raw.output.label_evaluation.window.purged_origins=0;bad.evaluation!.resultJson=JSON.stringify(raw);
+    assert.throws(()=>readValidation(bad));
+    const wrong=structuredClone(ready),wrongPlan=JSON.parse(wrong.planJson);wrongPlan.label_target.horizon_bars=4;wrong.planJson=JSON.stringify(wrongPlan);
+    assert.throws(()=>readValidation(wrong));
+    scenario('error');assert.equal((await call<Response>(`validations/${plan.id}/`)).status,503);
+    scenario('empty');assert.equal((await call<{total:number}>('validations/')).total,0);
+    scenario('slow');assert.equal(readValidation(await call<QuantValidation>(`validations/${plan.id}/`)).labelTarget!.horizon_bars,3);
+});
+
+test('标签读取保持常量/缺失未知，拒绝伪造独立性或事后给旧方案加目标',async()=>{
+    const {freezeLabelTarget,readLabelEvaluation}=await import('../../utils/quantLabels.ts');
+    const {mockLabelEvaluation}=await import('./labelStudies.ts');
+    const target=freezeLabelTarget({version:1,horizonBars:3});
+    const original=mockLabelEvaluation(target,10,'2024-01-01T00:00:00Z','2024-01-11T00:00:00Z','2024-01-08T00:00:00Z');
+    const missing={...original,pairs:0,missing_predictors:8,coverage:0,pearson_ic:null,spearman_ic:null,status:'insufficient',reason:'too_few_valid_pairs'};
+    assert.equal(readLabelEvaluation(missing,target).pairs,0);
+    for(const change of [{p_value:0.01},{independent_observations:8},{selection_used:true},{pearson_ic:2},{coverage:0}])assert.throws(()=>readLabelEvaluation({...original,...change},target));
+    const {plan}=await setup();const data=JSON.parse(plan.planJson);data.label_target=target;plan.planJson=JSON.stringify(data);
+    assert.throws(()=>readValidation(plan));
+});
+
+test('标签搜索local贯穿新引擎、继承固定目标、刷新及空慢错状态',async()=>{
+    const {readExperiment}=await import('../../components/Quant/experiments/readout.ts');
+    const {source}=await setup(false,undefined,false,{version:1,horizonBars:3});
+    const value=readExperiment(source);
+    assert.equal(value.engineVersion,'quant-local-search-9');assert.equal(value.labelTarget?.horizon_bars,3);
+    assert.equal(value.attempts[0].labels?.train?.selection_used,true);
+    assert.equal(value.labelHoldout?.selection_used,false);assert.equal(value.labelHoldout?.p_value,null);
+    assert.match(value.labelHoldout!.limitations[0],/人工展示/);
+    const inherited=await call<QuantValidation>('validations/','POST',{requestKey:'inherited_forecast_target01',sourceRequestId:source.id,attemptId:'attempt-1',name:'继承标签',symbol:'',timeframe:'',intervals:10,seconds:10});
+    assert.equal(readValidation(inherited).labelTarget?.horizon_bars,3);
+    resetQuantStateForTests();assert.equal(readExperiment(await call<QuantExperiment>(`experiments/${source.id}/`)).labelTarget?.horizon_bars,3);
+    scenario('error');assert.equal((await call<Response>(`experiments/${source.id}/`)).status,503);
+    scenario('empty');assert.equal((await call<{total:number}>('experiments/')).total,0);
+    scenario('slow');assert.equal(readExperiment(await call<QuantExperiment>(`experiments/${source.id}/`)).labelHoldout!.version,1);
+});
+
+test('多内层标签人工样例覆盖均值和每外折，拒绝错配目标、用途及均值',async()=>{
+    const {readExperiment}=await import('../../components/Quant/experiments/readout.ts');
+    const {demoTemporalResult}=await import('./temporalResult.ts');
+    const {decorateLabelSearch}=await import('./labelSearch.ts');
+    const {experimentEngine}=await import('../../utils/quantLabelSearch.ts');
+    const {temporalSnapshot}=await import('../../utils/quantTemporal.ts');
+    const {source}=await setup(false,undefined,false,{version:1,horizonBars:3});
+    const record=quantState().experiments.find(row=>row.data.id===source.id)!;
+    const policy={version:2 as const,mode:'expanding' as const,folds:2,innerFolds:2,trainBars:30,validationBars:10,testBars:10,warmupBars:0};
+    const input=structuredClone(record.input);input.config.walkForward=policy;
+    const raw=JSON.parse(source.planJson!);raw.engine_version=experimentEngine(input.config);raw.config.walk_forward=temporalSnapshot(policy);
+    const result=decorateLabelSearch(demoTemporalResult(input,'2024-01-01T00:00:00Z','2024-06-28T00:00:00Z',180,raw.seeds),input,'2024-01-01T00:00:00Z','2024-06-28T00:00:00Z',180);
+    const sample={...source,planJson:JSON.stringify(raw),resultJson:JSON.stringify(result.envelope),attemptsJson:JSON.stringify(result.attempts)};
+    const value=readExperiment(sample);
+    assert.equal(value.engineVersion,'quant-local-search-14');assert.equal(value.attempts[0].inner?.labelSummary?.validation.spearman_ic,0.2);
+    assert.equal(value.temporal?.folds.length,2);assert.equal(value.temporal?.folds[0].labelHoldout?.window.purged_origins,3);
+    for(const change of ['mean','mode','target']){
+        const bad=structuredClone(sample),output=JSON.parse(bad.resultJson!);
+        if(change==='mean')output.output.attempts[0].inner_evaluation.label_summary.validation.spearman_ic=0.9;
+        if(change==='mode')output.output.label_holdout.selection_used=true;
+        if(change==='target'){const plan=JSON.parse(bad.planJson!);delete plan.config.label_target;bad.planJson=JSON.stringify(plan);}
+        bad.resultJson=JSON.stringify(output);bad.attemptsJson=JSON.stringify(output.output.attempts);
+        assert.throws(()=>readExperiment(bad));
+    }
+});
 
 test('local native supplied rows block fresh, including warmup and cancelled or restored requests',async()=>{
     const {plan,candidate}=await setup();const market=await dataset('native-target',151);
@@ -124,7 +203,7 @@ test('new source analysis consumes fixed outcome history, explains its use and p
     const originalNow=Date.now;Date.now=()=>originalNow()+5000;
     let completed:QuantEntryDetail;
     try {completed=await call<QuantEntryDetail>(`entries/${entry.id}/`);} finally {Date.now=originalNow;}
-    const run=completed.runs[0];assert.equal(run.workflow?.version,16);
+    const run=completed.runs[0];assert.equal(run.workflow?.version,25);
     const {readResearchMemory}=await import('../../utils/quantResearchMemory.ts');
     const memory=readResearchMemory(run.researchMemoryJson);assert.equal(memory?.version,3);
     const historical=memory!.items.find(r=>r.kind==='fixed_validation');assert.ok(historical);

@@ -49,6 +49,13 @@ class Candidate(serializers.Serializer):
                 raise serializers.ValidationError('输入和参数的名称不得重复')
         if value['expression'] is not None:
             validate_expression(value['expression'], {v['name'] for v in value['inputs']}, {v['name'] for v in value['parameters']})
+            unresolved = {row['name'] for row in value['parameters'] if row.get('source_binding', {}).get('status') == 'unresolved'}
+            pending = [value['expression']]
+            while pending:
+                node = pending.pop()
+                if node.get('op') == 'parameter' and node.get('name') in unresolved:
+                    raise serializers.ValidationError('未定位的源码参数不能作为可执行表达式输入')
+                pending.extend(node.get('args', []))
         return value
 
 

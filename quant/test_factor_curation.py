@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 from unittest.mock import patch
 from django.test import TestCase
 from quant import test_research_analysis as fixtures
@@ -17,10 +18,12 @@ class CurationTests(TestCase):
 
     def publish(self, request, name='动量', window='20'):
         self.payload['request_key'] = request
+        self.payload['code'] = re.sub(r'(?m)^N=.*$', f'N={window}', self.payload['code'])
         entry = self.collect()
         data = extracted()
         data['factors'][0]['name'] = name
         data['factors'][0]['parameters'][0]['default_value'] = window
+        data['factors'][0]['parameters'][0]['evidence'] = f'N={window}'
         def answer(config,prompt,**kwargs):
             value=copy.deepcopy(data)
             memory=json.loads(prompt.split('材料：',1)[1]).get('research_memory') if '材料：' in prompt else None

@@ -6,6 +6,7 @@ from quant.research.contracts import digest
 from quant.experiments.derivation import source_parents
 from quant.experiments.expression import MAX_WINDOW
 from .criteria import CriteriaInput,freeze
+from quant.label_studies.targets import TargetInput
 
 ENGINE='quant-fixed-validation-1'
 
@@ -20,6 +21,7 @@ class PlanInput(serializers.Serializer):
     intervals=serializers.IntegerField(min_value=5,max_value=2000,default=30)
     seconds=serializers.IntegerField(min_value=1,max_value=60,default=30)
     criteria=CriteriaInput(required=False)
+    label_target=TargetInput(required=False)
 
 
 def required_history(node: dict, parameters: dict) -> int:
@@ -54,6 +56,11 @@ def build(plan: dict,result: dict,dataset: dict,request_id: str,result_id: str,r
         'claim':'frozen_before_dataset_binding_not_global_independence_or_profitability'}
     if 'criteria' in values:
         frozen.update(version=2,criteria=freeze(values['criteria']))
+    if 'label_target' in values or 'label_target' in plan['config']:
+        from quant.label_studies.targets import freeze as freeze_target, window
+        target = freeze_target(values['label_target']) if 'label_target' in values else copy.deepcopy(plan['config']['label_target'])
+        window(target, 0, values['intervals'])
+        frozen.update(version=3, engine_version='quant-fixed-validation-2', label_target=target)
     return frozen
 
 
@@ -67,6 +74,9 @@ def bounds(plan: dict,dataset: dict) -> dict:
         raise ValidationError(f"需在首个新评价开盘前提供至少{plan['required_history']+1}根历史／信号柱，不能跳过前段选择更有利的起点")
     end=start+plan['intervals']
     if end>=len(rows): raise ValidationError(f"新数据不足：固定评价{plan['intervals']}个收益区间，需要{plan['intervals']+1}个新开盘")
+    if plan.get('version') == 3:
+        from quant.label_studies.targets import window
+        window(plan['label_target'], start, end)
     return {'calculation_start':start-1-plan['required_history'],'start':start,'end':end,
         'start_timestamp':rows[start]['timestamp'],'end_timestamp':rows[end]['timestamp'],
         'rule':'earliest_supplied_bar_after_frozen_cutoff_no_test_selection'}

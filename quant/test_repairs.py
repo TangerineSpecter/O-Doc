@@ -97,7 +97,7 @@ class AutomaticRepairTests(TestCase):
 
     def test_collect_repairs_automatically_preserves_parent_and_plans_and_runs_exact_child(self):
         _, run = self.finish()
-        self.assertEqual(run.workflow_version, 16)
+        self.assertEqual(run.workflow_version, 25)
         self.assertIsNone(run.report.data['factors'][0]['expression'])
         root, version, child_id = identifiers(run.report.pk, 0)
         child = FactorCandidate.objects.get(pk=child_id)

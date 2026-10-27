@@ -365,7 +365,8 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
                              'restore_value': row['restore_value'], 'owned': available_stock[row['id']],
                              'purchase_price': row['purchase_price']} for row in potions],
                 'purchase_funds': str(spending_context(run.owner_id, agent.pk)['spendable'])}
-    previous = {'character': character,
+    from .potion_context import decision_state as potion_decision_state
+    previous = {**potion_decision_state(run, profile, catalog), 'character': character,
                 'selected_food': food_summary(food),
                 'selected_dungeon': {'id': dungeon_id, 'name': dungeon['name']},
                 'selected_duration_seconds': duration,
@@ -374,14 +375,29 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
     quantity_choices = {str(value): f'{value}瓶' for value in range(cap + 1)}
     red_count, record = _choice(
         run, agent, 'red_potion_count', previous, quantity_choices, str(min(3, cap)),
-        f'根据角色和已选探索方案决定携带多少瓶红药。可选数量为0至{cap}瓶，只选一个选项。',
+        f'结合当前HP/上限、药剂恢复量与价格、本次时长和最近一次探索摘要选择红药数量，0至{cap}瓶。历史只是参考；仍有红药却倒地不等于携带不足，总回血量为null表示未知，不按时长机械外推。只选一个选项。',
         check=check)
     red_count = int(red_count)
     _record_choice(trace, 'red_potion_count', {**record, 'choice': red_count})
+    red_id = None
+    if red_count:
+        from .potion_context import red_tier_choices
+        tier_choices = red_tier_choices(potions, available_stock, red_count, supplies['purchase_funds'])
+        if tier_choices:
+            tier_fallback = max(tier_choices, key=lambda sid: tier_choices[sid]['restore_value'])
+            red_id, record = _choice(
+                run, agent, 'red_potion_id', {**previous, 'selected_red_potion_count': red_count},
+                tier_choices, tier_fallback,
+                '只选择本次红药档位。结合生命上限、单瓶恢复量、库存和本次数量的采购费用，权衡治疗溢出与价格。全部红药使用所选档位，不足时仅采购同档；最终买不起会缩减数量，不自动换档。',
+                check=check)
+        else:
+            record = {'choice': None, 'source': 'unavailable', 'confidence': None}
+        _record_choice(trace, 'red_potion_id', record)
     blue_limit = max(0, cap - red_count)
     blue_choices = {str(value): f'{value}瓶' for value in range(blue_limit + 1)}
     blue_count, record = _choice(
-        run, agent, 'blue_potion_count', {**previous, 'selected_red_potion_count': red_count},
+        run, agent, 'blue_potion_count', {**previous, 'selected_red_potion_count': red_count,
+                            'selected_red_potion': {'id': red_id, **tier_choices[red_id]} if red_id else None},
         blue_choices, '0',
         f'根据角色和已选探索方案决定携带多少瓶蓝药。总携带上限为{cap}瓶，已选红药{red_count}瓶，因此蓝药只能选择0至{blue_limit}瓶。',
         check=check)
@@ -391,7 +407,8 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
     planned_potions, purchases = {}, {}
     for kind, target in (('heal', red_count), ('mana', blue_count)):
         remaining = target
-        same_kind = sorted((row for row in potions if row['kind'] == kind),
+        same_kind = sorted((row for row in potions if row['kind'] == kind
+                            and (kind != 'heal' or row['id'] == red_id)),
                            key=lambda row: (int(row['restore_value']), int(row['required_level'])), reverse=True)
         for row in same_kind:
             use = min(remaining, available_stock[row['id']])

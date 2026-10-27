@@ -160,7 +160,7 @@ def recover(profile, now):
         if now < local_time(profile.rest_until):
             raise ValueError('倒地休息尚未结束')
         last = max(last, local_time(profile.rest_until))
-        profile.hp = max(1, int(stats(profile)['hp_max']*.2))
+        profile.hp = stats(profile)['hp_max']
         profile.rest_until = None
     blocks = max(0, int((now-last).total_seconds()//300))
     if blocks:

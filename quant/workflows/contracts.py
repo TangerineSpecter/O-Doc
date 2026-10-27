@@ -8,25 +8,25 @@ from quant.research.contracts import digest
 from quant.parameters import domains
 from quant.experiments.planning_capabilities import contract as planning_capabilities
 
-VERSION = 16
+VERSION = 25
 STAGES = ('normalize', 'identify', 'parameters', 'research', 'extract', 'compare', 'review', 'plan', 'publish')
 NAMES = dict(zip(STAGES, ('整理来源', '识别资料', '参数与静态检查', '研究分析', '提取因子', '检索比对', '评价与审查', '设计实验', '发布报告')))
-INCREMENTAL_VERSION = 17
+INCREMENTAL_VERSION = 27
 NAMES['snippets'] = '片段静态解读'
 NAMES['repair'] = '修订候选定义'
 MODEL_STAGES = {'snippets', 'identify', 'parameters', 'research', 'extract', 'repair', 'review', 'plan'}
 
 
 def uses_snippets(version: int) -> bool:
-    return type(version) is int and version in (3, 5, 7, 9, 11, 13, 15, 17)
+    return type(version) is int and version in (3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27)
 
 
 def uses_vocabulary(version: int) -> bool:
-    return type(version) is int and version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
+    return type(version) is int and version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27)
 
 
 def uses_repairs(version: int) -> bool:
-    return type(version) is int and version in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
+    return type(version) is int and version in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27)
 
 
 def stages(version: int) -> tuple:
@@ -83,7 +83,14 @@ def normalized(source_id: str, payload: dict, version: int = 1, vocabulary_ref=N
         'source_status': payload.get('fetch_status', 'not_applicable')}
     if version >= 2:
         from quant.source_structure import analyze
-        result['structure'] = analyze(payload)
+        if version in (19, 20, 21, 22, 23, 24, 25, 26, 27):
+            from quant.source_changes.python_bundle import analyze_source
+            result['structure'] = analyze_source(payload)
+        else:
+            result['structure'] = analyze(payload)
+    if version in (21, 22, 23, 24, 25, 26, 27):
+        from quant.parameters.inventory import build
+        result['parameter_inventory'] = build(payload, 2 if version in (25, 26, 27) else 1)
     if uses_vocabulary(version):
         from quant.taxonomy.contracts import validate_ref
         result['vocabulary_ref'] = validate_ref(vocabulary_ref)
@@ -102,7 +109,7 @@ def input_snapshot(stage: str, source_id: str, payload: dict, requirements: str,
         **({'vocabulary_ref': vocabulary_ref} if stage == 'normalize' and uses_vocabulary(version) else {}),
         **({'snippet_plan': snippet_plan} if stage == 'snippets' else {}),
         **({'planning_capabilities': planning_capabilities()}
-            if version in (16, 17) and stage == 'plan' else {})}
+            if version in (16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27) and stage == 'plan' else {})}
 
 
 def combined(outputs: dict) -> dict:
@@ -129,9 +136,13 @@ def decode(raw: str) -> dict:
     return value
 
 
-def validate_output(stage: str, value: dict, outputs: dict, payload: dict, version: int = 1) -> dict:
+def validate_output(stage: str, value: dict, outputs: dict, payload: dict, version: int = 1,
+                    snippet_plan: dict | None = None) -> dict:
     if stage == 'repair':
         from quant.repairs.contracts import validate
+        if version in (21, 22, 23, 24, 25, 26, 27):
+            from quant.parameters.bindings import repair_origins
+            value = repair_origins(value, outputs['extract']['factors'], digest(payload))
         return validate(value, outputs['extract']['factors'], payload)
     if stage in FIELDS:
         contract = serializers.Serializer()
@@ -141,6 +152,12 @@ def validate_output(stage: str, value: dict, outputs: dict, payload: dict, versi
         # Field-level validation is followed by the owning cross-field checks.
         result = contract.run_validation(value)
         if stage == 'parameters':
+            if version in (21, 22, 23, 24, 25, 26, 27):
+                from quant.parameters.bindings import bind
+                from quant.parameters.inventory import encode
+                inventory = outputs['normalize']['parameter_inventory']
+                result['parameters'] = bind(result['parameters'], value['parameters'], inventory)
+                result.update(parameter_binding_version=inventory['version'], parameter_inventory_json=encode(inventory))
             domains.validate_contract(result['parameters'])
             domains.validate_evidence(result['parameters'], payload)
         if stage == 'review':
@@ -150,9 +167,18 @@ def validate_output(stage: str, value: dict, outputs: dict, payload: dict, versi
             if uses_history(version): result.update(memory_review(value,outputs))
             from quant.research.findings import VERSIONS, from_review
             if version in VERSIONS: result.update(from_review(value, payload))
+            if version in (18, 20, 22, 24, 26, 27):
+                from quant.source_changes.review import from_review as changes_review
+                result.update(changes_review(value, payload, snippet_plan))
         return dict(result)
     if stage == 'extract':
         from quant.factors.contracts import validate_extraction, validate_evidence
+        if version in (21, 22, 23, 24, 25, 26, 27):
+            from quant.parameters.bindings import propagate
+            # Bind before candidate validation so domains and expressions see
+            # only canonical symbols, including explicit ambiguous declarations.
+            if isinstance(value.get('factors'), list) and all(isinstance(row, dict) and isinstance(row.get('parameters'), list) for row in value['factors']):
+                value = {**value, 'factors': propagate(value['factors'], value['factors'], outputs['parameters']['parameters'])}
         result = validate_extraction(value)
         if result.get('extraction_version') != 1:
             raise serializers.ValidationError('提取阶段须明确候选或无候选原因')

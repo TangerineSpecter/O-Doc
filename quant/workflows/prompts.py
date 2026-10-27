@@ -49,7 +49,7 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
         from quant.repairs.prompts import INSTRUCTION
         instructions += INSTRUCTION + domain_prompt()
     elif stage == 'plan':
-        instructions += initial_prompt(strategy=version in (10, 11, 12, 13, 14, 15, 16, 17), nested=version in (16, 17))
+        instructions += initial_prompt(strategy=version in (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27), nested=version in (16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27))
     else:
         instructions += '\n输出结构：' + json.dumps(SHAPES[stage], ensure_ascii=False)
     if stage == 'review':
@@ -61,10 +61,27 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
     # Planning only needs the frozen factors and research constraints; source was
     # already validated in extraction. Other stages retain exact original text.
     context = {'requirements': requirements, 'previous': {key: outputs[key] for key in DEPENDENCIES[stage]}}
-    if version in (16, 17) and stage == 'plan':
+    if version in (21, 22, 23, 24, 25, 26, 27) and 'parameters' in context['previous']:
+        context['previous']['parameters'] = {key: value for key, value in context['previous']['parameters'].items()
+            if key not in ('parameter_binding_version', 'parameter_inventory_json')}
+    if version in (21, 22, 23, 24, 25, 26, 27) and stage == 'parameters':
+        from quant.parameters.inventory import context as parameter_context
+        from quant.parameters.bindings import INSTRUCTION
+        context['parameter_inventory'] = parameter_context(outputs['normalize']['parameter_inventory'])
+        instructions += INSTRUCTION
+        if version in (25, 26, 27):
+            instructions += ('目录v2中的declared_domain由系统读取参数表；参数阶段省略domain，由系统附加，不能改写上下限。'
+                '后续提取/修订按完整前序参数复制domain v5，它仅表示用户提供参数表的范围，不是优化结果或实际配置。'
+                '通达信:=数值常量归constant，计算赋值和冒号输出归state，不能冒充公开输入；external_parameter才是参数表定义。'
+                'blocked说明声明冲突，保留未定位，不以某个同名默认值猜测运行绑定。')
+    if version in (21, 22, 23, 24, 25, 26, 27) and stage in ('extract', 'repair'):
+        instructions += ('参数name是唯一内部符号，表达式和domain关系须用该符号；原变量名在source_binding.source_name。'
+            '原候选复制参数阶段的完整相关行，不合并不同声明；source_binding由系统写入，不得修改。'
+            '修订可以提出新实验参数，但必须说明是假设，不冒充原源码输入。')
+    if version in (16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27) and stage == 'plan':
         from quant.experiments.planning_capabilities import contract
         context['planning_capabilities'] = contract()
-    if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) and stage in ('review', 'plan'):
+    if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27) and stage in ('review', 'plan'):
         from quant.verification.prompts import context as qualification_context, INSTRUCTION as QUALIFICATION_INSTRUCTION
         context['portable_qualification'] = qualification_context(outputs['extract']['factors'])
         instructions += QUALIFICATION_INSTRUCTION
@@ -96,15 +113,31 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
         instructions += INSTRUCTION
     if uses_snippets(version):
         from .snippets import prompt_context
-        context['local_reading_and_source_changes'] = prompt_context(outputs['snippets'], snippet_plan)
+        context['local_reading_and_source_changes'] = prompt_context(outputs['snippets'], snippet_plan,
+            include_change=not (version in (18, 20, 22, 24, 26, 27) and stage in ('review', 'plan')))
         instructions += ('局部片段解读即使沿用，也只是相同局部输入下的历史AI意见。'
             '检查新源码和变化线索对全局依赖、参数、时序及候选的影响；本次评分与实验方案重新形成，不继承旧评分。')
+        if version in (18, 20, 22, 24, 26, 27) and stage == 'review':
+            from quant.source_changes.review import facts, INSTRUCTION
+            context['source_change_review_facts'] = facts(payload, snippet_plan)
+            instructions += INSTRUCTION
+        elif version in (18, 20, 22, 24, 26, 27) and stage == 'plan':
+            context['source_change_review_facts'] = json.loads(outputs['review']['source_change_facts_json'])
+            context['previous']['review'] = {key: value for key, value in context['previous']['review'].items()
+                if key != 'source_change_facts_json'}
+            instructions += '结合源码变化复核及固定事实规划待验证实验；静态依赖不证明原平台可执行，不继承基准最优参数。'
     if stage != 'plan':
         if version >= 2:
             from quant.source_structure import model_context
+            if version in (19, 20, 21, 22, 23, 24, 25, 26, 27):
+                from quant.source_changes.python_bundle import model_context
             context['source_structure'] = model_context(outputs['normalize']['structure'])
             instructions += ('源码结构由本机解析提供，parsed仅表示语法树可读，partial为词法候选；'
                 '同名引用不证明运行时依赖，外部导入未加载。结合原文核对，不把解析结果当编译或回测证据。')
+            if version in (19, 20, 21, 22, 23, 24, 25, 26, 27):
+                instructions += ('新结构的references同时包含调用和数值读取；static_candidates只是按词法作用域及已提供文件的显式导入建立的候选。'
+                    '文件名::符号区分不同文件，行号仍对应完整来源正文；文件中的同名参数和函数不能合并。'
+                    '未读取本机安装包、未实际导入模块，包初始化、动态导出和可变对象仍需验证；省略引用不表示没有依赖。')
         context['source'] = source_context(payload)
         if payload.get('code'):
             if version >= 2:

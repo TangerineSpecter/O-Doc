@@ -3,7 +3,7 @@ from rest_framework import serializers
 from quant.factors.contracts import Evidence
 from .analysis import DIMENSIONS
 
-VERSIONS = (14, 15, 16, 17)
+VERSIONS = (14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27)
 SEVERITIES = ("critical", "high", "medium", "low", "info")
 LABELS = dict(zip(SEVERITIES, ("严重", "高", "中", "低", "提示")))
 CATEGORIES = ("temporal_leakage", "repainting", "dependency", "implementation", "execution", "risk", "parameter", "unsupported_claim", "other")
@@ -54,6 +54,10 @@ def from_review(value, source):
 
 
 def validate_admission(value, workflow_version):
+    from quant.parameters.bindings import validate_admission as parameter_admission
+    parameter_admission(value, workflow_version)
+    from quant.source_changes.review import validate_admission as validate_change_admission
+    validate_change_admission(value, workflow_version)
     if value and ("source_findings_version" in value) != (workflow_version in VERSIONS):
         raise serializers.ValidationError("源码问题清单须绑定支持的研究工作流，历史报告不得追加或删除清单版本")
 

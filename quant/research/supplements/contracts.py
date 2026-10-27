@@ -15,7 +15,7 @@ class SourceFileInput(serializers.Serializer):
     def validate_name(self, value):
         parts=value.split('/')
         allowed=all(char in '._-/ ' or unicodedata.category(char)[0] in 'LNM' for char in value)
-        if not allowed or any(part in ('', '.', '..') or part!=part.strip() for part in parts) or PurePosixPath(value).suffix.lower() not in ('.py','.pine','.mq4','.mqh','.tdx','.txt'):
+        if not allowed or any(part in ('', '.', '..') or part!=part.strip() for part in parts) or PurePosixPath(value).suffix.lower() not in ('.py','.pine','.mq4','.mqh','.tdx','.txt','.csv','.tsv'):
             raise serializers.ValidationError('文件名需为相对源码路径，不含 . 或 .. 路径段')
         return value
 
@@ -51,6 +51,8 @@ def build(parent_id: str, parent_hash: str, parent: dict, submission: dict) -> d
     if submission['expected_source_id'] != parent_id or parent.get('provenance') == 'external_feedback' or not parent.get('code','').strip():
         raise serializers.ValidationError('补充依赖须基于当前主源码快照，不能修改反馈资料')
     language = parent.get('language','text')
+    if language != 'tongdaxin' and any(PurePosixPath(row['name']).suffix.lower() in ('.csv', '.tsv') for row in submission['files']):
+        raise serializers.ValidationError('CSV/TSV参数表仅用于通达信来源；其他依赖请提供源码文件')
     depth = (parent['bundle_depth'] if parent.get('provenance')=='source_supplement' else 0)+1
     if depth>64:
         raise serializers.ValidationError('依赖补充最多64层，请重新收集为独立研究')

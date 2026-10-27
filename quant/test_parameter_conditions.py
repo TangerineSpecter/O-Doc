@@ -131,7 +131,9 @@ class ConditionalContractTests(SimpleTestCase):
 
 
 class ConditionalIntegrationTests(TestCase):
-    setUp = existing.DomainIntegrationTests.setUp
+    def setUp(self):
+        existing.DomainIntegrationTests.setUp(self)
+        self.payload['code'] += '\nslow=26\nenabled=True\n'
     collect = existing.DomainIntegrationTests.collect
     dataset = existing.DomainIntegrationTests.dataset
 

@@ -1,4 +1,6 @@
+import {parameterLabel} from '../../utils/quantParameterSource';
 import {mockMemoryMarkdown} from './researchMemory';
+import {mockSourceChangeMarkdown} from './sourceChangeReview';
 import {mockFindingsMarkdown} from './findings';
 import {publishMockRepairs} from './repairs';
 import {mockFeedbackReport} from './feedback';
@@ -64,15 +66,16 @@ export function publishMockReport(entry: QuantEntryDetail) {
         if (run.kind !== 'analyze' || run.status !== 'completed' || entry.reports!.some(row => row.runId === run.id)) continue;
         const data = structuredClone(run.result.analysis || analysisSample);
         if (data.factors?.[0]?.parameters.some(row => row.domain)) data.parameters = structuredClone(data.factors[0].parameters);
-        const cell = (value: string) => value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
-        const parameterRows = data.parameters.map(row => `| ${cell(row.name)} | ${cell(row.defaultValue || '未知')} | ${cell(row.meaning)} | ${cell(row.suggestion)} |`).join('\n');
+        const cell = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+        const parameterRows = data.parameters.map(row => `| ${cell(parameterLabel(row))} | ${cell(row.defaultValue || '未知')} | ${cell(row.meaning)} | ${cell(row.suggestion)} |`).join('\n');
         const markdown = `# ${data.title}\n\n${data.summary}\n\n## 计算原理\n\n${data.principle}\n\n${data.formula}\n\n## 参数分析\n\n| 参数 | 默认值 | 含义 | 建议 |\n| --- | --- | --- | --- |\n${parameterRows}\n\n## 限制与验证\n\n${data.risks}\n\n${data.validationPlan}`;
         const report: QuantReport = { id: quantId('report'), sourceId: run.resolvedSourceId || run.sourceId || '', runId: run.id, schemaVersion: data.extractionVersion === 1 ? 3 : 2,
-            data, originalMarkdown: markdown+mockFindingsMarkdown(data)+mockMemoryMarkdown(run), markdown:markdown+mockFindingsMarkdown(data)+mockMemoryMarkdown(run), currentRevisionId: '', createdAt: new Date().toISOString(), revisions: [] };
+            data, originalMarkdown: markdown+mockFindingsMarkdown(data)+mockMemoryMarkdown(run)+mockSourceChangeMarkdown(data), markdown:markdown+mockFindingsMarkdown(data)+mockMemoryMarkdown(run)+mockSourceChangeMarkdown(data), currentRevisionId: '', createdAt: new Date().toISOString(), revisions: [] };
         entry.reports!.unshift(report);
         for (const parameter of data.parameters) if (parameter.domain) {
             report.markdown += `\n\n本机实验将检查：${describeParameterDomain(parameter.name, parameter.domain)}\n\n本地约束展示样例，未调用模型。原文：\n\n${parameter.domain.evidence.map(row => row.quote).join('\n\n')}`;
         }
+        if (data.parameterBindingVersion) report.markdown += '\n\n参数身份为人工 local 展示，文件与参数表来自预制语料，与本次粘贴源码不保证对应；没有运行真实解析器或模型。未定位参数不进入可执行候选。';
         publishMockRepairs(entry, report);
         if (report.data.factorRepair?.selected.length) report.markdown += '\n\n## AI 定义修订\n\n原始候选保留，修订是独立假设，不继承评分或实验结果。\n\n' + report.data.factorRepair.items.map(row => row.summary + (row.definition ? '\n\n修订公式：' + row.definition.formula : '') + '\n\n仍待核对：' + row.remainingUnknowns.join('、')).join('\n\n');
         mockInitialPlan(entry, report);

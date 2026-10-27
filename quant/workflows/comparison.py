@@ -1,10 +1,17 @@
 """Frozen library comparison: structural matches and shared mechanisms, not proof."""
-from quant.factors.expression import expression_hash
+from quant.factors.expression import expression_hash, expression_hash_without_parameter_origins
 
 
-def match(factor: dict, candidate: dict, identity: str, content_hash: str) -> dict | None:
-    exact = expression_hash(factor)
-    same = bool(exact) and exact == expression_hash(candidate)
+def comparison_hash(factor: dict, version: int) -> str:
+    if version not in (23, 24, 25, 26, 27): return expression_hash(factor)
+    # Origin is evidence about a declaration, not a computational contract.
+    # Keep the persisted candidate hash and historical comparisons untouched.
+    return expression_hash_without_parameter_origins(factor)
+
+
+def match(factor: dict, candidate: dict, identity: str, content_hash: str, version: int = 1) -> dict | None:
+    exact = comparison_hash(factor, version)
+    same = bool(exact) and exact == comparison_hash(candidate, version)
     if not same and (factor['family'] == 'other' or factor['family'] != candidate['family']):
         return None
     return {'candidate_id': identity, 'candidate_hash': content_hash,
@@ -40,10 +47,10 @@ def library_snapshot(run, frozen: dict | None = None, factors=None, continuation
 def compare(rows: list, scope: dict, factors: list[dict], version=1) -> dict:
     matches = []
     for index, factor in enumerate(factors):
-        options = [value for row in rows if (value := match(factor, row.data, row.pk, row.content_hash))]
+        options = [value for row in rows if (value := match(factor, row.data, row.pk, row.content_hash, version))]
         options.sort(key=lambda row: (row['basis'] != 'same_expression_contract', row['candidate_id']))
         matches.append({'factor_index': index, 'items': options[:5], 'matched_in_scope': len(options)})
     from .memory import uses_history
     import copy
-    return {**({'research_memory':copy.deepcopy(scope['research_memory'])} if uses_history(version) else {}),'method': 'bounded-structure-family-v1', 'scope_limit': 2000, 'scanned': len(rows),
+    return {**({'research_memory':copy.deepcopy(scope['research_memory'])} if uses_history(version) else {}),'method': 'bounded-structure-family-v2' if version in (23, 24, 25, 26, 27) else 'bounded-structure-family-v1', 'scope_limit': 2000, 'scanned': len(rows),
         'truncated': scope['truncated'], 'semantic_status': 'not_requested', 'matches': matches}

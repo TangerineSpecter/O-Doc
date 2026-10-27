@@ -1,4 +1,8 @@
 export interface QuantParameterValue {kind: 'unknown' | 'int' | 'float' | 'bool' | 'string'; value: string | number | boolean | null}
+export type QuantParameterSourceBinding = {version: 1; sourceHash: string; sourceName: string} & (
+    {status: 'resolved'; id: string; file: string; scope: string; kind: string; ordinal: number; type: string;
+        defaultRaw: string; literal: QuantParameterValue; line: number; endLine: number; quote: string; conditional: boolean}
+    | {status: 'unresolved' | 'hypothesis'; reason: string});
 export interface QuantParameterDeclaration {name: string; type: string; declaration: string; defaultRaw: string; line: number; quote: string}
 export interface QuantParameterConfiguration {
     parserVersion: string; status: 'imported_configuration_not_verified_execution';
@@ -22,8 +26,8 @@ export type QuantParameterOperand = {parameter: string} | {value: number | boole
 export type QuantParameterPredicate = {operator: QuantParameterComparisonOperator; left: QuantParameterOperand; right: QuantParameterOperand}
     | {operator: 'all' | 'any'; arguments: QuantParameterPredicate[]} | {operator: 'not'; argument: QuantParameterPredicate};
 export interface QuantParameterCondition {when: QuantParameterPredicate; require: QuantParameterPredicate}
-export type QuantParameterDomain = ({version: 1; conditions?: never} | {version: 2 | 3 | 4; conditions: QuantParameterCondition[]}) & { minimum: number | null; maximum: number | null; step: number | null; stepOrigin: number | null;
+export type QuantParameterDomain = ({version: 1; conditions?: never} | {version: 2 | 3 | 4 | 5; conditions: QuantParameterCondition[]}) & { minimum: number | null; maximum: number | null; step: number | null; stepOrigin: number | null;
     choices: (number | boolean | string)[];
     relations: {operator: 'lt' | 'lte' | 'gt' | 'gte' | 'eq' | 'ne'; parameter: string}[];
-    evidence: {field: 'code' | 'description' | 'web_markdown'; quote: string}[];
+    evidence: {field: 'code' | 'description' | 'web_markdown' | 'parameters'; quote: string}[];
 }

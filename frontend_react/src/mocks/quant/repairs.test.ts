@@ -22,7 +22,7 @@ async function collect(marker: string) {
 }
 test('自动生成 AI 修订版本，原提取不改写，方案明确绑定修订候选并可追溯', async () => {
     const entry = await collect('LOCAL_AI_REPAIR'), report = entry.reports![0];
-    assert.equal(entry.runs[0].workflow?.version, 16); assert.equal(entry.runs[0].workflow?.maxModelCalls, 7);
+    assert.equal(entry.runs[0].workflow?.version, 25); assert.equal(entry.runs[0].workflow?.maxModelCalls, 7);
     assert.equal(entry.runs[0].workflow?.stages.length, 10);
     assert.equal(report.data.factorRepair?.items[0].status, 'revised');
     assert.equal(report.data.factors?.[0].expression, null);

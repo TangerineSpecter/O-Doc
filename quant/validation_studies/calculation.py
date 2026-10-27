@@ -25,5 +25,8 @@ def evaluate(plan: dict,snapshot: dict,bounds: dict,check=None, *, replay=False)
     baseline=runner(rows,values,**options,baseline=True)
     output={'engine_version':plan['engine_version'],'final':final,'baseline':baseline,
         'selection':'fixed_registered_recipe_no_search_or_test_based_selection','independent_validation':False}
+    if plan.get('version') == 3:
+        from quant.label_studies.calculation import evaluate as evaluate_labels
+        output['label_evaluation'] = evaluate_labels(rows, values, plan['label_target'], options['start'], options['end'], guard)
     validate_result_size(output)
     return output

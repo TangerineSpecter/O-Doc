@@ -14,11 +14,14 @@ from .backtest import partitions, simulate
 from .nested import RULE as NESTED_RULE, selection_metric, selection_key
 
 VERSION = 'quant-local-search-2'
-SUPPORTED_VERSIONS = tuple(f'quant-local-search-{number}' for number in range(1, 9))
+SUPPORTED_VERSIONS = tuple(f'quant-local-search-{number}' for number in range(1, 16))
 FIELDS = {'open', 'high', 'low', 'close', 'volume'}
 
 
 def engine_for(config):
+    if 'label_target' in config:
+        from quant.label_studies.search import ENGINES
+        return ENGINES[engine_for({key: value for key, value in config.items() if key != 'label_target'})]
     if config.get('walk_forward', {}).get('version') == 2:
         return 'quant-local-search-8' if 'strategy' in config else 'quant-local-search-7'
     if 'strategy' in config:
@@ -27,6 +30,10 @@ def engine_for(config):
 
 
 def validate_engine(version, config):
+    from quant.label_studies.search import ENGINES
+    if 'label_target' in config or version in ENGINES.values():
+        if 'label_target' not in config or version != engine_for(config): raise ValidationError('标签目标与实验引擎版本不一致')
+        return
     if version in ('quant-local-search-7', 'quant-local-search-8') or config.get('walk_forward', {}).get('version') == 2:
         if version != engine_for(config): raise ValidationError('嵌套验证配置与引擎版本不一致')
         return
@@ -42,6 +49,8 @@ def validate_engine(version, config):
 
 
 def uses_evolution(version, config):
+    from quant.label_studies.search import base_engine
+    version = base_engine(version)
     return version == 'quant-local-search-3' or version == 'quant-local-search-5' and 'evolution' in config
 
 
@@ -131,6 +140,9 @@ def combine(a: dict, b: dict, operation: str) -> dict:
 def pareto(attempts: list[dict]) -> list[dict]:
     eligible = [item for item in attempts if item['status'] == 'evaluated']
     def objectives(item):
+        from quant.label_studies.search import metric
+        labels = metric(item, 'train')
+        if labels: return (labels['spearman_ic'], labels['coverage'], -item['complexity'])
         data = selection_metric(item, 'train')
         return (data['total_return'], -data['max_drawdown'], -data['turnover'], -item['complexity'])
     def dominates(a, b):
@@ -141,8 +153,11 @@ def pareto(attempts: list[dict]) -> list[dict]:
 
 def validate_plan(seeds: list[dict], config: dict) -> None:
     required = {'seed', 'max_candidates', 'generations', 'threshold', 'fee_bps', 'slippage_bps', 'gap', 'seconds'}
-    if not isinstance(config, dict) or not required <= set(config) or set(config) - required - {'evolution', 'walk_forward', 'strategy'} or any(type(config[key]) is not int for key in ('seed', 'max_candidates', 'generations', 'gap', 'seconds')):
+    if not isinstance(config, dict) or not required <= set(config) or set(config) - required - {'evolution', 'walk_forward', 'strategy', 'label_target'} or any(type(config[key]) is not int for key in ('seed', 'max_candidates', 'generations', 'gap', 'seconds')):
         raise ValidationError('实验预算与随机种子合同无效')
+    if 'label_target' in config:
+        from quant.label_studies.targets import validate
+        validate(config['label_target'])
     if not 0 <= config['seed'] < 2**32 or not 1 <= config['max_candidates'] <= 32 or not 1 <= config['generations'] <= 4 or not 1 <= config['seconds'] <= 60:
         raise ValidationError('每批最多 32 个候选、4 代、60 秒')
     if not isinstance(seeds, list) or not 1 <= len(seeds) <= min(8, config['max_candidates']):
@@ -184,11 +199,14 @@ def run_batch(snapshot: dict, seeds: list[dict], config: dict, *, check=None, ch
     validate_plan(seeds, config)
     engine_version = engine_version or engine_for(config)
     validate_engine(engine_version, config)
-    if engine_version in ('quant-local-search-4', 'quant-local-search-6', 'quant-local-search-7', 'quant-local-search-8'):
+    from quant.label_studies.search import base_engine, validate_windows
+    if base_engine(engine_version) in ('quant-local-search-4', 'quant-local-search-6', 'quant-local-search-7', 'quant-local-search-8'):
         from .walk_forward import run_walk_forward
         return run_walk_forward(snapshot, seeds, {key: value for key, value in config.items() if key != 'walk_forward'},
             config['walk_forward'], check=check, checkpoint=checkpoint, engine_version=engine_version)
-    return _run_partitioned(snapshot, seeds, config, partitions(len(snapshot['rows']), gap=config['gap']),
+    split = partitions(len(snapshot['rows']), gap=config['gap'])
+    validate_windows(config, [split])
+    return _run_partitioned(snapshot, seeds, config, split,
         check=check, checkpoint=checkpoint, engine_version=engine_version)
 
 
@@ -214,8 +232,10 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
     def evaluate(value, parents, operation, generation, requested_parameters=None, transformation=None):
         item = {'id': f'attempt-{len(attempts) + 1}', 'parents': parents, 'operation': operation,
             'generation': generation, 'requested_parameters': requested_parameters, 'status': 'pending', 'reason': '', 'metrics': {}}
+        if 'label_target' in config: item['label_evaluation'] = {'version': 1, 'metrics': {}}
         if inner_partitions:
             item['inner_evaluation'] = {'version': 1, 'planned_folds': len(inner_partitions), 'folds': [], 'summary': None}
+            if 'label_target' in config: item['inner_evaluation'].update(version=2, label_summary=None)
         if transformation is not None:
             item['transformation'] = copy.deepcopy(transformation)
         attempts.append(item)
@@ -240,11 +260,17 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
                     result = simulate_config(development, values, config, record_trades=False, start=start, end=end, threshold=config['threshold'],
                         fee_bps=config['fee_bps'], slippage_bps=config['slippage_bps'], output_type=trial['output_type'], check=guard)
                     item['metrics'][part] = {key: value for key, value in result.items() if key not in ('curve', 'returns')}
+                    if 'label_target' in config:
+                        from quant.label_studies.search import evaluate_part
+                        evaluate_part(item['label_evaluation']['metrics'], part, development, values, config, start, end, guard)
                 metrics = list(item['metrics'].values())
             if any(metric.get('execution', {}).get('status') == 'insolvent' for metric in metrics):
                 item['status'], item['reason'] = 'rejected', '开发区间策略净值耗尽；保留亏损和资金缺口，不参与父代选择'
             elif any(metric['missing_signals'] == metric['bars'] for metric in metrics):
                 item['status'], item['reason'] = 'rejected', '训练或验证期全部信号缺失，无法评价'
+            elif 'label_target' in config and (item.get('inner_evaluation', {}).get('label_summary') is None if inner_partitions else
+                    any(row['status'] != 'completed' for row in item['label_evaluation']['metrics'].values())):
+                item['status'], item['reason'] = 'rejected', '标签有效配对不足或相关未定义，不参与标签选择'
             else:
                 item['status'] = 'evaluated'
                 recipes[item['id']] = trial
@@ -304,7 +330,8 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
             parents = pareto(attempts)
             pairs = [(a, b) for i, a in enumerate(parents) for b in parents[i + 1:]]
             randomizer.shuffle(pairs)
-            if engine_version in (VERSION, 'quant-local-search-5') and generation == 1:
+            from quant.label_studies.search import base_engine
+            if base_engine(engine_version) in (VERSION, 'quant-local-search-5') and generation == 1:
                 # Explicitly chosen weak parents remain eligible for first-generation
                 # combinations. Individual dominance is not evidence against synergy.
                 usable = [row for row in bases if row['status'] == 'evaluated']
@@ -331,7 +358,7 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
     # Fixed risk-adjusted selection on validation only. Not a calibrated score.
     frontier.sort(key=selection_key)
     selected = frontier[0] if frontier else None
-    final, baseline = None, None
+    final, baseline, label_final = None, None, None
     if selected and stopped not in ('time_budget', 'cancelled'):
         try:
             guard()
@@ -345,9 +372,13 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
             options = dict(start=start, end=end, threshold=config['threshold'], fee_bps=config['fee_bps'], slippage_bps=config['slippage_bps'], output_type=trial['output_type'], check=guard)
             final = simulate_config(final_rows, values, config, **options)
             baseline = simulate_config(final_rows, values, config, baseline=True, **options)
+            if 'label_target' in config:
+                from quant.label_studies.calculation import evaluate as evaluate_labels
+                label_final = evaluate_labels(final_rows, values, config['label_target'], start, end, guard)
         except (TimeoutError, InterruptedError) as exc:
             stopped = 'time_budget' if isinstance(exc, TimeoutError) else 'cancelled'
             final, baseline = None, None
+            label_final = None
     output = {'engine_version': engine_version, 'dataset_hash': digest(snapshot), 'config': config, 'partitions': split,
         'seed_plan': [{'id': seed['id'], 'source_hash': digest(seed['candidate']), 'bindings': seed['bindings'], 'parameters': seed['parameters'], 'variants': seed.get('variants', [])} for seed in seeds],
         'attempts': attempts, 'selection_rule': NESTED_RULE if inner_partitions else 'train_pareto_then_validation_return_minus_drawdown_v1',
@@ -366,4 +397,10 @@ def _run_partitioned(snapshot, seeds, config, split, *, check=None, checkpoint=N
     if 'strategy' in config:
         from quant.strategies.policy import LIMITATIONS
         output['limitations'] = LIMITATIONS + output['limitations'][3:]
+    if 'label_target' in config:
+        from quant.label_studies.search import RULE, NESTED_RULE as LABEL_NESTED_RULE
+        output.update(label_holdout=label_final, selection_rule=LABEL_NESTED_RULE if inner_partitions else RULE)
+        output['limitations'][0] = ('本次按训练标签Rank IC/覆盖率/复杂度Pareto与验证标签Rank IC/覆盖率选择，交易收益单列，不作为标签选择指标。'
+            '每段先剔除标签终点越界的起点；相关未定义或有效配对不足的候选保留淘汰，不填0。'
+            '仅选择后计算测试标签；重叠配对不是独立样本，不据IC宣称显著性或最优参数。' + output['limitations'][0])
     return output

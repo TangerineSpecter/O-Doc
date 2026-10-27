@@ -55,16 +55,16 @@ class WorkflowTests(TestCase):
         for stage, prompt in zip([s for s in STAGES if s in MODEL_STAGES], prompts):
             self.assertIn(NAMES[stage], prompt)
         self.assertNotIn(self.payload['code'], prompts[-1])
-        self.assertEqual(run.workflow_version, 16)
+        self.assertEqual(run.workflow_version, 25)
         for text in prompts[:-1]: self.assertIn('source_structure', text)
         self.assertNotIn('source_structure', prompts[-1])
         structure = run.workflow_steps.get(stage='normalize').outcome.data['output']['structure']
         self.assertEqual(structure['status'], 'parsed')
-        self.assertIn('factor', [row['name'] for row in structure['nodes']])
+        self.assertIn('__source__.py::factor', [row['name'] for row in structure['nodes']])
         self.assertIn('normalize', run.workflow_steps.get(stage='identify').input['dependencies'])
         detail = self.client.get(self.run_url + run.pk + '/workflow/normalize/').json()['data']
         self.assertEqual(detail['sourceCode'], self.payload['code'])
-        self.assertEqual(next(row for row in detail['structure']['nodes'] if row['name'] == 'factor')['startLine'], 2)
+        self.assertEqual(next(row for row in detail['structure']['nodes'] if row['name'] == '__source__.py::factor')['startLine'], 2)
         self.assertEqual(WorkflowOutcome.objects.count(), 10)
         response = self.client.get(self.run_url + run.pk + '/').json()['data']
         self.assertEqual([s['status'] for s in response['workflow']['stages']], ['completed'] * 10)

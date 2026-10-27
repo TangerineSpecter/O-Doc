@@ -12,6 +12,7 @@ export interface QuantWalkForwardPolicy {
     trainBars: number; validationBars: number; testBars: number; warmupBars: number;
 }
 export interface QuantExperimentConfig {
+    labelTarget?:import('./quantLabels').QuantLabelInput;
     strategy?: import('./quantStrategy').QuantStrategyPolicy;
     evolution?: QuantEvolutionPolicy;
     walkForward?: QuantWalkForwardPolicy;

@@ -40,7 +40,7 @@ def groups(attempts, plan, fail):
         if plan['config']['walk_forward']['version'] == 2:
             from .nested_snapshot import validate
             validate_attempts([validate(row, plan['config']['walk_forward']['inner_folds'], fail,
-                strategy=budget.get('strategy')) for row in local], inner, fail)
+                strategy=budget.get('strategy'), label_target=budget.get('label_target')) for row in local], inner, fail)
         else:
             validate_attempts(local, inner, fail)
         # A fold must restart every original seed, then its declared variants.
@@ -78,6 +78,7 @@ def validate_output(envelope, request, dataset, checkpoints, fail):
     policy = plan['config']['walk_forward']
     keys = {'engine_version', 'dataset_hash', 'config', 'partitions', 'seed_plan', 'attempts', 'selection_rule',
         'frontier_ids', 'selected_id', 'holdout_status', 'holdout', 'buy_hold_baseline', 'stop_reason', 'limitations', 'walk_forward'}
+    if 'label_target' in plan['config']: keys.add('label_holdout')
     if not isinstance(output, dict) or set(output) != keys:
         fail('滚动实验结果字段无效')
     temporal = output['walk_forward']
@@ -98,6 +99,8 @@ def validate_output(envelope, request, dataset, checkpoints, fail):
     if policy['version'] == 2:
         fold_keys.add('inner_windows')
     final_fields = ('frontier_ids', 'selected_id', 'holdout_status', 'holdout', 'buy_hold_baseline')
+    if 'label_target' in plan['config']:
+        fold_keys.add('label_holdout'); final_fields += ('label_holdout',)
     for index, (fold, group, schedule) in enumerate(zip(folds, grouped, schedules)):
         items, local, inner, mapping = group
         if (not isinstance(fold, dict) or set(fold) != fold_keys

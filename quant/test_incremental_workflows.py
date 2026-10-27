@@ -17,9 +17,13 @@ from utils.sync_manager import SyncManager, SyncError
 
 
 def local_answer(value):
-    return {'units': [{'input_hash': item['input_hash'], 'observations': [
-        {'quote': item['code'].splitlines()[0], 'start_line': 1, 'end_line': 1, 'reading': '局部文本的人工模拟解读'}],
-        'unknowns': ['全局行为尚待结合整份源码核对']} for item in value['units']]}
+    result = []
+    for item in value['units']:
+        index, line = next((index, line) for index, line in enumerate(item['code'].splitlines()) if line.strip() and not line.startswith('# COMPONENT PART '))
+        result.append({'input_hash': item['input_hash'], 'observations': [
+            {'quote': line, 'start_line': index + 1, 'end_line': index + 1, 'reading': '局部文本的人工模拟解读'}],
+            'unknowns': ['全局行为尚待结合整份源码核对']})
+    return {'units': result}
 
 
 class LocalReadingContractTests(PureTestCase):
@@ -92,7 +96,12 @@ class LocalReadingContractTests(PureTestCase):
 
 
 class IncrementalWorkflowTests(TestCase):
-    setUp = fixtures.AnalysisTests.setUp
+    def setUp(self):
+        fixtures.AnalysisTests.setUp(self)
+        # These tests freeze the historical v26 prompt/reuse contract. New v27
+        # component dependencies have separate end-to-end coverage.
+        versions = patch('quant.workflows.contracts.INCREMENTAL_VERSION', 26)
+        versions.start(); self.addCleanup(versions.stop)
 
     def seed(self):
         self.entry = Entry.objects.create(anthology=self.collection, title='增量源码研究')
@@ -119,10 +128,24 @@ class IncrementalWorkflowTests(TestCase):
 
     def finish(self, run, fail_snippets=False):
         def answer(_config, text, **kwargs):
-            if '源码片段静态解读员' in text:
+            if '源码片段静态解读员' in text or '量化源码组件分析员' in text:
                 if fail_snippets: return '{"units": []}'
                 return json.dumps(local_answer(json.loads(text.split('材料：', 1)[1])))
-            return json.dumps(fixtures.result())
+            result = fixtures.result()
+            context = json.loads(text.split('材料：', 1)[1])
+            if 'parameter_inventory' in context:
+                declaration = next((row for row in context['parameter_inventory']['declarations']
+                    if row['source_name'] == 'N' and row['file'] == '__source__.py' and row['scope'] == '<module>'), None)
+                if declaration:
+                    result['parameters'][0].update(name=declaration['symbol'], binding_id=declaration['id'],
+                        default_value=json.dumps(declaration['literal']['value']) if declaration['literal']['kind'] != 'unknown' else '')
+            if 'source_change_review_facts' in context:
+                fixed = context['source_change_review_facts']
+                result['source_change_assessment'] = {'summary': '人工响应：核对新旧原文，未运行源码。',
+                    'nodes': [{'node_id': row['id'], 'analysis': '人工复核该静态变化或潜在影响，结合本次源码重新研究。',
+                        'verification_needed': '仍需独立验证真实依赖与时序。'} for row in fixed['nodes']],
+                    'limitations': ['未知与省略项尚未核查，不证明安全复用或平台通过。']}
+            return json.dumps(result)
         with patch('quant.worker.complete', side_effect=answer) as model:
             execute(run.pk)
         run.refresh_from_db()
@@ -134,7 +157,7 @@ class IncrementalWorkflowTests(TestCase):
         original = copy.deepcopy(ResearchReport.objects.get(run=old).data)
         source2 = self.version(self.code.replace('x * 2', 'x * 3'))
         run2 = self.start(source2, 'incremental_first_0001', old)
-        self.assertEqual(run2.workflow_version, 17)
+        self.assertEqual(run2.workflow_version, 26)
         self.assertEqual(self.finish(run2).call_count, 7)
         source3 = self.version(self.code.replace('x * 2', 'x * 4'))
         run3 = self.start(source3, 'incremental_second_0001', run2)
@@ -175,7 +198,7 @@ class IncrementalWorkflowTests(TestCase):
         third = self.start(source3, 'incremental_metadata_02', second)
         self.assertEqual(self.finish(third).call_count, 6)
         self.assertTrue(all(unit['reused_from'] for unit in third.workflow_steps.get(stage='snippets').input['snippet_plan']['units']))
-        self.assertEqual(old.workflow_version, 16)
+        self.assertEqual(old.workflow_version, 25)
         self.assertEqual(old.workflow_steps.count(), 10)
         snapshot = SyncManager().build_snapshot_data(); validate(snapshot, metadata(snapshot))
 
@@ -192,7 +215,7 @@ class IncrementalWorkflowTests(TestCase):
         old = self.seed(); source = self.version(self.code + '# v2\n')
         current = self.start(source, 'incremental_freeze_001', old)
         def failed(_config, text, **kwargs):
-            if '源码片段静态解读员' in text: return json.dumps(local_answer(json.loads(text.split('材料：', 1)[1])))
+            if '源码片段静态解读员' in text or '量化源码组件分析员' in text: return json.dumps(local_answer(json.loads(text.split('材料：', 1)[1])))
             if '“研究分析”' in text: raise RuntimeError('isolated model failure')
             return json.dumps(fixtures.result())
         with patch('quant.worker.complete', side_effect=failed): execute(current.pk)
@@ -250,3 +273,102 @@ class IncrementalWorkflowTests(TestCase):
         reply = self.client.post(base + 'runs/', {'kind': 'analyze', 'source_id': foreign.pk,
             'resume_run_id': old.pk, 'request_key': 'incremental_foreign_02'}, format='json')
         self.assertEqual(reply.status_code, 404)
+
+    def test_old_17_baseline_then_scoped_20_report_and_rehashed_review_rejected(self):
+        old = self.seed()
+        code = self.code + '\nM=N*2\ndef alias(x): return x*M\n'
+        legacy_source = self.version(code)
+        with patch('quant.workflows.contracts.INCREMENTAL_VERSION', 17):
+            legacy = self.start(legacy_source, 'legacy_scoped_base001', old)
+        self.finish(legacy)
+        original = copy.deepcopy(legacy.result)
+        legacy_plan = legacy.workflow_steps.get(stage='snippets').input['snippet_plan']
+        self.assertEqual(legacy_plan['version'], 1)
+        self.assertNotIn('source_change_review_version', legacy.result)
+        source = self.version(code.replace('N=20', 'N=25'))
+        current = self.start(source, 'scoped_18_next_0001', legacy)
+        calls = self.finish(current)
+        plan = current.workflow_steps.get(stage='snippets').input['snippet_plan']
+        self.assertEqual(plan['version'], 3)
+        self.assertGreater(sum(bool(row['reused_from']) for row in plan['units']), 0)
+        fixed = json.loads(current.result['source_change_facts_json'])
+        self.assertEqual(next(row for row in fixed['nodes'] if row['name'] == '__source__.py::alias')['impact'], 'potential')
+        self.assertEqual(current.result['source_change_review_version'], 2)
+        report = ResearchReport.objects.get(run=current)
+        self.assertIn('## 源码变化影响复核', report.markdown)
+        self.assertIn('仍需验证', report.markdown)
+        review_text = next(call.args[1] for call in calls.call_args_list if '“评价与审查”' in call.args[1])
+        context = json.loads(review_text.split('材料：', 1)[1])
+        self.assertIsNone(context['local_reading_and_source_changes']['source_change'])
+        self.assertEqual(context['source_change_review_facts'], fixed)
+        planning = json.loads(next(call.args[1] for call in calls.call_args_list if '“设计实验”' in call.args[1]).split('材料：', 1)[1])
+        self.assertEqual(planning['source_change_review_facts'], fixed)
+        self.assertIsNone(planning['local_reading_and_source_changes']['source_change'])
+        self.assertNotIn('source_change_facts_json', planning['previous']['review'])
+        legacy.refresh_from_db(); self.assertEqual(legacy.result, original)
+        snapshot = SyncManager().build_snapshot_data()
+        validate(snapshot, metadata(snapshot))
+        # A new device reconstructs from source/plan even with no local stages.
+        step = current.workflow_steps.get(stage='review')
+        WorkflowStep.objects.all().delete()
+        bad = copy.deepcopy(snapshot)
+        row = next(item for item in bad if item['model'] == 'quant.workflowoutcome' and item['fields']['step'] == step.pk)
+        fixed['target_source_hash'] = '0' * 64
+        from quant.source_changes.review import encode
+        row['fields']['data']['output']['source_change_facts_json'] = encode(fixed)
+        row['fields']['content_hash'] = digest(row['fields']['data'])
+        with self.assertRaises(SyncError): validate(bad, metadata(bad))
+        validate(snapshot, metadata(snapshot))
+
+    def test_missing_ai_change_review_fails_without_report_and_can_resume(self):
+        old = self.seed()
+        original = copy.deepcopy(ResearchReport.objects.get(run=old).data)
+        source = self.version(self.code.replace('x * 2', 'x * 3'))
+        run = self.start(source, 'missing_change_review01', old)
+        def answer(_config, text, **kwargs):
+            if '源码片段静态解读员' in text or '量化源码组件分析员' in text:
+                return json.dumps(local_answer(json.loads(text.split('材料：', 1)[1])))
+            return json.dumps(fixtures.result())
+        with patch('quant.worker.complete', side_effect=answer): execute(run.pk)
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'failed')
+        self.assertEqual(run.workflow_steps.get(stage='review').outcome.data['status'], 'failed')
+        self.assertFalse(ResearchReport.objects.filter(run=run).exists())
+        retry = self.start(source, 'resume_change_review001', run)
+        self.assertEqual(self.finish(retry).call_count, 2)
+        self.assertEqual(retry.result['source_change_review_version'], 2)
+        self.assertEqual(ResearchReport.objects.get(run=old).data, original)
+        snapshot = SyncManager().build_snapshot_data(); validate(snapshot, metadata(snapshot))
+
+    def test_legacy_18_bundle_is_preserved_when_new_22_follows_file_dependencies(self):
+        self.payload['code'] = 'from helper import calc\nN=20\ndef factor(close): return calc(close)\n'
+        first = self.seed()
+        def supplement(source, code, key):
+            saved = self.client.post(self.base + f'sources/{source.pk}/supplements/', {
+                'expected_source_id': source.pk, 'request_key': key, 'reason': '检查显式依赖正文变化',
+                'files': [{'name': 'helper.py', 'code': code}], 'analyze': False}, format='json')
+            self.assertEqual(saved.status_code, 200, saved.data)
+            return SourceRevision.objects.get(pk=saved.data['data']['source_id'])
+        helper = 'N=20\nM=N*2\ndef calc(x): return x*M\n'
+        source1 = supplement(self.source, helper, 'legacy_bundle_source01')
+        normal = self.start(source1, 'normal_bundle_19_001'); self.finish(normal)
+        self.assertEqual(normal.workflow_version, 25)
+        self.assertEqual(normal.workflow_steps.get(stage='normalize').outcome.data['output']['structure']['parser'], 'python-provided-file-bindings-v1')
+        source2 = supplement(source1, helper.replace('N=20', 'N=30'), 'legacy_bundle_source02')
+        with patch('quant.workflows.contracts.INCREMENTAL_VERSION', 18):
+            legacy = self.start(source2, 'legacy_bundle_18_001', normal)
+        self.finish(legacy)
+        old_plan = copy.deepcopy(legacy.workflow_steps.get(stage='snippets').input['snippet_plan'])
+        old_report = copy.deepcopy(ResearchReport.objects.get(run=legacy).data)
+        self.assertEqual(old_plan['version'], 2)
+        self.assertEqual(old_plan['change']['structure']['new_parser'], 'python-3.11-ast-v1')
+        source3 = supplement(source2, helper.replace('N=20', 'N=40'), 'new_bundle_source_003')
+        current = self.start(source3, 'new_bundle_20_0001', legacy); self.finish(current)
+        self.assertEqual(current.workflow_version, 26)
+        self.assertEqual(current.workflow_steps.get(stage='snippets').input['snippet_plan']['version'], 3)
+        fixed = json.loads(current.result['source_change_facts_json'])
+        self.assertEqual(fixed['new_parser'], 'python-provided-file-bindings-v1')
+        self.assertEqual(next(row for row in fixed['nodes'] if row['name'] == '__source__.py::factor')['impact'], 'potential')
+        self.assertEqual(ResearchReport.objects.get(run=legacy).data, old_report)
+        self.assertEqual(legacy.workflow_steps.get(stage='snippets').input['snippet_plan'], old_plan)
+        snapshot = SyncManager().build_snapshot_data(); validate(snapshot, metadata(snapshot))

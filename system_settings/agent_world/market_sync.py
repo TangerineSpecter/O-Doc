@@ -116,6 +116,13 @@ def reconcile_market() -> None:
             raise SyncError('市场目标与计划归属不一致')
         if goal.filled_quantity > goal.quantity:
             raise SyncError('市场目标完成数量超过需求')
+    from .market_equipment_selection import KEY, validate as validate_selection
+    for plan in MarketPlan.objects.all():
+        if KEY in (plan.context or {}):
+            try:
+                validate_selection(plan.context[KEY])
+            except (ValueError, TypeError, KeyError, IndexError) as exc:
+                raise SyncError('市场装备暂选进度无效或版本过新，请升级后重新同步') from exc
     for row in MarketDisposition.objects.all():
         if row.sell_ratio + row.list_ratio > 100 or row.star_order not in ('high', 'low'):
             raise SyncError('市场处置策略比例无效')

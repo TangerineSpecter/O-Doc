@@ -65,7 +65,9 @@ def context(run: Exploration) -> dict:
                for row in catalog.tables['potions'] if row.get('enabled') == '1' and int(row['required_level']) <= level]
     from .elixir import candidates as elixir_candidates
     elixirs = elixir_candidates(agent.pk, run.owner_id)
+    from .potion_context import last_exploration
     return {'constraints':run.snapshot['constraints'],'adventure':adventure,
+        'last_exploration':last_exploration(run),
         'dungeons':dungeons,'styles':styles,'potions':potions,'elixirs':elixirs,
         'elixir_carry_cap':5,
         'balance':str(agent.money),'inventory':{r['id']:stock_quantity(agent.pk,run.owner_id,'combat.'+r['id']) for r in potions},

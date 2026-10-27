@@ -17,6 +17,11 @@ class Parameter(serializers.Serializer):
     suggestion = serializers.CharField(max_length=3000)
     evidence = serializers.CharField(max_length=3000)
     domain = serializers.JSONField(required=False)
+    source_binding = serializers.JSONField(required=False)
+
+    def validate_source_binding(self, value):
+        from quant.parameters.bindings import validate_origin
+        return validate_origin(value)
 
     def validate_domain(self, value):
         return domains.validate_domain(value)
@@ -73,6 +78,10 @@ def validate_analysis(value: dict) -> dict:
     if 'source_findings_version' in value:
         from .findings import validate as validate_findings
         result.update(validate_findings(value))
+    from quant.source_changes.review import extension as change_extension
+    result.update(change_extension(value))
+    from quant.parameters.bindings import extension as parameter_extension
+    result.update(parameter_extension({**value, 'parameters': result['parameters']}))
     if any(key in value for key in ('extraction_version', 'factors', 'extraction_note')):
         from quant.factors.contracts import validate_extraction
         result.update(validate_extraction(value))
@@ -90,6 +99,8 @@ def validate_source_evidence(result: dict, source: dict) -> None:
     """Do not accept implementation scores for a URL or prose-only source."""
     from quant.factors.contracts import validate_evidence
     from .findings import validate_evidence as validate_findings_evidence
+    from quant.parameters.bindings import validate_source
+    validate_source(result, source)
     validate_findings_evidence(result, source)
     if 'factor_repair' in result:
         from quant.repairs.contracts import validate as validate_repairs
@@ -155,14 +166,19 @@ def analysis_markdown(result: dict) -> str:
     if not result['parameters']:
         parts += ['未识别到可列出的参数，参见缺失信息与验证计划。']
     for item in result['parameters']:
-        parts += [f"### {item['name']} · {item['type']}",
+        from quant.parameters.bindings import heading
+        parts += [f"### {heading(item)} · {item['type']}",
                   f"默认值：{item['default_value'] or '未知'}；类别：{item['category']}"]
+        if 'source_binding' in item:
+            from quant.parameters.bindings import describe
+            parts += [describe(item)]
         for key, label in [('meaning', '含义'), ('constraints', '约束'), ('effect', '变化影响'),
                            ('suggestion', '候选建议（待验证）'), ('evidence', '来源依据')]:
             parts += [f"{label}：{item[key]}"]
         if 'domain' in item:
             parts += ['本机实验将检查：' + domains.describe(item['name'], item['domain']),
-                '约束由 AI 根据下列原文提取，语义仍需核对；未结构化的文字约束不会自动执行。']
+                ('范围由系统读取用户提供的参数表；不是实际运行配置或经验证的最优范围。'
+                    if item['domain']['version'] == 5 else '约束由 AI 根据下列原文提取，语义仍需核对；未结构化的文字约束不会自动执行。')]
             parts += [f"原文依据（{row['field']}）：{row['quote']}" for row in item['domain']['evidence']]
     for key, title in [('source_facts', '来源事实'), ('assumptions', '分析假设'), ('unknowns', '缺失信息')]:
         parts += [f'## {title}', '\n'.join(f'- {item}' for item in result[key]) or '无补充记录。']
@@ -187,4 +203,6 @@ def analysis_markdown(result: dict) -> str:
         parts+=['## 历史研究依据与判断',result['memory_note']]
         for row in result['memory_assessment']:
             parts += [f"{dict(apply='采用为研究线索',reject='不采用',investigate='继续核查')[row['action']]}：{row['rationale']}",'证据：'+'、'.join(row['evidence_refs'])]
+    from quant.source_changes.review import markdown as change_markdown
+    parts += change_markdown(result)
     return '\n\n'.join(parts)

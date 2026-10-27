@@ -45,6 +45,10 @@ def validate_experiments(rows: dict, fail) -> None:
         if [item['ordinal'] for item in items] != list(range(1, len(items) + 1)):
             fail('实验尝试检查点不连续')
         validate_attempts([item['attempt'] for item in items], requests[request_id]['plan'], fail)
+        if 'label_target' in requests[request_id]['plan']['config']:
+            from quant.label_studies.snapshot import validate_attempts as validate_labels
+            validate_labels([item['attempt'] for item in items], requests[request_id]['plan'],
+                datasets[str(requests[request_id]['dataset'])]['snapshot'], fail)
         if 'walk_forward' in requests[request_id]['plan']['config']:
             from .temporal_snapshot import validate_ranges
             validate_ranges([item['attempt'] for item in items], requests[request_id]['plan'],
@@ -93,8 +97,16 @@ def validate_attempts(attempts, plan, fail):
     seeds, previous = {seed['id']: seed for seed in plan['seeds']}, {}
     for index, attempt in enumerate(attempts, 1):
         required = {'id', 'parents', 'operation', 'generation', 'requested_parameters', 'status', 'reason', 'metrics'}
-        if not isinstance(attempt, dict) or not required <= set(attempt) or set(attempt) - required - {'recipe', 'fingerprint', 'complexity', 'transformation'}:
+        extra = {'label_evaluation'} if 'label_target' in plan['config'] else set()
+        if not isinstance(attempt, dict) or not required | extra <= set(attempt) or set(attempt) - required - {'recipe', 'fingerprint', 'complexity', 'transformation'} - extra:
             fail('实验尝试字段无效')
+        if extra:
+            from quant.label_studies.snapshot import validate_record
+            validate_record(attempt['label_evaluation'], plan['config']['label_target'], fail)
+            labels = attempt['label_evaluation']['metrics']
+            if (set(labels) - set(attempt['metrics']) or attempt['status'] == 'evaluated' and
+                    (set(labels) != {'train', 'validation'} or any(row.get('status') != 'completed' for row in labels.values()))):
+                fail('有效标签选择须具有完整训练和验证配对')
         if attempt['id'] != f'attempt-{index}' or attempt['status'] not in ('evaluated', 'rejected', 'cancelled', 'budget_stopped') or not isinstance(attempt['reason'], str):
             fail('实验尝试状态无效')
         operation, parents, generation = attempt['operation'], attempt['parents'], attempt['generation']
@@ -156,7 +168,7 @@ def validate_output(envelope, request, dataset, checkpoints, fail, *, split=None
         from .temporal_snapshot import validate_output as validate_temporal
         validate_temporal(envelope, request, dataset, checkpoints, fail)
         return
-    keys = {'engine_version', 'dataset_hash', 'config', 'partitions', 'seed_plan', 'attempts', 'selection_rule', 'frontier_ids', 'selected_id', 'holdout_status', 'holdout', 'buy_hold_baseline', 'stop_reason', 'limitations'}
+    keys = {'engine_version', 'dataset_hash', 'config', 'partitions', 'seed_plan', 'attempts', 'selection_rule', 'frontier_ids', 'selected_id', 'holdout_status', 'holdout', 'buy_hold_baseline', 'stop_reason', 'limitations'} | ({'label_holdout'} if 'label_target' in plan['config'] else set())
     if not isinstance(output, dict) or set(output) != keys or not isinstance(output['limitations'], list) or len(output['limitations']) > 20 or any(not isinstance(value, str) or len(value) > 2000 for value in output['limitations']):
         fail('实验结果字段无效')
     if not isinstance(output, dict) or output.get('engine_version') not in SUPPORTED_VERSIONS or output.get('engine_version') != plan['engine_version'] or output.get('dataset_hash') != plan['dataset_hash'] or output.get('config') != plan['config'] or output.get('partitions') != (split if split is not None else partitions(len(dataset['rows']), gap=plan['config']['gap'])):
@@ -167,7 +179,11 @@ def validate_output(envelope, request, dataset, checkpoints, fail, *, split=None
     frontier = pareto(output['attempts'])
     from .nested import RULE as NESTED_RULE, selection_key
     frontier.sort(key=selection_key)
-    if output.get('frontier_ids') != [item['id'] for item in frontier] or output.get('selected_id') != (frontier[0]['id'] if frontier else '') or output.get('selection_rule') != (NESTED_RULE if nested else 'train_pareto_then_validation_return_minus_drawdown_v1'):
+    rule = NESTED_RULE if nested else 'train_pareto_then_validation_return_minus_drawdown_v1'
+    if 'label_target' in plan['config']:
+        from quant.label_studies.search import RULE, NESTED_RULE as LABEL_NESTED_RULE
+        rule = LABEL_NESTED_RULE if nested else RULE
+    if output.get('frontier_ids') != [item['id'] for item in frontier] or output.get('selected_id') != (frontier[0]['id'] if frontier else '') or output.get('selection_rule') != rule:
         fail('实验选择依据不一致')
     if output.get('stop_reason') not in ('cancelled', 'time_budget', 'candidate_budget', 'generation_complete'):
         fail('实验终止原因无效')
@@ -176,6 +192,10 @@ def validate_output(envelope, request, dataset, checkpoints, fail, *, split=None
         fail('实验留出评价状态不一致')
     if final is not None and (not frontier or envelope['status'] != 'completed' or output['stop_reason'] in ('cancelled', 'time_budget')):
         fail('中断实验不能声明完成留出评价')
+    if 'label_target' in plan['config']:
+        from quant.label_studies.snapshot import validate_holdout
+        validate_holdout(output['label_holdout'], final, selected_recipe(output) if final is not None else None, dataset,
+            output['partitions'], plan['config']['label_target'], fail)
 
     for is_baseline, metric in enumerate((final, output.get('buy_hold_baseline'))):
         if metric is not None:

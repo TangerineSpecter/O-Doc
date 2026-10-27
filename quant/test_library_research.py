@@ -2,6 +2,7 @@
 import copy
 import json
 from unittest.mock import patch
+from rest_framework.exceptions import ValidationError
 from django.test import TestCase
 from quant import test_experiment_reviews as fixtures
 from quant.test_factors import extracted
@@ -24,11 +25,14 @@ class LibraryResearchTests(TestCase):
     start = fixtures.ExperimentReviewTests.start
 
     def candidate(self, key, *, window='10', family='momentum', expression=True, role='factor', units='比率', unknown_input=False):
+        import re
         self.payload['request_key'] = key
+        self.payload['code'] = re.sub(r'(?m)^N=.*$', f'N={window or "load_config()"}', self.payload['code'])
         entry = self.collect()
         value = extracted(); data = value['factors'][0]
         data.update(name='库内候选 ' + key, family=family, role=role, units=units)
         data['parameters'][0]['default_value'] = window
+        data['parameters'][0]['evidence'] = f'N={window or "load_config()"}'
         if not expression: data['expression'] = None
         if unknown_input:
             data['inputs'][0]['name'] = 'price'
@@ -59,7 +63,7 @@ class LibraryResearchTests(TestCase):
         _, dataset = self.prepare()
         extra = self.candidate('cross_source_candidate_01')
         request, run = self.reviewed_result()
-        self.assertEqual(run.review_version, 14)
+        self.assertEqual(run.review_version, 15)
         context = copy.deepcopy(run.planning_context)
         self.assertEqual([row['candidate_id'] for row in context['retrieved']], [extra.pk])
         evidence = for_run(run)
@@ -86,6 +90,16 @@ class LibraryResearchTests(TestCase):
         detail = self.client.get(self.path + request.pk + '/').json()['data']
         self.assertEqual(detail['reviews'][0]['run']['libraryRetrieval']['candidates'][0]['candidateId'], extra.pk)
         snapshot = SyncManager().build_snapshot_data(); validate(snapshot, metadata(snapshot))
+        # A fresh device must not reinterpret this recorded v2 selection as v1.
+        altered = copy.deepcopy(snapshot)
+        record = next(row for row in altered if row['model'] == 'quant.airun' and row['pk'] == run.pk)
+        record['fields']['planning_context']['method'] = 'related-library-v1'
+        from quant.experiments.library_retrieval import validate_from_rows
+        rows = {}
+        for row in altered: rows.setdefault(row['model'], {})[str(row['pk'])] = row['fields']
+        from quant.experiments.planning_context import from_rows
+        with self.assertRaises(ValidationError): validate_from_rows(record['fields'], rows, from_rows(str(run.experiment_result.request_id), rows))
+
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         restored = AIRun.objects.get(pk=run.pk)
         self.assertEqual(restored.planning_context, context)
@@ -111,6 +125,8 @@ class LibraryResearchTests(TestCase):
         collection = Anthology.objects.create(type='quant', permission='private', user_id='foreign', title='其他库')
         foreign.report.entry.anthology = collection; foreign.report.entry.save()
         _, run = self.reviewed_result()
+        self.assertEqual(run.review_version, 15)
+        self.assertEqual(run.planning_context['method'], 'related-library-v2')
         ids = [row['candidate_id'] for row in run.planning_context['retrieved']]
         self.assertEqual(len(ids), 1)
         self.assertEqual(run.planning_context['eligible'], 1)

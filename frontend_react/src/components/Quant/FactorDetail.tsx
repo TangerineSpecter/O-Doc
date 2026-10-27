@@ -1,3 +1,5 @@
+import {ParameterSource} from './ParameterSource';
+import {parameterLabel} from '../../utils/quantParameterSource';
 import type {AdmissionSummary} from '../../types/api/quantAdmission';
 import {FactorAdmission} from './admissions/FactorAdmission';
 import type {QuantRegisterDraft} from '../../hooks/useQuantNavigation';
@@ -34,11 +36,11 @@ export function FactorDetail({collection, candidate, openSource, register, reque
         {candidate.currentRevisionId && <p className="text-xs text-slate-400">已人工整理 · 原始名称：{data.name} · {candidate.revisions.length} 次修订</p>}
         <div><h4 className="mb-2 text-sm font-semibold">公式与输出</h4><pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-7 scrollbar-hide">{data.formula}</pre>
             <p className="mt-2 text-xs leading-6 text-slate-500">{factorOutputs[data.outputType]} · 单位：{data.units}<br />窗口与周期：{data.timeframe}</p></div>
-        <div><h4 className="mb-2 text-sm font-semibold">输入与数据时点</h4><div className="divide-y divide-slate-100">{data.inputs.map(input => <div key={input.name} className="py-3 text-sm leading-6"><strong className="font-mono font-medium">{input.name}</strong> · {input.meaning}<p className="text-slate-500">可得时点：{input.availability}<br />缺失处理：{input.missingPolicy}</p></div>)}</div></div>
+        <div><h4 className="mb-2 text-sm font-semibold">输入与数据时点</h4><div className="divide-y divide-slate-100">{data.inputs.map(input => <div key={input.name} className="py-3 text-sm leading-6"><strong className="break-all font-mono font-medium">{input.name}</strong> · {input.meaning}<p className="text-slate-500">可得时点：{input.availability}<br />缺失处理：{input.missingPolicy}</p></div>)}</div></div>
         <div><h4 className="mb-2 text-sm font-semibold">参数与候选建议</h4>{data.parameters.length ? data.parameters.map(parameter => <div key={parameter.name} className="mb-3 rounded-xl border border-slate-200 p-4 text-sm leading-7">
-            <strong className="font-mono font-medium">{parameter.name}</strong><span className="ml-2 text-slate-500">{authored ? '修订声明' : derived ? '归档实验值' : '默认'}：{parameter.defaultValue || '未知'}</span>
+            <strong className="break-all font-mono font-medium">{parameterLabel(parameter)}</strong><span className="ml-2 text-slate-500">{authored ? '修订声明' : derived ? '归档实验值' : '默认'}：{parameter.defaultValue || '未知'}</span>
             <p>{parameter.meaning}</p><p className="text-slate-500">约束：{parameter.constraints}<br />影响：{parameter.effect}<br />建议（待验证）：{parameter.suggestion}<br />依据：{parameter.evidence}</p>
-            <ParameterDomain name={parameter.name} domain={parameter.domain} authored={!!authored}/>
+            <ParameterSource parameter={parameter}/><ParameterDomain name={parameter.name} domain={parameter.domain} authored={!!authored}/>
         </div>) : <p className="text-sm text-slate-500">未识别到可独立调整的参数。</p>}</div>
         <div><h4 className="mb-2 text-sm font-semibold">依赖与限制</h4><p className="whitespace-pre-wrap text-sm leading-7 text-slate-600">{data.dependencies.join('；') || '未声明外部依赖'}<br />{data.limitations}</p>
             <p className="mt-2 text-xs leading-6 text-slate-500">{derived?.localDemo ? '本地展示样例；未执行行情计算或验证。' : derived ? '已在本机表达式引擎计算；原平台等价性和独立样本表现仍待验证。' : data.expression ? '表达式结构已通过校验；原平台等价性仍待验证，实验记录请在实验室查看。' : '保留原平台公式，尚无可用的通用表达式。'}</p></div>

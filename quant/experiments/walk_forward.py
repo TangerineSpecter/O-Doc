@@ -18,6 +18,9 @@ def run_walk_forward(snapshot: dict, seeds: list[dict], config: dict, policy: di
     after that fold's final selection. All folds consume one wall-time budget.
     """
     schedules = windows(len(snapshot['rows']), policy, config.get('gap') if isinstance(config, dict) else None)
+    from quant.label_studies.search import validate_windows
+    validate_windows(config, [split for schedule in schedules for split in [schedule['partitions'],
+        *[row['partitions'] for row in schedule.get('inner_windows', [])]]])
     budgets = configurations(seeds, config, policy)
     started = time.monotonic()
     def guard():
@@ -52,6 +55,7 @@ def run_walk_forward(snapshot: dict, seeds: list[dict], config: dict, policy: di
             'frontier_ids': [identities[identity] for identity in last['frontier_ids']],
             'selected_id': identities.get(last['selected_id'], ''),
             **{key: copy.deepcopy(last[key]) for key in ('holdout_status', 'holdout', 'buy_hold_baseline', 'stop_reason')}})
+        if 'label_target' in config: folds[-1]['label_holdout'] = copy.deepcopy(last['label_holdout'])
         if folds[-1]['holdout'] is not None:
             folds[-1]['holdout_status'] = 'excluded_from_this_fold_selection_prior_usage_unattested'
         if last['stop_reason'] in ('cancelled', 'time_budget'):
@@ -71,6 +75,7 @@ def run_walk_forward(snapshot: dict, seeds: list[dict], config: dict, policy: di
             '预热为首个交易信号之前额外参与计算的历史根数；不足窗口的信号继续缺失，不补造或剔除试验',
             '逐折独立从空仓开始并在区间末平仓；均值和最差值不是连续投资组合收益或统计显著性',
             '最终候选和顶层留出结果仅代表最后一折；不按测试收益选折，跨研究独立性仍未证明'] + ([
-            '每个候选分别计算所有内层窗口；训练三项均值参与Pareto，验证收益减回撤的均值选择；不是连续收益或独立重复样本',
+            ('每个候选分别计算所有内层标签窗口；训练Rank IC/覆盖率均值参与Pareto，验证Rank IC/覆盖率均值选择；不是独立重复样本'
+                if 'label_target' in config else '每个候选分别计算所有内层窗口；训练三项均值参与Pareto，验证收益减回撤的均值选择；不是连续收益或独立重复样本'),
             '内层与外层共用扩展/滚动训练模式；最后内层指标另存供敏感度描述，实际选择使用全部内层汇总；任一段全缺失或资金耗尽不参与选择'
             ] if policy['version'] == 2 else [])}

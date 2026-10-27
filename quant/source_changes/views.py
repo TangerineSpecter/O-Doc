@@ -32,6 +32,6 @@ class SourceImpactView(QuantView):
         result = {'version': 1, 'baseline': source_data(baseline) | {'report_id': report.pk, 'report_hash': report.content_hash},
             'target': source_data(target), 'relationship': 'same_source' if target.pk == baseline.pk else
                 'same_material' if target.material_id == baseline.material_id else 'different_material',
-            'impact': preview(baseline.payload, target.payload, report.data)}
+            'impact': preview(baseline.payload, target.payload, report.data, bundle=True)}
         # Opaque JSON preserves literal names and source strings through API camel casing.
         return success_result({'impact_json': json.dumps(result, ensure_ascii=False, allow_nan=False)})

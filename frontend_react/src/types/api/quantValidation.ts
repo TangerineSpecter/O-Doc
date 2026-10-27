@@ -4,6 +4,7 @@ export interface QuantValidationInput {
     requestKey: string; sourceRequestId: string; attemptId: string; name: string;
     symbol: string; timeframe: string; intervals: number; seconds: number;
     criteria?:import('./quantValidationCriteria').QuantCriteriaInput;
+    labelTarget?:import('./quantLabels').QuantLabelInput;
 }
 export interface QuantValidationSummary {
     id: string; name: string; sourceRequestId: string; createdAt: string; contentHash: string;

@@ -49,6 +49,8 @@ def validate_versions(rows: dict, fail) -> None:
                     or child.get('derived_checkpoint_id') or type(child.get('ordinal')) is not int or child['ordinal'] != 0
                     or child.get('report') != candidates[parent_ids[0]].get('report')):
                 fail('人工公式版本定义、来源上下文或请求标识无效')
+            from quant.parameters.bindings import validate_inheritance
+            validate_inheritance(data['definition']['parameters'], candidates[parent_ids[0]]['data']['parameters'])
             keys.add(key)
             expected = authored(data, identity, root_id)
             if child.get('data') != expected or child.get('content_hash') != digest(expected) or child.get('expression_hash') != expression_hash(expected):

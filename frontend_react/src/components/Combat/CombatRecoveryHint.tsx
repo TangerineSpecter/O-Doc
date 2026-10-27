@@ -28,7 +28,7 @@ export default function CombatRecoveryHint({timing, serverNow, resting = false}:
     const fullAt = new Date(timing.fullAt).toLocaleString('zh-CN', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false});
     return <div className="text-[9px] leading-relaxed text-slate-500">
         <p>{seconds === 0 ? '等待同步恢复数值…' : resting ? `休整剩余 ${remaining}` : `${remaining} 后 +${timing.amount}`}</p>
-        {resting && <p>休整结束恢复至 20%</p>}
+        {resting && <p>休整结束恢复至 100%</p>}
         <p title="按当前上限和闲置恢复规则估算，再次探索会改变时间">预计 {fullAt} 回满</p>
     </div>;
 }

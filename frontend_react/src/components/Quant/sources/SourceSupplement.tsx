@@ -21,10 +21,11 @@ export function SourceSupplement({collection,entry,source,modelId,close,saved,re
     </>}>
         <fieldset disabled={form.busy} className="min-w-0 space-y-5">
             <p className="text-sm leading-7 text-slate-600">把缺失的函数或库源码贴进来。系统会保留主源码及旧报告，生成含依赖的新来源版本，再由 AI 核对计算、参数与未解决问题。</p>
+            {language === 'tongdaxin' && <p className="text-xs leading-6 text-slate-500">也可附上通达信参数表 CSV/TSV，保留“参数、最小、最大、缺省”四列表头。参数定义与实际运行值分开记录，表格不会作为源码执行。</p>}
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-slate-500">本次补交 {form.files.length}/4 份文件</p>
-                <QuantButton disabled={form.busy} onClick={()=>upload.current?.click()}>上传源码文件</QuantButton>
-                <input ref={upload} type="file" multiple accept=".py,.mq4,.mqh,.pine,.tdx,.txt" className="hidden" aria-label="上传依赖源码文件" onChange={event=>{void form.upload(event.target.files);event.target.value='';}}/>
+                <QuantButton disabled={form.busy} onClick={()=>upload.current?.click()}>{language === 'tongdaxin' ? '上传源码或参数表' : '上传源码文件'}</QuantButton>
+                <input ref={upload} type="file" multiple accept={language === 'tongdaxin' ? '.py,.mq4,.mqh,.pine,.tdx,.txt,.csv,.tsv' : '.py,.mq4,.mqh,.pine,.tdx,.txt'} className="hidden" aria-label="上传依赖源码文件" onChange={event=>{void form.upload(event.target.files);event.target.value='';}}/>
             </div>
             <label className="block space-y-2 text-sm text-slate-600"><span>上传读取编码</span><Select menuPortal={true} value={form.encoding} onChange={form.setEncoding} options={[
                 {value:'auto',label:'自动识别 UTF-8 / UTF-16'}, {value:'utf-8',label:'UTF-8'}, {value:'utf-16le',label:'UTF-16 LE'},
@@ -33,7 +34,7 @@ export function SourceSupplement({collection,entry,source,modelId,close,saved,re
             {form.files.length>1 && <label className="block space-y-2 text-sm text-slate-600"><span>正在编辑的依赖</span><Select menuPortal={true} value={String(form.selected)} onChange={value=>form.setSelected(Number(value))} options={form.files.map((file,index)=>({value:String(index),label:file.name || `第${index+1}份依赖`}))}/></label>}
             <div className="space-y-3">
                 <QuantField label="依赖文件名（与源码引用一致）" value={form.files[form.selected].name} onChange={value=>form.update('name',value)} required/>
-                <div><p className="mb-2 text-sm font-semibold text-slate-700">依赖源码</p><CodeEditor value={form.files[form.selected].code} onChange={value=>form.update('code',value)} readOnly={form.busy} compact language={language==='python' || language==='pine' || language==='mql4' || language==='tongdaxin' ? language : 'text'}/></div>
+                <div><p className="mb-2 text-sm font-semibold text-slate-700">{/\.(csv|tsv)$/i.test(form.files[form.selected].name) ? '参数表原文' : '依赖源码'}</p><CodeEditor value={form.files[form.selected].code} onChange={value=>form.update('code',value)} readOnly={form.busy} compact language={/\.(csv|tsv)$/i.test(form.files[form.selected].name) ? 'text' : language==='python' || language==='pine' || language==='mql4' || language==='tongdaxin' ? language : 'text'}/></div>
                 <div className="flex justify-end"><QuantButton disabled={form.busy} onClick={form.remove}>移除此文件</QuantButton></div>
             </div>
             <QuantField label="补充原因或希望 AI 重点核对的问题" value={form.reason} onChange={form.setReason} multiline rows={3}/>

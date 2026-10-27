@@ -82,11 +82,13 @@ def validate_studies(rows,anthologies,fail):
             if 'criteria' in data:
                 if not isinstance(data['criteria'],dict): fail('固定验证登记标准格式无效')
                 incoming['criteria']={key:data['criteria'].get(key) for key in FIELDS}
+            if 'label_target' in data:
+                incoming['label_target']={key:data['label_target'].get(key) for key in ('version','horizon_bars')}
             serializer=PlanInput(data=incoming)
             serializer.is_valid(raise_exception=True)
             source_id,result=original_results[str(fields['source_request'])];market=datasets[str(source['dataset'])]
             expected=build(source['plan'],result['data'],market['snapshot'],fields['source_request'],source_id,result['content_hash'],source['dataset'],serializer.validated_data)
-            if expected!=data or expected.get('version')==2 and digest(expected)!=digest(data) or identity!=digest(['validation-plan-v1',fields['anthology'],key])[:40] or fields.get('content_hash')!=digest(data):
+            if expected!=data or expected.get('version') in (2,3) and digest(expected)!=digest(data) or identity!=digest(['validation-plan-v1',fields['anthology'],key])[:40] or fields.get('content_hash')!=digest(data):
                 fail('固定验证登记公式、参数、策略或来源哈希不一致')
         except ValidationError: fail('固定验证登记参数或来源无效')
     seen=set()
@@ -119,8 +121,8 @@ def validate_studies(rows,anthologies,fail):
             fail('固定验证成果身份、唯一性或大小无效')
         seen.add(fields['request'])
         plan=plans[str(request['plan'])];dataset=datasets[str(request['dataset'])]
-        version=2 if plan['data']['version']==2 else 1
-        extra={'criteria_assessment'} if version==2 else set()
+        version=plan['data']['version']
+        extra={'criteria_assessment'} if 'criteria' in plan['data'] else set()
         if (set(data)!={'version','status','error','output','publication_audit','claim'}|extra or data.get('version')!=version
                 or data.get('status') not in ('completed','cancelled','failed') or not isinstance(data.get('error'),str)
                 or len(data['error'])>500 or data['claim']!='fixed_evaluation_observation_not_global_independent_validation'):
@@ -134,7 +136,7 @@ def validate_studies(rows,anthologies,fail):
                 fail('新版固定验证成果不能降级为旧使用审计')
         elif data['output'] is not None or data['publication_audit'] is not None:
             fail('未完成的固定验证不能携带完整成果')
-        if version==2 and (type(data.get('version')) is not int or digest(data['criteria_assessment'])!=digest(assess(plan['data']['criteria'],data['status'],data['output'],request['data'],data['publication_audit']))):
+        if 'criteria' in plan['data'] and (type(data.get('version')) is not int or digest(data['criteria_assessment'])!=digest(assess(plan['data']['criteria'],data['status'],data['output'],request['data'],data['publication_audit']))):
             fail('登记标准判定、实测值或验证资格与冻结事实不一致')
     for model,label in ((ValidationPlan,'quant.validationplan'),(ValidationRequest,'quant.validationrequest'),(ValidationResult,'quant.validationresult')):
         for item in model.objects.filter(pk__in=rows.get(label,{})):

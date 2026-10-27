@@ -55,7 +55,7 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
         source = run.source if stage == 'normalize' else run.resolved_source or run.source
         if stage == 'snippets':
             snippet_plan = snippets.plan(source.payload, outputs['normalize']['structure'], run.requirements,
-                model_identity(config), baseline)
+                model_identity(config), baseline, version=4 if run.workflow_version == 27 else 3 if run.workflow_version in (20, 22, 24, 26) else 2 if run.workflow_version == 18 else 1)
         with collection_lock(run.entry.anthology_id), transaction.atomic():
             check_cancel()
             if stage == 'normalize' and uses_vocabulary(run.workflow_version):
@@ -122,7 +122,7 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
                 if stage == 'snippets':
                     output = snippets.assemble(decode(raw) if pending else {'units': []}, source.payload, snippet_plan, baseline)
                 else:
-                    output = validate_output(stage, decode(raw) if pending else {'items': []}, outputs, source.payload, run.workflow_version)
+                    output = validate_output(stage, decode(raw) if pending else {'items': []}, outputs, source.payload, run.workflow_version, snippet_plan)
                     if uses_vocabulary(run.workflow_version):
                         from quant.taxonomy.prompts import validate_tags
                         validate_tags(stage, output, vocabulary)

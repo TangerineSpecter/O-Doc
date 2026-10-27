@@ -59,8 +59,8 @@ class SourceChangeAPITests(TestCase):
         self.assertEqual(result['baseline']['source_hash'], old.content_hash)
         self.assertEqual(result['target']['source_hash'], new.content_hash)
         self.assertIn('code', result['impact']['changed_fields'])
-        self.assertEqual(result['impact']['structure']['new_parser'], 'python-3.11-scoped-preview-v1')
-        changed_function = next(row for row in result['impact']['structure']['nodes'] if row['name'] == 'factor')
+        self.assertEqual(result['impact']['structure']['new_parser'], 'python-provided-file-bindings-v1')
+        changed_function = next(row for row in result['impact']['structure']['nodes'] if row['name'] == '__source__.py::factor')
         self.assertEqual(changed_function['impact'], 'potential')
         self.assertTrue(any('词法绑定' in reason for reason in changed_function['reasons']))
         self.assertFalse(result['impact']['recommendation']['can_reuse_stages'])
@@ -79,7 +79,7 @@ class SourceChangeAPITests(TestCase):
         self.assertEqual(same['relationship'], 'same_source')
         self.assertEqual(same['impact']['status'], 'identical')
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 62)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 70)
         validate(snapshot, metadata(snapshot))
 
     def test_cross_material_requires_explicit_baseline_and_never_claims_new_version(self):

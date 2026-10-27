@@ -102,7 +102,7 @@ test('源码问题清单保留严重度、原文和人工修订边界，空清�
         return invoke<QuantEntryDetail>(base + `entries/${entry.id}/`);
     };
     const entry = await collect('LOCAL_CRITICAL_FINDING', 'source_findings_critical_001'), report = entry.reports![0];
-    assert.equal(entry.runs[0].workflow?.version, 16);
+    assert.equal(entry.runs[0].workflow?.version, 25);
     assert.equal(report.data.sourceFindingsVersion, 1);
     assert.equal(report.data.sourceFindings?.[0].severity, 'critical');
     assert.equal(report.data.sourceFindings?.[0].evidence[0].quote, '# LOCAL_CRITICAL_FINDING');
@@ -242,7 +242,7 @@ test('同一实现保存版本冻结完整来源并预览明确基线，历史�
     assert.ok(result.impact.structure.limitations.some(message => message.includes('没有运行后端Python作用域/赋值链解析')));
     assert.ok(result.impact.changed_fields.includes('code') && result.impact.changed_fields.includes('dependencies') && result.impact.changed_fields.includes('language_version'));
     assert.equal(result.impact.code.hunks[0].old_text, oldCode); assert.equal(result.impact.code.hunks[0].new_text, nextCode); assert.equal(result.impact.code.hunks[0].old_truncated, false);
-    assert.equal(result.impact.parameters[0].quotes[0].quote, '本地 momentum 示例函数'); assert.equal(result.impact.parameters[0].quotes[0].status, 'moved');
+    assert.equal(result.impact.parameters[0].quotes[0].quote, report.data.parameters![0].evidence); assert.equal(result.impact.parameters[0].quotes[0].status, 'moved');
     assert.equal(result.impact.factors[0].quotes[0].quote, oldCode); assert.equal(result.impact.factors[0].quotes[0].status, 'missing');
     assert.equal((await invoke<{impactJson: string}>(url)).impactJson, response.impactJson); assert.equal(JSON.stringify(quantState()), stateBefore); assert.equal(JSON.stringify([...storage.entries()]), savedBefore);
     assert.equal(JSON.stringify(stored.reports!.find(row => row.id === report.id)), originalReport);
@@ -1598,8 +1598,8 @@ test('算术参数 local 从收集到报告、合规方案与导出完整保留v
     const report = entry.reports![0];
     assert.deepEqual(report.data.factors![0].parameters.map(row => [row.name, row.defaultValue]), [['lookback', '20'], ['slow', '30'], ['enabled', 'true']]);
     assert.match(report.markdown, /lookback × 2/);
-    assert.match(report.markdown, /\| slow \| 30/);
-    assert.match(report.markdown, /\| enabled \| true/);
+    assert.match(report.markdown, /\| [^|\n]* · slow \| 30/);
+    assert.match(report.markdown, /\| [^|\n]* · enabled \| true/);
     const candidate = (await invoke<{items: Candidate[]}>(`${base}factors/?groupBy=none`)).items.find(row => row.reportId === report.id)!;
     assert.equal(candidate.data.parameters[0].domain!.version, 4);
     assert.equal(candidate.data.parameters[0].domain!.evidence[0].quote, code);

@@ -10,7 +10,7 @@ from .quotes import QuoteMatcher, project_items
 from .python_bindings import PARSER as SCOPED_PARSER, scoped_preview
 
 
-def preview_outline(payload: dict, *, scoped: bool = True) -> dict:
+def preview_outline(payload: dict, *, scoped: bool = True, bundle: bool = False) -> dict:
     """HTTP previews have tighter work bounds than persisted workflow parsing.
 
     In particular the existing lexical parser scans tokens per declaration.
@@ -27,6 +27,9 @@ def preview_outline(payload: dict, *, scoped: bool = True) -> dict:
     if over_budget:
         outline.warn('只读影响预览超过更紧的结构解析工作量上限；保留原文位置，结构依赖记为未知。')
         return outline.finish('limited', 'none')
+    if bundle and language == 'python':
+        from .python_bundle import analyze_bundle
+        return analyze_bundle(payload)
     value = analyze(payload)
     return scoped_preview(payload, value) if scoped else value
 
@@ -127,7 +130,9 @@ def structure_impact(old: dict, new: dict, ranges: list[dict], *, limited: bool,
         if row['id'] in visited - seeds and row['impact'] != 'direct':
             row['impact'] = 'potential'
             resolved = old['parser'] == new['parser'] == SCOPED_PARSER
-            row['reasons'].append('旧或新源码的词法绑定及赋值读取链可到达变更节点；不是运行时数据流证明。'
+            provided = old['parser'] == new['parser'] == 'python-provided-file-bindings-v1'
+            row['reasons'].append('旧或新源码的逐文件词法绑定、显式导入及赋值读取链可到达变更节点；不是实际导入或运行时数据流证明。' if provided else
+                                  '旧或新源码的词法绑定及赋值读取链可到达变更节点；不是运行时数据流证明。'
                                   if resolved else '旧或新源码的同名候选读取/调用可到达变更节点；不是运行时依赖证明。')
     counts = {key: sum(row['change'] == key for row in result)
               for key in ('added', 'removed', 'changed', 'moved', 'identical')}
@@ -140,7 +145,7 @@ def structure_impact(old: dict, new: dict, ranges: list[dict], *, limited: bool,
                              *uncertain_reasons]}, uncertain)
 
 
-def preview(old_payload: dict, new_payload: dict, report_data: dict, *, scoped: bool = True) -> dict:
+def preview(old_payload: dict, new_payload: dict, report_data: dict, *, scoped: bool = True, bundle: bool = False) -> dict:
     """Compare immutable inputs without altering reports, candidates or runs."""
     if any(not isinstance(value, dict) for value in (old_payload, new_payload, report_data)):
         raise ValidationError('源码影响预览需要两份来源对象和原始报告对象')
@@ -150,7 +155,8 @@ def preview(old_payload: dict, new_payload: dict, report_data: dict, *, scoped: 
             raise ValidationError('来源源码、语言和引文文本必须是字符串')
     old_code, new_code = old_payload.get('code', ''), new_payload.get('code', '')
     code, ranges = compare_code(old_code, new_code)
-    old, new = preview_outline(old_payload, scoped=scoped), preview_outline(new_payload, scoped=scoped)
+    files = bundle
+    old, new = (preview_outline(value, scoped=scoped, bundle=files) for value in (old_payload, new_payload))
     changed_fields = sorted(key for key in set(old_payload) | set(new_payload)
                             if (key not in old_payload or key not in new_payload
                                 or old_payload[key] != new_payload[key]))

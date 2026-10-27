@@ -132,7 +132,7 @@ class EncodedReviewIntegrationTests(TestCase):
         request=self.start()
         with patch('quant.experiments.reviews.auto_review'):calculate(request.job.pk)
         run=start_review(request.result,request_key='encoded_review_api_test01',model_id=self.model.pk)
-        self.assertEqual(run.review_version,14)
+        self.assertEqual(run.review_version,15)
         evidence=for_run(run);self.assertEqual(evidence['model_context_encoding'],VERSION)
         calls=[]
         def complete(config,text,**kwargs):
@@ -145,7 +145,8 @@ class EncodedReviewIntegrationTests(TestCase):
         self.assertEqual(run.result['evidence_hash'],digest(evidence))
         self.assertNotIn('model_context_encoding',run.result)
         self.assertEqual(len(run.result['temporal_parameter_review']['window_reviews']),9)
-        old=for_result(request.result,13,run.planning_context)
+        with self.assertRaises(ValidationError): for_result(request.result,13,run.planning_context)
+        old=for_result(request.result,13,{**run.planning_context, 'method': 'related-library-v1'})
         self.assertNotIn('model_context_encoding',old)
         manager=SyncManager();snapshot=manager.build_snapshot_data();validate(snapshot,metadata(snapshot))
         snapshot=json.loads(json.dumps(snapshot,sort_keys=True))

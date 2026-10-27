@@ -717,7 +717,7 @@ class ExplorationTests(TestCase):
         profile.hp=0;profile.mp=0;profile.rest_until=self.now+timedelta(minutes=30);profile.save()
         recover(profile,self.now+timedelta(minutes=30))
         derived=stats(profile)
-        self.assertEqual(profile.hp,max(1,int(derived['hp_max']*.2)))
+        self.assertEqual(profile.hp,derived['hp_max'])
         self.assertEqual(profile.mp,min(derived['mp_max'],max(1,int(derived['mp_max']*.1))*6))
         hp,mp=profile.hp,profile.mp
         recover(profile,self.now+timedelta(minutes=30));self.assertEqual((hp,mp),(profile.hp,profile.mp))

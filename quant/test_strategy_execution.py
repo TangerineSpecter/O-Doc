@@ -188,7 +188,7 @@ class StrategyExperimentTests(TestCase):
         self.assertTrue(any(row['operation'] == 'formula_mutation' for row in request.result.data['output']['attempts']))
         start_review(request.result, request_key='strategy_review_0000001')
         ai = AIRun.objects.get(kind='experiment_review')
-        self.assertEqual(ai.review_version, 14)
+        self.assertEqual(ai.review_version, 15)
         facts = for_run(ai)
         self.assertEqual(facts['evidence']['execution']['config']['strategy'], self.input['config']['strategy'])
         self.assertIn('trades_sample', facts['evidence']['holdout']['execution'])
@@ -266,7 +266,7 @@ class StrategyInitialPlanningTests(TestCase):
         from utils.sync_manager import SyncManager
         value = initial_response(); value['initial_proposal']['config']['strategy'] = policy(position_fraction=.5)
         entry, ai = self.ready(value)
-        self.assertEqual(ai.workflow_version, 16)
+        self.assertEqual(ai.workflow_version, 25)
         for version in range(10):
             with self.assertRaises(ValidationError): validate_strategy_admission(value, version)
         self.assertNotIn('strategy完整结构', initial_prompt())

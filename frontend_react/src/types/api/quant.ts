@@ -171,6 +171,9 @@ export interface QuantSource {
     createdAt: string;
 }
 export interface QuantAnalysis {
+    sourceChangeReviewVersion?: 1 | 2;
+    sourceChangeFactsJson?: string;
+    sourceChangeAssessment?: import('./quantSourceChangeReview').QuantSourceChangeAssessment;
     sourceFindingsVersion?: 1;
     sourceFindings?: import('./quantFindings').QuantSourceFinding[];
     sourceFindingsNote?: string;
@@ -195,7 +198,9 @@ export interface QuantAnalysis {
     assumptions: string[];
     unknowns: string[];
     tags: string[];
-    parameters: { name: string; type: string; defaultValue: string; category: string; meaning: string; constraints: string; effect: string; suggestion: string; evidence: string; domain?: import('./quantParameters').QuantParameterDomain }[];
+    parameterBindingVersion?: 1 | 2;
+    parameterInventoryJson?: string;
+    parameters: { name: string; type: string; defaultValue: string; category: string; meaning: string; constraints: string; effect: string; suggestion: string; evidence: string; sourceBinding?: import('./quantParameters').QuantParameterSourceBinding; domain?: import('./quantParameters').QuantParameterDomain }[];
     scores: { dimension: string; score: number | null; reason: string; evidence: string }[];
     totalScore: number | null;
     evidenceStatus: string;
@@ -208,7 +213,7 @@ export interface QuantReport {
     sourceId: string;
     runId: string;
     schemaVersion: number;
-    data: Partial<Pick<QuantAnalysis, 'parameters' | 'sourceFindingsVersion' | 'sourceFindings' | 'sourceFindingsNote' | 'sourceMemoryVersion' | 'initialPlanningVersion' | 'initialPlanningNote' | 'factorRepair' | 'title' | 'summary' | 'scores' | 'totalScore' | 'extractionVersion' | 'extractionNote' | 'factors' | 'evidenceStatus' | 'rubricVersion'>> & Partial<Pick<import('./quantFeedback').QuantFeedbackAnalysis, 'nativeReview' | 'nativeReviewVersion' | 'computedNativeJson'>> & {executionAssessment?: import('./quantPlatformEvidence').QuantExecutionAssessment; computedExecutionJson?: string; memoryNote?: string; memoryAssessment?: import('./quantResearchMemory').QuantMemoryAssessment[]; parameterConfiguration?: import('./quantParameters').QuantParameterConfiguration; parameterComparison?: import('./quantParameters').QuantParameterComparison; format?: string; planningNote?: string; feedbackPlanningVersion?: number; feedbackPlanningNote?: string};
+    data: Partial<Pick<QuantAnalysis, 'parameters' | 'parameterBindingVersion' | 'parameterInventoryJson' | 'sourceChangeReviewVersion' | 'sourceChangeFactsJson' | 'sourceChangeAssessment' | 'sourceFindingsVersion' | 'sourceFindings' | 'sourceFindingsNote' | 'sourceMemoryVersion' | 'initialPlanningVersion' | 'initialPlanningNote' | 'factorRepair' | 'title' | 'summary' | 'scores' | 'totalScore' | 'extractionVersion' | 'extractionNote' | 'factors' | 'evidenceStatus' | 'rubricVersion'>> & Partial<Pick<import('./quantFeedback').QuantFeedbackAnalysis, 'nativeReview' | 'nativeReviewVersion' | 'computedNativeJson'>> & {executionAssessment?: import('./quantPlatformEvidence').QuantExecutionAssessment; computedExecutionJson?: string; memoryNote?: string; memoryAssessment?: import('./quantResearchMemory').QuantMemoryAssessment[]; parameterConfiguration?: import('./quantParameters').QuantParameterConfiguration; parameterComparison?: import('./quantParameters').QuantParameterComparison; format?: string; planningNote?: string; feedbackPlanningVersion?: number; feedbackPlanningNote?: string};
     originalMarkdown: string;
     markdown: string;
     currentRevisionId: string;

@@ -12,9 +12,12 @@ FIELDS = {'version', 'minimum', 'maximum', 'step', 'step_origin', 'choices', 're
 
 
 def validate_domain(value: dict) -> dict:
-    if (not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] not in (1, 2, 3, 4)
+    if (not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] not in (1, 2, 3, 4, 5)
             or set(value) != FIELDS | ({'conditions'} if value['version'] >= 2 else set())):
         raise ValidationError('参数可执行约束版本或字段无效')
+    if value['version'] == 5 and (value['minimum'] is None or value['maximum'] is None
+            or value['step'] is not None or value['step_origin'] is not None or value['choices'] or value['relations'] or value['conditions']):
+        raise ValidationError('参数表v5只支持明确上下限，不添加步长、枚举或关联规则')
     for key in ('minimum', 'maximum', 'step', 'step_origin'):
         if value[key] is not None and not finite_number(value[key]):
             raise ValidationError('参数范围与步长必须是有限数值或 null')
@@ -54,7 +57,7 @@ def validate_domain(value: dict) -> dict:
         raise ValidationError('可执行参数约束必须保留原文依据')
     for row in evidence:
         if (not isinstance(row, dict) or set(row) != {'field', 'quote'}
-                or row['field'] not in ('code', 'description', 'web_markdown')
+                or row['field'] not in (('code', 'description', 'parameters') if value['version'] == 5 else ('code', 'description', 'web_markdown'))
                 or not isinstance(row['quote'], str) or not row['quote'].strip() or len(row['quote']) > 3000):
             raise ValidationError('参数约束的原文引用格式无效')
     if all(value[key] is None for key in ('minimum', 'maximum', 'step')) and not choices and not relations and not value.get('conditions'):

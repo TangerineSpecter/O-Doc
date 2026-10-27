@@ -23,6 +23,8 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
     if 'strategy' in plan['config']:
         from quant.strategies.policy import SEMANTICS
         evidence['execution']['semantics'] = SEMANTICS
+    if 'label_target' in plan['config']:
+        evidence['execution']['label_semantics'] = '各窗口标签终点须在本段内，段末跨界起点先剔除；IC为描述性相关，配对可重叠，不提供p值或独立样本量。target_ref均指execution.config.label_target。'
     rows = snapshot['rows']
     evidence['dataset'].update(row_count=len(rows), start=rows[0]['timestamp'], end=rows[-1]['timestamp'])
     for part, bounds in output.get('partitions', {}).items():
@@ -51,18 +53,24 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
             nested = attempt['inner_evaluation']
             evidence[attempt['id']]['inner_evaluation'] = {**copy.deepcopy(nested),
                 'folds': [{'number': row['number'], 'metrics': {name: metric_evidence(metric)
-                    for name, metric in row['metrics'].items()}} for row in nested['folds']],
+                    for name, metric in row['metrics'].items()}, **({'label_metrics': {key: label_evidence(value) for key,value in row['label_metrics'].items()}}
+                        if 'label_metrics' in row else {})} for row in nested['folds']],
                 'metric_scope': 'top_level_metrics_are_last_started_inner_fold; selection_uses_complete_inner_summary'}
+        if 'label_evaluation' in attempt:
+            evidence[attempt['id']]['label_evaluation'] = {'version':1,'metrics':{key:label_evidence(value) for key,value in attempt['label_evaluation']['metrics'].items()}}
     if output.get('walk_forward'):
         evidence['walk_forward'] = output['walk_forward']['summary']
         for fold in output['walk_forward']['folds']:
             evidence[f"fold:{fold['number']}"] = {key: value for key, value in fold.items()
                 if key not in ('holdout', 'buy_hold_baseline')}
+            if 'label_holdout' in fold: evidence[f"fold:{fold['number']}"]['label_holdout'] = label_evidence(fold['label_holdout'])
             for key in ('holdout', 'buy_hold_baseline'):
                 evidence[f"fold:{fold['number']}"][key] = metric_evidence(fold[key]) if fold[key] else None
     for key, field in [('holdout', 'holdout'), ('baseline', 'buy_hold_baseline')]:
         metric = output.get(field)
         evidence[key] = metric_evidence(metric) if metric else None
+    if 'label_target' in plan['config']:
+        evidence['label_holdout'] = label_evidence(output.get('label_holdout'))
     value = {'version': 1, 'metric_units': 'return/drawdown/exposure are fractions; fees/slippage are bps per side; entries are counts',
         'independent_holdout_proven': False, 'evidence': evidence}
     if planning_options is not None:
@@ -118,25 +126,35 @@ def metric_evidence(metric):
     return value
 
 
+def label_evidence(value):
+    if value is None: return None
+    return {key:copy.deepcopy(item) for key,item in value.items() if key not in ('target','limitations')} | {
+        'target_ref':'execution.config.label_target','semantics_ref':'execution.label_semantics'}
+
+
 def for_result(result, version: int = 2, context: dict | None = None, fixed=None) -> dict:
     request = result.request
-    if version not in (9,10,11,12,13,14) and ('strategy' in request.plan['config']) != (version == 8):
+    if version not in (9,10,11,12,13,14,15) and ('strategy' in request.plan['config']) != (version == 8):
         raise ValidationError('策略执行实验必须使用匹配版本的解读契约')
     from .planning_context import for_result as planning_options
-    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) and (not isinstance(context, dict) or context.get('version') != (6 if version in (11, 12, 13, 14) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12, 13, 14) else 2 if version == 6 else 1)):
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) and (not isinstance(context, dict) or context.get('version') != (6 if version in (11, 12, 13, 14, 15) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12, 13, 14, 15) else 2 if version == 6 else 1)):
         raise ValidationError('新版实验解读缺少冻结的跨库研究上下文')
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
+        from .library_contract import METHOD, METHOD_V2
+        if context.get('method') != (METHOD_V2 if version == 15 else METHOD):
+            raise ValidationError('实验解读版本与跨库去重合同不一致')
     from quant.validation_studies.evidence import for_result as fixed_evidence
     from quant.search_diagnostics.services import from_reference
     from quant.search_diagnostics.evidence import summary as diagnostic_summary
-    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version in (10, 11, 12, 13, 14) else None
-    if version == 9 and not fixed or fixed and version not in (9,10,11,12,13,14):
+    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version in (10, 11, 12, 13, 14, 15) else None
+    if version == 9 and not fixed or fixed and version not in (9,10,11,12,13,14,15):
         raise ValidationError('固定验证解读版本与结果引用不匹配')
-    if version in (9,10,11,12,13,14) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
+    if version in (9,10,11,12,13,14,15) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
         raise ValidationError('固定验证冻结上下文不一致')
     return project(request.plan, request.dataset.snapshot, result.data,
         list(request.checkpoints.values_list('attempt', flat=True)),
-        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) else planning_options(result) if version == 2 else None,
-        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14), joint_sensitivity=version in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10, 11, 12, 13, 14) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None, temporal_sensitivity=version in (12,13,14), window_reviews=version in (13,14), context_encoding=version==14)
+        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) else planning_options(result) if version == 2 else None,
+        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), joint_sensitivity=version in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None, temporal_sensitivity=version in (12,13,14,15), window_reviews=version in (13,14,15), context_encoding=version in (14,15))
 
 
 def evidence_hash(evidence: dict) -> str:

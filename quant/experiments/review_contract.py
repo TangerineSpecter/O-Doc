@@ -210,7 +210,9 @@ def review_prompt(evidence: dict, requirements: str) -> str:
     if evidence.get('planning_capabilities') is not None:
         from .planning_capabilities import validate, instruction
         validate(evidence['planning_capabilities'])
-        planning_instruction += instruction(inherited=True)
+        planning_instruction += ('本请求的标签选择规则以execution.config.label_target和selection_rule为准；planning_capabilities只提供旧窗口/预算上限，'
+            '不将其中旧收益选择示例用于改写本次目标。后续方案沿用完整配置和预算，不增加字段或更换目标。'
+            if 'label_target' in evidence['evidence']['execution']['config'] else instruction(inherited=True))
     if evidence['evidence']['execution']['config'].get('walk_forward'):
         planning_instruction += ('本轮是逐折重新搜索的滚动验证；fold:N 是各折的选择与后续测试，attempt 的 fold 指明归属。'
             '不得把不同折参数点混成敏感度，也不得按测试表现挑最好一折；顶层holdout和候选回库只代表最后一折。'
@@ -230,12 +232,24 @@ def review_prompt(evidence: dict, requirements: str) -> str:
             '登记后导入、无已知重用均不是全局独立证明；外部使用未知，ordinary replication 不是新数据验证。'
             '一次固定参数评价不能证明参数稳定或最优，不重选起止点、参数或最好折；所有得分是研究评价。'
             '后续 proposal 继承原实验的完整搜索配置和预算，已查看的新评价数据不能继续称独立验证，需要其他新数据。')
+        if evidence['evidence']['fixed_validation'].get('label_evaluation') is not None:
+            planning_instruction += ('另有预登记的label_evaluation：按固定horizon_bars读取未来收盘收益，段末跨界起点已剔除。'
+                '分别解释配对数、缺失、剔除数量、Pearson IC和Spearman IC；null保持未知。'
+                '这些是描述性相关，不是成交收益、显著性、独立样本量、稳定区域或最优参数；标签可重叠，不推断p值。'
+                '不能把IC替代原收益/成本标准，或以改变目标期限重解释已冻结结果。')
         assessment=evidence['evidence']['fixed_validation'].get('criteria_assessment')
         if assessment is not None:
             planning_instruction += ('存在预先登记的数值标准。必须额外返回 criteria_review：'
                 '{status:逐字复制criteria_assessment.status,eligibility:逐字复制criteria_assessment.eligibility,text:逐项解释达标/未达标/未知及数据资格限制,evidence_refs:["fixed_validation"]}。'
                 '代码判定不可用AI评分覆盖；met仅表示满足已登记阈值，不表示阈值本身充分、正收益、原平台等价或全局独立验证。'
                 '外部使用仍未知，历史已看数据不能提升当前新方案的独立证据等级。不输出criteria_review_version，系统写入。')
+    if 'label_target' in evidence['evidence']['execution']['config']:
+        planning_instruction += ('本请求按冻结的远期标签目标选择：训练Rank IC/覆盖率/复杂度Pareto，随后按验证Rank IC/覆盖率选择，'
+            '多内层采用完整窗口等权均值。交易收益仍是另列的观察，不是这次选择的适应度。'
+            '逐个解释label_evaluation/label_metrics中的期限、跨界剔除、缺失和未定义；label_holdout只在本折选择后计算。'
+            '不能把相关系数当收益、p值、独立样本量或最优参数，不能按测试标签或收益挑选最好外折。'
+            '既有参数敏感度/稳定区间仍按交易收益描述，不是标签IC稳定区间；不得混用。'
+            '后续方案继承label_target，不能看到结果后改期限；需要其他期限时作为新的待验证目标。')
     if 'selection_diagnostic' in evidence['evidence']:
         planning_instruction += ('必须额外返回selection_review:{text:解释搜索次数、候选覆盖、分块排名反转与歧义及未知范围,evidence_refs:["selection_diagnostic"]}。'
             'policy.maximum_candidates只是诊断器支持上限，不是本批预算；实际预算必须读取execution.config.max_candidates，并与已记录尝试次数核对，不能混称剩余额度。'

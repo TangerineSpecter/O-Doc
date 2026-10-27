@@ -65,3 +65,9 @@ def expression_hash(candidate: dict) -> str:
     # only exact structural identity, NOT cross-platform semantic equivalence.
     return digest({'grammar': 1, **{key: candidate[key] for key in
         ('role', 'expression', 'inputs', 'parameters', 'output_type', 'units', 'timeframe', 'dependencies')}})
+
+
+def expression_hash_without_parameter_origins(candidate: dict) -> str:
+    """Comparison only; persisted hashes retain their original contract."""
+    return expression_hash({**candidate, 'parameters': [{key: value for key, value in row.items() if key != 'source_binding'}
+        for row in candidate['parameters']]})
