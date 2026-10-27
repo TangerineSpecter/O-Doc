@@ -37,7 +37,7 @@ test('本地 Mock daily-feed 能正确返回符合图片样式的炼金制作执
     assert.equal(maomaoFeed.reason, '系统选择说明：按已确认的炼金配方和瓶数制作。');
     assert.ok(maomaoFeed.steps && maomaoFeed.steps.length === 1);
     assert.equal(maomaoFeed.steps[0].title, '炼制');
-    assert.equal(maomaoFeed.steps[0].detail, '愈合药剂 ★1 ×1 · 炼金经验 +12 · 回收价值 12.00 币');
+    assert.equal(maomaoFeed.steps[0].detail, '愈合药剂 ★1 ×1 · 炼金经验 +12 · 基准价值 12.00 币');
 
     // 验证银月的双瓶炼金制作（图片 3）
     const yinyueFeed = response.items.find(item => item.actorName === '银月' && item.category === 'alchemy');
@@ -47,9 +47,9 @@ test('本地 Mock daily-feed 能正确返回符合图片样式的炼金制作执
     assert.equal(yinyueFeed.reason, '系统选择说明：按已确认的炼金配方和瓶数制作。');
     assert.ok(yinyueFeed.steps && yinyueFeed.steps.length === 2);
     assert.equal(yinyueFeed.steps[0].title, '炼制');
-    assert.equal(yinyueFeed.steps[0].detail, '愈合药剂 ★1 ×1 · 炼金经验 +12 · 回收价值 12.00 币');
+    assert.equal(yinyueFeed.steps[0].detail, '愈合药剂 ★1 ×1 · 炼金经验 +12 · 基准价值 12.00 币');
     assert.equal(yinyueFeed.steps[1].title, '炼制');
-    assert.equal(yinyueFeed.steps[1].detail, '愈合药剂 ★2 ×1 · 炼金经验 +13 · 回收价值 14 币');
+    assert.equal(yinyueFeed.steps[1].detail, '愈合药剂 ★2 ×1 · 炼金经验 +13 · 基准价值 14 币');
 });
 
 test('本地 Mock daily-feed 能正确返回符合图片样式的市场交易 7 步执行明细', async () => {

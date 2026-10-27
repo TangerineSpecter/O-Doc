@@ -11,7 +11,7 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 74
+SCHEMA_VERSION = 75
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
@@ -28,6 +28,8 @@ LABELS |= VOCABULARY_LABELS
 from .verification.sync import LABELS as VERIFICATION_LABELS
 LABELS |= VERIFICATION_LABELS
 LABELS.add('quant.factoradmission')
+from .studies.sync import LABELS as STUDY_LABELS
+LABELS |= STUDY_LABELS
 
 
 def complete_legacy_fields(data: list) -> None:
@@ -105,6 +107,8 @@ def validate(data: list, meta=None) -> None:
         fail('组合增量解读需要量化同步版本73或更高，拒绝降级解释')
     if 'quant_schema_version' in meta and schema_version < 74 and any(row.get('review_version') == 17 for row in rows.get('quant.airun', {}).values()):
         fail('冻结统计解读需要量化同步版本74或更高，拒绝降级解释')
+    if 'quant_schema_version' in meta and schema_version < 75 and any(rows.get(label) for label in STUDY_LABELS):
+        fail('AI研究与动态连接器需要量化同步版本75或更高')
     anthologies = {str(row['pk']): row['fields'] for row in data if row.get('model') == 'anthology.anthology'}
     from .experiments.sync import validate_datasets
     from .experiments.snapshot import validate_experiments
@@ -264,6 +268,8 @@ def validate(data: list, meta=None) -> None:
         from .feedback.sync import validate_feedback
         validate_feedback(rows, fail)
         validate_research(rows, fail)
+        from .studies.sync import validate as validate_studies
+        validate_studies(rows, anthologies, fail)
         from .strategy_exports.sync import validate_artifacts
         validate_artifacts(rows, fail)
         from .comparisons.sync import validate_comparisons
@@ -283,6 +289,8 @@ def validate(data: list, meta=None) -> None:
 
 
 def reset_execution(*, upgrade_legacy=False) -> None:
+    from .models import AIStudyJob
+    AIStudyJob.objects.all().delete()
     from .models import NativePythonJob
     NativePythonJob.objects.all().delete()
     from .models import ValidationJob

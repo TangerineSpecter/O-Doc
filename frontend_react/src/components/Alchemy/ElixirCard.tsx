@@ -27,7 +27,7 @@ export function ElixirCard({recipe, isSelected, onClick}: {
             <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-1.5">
                     <span className="truncate text-sm font-bold text-slate-800 transition-colors group-hover:text-violet-700">{recipe.name}</span>
-                    <span title="一星基准回收单价" className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-200/60 bg-amber-50/90 px-1.5 py-0.5 text-xs font-bold text-amber-700">
+                    <span title="一星基准价值" className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-200/60 bg-amber-50/90 px-1.5 py-0.5 text-xs font-bold text-amber-700">
                         <Coins className="h-3 w-3 text-amber-500" />{recipe.salePrice}
                     </span>
                 </div>

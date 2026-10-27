@@ -142,7 +142,9 @@ class AlchemyScheduleTests(TestCase):
             return run_alchemy_opportunity(self.task, key=execution_key(item), locked='w')
 
     def test_saved_rule_is_executed_without_reselecting_or_repricing(self):
-        item = self.item(activity='alchemy', task_id=self.task.pk, context={'alchemy_plan': self.specification()})
+        legacy = self.specification()
+        legacy['entries'][0]['rule']['sale_price'] = '12.00'
+        item = self.item(activity='alchemy', task_id=self.task.pk, context={'alchemy_plan': legacy})
         catalog = catalog_for('admin')
         catalog.rules['healing']['sale_price'] = '99.00'; catalog.save()
         record = self.run_saved(item)

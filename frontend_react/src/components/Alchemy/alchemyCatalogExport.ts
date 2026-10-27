@@ -18,7 +18,7 @@ export function alchemyCatalogExportSheets({recipes, skill, residentName, carryC
         三星效果: recipe.effects[2]?.summary || '',
         四星效果: recipe.effects[3]?.summary || '',
         五星效果: recipe.effects[4]?.summary || '',
-        一星回收单价: recipe.salePrice,
+        一星基准价值: recipe.salePrice,
         基础经验: recipe.experience,
         每瓶体力: recipe.energyCost,
         当前可制作瓶数: recipe.maxBottles,

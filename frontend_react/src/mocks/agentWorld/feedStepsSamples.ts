@@ -10,7 +10,7 @@ const atTime = (hour: number, minute = 0) => {
 /**
  * 结构化多步执行明细 Mock 数据样本
  * 包含：
- * 1. 炼金制作（单瓶、多瓶、星级配方、经验与回收价值，带规划想法）
+ * 1. 炼金制作（单瓶、多瓶、星级配方、经验与基准价值，带规划想法）
  * 2. 市场活动（进入市场、居民上架、装备上架、出售装备、商店购买、离开市场等多步时间线）
  * 3. 农场经营（AI规划、种植队列状态、收获、翻耕、播种浇水、施肥等自动化执行时间线）
  * 4. 迷宫探索结算（按后端 settle 生成的报告文案，覆盖按计划完成、额度耗尽、角色倒地与暂停未结算）
@@ -72,7 +72,7 @@ export const feedStepsSamples: DailyFeedEvent[] = [
             {
                 id: 'step-alchemy-maomao-1',
                 title: '炼制',
-                detail: '愈合药剂 ★1 ×1 · 炼金经验 +12 · 回收价值 12.00 币',
+                detail: '愈合药剂 ★1 ×1 · 炼金经验 +12 · 基准价值 12.00 币',
                 occurredAt: '',
                 amount: null,
             },
@@ -99,14 +99,14 @@ export const feedStepsSamples: DailyFeedEvent[] = [
             {
                 id: 'step-alchemy-yinyue-1',
                 title: '炼制',
-                detail: '愈合药剂 ★1 ×1 · 炼金经验 +12 · 回收价值 12.00 币',
+                detail: '愈合药剂 ★1 ×1 · 炼金经验 +12 · 基准价值 12.00 币',
                 occurredAt: '',
                 amount: null,
             },
             {
                 id: 'step-alchemy-yinyue-2',
                 title: '炼制',
-                detail: '愈合药剂 ★2 ×1 · 炼金经验 +13 · 回收价值 14 币',
+                detail: '愈合药剂 ★2 ×1 · 炼金经验 +13 · 基准价值 14 币',
                 occurredAt: '',
                 amount: null,
             },
@@ -160,14 +160,14 @@ export const feedStepsSamples: DailyFeedEvent[] = [
             {
                 id: 'step-alchemy-r1-1',
                 title: '炼制',
-                detail: '活力药水 ★1 ×1 · 炼金经验 +15 · 回收价值 18.00 币',
+                detail: '活力药水 ★1 ×1 · 炼金经验 +15 · 基准价值 18.00 币',
                 occurredAt: '',
                 amount: null,
             },
             {
                 id: 'step-alchemy-r1-2',
                 title: '炼制',
-                detail: '敏捷药剂 ★2 ×1 · 炼金经验 +18 · 回收价值 24.00 币 · 炼金升至 Lv.5',
+                detail: '敏捷药剂 ★2 ×1 · 炼金经验 +18 · 基准价值 24.00 币 · 炼金升至 Lv.5',
                 occurredAt: '',
                 amount: null,
             },
@@ -219,7 +219,7 @@ export const feedStepsSamples: DailyFeedEvent[] = [
             {
                 id: 'step-alchemy-r4-1',
                 title: '炼制',
-                detail: '愈合药剂 ★1 ×1 · 炼金经验 +12 · 回收价值 12.00 币',
+                detail: '愈合药剂 ★1 ×1 · 炼金经验 +12 · 基准价值 12.00 币',
                 occurredAt: '',
                 amount: null,
             },

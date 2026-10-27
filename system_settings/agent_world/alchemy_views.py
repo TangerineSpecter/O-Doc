@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
@@ -8,7 +9,7 @@ from utils.response_utils import success_result, valid_result
 from system_settings.models import Agent
 from .farm_gate import farm_gate
 from .alchemy_models import AlchemyCatalog, AlchemyOperation, AlchemySkill
-from .alchemy_catalog import DEFAULT_RULES, MATERIALS, rules_for, catalog_for, validate_rule
+from .alchemy_catalog import DEFAULT_RULES, MATERIALS, rules_for, catalog_for, validate_rule, ingredient_value
 from .alchemy_queries import recipes, overview, validate_actor, materials
 from .alchemy_limits import CARRY_CAP
 
@@ -42,6 +43,9 @@ class AlchemyRecipeView(APIView):
             return valid_result('配方不存在', status=404)
         try:
             rule = validate_rule(request.data)
+            rule['sale_price'] = ingredient_value(rule['ingredients'])
+            if Decimal(rule['sale_price']) > 1000000:
+                raise ValidationError('材料价值不得超过 1000000')
         except ValidationError as exc:
             return valid_result('炼金配方规则无效', data={'detail': exc.detail}, status=400)
         owner = get_current_user_identifier(request)

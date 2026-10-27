@@ -414,7 +414,6 @@
       "id": "healing",
       "name": "愈合药剂",
       "requiredLevel": 1,
-      "salePrice": "12.00",
       "experience": 12,
       "energyCost": 1,
       "ingredients": [
@@ -426,13 +425,13 @@
           "combat.material.sprout_meadow.rabbit",
           1
         ]
-      ]
+      ],
+      "salePrice": "13.50"
     },
     {
       "id": "focus",
       "name": "灵思药剂",
       "requiredLevel": 2,
-      "salePrice": "18.00",
       "experience": 16,
       "energyCost": 1,
       "ingredients": [
@@ -444,13 +443,13 @@
           "combat.material.sprout_meadow.glowbug",
           1
         ]
-      ]
+      ],
+      "salePrice": "20.00"
     },
     {
       "id": "iron",
       "name": "铁壁药剂",
       "requiredLevel": 3,
-      "salePrice": "30.00",
       "experience": 22,
       "energyCost": 1,
       "ingredients": [
@@ -462,13 +461,13 @@
           "combat.material.moss_cave.3",
           1
         ]
-      ]
+      ],
+      "salePrice": "30.00"
     },
     {
       "id": "fury",
       "name": "狂暴药剂",
       "requiredLevel": 4,
-      "salePrice": "42.00",
       "experience": 28,
       "energyCost": 1,
       "ingredients": [
@@ -480,13 +479,13 @@
           "combat.material.abandoned_mine.1",
           2
         ]
-      ]
+      ],
+      "salePrice": "27.00"
     },
     {
       "id": "regen",
       "name": "再生药剂",
       "requiredLevel": 5,
-      "salePrice": "70.00",
       "experience": 36,
       "energyCost": 1,
       "ingredients": [
@@ -498,13 +497,13 @@
           "combat.material.mist_forest.1",
           2
         ]
-      ]
+      ],
+      "salePrice": "47.00"
     },
     {
       "id": "arcane",
       "name": "秘法药剂",
       "requiredLevel": 6,
-      "salePrice": "95.00",
       "experience": 46,
       "energyCost": 1,
       "ingredients": [
@@ -516,13 +515,13 @@
           "combat.material.sunken_ruins.2",
           2
         ]
-      ]
+      ],
+      "salePrice": "70.50"
     },
     {
       "id": "ember",
       "name": "烈焰药剂",
       "requiredLevel": 7,
-      "salePrice": "130.00",
       "experience": 58,
       "energyCost": 1,
       "ingredients": [
@@ -534,13 +533,13 @@
           "combat.material.ember_fortress.1",
           2
         ]
-      ]
+      ],
+      "salePrice": "88.50"
     },
     {
       "id": "aegis",
       "name": "圣盾药剂",
       "requiredLevel": 8,
-      "salePrice": "150.00",
       "experience": 68,
       "energyCost": 1,
       "ingredients": [
@@ -552,13 +551,13 @@
           "combat.material.ember_fortress.2",
           2
         ]
-      ]
+      ],
+      "salePrice": "74.00"
     },
     {
       "id": "star",
       "name": "星辰药剂",
       "requiredLevel": 9,
-      "salePrice": "220.00",
       "experience": 80,
       "energyCost": 1,
       "ingredients": [
@@ -570,13 +569,13 @@
           "combat.material.star_rift.1",
           1
         ]
-      ]
+      ],
+      "salePrice": "129.00"
     },
     {
       "id": "purify",
       "name": "净化药剂",
       "requiredLevel": 10,
-      "salePrice": "300.00",
       "experience": 96,
       "energyCost": 1,
       "ingredients": [
@@ -588,149 +587,150 @@
           "combat.material.star_rift.4",
           1
         ]
-      ]
+      ],
+      "salePrice": "102.50"
     }
   ],
   "materials": {
     "combat.material.moss_cave.1": [
       "黏液",
       1,
-      "1.04"
+      "4.50"
     ],
     "combat.material.sprout_meadow.rabbit": [
       "绒耳兔毛",
       1,
-      "1.04"
+      "4.50"
     ],
     "combat.material.sprout_meadow.beetle": [
       "叶壳碎片",
       5,
-      "1.20"
+      "6.50"
     ],
     "combat.material.sprout_meadow.glowbug": [
       "晨光粉尘",
       10,
-      "1.40"
+      "9.00"
     ],
     "combat.material.moss_cave.2": [
       "蝠翼",
       3,
-      "1.12"
+      "5.50"
     ],
     "combat.material.moss_cave.crystal_lizard": [
       "晶蜥鳞",
       10,
-      "1.40"
+      "9.00"
     ],
     "combat.material.moss_cave.3": [
       "苔石碎片",
       8,
-      "1.32"
+      "8.00"
     ],
     "combat.material.moss_cave.4": [
       "苔石洞窟印记",
       12,
-      "1.48"
+      "10.00"
     ],
     "combat.material.abandoned_mine.1": [
       "矿鼠皮",
       10,
-      "1.40"
+      "9.00"
     ],
     "combat.material.abandoned_mine.2": [
       "铁矿",
       14,
-      "1.56"
+      "11.00"
     ],
     "combat.material.abandoned_mine.3": [
       "傀儡核心",
       20,
-      "1.80"
+      "14.00"
     ],
     "combat.material.abandoned_mine.4": [
       "废弃矿坑印记",
       25,
-      "2.00"
+      "16.50"
     ],
     "combat.material.mist_forest.1": [
       "孢子",
       20,
-      "1.80"
+      "14.00"
     ],
     "combat.material.mist_forest.2": [
       "狼牙",
       24,
-      "1.96"
+      "16.00"
     ],
     "combat.material.mist_forest.3": [
       "古木树脂",
       30,
-      "2.20"
+      "19.00"
     ],
     "combat.material.mist_forest.4": [
       "迷雾林地印记",
       35,
-      "2.40"
+      "21.50"
     ],
     "combat.material.sunken_ruins.1": [
       "骨片",
       30,
-      "2.20"
+      "19.00"
     ],
     "combat.material.sunken_ruins.2": [
       "水灵精华",
       36,
-      "2.44"
+      "22.00"
     ],
     "combat.material.sunken_ruins.3": [
       "遗迹碎晶",
       45,
-      "2.80"
+      "26.50"
     ],
     "combat.material.sunken_ruins.4": [
       "沉没遗迹印记",
       50,
-      "3.00"
+      "29.00"
     ],
     "combat.material.ember_fortress.1": [
       "灰烬粉",
       45,
-      "2.80"
+      "26.50"
     ],
     "combat.material.ember_fortress.2": [
       "熔岩碎片",
       52,
-      "3.08"
+      "30.00"
     ],
     "combat.material.ember_fortress.3": [
       "火焰核心",
       63,
-      "3.52"
+      "35.50"
     ],
     "combat.material.ember_fortress.4": [
       "灰烬堡垒印记",
       70,
-      "3.80"
+      "39.00"
     ],
     "combat.material.star_rift.1": [
       "裂隙粉尘",
       70,
-      "3.80"
+      "39.00"
     ],
     "combat.material.star_rift.2": [
       "星蚀结晶",
       82,
-      "4.28"
+      "45.00"
     ],
     "combat.material.star_rift.3": [
       "领主残核",
       90,
-      "4.60"
+      "49.00"
     ],
     "combat.material.star_rift.4": [
       "星蚀裂隙印记",
       99,
-      "4.96"
+      "53.50"
     ]
   },
   "dungeons": {
@@ -743,7 +743,7 @@
     "star_rift": "星蚀裂隙"
   },
   "combat": {
-    "version": "combat-1.0.35",
+    "version": "combat-1.0.36",
     "tables": {
       "affixSlots": [
         {
@@ -42188,308 +42188,308 @@
           "id": "material.moss_cave.1",
           "name": "黏液",
           "level": "1",
-          "salePrice": "1.04",
+          "salePrice": "4.50",
           "enabled": "1"
         },
         {
           "id": "material.sprout_meadow.rabbit",
           "name": "绒耳兔毛",
           "level": "1",
-          "salePrice": "1.04",
+          "salePrice": "4.50",
           "enabled": "1"
         },
         {
           "id": "material.sprout_meadow.beetle",
           "name": "叶壳碎片",
           "level": "5",
-          "salePrice": "1.20",
+          "salePrice": "6.50",
           "enabled": "1"
         },
         {
           "id": "material.sprout_meadow.glowbug",
           "name": "晨光粉尘",
           "level": "10",
-          "salePrice": "1.40",
+          "salePrice": "9.00",
           "enabled": "1"
         },
         {
           "id": "material.moss_cave.2",
           "name": "蝠翼",
           "level": "3",
-          "salePrice": "1.12",
+          "salePrice": "5.50",
           "enabled": "1"
         },
         {
           "id": "material.moss_cave.crystal_lizard",
           "name": "晶蜥鳞",
           "level": "10",
-          "salePrice": "1.40",
+          "salePrice": "9.00",
           "enabled": "1"
         },
         {
           "id": "material.moss_cave.3",
           "name": "苔石碎片",
           "level": "8",
-          "salePrice": "1.32",
+          "salePrice": "8.00",
           "enabled": "1"
         },
         {
           "id": "material.moss_cave.4",
           "name": "苔石洞窟印记",
           "level": "12",
-          "salePrice": "1.48",
+          "salePrice": "10.00",
           "enabled": "1"
         },
         {
           "id": "material.abandoned_mine.1",
           "name": "矿鼠皮",
           "level": "10",
-          "salePrice": "1.40",
+          "salePrice": "9.00",
           "enabled": "1"
         },
         {
           "id": "material.abandoned_mine.2",
           "name": "铁矿",
           "level": "14",
-          "salePrice": "1.56",
+          "salePrice": "11.00",
           "enabled": "1"
         },
         {
           "id": "material.abandoned_mine.3",
           "name": "傀儡核心",
           "level": "20",
-          "salePrice": "1.80",
+          "salePrice": "14.00",
           "enabled": "1"
         },
         {
           "id": "material.abandoned_mine.4",
           "name": "废弃矿坑印记",
           "level": "25",
-          "salePrice": "2.00",
+          "salePrice": "16.50",
           "enabled": "1"
         },
         {
           "id": "material.mist_forest.1",
           "name": "孢子",
           "level": "20",
-          "salePrice": "1.80",
+          "salePrice": "14.00",
           "enabled": "1"
         },
         {
           "id": "material.mist_forest.2",
           "name": "狼牙",
           "level": "24",
-          "salePrice": "1.96",
+          "salePrice": "16.00",
           "enabled": "1"
         },
         {
           "id": "material.mist_forest.3",
           "name": "古木树脂",
           "level": "30",
-          "salePrice": "2.20",
+          "salePrice": "19.00",
           "enabled": "1"
         },
         {
           "id": "material.mist_forest.4",
           "name": "迷雾林地印记",
           "level": "35",
-          "salePrice": "2.40",
+          "salePrice": "21.50",
           "enabled": "1"
         },
         {
           "id": "material.sunken_ruins.1",
           "name": "骨片",
           "level": "30",
-          "salePrice": "2.20",
+          "salePrice": "19.00",
           "enabled": "1"
         },
         {
           "id": "material.sunken_ruins.2",
           "name": "水灵精华",
           "level": "36",
-          "salePrice": "2.44",
+          "salePrice": "22.00",
           "enabled": "1"
         },
         {
           "id": "material.sunken_ruins.3",
           "name": "遗迹碎晶",
           "level": "45",
-          "salePrice": "2.80",
+          "salePrice": "26.50",
           "enabled": "1"
         },
         {
           "id": "material.sunken_ruins.4",
           "name": "沉没遗迹印记",
           "level": "50",
-          "salePrice": "3.00",
+          "salePrice": "29.00",
           "enabled": "1"
         },
         {
           "id": "material.ember_fortress.1",
           "name": "灰烬粉",
           "level": "45",
-          "salePrice": "2.80",
+          "salePrice": "26.50",
           "enabled": "1"
         },
         {
           "id": "material.ember_fortress.2",
           "name": "熔岩碎片",
           "level": "52",
-          "salePrice": "3.08",
+          "salePrice": "30.00",
           "enabled": "1"
         },
         {
           "id": "material.ember_fortress.3",
           "name": "火焰核心",
           "level": "63",
-          "salePrice": "3.52",
+          "salePrice": "35.50",
           "enabled": "1"
         },
         {
           "id": "material.ember_fortress.4",
           "name": "灰烬堡垒印记",
           "level": "70",
-          "salePrice": "3.80",
+          "salePrice": "39.00",
           "enabled": "1"
         },
         {
           "id": "material.star_rift.1",
           "name": "裂隙粉尘",
           "level": "70",
-          "salePrice": "3.80",
+          "salePrice": "39.00",
           "enabled": "1"
         },
         {
           "id": "material.star_rift.2",
           "name": "星蚀结晶",
           "level": "82",
-          "salePrice": "4.28",
+          "salePrice": "45.00",
           "enabled": "1"
         },
         {
           "id": "material.star_rift.3",
           "name": "领主残核",
           "level": "90",
-          "salePrice": "4.60",
+          "salePrice": "49.00",
           "enabled": "1"
         },
         {
           "id": "material.star_rift.4",
           "name": "星蚀裂隙印记",
           "level": "99",
-          "salePrice": "4.96",
+          "salePrice": "53.50",
           "enabled": "1"
         },
         {
           "id": "material.element.water.bubble_crab",
           "name": "泡泡贝壳",
           "level": "15",
-          "salePrice": "1.60",
+          "salePrice": "11.50",
           "enabled": "1"
         },
         {
           "id": "material.element.water.little_spirit",
           "name": "潮汐水珠",
           "level": "15",
-          "salePrice": "1.60",
+          "salePrice": "11.50",
           "enabled": "1"
         },
         {
           "id": "material.element.water.reef_guard",
           "name": "珊瑚甲片",
           "level": "19",
-          "salePrice": "1.76",
+          "salePrice": "13.50",
           "enabled": "1"
         },
         {
           "id": "material.element.water.tide_crown",
           "name": "潮冠结晶",
           "level": "23",
-          "salePrice": "1.92",
+          "salePrice": "15.50",
           "enabled": "1"
         },
         {
           "id": "material.element.earth.mole",
           "name": "砂晶碎片",
           "level": "22",
-          "salePrice": "1.88",
+          "salePrice": "15.00",
           "enabled": "1"
         },
         {
           "id": "material.element.earth.snail",
           "name": "岩芽晶粒",
           "level": "22",
-          "salePrice": "1.88",
+          "salePrice": "15.00",
           "enabled": "1"
         },
         {
           "id": "material.element.earth.armored",
           "name": "琥岩甲片",
           "level": "26",
-          "salePrice": "2.04",
+          "salePrice": "17.00",
           "enabled": "1"
         },
         {
           "id": "material.element.earth.dragon",
           "name": "晶脊龙鳞",
           "level": "30",
-          "salePrice": "2.20",
+          "salePrice": "19.00",
           "enabled": "1"
         },
         {
           "id": "material.element.wind.cloudbird",
           "name": "云绒羽",
           "level": "30",
-          "salePrice": "2.20",
+          "salePrice": "19.00",
           "enabled": "1"
         },
         {
           "id": "material.element.wind.bell",
           "name": "风铃碎片",
           "level": "30",
-          "salePrice": "2.20",
+          "salePrice": "19.00",
           "enabled": "1"
         },
         {
           "id": "material.element.wind.falcon",
           "name": "岚羽",
           "level": "34",
-          "salePrice": "2.36",
+          "salePrice": "21.00",
           "enabled": "1"
         },
         {
           "id": "material.element.wind.griffin",
           "name": "翔云冠羽",
           "level": "38",
-          "salePrice": "2.52",
+          "salePrice": "23.00",
           "enabled": "1"
         },
         {
           "id": "material.element.fire.lizard",
           "name": "火绒鳞",
           "level": "38",
-          "salePrice": "2.52",
+          "salePrice": "23.00",
           "enabled": "1"
         },
         {
           "id": "material.element.fire.turtle",
           "name": "炭壳碎片",
           "level": "38",
-          "salePrice": "2.52",
+          "salePrice": "23.00",
           "enabled": "1"
         },
         {
           "id": "material.element.fire.horn",
           "name": "熔角碎片",
           "level": "42",
-          "salePrice": "2.68",
+          "salePrice": "25.00",
           "enabled": "1"
         },
         {
           "id": "material.element.fire.firebird",
           "name": "焰羽",
           "level": "46",
-          "salePrice": "2.84",
+          "salePrice": "27.00",
           "enabled": "1"
         }
       ],

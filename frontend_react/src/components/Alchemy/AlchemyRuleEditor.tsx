@@ -15,10 +15,12 @@ export function AlchemyRuleEditor({recipe, options, onClose, onSaved}: {
     });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const price = rule.ingredients.reduce((sum, row) =>
+        sum + Number(options.find(option => option.sku === row.sku)?.salePrice ?? 0) * row.quantity, 0);
     const save = async () => {
         setBusy(true); setError('');
         try {
-            await updateAlchemyRecipe(recipe.id, rule);
+            await updateAlchemyRecipe(recipe.id, {...rule, salePrice: price.toFixed(2)});
             onSaved();
         } catch (e) {
             setError(e instanceof Error ? e.message : '保存失败');
@@ -29,7 +31,7 @@ export function AlchemyRuleEditor({recipe, options, onClose, onSaved}: {
     const available = options.filter(option => !rule.ingredients.some(row => row.sku === option.sku));
     return <WorldDialog title="编辑炼金规则" description={recipe.name} onClose={() => {if (!busy) onClose();}}>
         <div className="space-y-4">
-            <p className="text-xs leading-relaxed text-slate-500">每次炼制一瓶；修改只影响后续制作，已有药水保留原星级与回收价格。</p>
+            <p className="text-xs leading-relaxed text-slate-500">一星价值按配方材料的系统回收价自动计算；修改只影响后续计划，已有药水保留原价格。</p>
             <fieldset disabled={busy} className="space-y-3">
                 <legend className="mb-2 text-sm font-semibold">每瓶素材</legend>
                 {rule.ingredients.map((row, index) => <div key={`${row.sku}-${index}`} className="flex items-center gap-2">
@@ -56,11 +58,9 @@ export function AlchemyRuleEditor({recipe, options, onClose, onSaved}: {
                                 onChange={e => setRule({...rule, [field.key]: Number(e.target.value)})}
                                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                         </label>)}
-                    <label className="space-y-1 text-xs text-slate-600"><span>一星回收单价</span>
-                        <input type="number" min="0.01" max={1000000} step="0.01" value={rule.salePrice}
-                            onChange={e => setRule({...rule, salePrice: e.target.value})}
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-                    </label>
+                    <div className="space-y-1 text-xs text-slate-600"><span>一星材料基准价值</span>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">{price.toFixed(2)} 币</div>
+                    </div>
                 </div>
             </fieldset>
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

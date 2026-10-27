@@ -37,6 +37,10 @@ export async function resolveAlchemyRoute(request: Request, empty: boolean):
     const result = validateRecipeRule(body, alchemy.materials.map(row => row.sku), 10);
     if (result.rule === undefined) return error(400, '炼金配方规则无效', result.error);
     const rule = result.rule;
+    const value = rule.ingredients.reduce((sum, row) => sum +
+        Number(alchemy.materials.find(item => item.sku === row.sku)!.salePrice) * row.quantity, 0);
+    if (value > 1000000) return error(400, '炼金配方规则无效', '材料价值不得超过 1000000');
+    rule.salePrice = value.toFixed(2);
     const ingredients = rule.ingredients.map(row => {
         const previous = recipe.ingredients.find(item => item.sku === row.sku)
             || alchemy.recipes.flatMap(item => item.ingredients).find(item => item.sku === row.sku);

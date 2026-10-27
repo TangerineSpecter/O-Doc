@@ -17,6 +17,62 @@ class Record(models.Model):
         abstract = True
 
 
+class AIStudy(Record):
+    anthology = models.ForeignKey('anthology.Anthology', on_delete=models.CASCADE, related_name='quant_ai_studies')
+    request_key = models.CharField(max_length=64)
+    plan = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64)
+    user_report = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-created_at', 'id']
+        constraints = [models.UniqueConstraint(fields=['anthology', 'request_key'], name='quant_study_request')]
+
+
+class AIStudyGeneration(Record):
+    study = models.ForeignKey(AIStudy, on_delete=models.CASCADE, related_name='generations')
+    number = models.PositiveSmallIntegerField()
+    data = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ['number']
+        constraints = [models.UniqueConstraint(fields=['study', 'number'], name='quant_study_generation')]
+
+
+class AIStudyJob(Record):
+    study = models.OneToOneField(AIStudy, on_delete=models.CASCADE, related_name='job')
+    owner_id = models.CharField(max_length=40)
+    status = models.CharField(max_length=20, default='pending')
+    error = models.TextField(blank=True)
+    lease_until = models.DateTimeField(null=True)
+    lease_token = models.CharField(max_length=40, default=stable_id)
+
+
+class ExternalConnector(Record):
+    anthology = models.ForeignKey('anthology.Anthology', on_delete=models.CASCADE, related_name='quant_connectors')
+    name = models.CharField(max_length=200)
+    config = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ['-updated_at', 'id']
+
+
+class ConnectorSecret(Record):
+    connector = models.OneToOneField(ExternalConnector, on_delete=models.CASCADE, related_name='local_secret')
+    values = models.JSONField(default=dict)
+
+
+class ExternalResponse(Record):
+    connector = models.ForeignKey(ExternalConnector, on_delete=models.CASCADE, related_name='responses')
+    data = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ['-created_at', 'id']
+
+
 class Entry(Record):
     KINDS = ('factor', 'indicator', 'strategy')
     anthology = models.ForeignKey('anthology.Anthology', on_delete=models.CASCADE, related_name='quant_entries')

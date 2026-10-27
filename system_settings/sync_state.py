@@ -26,7 +26,7 @@ LOCAL_ONLY_MODEL_LABELS = frozenset({
     'system_settings.combatruntime', 'system_settings.fishingruntime', 'system_settings.tournamentruntime',
     'system_settings.agentmemorylease',
     'novel.job',
-    'quant.job', 'quant.nativepythonjob',
+    'quant.job', 'quant.nativepythonjob', 'quant.aistudyjob', 'quant.connectorsecret',
     'quant.factorvector', 'quant.factorindexjob', 'quant.experimentjob', 'quant.validationjob', 'quant.researchcampaignjob', 'quant.intakebatchjob',
     'learning.runtime', 'learning.devicejob', 'learning.goaljob',
     'system_settings.investmentcache',

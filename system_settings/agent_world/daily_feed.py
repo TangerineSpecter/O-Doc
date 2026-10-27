@@ -550,7 +550,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         exp_gained = (row.result or {}).get('experience_gained', 0)
         parts = [f"{potion_name} ★{stars} ×1", f"炼金经验 +{exp_gained}"]
         if 'unit_price' in (row.result or {}):
-            parts.append(f"回收价值 {row.result['unit_price']} 币")
+            parts.append(f"基准价值 {row.result['unit_price']} 币")
         if (row.result or {}).get('level_after', 0) > (row.result or {}).get('level_before', 0):
             parts.append(f"炼金升至 Lv.{row.result['level_after']}")
         if row.reason and not row.opportunity_id:

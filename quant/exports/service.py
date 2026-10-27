@@ -62,6 +62,10 @@ def bundle(candidate, target: str) -> dict:
         manifest['source_role'] = 'ancestor_context_not_authored_formula_source'
         manifest['parameter_status'] = 'authored_candidate_values_not_source_defaults_or_live_settings'
         manifest['limitations'].append('此公式为独立人工修订；来源与报告指向祖先上下文，不是新公式的源码摘录或评分。')
+        if candidate.data['formula_version']['origin'] == 'ai_study':
+            manifest['source_role'] = 'ancestor_context_not_ai_study_formula_source'
+            manifest['parameter_status'] = 'research_hypothesis_not_actual_runtime_configuration'
+            manifest['limitations'][-1] = 'AI自动研究产生的候选；祖先源码和评分不属于该公式，没有实证表现认证。'
         if candidate.data['formula_version']['origin'] == 'ai_repair':
             manifest['source_role'] = 'ancestor_context_not_ai_revised_formula_source'
             manifest['parameter_status'] = 'ai_revised_candidate_values_not_native_defaults_or_live_settings'

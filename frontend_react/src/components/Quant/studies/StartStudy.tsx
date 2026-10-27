@@ -1,0 +1,22 @@
+import {useState} from 'react';
+import type {QuantFactorCandidate} from '../../../types/api/quant';
+import type {QuantStudyInput,QuantExternalResponse} from '../../../types/api/quantStudy';
+import {createRequestKey} from '../../../utils/requestKey';
+import {useQuantDraftRegistration,type QuantRegisterDraft} from '../../../hooks/useQuantNavigation';
+import {QuantButton,QuantField,QuantModal} from '../ui';
+export function StartStudy({candidates,initial,evidence,busy,start,close,register,serverError}:{candidates:QuantFactorCandidate[];initial?:string;evidence:QuantExternalResponse[];busy:boolean;serverError?:string;start:(data:QuantStudyInput)=>Promise<boolean>;close:()=>void;register:QuantRegisterDraft}){
+    const[ids,setIds]=useState<string[]>(initial?[initial]:candidates[0]?[candidates[0].id]:[]),[name,setName]=useState('AI 因子价值研究'),[direction,setDirection]=useState('分析逻辑、参数与复用价值，组合或改进有差异的候选，保留风险和淘汰理由。'),[market,setMarket]=useState(''),[maxGenerations,setMaxGenerations]=useState('3'),[population,setPopulation]=useState('3'),[keep,setKeep]=useState('2'),[evidenceIds,setEvidenceIds]=useState<string[]>([]),[key]=useState(createRequestKey),[error,setError]=useState(''),[dirty,setDirty]=useState(false);
+    useQuantDraftRegistration('ai-study-start',dirty,undefined,register);
+    const submit=async()=>{if(!ids.length)return;const values=[maxGenerations,population,keep].map(Number);if(values.some(v=>!Number.isInteger(v)||v<1)||values[0]>8||values[1]>6||values[2]>4||values[2]>values[1]){setError('请检查代数1–8、每代1–6项、保留1–4项且不超过候选数');return;}if(await start({requestKey:key,name,direction,market,candidateIds:ids,maxGenerations:values[0],population:values[1],keep:values[2],modelId:'',evidenceIds})){setDirty(false);}};
+    return <QuantModal title="启动 AI 自动研究" close={close} busy={busy} wide><p className="text-sm leading-7 text-slate-600">无须行情或回测。每代自动提出变体、组合或交叉，审查定义、评研究分并保留下一代；原始候选和淘汰记录保留。</p>
+        <QuantField label="研究名称" value={name} onChange={v=>{setDirty(true);setName(v);}}/>
+        <QuantField label="研究方向" multiline value={direction} onChange={v=>{setDirty(true);setDirection(v);}}/>
+        <QuantField label="关注的资产市场与周期（可空）" value={market} onChange={v=>{setDirty(true);setMarket(v);}} placeholder="例如：A股日线、币1小时；未知可留空"/>
+        <section className="space-y-3"><h3 className="text-sm font-semibold">起点父代 · 最多8项</h3><div className="max-h-60 space-y-2 overflow-auto scrollbar-hide">{candidates.map(row=><label key={row.id} className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm"><input type="checkbox" checked={ids.includes(row.id)} disabled={!ids.includes(row.id)&&ids.length>=8} onChange={e=>{setDirty(true);setIds(old=>e.target.checked?[...old,row.id]:old.filter(v=>v!==row.id));}}/><span>{row.curation.name}<span className="block text-xs leading-6 text-slate-500">{row.entryTitle}</span></span></label>)}</div></section>
+        <div className="grid gap-4 sm:grid-cols-3"><QuantField type="number" label="最多代数（1–8）" value={maxGenerations} onChange={v=>{setDirty(true);setMaxGenerations(v);}}/><QuantField type="number" label="每代候选（1–6）" value={population} onChange={v=>{setDirty(true);setPopulation(v);}}/><QuantField type="number" label="每代保留（1–4）" value={keep} onChange={v=>{setDirty(true);setKeep(v);}}/></div>
+        {!!evidence.length&&<details className="rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer text-sm">可选外部证据</summary><p className="my-3 text-xs leading-6 text-slate-500">仅引用已保存的映射结果；外部报告仍未独立验证。不选择也可以研究。</p>{evidence.map(row=><label key={row.id} className="my-2 flex gap-2 break-all text-xs"><input type="checkbox" checked={evidenceIds.includes(row.id)} disabled={!evidenceIds.includes(row.id)&&evidenceIds.length>=8} onChange={e=>{setDirty(true);setEvidenceIds(old=>e.target.checked?[...old,row.id]:old.filter(v=>v!==row.id));}}/>{row.createdAt} · {row.id}</label>)}</details>}
+        <p className="text-xs leading-6 text-slate-500">使用当前默认对话模型，每代最多一次请求，本次最多 {maxGenerations} 次；研究分不代表收益表现。达到预算、没有可保留候选或AI判断停止时结束。</p>
+        {(error||serverError)&&<p role="alert" className="text-sm text-red-600">{error||serverError}</p>}
+        <div className="flex justify-end gap-2"><QuantButton onClick={close}>取消</QuantButton><QuantButton primary disabled={busy||!ids.length||!name.trim()||!direction.trim()} onClick={()=>void submit()}>{busy?'正在提交…':'启动无回测研究'}</QuantButton></div>
+    </QuantModal>;
+}

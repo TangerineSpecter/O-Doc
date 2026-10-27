@@ -1,0 +1,17 @@
+import {useRef,useState} from 'react';
+import type {ConnectorMapping} from '../../../types/api/quantStudy';
+import {Select} from '../../common/Select';
+import {QuantButton,QuantField} from '../ui';
+const options=[{value:'number',label:'数值'},{value:'string',label:'字符串'},{value:'boolean',label:'布尔值'},{value:'json',label:'原始JSON'},{value:'array',label:'数组逐项映射'}];
+export function ConnectorMappings({rows,change,invalidChange}:{rows:ConnectorMapping[];change:(rows:ConnectorMapping[])=>void;invalidChange:(invalid:boolean)=>void}){
+    const invalid=useRef(new Set<number>());
+    const validity=(index:number,bad:boolean)=>{if(bad)invalid.current.add(index);else invalid.current.delete(index);invalidChange(invalid.current.size>0);};
+    const patch=(index:number,value:Partial<ConnectorMapping>)=>change(rows.map((row,n)=>n===index?{...row,...value}:row));
+    return <section className="space-y-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">返回数据映射</h3><QuantButton onClick={()=>change([...rows,{target:'',source:'$',type:'json'}])}>添加字段</QuantButton></div><p className="text-xs leading-6 text-slate-500">目标结构由你定义，例如 metrics.total_return、parameters、custom.risk。来源支持 $.data.return、$.rows[0].value 或 /data/key。数值比例通过缩放明确转换，例如百分数12.5转比率时填0.01。</p>
+        {rows.map((row,index)=><article key={index} className="space-y-3 rounded-xl border border-slate-200 p-4"><div className="grid gap-3 sm:grid-cols-2"><QuantField label="目标字段路径" value={row.target} onChange={target=>patch(index,{target})}/><QuantField label="响应来源路径" value={row.source} onChange={source=>patch(index,{source})}/></div><div className="flex flex-wrap items-end gap-3"><label className="min-w-40 space-y-2 text-sm"><span className="block">类型</span><Select menuPortal value={row.type} onChange={type=>{validity(index,false);patch(index,{type:type as ConnectorMapping['type']});}} options={options}/></label>{row.type==='number'&&<div className="w-40"><QuantField label="数值缩放" type="number" value={String(row.scale??1)} onChange={value=>patch(index,{scale:Number(value)})}/></div>}<label className="flex items-center gap-2 py-2 text-sm"><input type="checkbox" checked={!!row.required} onChange={e=>patch(index,{required:e.target.checked})}/>必需字段</label><QuantButton danger onClick={()=>{invalid.current=new Set([...invalid.current].filter(n=>n!==index).map(n=>n>index?n-1:n));invalidChange(invalid.current.size>0);change(rows.filter((_,n)=>n!==index));}}>移除</QuantButton></div>{row.type==='array'&&<ArrayFields key={index+'-array'} fields={row.fields||[]} change={fields=>patch(index,{fields})} invalidChange={bad=>validity(index,bad)}/>}</article>)}
+    </section>;
+}
+function ArrayFields({fields,change,invalidChange}:{fields:ConnectorMapping[];change:(rows:ConnectorMapping[])=>void;invalidChange:(invalid:boolean)=>void}){
+    const[value,setValue]=useState(JSON.stringify(fields,null,2)),[error,setError]=useState('');
+    return <div className="space-y-2"><QuantField label="数组每项的字段映射（JSON，相对当前项取值）" multiline rows={6} value={value} onChange={text=>{setValue(text);try{const parsed:unknown=JSON.parse(text);if(!Array.isArray(parsed))throw new Error();change(parsed as ConnectorMapping[]);invalidChange(false);setError('');}catch{invalidChange(true);setError('请提供映射数组，例如 [{"target":"price","source":"$.p","type":"number"}]');}}}/>{error&&<p className="text-xs text-red-600">{error}</p>}</div>;
+}

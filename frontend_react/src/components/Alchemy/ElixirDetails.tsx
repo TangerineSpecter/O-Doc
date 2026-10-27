@@ -54,7 +54,7 @@ export function ElixirDetails({recipe, history, historyPage, onHistoryPageChange
                             <p className="mt-1 text-xs leading-relaxed text-slate-500">{recipe.description}</p>
                             <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-slate-500">
                                 <span className="inline-flex items-center gap-1"><Sparkles className="h-3 w-3 text-violet-500" />已有 {recipe.ownedBottles} 瓶</span>
-                                <span className="inline-flex items-center gap-1"><Coins className="h-3 w-3 text-amber-500" />一星回收 {recipe.salePrice}</span>
+                                <span className="inline-flex items-center gap-1"><Coins className="h-3 w-3 text-amber-500" />一星价值 {recipe.salePrice}</span>
                                 <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-sky-500" />每瓶 {recipe.energyCost} 体力</span>
                             </div>
                         </div>

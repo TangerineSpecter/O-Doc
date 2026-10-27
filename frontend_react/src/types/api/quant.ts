@@ -251,7 +251,7 @@ export interface QuantFactorData {
     tags: string[];
     expression: Record<string, unknown> | null;
     evidence: {field: 'code' | 'description' | 'web_markdown'; quote: string}[];
-    formulaVersion?: {version: 1; versionId: string; rootId: string; origin: 'authored' | 'ai_repair'; parentCandidateIds: string[]; claim: 'authored_definition_not_source_extraction' | 'ai_revised_definition_not_source_extraction_or_platform_equivalence'};
+    formulaVersion?: {version: 1; versionId: string; rootId: string; origin: 'authored' | 'ai_repair' | 'ai_study'; parentCandidateIds: string[]; claim: 'authored_definition_not_source_extraction' | 'ai_revised_definition_not_source_extraction_or_platform_equivalence' | 'ai_research_hypothesis_not_empirical_validation'};
     derivation?: {transformation?: import('./quantExperiment').QuantFormulaTransform; localDemo?: boolean; version: string; requestId: string; checkpointId: string; attemptId: string; parentCandidateIds: string[]; parentAttemptIds: string[]; operation: string; engineVersion: string; datasetHash: string; selectionRule: string};
 }
 export interface QuantFactorCandidate {

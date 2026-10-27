@@ -25,7 +25,7 @@ def validate_versions(rows: dict, fail) -> None:
         if (not child or not root or child_id in used or child.get('formula_version_id') != identity
                 or not isinstance(row.get('request_key'), str) or len(row['request_key']) > 64
                 or not isinstance(data, dict) or type(data.get('version')) is not int or data['version'] != 1
-                or data.get('origin') not in ('authored', 'experiment', 'ai_repair') or row.get('content_hash') != digest(data)):
+                or data.get('origin') not in ('authored', 'experiment', 'ai_repair', 'ai_study') or row.get('content_hash') != digest(data)):
             fail('公式版本缺少候选、根身份或不可变合同')
         used.add(child_id)
         parents = data.get('parents')
@@ -74,6 +74,11 @@ def validate_versions(rows: dict, fail) -> None:
                     or child['data'] != expected or child.get('content_hash') != digest(expected)
                     or child.get('expression_hash') != expression_hash(expected)):
                 fail('AI 修订版本与冻结的修订定义或父代不一致')
+        elif data['origin'] == 'ai_study':
+            from quant.studies.sync import validate_formula
+            expected_root = next(iter(roots)) if len(roots) == 1 else child_id
+            if root_id != expected_root: fail('AI研究谱系根无效')
+            validate_formula(identity, row, child, root_id, parent_ids, rows, fail)
         else:
             expected = experiment_version(SimpleNamespace(derived_checkpoint_id=child.get('derived_checkpoint_id')), [
                 SimpleNamespace(pk=key, content_hash=candidates[key]['content_hash']) for key in parent_ids])

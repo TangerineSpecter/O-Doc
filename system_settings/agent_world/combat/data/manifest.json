@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.35",
+  "version": "combat-1.0.36",
   "status": "released",
   "engine_schema": 11,
   "files": {
@@ -48,7 +48,7 @@
       "rows": 99
     },
     "materials.csv": {
-      "sha256": "f9413a0c75b410f1b5f2285a815f8aff4fdda6e97298e2059563c492a3c7c8a0",
+      "sha256": "e095f3290f396e949d26171077d60b148e759f801c3e802004a35a700dc8d8e9",
       "rows": 44
     },
     "monster_actions.csv": {

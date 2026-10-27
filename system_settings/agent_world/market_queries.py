@@ -136,8 +136,14 @@ def actor_context(owner: str, agent) -> dict:
         farm_state = visible_farm_state(state)
     inventory = list(inventory_items(agent.pk, owner).values('id','name','quantity','value','source','kind','rarity'))
     # No audit chains or historical price lots in the model's demand summary.
+    material_catalog = None
     for row in inventory:
         row['recoverable_value'] = str(sum((Decimal(l['price']) * l['quantity'] for l in row['source'].get('lots', [])), Decimal(0))) if row['source'].get('lots') else row['value']
+        sku = row['source'].get('sku', '')
+        if sku.startswith('combat.material.'):
+            from .combat.material_prices import material_catalog as load_material_catalog, material_price
+            material_catalog = material_catalog or load_material_catalog(owner, agent.pk)
+            row['recoverable_value'] = str(material_price(material_catalog, sku) * row['quantity'])
         row['source'] = {key:row['source'][key] for key in ('sku','quality','stars') if key in row['source']}
     from .market_spending import spending_context
     from .farm_quality import skill_progress

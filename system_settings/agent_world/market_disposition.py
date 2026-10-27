@@ -74,6 +74,12 @@ def aggregate(owner: str, actor_id: str) -> list[dict]:
         stars = int(source.get('stars') or 1)
         entry['stars'][stars] = entry['stars'].get(stars, 0) + row.quantity
         entry['value'] = max(entry['value'], Decimal(str(row.value or 0)))
+    material_skus = [sku for sku in result if sku.startswith('combat.material.')]
+    if material_skus:
+        from .combat.material_prices import material_catalog, material_price
+        catalog = material_catalog(owner, actor_id)
+        for sku in material_skus:
+            result[sku]['value'] = material_price(catalog, sku)
     return [result[sku] for sku in sorted(result)]
 
 
@@ -116,6 +122,9 @@ def surplus_plan(owner: str, actor_id: str, sku: str) -> dict | None:
 def listing_price(disposition: MarketDisposition, sku: str, owner: str, actor_id: str) -> Decimal:
     rows = rows_for(owner, actor_id, sku)
     value = max((Decimal(str(row.value or 0)) for row in rows), default=Decimal('0'))
+    if rows and sku.startswith('combat.material.'):
+        from .combat.material_prices import material_catalog, material_price
+        value = material_price(material_catalog(owner, actor_id), sku)
     if value <= 0:
         value = Decimal('0.01')
     return max(Decimal('0.01'), (value * disposition.list_price_ratio).quantize(Decimal('0.01')))

@@ -1,3 +1,5 @@
+import {resolveStudyRoute} from './studies';
+import {resolveConnectorRoute} from './connectors';
 import {resolveValidationRoute} from './validations';
 import {validateMockAudit,mockNativeReviewEvidence,mockNativeContinuationFault} from './nativeReviews';
 import {resolveNativePython} from './nativePython';
@@ -55,6 +57,10 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     const state = quantState();
     const collection = state.collections.find(row => row.collId === collId && row.type === 'quant');
     if (!collection) return fail(404, '量化文集不存在或无权访问');
+    if(domain==='ai-studies')return resolveStudyRoute(request,collId,entryId,section);
+    if(domain==='connectors')return resolveConnectorRoute(request,collId,entryId,section);
+    if(domain==='connector-preview')return resolveConnectorRoute(request,collId,undefined,'preview');
+    if(domain==='connector-responses')return resolveConnectorRoute(request,collId,undefined,'responses');
     if (domain==='native-python')return resolveNativePython(request,collId,entryId,section);
     if (domain === 'validations') return resolveValidationRoute(request, collId, entryId, section);
     if (domain === 'vocabulary') return resolveVocabularyRoute(request, collId);

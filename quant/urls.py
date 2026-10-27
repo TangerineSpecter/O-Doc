@@ -1,4 +1,6 @@
 from .strategy_exports.views import StrategyExportView
+from .studies.views import StudyView
+from .connectors.views import ConnectorView, ConnectorExecuteView
 from django.urls import path
 from . import views
 from .research.views import IntakeView, ReportView
@@ -25,6 +27,15 @@ from .native_python.views import NativeView
 from .graph.correlation_views import CorrelationView
 
 urlpatterns = [
+    path('<str:coll_id>/ai-studies/', StudyView.as_view()),
+    path('<str:coll_id>/ai-studies/<str:study_id>/', StudyView.as_view()),
+    path('<str:coll_id>/ai-studies/<str:study_id>/<str:action>/', StudyView.as_view()),
+    path('<str:coll_id>/connectors/', ConnectorView.as_view()),
+    path('<str:coll_id>/connector-preview/', ConnectorView.as_view(), {'action': 'preview'}),
+    path('<str:coll_id>/connector-responses/', ConnectorView.as_view(), {'action': 'responses'}),
+    path('<str:coll_id>/connectors/<str:connector_id>/execute/', ConnectorExecuteView.as_view()),
+    path('<str:coll_id>/connectors/<str:connector_id>/', ConnectorView.as_view()),
+    path('<str:coll_id>/connectors/<str:connector_id>/<str:action>/', ConnectorView.as_view()),
     path('<str:coll_id>/comparisons/<str:comparison_id>/correlation/', CorrelationView.as_view()),
     path('<str:coll_id>/factors/<str:factor_id>/native-python/options/',NativeView.as_view(),{'action':'options'}),
     path('<str:coll_id>/factors/<str:factor_id>/native-python/',NativeView.as_view()),

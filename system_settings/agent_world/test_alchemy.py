@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from system_settings.models import Agent, AgentTask, AIModel, AIProvider
 
-from .alchemy_catalog import DEFAULT_RULES, MATERIALS, validate_rule
+from .alchemy_catalog import DEFAULT_RULES, MATERIALS, ingredient_value, rules_for, validate_rule
 from .alchemy_models import AlchemyCatalog
 from .alchemy_quality import RULES, experience_for, material_stars, outcome, probabilities, skill_progress, unit_value
 from .cooking_quality import skill_progress as cooking_progress
@@ -18,6 +18,22 @@ from .alchemy_limits import CARRY_CAP
 
 
 class AlchemyRulesTests(TestCase):
+    def test_current_recipe_value_tracks_material_prices_and_existing_custom_ingredients(self):
+        import copy
+        from .combat.catalog import bundled
+        catalog = bundled()[0]
+        for sku, (_, _, value) in MATERIALS.items():
+            self.assertEqual(value, catalog.row('materials', sku.removeprefix('combat.'))['sale_price'])
+        for rule in DEFAULT_RULES.values():
+            self.assertEqual(rule['sale_price'], ingredient_value(rule['ingredients']))
+        stored = copy.deepcopy(DEFAULT_RULES)
+        stored['healing']['ingredients'][0]['quantity'] = 4
+        stored['healing']['sale_price'] = '999.00'
+        AlchemyCatalog.objects.create(pk='admin', rules=stored)
+        current = rules_for('admin')['healing']
+        self.assertEqual(current['sale_price'], '22.50')
+        self.assertEqual(AlchemyCatalog.objects.get(pk='admin').rules['healing']['sale_price'], '999.00')
+
     def test_ten_recipes_unlock_between_levels_one_and_ten(self):
         self.assertEqual(len(DEFAULT_RULES), 10)
         self.assertEqual([row['required_level'] for row in DEFAULT_RULES.values()], list(range(1, 11)))
@@ -92,6 +108,15 @@ class AlchemyApiTests(TestCase):
 
     def test_requires_authentication(self):
         self.assertEqual(APIClient().get('/api/settings/agent-world/alchemy/recipes/').status_code, 401)
+
+    def test_edit_derives_value_from_materials_not_submitted_price(self):
+        rule = {key: value for key, value in DEFAULT_RULES['healing'].items() if key != 'name'}
+        rule['ingredients'] = [{'sku': 'combat.material.moss_cave.1', 'quantity': 3}]
+        rule['sale_price'] = '1.00'
+        response = self.client.patch('/api/settings/agent-world/alchemy/recipes/healing/', rule, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['data']['sale_price'], '13.50')
+        self.assertEqual(rules_for('admin')['healing']['sale_price'], '13.50')
 
 
 class AlchemyTaskWiringTests(TestCase):

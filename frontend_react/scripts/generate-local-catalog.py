@@ -7,6 +7,7 @@ import copy
 import csv
 import json
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,9 +35,17 @@ def camel(value):
 fertilizers = constants('farm_quality.py', {'FERTILIZERS'})['FERTILIZERS']
 farm = constants('farm_catalog.py', {'DEFAULT_RULES'}, {'FERTILIZERS': fertilizers})['DEFAULT_RULES']
 cooking = constants('cooking_catalog.py', {'RECIPES'})['RECIPES']
-alchemy = constants('alchemy_catalog.py', {'RECIPES', 'MATERIALS', 'DUNGEONS'})
+alchemy = constants('alchemy_catalog.py', {'RECIPES', 'DUNGEONS'})
 tables = {file.stem: list(csv.DictReader(file.open(encoding='utf-8-sig', newline='')))
           for file in sorted((DOMAIN / 'combat/data').glob('*.csv'))}
+tree = ast.parse((DOMAIN / 'alchemy_catalog.py').read_text())
+material_keys = ast.literal_eval(next(node.value for node in tree.body if isinstance(node, ast.Assign)
+    and any(isinstance(target, ast.Name) and target.id == 'MATERIALS' for target in node.targets)))
+alchemy['MATERIALS'] = {'combat.' + row['id']: (row['name'], int(row['level']), row['sale_price'])
+    for row in tables['materials'] if 'combat.' + row['id'] in material_keys}
+for recipe in alchemy['RECIPES']:
+    recipe['sale_price'] = str(sum((Decimal(alchemy['MATERIALS'][sku][2]) * quantity
+                                    for sku, quantity in recipe['ingredients']), Decimal(0)).quantize(Decimal('.01')))
 manifest = json.loads((DOMAIN / 'combat/data/manifest.json').read_text())
 # These modules are pure rules and do not import Django models or initialize services.
 sys.path.insert(0, str(ROOT))

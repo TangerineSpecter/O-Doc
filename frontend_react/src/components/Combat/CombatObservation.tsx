@@ -4,6 +4,7 @@ import {useCombatObservation} from '../../hooks/useCombatObservation';
 import {explorationCommand} from '../../api/combat';
 import CombatObservationView from './CombatObservationView';
 import CombatObservationSummary from './CombatObservationSummary';
+import StarLoader from '../common/StarLoader';
 import {elapsed} from './presentation';
 
 export default function CombatObservation({id,onClose}:{id:string;onClose:()=>void}) {
@@ -24,7 +25,9 @@ export default function CombatObservation({id,onClose}:{id:string;onClose:()=>vo
             {state.snapshot?.party&&state.snapshot.status==='active'&&state.snapshot.canControl&&<div className="flex shrink-0 items-center justify-between gap-2 text-xs text-slate-600"><span>立即召回会退出当前战斗；也可等本波结束再离开。</span><button type="button" disabled={busy} onClick={()=>{void command('leave');}} className="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1">本波后离队</button></div>}
             {(state.error||commandError)&&<p role="alert" className="shrink-0 rounded-xl bg-red-50 p-3 text-xs text-red-700">{state.error?`连接中断，保留最后确认状态：${state.error}`:commandError}</p>}
             {state.snapshot?<CombatObservationView snapshot={state.snapshot} events={state.events} disconnected={Boolean(state.error)}/>:
-                <p className="p-6 text-sm text-slate-500">读取最后确认的探索状态…</p>}
+                <div role="status" className="flex flex-1 items-center justify-center">
+                    <StarLoader variant="pill" message="读取最后确认的探索状态…"/>
+                </div>}
         </div>
     </WorldDialog>;
 }

@@ -48,10 +48,13 @@ for (const [domain, data, maxLevel] of [['cooking', cooking, 99], ['alchemy', al
         const saved = await request(domain, `recipes/${id}/`, 'PATCH', rule);
         assert.equal(saved.response.status, 200, `PATCH ${domain} must be implemented locally`);
         assert.equal(saved.payload.code, 200);
-        assert.deepEqual(ruleFrom(saved.payload.data), {...rule, salePrice: '123.40'});
+        const expectedPrice = domain === 'alchemy'
+            ? (Number(before.payload.data.materials.find(row => row.sku === rule.ingredients[0].sku).salePrice) * 3).toFixed(2)
+            : '123.40';
+        assert.deepEqual(ruleFrom(saved.payload.data), {...rule, salePrice: expectedPrice});
         const reread = await request(domain, `recipes/?agentId=${actorId}`);
         const updated = reread.payload.data.recipes.find(row => row.id === id);
-        assert.deepEqual(ruleFrom(updated), {...rule, salePrice: '123.40'});
+        assert.deepEqual(ruleFrom(updated), {...rule, salePrice: expectedPrice});
         assert.equal(updated.name, recipe.name);
         assert.equal(updated.iconAssetId, recipe.iconAssetId);
         assert.equal(updated.state, 'locked');
@@ -115,7 +118,7 @@ for (const [domain, data, maxLevel] of [['cooking', cooking, 99], ['alchemy', al
         for (const [price, normalized] of [['1.2300', '1.23'], ['1e2', '100.00'], ['1_0', '10.00'], ['0.01', '0.01']]) {
             const saved = await request(domain, `recipes/${id}/`, 'PATCH', {...rule, salePrice: price});
             assert.equal(saved.response.status, 200);
-            assert.equal(saved.payload.data.salePrice, normalized);
+            assert.equal(saved.payload.data.salePrice, domain === 'alchemy' ? Number(material.salePrice).toFixed(2) : normalized);
         }
         const reread = (await request(domain, 'recipes/')).payload.data.recipes.find(row => row.id === id);
         assert.equal(reread.ingredients[0].name, material.name);
@@ -124,7 +127,7 @@ for (const [domain, data, maxLevel] of [['cooking', cooking, 99], ['alchemy', al
             assert.equal(reread.ingredients[0].source, material.dungeon);
             assert.equal(typeof reread.ingredients[0].tier, 'number');
         }
-        const unavailable = await request(domain, `recipes/${id}/`, 'PATCH', {...rule, ingredients: [{sku: material.sku, quantity: 1000000}]});
+        const unavailable = await request(domain, `recipes/${id}/`, 'PATCH', {...rule, ingredients: [{sku: material.sku, quantity: 10000}]});
         assert.equal(unavailable.response.status, 200);
         const missing = (await request(domain, 'recipes/')).payload.data.recipes.find(row => row.id === id);
         assert.equal(missing.state, 'missing');

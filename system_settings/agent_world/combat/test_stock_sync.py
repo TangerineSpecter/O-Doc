@@ -1,8 +1,10 @@
 """Cross-domain material inventory: real market operations and immutable receipts."""
 import copy
 import json
+from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 from django.apps import apps
 from django.core import serializers
@@ -54,6 +56,23 @@ class MaterialStockSyncTests(TestCase):
                                 quantity=6, unit_price='2.00')
         self.check()
         return MarketListing.objects.get(pk=result['listing_id'])
+
+    def test_old_material_stock_sells_at_current_catalog_price_and_syncs(self):
+        self.check()
+        result = self.operation(self.a, self.sa, 'sell-old-material', 'sell_combat_material',
+                                material_id='material.moss_cave.1', quantity=2)
+        self.assertEqual(result['total'], '9.00')
+        self.assertEqual(stock_quantity(self.a.pk, 'admin', self.sku), 8)
+        self.check()
+
+    def test_old_lots_use_current_price_for_automatic_market_reference(self):
+        from ..market_disposition import aggregate, listing_price
+        row = next(row for row in aggregate('admin', self.a.pk) if row['sku'] == self.sku)
+        self.assertEqual(row['value'], Decimal('4.50'))
+        disposition = SimpleNamespace(list_price_ratio=Decimal('1.20'))
+        self.assertEqual(listing_price(disposition, self.sku, 'admin', self.a.pk), Decimal('5.40'))
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.value, Decimal('1.04'))
 
     def test_material_listing_purchase_withdraw_and_repeat_validate(self):
         listing = self.listing()

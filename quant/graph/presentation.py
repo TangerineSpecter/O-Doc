@@ -25,7 +25,7 @@ def graph_data(collection, focus_id: str = '') -> dict:
                 selected[candidate.pk] = candidate
                 edges.append({'id': f'derived:{center.pk}:{candidate.pk}', 'from': f'factor:{center.pk}',
                     'to': f'factor:{candidate.pk}', 'kind': 'derived_from', 'label': '公式修订', 'historical': False,
-                    'similarity': None, 'detail': ('AI 定义修订的独立研究版本；未继承原文引证、评分或实验结论' if local['origin'] == 'ai_repair' else '人工定义的独立研究版本；未继承原文引证、评分或实验结论')})
+                    'similarity': None, 'detail': ('AI自动研究的独立候选；研究评价与实证表现分开' if local['origin'] == 'ai_study' else 'AI 定义修订的独立研究版本；未继承原文引证、评分或实验结论' if local['origin'] == 'ai_repair' else '人工定义的独立研究版本；未继承原文引证、评分或实验结论')})
             else: limited = True
         proof = candidate.data.get('derivation', {})
         if candidate.derived_checkpoint_id and center.pk in proof.get('parent_candidate_ids', []):
@@ -121,7 +121,7 @@ def graph_data(collection, focus_id: str = '') -> dict:
             selected[parent.pk] = parent
             edges.append({'id': f'derived:{parent.pk}:{candidate.pk}', 'from': f'factor:{parent.pk}',
                 'to': f'factor:{candidate.pk}', 'kind': 'derived_from', 'label': '公式修订' if local else '实验衍生', 'historical': False,
-                'similarity': None, 'detail': ('AI 定义修订，原平台等价与实证仍待验证' if local['origin'] == 'ai_repair' else '人工公式修订，实证仍待验证') if local else f"实验 {proof['request_id']} / {proof['attempt_id']}；不证明组合优于父代"})
+                'similarity': None, 'detail': ('AI研究衍生，研究分不代表实证表现' if local['origin'] == 'ai_study' else 'AI 定义修订，原平台等价与实证仍待验证' if local['origin'] == 'ai_repair' else '人工公式修订，实证仍待验证') if local else f"实验 {proof['request_id']} / {proof['attempt_id']}；不证明组合优于父代"})
     emitted = set()
     for candidate in selected.values():
         report = candidate.report

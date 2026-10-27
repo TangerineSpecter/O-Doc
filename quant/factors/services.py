@@ -19,7 +19,7 @@ def candidate_data(candidate: FactorCandidate, vocabulary=None) -> dict:
     from quant.verification.services import projection as verification_projection
     from quant.admissions.services import summary as admission_summary
     report = candidate.report
-    ai_revision = candidate.data.get('formula_version', {}).get('origin') == 'ai_repair'
+    ai_revision = candidate.data.get('formula_version', {}).get('origin') in ('ai_repair', 'ai_study')
     curation = curation_data(candidate)
     if vocabulary is None:
         from quant.taxonomy.services import current
@@ -29,7 +29,7 @@ def candidate_data(candidate: FactorCandidate, vocabulary=None) -> dict:
     return {'id': candidate.pk, 'report_id': report.pk, 'source_id': report.source_id,
         'entry_id': report.entry_id, 'entry_title': report.entry.title, 'data': candidate.data,
         'expression_hash': candidate.expression_hash, 'content_hash': candidate.content_hash,
-        'created_at': candidate.created_at.isoformat(), 'model_name': 'AI 定义修订 · ' + report.run.model_name if ai_revision else '人工公式修订' if candidate.data.get('formula_version') else '本机受限表达式实验' if candidate.derived_checkpoint_id else report.run.model_name,
+        'created_at': candidate.created_at.isoformat(), 'model_name': 'AI 自动研究' if candidate.data.get('formula_version', {}).get('origin') == 'ai_study' else 'AI 定义修订 · ' + report.run.model_name if ai_revision else '人工公式修订' if candidate.data.get('formula_version') else '本机受限表达式实验' if candidate.derived_checkpoint_id else report.run.model_name,
         'evidence_status': 'ai_revised_unverified' if ai_revision else 'authored_unverified' if candidate.data.get('formula_version') else 'local_simulation_unverified_platform' if candidate.derived_checkpoint_id else 'static_unverified', **curation, 'classification': classification,
         'fingerprints': fingerprints(candidate), 'occurrence_count': 1,
         'verification': verification_projection(candidate), 'admission':admission_summary(candidate)}

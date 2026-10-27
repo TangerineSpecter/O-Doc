@@ -46,7 +46,9 @@ class BlacksmithRecipeTests(SimpleTestCase):
                         amounts = {name: min(2, weight * multiplier) if name in
                             {'遗迹碎晶', '火焰核心', '领主残核'} else weight * multiplier
                             for name, weight in merged.items()}
-                        cost = sum(Decimal(by_name[name]['sale_price']) * count for name, count in amounts.items())
+                        # Published quantities were fixed using the original material curve.
+                        cost = sum((Decimal('1') + Decimal('.04') * by_name[name]['level']) * count
+                                   for name, count in amounts.items())
                         if cost >= target:
                             break
                     actual = DEFAULT_RULES[f'{low}-{high}:{slot}']

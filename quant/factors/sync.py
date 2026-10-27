@@ -15,7 +15,7 @@ def validate_factors(rows, fail):
         from quant.experiments.derivation_sync import validate_derived
         checkpoint = fields.get('derived_checkpoint_id', '')
         formula_id = fields.get('formula_version_id', '')
-        authored = rows.get('quant.factorformulaversion', {}).get(formula_id, {}).get('data', {}).get('origin') in ('authored', 'ai_repair')
+        authored = rows.get('quant.factorformulaversion', {}).get(formula_id, {}).get('data', {}).get('origin') in ('authored', 'ai_repair', 'ai_study')
         if not isinstance(formula_id, str) or authored and checkpoint:
             fail('公式版本引用或生成类别无效')
         if not isinstance(checkpoint, str):

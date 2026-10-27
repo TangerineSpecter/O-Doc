@@ -311,6 +311,10 @@ def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None, agent=N
         Q(created_at__lt=stale, repriced_at__isnull=True) | Q(repriced_at__lt=last_drop))
     for listing in rows.order_by('created_at')[:10]:
         floor = Decimal(str((listing.item or {}).get('value') or 0))
+        sku = ((listing.item or {}).get('source') or {}).get('sku', '')
+        if sku.startswith('combat.material.'):
+            from .combat.material_prices import material_catalog, material_price
+            floor = material_price(material_catalog(owner, agent_id), sku)
         new_price = max(floor, (listing.unit_price * Decimal('0.9')).quantize(Decimal('0.01')))
         if new_price < Decimal('0.01') or new_price >= listing.unit_price:
             continue
