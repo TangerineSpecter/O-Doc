@@ -17,7 +17,7 @@ def retrieve(result, *, method=METHOD):
         .select_related('report__entry').order_by('-created_at', 'id')[:LIMIT])
     by_id = {row.pk: row for row in [*parents, *records]}
     edges = FactorRelation.objects.filter(Q(left_id__in=parent_ids, right_id__in=[row.pk for row in records])
-        | Q(right_id__in=parent_ids, left_id__in=[row.pk for row in records])).order_by('-created_at', 'id')[:LIMIT]
+        | Q(right_id__in=parent_ids, left_id__in=[row.pk for row in records])).filter(kind='semantic_similar').order_by('-created_at', 'id')[:LIMIT]
     semantic = {}
     for edge in edges:
         left, right = by_id[edge.left_id], by_id[edge.right_id]
@@ -73,15 +73,21 @@ def validate_from_rows(run, rows, base):
     source_ids = {candidates[row['id']]['source_id'] for row in base}
     validate_context(run.get('planning_context'), base, candidates, rows.get('quant.factorrelation', {}),
         collection_id=str(entries[str(run['entry'])]['anthology']), source_ids=source_ids,
-        method=METHOD_V2 if run.get('review_version') == 15 else METHOD)
+        method=METHOD_V2 if run.get('review_version') in (15, 16, 17) else METHOD)
 
-    if run.get('review_version') in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
+    if run.get('review_version') in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         context = run.get('planning_context', {})
-        version = 6 if run['review_version'] in (11, 12, 13, 14, 15) else 5 if run['review_version'] == 10 else 4 if run['review_version'] == 9 else 2 if run['review_version'] == 6 else 3
-        if context.get('version') != version or 'research_memory' not in context or context['research_memory'].get('version') != (3 if version in (5, 6) else 2 if version == 4 else version - 1):
+        version = 7 if run['review_version'] == 17 else 6 if run['review_version'] in (11, 12, 13, 14, 15, 16, 17) else 5 if run['review_version'] == 10 else 4 if run['review_version'] == 9 else 2 if run['review_version'] == 6 else 3
+        if context.get('version') != version or 'research_memory' not in context or context['research_memory'].get('version') != (3 if version in (5, 6, 7) else 2 if version == 4 else version - 1):
             raise ValidationError('新版实验解读缺少历史研究快照')
         from quant.research_memory import validate_from_rows as validate_memory
         validate_memory(context['research_memory'], rows, collection_id=str(entries[str(run['entry'])]['anthology']),
                         latest_at=run['created_at'], options=context['options'], exclude_result_id=str(run['experiment_result']), exclude_validation_id=str(run['validation_result']) if run.get('validation_result') else None)
     elif run.get('planning_context', {}).get('version') != 1:
         raise ValidationError('历史实验解读不得升级历史研究输入')
+    if run.get('review_version') == 17:
+        from .output_associations import validate
+        result = rows['quant.experimentresult'][str(run['experiment_result'])]
+        request = rows['quant.experimentrequest'][str(result['request'])]
+        validate(context.get('output_associations'), rows, context['options'], request['plan'],
+            collection_id=str(entries[str(run['entry'])]['anthology']), latest_at=run['created_at'])

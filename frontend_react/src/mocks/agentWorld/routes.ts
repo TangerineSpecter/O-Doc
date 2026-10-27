@@ -18,6 +18,7 @@ import {lotteryAnalyticsMock} from './lotteryAnalytics';
 import {lifeScheduleResponse} from './lifeSchedule';
 import {localCombatPreparation} from './combatPreparation';
 import {combatAnalyticsMock} from './combatAnalytics';
+import {localEquipmentPreview} from './combatEquipmentPreview';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -194,7 +195,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (path.endsWith('/adventure-options/')) return {solo:true,parties:emptyScenario()?[]:localAdventureOptions.parties};
         if (body.operation==='prepare') return localCombatPreparation.prepare(id,body,emptyScenario());
         if (path.endsWith('/history/')) return {list: list([{id: exploration.id, status: exploration.status, elapsedSeconds: exploration.elapsedSeconds, result: exploration.result, createdAt: at(12)}]), total: emptyScenario() ? 0 : 1, page: 1};
-        if (body.operation === 'preview_equip') return {attributes: profile.attributes};
+        if (body.operation === 'preview_equip') return localEquipmentPreview(profile, body.equipment);
         return {...profile,...(emptyScenario()?{skills:[],equipment:[],loadout:{}}:{}),activeExplorationId:id.startsWith('local-bard-')?profile.activeExplorationId:localCombatPreparation.active(id)};
     }
     if (request.method === 'GET' || request.method === 'POST') {
@@ -256,6 +257,9 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === '/api/article/list' && (url.searchParams.get('collId') === 'local-world' || url.searchParams.get('type') === 'agent')) return list(worldPosts);
     if (path.startsWith('/api/article/detail/local-post-')) return worldPosts.find(r => r.articleId === path.split('/').slice(-1)[0]) || worldPosts[0];
     if (path === '/api/anthology/detail/local-world') return {collId: 'local-world', title: '居民生活手记', type: 'agent', description: '本地样例', permission: 'public', iconId: 'bot', articles: worldPosts};
+    if (path === `${base}/combat/catalog/` && emptyScenario()) {
+        return {...combatCatalog, tables: Object.fromEntries(Object.keys(combatCatalog.tables).map(key => [key, []])), monsterPreviews: []};
+    }
     if (path in staticData) {
         if (writing) {const original = resource.get(path) ?? staticData[path]; const updated = typeof original === 'object' && original && !Array.isArray(original) ? {...original, ...body} : body; resource.set(path, updated); return updated;}
         return resource.get(path) ?? staticData[path];

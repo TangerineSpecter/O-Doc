@@ -45,6 +45,7 @@ def evidence(step) -> dict:
     return {'stage': step.stage, 'name': NAMES[step.stage], 'input_hash': step.content_hash,
         'structure': structure, 'source_code': source.payload.get('code', '') if source else '',
         **({'local_reading_json': json.dumps(local_reading, ensure_ascii=False)} if local_reading else {}),
+        **({'model_input_json': json.dumps(step.input['model_input'], ensure_ascii=False)} if 'model_input' in step.input else {}),
         'input_json': json.dumps(step.input, ensure_ascii=False, indent=2),
         'outcome_hash': outcome.content_hash if outcome else '',
         'outcome_json': json.dumps(outcome.data, ensure_ascii=False, indent=2) if outcome else ''}

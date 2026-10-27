@@ -21,7 +21,7 @@ export function VerificationEvidence({value, createdAt, openExperiment, openComp
             <p>{value.dataset.start} → {value.dataset.end} · 偏移{value.dataset.offset} · {value.dataset.row_count}行 · 函数{value.native.entrypoint}</p>
             <p className="break-words">候选表达式实际参数：{Object.entries(value.parameters).map(([key,item])=>`${key}=${JSON.stringify(item)}`).join('，')||'无可调参数'}</p>
             {value.comparison&&<p>共同有效{value.comparison.counts.common_valid}行 · 数值差异{value.comparison.counts.value_mismatches}行 · 缺失差异{value.comparison.counts.missing_mismatches}行。</p>}
-            <p>Python {value.environment.runtime.python} · pandas {value.environment.runtime.pandas}。完整映射、运行环境、反例和AI解读在下方原始Python验证区查看；本次观察不代表收益或平台全局等价。</p>
+            <p>Python {value.environment.runtime.python} · pandas {value.environment.runtime.pandas}。完整映射、运行环境、反例和AI解读在因子详情的原始Python验证区查看；本次观察不代表收益或平台全局等价。</p>
         </>:value.kind === 'fixed_validation' ? <>
             <p>{value.market.symbol} · {value.market.timeframe} · {value.mode === 'fresh' ? '登记后导入的新数据验证' : '普通复核'}。单侧费用 {value.config.fee_bps} bps，滑点 {value.config.slippage_bps} bps。</p>
             <p className="break-words">{value.bounds.start_timestamp} → {value.bounds.end_timestamp} · 来源尝试 {value.source_attempt_id}</p>

@@ -1,0 +1,2171 @@
+{
+  "scope": "隔离候选，单人及组队均使用当前共享战斗回合；白蓝混装、均衡风格，Boss为该区域最高级；默认携带14红6蓝",
+  "boss_hp_factor": 1,
+  "boss_attack_factor": 1,
+  "level_position": "low",
+  "weapon": "ordinary",
+  "potion_limit": null,
+  "limitations": "仅孤立Boss波次，不包含实际探索的资源历史、升级、食物、模型和奖励，不作为完整验收",
+  "results": [
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 23.0,
+      "p90_rounds": 31,
+      "mean_potions_per_member": 1.24
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 25.0,
+      "p90_rounds": 34,
+      "mean_potions_per_member": 3.52
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 17.0,
+      "p90_rounds": 24,
+      "mean_potions_per_member": 0.66
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 19.0,
+      "p90_rounds": 25,
+      "mean_potions_per_member": 2.37
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 24.0,
+      "p90_rounds": 31,
+      "mean_potions_per_member": 1.58
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 26.0,
+      "p90_rounds": 34,
+      "mean_potions_per_member": 3.47
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 25.0,
+      "p90_rounds": 32,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 28.0,
+      "p90_rounds": 34,
+      "mean_potions_per_member": 0.94
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 22.0,
+      "p90_rounds": 29,
+      "mean_potions_per_member": 1.59
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 24.0,
+      "p90_rounds": 31,
+      "mean_potions_per_member": 3.63
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 17,
+      "mean_potions_per_member": 0.15
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 1.59
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 17,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.74
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.07
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 15,
+      "mean_potions_per_member": 1.3
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 15,
+      "mean_potions_per_member": 0.8
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.07
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 1.26
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.01
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 0.89
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 16.0,
+      "p90_rounds": 22,
+      "mean_potions_per_member": 0.08
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 19.0,
+      "p90_rounds": 25,
+      "mean_potions_per_member": 2.95
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 0.37
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 2.18
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 17.0,
+      "p90_rounds": 22,
+      "mean_potions_per_member": 0.46
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 19.0,
+      "p90_rounds": 25,
+      "mean_potions_per_member": 2.74
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 19.0,
+      "p90_rounds": 24,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 20.0,
+      "p90_rounds": 25,
+      "mean_potions_per_member": 0.02
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 16.0,
+      "p90_rounds": 21,
+      "mean_potions_per_member": 0.83
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 18.0,
+      "p90_rounds": 23,
+      "mean_potions_per_member": 2.94
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.02
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 15,
+      "mean_potions_per_member": 1.55
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 15,
+      "mean_potions_per_member": 0.48
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.01
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 1.36
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 12,
+      "mean_potions_per_member": 0.65
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.02
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 12,
+      "mean_potions_per_member": 1.26
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 12,
+      "mean_potions_per_member": 0.73
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 1.15
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 16.0,
+      "p90_rounds": 21,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 17.0,
+      "p90_rounds": 23,
+      "mean_potions_per_member": 1.28
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 0.08
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 15,
+      "mean_potions_per_member": 1.05
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 21,
+      "mean_potions_per_member": 0.3
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 21,
+      "mean_potions_per_member": 1.22
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.09
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 1.16
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 16.0,
+      "p90_rounds": 23,
+      "mean_potions_per_member": 0.19
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 17.0,
+      "p90_rounds": 24,
+      "mean_potions_per_member": 1.35
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 16.0,
+      "p90_rounds": 22,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 17.0,
+      "p90_rounds": 23,
+      "mean_potions_per_member": 0.03
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 17.0,
+      "p90_rounds": 23,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 18.0,
+      "p90_rounds": 24,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 0.42
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 21,
+      "mean_potions_per_member": 1.45
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 17,
+      "mean_potions_per_member": 0.26
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 1.22
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 12,
+      "mean_potions_per_member": 0.97
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.18
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.93
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.23
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.92
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.27
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 16,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 17,
+      "mean_potions_per_member": 1.15
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 16.0,
+      "p90_rounds": 22,
+      "mean_potions_per_member": 1.47
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 0.98
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.5,
+      "p90_rounds": 17,
+      "mean_potions_per_member": 0.01
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 1.01
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 16,
+      "mean_potions_per_member": 0.02
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 17,
+      "mean_potions_per_member": 1.09
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.08
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 1.22
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 0.04
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 16.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 0.15
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 1.22
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.04
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 15,
+      "mean_potions_per_member": 1.04
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.95
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 12,
+      "mean_potions_per_member": 0.21
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 8,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.9
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.25
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 6.0,
+      "p90_rounds": 8,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.88
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.26
+    }
+  ],
+  "inputs": {
+    "options": {
+      "seeds": 500,
+      "boss_hp_factor": 1,
+      "boss_attack_factor": 1,
+      "only_solo": false,
+      "position": "low",
+      "weapon": "ordinary",
+      "potion_limit": null
+    },
+    "source_sha256": "fb0c7300fef7224e56acfb4a51f39e19a38635def58e42fa9fe55c5d25185a99"
+  }
+}

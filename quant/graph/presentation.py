@@ -46,7 +46,7 @@ def graph_data(collection, focus_id: str = '') -> dict:
             edges.append({'id': f'{kind}:{candidate.pk}', 'from': f'factor:{center.pk}', 'to': f'factor:{candidate.pk}',
                 'kind': kind, 'label': '相同表达式与契约' if kind == 'same_expression' else '相同原文与契约',
                 'historical': False, 'similarity': None, 'detail': '结构或原文一致，未验证实际输出等价'})
-    relationships = list(FactorRelation.objects.filter(Q(left=center) | Q(right=center)).order_by('-created_at', 'id')[:100])
+    relationships = list(FactorRelation.objects.filter(Q(left=center) | Q(right=center), kind='semantic_similar').order_by('-created_at', 'id')[:100])
     related_ids = {rel.right_id if rel.left_id == center.pk else rel.left_id for rel in relationships}
     neighbors = {candidate.pk: candidate for candidate in available.filter(pk__in=related_ids)}
     seen = set()
@@ -102,7 +102,11 @@ def graph_data(collection, focus_id: str = '') -> dict:
                 'kind': kind, 'label': '固定样本输出一致' if kind == 'sample_equivalent' else '已合并分组',
                 'historical': False, 'similarity': None, 'comparison_id': comparison.pk,
                 'merge_id': record.pk if kind == 'merged_group' else None, 'detail': detail})
+    from .correlation_graph import append as append_correlations
+    limited = append_correlations(collection, center, available, selected, edges) or limited
     nodes = []
+    from .research import append as append_research
+    limited = append_research(collection, center, available, selected, nodes, edges) or limited
     # Include factual parents independently of semantic similarity. Never label
     # an experimentally combined expression as extracted from its anchor report.
     for candidate in list(selected.values()):
@@ -139,5 +143,7 @@ def graph_data(collection, focus_id: str = '') -> dict:
         ])
     from quant.strategy_exports.graph import append as append_strategies
     limited = append_strategies(collection, selected, nodes, edges) or limited
+    from .evidence import append as append_evidence
+    limited = append_evidence(collection, center, nodes, edges) or limited
     unique_edges = {edge['id']: edge for edge in edges}
     return {'focus_id': center.pk, 'nodes': nodes, 'edges': list(unique_edges.values()), 'index': status, 'limited': limited}

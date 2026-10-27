@@ -12,6 +12,17 @@ export interface QuantComparison {
     contentHash: string; verdict: QuantComparisonVerdict;
     /** Frozen snake-case JSON preserves literal parameter and input names. */
     planJson?: string; resultJson?: string; datasetJson?: string; merges?: QuantFactorMerge[];
+    correlation?: QuantCorrelation | null;
+}
+export interface QuantCorrelation {id:string;createdAt:string;contentHash:string;evidenceJson:string}
+export interface QuantCorrelationEvidence {
+    version:1;method:'fixed-output-association-1';comparison_id:string;comparison_hash:string;dataset_id:string;dataset_hash:string;
+    claim:'descriptive_aligned_outputs_not_equivalence_complementarity_or_profit';
+    statistics:{version:1;method:'fixed-output-association-1';claim:string;status:'completed'|'insufficient'|'undefined';reason:string;
+        counts:{total_rows:number;warmup_rows:number;compared_rows:number;common_valid:number;left_missing:number;right_missing:number;both_missing:number};
+        coverage:number;pearson:number|null;spearman:number|null;output_types:('numeric_series'|'boolean_series')[];
+        start:string;end:string;paired_start:string|null;paired_end:string|null;paired_indices_hash:string;output_hashes:{left:string;right:string};
+        minimum_common_rows:30;inference:'no_p_value_or_independent_sample_size';alignment:string;local_demo?:boolean};
 }
 export interface QuantFactorMergeInput {requestKey: string; comparisonId: string; name: string; reason: string}
 export interface QuantFactorMerge {

@@ -25,6 +25,7 @@ export interface QuantWorkflow {
     localReadingEvidenceJson?: string;
 }
 export interface QuantStageEvidence {
+    modelInputJson?: string;
     structure?: import('./quantSourceStructure').QuantSourceStructure | null;
     sourceCode?: string;
     localReadingJson?: string;

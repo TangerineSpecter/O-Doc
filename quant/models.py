@@ -405,7 +405,7 @@ class FactorIndexJob(Record):
 
 
 class FactorRelation(ImmutableRecord):
-    """A reproducible semantic suggestion, never a statistical or return claim."""
+    """A versioned semantic suggestion or fixed-sample statistical observation."""
     SNAPSHOT_FIELDS = ('left_id', 'right_id', 'kind', 'evidence', 'content_hash')
     left = models.ForeignKey(FactorCandidate, on_delete=models.CASCADE, related_name='outgoing_relations')
     right = models.ForeignKey(FactorCandidate, on_delete=models.CASCADE, related_name='incoming_relations')

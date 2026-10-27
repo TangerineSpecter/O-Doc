@@ -11,7 +11,7 @@ export type TransactionVisual =
     | {type: 'potion'; potionId: string; name: string}
     | {type: 'farm'; src: string; name: string}
     | {type: 'material'; materialId: string; name: string}
-    | {type: 'equipment'; equipmentId: string; name: string}
+    | {type: 'equipment'; equipmentId: string; name: string; slot?:string; equipmentType?:string}
     | {type: 'fish'; fishId: string; name: string}
     | {type: 'custom'; src: string; name: string};
 
@@ -126,8 +126,9 @@ export function resolveTransactionVisual(row: MarketTransaction): TransactionVis
 
     // 4. 战斗装备 (Combat Equipment)
     const rawEquipmentId = String(op.equipmentId || op.equipment_id || res.equipmentId || res.equipment_id || '');
-    if (kind === 'sell_combat_equipment' || rawEquipmentId) {
-        return {type: 'equipment', equipmentId: rawEquipmentId, name: name || '装备'};
+    if (kind === 'sell_combat_equipment' || rawEquipmentId || row.equipmentSnapshot?.templateId) {
+        return {type: 'equipment', equipmentId: row.equipmentSnapshot?.templateId || rawEquipmentId,
+                slot: row.equipmentSnapshot?.slot, equipmentType: row.equipmentSnapshot?.equipmentType, name: name || '装备'};
     }
 
     // 5. 农场物资 / 种子 / 作物 / 动物 / 产物
@@ -277,6 +278,8 @@ export function TransactionItemIcon({
                     <EquipmentPortrait
                         equipmentId={visual.equipmentId || ''}
                         name={visual.name}
+                        slot={visual.slot}
+                        equipmentType={visual.equipmentType}
                         decorative
                         className="h-7 w-7"
                         fallbackClassName="h-6 w-6"

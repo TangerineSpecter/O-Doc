@@ -55,7 +55,7 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
         source = run.source if stage == 'normalize' else run.resolved_source or run.source
         if stage == 'snippets':
             snippet_plan = snippets.plan(source.payload, outputs['normalize']['structure'], run.requirements,
-                model_identity(config), baseline, version=4 if run.workflow_version == 27 else 3 if run.workflow_version in (20, 22, 24, 26) else 2 if run.workflow_version == 18 else 1)
+                model_identity(config), baseline, version=4 if run.workflow_version in (27, 28) else 3 if run.workflow_version in (20, 22, 24, 26) else 2 if run.workflow_version == 18 else 1)
         with collection_lock(run.entry.anthology_id), transaction.atomic():
             check_cancel()
             if stage == 'normalize' and uses_vocabulary(run.workflow_version):
@@ -74,7 +74,11 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
                 frozen = prior.input.get('library') if prior and run.restart_stage and may_reuse(stage,run.restart_stage) else None
                 from quant.repairs.contracts import research_factors
                 candidates, library = library_snapshot(run, frozen, research_factors(outputs),prior.input.get('library') if retain else None)
-            inputs = input_snapshot(stage, source.pk, source.payload, run.requirements, model_identity(config), outputs, library, run.workflow_version, snippet_plan, vocabulary_ref)
+            from .stage_reuse import request as model_request
+            model_input, prepared_text, context_error = model_request(stage, source.payload, run.requirements, outputs,
+                run.workflow_version, snippet_plan, vocabulary)
+            inputs = input_snapshot(stage, source.pk, source.payload, run.requirements, model_identity(config), outputs, library,
+                run.workflow_version, snippet_plan, vocabulary_ref, model_input)
             step = WorkflowStep.objects.create(id=digest(['workflow-step-1', run.pk, ordinal])[:40],
                 run=run, ordinal=ordinal, stage=stage, input=inputs, content_hash=digest(inputs))
             Job.objects.filter(run=run).update(stage=NAMES[stage], preview=NAMES[stage])
@@ -84,13 +88,28 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
             reusable = previous.get(stage)
             outcome = getattr(reusable, 'outcome', None) if reusable else None
             reused_from = ''
-            if may_reuse(stage, run.restart_stage) and outcome and outcome.data['status'] == 'completed' and reusable.input == inputs:
+            if context_error:
+                raise context_error
+            from .stage_reuse import compatible, revalidate
+            model_reuse = bool(reusable and outcome and outcome.data['status'] == 'completed'
+                and may_reuse(stage, run.restart_stage) and compatible(reusable.input, inputs))
+            reused_output = None
+            if model_reuse:
+                try:
+                    reused_output = revalidate(stage, outcome.data['output'], outputs, source.payload, run.workflow_version, snippet_plan, vocabulary)
+                except ValidationError:
+                    # An unchanged model view never overrides a failed current
+                    # evidence/definition check. Use the normal model path.
+                    model_reuse = False
+            if 'model_input' not in inputs and may_reuse(stage, run.restart_stage) and outcome and outcome.data['status'] == 'completed' and reusable.input == inputs:
                 output, reused_from = outcome.data['output'], outcome.pk
                 if stage == 'normalize' and output['source_id'] != run.source_id:
                     with collection_lock(run.entry.anthology_id), transaction.atomic():
                         check_cancel()
                         run.resolved_source = SourceRevision.objects.get(pk=output['source_id'])
                         run.save(update_fields=['resolved_source', 'updated_at'])
+            elif model_reuse:
+                output, reused_from = reused_output, outcome.pk
             elif stage == 'normalize':
                 from quant.research.acquisition import acquire_source
                 acquired = acquire_source(run, check_cancel)
@@ -111,8 +130,8 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
                 if pending and calls >= max_calls:
                     raise ValidationError('超过模型调用预算')
                 if pending:
-                    text = snippets.prompt(source.payload, snippet_plan, run.requirements) if stage == 'snippets' else prompt(
-                        stage, source.payload, run.requirements, outputs, run.workflow_version, snippet_plan, vocabulary)
+                    text = prepared_text or (snippets.prompt(source.payload, snippet_plan, run.requirements) if stage == 'snippets' else prompt(
+                        stage, source.payload, run.requirements, outputs, run.workflow_version, snippet_plan, vocabulary))
                     calls += 1
                     with usage_scope(owner_id=run.entry.anthology.user_id, record=run, purpose='quant', phase=f'research.{stage}'):
                         raw = complete(config, text, json_output=True, max_tokens=32000,

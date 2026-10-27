@@ -8,6 +8,7 @@ import {getSkuKnowledge, getSupplyKnowledge} from './marketMetadata';
 import {marketListingCategory, marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
 import {MarketListingItemIcon} from './MarketListingItemIcon';
 import {elementStatLabels, equipmentSlotLabel, formatRatio, statLabels} from '../Combat/presentation';
+import {ElementBadge} from '../Combat/ElementBadge';
 
 export interface MarketSidebarProps {
     type: 'shop-slot' | 'listing' | 'empty';
@@ -281,6 +282,11 @@ export function MarketDetailSidebar({
                             <div className="flex justify-between text-slate-500">
                                 <span>部位 / 等级</span>
                                 <span className="font-semibold text-slate-700">{equipmentSlotLabel(item.equipmentSnapshot.slot || '', item.equipmentSnapshot.equipmentType)} · Lv.{item.equipmentSnapshot.level ?? '—'}</span>
+                            </div>
+                        )}
+                        {isCombatEquipment && item.equipmentSnapshot?.slot === 'weapon' && item.equipmentSnapshot.element && (
+                            <div className="flex items-center justify-between text-slate-500">
+                                <span>攻击属性</span><ElementBadge element={item.equipmentSnapshot.element} size="xs"/>
                             </div>
                         )}
                     </div>

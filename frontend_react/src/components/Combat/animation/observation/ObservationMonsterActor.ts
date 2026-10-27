@@ -18,6 +18,9 @@ import {sampleMossKingPose} from '../mossKingMotion';
 import {loadDefeatArtwork,PixelDefeatEffect} from '../pixelDefeat/PixelDefeatEffect';
 import {MeadowMonsterActor} from '../meadowPixels/MeadowMonsterActor';
 import {meadowProfiles} from '../meadowPixels/meadowTypes';
+import {ElementMonsterActor} from '../elementPixels/ElementMonsterActor';
+import {elementMonsterArt} from '../../art/elementMonsterArt';
+import {elementSkillsFor} from '../elementPixels/elementSkillVisuals';
 
 type LiveMonster=SlimeActor|CaveBatActor|MossBeastActor|MossKingActor;
 type Motion='idle'|'attack'|'hit';
@@ -31,10 +34,12 @@ export class ObservationMonsterActor extends Container {
     private readonly fragments?:PixelDefeatEffect;
     private readonly cave?:CaveMonsterActor;
     private readonly meadow?:MeadowMonsterActor;
+    private readonly element?:ElementMonsterActor;
     private readonly artwork:Container;
     readonly airborne:boolean;
-    private constructor(readonly monsterId:string,art?:Awaited<ReturnType<typeof loadDefeatArtwork>>) {
+    private constructor(readonly monsterId:string,art?:Awaited<ReturnType<typeof loadDefeatArtwork>>,element?:ElementMonsterActor) {
         super();
+        if(element){this.element=element;this.artwork=element;this.airborne=element.airborne;this.addChild(element);return;}
         if(isCaveMonsterId(monsterId)) {
             this.cave=new CaveMonsterActor(caveProfiles[monsterId]);this.artwork=this.cave;
             this.airborne=this.cave.profile.airborne;this.addChild(this.artwork);return;
@@ -66,6 +71,10 @@ export class ObservationMonsterActor extends Container {
     }
     static async load(id:string) {
         if(meadowProfiles[id]||isCaveMonsterId(id))return new ObservationMonsterActor(id);
+        if(elementMonsterArt[id]) {
+            const element=await ElementMonsterActor.load(id);
+            return element?new ObservationMonsterActor(id,undefined,element):null;
+        }
         const src=builtins[id]??getMonsterPixelArt(id);
         return src?new ObservationMonsterActor(id,await loadDefeatArtwork(src)):null;
     }
@@ -78,6 +87,7 @@ export class ObservationMonsterActor extends Container {
     sample(motion:Motion,time:number,ambient:number,hitAge:number|undefined,defeatAge:number|undefined,skill?:CaveSkill) {
         if(this.cave){this.cave.sample(motion==='attack'&&skill?skill:motion,time,ambient,defeatAge);return;}
         if(this.meadow){this.meadow.sample(motion,time,ambient,defeatAge);return;}
+        if(this.element){this.element.sample(motion,time,ambient,defeatAge);return;}
         this.artwork.visible=defeatAge===undefined;this.fragments?.sample(defeatAge??-1);
         this.tint=hitAge!==undefined&&hitAge>=0&&hitAge<.13?0xff9f92:0xffffff;
         if(defeatAge!==undefined)return;
@@ -89,10 +99,11 @@ export class ObservationMonsterActor extends Container {
     }
     get caveProfile(){return this.cave?.profile;}
     get pixelProfile(){return this.meadow?.profile;}
-    get keepsDebris(){return Boolean(this.meadow||this.cave);}
-    get defeatDuration(){return this.meadow||this.cave?4:1.4;}
-    get shake(){return (this.meadow?.shake??this.cave?.shake??0)*185/116;}
-    get ranged(){return this.meadow?.profile.ranged??['monster.water_spirit','monster.tide_priest','monster.ash_demon','monster.rift_walker','monster.star_overlord'].includes(this.monsterId);}
+    get elementSkills(){return elementSkillsFor(this.monsterId);}
+    get keepsDebris(){return Boolean(this.meadow||this.cave||this.element);}
+    get defeatDuration(){return this.meadow||this.cave||this.element?4:1.4;}
+    get shake(){return (this.meadow?.shake??this.cave?.shake??this.element?.shake??0)*185/116;}
+    get ranged(){return this.meadow?.profile.ranged??['monster.water_spirit','monster.tide_priest','monster.ash_demon','monster.rift_walker','monster.star_overlord','monster.element.water.little_spirit','monster.element.water.tide_crown','monster.element.wind.bell','monster.element.fire.lizard','monster.element.fire.firebird'].includes(this.monsterId);}
     override destroy() {
         if(this.destroyed)return;
         super.destroy({children:true});this.stillTexture?.destroy(true);

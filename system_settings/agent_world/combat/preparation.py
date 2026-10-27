@@ -32,7 +32,8 @@ def context(run: Exploration) -> dict:
     equipment = []
     for row in full.get('equipment', []):
         snapshot = row.get('snapshot') or {}
-        if row.get('sold') or ((row.get('bound') or row.get('locked')) and row.get('id') not in equipped_ids):
+        if row.get('sold') or row.get('market_listed') or ((row.get('bound') or row.get('locked'))
+                and not row.get('retained_for_adventure') and row.get('id') not in equipped_ids):
             continue
         if row.get('id') in decided_ids and row.get('id') not in equipped_ids:
             continue
@@ -40,7 +41,9 @@ def context(run: Exploration) -> dict:
             'id': row.get('id'), 'slot': snapshot.get('slot'), 'name': snapshot.get('name'),
             'equipment_type': snapshot.get('equipment_type'), 'level': snapshot.get('level'),
             'rarity': snapshot.get('rarity'), 'stats': snapshot.get('stats'),
-            'equipped': row.get('id') in equipped_ids, 'locked': row.get('locked'),
+            'element': snapshot.get('element') or '',
+            'retained_for_adventure': bool(row.get('retained_for_adventure')),
+            'equipped': row.get('id') in equipped_ids, 'bound': row.get('bound'), 'locked': row.get('locked'),
         })
     adventure = {
         'progression': {key: full.get('progression', {})[key] for key in ('level', 'experience', 'job', 'stats') if key in full.get('progression', {})},
@@ -52,10 +55,11 @@ def context(run: Exploration) -> dict:
                    for row in full.get('skills', [])],
     }
     level = adventure['progression'].get('level', 1)
+    from .element_context import dungeon_elements
     dungeons = [{**{key: row[key] for key in ('id', 'name', 'recommended_level_min', 'recommended_level_max',
                 'boss_id', 'boss_level_min', 'boss_level_max', 'boss_start_kills', 'boss_probability_step',
                 'boss_probability_cap', 'equipment_level_min', 'equipment_level_max') if key in row},
-                'has_boss': bool(row.get('boss_id'))}
+                'has_boss': bool(row.get('boss_id')), 'elements': dungeon_elements(catalog, row['id'])['monsters']}
                 for row in catalog.tables['dungeons'] if row.get('enabled') == '1']
     styles = [{key: row[key] for key in ('id', 'name', 'attack_weight', 'skill_weight', 'heal_threshold',
               'mana_threshold', 'defend_factor') if key in row}
@@ -76,7 +80,7 @@ def context(run: Exploration) -> dict:
 
 
 def validate(run: Exploration,plan: dict) -> dict:
-    if not isinstance(plan,dict) or set(plan)-{'dungeon_id','style_id','duration_seconds','equipment','purchases','potions','reason','food','elixirs'}:
+    if not isinstance(plan,dict) or set(plan)-{'dungeon_id','style_id','duration_seconds','equipment','equipment_decisions','purchases','potions','reason','food','elixirs'}:
         raise ValueError('探索准备计划格式无效')
     catalog=current(run.catalog_id)
     for field,table in (('dungeon_id','dungeons'),('style_id','styles')):
@@ -101,6 +105,12 @@ def validate(run: Exploration,plan: dict) -> dict:
             row=catalog.row('potions',sid)
             if type(count)is not int or not 0<=count<=99 or row['enabled']!='1' or int(row['required_level'])>CombatProfile.objects.get(pk=run.actor_id).progression['level']:raise ValueError('药剂等级或数量无效')
     if sum(plan.get('potions',{}).values())>int(catalog.rules['potion_carry_cap']):raise ValueError('每次最多携带 20 瓶药剂')
+    decisions = plan.get('equipment_decisions', {})
+    if not isinstance(decisions, dict):
+        decisions = {}
+    available = {row['id'] for row in context(run)['adventure']['equipment']} if decisions else set()
+    plan = {**plan, 'equipment_decisions': {identity: action for identity, action in decisions.items()
+            if isinstance(identity, str) and identity in available and action in ('keep', 'sell', 'list')}}
     equipment_changes=plan.get('equipment',{})
     if not isinstance(equipment_changes,dict):
         plan=skip_equipment_changes(plan)
@@ -192,7 +202,7 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                     plan, preparation_decisions = build_plan(run, agent, check=check_preparation)
                 else:
                     with usage_scope(agent=agent,purpose='exploration_prepare'):
-                        plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。探索本身不需要生活预算；药剂是可选补给，只能使用purchase_funds中的未预留真实余额。若余额不足，减少或放弃采购，并按现有库存决定携带，不要因此放弃探索。装备部位可用 weapon、offhand、head、body、hands、feet、accessory、ring_1、ring_2；accessory 是吊坠位，戒指分别使用 ring_1 和 ring_2。双手武器占用副手，不能同时填写 offhand。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。考虑职业精通、全程体力和推荐等级。',context(run))
+                        plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。比较地点魔物的元素和抗性、当前装备及已有备用武器；可穿戴的闲置武器可决定 keep 保留备用，也可对可交易的闲置装备决定 sell 出售或 list 上架。换装后被替换下来的武器同样可选择 keep，未绑定且未锁定的旧装备还可选择 sell 或 list；换装后仍穿戴的装备不能处置。每件装备至多一项决定，不确定时省略。探索本身不需要生活预算；药剂是可选补给，只能使用purchase_funds中的未预留真实余额。若余额不足，减少或放弃采购，并按现有库存决定携带，不要因此放弃探索。装备部位可用 weapon、offhand、head、body、hands、feet、accessory、ring_1、ring_2；accessory 是吊坠位，戒指分别使用 ring_1 和 ring_2。双手武器占用副手，不能同时填写 offhand。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, equipment_decisions:{装备ID:"keep"|"sell"|"list"}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。考虑职业精通、全程体力和推荐等级。',context(run))
                 plan=fit_potion_plan(run,agent,validate(run,plan))
                 from ..life_interleaving_preparation import fit_supply_energy
                 plan = fit_supply_energy(run, agent, plan)
@@ -216,6 +226,14 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                 locked=Exploration.objects.select_for_update().get(pk=run_id)
                 if locked.status!='preparing' or not CombatRuntime.objects.filter(pk=run_id,authorized=True).exists():return locked
                 equip(run.owner_id,agent,run.pk+':equip',plan.get('equipment',{}),preparing=run.pk)
+                if plan.get('equipment_decisions'):
+                    from .models import EquipmentInstance
+                    from .preparation_decision import _record_gear_decision
+                    for identity, action in plan['equipment_decisions'].items():
+                        gear = EquipmentInstance.objects.filter(pk=identity, owner_id=run.owner_id,
+                                                               actor_id=run.actor_id, sold=False).first()
+                        if gear:
+                            _record_gear_decision(run, gear, action, 'decision_model')
             purchases={sid:n for sid,n in plan.get('purchases',{}).items() if n}
             if purchases:
                 from .schedule import PREPARING

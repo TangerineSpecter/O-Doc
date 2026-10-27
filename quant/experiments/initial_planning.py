@@ -83,7 +83,7 @@ def initial_data(result: dict, report_id: str) -> dict:
 
 def validate_strategy_admission(result: dict, version: int) -> None:
     proposal = result.get('initial_proposal')
-    if isinstance(proposal, dict) and 'strategy' in proposal.get('config', {}) and version not in (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27):
+    if isinstance(proposal, dict) and 'strategy' in proposal.get('config', {}) and version not in (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28):
         raise ValidationError('旧版来源分析不得夹带新版策略执行假设')
 
 

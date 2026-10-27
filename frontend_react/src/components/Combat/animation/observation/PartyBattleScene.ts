@@ -1,4 +1,4 @@
-import {Application,Assets,Container,Sprite,Texture,Text} from 'pixi.js';
+import {Application,Assets,Container,Graphics,Sprite,Texture,Text} from 'pixi.js';
 import type {AdventurePartySnapshot,PartyCombatant} from '../../../../types/api/combat';
 import {LayeredPlayerActor} from '../playerAppearance/LayeredPlayerActor';
 import {identitySheet,outfitArts,independentWeapons} from '../playerAppearance/layeredPlayerArt';
@@ -8,6 +8,9 @@ import type {BattleBackgroundArt, BattleBackgroundId} from '../../art/battleBack
 import {loadPixelBattleBackground} from '../loadPixelBattleBackground';
 import {ObservationMonsterActor} from './ObservationMonsterActor';
 import {PartyEventCursor} from './partyEventCursor';
+import {drawElementSkill} from '../elementPixels/elementSkillVisuals';
+import type {ElementSkillVisual} from '../elementPixels/elementSkillVisuals';
+import {elementEquipmentArt} from '../../art/elementEquipmentArt';
 
 interface UnitView {actor:LayeredPlayerActor|ObservationMonsterActor;unit:PartyCombatant;x:number;y:number;hit?:number;action?:number;defeat?:number}
 /** All poses follow confirmed unit/event IDs; animation never advances the battle. */
@@ -26,6 +29,8 @@ export class PartyBattleScene {
     private version=0;
     private paused=false;
     private eventCursor=new PartyEventCursor();
+    private effects=new Graphics();
+    private elementEffects:{skill:ElementSkillVisual;from:number;to:number;y:number;start:number}[]=[];
     private resizeObserver=new ResizeObserver(()=>this.resize());
     private onVisibility=()=>this.sync();
     private reduced=matchMedia('(prefers-reduced-motion: reduce)');
@@ -56,7 +61,7 @@ export class PartyBattleScene {
             const texture=await Assets.load<Texture>(src);texture.source.scaleMode='nearest';return [src,texture] as const;
         })));
         if(this.disposed)return;
-        this.world.addChild(this.background);this.app.stage.addChild(this.world);
+        this.world.addChild(this.background,this.effects);this.app.stage.addChild(this.world);
         this.app.canvas.style.cssText='display:block;width:100%;height:100%;image-rendering:pixelated';
         this.app.canvas.setAttribute('aria-label','按服务器事实展示的队伍冒险场景');
         this.host.appendChild(this.app.canvas);
@@ -85,7 +90,8 @@ export class PartyBattleScene {
                     if(side===0){
                         actor=new LayeredPlayerActor(this.sheets);
                         const job=unit.jobId||'job.novice';
-                        const weapon=independentWeapons.some(w=>w.id===unit.visual?.weaponId)?unit.visual!.weaponId:'none';
+                        const baseWeapon=elementEquipmentArt(unit.visual?.weaponId||'').baseId;
+                        const weapon=independentWeapons.some(w=>w.id===baseWeapon)?baseWeapon:'none';
                         actor.configure({outfit:job,weapon,aura:getProfessionAura(job),showBody:true,showOutfit:true,showWeapon:weapon!=='none',showRear:true,showGround:true,backdrop:'plain',paused:false});
                         if(unit.visual?.characterImageUrl)void actor.setFullBodyImage(unit.visual.characterImageUrl);
                         else if(unit.visual?.headImageUrl)void actor.setHeadImage(unit.visual.headImageUrl);
@@ -111,9 +117,18 @@ export class PartyBattleScene {
             }
         }
         for(const event of this.eventCursor.take(snapshot.events)){
+            const drawn=new Set<string>();
             for(const action of event.payload?.events||[]){
                 const actor=this.units.get(action.actorId||(action as any).actor_id||'');if(actor)actor.action=this.clock;
                 const target=this.units.get(action.targetId||(action as any).target_id||'');
+                if(actor?.actor instanceof ObservationMonsterActor){
+                    const skill=actor.actor.elementSkills.find(item=>item.name===action.action);
+                    const key=`${actor.unit.id}:${action.action}`;
+                    if(skill&&skill.name===action.action&&!drawn.has(key)){
+                        drawn.add(key);
+                        this.elementEffects.push({skill,from:actor.x,to:target?.x??actor.x,y:actor.y,start:this.clock});
+                    }
+                }
                 if(target&&(action.damage||action.healing||action.restored)){
                     if(action.damage)target.hit=this.clock;
                     const amount=action.damage?`−${action.damage}`:`+${action.healing||action.restored}`;
@@ -128,6 +143,10 @@ export class PartyBattleScene {
     setPaused(value:boolean){this.paused=value;this.sync();}
     private sync(){if(!this.initialized||this.disposed)return;if(this.paused||this.reduced.matches||document.hidden){this.app.stop();this.draw();this.app.render();}else this.app.start();}
     private draw(){
+        this.effects.clear();
+        this.elementEffects=this.elementEffects.filter(effect=>this.clock-effect.start<=1.25);
+        for(const effect of this.elementEffects)
+            drawElementSkill(this.effects,effect.skill,this.clock-effect.start,effect.from,effect.to,effect.y);
         for(const view of this.units.values()){
             const age=view.action===undefined?10:this.clock-view.action;
             const hit=view.hit===undefined?undefined:this.clock-view.hit;

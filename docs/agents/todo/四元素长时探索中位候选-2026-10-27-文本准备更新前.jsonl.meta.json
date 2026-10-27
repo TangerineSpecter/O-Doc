@@ -1,0 +1,14 @@
+{
+  "options": {
+    "seeds": 500,
+    "minutes": [
+      30,
+      60,
+      120
+    ],
+    "no_supplies": false,
+    "weapon": "ordinary",
+    "position": "mid"
+  },
+  "source_sha256": "87c4da1509004b2d1b7b9e827f15e7e5ac629dd23472a41e6f82155486b85bde"
+}

@@ -793,8 +793,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
 
     from .combat.reservation_models import AdventureReservation
     for appointment in AdventureReservation.objects.filter(owner_id=owner, updated_at__gte=start, updated_at__lt=end):
-        for actor_id, member in appointment.snapshot.get('members', {}).items():
-            events.append(_event('record', 'adventure-reservation', appointment.pk+':'+actor_id, appointment.updated_at, actor_id, names.get(actor_id),
+        for member_id, member in appointment.snapshot.get('members', {}).items():
+            events.append(_event('record', 'adventure-reservation', appointment.pk+':'+member_id, appointment.updated_at, member_id, names.get(member_id),
                 '组队探索预约：'+{'reserved':'已确认','preparing':'准备中','active':'已出发','completed':'已结束','cancelled':'已取消'}.get(appointment.status, appointment.status),
                 '队友：'+'、'.join(m['name'] for m in appointment.snapshot['members'].values())+'；出发 '+local_time(appointment.starts_at).strftime('%H:%M')+'，返回 '+local_time(appointment.ends_at).strftime('%H:%M'),
                 status=appointment.status, target={'kind':'life','id':member['item_id']}))

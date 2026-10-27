@@ -22,8 +22,10 @@ from .taxonomy.views import VocabularyView
 from .verification.views import VerificationView
 from .admissions.views import AdmissionView
 from .native_python.views import NativeView
+from .graph.correlation_views import CorrelationView
 
 urlpatterns = [
+    path('<str:coll_id>/comparisons/<str:comparison_id>/correlation/', CorrelationView.as_view()),
     path('<str:coll_id>/factors/<str:factor_id>/native-python/options/',NativeView.as_view(),{'action':'options'}),
     path('<str:coll_id>/factors/<str:factor_id>/native-python/',NativeView.as_view()),
     path('<str:coll_id>/native-python/<str:native_id>/',NativeView.as_view()),

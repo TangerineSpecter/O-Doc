@@ -22,6 +22,78 @@ const invoke = async <T>(path: string, method = 'GET', body?: unknown, authorize
     return await resolveQuantRoute(request) as T;
 };
 
+test('研究图谱保持来源假设、正反反馈引文与实际参数，恢复不改变主张', async () => {
+    const {readGraphResearch} = await import('../../utils/quantGraphResearch.ts');
+    type Graph = import('../../types/api/quantGraph.ts').QuantGraph;
+    const {entry} = await invoke<{entry: QuantEntryDetail}>(base+'intake/', 'POST', {
+        requestKey: 'graph_research_claim_source', code: 'N=20\nclose/close.shift(N)-1'});
+    entry.runs[0].createdAt = '2020-01-01T00:00:00Z';
+    const path = base+`entries/${entry.id}/`;
+    const ready = await invoke<QuantEntryDetail>(path);
+    const candidate = (await invoke<{items: import('../../types/api/quant.ts').QuantFactorCandidate[]}>(base+`factors/?entryId=${entry.id}`)).items[0];
+    await invoke(path+'feedback/', 'POST', {requestKey: 'graph_research_claim_feedback', title: '人工正反观察',
+        targetSourceId: ready.sources![0].id, factorId: candidate.id, mode: 'backtest', platform: '人工样例',
+        documentFormat: 'text', document: 'N=10\nnet=-2%\ntrades=2', analyze: true});
+    entry.runs.find(row => row.kind === 'feedback_review')!.createdAt = '2020-01-01T00:00:00Z';
+    await invoke(path);
+    const graphPath = base+`graph/?candidateId=${candidate.id}`;
+    const graph = await invoke<Graph>(graphPath);
+    const claims = graph.edges.filter(row => row.researchJson).map(row => readGraphResearch(row.researchJson!, candidate.id));
+    assert.ok(claims.some(row => row.kind === 'scenario_hypothesis' && row.condition_availability === 'not_established'));
+    const feedback = claims.filter(row => row.kind === 'feedback_assessment');
+    assert.deepEqual(feedback.map(row => row.status), ['reported_counterexample', 'reported_support']);
+    assert.deepEqual(feedback.map(row => row.quote), ['net=-2%', 'trades=2']);
+    assert.equal(feedback[0].reported_parameters[0].value, '10');
+    assert.ok(feedback.every(row => row.independent_evidence === false && row.platform_authenticated === false));
+    assert.equal(quantState().experiments.length, 0);
+    resetQuantStateForTests();
+    assert.deepEqual((await invoke<Graph>(graphPath)).edges.filter(row => row.researchJson), graph.edges.filter(row => row.researchJson));
+    setScenario('empty'); assert.equal((await invoke<Graph>(base+'graph/')).focusId, '');
+    setScenario('error'); assert.equal((await invoke<Response>(graphPath)).status, 503);
+    assert.equal((await invoke<Response>(graphPath, 'GET', undefined, false)).status, 403);
+});
+
+test('固定对照的样本相关独立保存、图谱显示，未知及旧记录不伪造系数',async()=>{
+    const {readCorrelation}=await import('../../utils/quantCorrelation.ts');
+    type Candidate=import('../../types/api/quant.ts').QuantFactorCandidate;
+    type Comparison=import('../../types/api/quantComparison.ts').QuantComparison;
+    type Correlation=import('../../types/api/quantComparison.ts').QuantCorrelation;
+    const collect=async(key:string)=>{
+        const {entry}=await invoke<{entry:QuantEntryDetail}>(base+'intake/','POST',{requestKey:key,title:key,language:'python',code:'# LOCAL_COMPARISON_FAIL\nN=20\nclose.pct_change(N)'});
+        entry.runs[0].createdAt='2020-01-01T00:00:00Z';await invoke(base+`entries/${entry.id}/`);
+        return (await invoke<{items:Candidate[]}>(base+`factors/?entryId=${entry.id}`)).items[0];
+    };
+    const a=await collect('correlation_mock_source_A'),b=await collect('correlation_mock_source_B');
+    const csvText='timestamp,open,high,low,close\n'+Array.from({length:60},(_,i)=>`${new Date(Date.UTC(2024,0,i+1)).toISOString()},100,102,99,101`).join('\n');
+    const dataset=await invoke<import('../../types/api/quantDataset.ts').QuantDataset>(base+'datasets/','POST',{name:'人工样例',csvText,symbol:'SYNTHETIC',timeframe:'1d',timezone:'UTC',priceAdjustment:'none',source:'人工'});
+    const side=(c:Candidate)=>({candidateId:c.id,bindings:[{name:'close',column:'close'}],parameters:[{name:'lookback',value:20}]});
+    const compared=await invoke<Comparison>(base+'comparisons/','POST',{requestKey:'correlation_mock_pair_01',name:'固定两侧',datasetId:dataset.id,left:side(a),right:side(b),policy:{absoluteTolerance:0,relativeTolerance:0,warmupBars:0}});
+    assert.equal(compared.correlation,undefined);
+    const path=base+`comparisons/${compared.id}/correlation/`;
+    const saved=await invoke<Correlation>(path,'POST'),parsed=readCorrelation(saved,compared);
+    assert.equal(parsed.statistics.local_demo,true);assert.equal(parsed.statistics.pearson,.72);
+    assert.equal((await invoke<Correlation>(path,'POST')).id,saved.id);
+    assert.equal((await invoke<Response>(path)).status,405);
+    assert.equal((await invoke<Response>(path+'unknown/','POST')).status,501);
+    assert.equal((await invoke<Response>(path,'POST',{warmupBars:10})).status,400);
+    assert.equal((await invoke<Response>(path,'POST',undefined,false)).status,403);
+    for(const statistics of [{...parsed.statistics,pearson:2},{...parsed.statistics,counts:{...parsed.statistics.counts,common_valid:1}}]) {
+        assert.throws(()=>readCorrelation({...saved,evidenceJson:JSON.stringify({...parsed,statistics})},compared));
+    }
+    assert.throws(()=>readCorrelation(saved,{...compared,id:'other'}));
+    assert.throws(()=>readCorrelation({...saved,evidenceJson:JSON.stringify({...parsed,dataset_hash:'other'})},compared));
+    const unknown={...parsed,statistics:{...parsed.statistics,status:'undefined',reason:'constant_or_near_constant_output',pearson:null,spearman:null}};
+    assert.equal(readCorrelation({...saved,evidenceJson:JSON.stringify(unknown)},compared).statistics.pearson,null);
+    resetQuantStateForTests();
+    const restored=await invoke<Comparison>(base+`comparisons/${compared.id}/`);
+    assert.equal(restored.correlation!.id,saved.id);assert.equal(restored.resultJson,compared.resultJson);
+    const graph=await invoke<import('../../types/api/quantGraph.ts').QuantGraph>(base+`graph/?candidateId=${a.id}`);
+    const edge=graph.edges.find(row=>row.kind==='statistical_correlation')!;
+    assert.equal(edge.similarity,null);assert.equal(edge.comparisonId,compared.id);
+    setScenario('error');assert.equal((await invoke<Response>(path,'POST')).status,503);
+    setScenario('empty');assert.equal((await invoke<{total:number}>(base+'comparisons/')).total,0);
+});
+
 test('新的AI设计样例直接产出多内层方案，能力记录可读且准备前不执行', async () => {
     const {readProposal} = await import('../../components/Quant/experiments/proposal.ts');
     const {entry} = await invoke<{entry: QuantEntryDetail}>(base+'intake/','POST',{

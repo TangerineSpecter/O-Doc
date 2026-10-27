@@ -4,7 +4,7 @@ export interface CombatRow {id: string; name?: string; [key: string]: string | u
 export interface CombatCatalog {version: string; tables: Record<string, CombatRow[]>; monsterPreviews: {id: string; level: number; attributes: Record<string, number | string>}[]}
 export interface EquipmentSnapshot {templateId: string; name: string; slot: string; element?: string; equipmentType?: string; grip?: string; level: number; quality: string; value: string; stats: Record<string, number>; affixes: {id: string; stat: string; value: number}[]}
 export interface EquipmentWearRules {version: number; slot: string; equipmentType: string; grip: string; jobLevels: Record<string, number>}
-export interface CombatEquipment {id: string; templateId?:string; displayType?: string; snapshot: EquipmentSnapshot; rules?: EquipmentWearRules; bound: boolean; locked: boolean; marketListed?: boolean; marketListingId?: string | null; value: string}
+export interface CombatEquipment {id: string; templateId?:string; displayType?: string; snapshot: EquipmentSnapshot; rules?: EquipmentWearRules; bound: boolean; locked: boolean; retainedForAdventure?: boolean; marketListed?: boolean; marketListingId?: string | null; value: string}
 export interface CombatResourceRecovery {amount: number; nextAt: string | null; fullAt: string | null}
 export interface CombatRecovery {serverNow: string; nextAt: string | null; hp: CombatResourceRecovery; mp: CombatResourceRecovery}
 export interface CombatProfile {

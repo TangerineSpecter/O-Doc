@@ -59,7 +59,8 @@ def append_checkpoint(profile) -> object | None:
     for item in EquipmentInstance.objects.filter(actor_id=profile.pk).order_by('pk'):
         if not item.rules:
             raise ValueError(f'居民 {profile.pk} 的装备 {item.pk} 缺少固化规则，不能建立检查点')
-        equipment[item.pk] = {'snapshot': item.snapshot, 'rules': item.rules}
+        equipment[item.pk] = {'snapshot': item.snapshot, 'rules': item.rules,
+                              **({'retained_for_adventure': True} if item.retained_for_adventure else {})}
     payload = {
         'version': 1,
         'source_sequence': chain.head,

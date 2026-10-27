@@ -1,4 +1,4 @@
-import type {CombatEvent, CombatRow} from '../../types/api/combat';
+import type {CombatEvent, CombatReward, CombatRow} from '../../types/api/combat';
 export const elementOrder = ['water', 'fire', 'earth', 'wind', 'light', 'dark'] as const;
 export const elementLabels: Record<string, string> = {water: '水', fire: '火', earth: '土', wind: '风', light: '光', dark: '暗'};
 export const elementStatLabels: Record<string, string> = Object.fromEntries(elementOrder.flatMap(element => {
@@ -27,6 +27,16 @@ function formatEffectPercent(value: number) {
 export function elementPhrase(element: string | undefined) {
     if (element === 'none') return '无属性';
     return elementLabels[element || ''] ? `${elementLabels[element || '']}属性` : '随武器属性';
+}
+/** Compact loot-roll summary; older and material rewards may have no snapshot stats. */
+export function rewardElementDescription(reward: CombatReward): string {
+    if (reward.kind !== 'equipment' || !('element' in reward.item)) return '';
+    const element = reward.item.element;
+    if (typeof element !== 'string' || !elementLabels[element]) return '';
+    const stats = 'stats' in reward.item && reward.item.stats && typeof reward.item.stats === 'object'
+        ? reward.item.stats as Record<string, number> : {};
+    const power = stats[`${element}_power`] ?? stats[`${element}Power`];
+    return `${elementLabels[element]}属性${typeof power === 'number' && power !== 0 ? ` · ${elementLabels[element]}属性强化 ${power > 0 ? '+' : ''}${formatEffectPercent(power)}` : ''}`;
 }
 export const statLabels: Record<string, string> = {physical_attack:'物理攻击',magic_attack:'魔法攻击',physical_defense:'物理防御',magic_defense:'魔法防御',hp_max:'最大生命',mp_max:'最大魔力',critical_damage:'暴击伤害',strength: '力量', dexterity: '敏捷', intelligence: '智力', vitality: '体质', spirit: '精神', luck: '运气', hpMax: '最大生命', mpMax: '最大魔力', physicalAttack: '物理攻击', magicAttack: '魔法攻击', physicalDefense: '物理防御', magicDefense: '魔法防御', healing: '治疗能力', accuracy: '命中', evasion: '闪避', critical: '暴击', criticalDamage: '暴击伤害', ...elementStatLabels};
 export const slotLabels: Record<string, string> = {weapon: '武器', offhand: '副手', head: '头饰', body: '护甲', hands: '手套', feet: '靴子', accessory: '吊坠', ring_1: '戒指位 1', ring_2: '戒指位 2'};

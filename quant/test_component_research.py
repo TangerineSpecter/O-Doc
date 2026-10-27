@@ -153,6 +153,8 @@ class ComponentWorkflowTests(TestCase):
     def setUp(self):
         from quant.test_research_analysis import AnalysisTests
         AnalysisTests.setUp(self)
+        version=patch('quant.workflows.contracts.INCREMENTAL_VERSION',27)
+        version.start();self.addCleanup(version.stop)
         self.payload['code'] = 'N=20\nM=N*2\ndef factor(x): return x*M\n'
 
     def chain(self):
@@ -187,7 +189,7 @@ class ComponentWorkflowTests(TestCase):
         self.__class__.wire = evidence
         self.assertEqual(ResearchReport.objects.filter(run__in=(old,second,third)).count(),3)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'],70)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'],74)
         validate(snapshot,metadata(snapshot)); reset_execution()
         with patch('quant.worker.dispatch') as dispatch:
             SyncManager().apply_snapshot_data(snapshot,remote_meta=metadata(snapshot))

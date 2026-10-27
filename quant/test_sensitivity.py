@@ -111,7 +111,7 @@ class SensitivityReviewTests(TestCase):
 
     def test_v4_api_prompt_sync_and_no_execution_on_restore(self):
         request, run = self.ready()
-        self.assertEqual(run.review_version, 15)
+        self.assertEqual(run.review_version, 17)
         evidence = for_run(run)
         self.assertIn('parameter_sensitivity', evidence['evidence'])
         self.assertIn('抽样点', prompt(run))
@@ -124,7 +124,7 @@ class SensitivityReviewTests(TestCase):
         self.client.force_authenticate(user=None)
         self.assertNotEqual(self.client.get(self.path + request.pk + '/').status_code, 200)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 70)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertEqual(for_run(AIRun.objects.get(pk=run.pk)), evidence)
@@ -139,7 +139,7 @@ class SensitivityReviewTests(TestCase):
         values = _run_input(run.entry, {'kind': 'experiment_review', 'source_id': run.source_id,
             'experiment_result_id': request.result.pk, 'request_key': run.request_key})
         values['review_version'] = 3
-        legacy_context = {key: val for key, val in values['planning_context'].items() if key not in ('research_memory','fixed_validation','selection_diagnostic','planning_capabilities')}
+        legacy_context = {key: val for key, val in values['planning_context'].items() if key not in ('research_memory','fixed_validation','selection_diagnostic','planning_capabilities','output_associations')}
         legacy_context['version'] = 1
         legacy_context['method'] = 'related-library-v1'
         values['planning_context'] = legacy_context

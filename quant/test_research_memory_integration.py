@@ -117,8 +117,8 @@ class ResearchMemoryIntegrationTests(TestCase):
     def test_new_review_uses_cross_source_experiment_and_feedback_with_all_trials(self):
         current, dataset, previous, feedback = self.history()
         request, run = self.calculate_candidate(current, dataset, 'research_memory_current_experiment')
-        self.assertEqual(run.review_version, 15)
-        self.assertEqual(run.planning_context['version'], 6)
+        self.assertEqual(run.review_version, 17)
+        self.assertEqual(run.planning_context['version'], 7)
         selected = {(item['kind'], item['id']): item for item in self.memory(run)['items']}
         self.assertIn(('experiment', previous.result.pk), selected)
         self.assertIn(('feedback', feedback.source_id), selected)
@@ -210,7 +210,7 @@ class ResearchMemoryIntegrationTests(TestCase):
     def test_legacy_v5_projection_has_no_library_history_and_remains_valid(self):
         current, dataset, _, _ = self.history()
         request, run = self.calculate_candidate(current, dataset, 'research_memory_legacy_comparison')
-        legacy = {key: copy.deepcopy(value) for key, value in run.planning_context.items() if key not in ('research_memory','fixed_validation','selection_diagnostic','planning_capabilities')}
+        legacy = {key: copy.deepcopy(value) for key, value in run.planning_context.items() if key not in ('research_memory','fixed_validation','selection_diagnostic','planning_capabilities','output_associations')}
         legacy['version'] = 1
         legacy['method'] = 'related-library-v1'
         before = for_result(request.result, 5, legacy)

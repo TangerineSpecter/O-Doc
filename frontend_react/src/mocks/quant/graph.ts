@@ -1,8 +1,11 @@
 import {HttpResponse} from 'msw';
 import type {QuantEntryDetail, QuantFactorCandidate} from '../../types/api/quant';
 import type {QuantGraph, QuantGraphEdge, QuantIndexJob, QuantIndexStatus} from '../../types/api/quantGraph';
+import type {QuantCorrelationEvidence} from '../../types/api/quantComparison';
 import {collectMockFactors} from './factors';
 import {mockComparisonEdges} from './comparisons';
+import {appendMockGraphEvidence} from './graphEvidence';
+import {appendMockGraphResearch} from './graphResearch';
 import {mockScenario, persistQuantState, quantId, quantState} from './state';
 
 export interface MockGraphState {cache: Record<string, string>; jobs: (QuantIndexJob & {collection: string; candidateIds: string[]})[]}
@@ -92,6 +95,16 @@ export function resolveGraphRoute(request: Request, collection: string, entries:
                 detail: kind === 'sample_equivalent' ? '显式人工样例仅演示固定输入比较证据，未计算历史输出，不证明平台或全局等价。' : '人工整理的直接关系；撤销只移除此边，保留原比较与候选。'});
         }
     }
+    const correlations=quantState().comparisons.filter(row=>row.collection===collection&&row.data.correlation&&[row.data.leftId,row.data.rightId].includes(center.id));
+    graph.limited=graph.limited||correlations.length>12;
+    for(const {data} of correlations.slice(0,12)) {
+        const otherId=data.leftId===center.id?data.rightId:data.leftId,other=items.find(row=>row.id===otherId);
+        if(!other)continue;
+        if(!selected.some(row=>row.id===otherId)){if(selected.length>=21){graph.limited=true;continue;}selected.push(other);}
+        const raw=data.correlation!,value=JSON.parse(raw.evidenceJson) as QuantCorrelationEvidence;
+        graph.edges.push({id:raw.id,from:`factor:${center.id}`,to:`factor:${otherId}`,kind:'statistical_correlation',label:'固定样本输出相关（模拟）',historical:false,similarity:null,
+            comparisonId:data.id,correlationJson:raw.evidenceJson,detail:`人工统计样例，Pearson ${value.statistics.pearson??'未定义'}、Spearman ${value.statistics.spearman??'未定义'}，共同有效 ${value.statistics.counts.common_valid} 行；未计算真实行情，不证明等价、互补或收益。`});
+    }
     for (const item of [...selected]) {
         for (const parent of items.filter(parent => (item.data.derivation?.parentCandidateIds || item.data.formulaVersion?.parentCandidateIds || []).includes(parent.id))) {
             if (!selected.some(row => row.id === parent.id)) selected.push(parent);
@@ -118,5 +131,7 @@ export function resolveGraphRoute(request: Request, collection: string, entries:
         }
     }
     graph.nodes = [...nodes.values()]; graph.edges.push(...edges.values());
+    appendMockGraphEvidence(graph,center,collection,entries);
+    appendMockGraphResearch(graph,center,collection,entries,items);
     return graph;
 }

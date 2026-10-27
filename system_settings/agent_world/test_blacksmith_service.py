@@ -834,14 +834,14 @@ class BlacksmithServiceTests(TestCase):
         manager = SyncManager(MemoryStorageClient(), '/backup')
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
-        self.assertEqual(meta['combat_schema_version'], 16)
+        self.assertEqual(meta['combat_schema_version'], 17)
         self.assertEqual(meta['blacksmith_schema_version'], 2)
         with self.assertRaisesRegex(SyncError, '版本过新'):
             validate_source(data, {**metadata(data), 'blacksmith_schema_version': 3})
         with self.assertRaisesRegex(SyncError, '新版同步版本'):
             validate_source(data, {**metadata(data), 'blacksmith_schema_version': 0})
         with self.assertRaisesRegex(SyncError, '版本过新'):
-            validate_combat(data, {**combat_metadata(data), 'combat_schema_version': 17})
+            validate_combat(data, {**combat_metadata(data), 'combat_schema_version': 18})
         saved = copy.deepcopy(operation.result)
         for _ in range(2):
             manager.apply_snapshot_data(copy.deepcopy(data), meta, full_overwrite=True)

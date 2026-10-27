@@ -4,6 +4,7 @@ import type {CombatCatalog, CombatRow} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {getDungeonVisual, getMonsterVisual} from './atlasIcons';
 import {BossCrownIcon, RankBadge} from './RankBadge';
+import {orderDungeons} from './atlasOrdering';
 
 export interface DungeonAtlasViewProps {
     catalog: CombatCatalog;
@@ -29,13 +30,14 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
     const materials = tables.materials || [];
 
     const [search, setSearch] = useState('');
-    const [selectedId, setSelectedId] = useState<string>(dungeons[0]?.id || '');
+    const [selectedId, setSelectedId] = useState<string>('');
 
     // 过滤地牢
     const visibleDungeons = useMemo(() => {
         const keyword = search.trim().toLowerCase();
-        if (!keyword) return dungeons;
-        return dungeons.filter(d => {
+        const ordered = orderDungeons(dungeons);
+        if (!keyword) return ordered;
+        return ordered.filter(d => {
             const matchName = (d.name || '').toLowerCase().includes(keyword);
             const matchId = (d.id || '').toLowerCase().includes(keyword);
             // 检查怪物名是否匹配

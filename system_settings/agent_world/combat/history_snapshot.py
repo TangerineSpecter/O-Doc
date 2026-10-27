@@ -20,7 +20,8 @@ def aggregate_frame(rows: dict, actor: str, *, frozen: bool) -> dict:
         return {key: row[key] for key in keys.split()}
     return {
         'profile': select(rows[(PROFILE, actor)], 'id owner_id catalog_id progression loadout hp mp loot_progress'),
-        'equipment': [select(row, 'id catalog_id template_id snapshot value bound locked sold' + (' rules' if frozen else ''))
+        'equipment': [{**select(row, 'id catalog_id template_id snapshot value bound locked sold' + (' rules' if frozen else '')),
+                       **({'retained_for_adventure': True} if row.get('retained_for_adventure') is True else {})}
             for (model, _), row in sorted(rows.items()) if model == GEAR and row['actor_id'] == actor],
         'runs': [select(row, 'id catalog_id status phase elapsed_seconds revision snapshot state result')
             for (model, _), row in sorted(rows.items()) if model == RUN and row['actor_id'] == actor],
@@ -107,7 +108,8 @@ def normalize_source(data: list[dict]) -> list[dict]:
                 if not item.get('rules'):
                     item['rules'] = rules_for(catalog(item['catalog_id']), item['template_id'], item['snapshot'], bound=item['bound'])
                 validate(item['snapshot'], item['rules'])
-                equipment[item['id']] = {'snapshot': deepcopy(item['snapshot']), 'rules': deepcopy(item['rules'])}
+                equipment[item['id']] = {'snapshot': deepcopy(item['snapshot']), 'rules': deepcopy(item['rules']),
+                    **({'retained_for_adventure': True} if item.get('retained_for_adventure') is True else {})}
             for (kind, _), run in rows.items():
                 if kind == RUN and run['actor_id'] == actor and run['status'] not in OPEN:
                     run['snapshot'] = frozen_run(run['snapshot'], catalog(run['catalog_id']))

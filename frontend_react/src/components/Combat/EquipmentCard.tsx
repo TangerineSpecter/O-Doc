@@ -140,6 +140,9 @@ export default function EquipmentCard({
                         {gear.slot === 'weapon' && (
                             <ElementBadge element={gear.element} size="xs" />
                         )}
+                        {item.retainedForAdventure && !worn && (
+                            <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">探索备用</span>
+                        )}
 
                         {/* 琥珀金币价格徽标（去掉文字，纯金币+数值） */}
                         {item.value ? (

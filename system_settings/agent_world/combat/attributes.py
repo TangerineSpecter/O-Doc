@@ -245,12 +245,26 @@ def promote(catalog: Catalog, progress: dict, job_id: str) -> dict:
 def monster(catalog: Catalog, template: dict, level: int) -> dict:
     profile = catalog.row('monster_profiles', template['profile'])
     rank = catalog.row('monster_ranks', template['rank'])
-    hp = math.floor((numeric(profile, 'hp_constant') + numeric(profile, 'hp_linear') * level + numeric(profile, 'hp_quadratic') * level ** 2) * numeric(profile, 'hp_multiplier') * numeric(rank, 'hp_multiplier'))
-    attack = math.floor((numeric(profile, 'attack_constant') + numeric(profile, 'attack_linear') * level + numeric(profile, 'attack_quadratic') * level ** 2) * numeric(profile, 'attack_multiplier') * numeric(rank, 'attack_multiplier') * float(template.get('attack_multiplier',1)))
-    # Apply rank reductions before party scaling. Missing rules retain frozen catalogs.
-    hp = max(1, hp - int(catalog.rules.get(f"monster_{template['rank']}_hp_reduction", 0)))
-    attack = max(1, attack - int(catalog.rules.get(f"monster_{template['rank']}_attack_reduction", 0)))
-    defense = numeric(profile, 'defense_constant') + numeric(profile, 'defense_linear') * level
+    if profile.get('element_curve') == 'element_v1':
+        # This independent curve deliberately bypasses legacy rank reductions.
+        hp_factor, attack_factor, defense_factor = {
+            'normal': ('1', '1', '1'), 'elite': ('1.7', '1.35', '1.1'),
+            'boss': ('3', '1.8', '1.2'),
+        }[template['rank']]
+        L = Decimal(level)
+        hp = int((100 + 12 * L + Decimal('.2') * L * L) * Decimal(hp_factor))
+        attack = int((7 + Decimal('.65') * L) * Decimal(attack_factor))
+        elemental_defense = int((5 + Decimal('.8') * L) * Decimal(defense_factor))
+        physical_defense = magic_defense = elemental_defense
+    else:
+        hp = math.floor((numeric(profile, 'hp_constant') + numeric(profile, 'hp_linear') * level + numeric(profile, 'hp_quadratic') * level ** 2) * numeric(profile, 'hp_multiplier') * numeric(rank, 'hp_multiplier'))
+        attack = math.floor((numeric(profile, 'attack_constant') + numeric(profile, 'attack_linear') * level + numeric(profile, 'attack_quadratic') * level ** 2) * numeric(profile, 'attack_multiplier') * numeric(rank, 'attack_multiplier') * float(template.get('attack_multiplier',1)))
+        # Apply rank reductions before party scaling. Missing rules retain frozen catalogs.
+        hp = max(1, hp - int(catalog.rules.get(f"monster_{template['rank']}_hp_reduction", 0)))
+        attack = max(1, attack - int(catalog.rules.get(f"monster_{template['rank']}_attack_reduction", 0)))
+        defense = numeric(profile, 'defense_constant') + numeric(profile, 'defense_linear') * level
+        physical_defense = math.floor(defense * numeric(profile, 'physical_defense_multiplier') * numeric(rank, 'defense_multiplier'))
+        magic_defense = math.floor(defense * numeric(profile, 'magic_defense_multiplier') * numeric(rank, 'defense_multiplier'))
     resists = {}
     for row in catalog.tables.get('monster_resists', []):
         if row['monster_id'] == template['id']:
@@ -261,8 +275,8 @@ def monster(catalog: Catalog, template: dict, level: int) -> dict:
             'hp_max': hp, 'mp_max': math.floor(numeric(profile, 'mp_constant') + numeric(profile, 'mp_linear') * level),
             'physical_attack': attack if profile['damage_type'] == 'physical' else 0,
             'magic_attack': attack if profile['damage_type'] == 'magic' else 0,
-            'physical_defense': math.floor(defense * numeric(profile, 'physical_defense_multiplier') * numeric(rank, 'defense_multiplier')),
-            'magic_defense': math.floor(defense * numeric(profile, 'magic_defense_multiplier') * numeric(rank, 'defense_multiplier')),
+            'physical_defense': physical_defense,
+            'magic_defense': magic_defense,
             **{key: numeric(profile, key) for key in ('accuracy', 'evasion', 'critical', 'critical_damage')},
             'healing': 0, 'damage_type': profile['damage_type']}
 

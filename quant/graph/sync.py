@@ -14,11 +14,15 @@ def validate_relations(rows: dict, fail) -> None:
     for identity, fields in rows.get('quant.factorrelation', {}).items():
         left, right = str(fields.get('left')), str(fields.get('right'))
         a, b = factors.get(left), factors.get(right)
-        if not a or not b or left >= right or fields.get('kind') != 'semantic_similar':
+        if not a or not b or left >= right or fields.get('kind') not in ('semantic_similar', 'sample_correlation'):
             fail('因子关系端点或类型无效')
         owners = [entries[reports[factor['report']]['entry']]['anthology'] for factor in (a, b)]
         if owners[0] != owners[1]:
             fail('因子关系跨文集引用')
+        if fields['kind'] == 'sample_correlation':
+            from .correlation_sync import validate
+            validate(identity, fields, rows, fail)
+            continue
         evidence = fields.get('evidence')
         required = {'method', 'projection_version', 'model_signature', 'model_name', 'similarity', 'threshold',
             'left_projection_hash', 'right_projection_hash', 'left_revision_id', 'right_revision_id', 'claim', 'comparison_limit'}

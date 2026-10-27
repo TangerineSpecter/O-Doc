@@ -112,6 +112,37 @@ class ResidentDailyFeedTests(TestCase):
         self.assertEqual([row['id'] for row in response.data['data']['items']],
                          [f'activity:{first.pk}', f'activity:{second.pk}'])
 
+    def test_reservation_members_do_not_override_feed_actor_filter(self):
+        from .combat.reservation_models import AdventurePlanningDay, AdventureReservation
+
+        first = self.activity(self.actor, 0)
+        second = self.activity(self.other, 0)
+        now = storage_time(self.today)
+        planning = AdventurePlanningDay.objects.create(id='feed-planning', owner_id=self.owner, day=self.today.date())
+        reservation = AdventureReservation.objects.create(
+            id='feed-reservation', owner_id=self.owner, planning_day=planning, dungeon_id='test',
+            prepare_at=now, starts_at=now, ends_at=now + timedelta(hours=1),
+            snapshot={'members': {
+                self.actor.pk: {'name': self.actor.name, 'item_id': 'first-item'},
+                self.other.pk: {'name': self.other.name, 'item_id': 'second-item'},
+            }},
+        )
+        url = '/api/settings/agent-world/daily-feed/'
+        for category in ('all', 'publication'):
+            for dated in (False, True):
+                with self.subTest(category=category, dated=dated):
+                    base = {'category': category}
+                    if dated:
+                        base['date'] = self.today.date().isoformat()
+                    all_items = self.client.get(url, base).data['data']['items']
+                    self.assertEqual({row['id'] for row in all_items}, {f'activity:{first.pk}', f'activity:{second.pk}'})
+                    for actor, activity in ((self.actor, first), (self.other, second)):
+                        items = self.client.get(url, {**base, 'actor_id': actor.pk}).data['data']['items']
+                        self.assertEqual([row['id'] for row in items], [f'activity:{activity.pk}'])
+        for actor in (self.actor, self.other):
+            items = self.client.get(url, {'category': 'record', 'actor_id': actor.pk}).data['data']['items']
+            self.assertIn(f'adventure-reservation:{reservation.pk}:{actor.pk}', [row['id'] for row in items])
+
     def test_pagination_and_today_counts_remain_complete(self):
         self.activity(self.other, 0)
         for days in range(1, 33):

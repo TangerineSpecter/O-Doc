@@ -106,6 +106,9 @@ def comparison_data(record: FactorComparison, detail=False) -> dict:
             result_json=json.dumps(record.result, ensure_ascii=False, allow_nan=False),
             dataset_json=json.dumps(dataset_data(record.dataset), ensure_ascii=False, allow_nan=False),
             merges=[merge_data(row) for row in record.merges.select_related('comparison', 'withdrawal')])
+        from quant.graph.correlation import find, present
+        correlation = find(record)
+        data['correlation'] = present(correlation) if correlation else None
     return data
 
 

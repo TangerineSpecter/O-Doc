@@ -38,9 +38,13 @@ export function createCombatPreparation(now:()=>number=Date.now) {
                 const candidates=combatCatalog.tables.dungeonMonsters.filter(row=>row.dungeonId===entry.dungeon)
                     .map(row=>combatCatalog.tables.monsters.find(monster=>monster.id===row.monsterId))
                     .filter(monster=>monster?.rank==='normal');
-                const enemies=structuredClone(localParty.enemies.slice(0,count===1?1:2)).map((enemy,index)=>({
-                    ...enemy,id:`${id}:monster-${index}`,templateId:candidates[index%candidates.length]?.id||enemy.templateId,
-                    name:candidates[index%candidates.length]?.name||enemy.name,rank:'normal',taunt:undefined}));
+                const enemies=structuredClone(localParty.enemies.slice(0,count===1?1:2)).map((enemy,index)=>{
+                    const monster=candidates[index%candidates.length];
+                    const preview=combatCatalog.monsterPreviews.find(row=>row.id===monster?.id);
+                    return {...enemy,id:`${id}:monster-${index}`,templateId:monster?.id||enemy.templateId,
+                        name:monster?.name||enemy.name,rank:'normal',taunt:undefined,
+                        ...(preview?{level:preview.level,stats:preview.attributes,hp:Number(preview.attributes.hpMax||0),mp:Number(preview.attributes.mpMax||0)}:{})};
+                });
                 const party={...structuredClone(localParty),id:entry.target?.id||`party:${id}`,version:1,
                     dungeonId:entry.dungeon,leaderId:players[0].id,players,enemies,teamKills:0,
                     wave:1,round:0,phase:'battle',roundSeconds:({1:15,2:8,3:5,4:3})[count as 1|2|3|4],

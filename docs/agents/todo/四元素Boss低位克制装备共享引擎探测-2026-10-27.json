@@ -1,0 +1,1411 @@
+{
+  "scope": "隔离候选，单人及组队均使用当前共享战斗回合；白蓝混装、均衡风格，Boss为该区域最高级；默认携带14红6蓝",
+  "boss_hp_factor": 1,
+  "boss_attack_factor": 1,
+  "level_position": "low",
+  "weapon": "weakness",
+  "potion_limit": null,
+  "limitations": "仅孤立Boss波次，不包含实际探索的资源历史、升级、食物、模型和奖励，不作为完整验收",
+  "results": [
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.mage_staff at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.mage_staff at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.bow at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.bow at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.mage_staff at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.mage_staff at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.instrument at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.instrument at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.tidal_shoal",
+      "level": 15,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable earth variant for equip.sword at level 15"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.mage_staff at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.mage"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.mage_staff at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.bow at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.bow at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.mage_staff at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.mage_staff at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.instrument at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.instrument at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.bard"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.earth",
+      "level": 22,
+      "jobs": [
+        "job.warrior",
+        "job.mage",
+        "job.ranger",
+        "job.priest"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable wind variant for equip.sword at level 22"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.mage_staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.mage_staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.bow at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.bow at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.dagger at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.dagger at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.holy_staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.holy_staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.mage_staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.mage_staff at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.instrument at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.instrument at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.instrument at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.instrument at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.wind",
+      "level": 30,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "unavailable": "No obtainable fire variant for equip.sword at level 30"
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 16,
+      "mean_potions_per_member": 1.08
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.guardian"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 20,
+      "mean_potions_per_member": 1.34
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 12,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.elementalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.97
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 15,
+      "mean_potions_per_member": 0.01
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.occultist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 16,
+      "mean_potions_per_member": 0.99
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 0.01
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 12.0,
+      "p90_rounds": 16,
+      "mean_potions_per_member": 1.04
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 17,
+      "mean_potions_per_member": 0.05
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.assassin"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 1.12
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.04
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.naturalist"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 15.0,
+      "p90_rounds": 19,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 13.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 0.14
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 14.0,
+      "p90_rounds": 18,
+      "mean_potions_per_member": 1.19
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 10.0,
+      "p90_rounds": 13,
+      "mean_potions_per_member": 0.03
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.cursesinger"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 11.0,
+      "p90_rounds": 14,
+      "mean_potions_per_member": 1.04
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.94
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 8.0,
+      "p90_rounds": 10,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 9.0,
+      "p90_rounds": 11,
+      "mean_potions_per_member": 0.22
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 6.0,
+      "p90_rounds": 8,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.88
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 6.0,
+      "p90_rounds": 8,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.24
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 6.0,
+      "p90_rounds": 8,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.musician"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 8,
+      "mean_potions_per_member": 0.85
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 1,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 6.0,
+      "p90_rounds": 8,
+      "mean_potions_per_member": 0.0
+    },
+    {
+      "dungeon": "dungeon.element.fire",
+      "level": 38,
+      "jobs": [
+        "job.swordsman",
+        "job.elementalist",
+        "job.archer",
+        "job.cleric"
+      ],
+      "starting_hp_mp": 0.5,
+      "samples": 500,
+      "wins": 500,
+      "win_rate": 1.0,
+      "win_rate_ci95": [
+        0.9924,
+        1.0
+      ],
+      "any_fallen_rate": 0.0,
+      "median_rounds": 7.0,
+      "p90_rounds": 9,
+      "mean_potions_per_member": 0.27
+    }
+  ],
+  "inputs": {
+    "options": {
+      "seeds": 500,
+      "boss_hp_factor": 1,
+      "boss_attack_factor": 1,
+      "only_solo": false,
+      "position": "low",
+      "weapon": "weakness",
+      "potion_limit": null
+    },
+    "source_sha256": "81f4d5683e73404dd7543eb58fe66f16a9425bca60e0860eef095ef126069aa1"
+  }
+}

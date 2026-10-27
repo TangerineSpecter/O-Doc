@@ -1,4 +1,6 @@
 import {mockHistoryFacts} from './searchHistory';
+import {readCombinationAnalysis} from '../../utils/quantCombination';
+import {readOutputAssociations} from '../../utils/quantOutputAssociations';
 import {mockWindowReviews} from './windowReview';
 import {readJointSensitivity} from '../../utils/quantJointSensitivity';
 import {readTemporalSensitivity} from '../../utils/quantTemporalSensitivity';
@@ -15,6 +17,14 @@ export function mockExperimentReview(run: QuantAIRun): QuantExperimentAnalysis {
     review.planningVersion = 2; review.planningNote = '本地样例：比较原参数与邻近窗口，需要独立新行情。'; review.proposal = null;
     const record = quantState().experiments.find(row => `result-${row.data.id}` === run.experimentResultId);
     if (!record) return review;
+    const observations = readOutputAssociations(run.outputAssociationsJson);
+    if (observations) review.outputAssociationReviews = observations.items.map(row => ({evidenceRef: `output_association:${row.relation_id}`,
+        baselineScope: row.baseline_scope, text: row.baseline_scope === 'historical_configuration_only'
+            ? '人工解读样例：至少一侧与当前基线不同，相关系数仅描述原配置，不能移用到变体。未知不补零，仍需新数据上的单独/组合对照。'
+            : '人工解读样例：参数与输入映射相同，但原完整对照不是本轮子窗口统计。相关性不能证明互补、等价或收益，后续假设仍须新数据验证。'}));
+    const combination = readCombinationAnalysis(record.data.combinationAnalysisJson);
+    if (combination) review.combinationReviews = combination.groups.map(row => ({evidenceRef: row.id,
+        text: `人工解读样例：${row.parent_ids.join(' + ')} 与 ${row.attempt_id} 的全部窗口保留。收益差与回撤差可能方向不同，失败和缺失不补零；尚未计算真实行情，不证明组合有效。`}));
     const temporal = readTemporalSensitivity(record.data.temporalSensitivityJson);
     if (temporal) {
         review.rubricVersion='experiment-research-v2';

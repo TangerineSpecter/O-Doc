@@ -12,7 +12,7 @@ def run_data(run: AIRun) -> dict:
             from .feedback.execution import analysis_presentation
             data['result'] = {'feedback': analysis_presentation(run.result)}
     from .experiments.library_contract import summary
-    data['library_retrieval'] = summary(run.planning_context) if run.review_version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) else None
+    data['library_retrieval'] = summary(run.planning_context) if run.review_version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else None
     data['feedback_memory'] = ({key: run.planning_context[key] for key in ('candidate_ids', 'history_ids')}
                                if run.kind == 'feedback_review' and run.planning_context else None)
     import json
@@ -20,6 +20,8 @@ def run_data(run: AIRun) -> dict:
     if run.kind=='analyze': memory=run.result.get('research_memory')
     if run.kind=='analyze' and run.result: data['result']={'analysis':{key:value for key,value in run.result.items() if key!='research_memory'}}
     data['research_memory_json'] = json.dumps(memory, ensure_ascii=False, allow_nan=False) if memory is not None else None
+    data['output_associations_json'] = (json.dumps(run.planning_context['output_associations'], ensure_ascii=False, allow_nan=False)
+        if run.kind == 'experiment_review' and run.review_version == 17 else None)
     from .workflows.presentation import summary as workflow_summary
     data['workflow'] = workflow_summary(run)
     from .native_reviews.presentation import summary as native_review_summary

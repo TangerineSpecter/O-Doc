@@ -21,3 +21,15 @@ dungeon.ember_fortress.furnace_guard,dungeon.ember_fortress,monster.furnace_guar
 dungeon.star_rift.rift_walker,dungeon.star_rift,monster.rift_walker,70,88,60,drop.rift_walker,1
 dungeon.star_rift.star_golem,dungeon.star_rift,monster.star_golem,82,99,35,drop.star_golem,1
 dungeon.star_rift.rift_lord,dungeon.star_rift,monster.rift_lord,90,99,5,drop.rift_lord,1
+dungeon.element.tidal_shoal.monster.element.water.bubble_crab,dungeon.element.tidal_shoal,monster.element.water.bubble_crab,15,22,60,drop.element.water.bubble_crab,1
+dungeon.element.tidal_shoal.monster.element.water.little_spirit,dungeon.element.tidal_shoal,monster.element.water.little_spirit,15,22,35,drop.element.water.little_spirit,1
+dungeon.element.tidal_shoal.monster.element.water.reef_guard,dungeon.element.tidal_shoal,monster.element.water.reef_guard,19,24,5,drop.element.water.reef_guard,1
+dungeon.element.earth.mole,dungeon.element.earth,monster.element.earth.mole,22,29,60,drop.element.earth.mole,1
+dungeon.element.earth.snail,dungeon.element.earth,monster.element.earth.snail,22,29,35,drop.element.earth.snail,1
+dungeon.element.earth.armored,dungeon.element.earth,monster.element.earth.armored,26,31,5,drop.element.earth.armored,1
+dungeon.element.wind.cloudbird,dungeon.element.wind,monster.element.wind.cloudbird,30,37,60,drop.element.wind.cloudbird,1
+dungeon.element.wind.bell,dungeon.element.wind,monster.element.wind.bell,30,37,35,drop.element.wind.bell,1
+dungeon.element.wind.falcon,dungeon.element.wind,monster.element.wind.falcon,34,39,5,drop.element.wind.falcon,1
+dungeon.element.fire.lizard,dungeon.element.fire,monster.element.fire.lizard,38,45,60,drop.element.fire.lizard,1
+dungeon.element.fire.turtle,dungeon.element.fire,monster.element.fire.turtle,38,45,35,drop.element.fire.turtle,1
+dungeon.element.fire.horn,dungeon.element.fire,monster.element.fire.horn,42,47,5,drop.element.fire.horn,1

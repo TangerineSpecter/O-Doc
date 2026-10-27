@@ -6,6 +6,7 @@ import {demoTemporalResult} from './temporalResult';
 import {evolutionSnapshot, readEvolution} from '../../utils/quantEvolution';
 import {mockSensitivity} from './sensitivity';
 import {mockTemporalSensitivity} from './temporalSensitivity';
+import {mockCombination} from './combination';
 import type {MockLibraryContext} from './libraryResearch';
 import {findMockProposal} from './experimentProposals';
 import {attachMockProposal, presentMockProposal} from './experimentProposals';
@@ -25,7 +26,7 @@ import {checkParameterDomains} from '../../utils/quantParameterDomain';
 import {persistQuantState, quantId, quantState} from './state';
 export interface MockExperiment {strategyArtifacts?: import('../../types/api/quantStrategyExport').QuantStrategyArtifact[]; collection: string; input: QuantExperimentInput; data: QuantExperiment; libraryContexts?: Record<string, MockLibraryContext>; proposals?: Record<string, QuantExperimentProposal>}
 const fail = (status: number, msg: string) => HttpResponse.json({code: status, msg, data: null}, {status});
-const summary = ({temporalSensitivityJson: _temporalSensitivity, selectionDiagnostic: _selectionDiagnostic, jointSensitivityJson: _jointSensitivity, sensitivityJson: _sensitivity, planJson: _plan, resultJson: _result, attemptsJson: _attempts, reviews: _reviews, reviewContext: _reviewContext, derivedCandidates: _derived, originProposal: _origin, ...data}: QuantExperiment) => data;
+const summary = ({combinationAnalysisJson: _combinationAnalysis, temporalSensitivityJson: _temporalSensitivity, selectionDiagnostic: _selectionDiagnostic, jointSensitivityJson: _jointSensitivity, sensitivityJson: _sensitivity, planJson: _plan, resultJson: _result, attemptsJson: _attempts, reviews: _reviews, reviewContext: _reviewContext, derivedCandidates: _derived, originProposal: _origin, ...data}: QuantExperiment) => data;
 function validate(input: QuantExperimentInput, collection: string) {
     if (!input || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 || !/^[A-Za-z0-9_-]{16,64}$/.test(input.requestKey || '')) throw new Error('实验名称或请求标识无效');
     const dataset = quantState().datasets.find(row => row.collection === collection && row.data.id === input.datasetId);
@@ -81,6 +82,7 @@ function advance(record: MockExperiment) {
     record.data.sensitivityJson = mockSensitivity(record);
     record.data.jointSensitivityJson = mockJointSensitivity(record);
     record.data.temporalSensitivityJson = mockTemporalSensitivity(record);
+    record.data.combinationAnalysisJson = mockCombination(record);
     const candidate = collectMockFactors(quantState().entries.filter(row => row.collId === record.collection && row.isValid)).find(row => row.id === record.input.seeds[0].candidateId);
     const entry = candidate && quantState().entries.find(row => row.id === candidate.entryId);
     if (entry && candidate && record.data.resultJson) {

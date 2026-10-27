@@ -6,3 +6,7 @@ dungeon.mist_forest,迷雾林地,20,35,monster.mist_treant,32,35,12,0.01,0.25,1,
 dungeon.sunken_ruins,沉没遗迹,30,50,monster.tide_priest,47,50,12,0.01,0.25,1,30,50
 dungeon.ember_fortress,灰烬堡垒,45,70,monster.ash_lord,65,70,12,0.01,0.25,1,45,70
 dungeon.star_rift,星蚀裂隙,70,99,monster.star_overlord,95,99,12,0.01,0.25,1,70,99
+dungeon.element.tidal_shoal,潮汐浅湾,15,25,monster.element.water.tide_crown,23,25,12,0.01,0.25,1,15,25
+dungeon.element.earth,琥岩地窟,22,32,monster.element.earth.dragon,30,32,12,0.01,0.25,1,22,32
+dungeon.element.wind,浮岚高地,30,40,monster.element.wind.griffin,38,40,12,0.01,0.25,1,30,40
+dungeon.element.fire,熔羽火山,38,48,monster.element.fire.firebird,46,48,12,0.01,0.25,1,38,48

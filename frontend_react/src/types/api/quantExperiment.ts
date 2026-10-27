@@ -39,7 +39,7 @@ export interface QuantExperiment {
     reviews?: {run: QuantAIRun; report: QuantReport | null; proposal?: QuantExperimentProposal | null}[];
     derivedCandidates?: {id: string; name: string; attemptId: string}[];
     originProposal?: QuantExperimentProposal | null;
-    temporalSensitivityJson?: string; jointSensitivityJson?: string; sensitivityJson?: string; planJson?: string; resultJson?: string | null; attemptsJson?: string;
+    combinationAnalysisJson?: string; temporalSensitivityJson?: string; jointSensitivityJson?: string; sensitivityJson?: string; planJson?: string; resultJson?: string | null; attemptsJson?: string;
 }
 
 export interface QuantExperimentProposal {

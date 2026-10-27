@@ -63,7 +63,7 @@ class LibraryResearchTests(TestCase):
         _, dataset = self.prepare()
         extra = self.candidate('cross_source_candidate_01')
         request, run = self.reviewed_result()
-        self.assertEqual(run.review_version, 15)
+        self.assertEqual(run.review_version, 17)
         context = copy.deepcopy(run.planning_context)
         self.assertEqual([row['candidate_id'] for row in context['retrieved']], [extra.pk])
         evidence = for_run(run)
@@ -125,7 +125,7 @@ class LibraryResearchTests(TestCase):
         collection = Anthology.objects.create(type='quant', permission='private', user_id='foreign', title='其他库')
         foreign.report.entry.anthology = collection; foreign.report.entry.save()
         _, run = self.reviewed_result()
-        self.assertEqual(run.review_version, 15)
+        self.assertEqual(run.review_version, 17)
         self.assertEqual(run.planning_context['method'], 'related-library-v2')
         ids = [row['candidate_id'] for row in run.planning_context['retrieved']]
         self.assertEqual(len(ids), 1)

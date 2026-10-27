@@ -161,7 +161,7 @@ class DomainIntegrationTests(TestCase):
         self.assertEqual(manifest['parameter_domains'][0]['name'], 'p0')
         self.assertEqual(manifest['parameter_domains'][0]['domain']['maximum'], 30)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 70)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertEqual(FactorCandidate.objects.get(pk=candidate.pk).data, candidate.data)

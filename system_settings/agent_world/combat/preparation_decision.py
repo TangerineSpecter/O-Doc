@@ -107,6 +107,17 @@ def _record_gear_decision(run, item, action, source, target_slot='') -> bool:
             return False
         if action in ('sell', 'list') and gear.pk in decided_for_sale_or_listing(profile.pk):
             return False
+        if action == 'keep' and (gear.snapshot or {}).get('slot') != 'weapon':
+            return False
+        if action == 'keep':
+            from .equipment_market import equipment_listing_ids
+            if gear.pk in equipment_listing_ids(run.owner_id) or not _wear_slots(current(run.catalog_id), gear, profile):
+                return False
+        if action in ('keep', 'sell', 'list'):
+            retained = action == 'keep'
+            if gear.retained_for_adventure != retained:
+                gear.retained_for_adventure = retained
+                gear.save(update_fields=['retained_for_adventure', 'updated_at'])
         payload = {'equipment_id': gear.pk, 'action': action,
                    'decision_source': source, 'target_slot': target_slot}
         from .facts import append
@@ -120,6 +131,9 @@ def _equipment_wire(item: EquipmentInstance, catalog_cache: dict | None = None) 
         'id': item.pk, 'name': snapshot.get('name', ''), 'slot': snapshot.get('slot', ''),
         'equipment_type': snapshot.get('equipment_type', ''), 'level': snapshot.get('level', 0),
         'quality': snapshot.get('quality', ''), 'stats': snapshot.get('stats', {}),
+        'element': snapshot.get('element') or '',
+        'retained_for_adventure': item.retained_for_adventure,
+        'bound': item.bound, 'locked': item.locked,
         'affixes': snapshot.get('affixes', []), 'shop_sell_price': str(item.value),
     }
 
@@ -153,34 +167,52 @@ def _collect_loadout_changes(profile, before, changes):
             changes[slot] = profile.loadout.get(slot)
 
 
-def _decide_old_equipment(run, agent, profile, catalog, item, character, trace, key, check, catalog_cache):
-    if item.bound or item.locked or item.sold:
+def _decide_old_equipment(run, agent, profile, catalog, item, character, trace, key, check, catalog_cache=None, dungeon_context=None):
+    if item.sold:
         return
-    choices = {'sell': '出售：下次进入居民集市时按商店回收价自动出售',
-               'list': '上架：下次进入居民集市时再决定挂牌价格'}
-    state = {'character': character, 'displaced_equipment': _equipment_wire(item, catalog_cache)}
+    weapon = (item.snapshot or {}).get('slot') == 'weapon'
+    if (item.bound or item.locked) and not weapon:
+        return
+    choices = {} if item.bound or item.locked else {
+        'sell': '出售：下次进入居民集市时按商店回收价自动出售',
+        'list': '上架：下次进入居民集市时再决定挂牌价格'}
+    if weapon:
+        choices['keep'] = '保留武器作为备用，下次探索准备时再次比较'
+        if item.bound or item.locked:
+            choices['leave'] = '暂不设为备用，保留原有状态'
+    state = {'character': character, 'displaced_equipment': _equipment_wire(item, catalog_cache),
+             'selected_dungeon': dungeon_context}
     selected, record = _choice(
         run, agent, key, state, choices, None,
-        '这是刚被替换下来的旧装备。只判断将它出售还是上架，不判断新装备，也不处理探索方案。',
+        '这是刚被替换下来的旧装备。结合其可用选项决定是否设为备用或处置；只判断本件装备。',
         check=check)
     _record_choice(trace, key + ':' + item.pk, record)
-    if record['source'] == 'decision_model' and selected in ('sell', 'list'):
+    if record['source'] == 'decision_model' and selected in ('keep', 'sell', 'list'):
         _record_gear_decision(run, item, selected, record['source'])
+    else:
+        _record_gear_decision(run, item, 'defer', record['source'])
 
 
-def _process_equipment(run, agent, profile, catalog, trace, check, equipment_changes):
+def _process_equipment(run, agent, profile, catalog, trace, check, equipment_changes, dungeon_context=None):
     character = _character(agent, profile, catalog, include_mbti=False)
     catalog_cache = {}
     processed = decided_for_sale_or_listing(profile.pk)
+    # Resume must not ask again about a choice already committed in this preparation.
+    from .models import CombatFact
+    judged = {row['equipment_id'] for row in CombatFact.objects.filter(
+        exploration_id=run.pk, kind='gear_prepare').values_list('payload', flat=True)
+              if row.get('equipment_id')}
     equipped_at_start = set(profile.loadout.values())
+    from django.db.models import Q
     items = list(EquipmentInstance.objects.filter(
-        owner_id=run.owner_id, actor_id=run.actor_id, sold=False, bound=False, locked=False
+        Q(bound=False, locked=False) | Q(retained_for_adventure=True),
+        owner_id=run.owner_id, actor_id=run.actor_id, sold=False
     ).exclude(pk__in=equipped_at_start).order_by('-created_at', 'pk'))
 
     for item in items:
         check()
         profile.refresh_from_db()
-        if item.pk in profile.loadout.values() or item.pk in processed:
+        if item.pk in profile.loadout.values() or item.pk in processed or item.pk in judged:
             continue
         snapshot = item.snapshot or {}
         level = int(snapshot.get('level', 0))
@@ -199,7 +231,26 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
 
         empty = [slot for slot in valid_slots if not profile.loadout.get(slot)]
         if empty:
+            judged.add(item.pk)
             slot = empty[0]
+            if item.retained_for_adventure and snapshot.get('slot') == 'weapon':
+                choices = {'equip': '将这件备用武器穿戴到空武器位', 'keep': '继续保留作为备用'}
+                if not item.bound and not item.locked:
+                    choices.update(sell='出售：下次进入居民集市时按商店回收价自动出售',
+                                   list='上架：下次进入居民集市时再决定挂牌价格')
+                question = 'equipment:' + item.pk
+                selected, record = _choice(run, agent, question,
+                    {'character': character, 'candidate_equipment': _equipment_wire(item, catalog_cache),
+                     'selected_dungeon': dungeon_context, 'current_slot_equipment': {}},
+                    choices, None, '武器位为空，结合地点属性决定穿戴、继续保留，或处置这件备用武器。', check=check)
+                _record_choice(trace, question, record)
+                if record['source'] != 'decision_model':
+                    _record_gear_decision(run, item, 'defer', record['source'])
+                    continue
+                if selected != 'equip':
+                    if selected in ('keep', 'sell', 'list'):
+                        _record_gear_decision(run, item, selected, record['source'])
+                    continue
             before = dict(profile.loadout)
             try:
                 equip(run.owner_id, agent, f'{run.pk}:auto-equip:{hashlib.sha256(item.pk.encode()).hexdigest()[:40]}',
@@ -207,13 +258,17 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
             except (ValueError, KeyError, TypeError):
                 continue
             _collect_loadout_changes(profile, before, equipment_changes)
+            if item.retained_for_adventure and snapshot.get('slot') == 'weapon':
+                _record_gear_decision(run, item, 'replace', 'decision_model', slot)
             _record_choice(trace, 'equipment_auto:' + item.pk,
-                           {'choice': 'equip', 'slot': slot, 'source': 'code'})
+                           {'choice': 'equip', 'slot': slot,
+                            'source': 'decision_model' if item.retained_for_adventure else 'code'})
             for identity in set(before.values()) - set(profile.loadout.values()):
                 old = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, sold=False).first()
-                if old:
+                if old and old.pk not in judged:
+                    judged.add(old.pk)
                     _decide_old_equipment(run, agent, profile, catalog, old, character,
-                                          trace, f'displaced:{item.pk}:{identity}', check, catalog_cache)
+                                          trace, f'displaced:{item.pk}:{identity}', check, catalog_cache, dungeon_context)
             continue
 
         current_by_slot = {}
@@ -224,25 +279,31 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
                 if current:
                     current_by_slot[slot] = current
         if valid_slots and current_by_slot:
+            judged.add(item.pk)
             choices = {}
             for slot, old in current_by_slot.items():
                 key = 'replace' if len(current_by_slot) == 1 else 'replace:' + slot
                 choices[key] = {'action': 'replace', 'slot': slot,
                                 'current_equipment': _equipment_wire(old, catalog_cache),
                                 'candidate_equipment': _equipment_wire(item, catalog_cache)}
-            choices['sell'] = '出售候选装备：下次进入居民集市时按商店回收价自动出售'
-            choices['list'] = '上架候选装备：下次进入居民集市时再决定挂牌价格'
+            if not item.bound and not item.locked:
+                choices['sell'] = '出售候选装备：下次进入居民集市时按商店回收价自动出售'
+                choices['list'] = '上架候选装备：下次进入居民集市时再决定挂牌价格'
+            if snapshot.get('slot') == 'weapon':
+                choices['keep'] = '保留武器作为备用，下次探索准备时再次比较'
             state = {'character': character, 'candidate_equipment': _equipment_wire(item, catalog_cache),
+                     'selected_dungeon': dungeon_context,
                      'current_slot_equipment': {slot: _equipment_wire(old, catalog_cache)
                                                 for slot, old in current_by_slot.items()}}
             fallback = None
             question = 'equipment:' + item.pk
             selected, record = _choice(
                 run, agent, question, state, choices, fallback,
-                '按角色性格、职业和等级比较当前部位装备与候选装备。候选已满足等级；只能选择更换、出售或上架。',
+                '按角色性格、职业、等级和地点属性比较装备。可穿戴武器可选择更换或保留作为备用；可交易的装备也可出售或上架。',
                 check=check)
             _record_choice(trace, question, record)
             if record['source'] != 'decision_model':
+                _record_gear_decision(run, item, 'defer', record['source'])
                 continue
             if selected.startswith('replace'):
                 slot = choices[selected]['slot']
@@ -258,20 +319,26 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
                 displaced = set(before.values()) - set(profile.loadout.values())
                 for identity in displaced:
                     old = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, sold=False).first()
-                    if old:
+                    if old and old.pk not in judged:
+                        judged.add(old.pk)
                         _decide_old_equipment(run, agent, profile, catalog, old, character,
-                                              trace, f'displaced:{item.pk}:{identity}', check, catalog_cache)
-            elif selected in ('sell', 'list'):
+                                              trace, f'displaced:{item.pk}:{identity}', check, catalog_cache, dungeon_context)
+            elif selected in ('sell', 'list', 'keep'):
                 if _record_gear_decision(run, item, selected, record['source']):
-                    processed.add(item.pk)
+                    if selected in ('sell', 'list'):
+                        processed.add(item.pk)
             continue
 
         # This includes level-eligible equipment whose profession/mastery does not
         # permit wearing it. Such gear remains a sale/list decision candidate.
+        if item.bound or item.locked or item.retained_for_adventure:
+            continue
+        judged.add(item.pk)
         choices = {'sell': '出售：下次进入居民集市时按商店回收价自动出售',
                    'list': '上架：下次进入居民集市时再决定挂牌价格'}
         question = 'equipment:' + item.pk
-        state = {'character': character, 'candidate_equipment': _equipment_wire(item, catalog_cache)}
+        state = {'character': character, 'candidate_equipment': _equipment_wire(item, catalog_cache),
+                 'selected_dungeon': dungeon_context}
         selected, record = _choice(
             run, agent, question, state, choices, None,
             '角色当前不能穿戴这件装备。只判断出售或上架，不要选择更换。',
@@ -280,6 +347,8 @@ def _process_equipment(run, agent, profile, catalog, trace, check, equipment_cha
         if record['source'] == 'decision_model' and selected in ('sell', 'list'):
             if _record_gear_decision(run, item, selected, record['source']):
                 processed.add(item.pk)
+        else:
+            _record_gear_decision(run, item, 'defer', record['source'])
 
 
 def build_plan(run, agent, *, check) -> tuple[dict, dict]:
@@ -295,8 +364,10 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
                 if row.get('enabled') == '1' and level >= int(row['recommended_level_min'])]
     if constraints.get('dungeon_id'):
         dungeons = [row for row in dungeons if row['id'] == constraints['dungeon_id']]
+    from .element_context import dungeon_elements
     dungeon_choices = {row['id']: {'name': row['name'], 'recommended_level':
-                                   f"{row['recommended_level_min']}-{row['recommended_level_max']}"}
+                                   f"{row['recommended_level_min']}-{row['recommended_level_max']}",
+                                   'monsters': dungeon_elements(catalog, row['id'])['monsters']}
                        for row in dungeons}
     safe_dungeon = min(dungeons, key=lambda row: int(row['recommended_level_min']))['id'] if dungeons else None
     dungeon_id, record = _choice(
@@ -423,7 +494,8 @@ def build_plan(run, agent, *, check) -> tuple[dict, dict]:
             purchases[identity] = purchases.get(identity, 0) + remaining
 
     equipment_changes = {}
-    _process_equipment(run, agent, profile, catalog, trace, check, equipment_changes)
+    _process_equipment(run, agent, profile, catalog, trace, check, equipment_changes,
+                       dungeon_context=dungeon_elements(catalog, dungeon_id))
     return ({'dungeon_id': dungeon_id, 'duration_seconds': duration, 'style_id': style_id,
              'food': food,
              'equipment': equipment_changes, 'purchases': purchases, 'potions': planned_potions,

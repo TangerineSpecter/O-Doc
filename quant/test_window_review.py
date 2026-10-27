@@ -121,7 +121,7 @@ class WindowReviewIntegrationTests(TestCase):
         run.refresh_from_db();self.assertEqual(run.status,'completed',run.error)
         self.assertEqual(run.result['temporal_parameter_review_version'],2)
         self.assertEqual(len(run.result['temporal_parameter_review']['window_reviews']),9)
-        self.assertEqual(run.review_version,15)
+        self.assertEqual(run.review_version,17)
         snapshot=SyncManager().build_snapshot_data();validate(snapshot,metadata(snapshot))
         original=copy.deepcopy(run.result)
         with patch('quant.worker.dispatch') as dispatch,patch('quant.experiments.worker.run_batch') as search:

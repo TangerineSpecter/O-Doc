@@ -4,6 +4,8 @@ from rest_framework import serializers
 from quant.research.analysis import Score
 from .review_evidence import evidence_hash
 from .temporal_review import TemporalReview
+from .combination_review import CombinationReview
+from .output_association_review import AssociationReview
 
 DIMENSIONS = ('参数稳定性', '验证表现', '风险与成本', '证据充分度', '复现价值')
 
@@ -49,6 +51,8 @@ class Review(serializers.Serializer):
     criteria_review=CriteriaReview(required=False)
     selection_review=SelectionReview(required=False)
     temporal_parameter_review=TemporalReview(required=False)
+    combination_reviews=CombinationReview(many=True, required=False, max_length=128)
+    output_association_reviews=AssociationReview(many=True, required=False, max_length=8)
 
 
 def validate_review(value: dict, evidence: dict | None = None) -> dict:
@@ -151,6 +155,10 @@ def validate_review(value: dict, evidence: dict | None = None) -> dict:
         result['evidence_hash'] = value['evidence_hash']
     from .temporal_review import validate as validate_temporal
     validate_temporal(value,result,evidence['evidence'] if evidence is not None else None)
+    from .combination_review import validate as validate_combinations
+    validate_combinations(value, result, evidence['evidence'] if evidence is not None else None)
+    from .output_association_review import validate as validate_associations
+    validate_associations(result, evidence['evidence'] if evidence is not None else None)
     result['total_score'] = sum(row['score'] for row in result['scores']) * 4 if all(row['score'] is not None for row in result['scores']) else None
     result.update(format='experiment_review', rubric_version='experiment-research-v2' if result.get('temporal_parameter_review_version') in (1,2) else 'experiment-research-v1',
         evidence_status='local_simulation_unverified_platform', independent_holdout_proven=False,
@@ -269,6 +277,10 @@ def review_prompt(evidence: dict, requirements: str) -> str:
         planning_instruction += instruction(evidence['research_memory'])
     from .temporal_review import instruction as temporal_instruction
     planning_instruction += temporal_instruction(evidence['evidence'])
+    from .combination_review import instruction as combination_instruction
+    planning_instruction += combination_instruction(evidence['evidence'])
+    from .output_association_review import instruction as association_instruction
+    planning_instruction += association_instruction(evidence['evidence'])
     serialized = json.dumps(evidence, ensure_ascii=False, allow_nan=False)
     if 'model_context_encoding' in evidence:
         from .context_encoding import VERSION, encode, dumps, instruction as encoding_instruction
@@ -306,6 +318,10 @@ def review_markdown(result: dict) -> str:
             score['evidence'], '证据：' + '、'.join(score['evidence_refs'])]
     from .temporal_review import markdown as temporal_markdown
     parts += temporal_markdown(result)
+    from .combination_review import markdown as combination_markdown
+    parts += combination_markdown(result)
+    from .output_association_review import markdown as association_markdown
+    parts += association_markdown(result)
     if result.get('selection_review_version')==1:
         row=result['selection_review']
         parts += ['## 搜索选择与过拟合风险',row['text'],'证据：'+'、'.join(row['evidence_refs'])]

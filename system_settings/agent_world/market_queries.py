@@ -50,6 +50,33 @@ def listings(owner: str, arguments: dict) -> dict:
     return {'total':rows.count(), 'page':page, 'items':items}
 
 
+def _equipment_history(owner: str, items: list[dict]) -> None:
+    """Read-only projection of the frozen equipment behind a transaction."""
+    from .combat.models import EquipmentInstance
+    from .combat.equipment_effective import for_instance
+    listing_ids = {str((row.get('operation') or {}).get('listing_id') or
+                       (row.get('result') or {}).get('listing_id') or '') for row in items}
+    listings = {row.pk: row.item for row in MarketListing.objects.filter(owner_id=owner, pk__in=listing_ids)}
+    def identity(row):
+        offer = listings.get(str((row.get('operation') or {}).get('listing_id') or
+                                 (row.get('result') or {}).get('listing_id') or '')) or {}
+        source = offer.get('source') or {}
+        return str((row.get('operation') or {}).get('equipment_id') or
+                   (row.get('result') or {}).get('equipment_id') or
+                   (source.get('equipment_id') if source.get('kind') == 'combat_equipment' else '') or '')
+    identities = {identity(row) for row in items}
+    cache = {}
+    snapshots = {gear.pk: for_instance(gear, cache=cache) for gear in
+                 EquipmentInstance.objects.filter(owner_id=owner, pk__in=identities)}
+    for row in items:
+        equipment_id = identity(row)
+        offer = listings.get(str((row.get('operation') or {}).get('listing_id') or
+                                 (row.get('result') or {}).get('listing_id') or '')) or {}
+        snapshot = snapshots.get(equipment_id) or offer.get('equipment_snapshot')
+        if equipment_id and isinstance(snapshot, dict):
+            row['equipment_snapshot'] = snapshot
+
+
 def history(owner: str, arguments: dict) -> dict:
     page, size = page_values(arguments)
     rows = MarketTransaction.objects.filter(owner_id=owner)
@@ -57,7 +84,9 @@ def history(owner: str, arguments: dict) -> dict:
         from django.db.models import Q
         rows = rows.filter(Q(actor_id=arguments['actor_id']) | Q(result__seller_id=arguments['actor_id']))
     if arguments.get('session_id'): rows = rows.filter(session_id=arguments['session_id'])
-    return {'total': rows.count(), 'page': page, 'items': list(rows.values()[size*(page-1):size*page])}
+    items = list(rows.values()[size*(page-1):size*page])
+    _equipment_history(owner, items)
+    return {'total': rows.count(), 'page': page, 'items': items}
 
 
 def sessions(owner: str, arguments: dict) -> dict:
@@ -78,6 +107,7 @@ def sessions(owner: str, arguments: dict) -> dict:
             transactions_by_session.setdefault(transaction['session_id'], []).append({
                 key: value for key, value in transaction.items() if key != 'session_id'
             })
+        _equipment_history(owner, [row for transactions in transactions_by_session.values() for row in transactions])
         for session_id, transactions in transactions_by_session.items():
             order = orders.get(session_id, {})
             transactions.sort(key=lambda row: (

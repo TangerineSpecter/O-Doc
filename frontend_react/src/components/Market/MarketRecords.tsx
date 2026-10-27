@@ -8,10 +8,24 @@ import {
     AlertCircle,
     Store,
 } from 'lucide-react';
-import type {MarketSession, MarketTransaction} from '../../types/api/market';
+import type {MarketItem, MarketSession, MarketTransaction} from '../../types/api/market';
 import {marketMoney, marketOperationLabels, marketTime} from './marketPresentation';
 import {TransactionItemIcon} from './TransactionItemIcon';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
+import {ElementBadge} from '../Combat/ElementBadge';
+import {elementStatLabels, formatRatio} from '../Combat/presentation';
+
+function EquipmentTransactionDetails({snapshot}: {snapshot?: MarketItem['equipmentSnapshot']}) {
+    if (!snapshot?.element) return null;
+    const powers = Object.entries(snapshot.stats || {}).filter(([key, value]) =>
+        Boolean(value) && Boolean(elementStatLabels[key]) && /(?:_power|Power)$/.test(key));
+    return <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <ElementBadge element={snapshot.element} size="xs"/>
+        {powers.map(([key,value])=><span key={key} className="text-[10px] text-slate-500">
+            {elementStatLabels[key]} +{formatRatio(value)}
+        </span>)}
+    </div>;
+}
 
 export function MarketTransactions({
     items,
@@ -97,6 +111,7 @@ export function MarketTransactions({
                                         <span className="mx-1 text-slate-300">·</span>
                                         <span className="text-[11px] text-slate-400">{marketTime(row.createdAt)}</span>
                                     </p>
+                                    <EquipmentTransactionDetails snapshot={row.equipmentSnapshot}/>
                                 </div>
                             </div>
 
@@ -310,6 +325,7 @@ export function MarketSessions({
                                                     </span>
                                                 )}
                                             </div>
+                                            <EquipmentTransactionDetails snapshot={transaction.equipmentSnapshot}/>
                                         </div>
                                     );
                                 })}

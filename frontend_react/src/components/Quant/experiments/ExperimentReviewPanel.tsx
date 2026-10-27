@@ -1,4 +1,5 @@
 import {LibraryResearchContext} from './LibraryResearchContext';
+import {OutputAssociationEvidence} from './OutputAssociationEvidence';
 import {ExperimentProposalCard} from './ExperimentProposalCard';
 import {useState} from 'react';
 import {Sparkles} from 'lucide-react';
@@ -8,7 +9,7 @@ import {createRequestKey} from '../../../utils/requestKey';
 import {QuantButton} from '../ui';
 import {ReportMarkdown} from '../ReportMarkdown';
 import {ResearchMemory} from '../ResearchMemory';
-export function ExperimentReviewPanel({collection, experiment, reload, openReport, prepareProposal, startCampaign, openFactor, nested}: {nested?: boolean;openFactor: (id: string, name: string) => void; startCampaign: (proposal: QuantExperimentProposal) => void; prepareProposal: (proposal: QuantExperimentProposal) => void;collection: string; experiment: QuantExperiment; reload: () => void; openReport: (entryId: string, reportId: string) => void}) {
+export function ExperimentReviewPanel({collection, experiment, reload, openReport, prepareProposal, startCampaign, openFactor, nested, openComparison}: {openComparison?: (id: string) => void; nested?: boolean;openFactor: (id: string, name: string) => void; startCampaign: (proposal: QuantExperimentProposal) => void; prepareProposal: (proposal: QuantExperimentProposal) => void;collection: string; experiment: QuantExperiment; reload: () => void; openReport: (entryId: string, reportId: string) => void}) {
     const [busy, setBusy] = useState(false), [error, setError] = useState(''), [key, setKey] = useState(createRequestKey);
     const latest = experiment.reviews?.[0], active = experiment.reviews?.find(row => ['pending', 'running'].includes(row.run.status));
     const completed = experiment.reviews?.find(row => row.report);
@@ -45,6 +46,7 @@ export function ExperimentReviewPanel({collection, experiment, reload, openRepor
             {context && <QuantButton onClick={() => openReport(context.entryId, report.id)}>打开报告与修订历史</QuantButton>}</>}
         {report?.data.format === 'experiment_review' && report.data.planningNote && <p className="text-xs leading-6 text-slate-600">方案判断：{report.data.planningNote}</p>}
         <LibraryResearchContext value={(completed?.run || latest?.run)?.libraryRetrieval} openFactor={openFactor}/>
+        <OutputAssociationEvidence json={(completed?.run || latest?.run)?.outputAssociationsJson} openComparison={openComparison}/>
         <ResearchMemory json={(completed?.run || latest?.run)?.researchMemoryJson} note={report?.data.memoryNote} assessments={report?.data.memoryAssessment} openEntry={id => openReport(id, '')}/>
         {proposal && <ExperimentProposalCard proposal={proposal} prepare={prepareProposal} startCampaign={startCampaign}/>}
     </section>;

@@ -1,0 +1,28 @@
+{
+  "scope": "诊断：仅水地牢三人及以上非Boss攻击在现行组队缩放之后乘0.7（向下取整）；未安装规则",
+  "source_sha256": "76e74b84a55da958e29198498df48f53c4d9e25d4024ded8306458da08bec84d",
+  "jobs": [
+    "job.warrior",
+    "job.mage",
+    "job.ranger"
+  ],
+  "level": 20,
+  "minutes": 120,
+  "samples": 500,
+  "survival_rate": 1.0,
+  "survival_ci95": [
+    0.9924,
+    1.0
+  ],
+  "any_fallen_rate": 0.208,
+  "fallen_ci95": [
+    0.1747,
+    0.2457
+  ],
+  "mean_potions_per_team": 38.008,
+  "equipment_per_member": [
+    25.76,
+    25.524,
+    25.886
+  ]
+}

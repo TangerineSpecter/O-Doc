@@ -10,6 +10,7 @@ import {resolveBatchRoute} from './intake';
 import {mockConfiguration} from './parameters';
 import {resolveCampaignRoute} from './campaigns';
 import {resolveComparisonRoute, resolveFactorMergeRoute} from './comparisons';
+import {resolveCorrelation} from './correlation';
 import {captureMockVersion, presentMockEntry, setMockMaterialCurrent} from './sourceSnapshots';
 import {mockSourceImpact} from './sourceImpact';
 import {previewMockExecution} from './platformEvidence';
@@ -57,6 +58,8 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     if (domain==='native-python')return resolveNativePython(request,collId,entryId,section);
     if (domain === 'validations') return resolveValidationRoute(request, collId, entryId, section);
     if (domain === 'vocabulary') return resolveVocabularyRoute(request, collId);
+    if (domain === 'comparisons'&&section==='correlation')return !entryId||id||action?fail(501,'尚未提供此统计路径的本地样例'):resolveCorrelation(request,collId,entryId);
+    if (domain === 'comparisons'&&section)return fail(501,'尚未提供此对照路径的本地样例');
     if (domain === 'comparisons') return resolveComparisonRoute(request, collId, entryId);
     if (domain === 'factor-merges') return resolveFactorMergeRoute(request, collId, entryId, section);
     if (domain === 'campaigns') return resolveCampaignRoute(request, collId, entryId, section);
@@ -231,7 +234,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
             if(await mockNativeContinuationFault(entry,input))return fail(500,'人工本地续作错误样例：未创建新任务，请再次点击续作重试');
             if (input.restartStage && !input.resumeRunId) return fail(400, '指定重跑阶段时须选择原研究任务');
             if (input.resumeRunId) {
-                const old = entry.runs.find(row => row.id === input.resumeRunId && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27].includes(row.workflow?.version || 0));
+                const old = entry.runs.find(row => row.id === input.resumeRunId && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(row.workflow?.version || 0));
                 if (!old) return fail(404, '阶段研究不存在');
                 const allowed = input.restartStage ? ['completed', 'failed', 'cancelled', 'interrupted'] : ['failed', 'cancelled', 'interrupted'];
                 const crossSource = old.sourceId !== input.sourceId;

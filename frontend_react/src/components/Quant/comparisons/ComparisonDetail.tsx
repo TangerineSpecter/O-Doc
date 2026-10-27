@@ -2,6 +2,7 @@ import type {QuantComparison, QuantFrozenComparisonSide} from '../../../types/ap
 import {readComparison, comparisonVerdicts, comparisonDifferenceKinds} from '../../../utils/quantComparison';
 import {quantDate} from '../../../utils/quant';
 import {QuantButton, cardClass} from '../ui';
+import {CorrelationPanel} from './CorrelationPanel';
 
 function FrozenSide({label, side, openCandidate}: {label: string; side: QuantFrozenComparisonSide; openCandidate: (id: string) => void}) {
     return <div className="min-w-0 space-y-3 rounded-xl border border-slate-200 p-4"><h4 className="text-sm font-semibold">{label} · {String(side.candidate.name || side.id)}</h4><pre className="whitespace-pre-wrap break-words text-xs leading-6 text-slate-600">{String(side.candidate.formula || '')}</pre>
@@ -10,7 +11,7 @@ function FrozenSide({label, side, openCandidate}: {label: string; side: QuantFro
         <QuantButton onClick={() => openCandidate(side.id)}>打开来源报告</QuantButton>
     </div>;
 }
-export function ComparisonDetail({comparison, merge, openCandidate}: {comparison: QuantComparison; merge: () => void; openCandidate: (id: string) => void}) {
+export function ComparisonDetail({collection,comparison, merge, openCandidate}: {collection:string;comparison: QuantComparison; merge: () => void; openCandidate: (id: string) => void}) {
     let value;
     try {value = readComparison(comparison);} catch (cause) {return <section role="alert" className={`${cardClass} text-sm text-red-600`}>{cause instanceof Error ? cause.message : '对照证据无法读取'}</section>;}
     const {plan, result, dataset} = value;
@@ -24,6 +25,7 @@ export function ComparisonDetail({comparison, merge, openCandidate}: {comparison
         <div className="rounded-xl border border-slate-200 p-4 text-xs leading-7 text-slate-600"><h4 className="mb-2 text-sm font-semibold">完整范围与比较合同</h4><p>{dataset.name} · {dataset.symbol} · {dataset.timeframe} · {dataset.timezone}<br/>{dataset.start} 至 {dataset.end}，共 {count.total_rows} 行；预热 {count.warmup_rows} 行后，从 {result.comparison_start} {timedOut ? '计划核对' : '核对'} {count.compared_rows} 行。</p><p className="mt-2">复权：{dataset.price_adjustment || '未说明'}；来源：{dataset.source || '未说明'}<br/>绝对容差 {plan.policy.absolute_tolerance}，相对容差 {plan.policy.relative_tolerance}。至少 30 行共同有效输出才可支持 pass。</p><p className="mt-2 break-all text-[11px] text-slate-500">行情指纹：{dataset.content_hash}</p></div>
         <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">{metrics.map(([label, metric]) => <div key={label} className="flex min-w-0 justify-between gap-4 border-b border-slate-100 py-2 text-xs"><dt className="text-slate-500">{label}</dt><dd className="break-all text-right font-mono tabular-nums text-slate-800">{metric === null ? '未知' : metric}</dd></div>)}</dl>
         <div className="grid gap-4 xl:grid-cols-2"><FrozenSide label="左侧" side={plan.left} openCandidate={openCandidate}/><FrozenSide label="右侧" side={plan.right} openCandidate={openCandidate}/></div>
+        <CorrelationPanel key={comparison.id} collection={collection} comparison={comparison} completed={!timedOut}/>
         <div><h4 className="mb-3 text-sm font-semibold">差异位置与实际输出</h4>{result.differences.length ? <div className="overflow-x-auto scrollbar-hide"><table className="w-full text-xs"><thead><tr>{['绝对行号（从0开始）', '时间', '类型', '左侧', '右侧'].map(label => <th key={label} className="whitespace-nowrap border-b border-slate-200 p-2 text-left font-medium text-slate-500">{label}</th>)}</tr></thead><tbody>{result.differences.map(row => <tr key={`${row.index}-${row.kind}`}><td className="p-2 font-mono">{row.index}</td><td className="whitespace-nowrap p-2">{row.timestamp}</td><td className="whitespace-nowrap p-2">{comparisonDifferenceKinds[row.kind]}</td><td className="p-2 text-right font-mono">{row.left === null ? '缺失' : String(row.left)}</td><td className="p-2 text-right font-mono">{row.right === null ? '缺失' : String(row.right)}</td></tr>)}</tbody></table></div> : <p className="text-xs leading-6 text-slate-500">{timedOut ? '超时未生成完整差异明细。' : '未记录输出值或单侧缺失差异；仍以共同有效行数、类型与结论为准。'}</p>}<p className="mt-2 text-xs leading-6 text-slate-500">最多展示前 12 处差异；{timedOut ? '未完成比较的数量标为未知。' : '总计数覆盖预热后的完整范围，双方共同缺失单独统计。'}</p></div>
         {result.limitations.length > 0 && <div className="rounded-xl bg-slate-50 p-4 text-xs leading-7 text-slate-600">{result.limitations.map((text, index) => <p key={index}>{text}</p>)}</div>}
         {comparison.verdict === 'pass' && (comparison.merges?.some(row => row.active) ? <p className="text-xs leading-6 text-slate-600">这份证据已有主动合并关系，可在下方查看或撤销。</p> : <QuantButton primary onClick={merge}>按这份证据建立逻辑分组</QuantButton>)}

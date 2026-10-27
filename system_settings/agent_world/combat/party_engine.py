@@ -121,7 +121,12 @@ def target_for(enemy, friends, tick, rng):
 
 
 def step(catalog, state, rng):
-    state = deepcopy(state)
+    """Advance a round without mutating the caller's persisted snapshot."""
+    return step_in_place(catalog, deepcopy(state), rng)
+
+
+def step_in_place(catalog, state, rng):
+    """Advance an owned state in place; intended for isolated simulations."""
     friends, enemies = state['players'], state['enemies']
     tick = state['round'] = state.get('round', 0) + 1
     result = []

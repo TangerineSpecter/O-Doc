@@ -5,7 +5,7 @@ import type {CookingRecipe, CookingRecipes} from '../../types/api/cooking';
 import type {AlchemyRecipe, AlchemyRecipes} from '../../types/api/alchemy';
 import type {InventoryItem} from '../../types/api/travel';
 import type {CatalogItem} from '../../types/api/itemCatalog';
-import type {MarketListing, MarketTransaction, MarketSession, MarketShop, MarketAutomationPlan} from '../../types/api/market';
+import type {MarketItem, MarketListing, MarketTransaction, MarketSession, MarketShop, MarketAutomationPlan} from '../../types/api/market';
 import {createMarketPlanPreview} from '../../components/Market/marketPlanPreviewData';
 import {fishingInventory} from './fishing';
 
@@ -90,6 +90,14 @@ export const shop: MarketShop = {id: 'local-shop', startsAt: at(0), expiresAt: a
         ...(['quality', 'yield'] as const).map(k => ({id: k, sku: `fertilizer.${k}`, kind: 'fertilizer' as const, price: String(farmRules.fertilizers[k].basePrice), ...farmRules.fertilizers[k]}))]};
 export const listings: MarketListing[] = inventory.slice(0, 24).map((item, i) => ({id: `local-listing-${i}`, sellerId: item.actorId, sellerName: item.actorName,
     item: {...item, kind: 'crop', iconAssetId: item.iconAssetId || undefined}, initialQuantity: 12, remainingQuantity: 8, unitPrice: item.value, version: 1, status: 'active', createdAt: at(10), history: []}));
+const waterStaffSnapshot:NonNullable<MarketItem['equipmentSnapshot']> = {templateId:'equip.mage_staff.element.water',
+    slot:'weapon', equipmentType:'mage_staff', element:'water', level:18,
+    stats:{magicAttack:57, waterPower:.05, physicalAttack:13, hpMax:110},
+    affixes:[{id:'affix.physical_attack',stat:'physicalAttack',value:13},{id:'affix.hp_max',stat:'hpMax',value:110}]};
+listings.push({id:'local-listing-water-weapon', sellerId:residents[2].id, sellerName:residents[2].name,
+    item:{name:'潮汐法杖（本地样例）',kind:'combat_equipment',quantity:1,rarity:'blue',value:'92.41',
+          source:{kind:'combat_equipment',equipmentId:'local-listing-water-weapon-instance'},equipmentSnapshot:waterStaffSnapshot},
+    initialQuantity:1,remainingQuantity:1,unitPrice:'200',version:1,status:'active',createdAt:at(10),history:[]});
 listings.push(...fishingInventory.filter(item => item.rarity === 'rare').map(item => ({
     id: `local-listing-${item.id}`, sellerId: item.actorId, sellerName: item.actorName,
     item: {...item, kind: 'fish', iconAssetId: undefined}, initialQuantity: 1, remainingQuantity: 1,
@@ -98,7 +106,10 @@ listings.push(...fishingInventory.filter(item => item.rarity === 'rare').map(ite
 export const transactions: MarketTransaction[] = [...residents.map((r, i) => ({id: `local-transaction-${i}`, actorId: r.id, actorName: r.name,
     sessionId: `local-session-${i}`, operation: {kind: 'buy', reason: '补足下一轮种植的种子'}, result: {kind: 'seed', name: '草莓种子', quantity: 3, total: '120', unitPrice: '40'}, createdAt: at(10 + i)})),
     {id: 'local-transaction-fish', actorId: residents[0].id, actorName: residents[0].name, sessionId: 'local-session-0',
-        operation: {kind: 'sell', reason: '进场自动回收普通鱼'}, result: {kind: 'fish', name: '鲫鱼', quantity: 3, total: '6', fishing_sku: 'fish.crucian'}, createdAt: at(14)}];
+        operation: {kind: 'sell', reason: '进场自动回收普通鱼'}, result: {kind: 'fish', name: '鲫鱼', quantity: 3, total: '6', fishing_sku: 'fish.crucian'}, createdAt: at(14)},
+    {id:'local-transaction-water-weapon',actorId:residents[2].id,actorName:residents[2].name,sessionId:'local-session-2',
+        operation:{kind:'sell_combat_equipment'},result:{kind:'sell_combat_equipment',name:'潮汐法杖（本地样例）',
+            equipmentId:'local-sold-water-weapon',quantity:1,total:'92.41'},equipmentSnapshot:waterStaffSnapshot,createdAt:at(14)}];
 transactions.push(...fishingInventory.map(item => ({
     id: `local-transaction-${item.id}`, actorId: item.actorId, actorName: item.actorName, sessionId: 'local-session-3',
     operation: {kind: item.rarity === 'rare' ? 'sell_listing' : 'sell', reason: item.rarity === 'rare' ? '鱼王交易样例' : '进场自动回收普通鱼'},

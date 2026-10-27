@@ -54,6 +54,7 @@ class EquipmentInstance(LifeTimedModel):
     bound = models.BooleanField(default=False)
     locked = models.BooleanField(default=False)
     sold = models.BooleanField(default=False)
+    retained_for_adventure = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

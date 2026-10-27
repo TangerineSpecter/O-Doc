@@ -5,7 +5,7 @@ import {AtlasGridCard} from './AtlasGridCard';
 import {EquipmentPortrait} from './EquipmentPortrait';
 import {BossCrownIcon, AtlasStatusBadge} from './RankBadge';
 import {getEquipmentVisual} from './atlasIcons';
-import {equipmentSlotLabel, equipmentTypeLabels, statLabels} from '../presentation';
+import {equipmentSlotLabel, equipmentTypeLabels, formatRatio, statLabels} from '../presentation';
 import {EquipmentMetaSpecs} from '../ElementBadge';
 
 export interface EquipmentAtlasViewProps {
@@ -383,7 +383,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                     <Shield className="h-3.5 w-3.5 text-slate-400" />
                                     白装基础属性与每级成长
                                 </h4>
-                                {!selectedDetails.baseStats.length ? (
+                                {!selectedDetails.baseStats.length && !Number(selected.elementPower || 0) ? (
                                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 text-xs text-slate-500">
                                         该装备主要提供随机词条加成
                                     </div>
@@ -400,6 +400,12 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                                 </span>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+                                {selected.element && Number(selected.elementPower || 0) > 0 && (
+                                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs">
+                                        <span className="text-slate-600">{statLabels[`${selected.element}_power`] || '元素强化'}（固定）</span>
+                                        <span className="font-semibold text-slate-800">+{formatRatio(selected.elementPower)}</span>
                                     </div>
                                 )}
                             </div>

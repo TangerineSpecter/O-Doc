@@ -6,6 +6,7 @@ import {mockSourceFindings} from './findings';
 import {workflowSample, advanceWorkflow} from './workflows';
 import {mockFeedbackAnalysis} from './feedback';
 import {freezeMockLibrary} from './libraryResearch';
+import {freezeMockOutputAssociations} from './outputAssociations';
 import {mockExperimentReview} from './experimentProposals';
 import type {QuantAIRun, QuantEntryDetail, QuantImplementation, QuantRunInput, QuantCodeVersion, QuantVersionInput, QuantImplementationInput, QuantLanguage, QuantSource} from '../../types/api/quant';
 import {mql4Sample, pineSample, pythonSample, quantModels} from './fixtures';
@@ -32,6 +33,7 @@ export function createRun(entry: QuantEntryDetail, input: QuantRunInput): QuantA
     const row: QuantAIRun = {id: quantId('run'), entryId: entry.id, kind: input.kind, sourceVersionId: input.sourceVersionId, sourceId: input.sourceId, experimentResultId: input.experimentResultId, targetLanguage: input.targetLanguage || '', targetVersion: input.targetVersion || '', requirements: input.requirements || '', modelId: model.id, modelName: model.name, status: 'pending', result: {}, error: '', preview: '本地任务已排队，不会发送真实模型请求。', adoptedImplementationId: null, createdAt: now, updatedAt: now};
     if (row.kind === 'analyze') row.workflow = workflowSample(row, entry, input);
     freezeMockLibrary(row);
+    freezeMockOutputAssociations(row);
     if (row.kind === 'feedback_review') {
         const source = entry.sources?.find(item => item.id === row.sourceId);
         row.feedbackMemory = {candidateIds: source?.payload.factorId || source?.payload.experimentResultId ? [] : collectMockFactors([entry]).filter(item => item.sourceId === source?.payload.targetSourceId).slice(0, 8).map(item => item.id),
@@ -61,14 +63,14 @@ export function advanceRun(run: QuantAIRun, source?: QuantSource) {
             run.result.analysis.totalScore = null;
         }
         if (run.result.analysis) {
-            if ([18, 20, 22, 24, 26, 27].includes(run.workflow?.version || 0)) {
+            if ([18, 20, 22, 24, 26, 27, 28].includes(run.workflow?.version || 0)) {
                 const entry = quantState().entries.find(row => row.id === run.entryId);
                 if (entry) Object.assign(run.result.analysis, mockSourceChangeReview(run, entry));
             }
-            if ([14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27].includes(run.workflow?.version || 0)) Object.assign(run.result.analysis, mockSourceFindings(source));
+            if ([14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(run.workflow?.version || 0)) Object.assign(run.result.analysis, mockSourceFindings(source));
             Object.assign(run.result.analysis, {extractionVersion: 1, extractionNote: '本地演示提取；真实来源需要实际模型分析。', factors: mockFactors(source)});
-            if ([21, 22, 23, 24, 25, 26, 27].includes(run.workflow?.version || 0)) mockParameterBindings(run.result.analysis, [23, 24, 25, 26, 27].includes(run.workflow?.version || 0), [25, 26, 27].includes(run.workflow?.version || 0) ? 2 : 1);
-            if ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27].includes(run.workflow?.version || 0)) run.result.analysis.factorRepair = mockRepair(source, run.result.analysis.factors || []);
+            if ([21, 22, 23, 24, 25, 26, 27, 28].includes(run.workflow?.version || 0)) mockParameterBindings(run.result.analysis, [23, 24, 25, 26, 27, 28].includes(run.workflow?.version || 0), [25, 26, 27, 28].includes(run.workflow?.version || 0) ? 2 : 1);
+            if ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(run.workflow?.version || 0)) run.result.analysis.factorRepair = mockRepair(source, run.result.analysis.factors || []);
             if ((run.workflow?.version || 0)>=12) {const owner=quantState().entries.find(e=>e.id===run.entryId);if (owner) {freezeMockResearchMemory(run,owner);Object.assign(run.result.analysis,{sourceMemoryVersion:1,...mockMemoryAssessment(run)});}}
             if ((source?.payload.code?.includes('LOCAL_LIBRARY_WINDOW_10') || source?.payload.code?.includes('LOCAL_ARITHMETIC_PARAMETERS')) && run.result.analysis.factors?.[0]) run.result.analysis.parameters = structuredClone(run.result.analysis.factors[0].parameters);
         }

@@ -36,16 +36,22 @@ def response(evidence=None):
             "text": '人工逐窗解释：实际参数、各段指标和失败仍须结合原始记录核对。', 'evidence_refs': [key]}
             for key,row in evidence['evidence'].items() if key.startswith('temporal_window:')]
         if windows:value['temporal_parameter_review']['window_reviews']=windows
+    if evidence and 'combination_analysis' in evidence['evidence']:
+        value['combination_reviews']=[{'evidence_ref':key,'text':'同区间对照保留负收益、失败和缺失；差值不证明独立互补。'} for key in evidence['evidence'] if key.startswith('combination:')]
+    if evidence and 'output_associations' in evidence['evidence']:
+        value['output_association_reviews']=[{'evidence_ref':key,'baseline_scope':row['baseline_scope'],'text':'历史完整样本观察，不属于本轮各窗口；参数不同不移用，未知不记零。'} for key,row in evidence['evidence'].items() if key.startswith('output_association:')]
     return value
 
 
 def acknowledge_selection(value,run):
     if run.kind=='experiment_review' and run.planning_context.get('selection_diagnostic'):
         value['selection_review']=selection_response()['selection_review']
-    if run.kind=='experiment_review' and run.review_version in (12,13,14,15):
+    if run.kind=='experiment_review' and run.review_version in (12,13,14,15,16,17):
         from quant.experiments.review_evidence import for_run
         generated=response(for_run(run))
         if 'temporal_parameter_review' in generated:value['temporal_parameter_review']=generated['temporal_parameter_review']
+        if 'combination_reviews' in generated:value['combination_reviews']=generated['combination_reviews']
+        if 'output_association_reviews' in generated:value['output_association_reviews']=generated['output_association_reviews']
     return value
 
 
@@ -90,7 +96,8 @@ class ExperimentReviewTests(TestCase):
         self.assertNotIn('curve', evidence['evidence']['holdout'])
         self.assertEqual(len([key for key in evidence['evidence'] if key.startswith('attempt-')]), request.checkpoints.count())
         self.assertIn('实际参数', prompt(run))
-        with patch('quant.worker.complete', return_value=json.dumps(selection_response())):
+        from quant.experiments.review_evidence import for_run
+        with patch('quant.worker.complete', return_value=json.dumps(response(for_run(run)))):
             execute(run.pk)
         run.refresh_from_db()
         self.assertEqual(run.status, 'completed', run.error)

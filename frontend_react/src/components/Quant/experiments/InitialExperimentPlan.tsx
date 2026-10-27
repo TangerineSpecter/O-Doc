@@ -12,10 +12,11 @@ export function InitialExperimentPlan({report, collection, register, request, op
 }) {
     const [mode, setMode] = useState<'experiment' | 'campaign' | null>(null);
     const feedback = report.data.feedbackPlanningVersion === 1;
-    if (report.data.initialPlanningVersion !== 1 && !feedback) return null;
+    const followup = report.schemaVersion === 4;
+    if (report.data.initialPlanningVersion !== 1 && !feedback && !followup) return null;
     const proposal = report.proposal;
-    return <section className={`${cardClass} space-y-4`} aria-label={feedback ? '反馈实验规划' : '首轮实验规划'}>
-        <div><h3 className="text-sm font-semibold">{feedback ? 'AI 反馈实验规划' : 'AI 首轮实验规划'}</h3><p className="mt-2 text-sm leading-7 text-slate-600">{feedback ? report.data.feedbackPlanningNote : report.data.initialPlanningNote}</p></div>
+    return <section id={`quant-report-plan-${report.id}`} className={`${cardClass} space-y-4`} aria-label={followup ? '后续实验规划' : feedback ? '反馈实验规划' : '首轮实验规划'}>
+        <div><h3 className="text-sm font-semibold">{followup ? 'AI 后续实验规划' : feedback ? 'AI 反馈实验规划' : 'AI 首轮实验规划'}</h3><p className="mt-2 text-sm leading-7 text-slate-600">{followup ? report.data.planningNote : feedback ? report.data.feedbackPlanningNote : report.data.initialPlanningNote}</p></div>
         {proposal ? <ExperimentProposalCard proposal={proposal} prepare={() => request(() => setMode('experiment'))} startCampaign={() => request(() => setMode('campaign'))}/>
             : <p className="text-sm text-slate-500">本次未生成可执行方案。报告与候选已保留，补充上述缺失材料后可以重新分析。</p>}
         {mode === 'experiment' && proposal && <StartExperiment collection={collection} proposal={proposal} candidates={proposal.candidates} register={register}

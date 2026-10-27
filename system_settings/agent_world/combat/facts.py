@@ -8,10 +8,13 @@ def frame(actor):
     fields = ['id','catalog_id','template_id','snapshot','value','bound','locked','sold']
     if CombatFact.objects.filter(actor_id=actor, kind='checkpoint').exists():
         fields.append('rules')
-    equipment = list(EquipmentInstance.objects.filter(actor_id=actor).order_by('id').values(*fields))
+    equipment = list(EquipmentInstance.objects.filter(actor_id=actor).order_by('id').values(*fields, 'retained_for_adventure'))
     # Decimal converted once, identically to snapshot serialization.
     for row in equipment:
         row['value'] = str(row['value'])
+        # Omitting false preserves hashes made before the field existed.
+        if not row['retained_for_adventure']:
+            row.pop('retained_for_adventure')
     runs = list(Exploration.objects.filter(actor_id=actor).order_by('id').values('id','catalog_id','status','phase','elapsed_seconds','revision','snapshot','state','result'))
     encounters=list(CombatEncounter.objects.filter(actor_id=actor).order_by('id').values('id','exploration_id','number','monster','result'))
     return {'profile': profile, 'equipment': equipment, 'runs': runs,'encounters':encounters}

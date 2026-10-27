@@ -2,7 +2,7 @@ import {musicActionText} from './musicPresentation';
 import {useMemo} from 'react';
 import {ArrowRight, Clock3, Compass, Footprints, Heart, Package, PauseCircle, PlayCircle, ShieldAlert, Sparkles, Swords, Trophy, ScrollText} from 'lucide-react';
 import type {CombatAction, CombatEvent, PartyAction, PartyCombatant} from '../../types/api/combat';
-import {elapsed} from './presentation';
+import {elapsed, rewardElementDescription} from './presentation';
 import {
     observationEventMessage,
     observationEventGroups,
@@ -73,6 +73,7 @@ function KillCard({action}: {action: CombatAction}) {
                         >
                             <Package className="h-2.5 w-2.5 text-emerald-600" />
                             {'name' in reward.item ? reward.item.name : '物品'}
+                            {rewardElementDescription(reward) && `（${rewardElementDescription(reward)}）`}
                             {(reward.quantity ?? 1) > 1 && ` ×${reward.quantity}`}
                         </span>
                     ))}
@@ -232,7 +233,7 @@ function ActionCard({action, playerName, partyPlayers}: {action: PartyAction; pl
     if (action.rolls) return <article className="rounded-xl border border-amber-200 bg-amber-50/50 px-2.5 py-2 text-xs text-slate-700">
         <strong>战利品分配</strong>
         {action.rolls.map(roll => <div key={roll.rewardId} className="mt-1">
-            <p>{roll.reward.item.name || '战利品'} → {partyPlayers?.find(player => player.id === roll.winnerId)?.name || '历史队员'}</p>
+            <p>{roll.reward.item.name || '战利品'}{rewardElementDescription(roll.reward) && `（${rewardElementDescription(roll.reward)}）`} → {partyPlayers?.find(player => player.id === roll.winnerId)?.name || '历史队员'}</p>
             <p className="mt-1 text-[10px] text-slate-500">{roll.rounds.map(scores => Object.entries(scores).map(([id, score]) => `${partyPlayers?.find(player => player.id === id)?.name || '历史队员'} ${score}`).join(' / ')).join('；重roll ')}</p>
         </div>)}
     </article>;

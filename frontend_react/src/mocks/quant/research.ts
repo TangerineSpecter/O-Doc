@@ -8,7 +8,8 @@ import {mockFeedbackPlan} from './feedbackPlanning';
 import {mockInitialPlan} from './initialPlanning';
 import {mockExperimentReport} from './experimentReviews';
 import type { QuantAnalysis, QuantEntryDetail, QuantReport } from '../../types/api/quant';
-import { quantId } from './state';
+import { quantId, quantState } from './state';
+import {presentMockProposal} from './experimentProposals';
 import {describeParameterDomain} from '../../utils/quantParameterDomain';
 import {captureMockVersion, ensureMockSourcePointers, setMockMaterialCurrent} from './sourceSnapshots';
 
@@ -60,8 +61,11 @@ export function publishMockReport(entry: QuantEntryDetail) {
             if (source) mockFeedbackPlan(entry, source, report, run);
             entry.reports!.unshift(report);
         }
-        if (run.kind === 'experiment_review' && run.status === 'completed' && !entry.reports!.some(row => row.runId === run.id)) {
-            entry.reports!.unshift(mockExperimentReport(run));
+        if (run.kind === 'experiment_review' && run.status === 'completed') {
+            let report = entry.reports!.find(row => row.runId === run.id);
+            if (!report) {report = mockExperimentReport(run); entry.reports!.unshift(report);}
+            const record = quantState().experiments.find(row => row.collection === entry.collId && `result-${row.data.id}` === run.experimentResultId);
+            report.proposal = presentMockProposal(record?.proposals?.[run.id], entry.collId);
         }
         if (run.kind !== 'analyze' || run.status !== 'completed' || entry.reports!.some(row => row.runId === run.id)) continue;
         const data = structuredClone(run.result.analysis || analysisSample);

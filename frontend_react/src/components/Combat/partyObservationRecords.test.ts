@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
+import {rewardElementDescription} from './presentation.ts';
 import test from 'node:test';
 import {mergePartyHistory, partyObservationRecords} from './partyObservationRecords.ts';
-import type {AdventurePartySnapshot, CombatEvent} from '../../types/api/combat.ts';
+import type {AdventurePartySnapshot, CombatEvent, CombatReward} from '../../types/api/combat.ts';
+
+test('loot descriptions show element and fixed power without inventing historical data', () => {
+    const reward: CombatReward = {id:'reward',kind:'equipment',elapsedSeconds:0,item:{templateId:'staff',name:'潮汐杖',slot:'weapon',element:'water',level:20,quality:'blue',value:'1',stats:{water_power:.05},affixes:[]}};
+    assert.equal(rewardElementDescription(reward), '水属性 · 水属性强化 +5%');
+    assert.equal(rewardElementDescription({...reward,item:{...reward.item,element:undefined}}), '');
+    assert.equal(rewardElementDescription({id:'material',kind:'material',elapsedSeconds:0,item:{id:'shell',name:'贝壳'}}), '');
+});
 
 const shared: AdventurePartySnapshot['events'] = [
     {id:'party:1',sequence:1,kind:'round',payload:{round:1,events:[{kind:'heal',healing:30}]}},

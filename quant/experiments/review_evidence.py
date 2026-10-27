@@ -8,7 +8,7 @@ METRICS = ('total_return', 'max_drawdown', 'entries', 'turnover', 'exposure_frac
            'missing_signals', 'bars', 'start', 'end')
 
 
-def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, planning_options: list | None = None, library_context: dict | None = None, sensitivity: bool = False, joint_sensitivity: bool = False, research_memory: dict | None = None, fixed_validation: dict | None = None, selection_diagnostic: dict | None = None, temporal_sensitivity: bool = False, window_reviews: bool = False, context_encoding: bool = False) -> dict:
+def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, planning_options: list | None = None, library_context: dict | None = None, sensitivity: bool = False, joint_sensitivity: bool = False, research_memory: dict | None = None, fixed_validation: dict | None = None, selection_diagnostic: dict | None = None, temporal_sensitivity: bool = False, window_reviews: bool = False, context_encoding: bool = False, combinations: bool = False, output_associations: dict | None = None) -> dict:
     """Do not send raw CSV, equity paths, returns, credentials or unrelated research."""
     output = outcome.get('output') or {}
     evidence = {
@@ -82,7 +82,7 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
             candidate = next(item['candidate'] for item in library_context['options'] if item['id'] == row['candidate_id'])
             evidence[f"library:{row['candidate_id']}"] = {**row, 'name': candidate['name'],
                 'source_evidence': candidate['evidence'], 'status': 'not_evaluated_in_this_result'}
-    if library_context is not None and library_context.get('version') == 6:
+    if library_context is not None and library_context.get('version') in (6, 7):
         from .planning_capabilities import validate
         validate(library_context.get('planning_capabilities'))
         value['planning_capabilities'] = copy.deepcopy(library_context['planning_capabilities'])
@@ -100,6 +100,12 @@ def project(plan: dict, snapshot: dict, outcome: dict, attempts: list[dict], *, 
     if window_reviews:
         from .window_review import project as window_project
         evidence.update(window_project(plan, snapshot, attempts, canonical_pairs=context_encoding))
+    if combinations:
+        from .combination import evidence as combination_evidence
+        evidence.update(combination_evidence(plan, attempts))
+    if output_associations is not None:
+        from .output_associations import evidence as association_evidence
+        evidence.update(association_evidence(output_associations))
     if research_memory is not None:
         from quant.research_memory import summary
         value['research_memory'] = summary(research_memory)
@@ -132,29 +138,33 @@ def label_evidence(value):
         'target_ref':'execution.config.label_target','semantics_ref':'execution.label_semantics'}
 
 
-def for_result(result, version: int = 2, context: dict | None = None, fixed=None) -> dict:
+def for_result(result, version: int = 2, context: dict | None = None, fixed=None, *, latest_at: str | None = None) -> dict:
     request = result.request
-    if version not in (9,10,11,12,13,14,15) and ('strategy' in request.plan['config']) != (version == 8):
+    if version not in (9,10,11,12,13,14,15,16,17) and ('strategy' in request.plan['config']) != (version == 8):
         raise ValidationError('策略执行实验必须使用匹配版本的解读契约')
     from .planning_context import for_result as planning_options
-    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) and (not isinstance(context, dict) or context.get('version') != (6 if version in (11, 12, 13, 14, 15) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12, 13, 14, 15) else 2 if version == 6 else 1)):
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) and (not isinstance(context, dict) or context.get('version') != (7 if version == 17 else 6 if version in (11, 12, 13, 14, 15, 16, 17) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else 2 if version == 6 else 1)):
         raise ValidationError('新版实验解读缺少冻结的跨库研究上下文')
-    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         from .library_contract import METHOD, METHOD_V2
-        if context.get('method') != (METHOD_V2 if version == 15 else METHOD):
+        if context.get('method') != (METHOD_V2 if version in (15, 16, 17) else METHOD):
             raise ValidationError('实验解读版本与跨库去重合同不一致')
     from quant.validation_studies.evidence import for_result as fixed_evidence
     from quant.search_diagnostics.services import from_reference
     from quant.search_diagnostics.evidence import summary as diagnostic_summary
-    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version in (10, 11, 12, 13, 14, 15) else None
-    if version == 9 and not fixed or fixed and version not in (9,10,11,12,13,14,15):
+    diagnostic=from_reference(result,context.get('selection_diagnostic')) if version in (10, 11, 12, 13, 14, 15, 16, 17) else None
+    if version == 9 and not fixed or fixed and version not in (9,10,11,12,13,14,15,16,17):
         raise ValidationError('固定验证解读版本与结果引用不匹配')
-    if version in (9,10,11,12,13,14,15) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
+    if version in (9,10,11,12,13,14,15,16,17) and context.get('fixed_validation') != ({'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None):
         raise ValidationError('固定验证冻结上下文不一致')
+    associations = None
+    if version == 17:
+        from .output_associations import for_result as association_context
+        associations = association_context(result, context.get('output_associations'), context['options'], latest_at=latest_at)
     return project(request.plan, request.dataset.snapshot, result.data,
         list(request.checkpoints.values_list('attempt', flat=True)),
-        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) else planning_options(result) if version == 2 else None,
-        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), joint_sensitivity=version in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None, temporal_sensitivity=version in (12,13,14,15), window_reviews=version in (13,14,15), context_encoding=version in (14,15))
+        planning_options=context['options'] if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else planning_options(result) if version == 2 else None,
+        library_context=context if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else None, sensitivity=version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17), joint_sensitivity=version in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17), research_memory=context.get('research_memory') if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else None, fixed_validation=fixed_evidence(fixed) if fixed else None,selection_diagnostic=diagnostic_summary(diagnostic) if diagnostic else None, temporal_sensitivity=version in (12,13,14,15,16,17), window_reviews=version in (13,14,15,16,17), context_encoding=version in (14,15,16,17), combinations=version in (16, 17), output_associations=associations)
 
 
 def evidence_hash(evidence: dict) -> str:
@@ -162,4 +172,5 @@ def evidence_hash(evidence: dict) -> str:
 
 
 def for_run(run):
-    return for_result(run.experiment_result, run.review_version, run.planning_context, run.validation_result)
+    return for_result(run.experiment_result, run.review_version, run.planning_context, run.validation_result,
+        latest_at=run.created_at.isoformat() if run.review_version == 17 else None)

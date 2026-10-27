@@ -68,7 +68,7 @@ function records(candidate: QuantFactorCandidate, collection: string): Row[] {
     const entry = state.entries.find(row => row.id === candidate.entryId);
     for (const source of entry?.sources?.filter(row => row.payload.factorId === candidate.id && row.payload.provenance === 'external_feedback') || []) {
         const payload = source.payload;
-        result.push(packed({...base(candidate, 'feedback', source.id), kind: 'feedback', levels: ['user_reported_' + (['backtest', 'paper', 'live'].includes(payload.mode || '') ? payload.mode : 'other')],
+        result.push(packed({...base(candidate, 'feedback', source.id), kind: 'feedback', ...(payload.feedbackVersion===4?{scope:'native_python_analysis_document'}:{}), levels: payload.feedbackVersion===4?[]:['user_reported_' + (['backtest', 'paper', 'live'].includes(payload.mode || '') ? payload.mode : 'other')],
             mode: payload.mode || 'unknown', platform: payload.platform || '', title: payload.title || '用户记录', target_source_id: payload.targetSourceId || '', document_format: payload.documentFormat || 'text',
             parser_status: payload.executionPreviewJson ? 'parsed' : 'not_structured', accounting_status: 'unavailable', counts: {}, structured: !!payload.executionPreviewJson, platform_authenticated: false}, source.createdAt));
     }
@@ -87,7 +87,7 @@ export async function resolveVerificationRoute(request: Request, candidate: Quan
     if (request.method === 'POST') {
         const body = await request.json() as {kind?: VerificationKind; offset?: number; limit?: number};
         const kind = body.kind ?? 'experiment', offset = body.offset ?? 0, limit = body.limit ?? 20;
-        if (!['experiment', 'comparison', 'feedback','fixed_validation'].includes(kind) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) return HttpResponse.json({code: 400, msg: '归集范围与分页无效', data: null}, {status: 400});
+        if (!['experiment', 'comparison', 'feedback','fixed_validation','native_python'].includes(kind) || !Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) return HttpResponse.json({code: 400, msg: '归集范围与分页无效', data: null}, {status: 400});
         quantState().verificationIndexed[candidate.id] = true; persistQuantState();
         const total = kind === 'experiment' ? quantState().experiments.filter(row => row.collection === collection).length : records(candidate, collection).filter(row => row.kind === kind).length;
         return {kind, scanned: Math.min(limit, Math.max(0, total - offset)), nextOffset: Math.min(total, offset + limit), total, hasMore: offset + limit < total, claim: 'legacy_index_only_no_execution'};

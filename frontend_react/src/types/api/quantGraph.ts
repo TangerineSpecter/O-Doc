@@ -20,17 +20,20 @@ export interface QuantIndexStatus {
 }
 export interface QuantGraphNode {
     id: string;
-    kind: 'factor' | 'report' | 'source' | 'strategy';
+    kind: 'hypothesis' | 'scenario' | 'assessment' | 'factor' | 'report' | 'source' | 'strategy' | 'experiment' | 'feedback' | 'validation' | 'native' | 'comparison';
     label: string;
     entryId: string;
     reportId: string;
+    evidence?: {id: string; kind: string; targetId: string; targetHash: string; candidateHash: string; createdAt: string};
 }
 export interface QuantGraphEdge {
     id: string;
     from: string;
     to: string;
-    kind: 'generated_strategy' | 'same_expression' | 'same_source' | 'semantic_similar' | 'extracted_from' | 'analyzed_from' | 'derived_from' | 'origin_context' | 'sample_equivalent' | 'merged_group';
+    kind: 'complement_hypothesis' | 'scenario_hypothesis' | 'reported_support' | 'reported_counterexample' | 'combination_supports' | 'combination_counterexample' | 'combination_unknown' | 'combination_mixed' | 'statistical_correlation' | 'direct_observation' | 'generated_strategy' | 'same_expression' | 'same_source' | 'semantic_similar' | 'extracted_from' | 'analyzed_from' | 'derived_from' | 'origin_context' | 'sample_equivalent' | 'merged_group';
+    researchJson?: string; requestId?: string;
     comparisonId?: string; mergeId?: string;
+    correlationJson?: string;
     label: string;
     historical: boolean;
     similarity: number | null;

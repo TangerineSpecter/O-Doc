@@ -117,10 +117,12 @@ def request_data(request: ExperimentRequest, *, detail=False) -> dict:
         from .sensitivity import analyze
         from .joint_sensitivity import analyze as joint_analysis
         from .temporal_sensitivity import analyze as temporal_analysis
+        from .combination import analyze as combination_analysis
         attempts = list(checkpoints.values_list('attempt', flat=True))
         value['sensitivity_json'] = json.dumps(analyze(request.plan, attempts), ensure_ascii=False, allow_nan=False)
         value['joint_sensitivity_json'] = json.dumps(joint_analysis(request.plan, attempts), ensure_ascii=False, allow_nan=False)
         value['temporal_sensitivity_json'] = json.dumps(temporal_analysis(request.plan, attempts), ensure_ascii=False, allow_nan=False)
+        value['combination_analysis_json'] = json.dumps(combination_analysis(request.plan, attempts), ensure_ascii=False, allow_nan=False)
         value.update(plan_json=json.dumps(request.plan, ensure_ascii=False, allow_nan=False),
             result_json=json.dumps(result.data, ensure_ascii=False, allow_nan=False) if result else None,
             attempts_json=json.dumps(attempts, ensure_ascii=False, allow_nan=False))

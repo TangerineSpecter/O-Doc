@@ -86,6 +86,21 @@ def _equipment_level_band(dungeon: dict, template: dict, monster_level: int) -> 
     return (lower, upper) if lower <= upper else None
 
 
+def equipment_pool_weights(pool: list[dict]) -> list[float]:
+    """Split a category's original weight only across its currently eligible variants.
+
+    Historical pools have no variant_group, so their sampling is unchanged. A
+    group is validated in the catalog; each row carries the category weight.
+    """
+    counts: dict[str, int] = {}
+    for row in pool:
+        group = row.get('variant_group') or ''
+        if group:
+            counts[group] = counts.get(group, 0) + 1
+    return [float(row['weight']) / counts[row['variant_group']] if row.get('variant_group')
+            else float(row['weight']) for row in pool]
+
+
 def drops(
     catalog: Catalog,
     monster_id: str,
@@ -125,7 +140,7 @@ def drops(
         if boss and trophy and trophy_band and rng.random()<float(trophy['exclusive_probability']):
             identity = trophy['equipment_id']
         else:
-            identity = rng.choices(pool,weights=[float(r['weight']) for r in pool])[0]['equipment_id']
+            identity = rng.choices(pool, weights=equipment_pool_weights(pool))[0]['equipment_id']
         quality = rng.choices(catalog.tables['qualities'],weights=[float(r[template['rank']+'_weight']) for r in catalog.tables['qualities']])[0]['id']
         definition=catalog.row('equipment_templates',identity)
         gear_level=rng.randint(*_equipment_level_band(dungeon, definition, level))

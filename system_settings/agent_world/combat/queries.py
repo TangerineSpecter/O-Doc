@@ -40,7 +40,7 @@ def market_context(owner,agent):
     from .equipment_market import equipment_listing_ids
     listed = equipment_listing_ids(owner)
     equipment_rows = EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False,
-        bound=False,locked=False).exclude(pk__in=profile.loadout.values() if profile else [])
+        bound=False,locked=False,retained_for_adventure=False).exclude(pk__in=profile.loadout.values() if profile else [])
     if listed:
         equipment_rows = equipment_rows.exclude(pk__in=listed)
     equipment=list(equipment_rows.order_by('-created_at','pk').values('id','snapshot','value','catalog_id'))

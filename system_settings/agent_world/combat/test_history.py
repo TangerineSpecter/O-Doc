@@ -234,7 +234,7 @@ class FrozenHistoryTests(TestCase):
         snapshot = manager.build_snapshot_data()
         self.assertEqual([row['pk'] for row in snapshot if row['model'] == CATALOG], [self.catalog.version])
         meta = manager.build_snapshot_meta(data_list=snapshot)
-        self.assertEqual(meta['combat_schema_version'], 16)
+        self.assertEqual(meta['combat_schema_version'], 17)
         self.assertEqual(meta['combat_checkpoints'].keys(), {self.agent.pk})
         original = copy.deepcopy(EquipmentInstance.objects.get(actor_id=self.agent.pk).snapshot)
         for _ in range(2):

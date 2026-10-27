@@ -82,6 +82,7 @@ export interface QuantAIRun {
     nativeReviewWorkflow?: import('./quantNativeReview').NativeReviewWorkflow | null;
     /** Immutable history JSON retains literal evidence keys across response casing. */
     researchMemoryJson?: string | null;
+    outputAssociationsJson?: string | null;
     workflow?: import('./quantWorkflow').QuantWorkflow | null;
     feedbackMemory?: {candidateIds: string[]; historyIds: string[]} | null;
     libraryRetrieval?: QuantLibraryRetrieval | null;
@@ -213,7 +214,7 @@ export interface QuantReport {
     sourceId: string;
     runId: string;
     schemaVersion: number;
-    data: Partial<Pick<QuantAnalysis, 'parameters' | 'parameterBindingVersion' | 'parameterInventoryJson' | 'sourceChangeReviewVersion' | 'sourceChangeFactsJson' | 'sourceChangeAssessment' | 'sourceFindingsVersion' | 'sourceFindings' | 'sourceFindingsNote' | 'sourceMemoryVersion' | 'initialPlanningVersion' | 'initialPlanningNote' | 'factorRepair' | 'title' | 'summary' | 'scores' | 'totalScore' | 'extractionVersion' | 'extractionNote' | 'factors' | 'evidenceStatus' | 'rubricVersion'>> & Partial<Pick<import('./quantFeedback').QuantFeedbackAnalysis, 'nativeReview' | 'nativeReviewVersion' | 'computedNativeJson'>> & {executionAssessment?: import('./quantPlatformEvidence').QuantExecutionAssessment; computedExecutionJson?: string; memoryNote?: string; memoryAssessment?: import('./quantResearchMemory').QuantMemoryAssessment[]; parameterConfiguration?: import('./quantParameters').QuantParameterConfiguration; parameterComparison?: import('./quantParameters').QuantParameterComparison; format?: string; planningNote?: string; feedbackPlanningVersion?: number; feedbackPlanningNote?: string};
+    data: Partial<Pick<QuantAnalysis, 'parameters' | 'parameterBindingVersion' | 'parameterInventoryJson' | 'sourceChangeReviewVersion' | 'sourceChangeFactsJson' | 'sourceChangeAssessment' | 'sourceFindingsVersion' | 'sourceFindings' | 'sourceFindingsNote' | 'sourceMemoryVersion' | 'initialPlanningVersion' | 'initialPlanningNote' | 'factorRepair' | 'title' | 'summary' | 'scores' | 'totalScore' | 'extractionVersion' | 'extractionNote' | 'factors' | 'evidenceStatus' | 'rubricVersion'>> & Partial<Pick<import('./quantFeedback').QuantFeedbackAnalysis, 'nativeReview' | 'nativeReviewVersion' | 'computedNativeJson' | 'reportedParameters'>> & Partial<Pick<QuantExperimentAnalysis, 'parameterAssessment'>> & {executionAssessment?: import('./quantPlatformEvidence').QuantExecutionAssessment; computedExecutionJson?: string; memoryNote?: string; memoryAssessment?: import('./quantResearchMemory').QuantMemoryAssessment[]; parameterConfiguration?: import('./quantParameters').QuantParameterConfiguration; parameterComparison?: import('./quantParameters').QuantParameterComparison; format?: string; planningNote?: string; feedbackPlanningVersion?: number; feedbackPlanningNote?: string};
     originalMarkdown: string;
     markdown: string;
     currentRevisionId: string;
@@ -300,6 +301,8 @@ export interface QuantFactorQuery {
 
 export interface QuantReviewFinding {text: string; evidenceRefs: string[]}
 export interface QuantExperimentAnalysis {
+    outputAssociationReviews?: {evidenceRef: string; baselineScope: import('./quantOutputAssociations').OutputBaselineScope; text: string; facts?: Record<string, unknown>}[];
+    combinationReviews?: {evidenceRef: string; text: string; facts?: Record<string, unknown>}[];
     temporalParameterReviewVersion?:1|2;
     temporalParameterReview?:{status:import('./quantTemporalSensitivity').TemporalParameterStatus;plannedWindows:number;text:string;evidenceRefs:string[];
         windowReviews?:{outerFold:number;innerFold:number;text:string;evidenceRefs:string[];facts:{

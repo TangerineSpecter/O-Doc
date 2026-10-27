@@ -340,7 +340,7 @@ class TournamentTests(TestCase):
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
         self.assertEqual(meta['tournament_schema_version'], 1)
-        self.assertEqual(meta['combat_schema_version'], 16)
+        self.assertEqual(meta['combat_schema_version'], 17)
         self.assertFalse(any(r['model'] == 'system_settings.tournamentruntime' for r in data))
         before = list(event.rewards.order_by('place').values('id', 'result', 'status'))
         for _ in range(2):

@@ -56,7 +56,7 @@ export function mockFeedbackAnalysis(source?: QuantSource): QuantFeedbackAnalysi
             reportedParameters:[],reportedMetrics:[],supportingEvidence:[],counterEvidence:[],comparison:'人工样例结论只属于这次记录，不证明收益或平台全局等价。',hypotheses:['在其他区间固定相同参数对照，保留失败与缺失反例'],unknowns:['真实源码输出、运行器和模型质量仍需独立验收'],nextSteps:'补充真实固定样本验证，参数建议仍为待检验假设。',
             nativeReviewVersion:1,nativeReview:{verdict:parsed.verdict,actualParameters:parsed.parameters,interpretation:'人工样例保留计算判定和差异；不以输出一致提高收益评分。',parameterAssessment:'参数范围建议需要新样本检验，不将默认值当作本次实际配置。',limitations:['本地样例未运行原始函数、未调用真实AI。']}};
     }
-    const parameter = document.match(/N=(\d+)/), metric = document.match(/net=(-?\d+(?:\.\d+)?%)/);
+    const parameter = document.match(/N=(\d+)/), metric = document.match(/net=(-?\d+(?:\.\d+)?%)/), trades = document.match(/trades=(\d+)/);
     const target = quantState().entries.flatMap(row => row.sources || []).find(row => row.id === source?.payload.targetSourceId);
     const configured = source?.payload.parameterConfiguration && target ? mockConfiguration(document, target) : undefined;
     if (source && [3,5].includes(source.payload.feedbackVersion || 0) && source.payload.executionPreviewJson && target) {
@@ -77,12 +77,16 @@ export function mockFeedbackAnalysis(source?: QuantSource): QuantFeedbackAnalysi
         feedbackVersion: 1, evidenceStatus: 'external_report_unverified',
         reportedParameters: parameter ? [{name: 'N', value: parameter[1], unit: '', quote: parameter[0]}] : [],
         reportedMetrics: metric && !configured ? [{name: 'net', value: metric[1], unit: '%', quote: metric[0]}] : [],
-        supportingEvidence: [], counterEvidence: [], comparison: '真实分析将核对报告声明的参数与源码默认值，并先检查平台、费用和成交约定差异。',
+        supportingEvidence: !configured && trades ? [{claim: '人工样例：报告提供成交数，尚未核实，不证明策略有效', quote: trades[0]}] : [],
+        counterEvidence: !configured && metric && Number(metric[1].slice(0, -1)) < 0 ? [{claim: '人工样例：报告声明负净收益，仍需核对成本和参数', quote: metric[0]}] : [],
+        comparison: '真实分析将核对报告声明的参数与源码默认值，并先检查平台、费用和成交约定差异。',
         hypotheses: ['待真实分析后提出可否证假设'], unknowns: ['未完成独立复算', '报告覆盖范围与实际成本需核对'], nextSteps: '补齐实际参数和数据口径，在新行情检验；本地样例不会启动实验。'};
 }
 
 export function mockFeedbackReport(run: QuantAIRun): QuantReport {
     const data = run.result.feedback!;
+    const claims = [['支持主张（未核实）', data.supportingEvidence], ['反例主张（未核实）', data.counterEvidence]] as const;
+    const claimMarkdown = claims.map(([title, rows]) => `\n\n## ${title}\n\n${rows.map(row => `${row.claim}\n\n原文：${row.quote}`).join('\n\n') || '本次未提取该类主张，不代表已证明支持或反驳。'}`).join('');
     const values = (title: string, rows: QuantFeedbackAnalysis['reportedParameters']) => `## ${title}\n\n${rows.map(row => `### ${row.name}\n\n${row.value}${row.unit && !row.value.endsWith(row.unit) ? ` ${row.unit}` : ''}\n\n原文依据：${row.quote}`).join('\n\n') || '未识别明确值；不能使用源码默认值代替。'}`;
     const extracted = data.nativeReview?'':data.executionAssessment && data.computedExecutionJson ? `## 报告声明的运行参数\n\n${(JSON.parse(data.computedExecutionJson) as {execution_summary: {parameters: {name: string; value: string; unit: string}[]}}).execution_summary.parameters.map(row => `- ${row.name}：${row.value} ${row.unit}`).join('\n') || '未提供明确运行参数，不能使用源码默认值补齐。'}` : `${values(data.parameterConfiguration ? '文件配置参数' : '报告声明的实际参数', data.reportedParameters)}\n\n${values('报告声明的指标', data.reportedMetrics)}`;
     const markdown = `# ${data.title}\n\n${data.summary}\n\n${data.nativeReview?'本机Python原始函数固定样本解读 · 本地人工流程样例':'外部报告解读 · 用户声明尚未独立验证'}\n\n${extracted}\n\n## 对照与差异\n\n${data.comparison}\n\n## 缺失信息\n\n${data.unknowns.join('\n\n')}\n\n## 后续研究\n\n${data.nextSteps}`;
@@ -90,5 +94,5 @@ export function mockFeedbackReport(run: QuantAIRun): QuantReport {
     const executionMarkdown = data.executionAssessment ? `\n\n## 结构化执行证据与核算\n\n${data.executionAssessment.summary}\n\n${data.executionAssessment.findings.map(row => `${row.kind}：${row.claim}\n\n依据：${row.refs.join('、')}`).join('\n\n')}\n\n${data.executionAssessment.unknowns.join('\n\n')}` : '';
     const compared=data.computedExecutionJson?(JSON.parse(data.computedExecutionJson) as QuantComputedExecution).execution_parameter_comparison:undefined;
     const sourceParameters=compared?.version===2?`\n\n### 源码参数对照 · 本地人工样例\n\n${compared.rows.map(row=>`- ${row.name}：报告值 ${JSON.stringify(row.configured.value)}；${row.declaration?.binding_kind==='module_literal'?'初始赋值（非公开输入）':'默认声明'} ${row.declaration?.default_raw || '未知'}；${row.status}`).join('\n')}\n\n报告未提供：${compared.missing.map(row=>row.name).join('、') || '没有缺项'}。不补实际值。`:'';
-    return {id: quantId('report'), sourceId: run.sourceId!, runId: run.id, schemaVersion: 5, data, markdown: markdown + nativeMarkdown + executionMarkdown + sourceParameters + mockMemoryMarkdown(run), originalMarkdown: markdown + nativeMarkdown + executionMarkdown + sourceParameters + mockMemoryMarkdown(run), currentRevisionId: '', createdAt: new Date().toISOString(), revisions: []};
+    return {id: quantId('report'), sourceId: run.sourceId!, runId: run.id, schemaVersion: 5, data, markdown: markdown + claimMarkdown + nativeMarkdown + executionMarkdown + sourceParameters + mockMemoryMarkdown(run), originalMarkdown: markdown + claimMarkdown + nativeMarkdown + executionMarkdown + sourceParameters + mockMemoryMarkdown(run), currentRevisionId: '', createdAt: new Date().toISOString(), revisions: []};
 }

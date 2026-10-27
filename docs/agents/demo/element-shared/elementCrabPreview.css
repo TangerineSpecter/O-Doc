@@ -1,0 +1,53 @@
+* { box-sizing: border-box; }
+body { margin: 0; color: #253249; background: #f5f8f8; font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; }
+.preview { max-width: 1230px; margin: 0 auto; padding: 38px 28px 54px; }
+.eyebrow { color: #e57e3d; font-weight: 700; letter-spacing: .1em; font-size: 11px; }
+h1 { margin: 7px 0 0; font-size: 30px; line-height: 1.25; } header > p:last-child { color: #708095; margin: 8px 0 24px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 18px; align-items: stretch; }
+.scene, .panel { background: white; border: 1px solid #dfe8eb; border-radius: 18px; box-shadow: 0 4px 18px #274c5810; overflow: hidden; }
+.scene-head, .scene-foot { display: flex; justify-content: space-between; gap: 12px; padding: 16px 20px; color: #597b82; font-size: 12px; font-weight: 600; }
+.scene-head span:last-child { padding: 2px 10px; border-radius: 999px; background: #e5f7f7; color: #188b91; }
+.stage { height: 425px; position: relative; overflow: hidden; background: linear-gradient(#dff5f4 0 60%, #b5e0df 60% 70%, #e9e6c9 70%); }
+.horizon { position: absolute; left: 0; right: 0; top: 57%; height: 15%; background: repeating-linear-gradient(0deg, #fff0 0 8px, #ffffff70 9px 11px, #fff0 12px 18px); }
+.islet { position: absolute; top: 52%; width: 160px; height: 38px; background: #8fc7c2; border-radius: 70% 50% 0 0; opacity: .4; }
+.islet-left { left: -10px; } .islet-right { right: -22px; width: 205px; }
+.shadow { position: absolute; left: 50%; top: 77%; width: 210px; height: 25px; transform: translateX(-50%); background: #527c7440; border-radius: 50%; }
+.crab { position: absolute; width: min(72%, 480px); left: 50%; top: 48%; transform: translate(-50%, -50%); image-rendering: pixelated; animation: idle 1.8s ease-in-out infinite; }
+.stage[data-action=move] .crab { animation: move 1.3s ease-in-out infinite; }
+.stage[data-action=attack] .crab { animation: attack 1.3s ease-in-out infinite; }
+.stage[data-action=skill] .crab { animation: attack 1.8s ease-in-out infinite; }
+.bubble-effect { display: none; position: absolute; top: 32%; left: 34%; width: 31px; height: 31px; border-radius: 50%; border: 3px solid #d9ffff; background: #8edce6aa; box-shadow: inset 4px 5px 0 #ffffffb3; }
+.stage[data-action=skill] .bubble-effect { display: block; animation: bubble 1.8s ease-out infinite; }
+@keyframes idle { 50% { transform: translate(-50%, -52%); } }
+@keyframes move { 25% { transform: translate(-55%, -52%) rotate(-3deg); } 75% { transform: translate(-45%, -52%) rotate(3deg); } }
+@keyframes attack { 35% { transform: translate(-42%, -50%) rotate(4deg); } 55% { transform: translate(-62%, -51%) rotate(-6deg); } }
+@keyframes bubble { 0%, 30% { opacity: 0; transform: translate(0, 0) scale(.4); } 45% { opacity: 1; } 85%, 100% { opacity: 0; transform: translate(-150px, -35px) scale(1.3); } }
+.panel { padding: 20px; } .panel-head { display: flex; align-items: baseline; justify-content: space-between; } h2 { margin: 0; font-size: 17px; } .panel-head span, .description, .details p { color: #778899; font-size: 12px; } .description { margin: 12px 0 18px; }
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; } button { text-align: left; border: 1px solid #dfe8eb; border-radius: 12px; background: #fff; padding: 12px; color: #334155; cursor: pointer; } button[aria-pressed=true] { border-color: #55bfc1; background: #eefafa; color: #187e83; } button:focus-visible { outline: 2px solid #f59e59; outline-offset: 2px; } button strong, button small { display: block; } button small { color: #899ba8; margin-top: 2px; }
+.details { border-top: 1px solid #e9eef0; margin-top: 24px; padding-top: 16px; } h3 { font-size: 13px; margin: 0; } .note { color: #93a2aa; font-size: 12px; margin-top: 18px; }
+@media (max-width: 760px) { .preview { padding: 24px 16px; } .layout { grid-template-columns: 1fr; } .stage { height: 320px; } .crab { width: min(85%, 410px); } }
+@media (prefers-reduced-motion: reduce) { .crab, .bubble-effect { animation-duration: 4s !important; animation-iteration-count: 1 !important; } }
+.stage--spirit[data-action=skill] .bubble-effect { left: 31%; top: 52%; width: 90px; height: 35px; border-radius: 50%; border-width: 4px; background: #b7f3f19c; animation: tide 1.8s ease-in-out infinite; }
+.stage--reef[data-action=skill] .bubble-effect { left: 38%; top: 28%; width: 24%; height: 55%; border: 4px solid #a7f0e9; border-radius: 48% 48% 42% 42%; background: #b5f3e84a; box-shadow: inset 8px 0 #e5fff690; animation: shell 1.8s ease-in-out infinite; }
+@keyframes tide { 0%, 100% { opacity: 0; transform: translateX(20px) scale(.7); } 35% { opacity: .9; transform: translateX(-100px) scale(1.2); } 75% { opacity: .5; transform: translateX(30px) scale(.65); } }
+@keyframes shell { 0%, 100% { opacity: 0; transform: scale(.8); } 35%, 75% { opacity: .8; transform: scale(1); } }
+.stage--tide-boss[data-action=skill] .bubble-effect { left: 28%; top: 47%; width: 100px; height: 65px; border: 6px solid #dbffff; border-radius: 55% 50% 50% 30%; background: #80dce7b3; animation: tide 1.8s ease-in-out infinite; }
+.stage--earth { background: linear-gradient(#e8dfce 0 60%, #c8b49a 60% 70%, #ded1b5 70%); }
+.stage--earth .horizon { opacity: .3; }
+.stage--earth .islet { background: #ae9b81; border-radius: 22% 50% 0 0; }
+.stage--earth[data-action=skill] .bubble-effect { left: 32%; top: 48%; width: 55px; height: 55px; border: 4px solid #fce3a2; border-radius: 20%; background: #d99c4d99; box-shadow: inset 5px 5px #fff0c680; animation: sand-shard 1.8s ease-in-out infinite; }
+@keyframes sand-shard { 0%, 100% { opacity: 0; transform: translateX(30px) rotate(0) scale(.4); } 40% { opacity: 1; transform: translateX(-80px) rotate(35deg) scale(1); } 80% { opacity: 0; transform: translateX(-135px) rotate(70deg) scale(.6); } }
+.earth--snail[data-action=skill] .bubble-effect { left: 35%; top: 28%; width: 30%; height: 52%; border-radius: 48%; border-color: #f7d6a2; background: #c3905f55; box-shadow: inset 7px 0 #fff5d988; animation: shell 1.8s ease-in-out infinite; }
+.stage--wind { background: linear-gradient(#e4f2f7 0 60%, #d4e5ed 60% 70%, #d8e4d7 70%); }
+.stage--wind .islet { background: #b2c7d1; }
+.stage--wind[data-action=skill] .bubble-effect { left: 30%; top: 45%; width: 72px; height: 72px; border: 5px solid #efffff; border-radius: 50%; border-right-color: transparent; background: transparent; box-shadow: none; animation: wind-ring 1.8s ease-in-out infinite; }
+@keyframes wind-ring { 0%, 100% { opacity: 0; transform: translateX(20px) rotate(0) scale(.5); } 40% { opacity: 1; transform: translateX(-70px) rotate(-180deg) scale(1); } 80% { opacity: 0; transform: translateX(-140px) rotate(-360deg) scale(.6); } }
+.stage--fire { background: linear-gradient(#eee0d7 0 60%, #d9b9a6 60% 70%, #cbb4a2 70%); }
+.stage--fire .islet { background: #bb8e79; border-radius: 20% 60% 0 0; }
+.stage--fire[data-action=skill] .bubble-effect { left: 30%; top: 46%; width: 46px; height: 46px; border: 4px solid #ffe2a0; border-radius: 45% 45% 45% 8%; background: #f2874388; box-shadow: 0 0 18px #ef864880; animation: fire-spark 1.8s ease-in-out infinite; }
+@keyframes fire-spark { 0%, 100% { opacity: 0; transform: translateX(20px) rotate(45deg) scale(.4); } 40% { opacity: 1; transform: translateX(-80px) rotate(60deg) scale(1); } 80% { opacity: 0; transform: translateX(-140px) rotate(90deg) scale(.6); } }
+.stage { background: center / cover no-repeat url('/frontend_react/src/assets/combat/element-preview/battle-tidal-shoal-v1.png'); }
+.stage--earth { background-image: url('/frontend_react/src/assets/combat/element-preview/battle-amber-cave-v1.png'); }
+.stage--wind { background-image: url('/frontend_react/src/assets/combat/element-preview/battle-cloud-highland-v1.png'); }
+.stage--fire { background-image: url('/frontend_react/src/assets/combat/element-preview/battle-ember-volcano-v1.png'); }
+.stage .horizon, .stage .islet { display: none; }

@@ -11,6 +11,7 @@ import {isMeadowMonsterId} from '../animation/meadowPixels/meadowTypes';
 import {elementNotes, elementOrder, statLabels} from '../presentation';
 import {ElementBadge, ElementResistCard} from '../ElementBadge';
 import {equipmentDropCandidates} from './equipmentDropCandidates';
+import {orderMonsters} from './atlasOrdering';
 
 export interface MonsterAtlasViewProps {
     catalog: CombatCatalog;
@@ -36,7 +37,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
 
     const [rankFilter, setRankFilter] = useState<'all' | 'normal' | 'elite' | 'boss'>('all');
     const [search, setSearch] = useState('');
-    const [selectedId, setSelectedId] = useState<string>(initialMonsterId || monsters[0]?.id || '');
+    const [selectedId, setSelectedId] = useState<string>(initialMonsterId || '');
 
     // 统计各 rank 数量
     const rankCounts = useMemo(() => {
@@ -51,7 +52,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
     // 过滤列表
     const visibleMonsters = useMemo(() => {
         const keyword = search.trim().toLowerCase();
-        return monsters.filter(m => {
+        return orderMonsters(monsters, dungeons, dungeonMonsters).filter(m => {
             const matchRank = rankFilter === 'all' || (m.rank || 'normal') === rankFilter;
             const matchSearch =
                 !keyword ||
@@ -59,7 +60,7 @@ export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false,
                 (m.id || '').toLowerCase().includes(keyword);
             return matchRank && matchSearch;
         });
-    }, [monsters, rankFilter, search]);
+    }, [monsters, dungeons, dungeonMonsters, rankFilter, search]);
 
     const selected = visibleMonsters.find(m => m.id === selectedId) || visibleMonsters[0] || null;
     const selectedPixelArt = selected && (isMeadowMonsterId(selected.id) || getMonsterPixelArt(selected.id, includeDraftArt));

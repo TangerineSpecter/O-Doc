@@ -122,7 +122,7 @@ class ReservationTests(TestCase):
         manager=SyncManager()
         source=manager.build_snapshot_data()
         meta=manager.build_snapshot_meta(data_list=source)
-        self.assertEqual(meta['combat_schema_version'],16)
+        self.assertEqual(meta['combat_schema_version'],17)
         for _ in range(2):
             manager.apply_snapshot_data(copy.deepcopy(source),meta)
             self.assertEqual(AdventureReservation.objects.count(),1)

@@ -130,6 +130,9 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
                           if row['action'] == 'list'}:
             raise ValueError('该装备没有待执行的上架决定')
         snapshot = gear.snapshot or {}
+        if gear.retained_for_adventure:
+            gear.retained_for_adventure = False
+            gear.save(update_fields=['retained_for_adventure', 'updated_at'])
         payload = {
             'name': snapshot.get('name', '冒险装备'), 'kind': 'combat_equipment',
             'value': str(gear.value), 'rarity': snapshot.get('rarity', ''),

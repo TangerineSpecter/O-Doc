@@ -19,6 +19,12 @@ def base_stats(template: dict, level: int, quality: str, *, starter: bool = Fals
             stats[{'hp': 'hp_max', 'mp': 'mp_max'}.get(stat, stat)] = value
     if numeric(template, 'evasion'):
         stats['evasion'] = numeric(template, 'evasion')
+    # Elemental mastery is an intrinsic ratio, not a quality-scaled affix.
+    # Old catalog rows have no such field and therefore retain their old value.
+    element = template.get('element') or ''
+    element_power = numeric(template, 'element_power')
+    if element and element_power:
+        stats[f'{element}_power'] = element_power
     return stats
 
 

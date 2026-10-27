@@ -5,6 +5,10 @@ import forestPixel from '../../../assets/combat/battle-mist-forest-pixel-v2.png'
 import ruinsPixel from '../../../assets/combat/battle-sunken-ruins-pixel-v2.png';
 import fortressPixel from '../../../assets/combat/battle-ember-fortress-pixel-v2.png';
 import riftPixel from '../../../assets/combat/battle-star-rift-pixel-v2.png';
+import tidalShoal from '../../../assets/combat/element-preview/battle-tidal-shoal-v1.png';
+import amberCave from '../../../assets/combat/element-preview/battle-amber-cave-v1.png';
+import cloudHighland from '../../../assets/combat/element-preview/battle-cloud-highland-v1.png';
+import emberVolcano from '../../../assets/combat/element-preview/battle-ember-volcano-v1.png';
 
 export interface BattleBackgroundArt {
     id:string;
@@ -18,6 +22,14 @@ export interface BattleBackgroundArt {
 
 /** Shared habitat assets for observation and the atlas; only approved art is shown in the atlas. */
 export const battleBackgroundArt={
+    'dungeon.element.tidal_shoal':{id:'dungeon.element.tidal_shoal',name:'潮汐浅湾',src:tidalShoal,
+        status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},
+    'dungeon.element.earth':{id:'dungeon.element.earth',name:'琥岩地窟',src:amberCave,
+        status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},
+    'dungeon.element.wind':{id:'dungeon.element.wind',name:'浮岚高地',src:cloudHighland,
+        status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},
+    'dungeon.element.fire':{id:'dungeon.element.fire',name:'熔羽火山',src:emberVolcano,
+        status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},
     'dungeon.sprout_meadow':{id:'dungeon.sprout_meadow',name:'新芽草甸',src:sproutMeadowPixel,
         status:'approved',logicalWidth:160,logicalHeight:94,feetRatio:.79},
     'dungeon.moss_cave':{id:'dungeon.moss_cave',name:'苔石洞窟',src:mossCavePixel,

@@ -70,26 +70,29 @@ def validate_input(entry, values: dict, existing=None) -> dict:
         values['validation_result_id'] = fixed.pk
     if existing and getattr(existing,'validation_result_id',None) != validation_id:
         raise Conflict('同一解读不能更换固定验证结果')
-    version = existing.review_version if existing and existing.kind == 'experiment_review' else 15
+    version = existing.review_version if existing and existing.kind == 'experiment_review' else 17
     context = existing.planning_context if existing and existing.kind == 'experiment_review' else None
-    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) and context is None:
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) and context is None:
         from .library_retrieval import retrieve
         from .library_contract import METHOD, METHOD_V2
-        context = retrieve(result, method=METHOD_V2 if version == 15 else METHOD)
-        if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
+        context = retrieve(result, method=METHOD_V2 if version in (15, 16, 17) else METHOD)
+        if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
             from quant.research_memory import freeze
-            context = {**context, 'version': 6 if version in (11, 12, 13, 14, 15) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12, 13, 14, 15) else 2,
+            context = {**context, 'version': 7 if version == 17 else 6 if version in (11, 12, 13, 14, 15, 16, 17) else 5 if version == 10 else 4 if version == 9 else 3 if version in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else 2,
                 'research_memory': freeze(context['options'], str(entry.anthology_id), exclude_result_id=result.pk,
-                                         exclude_validation_id=fixed.pk if fixed else None, version=3 if version in (10, 11, 12, 13, 14, 15) else 2 if version in (7, 8, 9, 10, 11, 12, 13, 14, 15) else 1)}
-        if fixed or version in (10, 11, 12, 13, 14, 15):
+                                         exclude_validation_id=fixed.pk if fixed else None, version=3 if version in (10, 11, 12, 13, 14, 15, 16, 17) else 2 if version in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else 1)}
+        if fixed or version in (10, 11, 12, 13, 14, 15, 16, 17):
             context['fixed_validation'] = {'result_id': fixed.pk, 'result_hash': fixed.content_hash} if fixed else None
-        if version in (10, 11, 12, 13, 14, 15):
+        if version in (10, 11, 12, 13, 14, 15, 16, 17):
             from quant.search_diagnostics.services import reference
             ref=reference(result)
             if ref:context['selection_diagnostic']=ref
-        if version in (11, 12, 13, 14, 15):
+        if version in (11, 12, 13, 14, 15, 16, 17):
             from .planning_capabilities import contract
             context['planning_capabilities'] = contract()
+        if version == 17:
+            from .output_associations import freeze as freeze_associations
+            context['output_associations'] = freeze_associations(result, context['options'])
         # Drop only newly retrieved options if the complete evidence would exceed
         # the model input cap; never truncate original attempts or their failures.
         while True:
@@ -105,9 +108,11 @@ def validate_input(entry, values: dict, existing=None) -> dict:
                     raise
                 context['retrieved'].pop(); context['options'].pop()
                 context['omitted_for_size'] += 1
+                if version == 17:
+                    context['output_associations'] = freeze_associations(result, context['options'], cutoff=context['output_associations']['cutoff'])
     else:
         for_result(result, version, context, fixed)
     values.update(source_version_id=None, target_language='', target_version='', review_version=version)
-    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
+    if version in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         values['planning_context'] = context
     return values

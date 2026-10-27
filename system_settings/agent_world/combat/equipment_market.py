@@ -30,6 +30,8 @@ def preparation_intents(actor_id: str, owner: str | None = None) -> dict[str, Co
             continue
         if fact.kind == 'gear_trade_in':
             intents.pop(identity, None)
+        elif action == 'keep':
+            intents.pop(identity, None)
         elif action in ('sell', 'list'):
             intents[identity] = fact
     return intents
@@ -88,7 +90,8 @@ def transfer_listed_equipment(owner: str, seller, buyer, listing: MarketListing,
 
     snapshot = item.snapshot
     item.actor_id = buyer.pk
-    item.save(update_fields=['actor_id', 'updated_at'])
+    item.retained_for_adventure = False
+    item.save(update_fields=['actor_id', 'retained_for_adventure', 'updated_at'])
     shared = {'equipment_id': item.pk, 'listing_id': listing.pk,
               'transaction_id': transaction_id, 'snapshot': snapshot, 'equipment_rules': item.rules}
     append(seller_profile, transaction_id + ':gear-out', 'gear_trade_out',

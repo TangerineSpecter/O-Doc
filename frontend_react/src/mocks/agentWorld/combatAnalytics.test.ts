@@ -4,6 +4,22 @@ import {combatAnalyticsMock} from './combatAnalytics';
 import {residents,day} from './residents';
 import {resolveLocalRoute} from './routes';
 import type {ResidentAnalytics} from '../../types/api/residentAnalytics';
+import type {CombatCatalog} from '../../types/api/combat';
+
+test('local combat catalog exposes all released elemental dungeons and an actual empty state',async()=>{
+    Object.defineProperty(globalThis,'location',{value:new URL('http://localhost/?mockState=populated'),configurable:true});
+    const request = () => new Request('http://localhost/api/settings/agent-world/combat/catalog/');
+    const data = await resolveLocalRoute(request()) as CombatCatalog;
+    assert.equal(data.version,'combat-1.0.35');
+    assert.deepEqual(data.tables.dungeons.filter(row=>row.id.startsWith('dungeon.element.')).map(row=>row.name),
+        ['潮汐浅湾','琥岩地窟','浮岚高地','熔羽火山']);
+    assert.equal(data.tables.monsters.filter(row=>row.id.startsWith('monster.element.')).length,16);
+    assert.equal(data.tables.equipmentTemplates.find(row=>row.id==='equip.mage_staff.element.water')?.elementPower,'.05');
+    Object.defineProperty(globalThis,'location',{value:new URL('http://localhost/?mockState=empty'),configurable:true});
+    const empty = await resolveLocalRoute(request()) as CombatCatalog;
+    assert.ok(Object.values(empty.tables).every(rows=>rows.length===0));
+    assert.deepEqual(empty.monsterPreviews,[]);
+});
 
 test('shared kills appear for both members while world kills are distinct and details reconcile',()=>{
     const all=combatAnalyticsMock(new URL('http://localhost/'),false);

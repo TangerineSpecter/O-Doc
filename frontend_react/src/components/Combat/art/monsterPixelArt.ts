@@ -25,6 +25,7 @@ import caveCrystalLizard from '../../../assets/combat/monster-cave-crystal-lizar
 import caveBat from '../../../assets/combat/monster-cave-bat-v1.png';
 import mossBeast from '../../../assets/combat/monster-moss-beast-v2.png';
 import mossKing from '../../../assets/combat/monster-moss-king-v1.png';
+import {elementMonsterArt} from './elementMonsterArt';
 
 interface MonsterPixelArt {
     src: string;
@@ -33,6 +34,7 @@ interface MonsterPixelArt {
 
 /** Approved static artwork is shared by atlas thumbnails and details; future drafts remain opt-in. */
 export const monsterPixelArt: Readonly<Record<string, MonsterPixelArt>> = {
+    ...elementMonsterArt,
     'monster.mine_rat': {src: mineRat, status: 'approved'},
     'monster.ore_golem': {src: oreGolem, status: 'approved'},
     'monster.iron_guard': {src: ironGuard, status: 'approved'},

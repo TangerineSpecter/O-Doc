@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type {QuantAIRun, QuantEntryDetail, QuantImplementation} from '../../types/api/quant.ts';
 import type {QuantStageEvidence} from '../../types/api/quantWorkflow.ts';
 import {readLocalReading,readingLocations} from '../../utils/quantLocalReading.ts';
+import {readStageInput} from '../../utils/quantStageInput.ts';
 import {resolveQuantRoute} from './routes.ts';
 import {quantState, resetQuantStateForTests} from './state.ts';
 const storage = new Map<string, string>();
@@ -36,7 +37,7 @@ test('local跨源码研究展示片段复用，保留历史合同与新增有界
     const second = await nextVersion('N=20\ndef factor(x): return x * 3\n');
     const run2 = await invoke<QuantAIRun>(path + 'runs/', 'POST', {kind: 'analyze', sourceId: second.id, resumeRunId: run1.id, requestKey: 'local_incremental_run002'});
     run2.createdAt = '2020-01-01T00:00:00Z'; await invoke(path);
-    assert.equal(run2.workflow?.version, 27); assert.equal(run2.workflow?.stages.length, 11);
+    assert.equal(run2.workflow?.version, 28); assert.equal(run2.workflow?.stages.length, 11);
     assert.equal(run2.workflow?.maxModelCalls, 8); assert.equal(run2.workflow?.maxSeconds, 960);
     const third = await nextVersion('N=20\ndef factor(x): return x * 4\n');
     const run3 = await invoke<QuantAIRun>(path + 'runs/', 'POST', {kind: 'analyze', sourceId: third.id, resumeRunId: run2.id, requestKey: 'local_incremental_run003'});
@@ -44,6 +45,8 @@ test('local跨源码研究展示片段复用，保留历史合同与新增有界
     assert.equal(run3.workflow?.localReading?.reused, 0);
     const evidencePath = path + `runs/${run3.id}/workflow/snippets/`;
     const evidence = await invoke<QuantStageEvidence>(evidencePath);
+    const repairEvidence=await invoke<QuantStageEvidence>(path+`runs/${run3.id}/workflow/repair/`);
+    assert.equal(JSON.parse(repairEvidence.modelInputJson!).material_scope.mode,'complete_source');
     const reading = readLocalReading(evidence.localReadingJson!);
     assert.equal(reading.units.length, 2); assert.equal(reading.units.filter(row => row.reused_from.outcome_id).length, 0);
     assert.match(reading.notice, /人工 local/);
@@ -92,5 +95,19 @@ test('组件依据按各依赖映射引文，拒绝标记行、跨正文与伪�
         (v:typeof value)=>{v.scope='local_text_only_not_runtime_semantics';},
         (v:typeof value)=>{v.units[0].component.mode='whole_source_invalidation';}]) {
         const bad=structuredClone(value);mutate(bad);assert.throws(()=>readLocalReading(JSON.stringify(bad)));
+    }
+});
+
+
+test('阶段实际输入区分完整来源、声明依赖和受阻材料，拒绝伪造范围',()=>{
+    const ready={version:1,status:'ready',prompt_hash:'f'.repeat(64),max_tokens:32000,json_output:true,
+        material_scope:{mode:'provided_declaration_closure',notice:'人工范围样例，未调用模型。',parts:[{name:'main.py::factor',start_line:3,end_line:4}]}};
+    assert.equal(readStageInput(JSON.stringify(ready)).material?.parts?.[0].start_line,3);
+    assert.equal(readStageInput(JSON.stringify({...ready,material_scope:{mode:'complete_source',notice:'未完成依赖解析，保留完整来源。'}})).material?.mode,'complete_source');
+    assert.equal(readStageInput(JSON.stringify({version:1,status:'blocked',reason:'model_context_rejected'})).status,'blocked');
+    for(const mutate of [(v:typeof ready)=>{v.version=2;},(v:typeof ready)=>{v.prompt_hash='fake';},
+        (v:typeof ready)=>{v.material_scope.parts=[];},(v:typeof ready)=>{v.material_scope.parts[0].start_line=0;},
+        (v:typeof ready)=>{v.material_scope.parts[0].end_line=1;},(v:typeof ready)=>{v.material_scope.mode='unknown';}]) {
+        const bad=structuredClone(ready);mutate(bad);assert.throws(()=>readStageInput(JSON.stringify(bad)));
     }
 });

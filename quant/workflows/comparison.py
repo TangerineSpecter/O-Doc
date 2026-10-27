@@ -3,7 +3,7 @@ from quant.factors.expression import expression_hash, expression_hash_without_pa
 
 
 def comparison_hash(factor: dict, version: int) -> str:
-    if version not in (23, 24, 25, 26, 27): return expression_hash(factor)
+    if version not in (23, 24, 25, 26, 27, 28): return expression_hash(factor)
     # Origin is evidence about a declaration, not a computational contract.
     # Keep the persisted candidate hash and historical comparisons untouched.
     return expression_hash_without_parameter_origins(factor)
@@ -52,5 +52,5 @@ def compare(rows: list, scope: dict, factors: list[dict], version=1) -> dict:
         matches.append({'factor_index': index, 'items': options[:5], 'matched_in_scope': len(options)})
     from .memory import uses_history
     import copy
-    return {**({'research_memory':copy.deepcopy(scope['research_memory'])} if uses_history(version) else {}),'method': 'bounded-structure-family-v2' if version in (23, 24, 25, 26, 27) else 'bounded-structure-family-v1', 'scope_limit': 2000, 'scanned': len(rows),
+    return {**({'research_memory':copy.deepcopy(scope['research_memory'])} if uses_history(version) else {}),'method': 'bounded-structure-family-v2' if version in (23, 24, 25, 26, 27, 28) else 'bounded-structure-family-v1', 'scope_limit': 2000, 'scanned': len(rows),
         'truncated': scope['truncated'], 'semantic_status': 'not_requested', 'matches': matches}

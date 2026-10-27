@@ -109,7 +109,7 @@ class ReviewNestedPlanningTests(TestCase):
         self.prepare();self.input['config']=copy.deepcopy(CONFIG)
         request=self.start();execute(request.job.pk)
         run=start_review(request.result,request_key='nested_ai_review_01',model_id=self.model.pk)
-        self.assertEqual(run.review_version,15);self.assertEqual(run.planning_context['version'],6)
+        self.assertEqual(run.review_version,17);self.assertEqual(run.planning_context['version'],7)
         self.assertEqual(run.planning_context['planning_capabilities'],contract())
         evidence=for_run(run)
         self.assertEqual(evidence['planning_capabilities'],contract())

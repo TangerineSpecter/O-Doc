@@ -662,11 +662,11 @@ class PartyServiceTests(TestCase):
         from utils.sync_manager import SyncError
         self.start()
         source=self.data();meta=metadata(source)
-        self.assertEqual(meta['combat_schema_version'],16)
+        self.assertEqual(meta['combat_schema_version'],17)
         with self.assertRaisesMessage(SyncError,'需要战斗同步14'):
             validate_source(source,{**meta,'combat_schema_version':13})
         with self.assertRaisesMessage(SyncError,'版本过新'):
-            validate_source(source,{**meta,'combat_schema_version':17})
+            validate_source(source,{**meta,'combat_schema_version':18})
 
     def test_completed_legacy_party_restores_without_converting_history(self):
         from utils.sync_manager import SyncManager

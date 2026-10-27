@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>泡泡寄居蟹 · 独立预览</title>
+</head>
+<body>
+  <main class="preview">
+    <header><p class="eyebrow">潮汐浅湾 / 魔物形象候选 01</p><h1>泡泡寄居蟹</h1><p>背着贝壳、爱玩泡泡的浅湾居民。</p></header>
+    <div class="layout">
+      <section class="scene" aria-label="泡泡寄居蟹预览舞台">
+        <div class="scene-head"><span>潮汐浅湾 · 普通魔物</span><span id="state">待机</span></div>
+        <div class="stage" id="stage" data-action="idle">
+          <div class="horizon"></div><div class="islet islet-left"></div><div class="islet islet-right"></div>
+          <div class="shadow"></div>
+          <canvas class="crab" id="crab" width="1402" height="1122" role="img" aria-label="青绿色小寄居蟹背着乳白色贝壳，举起钳子托着泡泡"></canvas>
+          <div class="bubble-effect" aria-hidden="true"></div>
+        </div>
+        <div class="scene-foot"><span>水属性 · 15–22 级</span><span>形象与动作已确认</span></div>
+      </section>
+      <aside class="panel">
+        <div class="panel-head"><h2>动作示意</h2><span>点击查看</span></div>
+        <p class="description">预览轮廓、配色和泡泡的角色特征；钳子与腿使用素材分层动作，技能泡泡单独表现。</p>
+        <div class="controls" role="group" aria-label="切换动作">
+          <button type="button" data-action="idle" aria-pressed="true"><strong>待机</strong><small>轻微呼吸</small></button>
+          <button type="button" data-action="move" aria-pressed="false"><strong>移动</strong><small>小步前行</small></button>
+          <button type="button" data-action="attack" aria-pressed="false"><strong>攻击</strong><small>挥钳前探</small></button>
+          <button type="button" data-action="skill" aria-pressed="false"><strong>泡泡撞击</strong><small>泡泡飞出</small></button>
+        </div>
+        <div class="details"><h3>战斗设计</h3><p>泡泡撞击：水属性单体伤害，短暂降低目标物理防御。动画与具体结算独立。</p><p>受击和倒下将沿用项目已确认的共用像素效果。</p></div>
+      </aside>
+    </div>
+    <p class="note">独立预览 · 形象与动作已确认，正式图鉴与战斗使用对应素材。</p>
+  </main>
+  <script type="module" src="/docs/agents/demo/element-shared/elementCrabPreview.ts"></script>
+</body>
+</html>

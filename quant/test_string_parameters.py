@@ -165,7 +165,7 @@ class StringParameterIntegrationTests(TestCase):
         self.assertEqual(attempts[1]['requested_parameters']['mode'], 'reverse')
         self.assertEqual(attempts[1]['status'], 'evaluated')
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 70)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertFalse(ExperimentJob.objects.exists())

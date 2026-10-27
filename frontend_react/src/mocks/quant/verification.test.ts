@@ -8,6 +8,7 @@ import {readQualification, readVerification} from '../../utils/quantVerification
 import {resolveQuantRoute} from './routes.ts';
 import {quantState, resetQuantStateForTests} from './state.ts';
 import {mockQualification} from './qualification.ts';
+import type {QuantGraph} from '../../types/api/quantGraph.ts';
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, 'localStorage', {value: {getItem: (key: string) => storage.get(key) || null,
     setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key),
@@ -24,6 +25,24 @@ async function seed(marker = '') {
     const candidate = (await invoke<{items: QuantFactorCandidate[]}>(base + `factors/?entryId=${entry.id}`)).items[0];
     return {entry, candidate};
 }
+test('图谱中的外部观察绑定当前公式，未分析的反馈没有伪造报告入口',async()=>{
+    const {entry,candidate}=await seed();
+    await invoke(base+`entries/${entry.id}/feedback/`,'POST',{requestKey:'graph_feedback_local_001',title:'人工反面记录',targetSourceId:candidate.sourceId,factorId:candidate.id,
+        mode:'live',documentFormat:'text',document:'人工样例，尚未核实的亏损记录',analyze:false});
+    const graph=await invoke<QuantGraph>(base+`graph/?candidateId=${candidate.id}`);
+    const node=graph.nodes.find(row=>row.kind==='feedback')!;
+    assert.equal(node.label,'人工反面记录');assert.equal(node.evidence?.candidateHash,candidate.contentHash);
+    assert.equal(node.reportId,'');assert.ok(node.evidence?.targetId);
+    const edge=graph.edges.find(row=>row.to===node.id)!;
+    assert.equal(edge.kind,'direct_observation');assert.equal(edge.similarity,null);assert.match(edge.detail,/不代表支持/);
+    assert.ok(!graph.edges.some(row=>row.kind==='direct_observation'&&row.from!==`factor:${candidate.id}`));
+    const source=quantState().entries.find(row=>row.id===entry.id)!.sources!.find(row=>row.id===node.evidence!.targetId)!;
+    source.payload.feedbackVersion=4; // Explicit artificial document, not another external observation.
+    const nativeGraph=await invoke<QuantGraph>(base+`graph/?candidateId=${candidate.id}`);
+    assert.equal(nativeGraph.edges.find(row=>row.to===node.id)!.label,'同一次原函数验证的解读材料');
+    const nativeProof=await invoke<QuantVerification>(base+`factors/${candidate.id}/verification/`);
+    assert.deepEqual(nativeProof.levels,[]);
+});
 test('local 自动结构检查、限定证据、失败尝试与人工新公式独立，解码不授予平台或独立验证', async () => {
     const {entry, candidate} = await seed();
     const path = (id: string) => base + `factors/${id}/verification/`;
@@ -72,7 +91,7 @@ test('旧样例显式归集保持幂等、筛选可复用层；错误与空数�
     assert.equal((await invoke<QuantVerification>(path)).reuseStatus, 'unchecked');
     assert.equal(quantState().verificationIndexed[candidate.id], undefined);
     const before = quantState().entries.find(row => row.id === entry.id)!.runs.length;
-    for (const kind of ['experiment', 'comparison', 'feedback']) {
+    for (const kind of ['experiment', 'comparison', 'feedback','fixed_validation','native_python']) {
         const result = await invoke<VerificationIndexProgress>(path, 'POST', {kind, offset: 0, limit: 1});
         assert.equal(result.hasMore, false);
     }

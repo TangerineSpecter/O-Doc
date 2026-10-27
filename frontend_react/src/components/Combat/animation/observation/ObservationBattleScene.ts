@@ -14,10 +14,13 @@ import type {AtlasSkillProfile} from '../skillPreview/atlasSkillProfiles';
 import {drawPlayerMagicBolt} from '../playerRouteEffects';
 import {ObservationMonsterActor} from './ObservationMonsterActor';
 import {drawMeadowAttack} from '../meadowPixels/meadowAttack';
+import {drawElementSkill} from '../elementPixels/elementSkillVisuals';
+import type {ElementSkillVisual} from '../elementPixels/elementSkillVisuals';
+import {elementEquipmentArt} from '../../art/elementEquipmentArt';
 import {chooseObservationAttack,clampObservation as clamp,observationRecoil,observationSwing} from './observationPresentation';
 import type {ObservationVisual} from './observationPresentation';
 
-interface VisualTurn {caveSkill?:CaveSkill;side:'player'|'enemy';skill?:AtlasSkillProfile;start:number;duration:number;impact:number;damage:number;ranged:boolean;hit:boolean}
+interface VisualTurn {caveSkill?:CaveSkill;elementSkill?:ElementSkillVisual;side:'player'|'enemy';skill?:AtlasSkillProfile;start:number;duration:number;impact:number;damage:number;ranged:boolean;hit:boolean}
 interface FloatingValue {start:number;text:string;target:'player'|'enemy';color:number}
 
 /** Local alternating choreography. Only snapshot transitions can confirm defeat. */
@@ -110,7 +113,8 @@ export class ObservationBattleScene {
     }
     setPaused(paused:boolean){this.paused=paused;this.draw();if(this.initialized&&!this.disposed)this.app.render();this.sync();}
     private configureHero() {
-        const weapon=independentWeapons.some(item=>item.id===this.visual.weaponId)?this.visual.weaponId:'none';
+        const baseWeapon=elementEquipmentArt(this.visual.weaponId).baseId;
+        const weapon=independentWeapons.some(item=>item.id===baseWeapon)?baseWeapon:'none';
         this.hero!.configure({outfit:this.visual.jobId,weapon,aura:getProfessionAura(this.visual.jobId),showBody:true,
             showOutfit:true,showWeapon:weapon!=='none',showRear:true,showGround:true,backdrop:'plain',paused:this.paused});
         if(this.visual.headImageUrl!==this.previousHeadUrl){
@@ -159,7 +163,9 @@ export class ObservationBattleScene {
             const skill=this.nextSide==='player'?chooseObservationAttack(this.visual):undefined;
             const choices=this.monster.caveProfile?.skills;
             const caveSkill=this.nextSide==='enemy'&&choices?.length&&Math.random()<.55?choices[Math.floor(Math.random()*choices.length)]:undefined;
-            this.turn={side:this.nextSide,skill,caveSkill,start:this.ambient,duration:caveSkill?caveDurations[caveSkill]:skill?.duration??1.7,impact:caveSkill?caveSkillImpact[caveSkill]:skill?.impact??(this.monster.pixelProfile?.ranged ? .9 : .65),
+            const elementSkills=this.monster.elementSkills;
+            const elementSkill=this.nextSide==='enemy'&&elementSkills.length>0&&Math.random()<.55?elementSkills[Math.floor(Math.random()*elementSkills.length)]:undefined;
+            this.turn={side:this.nextSide,skill,caveSkill,elementSkill,start:this.ambient,duration:caveSkill?caveDurations[caveSkill]:skill?.duration??1.7,impact:caveSkill?caveSkillImpact[caveSkill]:skill?.impact??(this.monster.pixelProfile?.ranged ? .9 : .65),
                 damage:6+Math.floor(Math.random()*13),ranged:!skill&&this.monster.ranged,hit:false};
             this.nextSide=this.nextSide==='player'?'enemy':'player';
         }
@@ -167,10 +173,10 @@ export class ObservationBattleScene {
         const age=this.ambient-turn.start;
         if(!turn.hit&&age>=turn.impact){
             turn.hit=true;
-            const defensive=turn.caveSkill==='guard'||turn.caveSkill==='evasion';
+            const defensive=turn.caveSkill==='guard'||turn.caveSkill==='evasion'||turn.elementSkill?.defensive;
             const target=turn.side==='player'?'enemy':'player';
             if(!defensive){if(target==='enemy')this.enemyHit=this.ambient;else this.heroHit=this.ambient;}
-            this.floating=defensive?{start:this.ambient,target:'enemy',text:caveSkillLabels[turn.caveSkill!],color:0xcbe8b1}:{start:this.ambient,target,text:`−${turn.damage}`,color:target==='enemy'?0xfff3c9:0xffd2cc};
+            this.floating=defensive?{start:this.ambient,target:'enemy',text:turn.elementSkill?.name??caveSkillLabels[turn.caveSkill!],color:0xcbe8b1}:{start:this.ambient,target,text:`−${turn.damage}`,color:target==='enemy'?0xfff3c9:0xffd2cc};
         }
         if(age>=turn.duration){this.turn=undefined;this.nextTurnAt=this.ambient+.55;}
     }
@@ -182,7 +188,7 @@ export class ObservationBattleScene {
         const defeatAge=this.defeatStarted===undefined?undefined:this.ambient-this.defeatStarted;
         const heroLunge=skill&&(skill.motion==='slash'||skill.motion==='dash')
             ?Math.sin(Math.PI*clamp((age-skill.release+.2)/.95))*Math.min(205,(this.targetX-this.sourceX)-125):0;
-        const enemyLunge=turn?.side==='enemy'&&!turn.ranged&&!turn.caveSkill?Math.sin(Math.PI*clamp((age-.18)/1.15))*Math.min(220,(this.targetX-this.sourceX)-115):0;
+        const enemyLunge=turn?.side==='enemy'&&!turn.ranged&&!turn.caveSkill&&!turn.elementSkill?Math.sin(Math.PI*clamp((age-.18)/1.15))*Math.min(220,(this.targetX-this.sourceX)-115):0;
         const hx=this.sourceX+heroLunge-observationRecoil(heroHit),ex=this.targetX-enemyLunge+observationRecoil(enemyHit);
         this.hero.position.set(hx,0);this.hero.update(this.ambient,skill?-.025:0,heroLunge?5:0);
         this.hero.setWeaponSwing(skill?observationSwing(skill,age):0);
@@ -206,7 +212,8 @@ export class ObservationBattleScene {
             this.effects.draw(skill,age,anchors);
         } else this.effects.clear();
         if(turn?.side==='enemy'&&this.monster&&defeatAge===undefined&&!turn.caveSkill){
-            if(this.monster.pixelProfile)drawMeadowAttack(this.enemyEffect,this.monster.pixelProfile,age,ex,hx);
+            if(turn.elementSkill)drawElementSkill(this.enemyEffect,turn.elementSkill,age,ex,hx);
+            else if(this.monster.pixelProfile)drawMeadowAttack(this.enemyEffect,this.monster.pixelProfile,age,ex,hx);
             else this.drawEnemyAttack(age,turn.ranged,ex,hx);
         }
         const floatAge=this.floating?this.ambient-this.floating.start:Infinity;
@@ -214,7 +221,7 @@ export class ObservationBattleScene {
         if(this.floating&&floatAge<.9){this.damage.text=this.floating.text;this.damage.tint=this.floating.color;
             this.damage.position.set(this.floating.target==='player'?hx:ex,-155-floatAge*40);this.damage.alpha=1-clamp((floatAge-.4)/.5);}
         const phase=defeatAge!==undefined?(this.monster?.keepsDebris?'击败 · 像素粉碎':'击败 · 碎片消散'):!this.visual.hasPlayer?'准备出发':!this.visual.hasEnemy?(this.visual.searching?'寻找下一只魔物':'休整')
-            :!this.monster?(this.pendingKey?'加载魔物形象':'形象尚未登记'):!this.visual.fighting?'休整':turn?.side==='enemy'?(turn.caveSkill?caveSkillLabels[turn.caveSkill]:'魔物攻击'):skill?.name??'待机';
+            :!this.monster?(this.pendingKey?'加载魔物形象':'形象尚未登记'):!this.visual.fighting?'休整':turn?.side==='enemy'?(turn.elementSkill?.name??(turn.caveSkill?caveSkillLabels[turn.caveSkill]:'魔物攻击')):skill?.name??'待机';
         if(phase!==this.phase){this.phase=phase;this.onPhase(phase);}
     }
     private drawEnemyAttack(age:number,ranged:boolean,enemyX:number,heroX:number) {

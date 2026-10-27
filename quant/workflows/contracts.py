@@ -11,22 +11,22 @@ from quant.experiments.planning_capabilities import contract as planning_capabil
 VERSION = 25
 STAGES = ('normalize', 'identify', 'parameters', 'research', 'extract', 'compare', 'review', 'plan', 'publish')
 NAMES = dict(zip(STAGES, ('整理来源', '识别资料', '参数与静态检查', '研究分析', '提取因子', '检索比对', '评价与审查', '设计实验', '发布报告')))
-INCREMENTAL_VERSION = 27
+INCREMENTAL_VERSION = 28
 NAMES['snippets'] = '片段静态解读'
 NAMES['repair'] = '修订候选定义'
 MODEL_STAGES = {'snippets', 'identify', 'parameters', 'research', 'extract', 'repair', 'review', 'plan'}
 
 
 def uses_snippets(version: int) -> bool:
-    return type(version) is int and version in (3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27)
+    return type(version) is int and version in (3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28)
 
 
 def uses_vocabulary(version: int) -> bool:
-    return type(version) is int and version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27)
+    return type(version) is int and version in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28)
 
 
 def uses_repairs(version: int) -> bool:
-    return type(version) is int and version in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27)
+    return type(version) is int and version in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28)
 
 
 def stages(version: int) -> tuple:
@@ -83,14 +83,14 @@ def normalized(source_id: str, payload: dict, version: int = 1, vocabulary_ref=N
         'source_status': payload.get('fetch_status', 'not_applicable')}
     if version >= 2:
         from quant.source_structure import analyze
-        if version in (19, 20, 21, 22, 23, 24, 25, 26, 27):
+        if version in (19, 20, 21, 22, 23, 24, 25, 26, 27, 28):
             from quant.source_changes.python_bundle import analyze_source
             result['structure'] = analyze_source(payload)
         else:
             result['structure'] = analyze(payload)
-    if version in (21, 22, 23, 24, 25, 26, 27):
+    if version in (21, 22, 23, 24, 25, 26, 27, 28):
         from quant.parameters.inventory import build
-        result['parameter_inventory'] = build(payload, 2 if version in (25, 26, 27) else 1)
+        result['parameter_inventory'] = build(payload, 2 if version in (25, 26, 27, 28) else 1)
     if uses_vocabulary(version):
         from quant.taxonomy.contracts import validate_ref
         result['vocabulary_ref'] = validate_ref(vocabulary_ref)
@@ -99,7 +99,7 @@ def normalized(source_id: str, payload: dict, version: int = 1, vocabulary_ref=N
 
 def input_snapshot(stage: str, source_id: str, payload: dict, requirements: str,
                    model: dict, outputs: dict, library: dict | None = None, version: int = 1,
-                   snippet_plan: dict | None = None, vocabulary_ref=None) -> dict:
+                   snippet_plan: dict | None = None, vocabulary_ref=None, model_input=None) -> dict:
     # Store immutable source and dependency references, not six copies of code.
     return {'version': version, 'stage': stage, 'source_id': source_id, 'source_hash': digest(payload),
         'requirements': requirements if stage in MODEL_STAGES else '', 'model': model if stage in MODEL_STAGES else {},
@@ -108,8 +108,9 @@ def input_snapshot(stage: str, source_id: str, payload: dict, requirements: str,
         **({'local_context_hash': digest(snippet_plan)} if uses_snippets(version) and stage in MODEL_STAGES - {'snippets'} else {}),
         **({'vocabulary_ref': vocabulary_ref} if stage == 'normalize' and uses_vocabulary(version) else {}),
         **({'snippet_plan': snippet_plan} if stage == 'snippets' else {}),
+        **({'model_input': model_input} if version == 28 and stage in MODEL_STAGES - {'snippets'} else {}),
         **({'planning_capabilities': planning_capabilities()}
-            if version in (16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27) and stage == 'plan' else {})}
+            if version in (16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28) and stage == 'plan' else {})}
 
 
 def combined(outputs: dict) -> dict:
@@ -140,10 +141,14 @@ def validate_output(stage: str, value: dict, outputs: dict, payload: dict, versi
                     snippet_plan: dict | None = None) -> dict:
     if stage == 'repair':
         from quant.repairs.contracts import validate
-        if version in (21, 22, 23, 24, 25, 26, 27):
+        if version in (21, 22, 23, 24, 25, 26, 27, 28):
             from quant.parameters.bindings import repair_origins
             value = repair_origins(value, outputs['extract']['factors'], digest(payload))
-        return validate(value, outputs['extract']['factors'], payload)
+        result = validate(value, outputs['extract']['factors'], payload)
+        if version == 28:
+            from .repair_material import validate_evidence
+            validate_evidence(result, payload, outputs, snippet_plan)
+        return result
     if stage in FIELDS:
         contract = serializers.Serializer()
         fields = Analysis().fields
@@ -152,7 +157,7 @@ def validate_output(stage: str, value: dict, outputs: dict, payload: dict, versi
         # Field-level validation is followed by the owning cross-field checks.
         result = contract.run_validation(value)
         if stage == 'parameters':
-            if version in (21, 22, 23, 24, 25, 26, 27):
+            if version in (21, 22, 23, 24, 25, 26, 27, 28):
                 from quant.parameters.bindings import bind
                 from quant.parameters.inventory import encode
                 inventory = outputs['normalize']['parameter_inventory']
@@ -167,13 +172,13 @@ def validate_output(stage: str, value: dict, outputs: dict, payload: dict, versi
             if uses_history(version): result.update(memory_review(value,outputs))
             from quant.research.findings import VERSIONS, from_review
             if version in VERSIONS: result.update(from_review(value, payload))
-            if version in (18, 20, 22, 24, 26, 27):
+            if version in (18, 20, 22, 24, 26, 27, 28):
                 from quant.source_changes.review import from_review as changes_review
                 result.update(changes_review(value, payload, snippet_plan))
         return dict(result)
     if stage == 'extract':
         from quant.factors.contracts import validate_extraction, validate_evidence
-        if version in (21, 22, 23, 24, 25, 26, 27):
+        if version in (21, 22, 23, 24, 25, 26, 27, 28):
             from quant.parameters.bindings import propagate
             # Bind before candidate validation so domains and expressions see
             # only canonical symbols, including explicit ambiguous declarations.

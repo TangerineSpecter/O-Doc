@@ -1,4 +1,5 @@
 import {mockHistoryMarkdown} from './searchHistory';
+import {mockAssociationMarkdown} from './outputAssociations';
 import type {QuantExperimentAnalysis, QuantAIRun, QuantReport} from '../../types/api/quant';
 import {mockWindowMarkdown} from './windowReview';
 import {quantId} from './state';
@@ -23,6 +24,7 @@ export function mockExperimentReport(run: QuantAIRun): QuantReport {
     const proposalMarkdown = data.proposal ? `\n\n## 下一轮可执行方案\n\n${data.planningNote}\n\n${data.proposal.hypothesis}\n\n否证条件：${data.proposal.falsification}\n\n行情要求：${data.proposal.dataRequirement}` : '';
     const selection=data.selectionReview?`\n\n## 搜索选择与过拟合风险\n\n${data.selectionReview.text}\n\n证据：selection_diagnostic`:'';
     const temporal=data.temporalParameterReview?`\n\n## 跨窗口参数复核\n\n计划${data.temporalParameterReview.plannedWindows}个内层窗口 · ${{sampled_region:'存在待复核共同离散区域',no_supported_region:'没有共同支持区域',insufficient_comparison:'完整跨窗口对照不足'}[data.temporalParameterReview.status]}\n\n${data.temporalParameterReview.text}\n\n证据：temporal_parameter_stability`:'';
+    const combination = data.combinationReviews ? '\n\n## 组合与直接父代的增量对照\n\n' + (data.combinationReviews.length ? data.combinationReviews.map(row => `${row.text}\n\n证据：${row.evidenceRef}`).join('\n\n') : '本轮没有已记录双父代组合，组合价值未知。') : '';
     return {id: quantId('report'), sourceId: run.sourceId || '', runId: run.id, schemaVersion: 4, data,
-        markdown: markdown + temporal + mockWindowMarkdown(data) + selection + mockHistoryMarkdown(data.selectionReview?.searchHistoryFacts) + proposalMarkdown + mockMemoryMarkdown(run), originalMarkdown: markdown + temporal + mockWindowMarkdown(data) + selection + mockHistoryMarkdown(data.selectionReview?.searchHistoryFacts) + proposalMarkdown + mockMemoryMarkdown(run), currentRevisionId: '', revisions: [], createdAt: new Date().toISOString()};
+        markdown: markdown + temporal + combination + mockAssociationMarkdown(run, data) + mockWindowMarkdown(data) + selection + mockHistoryMarkdown(data.selectionReview?.searchHistoryFacts) + proposalMarkdown + mockMemoryMarkdown(run), originalMarkdown: markdown + temporal + combination + mockAssociationMarkdown(run, data) + mockWindowMarkdown(data) + selection + mockHistoryMarkdown(data.selectionReview?.searchHistoryFacts) + proposalMarkdown + mockMemoryMarkdown(run), currentRevisionId: '', revisions: [], createdAt: new Date().toISOString()};
 }

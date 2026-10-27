@@ -9,6 +9,10 @@ import type {CombatSnapshot} from '../types/api/combat';
 type PreviewBackgroundId=BattleBackgroundId;
 const previewBackgrounds=Object.values(battleBackgroundArt);
 const encounters:Record<PreviewBackgroundId,{id:string;name:string}[]>={
+    'dungeon.element.tidal_shoal':[{id:'monster.element.water.bubble_crab',name:'泡泡寄居蟹'},{id:'monster.element.water.little_spirit',name:'小潮水灵'},{id:'monster.element.water.reef_guard',name:'礁壳守卫'},{id:'monster.element.water.tide_crown',name:'潮冠海兽'}],
+    'dungeon.element.earth':[{id:'monster.element.earth.mole',name:'砂晶鼹鼠'},{id:'monster.element.earth.snail',name:'岩芽蜗牛'},{id:'monster.element.earth.armored',name:'琥岩甲兽'},{id:'monster.element.earth.dragon',name:'晶脊地龙'}],
+    'dungeon.element.wind':[{id:'monster.element.wind.cloudbird',name:'云绒鸟'},{id:'monster.element.wind.bell',name:'风铃精'},{id:'monster.element.wind.falcon',name:'岚羽猎隼'},{id:'monster.element.wind.griffin',name:'云冠风鹫'}],
+    'dungeon.element.fire':[{id:'monster.element.fire.lizard',name:'火绒蜥'},{id:'monster.element.fire.turtle',name:'炭壳龟'},{id:'monster.element.fire.horn',name:'熔角兽'},{id:'monster.element.fire.firebird',name:'焰羽炎鸟'}],
     'dungeon.moss_cave':[{id:'monster.moss_beast',name:'苔石兽'},{id:'monster.cave_bat',name:'洞穴蝙蝠'},{id:'monster.moss_king',name:'苔冠巨兽'},{id:'monster.cave_crystal_lizard',name:'洞穴晶蜥'}],
     'dungeon.abandoned_mine':[{id:'monster.ore_golem',name:'矿石傀儡'},{id:'monster.iron_guard',name:'铁甲矿卫'}],
     'dungeon.mist_forest':[{id:'monster.mist_wolf',name:'迷雾狼'},{id:'monster.mist_treant',name:'迷雾树王'}],
@@ -25,6 +29,8 @@ const roles=[
     {id:'job.mage',name:'法师',weapon:'equip.mage_staff',skills:['skill.player.004','skill.player.005']},
     {id:'job.pyromancer',name:'炎术师',weapon:'equip.staff',skills:['skill.player.004','skill.player.005','skill.player.017','skill.player.037']},
 ];
+const previewBosses=new Set(['monster.moss_king','monster.element.water.tide_crown','monster.element.earth.dragon','monster.element.wind.griffin','monster.element.fire.firebird']);
+const previewElites=new Set(['monster.moss_beast','monster.element.water.reef_guard','monster.element.earth.armored','monster.element.wind.falcon','monster.element.fire.horn']);
 
 /** Fixture-only review route; the exact stage and HUD are shared with CombatObservation. */
 export default function CombatObservationPreviewApp() {
@@ -35,7 +41,7 @@ export default function CombatObservationPreviewApp() {
         status:fallen?'fallen':'active',stage:fallen?'done':defeated?'searching':'battle',reason:fallen?'角色倒地，本次探索已结束；战报和掉落记录仍可查看。':'',elapsedSeconds:60,durationSeconds:1800,nextTickAt:null,
         visual:{dungeonId:map,jobId:job,weaponId:role.weapon,monsterId:defeated?'':enemy.id,encounterId:`preview:${encounter}`},
         player:{name:'猫猫',level:10,hp:fallen?0:81,mp:62,stats:{hpMax:104,mpMax:62},states:[],skills:Object.fromEntries(role.skills.map(id=>[id,1]))},
-        enemy:defeated?null:{name:enemy.name,level:8,hp:559,mp:76,rank:enemy.id==='monster.moss_beast'?'elite':enemy.id==='monster.moss_king'?'boss':'normal',stats:{hpMax:604,mpMax:84},states:[]},
+        enemy:defeated?null:{name:enemy.name,level:8,hp:559,mp:76,rank:previewBosses.has(enemy.id)?'boss':previewElites.has(enemy.id)?'elite':'normal',stats:{hpMax:604,mpMax:84},states:[]},
         potions:{'potion.hp':3},result:{kills,energy:12,experience:28,rewards:observationPreviewRewards,report:fallen?'猫猫探索1分钟，击败2只怪物，获得28经验。角色倒地，本次探索结束。':''},events:[],latestCursor:0,nextCursor:0,hasMore:false};
     const changeMap=(id:PreviewBackgroundId)=>{setMap(id);setIndex(0);setDefeated(false);setEncounter(value=>value+1);};
     return <main className="mx-auto max-w-6xl space-y-4 px-4 py-7 text-slate-800 sm:px-6">

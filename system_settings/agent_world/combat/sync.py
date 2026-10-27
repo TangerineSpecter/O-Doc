@@ -21,7 +21,7 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>16:
+    if meta and meta.get('combat_schema_version',0)>17:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     if meta is not None and meta.get('combat_schema_version', 0) < 15 and any(row['model'] in (LABEL+'adventureplanningday', LABEL+'adventurereservation') for row in data):
         raise SyncError('组队探索预约需要战斗同步15')
@@ -38,6 +38,14 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from .elixir_sync import validate_source as validate_elixirs
     validate_elixirs(data, meta, require_manifest=bool(meta and meta.get('combat_schema_version', 0) >= 9))
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
+    for (model, _), row in rows.items():
+        if model != GEAR:
+            continue
+        retained = row.get('retained_for_adventure', False)
+        if type(retained) is not bool:
+            raise SyncError('备用装备状态无效')
+        if retained and (not meta or meta.get('combat_schema_version', 0) < 17):
+            raise SyncError('备用装备需要战斗同步17')
     profiles={pk:r for (model,pk),r in rows.items() if model==PROFILE}
     if meta and meta.get('combat_actors') is not None and set(meta['combat_actors'])!=set(profiles):raise SyncError('战斗快照缺少居民业务数据')
     chains={pk:r for (model,pk),r in rows.items() if model==CHAIN}
@@ -95,6 +103,11 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             validate_progression(progression)
             expected_gear = {identity: deepcopy(value['snapshot']) for identity, value in baseline['equipment'].items()}
             expected_rules = {identity: deepcopy(value['rules']) for identity, value in baseline['equipment'].items()}
+            expected_retained = {identity for identity, value in baseline['equipment'].items()
+                                 if value.get('retained_for_adventure') is True}
+            if any(type(value.get('retained_for_adventure', False)) is not bool
+                   for value in baseline['equipment'].values()):
+                raise ValueError('备用装备检查点无效')
             for identity in expected_gear:
                 validate_gear(expected_gear[identity], expected_rules[identity])
             if any(not key.startswith('combat.') or type(value) is not int or value < 0 for key, value in baseline['stock'].items()):
@@ -179,6 +192,8 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                 trade=rows.get((MARKET_TRADE,payload['transaction_id']))
                 if not trade or trade['actor_id']!=actor or trade['owner_id']!=profile['owner_id'] or trade['operation']!=payload['arguments'] or trade['result']!=payload['result']:raise SyncError('战斗交易缺少真实成交来源')
                 op=trade['operation']
+                if op['kind'] in ('list_combat_equipment', 'sell_combat_equipment'):
+                    expected_retained.discard(op.get('equipment_id'))
                 if op['kind']=='list_combat_equipment':
                     listing=rows.get((LISTING,payload['result'].get('listing_id')))
                     equipment_id=op.get('equipment_id')
@@ -192,9 +207,17 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             elif kind=='gear_prepare':
                 equipment_id=payload.get('equipment_id')
                 if (not isinstance(equipment_id,str) or equipment_id not in expected_gear
-                        or payload.get('action') not in ('replace','sell','list')
+                        or payload.get('action') not in ('replace','sell','list','keep','defer')
                         or not isinstance(payload.get('decision_source'),str)):
                     raise SyncError('探索装备决定缺少装备来源')
+                if payload['action'] == 'keep':
+                    if not meta or meta.get('combat_schema_version', 0) < 17 or expected_gear[equipment_id].get('slot') != 'weapon':
+                        raise SyncError('备用装备决定无效')
+                    expected_retained.add(equipment_id)
+                elif payload['action'] == 'defer' and (not meta or meta.get('combat_schema_version', 0) < 17):
+                    raise SyncError('装备延后决定需要战斗同步17')
+                elif payload['action'] in ('sell', 'list'):
+                    expected_retained.discard(equipment_id)
             elif kind in ('gear_trade_out','gear_trade_in'):
                 equipment_id=payload.get('equipment_id')
                 trade=rows.get((MARKET_TRADE,payload.get('transaction_id')))
@@ -215,6 +238,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                         raise SyncError('冒险装备卖方转移事实无效')
                     expected_gear.pop(equipment_id)
                     expected_rules.pop(equipment_id)
+                    expected_retained.discard(equipment_id)
                 else:
                     if (actor!=trade['actor_id'] or trade['result'].get('seller_id')!=payload.get('seller_id')
                             or listing['seller_id']!=payload.get('seller_id')
@@ -223,12 +247,17 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                         raise SyncError('冒险装备买方转移事实无效')
                     expected_gear[equipment_id]=deepcopy(payload['snapshot'])
                     expected_rules[equipment_id]=deepcopy(payload.get('equipment_rules'))
+                    expected_retained.discard(equipment_id)
                     validate_gear(expected_gear[equipment_id], expected_rules[equipment_id])
         if chain['head']!=base+len(ordered) or chain['digest']!=previous or progression!=profile['progression']:raise SyncError('战斗成长或事实链终点不一致')
         equipment=[r for (m,_),r in rows.items() if m==GEAR and r['actor_id']==actor]
         if {r['id'] for r in equipment}!=set(expected_gear):raise SyncError('装备缺少掉落或绑定来源')
         for item in equipment:
             if item['owner_id']!=profile['owner_id'] or expected_gear[item['id']]!=item['snapshot'] or expected_rules[item['id']]!=item.get('rules'):raise SyncError('装备来源或属性不一致')
+            if item.get('retained_for_adventure', False) != (item['id'] in expected_retained):
+                raise SyncError('备用装备状态与居民决定不一致')
+            if item.get('retained_for_adventure') and (item['sold'] or item['snapshot'].get('slot') != 'weapon'):
+                raise SyncError('备用装备已出售或不是武器')
         loadout=profile['loadout']
         valid_slots={'weapon','offhand','head','body','hands','feet','accessory','ring_1','ring_2'}
         if not isinstance(loadout,dict) or any(slot not in valid_slots for slot in loadout):
@@ -394,5 +423,5 @@ def metadata(data=None):
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
     # 12: forge receipts establish equipment provenance and consume maze materials.
-    return {'combat_schema_version':16,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+    return {'combat_schema_version':17,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

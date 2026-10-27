@@ -31,6 +31,7 @@ import type {
 const base = (collection: string) => `/quant/${encodeURIComponent(collection)}/`;
 const entry = (collection: string, id: string) => `${base(collection)}entries/${encodeURIComponent(id)}/`;
 export const quantApi = {
+    correlateComparison: (collection:string,id:string,signal?:AbortSignal) => request.post<never,import('../types/api/quantComparison').QuantCorrelation>(`${base(collection)}comparisons/${encodeURIComponent(id)}/correlation/`,undefined,{signal,timeout:25000}),
     supplementSource: (collection: string, id: string, sourceId: string, data: import('../types/api/quantSourceSupplement').QuantSourceSupplementInput) =>
         request.post<never, import('../types/api/quantSourceSupplement').QuantSourceSupplementResult>(`${entry(collection,id)}sources/${encodeURIComponent(sourceId)}/supplements/`,data),
     sourceImpact: (collection: string, id: string, sourceId: string, reportId: string, signal?: AbortSignal) =>

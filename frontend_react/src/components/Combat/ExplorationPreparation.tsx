@@ -4,6 +4,7 @@ import {useState} from 'react';
 import {Select} from '../common/Select';
 import type {CombatCatalog, CombatProfile} from '../../types/api/combat';
 import {AlertCircle, Compass, FlaskConical, Flame, ShieldAlert, Sparkles} from 'lucide-react';
+import {dungeonElementSummary, preparationWeapons} from './preparationElementSummary';
 
 export default function ExplorationPreparation({
     catalog,
@@ -32,6 +33,8 @@ export default function ExplorationPreparation({
 
     const energyCost = 10 + 2 * Math.ceil((party?.durationSeconds??Number(duration)) / 300);
     const isExploring = Boolean(profile.activeExplorationId);
+    const elementSummary = dungeonElementSummary(catalog, party?.dungeonId || dungeon);
+    const weapons = preparationWeapons(profile);
 
     return (
         <section className="relative rounded-2xl border border-orange-200/80 bg-white p-4 sm:p-5 shadow-xl shadow-slate-900/15">
@@ -95,6 +98,13 @@ export default function ExplorationPreparation({
                             .map(row => ({value: row.id, label: row.name || row.id}))}
                     />
                 </div>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-xs text-slate-600 space-y-1">
+                {elementSummary && <p>{elementSummary}</p>}
+                <p>当前武器：{weapons.equipped}</p>
+                {weapons.backups.length > 0 && <p>备用武器：{weapons.backups.join('、')}</p>}
+                <p className="text-slate-500">居民会结合地点、装备和自身条件决定是否换装。</p>
             </div>
 
             {/* 战术与消耗详情 */}

@@ -57,6 +57,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
     const [initialExperiment, setInitialExperiment] = useState<string>();
     const [initialComparison, setInitialComparison] = useState<string>();
     const [graph, setGraph] = useState<string | null>(null);
+    const [lastGraphFocus, setLastGraphFocus] = useState('');
     const [sourceReport, setSourceReport] = useState('');
     const [creating, setCreating] = useState(false);
     const [batches, setBatches] = useState(false);
@@ -111,7 +112,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                 <QuantButton primary={library} onClick={() => guard.request(() => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(undefined); setLibrary(value => !value);})}>
                     <FlaskConical size={15} />因子候选库
                 </QuantButton>
-                <QuantButton primary={graph !== null} onClick={() => guard.request(() => {setLibrary(false); setGraph('');})}>关系图谱</QuantButton>
+                <QuantButton primary={graph !== null} onClick={() => guard.request(() => {setLibrary(false); setGraph(lastGraphFocus);})}>关系图谱</QuantButton>
                 <QuantButton
                     aria-label="刷新量化研究"
                     disabled={controller.busy || controller.loading}
@@ -176,10 +177,10 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                             </span>
                         </div>
                     )}
-                    {graph !== null ? <FactorGraph key={graph} collection={collection} initialFocus={graph} openComparison={id => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(id); setLibrary(true);}} close={() => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(undefined); setLibrary(true);}} openSource={node => {
+                    {graph !== null ? <FactorGraph key={graph} collection={collection} initialFocus={graph} onFocusChange={setLastGraphFocus} openExperiment={id => {setGraph(null); setInitialComparison(undefined); setInitialExperiment(id); setLibrary(true);}} openComparison={id => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(id); setLibrary(true);}} close={() => {setGraph(null); setInitialExperiment(undefined); setInitialComparison(undefined); setLibrary(true);}} openSource={node => {
                         setGraph(null); setLibrary(false); setSourceReport(node.reportId); setTab('report');
                         navigate(`/quant/${collection}/entries/${node.entryId}`);
-                    }} /> : library ? <FactorLibrary initialComparison={initialComparison} initialExperiment={initialExperiment} collection={collection} openGraph={candidate => {setLibrary(false); setGraph(candidate.id);}} register={guard.register} request={guard.request} close={() => {setLibrary(false); setInitialExperiment(undefined); setInitialComparison(undefined);}} openSource={candidate => {
+                    }} /> : library ? <FactorLibrary initialComparison={initialComparison} initialExperiment={initialExperiment} collection={collection} openGraph={candidate => {setLibrary(false); setLastGraphFocus(candidate.id); setGraph(candidate.id);}} register={guard.register} request={guard.request} close={() => {setLibrary(false); setInitialExperiment(undefined); setInitialComparison(undefined);}} openSource={candidate => {
                         setLibrary(false); setSourceReport(candidate.reportId); setTab('report');
                         if (candidate.entryId === entryId) void controller.safe(controller.refresh, false);
                         navigate(`/quant/${collection}/entries/${candidate.entryId}`);

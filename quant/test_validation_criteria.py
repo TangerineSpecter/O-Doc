@@ -147,11 +147,11 @@ class RegisteredCriteriaIntegrationTests(TestCase):
         from quant.validation_studies.reviews import start
         from quant.experiments.review_evidence import for_run
         from quant.experiments.review_contract import validate_review,review_prompt
-        from quant.test_experiment_reviews import selection_response as response
+        from quant.test_experiment_reviews import response
         from quant.worker import execute as analyze
         run=start(request.result,'registered_criteria_ai_review_01')
         context=for_run(run);assessment=context['evidence']['fixed_validation']['criteria_assessment']
-        value=response()
+        value=response(context)
         for group in ('findings','risks'):
             value[group][0]['evidence_refs']=['fixed_validation']
         self.assertIn('criteria_review',review_prompt(context,''))
