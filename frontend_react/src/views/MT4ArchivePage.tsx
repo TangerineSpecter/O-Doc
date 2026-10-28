@@ -17,6 +17,7 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 import StarLoader from '../components/common/StarLoader';
 import type {ArticleNode} from '../api/article';
 import type {MT4Test} from '../types/api/mt4Archive';
+import {mt4BacktestLabel} from '../utils/mt4BacktestLabel';
 import './ArticleOutline.css';
 
 export default function MT4ArchivePage() {
@@ -134,7 +135,7 @@ export default function MT4ArchivePage() {
         return (
             expert.name.toLowerCase().includes(trimmedQuery) ||
             (expert.category || '').toLowerCase().includes(trimmedQuery) ||
-            tests.some(t => t.title.toLowerCase().includes(trimmedQuery))
+            tests.some(t => `${t.title} ${mt4BacktestLabel(t.data)}`.toLowerCase().includes(trimmedQuery))
         );
     });
 
@@ -149,7 +150,7 @@ export default function MT4ArchivePage() {
             children: tests.map(t => ({
                 id: t.id,
                 articleId: `${expert.id}:${t.id}`,
-                title: t.title,
+                title: mt4BacktestLabel(t.data),
                 type: 'doc',
                 date: (t.updatedAt || t.createdAt || '').slice(0, 10)
             }))
@@ -250,6 +251,7 @@ export default function MT4ArchivePage() {
                         description={displayDescription}
                         icon={anthologyIcon}
                         docs={outlineDocs}
+                        compactChildren
                         flatCount={archive.experts.length}
                         emptyText="还没有 EA 档案。点击左侧“+ 新建 EA”开始保存回测记录。"
                         onSelectDoc={(id) => {

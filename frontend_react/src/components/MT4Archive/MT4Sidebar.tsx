@@ -1,6 +1,7 @@
 import React from 'react';
 import {Activity, BarChart3, ChevronDown, ChevronRight, FileText, Plus, RefreshCw, Search, X} from 'lucide-react';
 import type {MT4Expert, MT4Test} from '../../types/api/mt4Archive';
+import {mt4BacktestLabel} from '../../utils/mt4BacktestLabel';
 
 export interface MT4SidebarProps {
     title?: string;
@@ -49,7 +50,7 @@ export default function MT4Sidebar({
         return (
             expert.name.toLowerCase().includes(trimmedQuery) ||
             (expert.category || '').toLowerCase().includes(trimmedQuery) ||
-            tests.some(t => t.title.toLowerCase().includes(trimmedQuery))
+            tests.some(t => `${t.title} ${mt4BacktestLabel(t.data)}`.toLowerCase().includes(trimmedQuery))
         );
     });
 
@@ -60,7 +61,7 @@ export default function MT4Sidebar({
         const isActive = activeExpertId === expert.id && !activeTestId;
 
         const visibleTests = trimmedQuery
-            ? tests.filter(t => t.title.toLowerCase().includes(trimmedQuery) || expert.name.toLowerCase().includes(trimmedQuery))
+            ? tests.filter(t => `${t.title} ${mt4BacktestLabel(t.data)}`.toLowerCase().includes(trimmedQuery) || expert.name.toLowerCase().includes(trimmedQuery))
             : tests;
 
         return (
@@ -94,6 +95,7 @@ export default function MT4Sidebar({
                     <div>
                         {visibleTests.map(testItem => {
                             const isTestActive = activeTestId === testItem.id;
+                            const label = mt4BacktestLabel(testItem.data);
                             return (
                                 <div
                                     key={testItem.id}
@@ -105,11 +107,11 @@ export default function MT4Sidebar({
                                             : 'border-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-900'}
                                     `}
                                     style={{paddingLeft: '28px'}}
-                                    title={testItem.title}
+                                    title={label}
                                 >
                                     <div className="flex items-center gap-2 truncate">
                                         <BarChart3 size={12} className="shrink-0 text-slate-400"/>
-                                        <span className="truncate">{testItem.title}</span>
+                                        <span className="truncate">{label}</span>
                                     </div>
                                 </div>
                             );

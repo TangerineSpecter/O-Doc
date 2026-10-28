@@ -378,11 +378,11 @@ export function ExpertDetail({
                                     onClick={() => onOpenTest(item.id)}
                                     className="group -mx-2 px-3 py-3 rounded-lg transition hover:bg-slate-50 cursor-pointer flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between"
                                 >
-                                    {/* 左侧：标题与醒目的核心规格（周期与时间范围明确） */}
-                                    <div className="min-w-0 flex-1 space-y-2">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm font-semibold text-slate-900 truncate group-hover:text-orange-600 transition-colors">
-                                                {item.title}
+                                    {/* 左侧：品种、周期与时间范围 */}
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-900 tracking-wide mr-1">
+                                                {parsed.symbol}
                                             </span>
                                             {item.data.source === 'html' && (
                                                 <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[10px] font-medium text-slate-500">
@@ -394,15 +394,6 @@ export function ExpertDetail({
                                                     截图
                                                 </span>
                                             )}
-                                        </div>
-
-                                        {/* 品种、周期（高亮清晰徽标）、时间范围（日历标签） */}
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            {/* 品种 */}
-                                            <span className="text-xs font-bold text-slate-900 tracking-wide mr-1">
-                                                {parsed.symbol}
-                                            </span>
-
                                             {/* 周期：醒目的周期徽标 */}
                                             <span className="inline-flex items-center gap-1 rounded-md bg-teal-50 border border-teal-200/80 px-2 py-0.5 text-xs font-bold text-teal-800">
                                                 <Clock size={11} className="shrink-0 text-teal-600" />
@@ -447,7 +438,7 @@ export function ExpertDetail({
                                                 <span className="block text-[10px] text-slate-400">
                                                     最大回撤
                                                 </span>
-                                                <span className="text-sm font-medium font-mono text-slate-600 tabular-nums">
+                                                <span className={`text-sm font-medium font-mono tabular-nums ${maxDrawdown ? 'text-rose-600' : 'text-slate-600'}`}>
                                                     {maxDrawdown || '—'}
                                                 </span>
                                             </div>

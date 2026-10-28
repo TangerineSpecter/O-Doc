@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { extractMT4Kpis, groupMT4Metrics, parsePeriodInfo, parseModelInfo } from './mt4Report';
+import {mt4BacktestLabel} from './mt4BacktestLabel';
 import type { MT4Report } from '../types/api/mt4Archive';
+
+test('目录摘要显示品种、回测周期与净盈亏', () => {
+    assert.equal(mt4BacktestLabel({
+        fields: {symbol: 'GBPUSD (描述)', period: '5 分钟图 2023.01.01 00:00 - 2023.12.29 23:00'},
+        metrics: [['总净盈利', '518.55'], ['最大亏损', '286.12 (2.84%)']],
+    }), 'GBPUSD · 2023.01.01～2023.12.29 · 盈利 518.55 美金 · 回撤 286.12 美金');
+    assert.equal(mt4BacktestLabel({fields: {symbol: 'EURUSD', period: 'M5'}, metrics: [['Total net profit', '-12.00']]}), 'EURUSD · — · 亏损 12.00 美金 · 回撤 —');
+    assert.equal(mt4BacktestLabel({metrics: [['总净盈利', '0.00']]}), '— · — · 盈亏 0.00 美金 · 回撤 —');
+    assert.equal(mt4BacktestLabel({}), '— · — · — · 回撤 —');
+});
 
 // 用户真实截图中的中文 MT4 报告矩阵（包含前导占位符和极值行）
 const userRealReport: MT4Report = {

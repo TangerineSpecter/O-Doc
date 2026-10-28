@@ -10,6 +10,7 @@ interface OutlineContentProps {
     flatCount: number;
     badgeText?: string;
     emptyText?: string;
+    compactChildren?: boolean;
     onSelectDoc: (articleId: string) => void;
     onBackHome: () => void;
 }
@@ -23,6 +24,7 @@ export default function OutlineContent(
         flatCount,
         badgeText,
         emptyText,
+        compactChildren = false,
         onSelectDoc,
         onBackHome
     }: OutlineContentProps) {
@@ -36,7 +38,7 @@ export default function OutlineContent(
             <React.Fragment key={item.id}>
                 <div
                     onClick={() => onSelectDoc(item.articleId)}
-                    className="group flex items-baseline hover:bg-orange-50/50 cursor-pointer py-2 transition-colors"
+                    className={`group flex items-baseline hover:bg-orange-50/50 cursor-pointer ${compactChildren ? 'py-0' : 'py-2'} transition-colors`}
                 >
                     {/* 修改点 1: 标题容器
                        - 添加了 truncate (超出显示省略号)
@@ -44,20 +46,20 @@ export default function OutlineContent(
                     */}
                     <div
                         style={{paddingLeft}}
-                        className="relative truncate pr-2"
+                        className={`relative truncate pr-2 ${compactChildren ? 'font-[Consolas,Menlo,Courier,monospace] text-[15px] font-medium' : ''}`}
                         title={item.contentFormat === 'html' ? `${item.title} · HTML 原样笔记 · 只读` : item.title}
                     >
             <span className={`
-                ${isTopLevel ? 'text-slate-700 font-medium' : 'text-slate-600'} 
+                ${compactChildren ? 'text-[#666]' : isTopLevel ? 'text-slate-700 font-medium' : 'text-slate-600'}
                 group-hover:text-orange-600 transition-colors
             `}>
-                {item.contentFormat === 'html' ? <FileCode2 size={12} className="mr-2 inline text-slate-400"/> : <FileText size={12} className="mr-2 inline text-slate-400"/>}{item.title}
+                {(!compactChildren || isTopLevel) && (item.contentFormat === 'html' ? <FileCode2 size={12} className="mr-2 inline text-slate-400"/> : <FileText size={12} className="mr-2 inline text-slate-400"/>)}{item.title}
             </span>
                     </div>
 
                     {/* 添加 min-w-[1rem] 或 w-4 (保证至少显示一点点虚线，不至于完全消失) */}
                     <div
-                        className="flex-grow mx-2 min-w-[1rem] border-b border-dotted border-slate-300 relative -top-1 opacity-40 group-hover:opacity-60 group-hover:border-orange-300 transition-all"
+                        className={`flex-grow mx-2 min-w-[1rem] border-b ${compactChildren ? 'border-dashed' : 'border-dotted'} border-slate-300 relative -top-1 opacity-40 group-hover:opacity-60 group-hover:border-orange-300 transition-all`}
                     ></div>
 
                     {/* 添加 whitespace-nowrap (防止时间被挤换行) */}
