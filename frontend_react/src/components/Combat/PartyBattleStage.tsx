@@ -8,24 +8,26 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
     const host = useRef<HTMLDivElement>(null), scene = useRef<PartyBattleScene | null>(null), latest = useRef(party);
     const [error, setError] = useState(false), [errorMessage, setErrorMessage] = useState('');
     const [ready, setReady] = useState(false);
-    const [attempt, setAttempt] = useState(0), [paused, setPaused] = useState(false);
+    const [attempt, setAttempt] = useState(0), [paused, setPaused] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
     const pauseRef = useRef(paused);
     useEffect(() => {
         latest.current = party;
         const instance = scene.current;
         if (!instance) return;
+        let stale = false;
         void instance.update(party).then(() => {
-            if (scene.current === instance) {
+            if (!stale && scene.current === instance) {
                 setError(false);
                 setErrorMessage('');
             }
         }).catch(error => {
-            if (scene.current !== instance) return;
+            if (stale || scene.current !== instance) return;
             console.error('[PartyBattleStage:update failed]', error);
             reportDiagnostic({errorType: 'runtime', module: 'combat', operation: 'party-scene:update'}, error);
             setError(true);
             setErrorMessage(error instanceof Error ? error.message : String(error));
         });
+        return () => {stale = true;};
     }, [party]);
     useEffect(() => {
         let active = true;
@@ -33,12 +35,17 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
         void import('./animation/observation/PartyBattleScene').then(async ({PartyBattleScene}) => {
             if (!active || !host.current) return;
             instance = new PartyBattleScene(host.current, latest.current);
-            // Publish only after initialization, so polling cannot race the initial actor load.
+            instance.setPaused(pauseRef.current);
+            // Keep polling out until initialization and snapshot catch-up both finish.
             await instance.init();
             if (!active) return;
+            let snapshot;
+            do {
+                snapshot = latest.current;
+                await instance.update(snapshot);
+                if (!active) return;
+            } while (snapshot !== latest.current);
             scene.current = instance;
-            await instance.update(latest.current);
-            if (!active) return;
             instance.setPaused(pauseRef.current);
             setError(false);
             setErrorMessage('');
@@ -53,6 +60,12 @@ export default function PartyBattleStage({party, personalKills}: {party: Adventu
         return () => {active = false; scene.current = null; instance?.dispose();};
     }, [attempt]);
     useEffect(() => {pauseRef.current = paused; scene.current?.setPaused(paused);}, [paused]);
+    useEffect(() => {
+        const preference = matchMedia('(prefers-reduced-motion: reduce)');
+        const change = () => {if (preference.matches) setPaused(true);};
+        preference.addEventListener('change', change);
+        return () => preference.removeEventListener('change', change);
+    }, []);
     const names = new Map([...party.players, ...party.enemies].map(unit => [unit.id, unit.name]));
     const hud = <>
         <div className="grid content-start gap-2" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 10rem), 1fr))'}}>

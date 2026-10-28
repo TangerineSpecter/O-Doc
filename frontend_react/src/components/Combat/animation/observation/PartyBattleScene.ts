@@ -33,7 +33,6 @@ export class PartyBattleScene {
     private elementEffects:{skill:ElementSkillVisual;from:number;to:number;y:number;start:number}[]=[];
     private resizeObserver=new ResizeObserver(()=>this.resize());
     private onVisibility=()=>this.sync();
-    private reduced=matchMedia('(prefers-reduced-motion: reduce)');
     constructor(private host:HTMLElement,private snapshot:AdventurePartySnapshot) {}
     private backgroundTexture(art:BattleBackgroundArt) {
         const cached=this.backgrounds.get(art.id);
@@ -138,10 +137,10 @@ export class PartyBattleScene {
                 }
             }
         }
-        this.draw();if(this.paused||this.reduced.matches)this.app.render();
+        this.draw();if(this.paused)this.app.render();
     }
     setPaused(value:boolean){this.paused=value;this.sync();}
-    private sync(){if(!this.initialized||this.disposed)return;if(this.paused||this.reduced.matches||document.hidden){this.app.stop();this.draw();this.app.render();}else this.app.start();}
+    private sync(){if(!this.initialized||this.disposed)return;if(this.paused||document.hidden){this.app.stop();this.draw();this.app.render();}else this.app.start();}
     private draw(){
         this.effects.clear();
         this.elementEffects=this.elementEffects.filter(effect=>this.clock-effect.start<=1.25);
@@ -156,6 +155,6 @@ export class PartyBattleScene {
             else view.actor.sample(dead!==undefined?'idle':hit!==undefined&&hit<.3?'hit':age<1?'attack':'idle',age,this.clock,hit,dead);
         }
     }
-    private resize(){if(!this.initialized||this.disposed)return;const width=Math.max(1,this.host.clientWidth),height=Math.max(1,this.host.clientHeight);this.app.renderer.resize(width,height);this.world.scale.set(Math.min(width/720,height/423));}
+    private resize(){if(!this.initialized||this.disposed)return;const width=Math.max(1,this.host.clientWidth),height=Math.max(1,this.host.clientHeight);this.app.renderer.resize(width,height);this.world.scale.set(Math.min(width/720,height/423));if(!this.app.ticker.started){this.draw();this.app.render();}}
     dispose(){this.disposed=true;this.version++;this.resizeObserver.disconnect();document.removeEventListener('visibilitychange',this.onVisibility);if(this.initialized)this.app.destroy(true,{children:true});for(const texture of this.backgrounds.values())texture.destroy(true);this.backgrounds.clear();this.backgroundLoads.clear();}
 }

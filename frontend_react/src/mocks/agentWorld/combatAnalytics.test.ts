@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {combatAnalyticsMock} from './combatAnalytics';
 import {residents,day} from './residents';
@@ -10,7 +11,8 @@ test('local combat catalog exposes all released elemental dungeons and an actual
     Object.defineProperty(globalThis,'location',{value:new URL('http://localhost/?mockState=populated'),configurable:true});
     const request = () => new Request('http://localhost/api/settings/agent-world/combat/catalog/');
     const data = await resolveLocalRoute(request()) as CombatCatalog;
-    assert.equal(data.version,'combat-1.0.35');
+    const manifest = JSON.parse(readFileSync(new URL('../../../../system_settings/agent_world/combat/data/manifest.json', import.meta.url), 'utf8')) as {version: string};
+    assert.equal(data.version,manifest.version);
     assert.deepEqual(data.tables.dungeons.filter(row=>row.id.startsWith('dungeon.element.')).map(row=>row.name),
         ['潮汐浅湾','琥岩地窟','浮岚高地','熔羽火山']);
     assert.equal(data.tables.monsters.filter(row=>row.id.startsWith('monster.element.')).length,16);
