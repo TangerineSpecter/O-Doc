@@ -4,7 +4,7 @@ import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import type {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
 import {getSprout, saveSproutArticle} from '../api/sprout';
-import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} from '../api/article';
+import {createArticle, getArticleDetail, getArticles, updateArticle} from '../api/article';
 import {createCategory, getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {uploadResource} from '../api/resources';
@@ -930,7 +930,7 @@ export const useEditor = () => {
         const requestId = ++parentArticlesRequestRef.current;
         try {
             setLoadingParentArticles(true);
-            const articles = await getArticlesByAnthology(collId);
+            const articles = await getArticles({collId});
             if (requestId !== parentArticlesRequestRef.current) return;
             // 转换文章列表为父级文章选项格式
             const parentOptions = [

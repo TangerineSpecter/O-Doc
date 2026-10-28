@@ -55,13 +55,6 @@ export const getArticleSummaries = async (params?: GetArticlesParams): Promise<A
 };
 
 /**
- * 根据文集获取文章列表（兼容旧接口调用方式）
- */
-export const getArticlesByAnthology = async (collId: string): Promise<Article[]> => {
-    return getArticles({collId});
-};
-
-/**
  * 根据文集获取树形结构文章列表
  */
 export const getArticleTreeByAnthology = async (collId: string): Promise<ArticleNode[]> => {
