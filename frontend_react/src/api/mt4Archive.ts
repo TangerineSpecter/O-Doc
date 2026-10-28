@@ -17,6 +17,7 @@ export const mt4Api = {
     test: (coll: string, id: string, testId: string) => request.get<never, MT4TestDetail>(test(coll, id, testId)),
     deleteTest: (coll: string, id: string, testId: string) => request.delete<never, void>(test(coll, id, testId)),
     attach: (coll: string, id: string, testId: string | null, assetId: string, role: string) => request.post<never, MT4Attachment>(`${testId ? test(coll, id, testId) : expert(coll, id)}attachments/`, {assetId, role}),
+    updateAttachmentNote: (coll: string, id: string, refId: string, note: string) => request.patch<never, MT4Attachment>(`${expert(coll, id)}attachments/${encodeURIComponent(refId)}/`, {note}),
     removeAttachment: (coll: string, id: string, testId: string | null, refId: string) => request.delete<never, void>(`${testId ? test(coll, id, testId) : expert(coll, id)}attachments/${encodeURIComponent(refId)}/`),
     zipChart: (coll: string, id: string, testId: string) => request.get<never, Blob>(`${test(coll, id, testId)}zip-chart/`, {responseType: 'blob'}),
 };

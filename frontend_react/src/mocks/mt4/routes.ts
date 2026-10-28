@@ -29,7 +29,7 @@ export async function resolveMT4Route(request: Request, collection: string, rout
         rows.push({collection, expert, tests: [], attachments: []}); book.count = rows.filter(item => item.collection === collection).length; persistQuantState(); return expert;
     }
     if (!row) return fail(404, 'EA 不存在');
-    if (!section && request.method === 'GET') return {expert: row.expert, backtests: row.tests.map(test => ({...test, data: {...projectMT4Report(test.data), events: undefined}})), attachments: row.attachments.filter(item => !item.backtestId)};
+    if (!section && request.method === 'GET') return {expert: row.expert, backtests: row.tests.map(test => ({...test, data: {...projectMT4Report(test.data), events: undefined}})), attachments: row.attachments.filter(item => !item.backtestId).map(item => ({...item, note: item.note || ''}))};
     if (!section && request.method === 'PATCH') {Object.assign(row.expert, body, {updatedAt: now()}); persistQuantState(); return row.expert;}
     if (!section && request.method === 'DELETE') {rows.splice(rows.indexOf(row), 1); book.count = rows.filter(item => item.collection === collection).length; persistQuantState(); return null;}
     if (section === 'preview') {
@@ -44,7 +44,7 @@ export async function resolveMT4Route(request: Request, collection: string, rout
         row.tests.unshift(test);
         for (const [assetId, role] of [[body.reportAssetId, 'report'], [body.imageAssetId, body.reportAssetId ? 'chart' : 'screenshot']] as const) {
             const asset = quantState().assets.find(item => item.id === assetId);
-            if (asset) row.attachments.push({id: quantId('mt4-ref'), assetId: asset.id, backtestId: test.id, role, name: asset.name, fileType: asset.type, url: `/api/resource/download/${asset.id}`});
+            if (asset) row.attachments.push({id: quantId('mt4-ref'), assetId: asset.id, backtestId: test.id, role, note: '', name: asset.name, fileType: asset.type, url: `/api/resource/download/${asset.id}`});
         }
         persistQuantState(); return {...test, data: projectMT4Report(test.data)};
     }
@@ -56,16 +56,23 @@ export async function resolveMT4Route(request: Request, collection: string, rout
             const bytes = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='), ch => ch.charCodeAt(0));
             return new HttpResponse(bytes, {headers: {'Content-Type': 'image/gif'}});
         }
-        if (!action && request.method === 'GET') return {backtest: {...test, data: projectMT4Report(test.data)}, attachments: row.attachments.filter(item => item.backtestId === testId)};
+        if (!action && request.method === 'GET') return {backtest: {...test, data: projectMT4Report(test.data)}, attachments: row.attachments.filter(item => item.backtestId === testId).map(item => ({...item, note: item.note || ''}))};
         if (!action && request.method === 'PATCH') {const data = body.data ? preserveHiddenMT4Parameters(test.data, body.data as MT4Report) : test.data; Object.assign(test, body, {data}); persistQuantState(); return {...test, data: projectMT4Report(test.data)};}
         if (!action && request.method === 'DELETE') {row.tests.splice(row.tests.indexOf(test), 1); persistQuantState(); return null;}
     }
     if (section === 'attachments' || action === 'attachments') {
         const attachmentId = section === 'attachments' ? testId : refId;
+        if (request.method === 'PATCH') {
+            if (mockScenario() === 'note-error') return fail(503, '本地模拟备注保存失败');
+            const ref = row.attachments.find(item => item.id === attachmentId && item.backtestId === (section === 'tests' ? testId : null));
+            if (!ref) return fail(404, '附件不存在');
+            if (Object.keys(body).length !== 1 || typeof body.note !== 'string' || [...body.note].length > 500) return fail(400, '备注必须是 500 字以内的文本');
+            ref.note = body.note; persistQuantState(); return ref;
+        }
         if (request.method === 'DELETE') {row.attachments = row.attachments.filter(item => item.id !== attachmentId); persistQuantState(); return null;}
         const asset = quantState().assets.find(item => item.id === body.assetId);
         if (!asset) return fail(404, '附件不存在');
-        const attachment: MT4Attachment = {id: quantId('mt4-ref'), assetId: asset.id, backtestId: section === 'tests' ? testId : null, role: String(body.role), name: asset.name, fileType: asset.type, url: `/api/resource/download/${asset.id}`};
+        const attachment: MT4Attachment = {id: quantId('mt4-ref'), assetId: asset.id, backtestId: section === 'tests' ? testId : null, role: String(body.role), note: '', name: asset.name, fileType: asset.type, url: `/api/resource/download/${asset.id}`};
         row.attachments.push(attachment); persistQuantState(); return attachment;
     }
     return fail(404, mockScenario() === 'empty' ? '暂无回测资料' : '本地样例没有此路径');

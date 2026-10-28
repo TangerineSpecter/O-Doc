@@ -99,9 +99,18 @@ class AttachmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MT4Attachment
-        fields = ['id', 'asset_id', 'backtest_id', 'role', 'name', 'file_type', 'url', 'created_at']
+        fields = ['id', 'asset_id', 'backtest_id', 'role', 'note', 'name', 'file_type', 'url', 'created_at']
         read_only_fields = fields
 
     def get_url(self, instance):
         action = 'view' if instance.asset.file_type == 'image' else 'download'
         return f'/api/resource/{action}/{instance.asset_id}'
+
+
+class AttachmentNoteSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=500, allow_blank=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        if set(self.initial_data) != {'note'} or not isinstance(self.initial_data.get('note'), str):
+            raise serializers.ValidationError('备注必须是文本')
+        return attrs

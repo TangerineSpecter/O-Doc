@@ -46,6 +46,7 @@ class MT4Attachment(Record):
     backtest = models.ForeignKey(MT4Backtest, on_delete=models.CASCADE, related_name='attachments', null=True, blank=True)
     asset = models.ForeignKey('assets.Asset', on_delete=models.PROTECT, related_name='mt4_references')
     role = models.CharField(max_length=20, default='attachment')
+    note = models.CharField(max_length=500, blank=True, default='')
 
     class Meta:
         ordering = ['-created_at', '-id']

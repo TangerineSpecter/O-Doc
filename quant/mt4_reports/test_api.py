@@ -124,6 +124,47 @@ class ArchiveAPITests(TestCase):
         with self.assertRaises(SyncError):
             validate(rows, metadata(rows))
 
+    def test_attachment_note_edit_clear_and_owner_scope(self):
+        ref = MT4Attachment.objects.create(expert=self.expert, asset=self.asset)
+        endpoint = self.url(f'attachments/{ref.pk}/')
+        response = self.client.patch(endpoint, {'note': '默认配置\n用于 EURUSD'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['data']['note'], '默认配置\n用于 EURUSD')
+        self.assertEqual(self.client.get(self.url()).data['data']['attachments'][0]['note'], '默认配置\n用于 EURUSD')
+        for invalid in (123, None, 'x' * 501):
+            self.assertEqual(self.client.patch(endpoint, {'note': invalid}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(endpoint, {'note': 'ok', 'role': 'report'}, format='json').status_code, 400)
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.patch(endpoint, {'note': '越权'}, format='json').status_code, 404)
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.patch(endpoint, {'note': ''}, format='json').status_code, 200)
+        ref.refresh_from_db()
+        self.assertEqual(ref.note, '')
+
+    def test_attachment_note_snapshot_and_legacy_restore(self):
+        ref = MT4Attachment.objects.create(expert=self.expert, asset=self.asset, note='用于测试')
+        manager = SyncManager()
+        snapshot = manager.build_snapshot_data()
+        meta = metadata(snapshot)
+        attachment = next(row for row in snapshot if row['model'] == 'quant.mt4attachment')
+        self.assertEqual(attachment['fields']['note'], '用于测试')
+        with self.assertRaises(SyncError):
+            validate(snapshot, {**meta, 'quant_schema_version': 77})
+        incomplete = json.loads(json.dumps(snapshot))
+        del next(row for row in incomplete if row['model'] == 'quant.mt4attachment')['fields']['note']
+        with self.assertRaises(SyncError):
+            validate(incomplete, metadata(incomplete))
+        legacy_meta = {**metadata(incomplete), 'quant_schema_version': 77}
+        validate(incomplete, legacy_meta)
+        manager.apply_snapshot_data(json.loads(json.dumps(incomplete)), remote_meta=legacy_meta)
+        self.assertEqual(MT4Attachment.objects.get(pk=ref.pk).note, '用于测试')
+        MT4Attachment.objects.all().delete()
+        manager.apply_snapshot_data(snapshot, remote_meta=meta)
+        self.assertEqual(MT4Attachment.objects.get(pk=ref.pk).note, '用于测试')
+        MT4Attachment.objects.all().delete()
+        manager.apply_snapshot_data(incomplete, remote_meta=legacy_meta)
+        self.assertEqual(MT4Attachment.objects.get(pk=ref.pk).note, '')
+
     def test_snapshot_restores_archive_with_report_reference(self):
         from .parser import parse_report
         test = MT4Backtest.objects.create(expert=self.expert, title='同步回测', data=parse_report(HTML))
@@ -131,7 +172,7 @@ class ArchiveAPITests(TestCase):
         manager = SyncManager()
         snapshot = manager.build_snapshot_data()
         meta = metadata(snapshot)
-        self.assertEqual(meta['quant_schema_version'], 77)
+        self.assertEqual(meta['quant_schema_version'], 78)
         self.assertTrue(any(row['model'] == 'quant.mt4attachment' for row in snapshot))
         media = manager.media.compose_media_manifest()
         self.assertIn(self.asset.file_path, media)

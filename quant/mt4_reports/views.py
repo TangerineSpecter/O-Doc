@@ -16,7 +16,7 @@ from quant.models import MT4Attachment, MT4Backtest, MT4Expert
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result
 from .archive import MAX_ZIP_BYTES, read_zip
-from .serializers import AttachmentSerializer, ExpertSerializer, TestSerializer, TestSummarySerializer
+from .serializers import AttachmentNoteSerializer, AttachmentSerializer, ExpertSerializer, TestSerializer, TestSummarySerializer
 from .services import asset_bytes, inspect_asset, owned_asset, validate_image
 from .queries import with_summary
 
@@ -142,6 +142,14 @@ class AttachmentView(ArchiveView):
         if role in ('chart', 'screenshot'):
             validate_image(asset)
         ref = MT4Attachment.objects.create(expert=self.expert, backtest=getattr(self, 'test', None), asset=asset, role=role)
+        return success_result(AttachmentSerializer(ref).data)
+
+    def patch(self, request, coll_id, expert_id, ref_id, test_id=None):
+        ref = get_object_or_404(MT4Attachment.objects.select_related('asset'), pk=ref_id, expert=self.expert, backtest=getattr(self, 'test', None))
+        serializer = AttachmentNoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ref.note = serializer.validated_data['note']
+        ref.save(update_fields=['note', 'updated_at'])
         return success_result(AttachmentSerializer(ref).data)
 
     def delete(self, request, coll_id, expert_id, ref_id, test_id=None):

@@ -37,3 +37,19 @@ test('local mock projects both list and detail while preserving stored sample', 
     assert.ok(stored.data.parameters?.some(item => item.name === 'magic'));
     assert.ok(stored.data.parameters?.some(item => item.name === 'comm2'));
 });
+
+test('local mock persists, returns and validates attachment notes', async () => {
+    resetQuantStateForTests();
+    const row = quantState().mt4Records[0];
+    row.attachments.push({id: 'note-ref', assetId: 'demo', backtestId: null, role: 'attachment', note: '', name: 'sample.zip', fileType: 'archive', url: ''});
+    const url = 'http://localhost/api/quant/local-mt4/mt4/experts/local-mt4-expert/';
+    const route = ['experts', 'local-mt4-expert', 'attachments', 'note-ref'];
+    const edit = (note: unknown) => new Request(`${url}attachments/note-ref/`, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({note})});
+    await resolveMT4Route(edit('示例用途'), 'local-mt4', route);
+    const detail = await resolveMT4Route(new Request(url), 'local-mt4', ['experts', 'local-mt4-expert']) as MT4ExpertDetail;
+    assert.equal(detail.attachments[0].note, '示例用途');
+    const invalid = await resolveMT4Route(edit('x'.repeat(501)), 'local-mt4', route) as Response;
+    assert.equal(invalid.status, 400);
+    await resolveMT4Route(edit(''), 'local-mt4', route);
+    assert.equal(row.attachments[0].note, '');
+});

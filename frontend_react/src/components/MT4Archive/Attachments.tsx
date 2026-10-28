@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type DragEvent } from 'react';
 import {
     Download,
     Trash2,
@@ -9,11 +9,13 @@ import {
     File,
     UploadCloud,
     Loader2,
+    Pencil,
 } from 'lucide-react';
 import { downloadResource, uploadResource } from '../../api/resources';
 import { mt4Api } from '../../api/mt4Archive';
 import type { MT4Attachment } from '../../types/api/mt4Archive';
 import { downloadQuantBlob } from '../../utils/quant';
+import { AttachmentNoteDialog } from './AttachmentNoteDialog';
 
 function getFileIcon(filename: string, fileType: string) {
     const lower = filename.toLowerCase();
@@ -69,6 +71,8 @@ export function Attachments({
 }) {
     const [busyId, setBusyId] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const [editingNote, setEditingNote] = useState<MT4Attachment | null>(null);
     const [error, setError] = useState('');
 
     const handleUpload = async (file: File) => {
@@ -112,6 +116,19 @@ export function Attachments({
         }
     };
 
+    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+        if (testId) return;
+        event.preventDefault();
+        setDragging(false);
+        if (uploading) return;
+        const files = event.dataTransfer.files;
+        if (files.length > 1) {
+            setError('每次请拖入一个文件');
+        } else if (files.length === 1) {
+            void handleUpload(files[0]);
+        }
+    };
+
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -146,6 +163,19 @@ export function Attachments({
                 </label>
             </div>
 
+            <div
+                onDragOver={(event) => {
+                    if (testId || !Array.from(event.dataTransfer.types).includes('Files')) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = uploading ? 'none' : 'copy';
+                    if (!uploading) setDragging(true);
+                }}
+                onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+                }}
+                onDrop={handleDrop}
+                className={dragging ? 'rounded-xl ring-2 ring-orange-400 bg-orange-50/50' : ''}
+            >
             {attachments.length > 0 ? (
                 <div className="grid gap-2 sm:grid-cols-2">
                     {attachments.map((item) => {
@@ -168,9 +198,17 @@ export function Attachments({
                                         <div className="mt-0.5 flex items-center gap-2">
                                             {getRoleBadge(item.role)}
                                         </div>
+                                        {!testId && item.note && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600">{item.note}</p>}
                                     </div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">
+                                    {!testId && <button
+                                        type="button"
+                                        aria-label={`${item.note ? '编辑' : '添加'}备注：${item.name}`}
+                                        title={item.note ? '编辑备注' : '添加备注'}
+                                        onClick={() => setEditingNote(item)}
+                                        className="inline-flex h-8 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                                    ><Pencil size={14}/><span>备注</span></button>}
                                     <button
                                         type="button"
                                         title="下载附件"
@@ -200,14 +238,22 @@ export function Attachments({
                 </div>
             ) : (
                 <div className="flex h-24 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-xs text-slate-400">
-                    <p>暂无相关附件文件</p>
+                    <p>{!testId && dragging ? '松开以上传附件' : '暂无相关附件文件'}</p>
                 </div>
             )}
+            {!testId && <p className="mt-2 text-xs text-slate-400">可拖拽单个文件到此处上传</p>}
+            </div>
 
             {error && (
                 <p role="alert" className="text-xs text-rose-600">
                     {error}
                 </p>
+            )}
+            {editingNote && (
+                <AttachmentNoteDialog attachment={editingNote} close={() => setEditingNote(null)} save={async note => {
+                    await mt4Api.updateAttachmentNote(collection, expertId, editingNote.id, note);
+                    await reload();
+                }}/>
             )}
         </div>
     );

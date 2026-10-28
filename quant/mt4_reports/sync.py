@@ -39,7 +39,9 @@ def validate_mt4(rows, anthologies, assets, fail):
         collection = anthologies.get(str(expert.get('anthology')), {})
         asset = assets.get(str(attachment.get('asset')), {})
         test_id = attachment.get('backtest')
+        note = attachment.get('note', '')
         if (not expert or not asset or not asset.get('is_valid', True)
+                or not isinstance(note, str) or len(note) > 500
                 or asset.get('uploader') != collection.get('user_id')
                 or (test_id and str(tests.get(str(test_id), {}).get('expert')) != expert_id)
                 or attachment.get('role') not in ('attachment', 'report', 'chart', 'screenshot')
