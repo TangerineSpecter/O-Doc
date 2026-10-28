@@ -6,7 +6,7 @@ COPY frontend_react/package.json ./
 RUN npm install
 
 COPY frontend_react/ ./
-RUN npm run build
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
 
 FROM m.daocloud.io/docker.io/python:3.11-slim
