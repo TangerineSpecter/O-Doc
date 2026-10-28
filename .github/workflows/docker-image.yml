@@ -12,12 +12,8 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  quality:
-    uses: ./.github/workflows/quality.yml
-
   docker-ghcr:
     name: Publish GitHub Container Registry
-    needs: quality
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -57,7 +53,6 @@ jobs:
 
   docker-tcr:
     name: Publish Tencent Cloud TCR
-    needs: quality
     runs-on: [self-hosted, Linux, X64]
     permissions:
       contents: read
