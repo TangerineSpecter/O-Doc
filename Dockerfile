@@ -2,8 +2,8 @@ FROM m.daocloud.io/docker.io/node:22-alpine AS frontend-builder
 
 WORKDIR /frontend
 
-COPY frontend_react/package.json ./
-RUN npm install
+COPY frontend_react/package.json frontend_react/package-lock.json ./
+RUN npm ci
 
 COPY frontend_react/ ./
 RUN npm run build

@@ -4,6 +4,7 @@ import type {Anthology, AnthologyType, CreateAnthologyParams} from '../../types/
 import type {MaintenanceOverview} from '../../types/api/maintenance';
 import {mockScenario, persistQuantState, quantId, quantState} from './state';
 import {quantCollectionId} from './fixtures';
+import {novelReaderSample} from '../novel/readerRoutes';
 
 const originalCollections: Anthology[] = homepageFixtures.map(row => ({...row, type: 'article' as const, permission: row.permission === 'private' ? 'private' : 'public', isTop: Boolean(row.isTop)}));
 const fail = (status: number, msg: string) => HttpResponse.json({code: status, msg, data: null}, {status});
@@ -20,7 +21,9 @@ export async function resolveQuantAnthology(request: Request): Promise<unknown> 
     if (url.searchParams.get('type') === 'agent' || path.endsWith('/local-world')) return undefined;
     const state = quantState();
     const existing = mockScenario() === 'empty' ? [] : originalCollections;
-    const collections = [...state.collections, ...existing.filter(row => !state.collections.some(saved => saved.collId === row.collId))].filter(row => !state.removedCollectionIds.includes(row.collId));
+    const novelSample = novelReaderSample(mockScenario() === 'empty', owner(request));
+    const samples = novelSample ? [...existing, novelSample] : existing;
+    const collections = [...state.collections, ...samples.filter(row => !state.collections.some(saved => saved.collId === row.collId))].filter(row => !state.removedCollectionIds.includes(row.collId));
     if (path === '/api/anthology/list') {
         persistQuantState();
         const type = url.searchParams.get('type');

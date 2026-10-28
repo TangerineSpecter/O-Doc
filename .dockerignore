@@ -9,10 +9,14 @@ frontend_react/dist/
 # Python 缓存与本地数据
 __pycache__/
 *.pyc
+.venv/
+.env*
+!.env.deploy.example
 db.sqlite3
 chroma_data/
 media/
 staticfiles/
+runtime/
 deploy/runtime/
 
 # 本地生成的静态产物

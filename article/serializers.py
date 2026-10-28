@@ -310,8 +310,13 @@ class ArticleSerializer(serializers.ModelSerializer):
         ret['can_annotate'] = instance.content_format == 'markdown'
         if instance.content_format == 'html':
             ret['preview_url'] = f'/api/article/html-preview/{instance.pk}'
-            source = (instance.asset_references.filter(role='package', asset__is_valid=True).first()
-                      or instance.asset_references.filter(role='source', asset__is_valid=True).first())
+            references = getattr(instance, '_list_html_download_sources', None)
+            if references is None:
+                source = (instance.asset_references.filter(role='package', asset__is_valid=True).first()
+                          or instance.asset_references.filter(role='source', asset__is_valid=True).first())
+            else:
+                source = (next((ref for ref in references if ref.role == 'package'), None)
+                          or next((ref for ref in references if ref.role == 'source'), None))
             ret['download_url'] = f'/api/resource/download/{source.asset_id}' if source else None
         
         # 增加 author_name (优先展示昵称)；列表序列化时按作者缓存，避免逐篇查 UserProfile
@@ -585,16 +590,19 @@ class ImageSerializer(serializers.ModelSerializer):
     def get_author_nickname(self, obj):
         from user.models import UserProfile
 
+        cache = self.context.setdefault('_image_author_nicknames', {})
+        if obj.author in cache:
+            return cache[obj.author]
         profile = UserProfile.objects.filter(userid=obj.author).select_related('user').first()
         if profile:
-            return profile.nickname or profile.user.first_name or profile.user.username
-
-        if obj.author == 'admin':
+            nickname = profile.nickname or profile.user.first_name or profile.user.username
+        elif obj.author == 'admin':
             profile = UserProfile.objects.filter(user__username='admin').select_related('user').first()
-            if profile:
-                return profile.nickname or profile.user.first_name or profile.user.username
-
-        return obj.author
+            nickname = (profile.nickname or profile.user.first_name or profile.user.username) if profile else obj.author
+        else:
+            nickname = obj.author
+        cache[obj.author] = nickname
+        return nickname
 
     def validate(self, attrs):
         country = attrs.get('country')

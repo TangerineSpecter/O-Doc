@@ -119,7 +119,7 @@ class AnthologyVisibilityTests(APITestCase):
         article_response = self.client.get(f'/api/article/detail/{self.private_article.article_id}')
         image_response = self.client.get(f'/api/article/image/list/{self.private_image_coll.coll_id}')
 
-        self.assertEqual(article_response.status_code, 200)
+        self.assertEqual(article_response.status_code, 404)
         self.assertEqual(article_response.data['code'], 404)
         self.assertEqual(image_response.status_code, 200)
         self.assertEqual(image_response.data['code'], 404)

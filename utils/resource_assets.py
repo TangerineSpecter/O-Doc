@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import unquote, urlparse
 
 from django.conf import settings
@@ -20,7 +21,10 @@ def extract_resource_id_from_url(url):
     if not url:
         return None
 
-    path = unquote(urlparse(url).path)
+    try:
+        path = unquote(urlparse(url).path)
+    except (TypeError, ValueError):
+        return None
     if path.startswith(RESOURCE_VIEW_PREFIX):
         resource_id = path[len(RESOURCE_VIEW_PREFIX):].strip('/')
         return resource_id or None
@@ -49,6 +53,7 @@ def extract_resource_ids_from_content(content):
 
 def is_asset_used_by_article(resource_id, exclude_article_id=None):
     from article.models import Article, ArticleAsset
+    from django.db.models import Q
 
     references = ArticleAsset.objects.filter(asset_id=resource_id, article__is_valid=True)
     if exclude_article_id:
@@ -58,8 +63,8 @@ def is_asset_used_by_article(resource_id, exclude_article_id=None):
 
     queryset = Article.objects.filter(
         is_valid=True,
-        content__contains=get_resource_view_url(resource_id),
-    )
+    ).filter(Q(content__contains=get_resource_view_url(resource_id))
+             | Q(content__contains=f'{RESOURCE_DOWNLOAD_PREFIX}{resource_id}'))
     if exclude_article_id:
         queryset = queryset.exclude(article_id=exclude_article_id)
 
@@ -132,14 +137,17 @@ def sync_article_content_assets(article):
 def is_asset_used_by_image(resource_id, exclude_image_id=None):
     from article.models import Image
 
-    queryset = Image.objects.filter(
-        is_valid=True,
-        image_url=get_resource_view_url(resource_id),
-    )
+    if not resource_id:
+        return False
+    queryset = Image.objects.filter(is_valid=True)
     if exclude_image_id:
         queryset = queryset.exclude(image_id=exclude_image_id)
-
-    return queryset.exists()
+    if queryset.filter(image_url__in=[get_resource_view_url(resource_id), f'{RESOURCE_DOWNLOAD_PREFIX}{resource_id}']).exists():
+        return True
+    # Historical imports can store absolute resource URLs or query strings.
+    # Parse candidates to avoid mistaking one resource ID for a prefix of another.
+    return any(extract_resource_id_from_url(url) == resource_id for url in
+               queryset.filter(image_url__contains=resource_id).values_list('image_url', flat=True).iterator())
 
 
 def get_image_resource_usage(resource_ids=None):
@@ -185,6 +193,7 @@ def get_prompt_resource_usage(resource_ids=None):
 
 def is_asset_used_by_agent(resource_id):
     from prompts.models import ImageGenerationTask
+    from django.db.models.fields.json import KeyTextTransform
     # Keep the ordered references needed to inspect/recover a battle-head task.
     references = ImageGenerationTask.objects.filter(
         request_data__scene__in=['battle_head', 'loadout_portrait'], request_data__icontains=resource_id,
@@ -198,23 +207,42 @@ def is_asset_used_by_agent(resource_id):
     from system_settings.models import Agent, AgentActivity
     from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, ImageReview
 
-    url = get_resource_view_url(resource_id)
-    return (
-        is_asset_used_by_inventory(resource_id)
-        or is_asset_used_by_catalog_item(resource_id)
-        or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url) | Q(loadout_portrait=url)
-                                | Q(battle_appearance__source_asset_id=resource_id)
-                                | Q(battle_appearance__cutout_asset_id=resource_id)
-                                | Q(battle_appearance__head_asset_id=resource_id)
-                                | Q(battle_appearance__character_asset_id=resource_id)).exists()
-        or AgentActivity.objects.filter(metadata__agentSnapshot__avatar=url).exists()
-        or Article.objects.filter(agent_post_creator_avatar=url).exists()
-        or ArticlePostComment.objects.filter(creator_avatar=url).exists()
-        or ArticlePostRating.objects.filter(rater_avatar=url).exists()
-        or ArticleAnnotation.objects.filter(creator_avatar=url).exists()
-        or ArticleAnnotationComment.objects.filter(creator_avatar=url).exists()
-        or ImageReview.objects.filter(agent_avatar=url).exists()
+    if is_asset_used_by_inventory(resource_id) or is_asset_used_by_catalog_item(resource_id):
+        return True
+
+    # Avatars can also be stored as download links or absolute URLs; historical
+    # snapshots must protect the original file after the resident changes avatar.
+    appearance_fields = ('source_asset_id', 'cutout_asset_id', 'head_asset_id', 'character_asset_id')
+    condition = (Q(avatar__contains=resource_id) | Q(full_body_image__contains=resource_id)
+                 | Q(loadout_portrait__contains=resource_id))
+    for field in appearance_fields:
+        condition |= Q(**{f'battle_appearance__{field}': resource_id})
+    for avatar, full_body, portrait, appearance in Agent.objects.filter(condition).order_by().values_list(
+        'avatar', 'full_body_image', 'loadout_portrait', 'battle_appearance',
+    ).iterator():
+        if (any(extract_resource_id_from_url(value) == resource_id for value in (avatar, full_body, portrait))
+                or (isinstance(appearance, dict) and any(appearance.get(field) == resource_id for field in appearance_fields))):
+            return True
+
+    url_fields = (
+        (AgentActivity.objects.annotate(_snapshot_avatar=KeyTextTransform.from_lookup(
+            'metadata__agentSnapshot__avatar')), ('_snapshot_avatar',)),
+        (Article.objects.all(), ('agent_post_creator_avatar',)),
+        (ArticlePostComment.objects.all(), ('creator_avatar',)),
+        (ArticlePostRating.objects.all(), ('rater_avatar',)),
+        (ArticleAnnotation.objects.all(), ('creator_avatar',)),
+        (ArticleAnnotationComment.objects.all(), ('creator_avatar',)),
+        (ImageReview.objects.all(), ('agent_avatar',)),
     )
+    for queryset, fields in url_fields:
+        condition = Q()
+        for field in fields:
+            condition |= Q(**{f'{field}__contains': resource_id})
+        candidates = queryset.filter(condition).order_by().values_list(*fields).iterator()
+        if any(isinstance(value, str) and extract_resource_id_from_url(value) == resource_id
+               for values in candidates for value in values):
+            return True
+    return False
 
 
 def is_asset_used_by_visible_author(resource_id, visible_articles, visible_coll_ids, *, include_work=False):
@@ -313,12 +341,40 @@ def is_asset_used_by_catalog_item(resource_id):
     return is_catalog_item_icon_used(resource_id)
 
 
-def delete_asset_physical_file(asset):
-    if not asset.file_path:
-        return
-
-    file_abs_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
+def _safe_asset_file_path(relative_path):
+    """Resolve the target boundary without following a final symlink when unlinking."""
     try:
+        if not isinstance(relative_path, str) or not relative_path.strip():
+            return None
+        normalized = relative_path.replace('\\', '/')
+        parts = PurePosixPath(normalized)
+        if parts.is_absolute() or PureWindowsPath(relative_path).is_absolute() or '..' in parts.parts:
+            return None
+        configured_root = Path(settings.MEDIA_ROOT)
+        if not configured_root.is_absolute():
+            return None
+        root = configured_root.resolve()
+        project_root = Path(settings.BASE_DIR).resolve()
+        if root in {Path(root.anchor), Path.home().resolve(), project_root}:
+            return None
+        path = root / relative_path
+        resolved = path.resolve()
+        if resolved == root or root not in resolved.parents:
+            return None
+        return path
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def delete_asset_physical_file(asset, *, resource_id=None):
+    file_abs_path = _safe_asset_file_path(asset.file_path)
+    if file_abs_path is None:
+        logger.warning('Refusing unsafe resource cleanup path: resource_id=%s', resource_id or asset.pk)
+        return
+    try:
+        from assets.models import Asset
+        if Asset.objects.filter(file_path=asset.file_path).exists():
+            return
         if os.path.exists(file_abs_path):
             os.remove(file_abs_path)
     except Exception:
@@ -334,11 +390,14 @@ def delete_asset_record_and_file(asset):
         locked = type(asset).objects.select_for_update().filter(pk=asset.pk).first()
         if locked is None:
             return False
-        if (is_asset_used_by_inventory(locked.pk) or is_asset_used_by_catalog_item(locked.pk)
-                or is_asset_used_by_quant(locked.pk)):
+        if _safe_asset_file_path(locked.file_path) is None:
+            logger.warning('Refusing unsafe resource deletion path: resource_id=%s', locked.pk)
             return False
+        if is_asset_referenced(locked):
+            return False
+        resource_id = locked.pk
         locked.delete()
-        transaction.on_commit(lambda target=locked: delete_asset_physical_file(target))
+        transaction.on_commit(lambda target=locked, identity=resource_id: delete_asset_physical_file(target, resource_id=identity))
         return True
 
 

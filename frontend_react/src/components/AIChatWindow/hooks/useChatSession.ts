@@ -3,7 +3,8 @@ import { diagnosticReader, diagnosticFetch, reportDiagnostic } from '@/utils/dia
 // frontend_react/src/components/AIChatWindow/hooks/useChatSession.ts
 
 import { useState, useEffect, useRef } from 'react';
-import { type Message, type ActivityStep, type StreamChar } from '../types';
+import { type Message, type ActivityStep } from '../types';
+import {SmoothStreamQueue} from '../smoothStreamQueue';
 import { type AgentConfig } from '../../../api/setting';
 import { type Anthology } from '../../../api/anthology';
 import { getImagesByAnthology, type Image } from '../../../api/image';
@@ -292,8 +293,8 @@ export const useChatSession = ({
     const [activitySteps, setActivitySteps] = useState<ActivityStep[]>([]);
     const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
-    const tokenQueueRef = useRef<StreamChar[]>([]);
-    const thinkingQueueRef = useRef<StreamChar[]>([]);
+    const tokenQueueRef = useRef(new SmoothStreamQueue());
+    const thinkingQueueRef = useRef(new SmoothStreamQueue());
     const isThinkingRef = useRef(false);
     const streamFinishedRef = useRef(true);
     const conversationKeyRef = useRef('');
@@ -357,36 +358,10 @@ export const useChatSession = ({
 
     // 平滑输出定时器
     useEffect(() => {
-        const takeSmoothChars = (queue: StreamChar[]) => {
-            const length = queue.length;
-            if (length === 0) return { conversationKey: '', text: '' };
-
-            // 智能根据积压长度调整消费速率，积压多时大幅提速（秒出段落），积压少时匀速输出（丝滑感）。
-            // 30fps 渲染即可保持顺滑，同时把逐字 Markdown 重解析的渲染次数减半。
-            let count = 2;
-            if (length > 180) {
-                count = 16;
-            } else if (length > 90) {
-                count = 10;
-            } else if (length > 36) {
-                count = 6;
-            } else if (length > 8) {
-                count = 4;
-            }
-
-            const conversationKey = queue[0].conversationKey;
-            const chars: string[] = [];
-
-            while (chars.length < count && queue[0]?.conversationKey === conversationKey) {
-                chars.push(queue.shift()?.value || '');
-            }
-
-            return { conversationKey, text: chars.join('') };
-        };
-
+        // 保持原有积压分档及约 30fps 输出节奏。
         const interval = setInterval(() => {
-            const nextAnswerChars = takeSmoothChars(tokenQueueRef.current);
-            const nextThinkingChars = takeSmoothChars(thinkingQueueRef.current);
+            const nextAnswerChars = tokenQueueRef.current.take();
+            const nextThinkingChars = thinkingQueueRef.current.take();
 
             if (nextAnswerChars.text || nextThinkingChars.text) {
                 const conversationKey = nextAnswerChars.conversationKey || nextThinkingChars.conversationKey;
@@ -464,8 +439,8 @@ export const useChatSession = ({
     const confirmClear = () => {
         generationConversationKeyRef.current = '';
         requestControllerRef.current?.abort();
-        tokenQueueRef.current = [];
-        thinkingQueueRef.current = [];
+        tokenQueueRef.current.clear();
+        thinkingQueueRef.current.clear();
         streamFinishedRef.current = true;
         isThinkingRef.current = false;
         setMessages([]);
@@ -512,8 +487,8 @@ export const useChatSession = ({
         };
         resetIdleTimer();
 
-        tokenQueueRef.current = [];
-        thinkingQueueRef.current = [];
+        tokenQueueRef.current.clear();
+        thinkingQueueRef.current.clear();
         setActivitySteps([]);
         streamFinishedRef.current = false;
         setShouldAutoScroll(true);
@@ -662,16 +637,12 @@ export const useChatSession = ({
                 if (!content) return;
                 receivedAnswer = true;
                 ensureAnswerBubble();
-                for (const char of content) {
-                    tokenQueueRef.current.push({ conversationKey: requestConversationKey, value: char });
-                }
+                tokenQueueRef.current.append(requestConversationKey, content);
             };
 
             const appendThinking = (content: string) => {
                 ensureAnswerBubble();
-                for (const char of content) {
-                    thinkingQueueRef.current.push({ conversationKey: requestConversationKey, value: char });
-                }
+                thinkingQueueRef.current.append(requestConversationKey, content);
             };
 
             const handleStreamLine = (line: string) => {
@@ -800,10 +771,10 @@ export const useChatSession = ({
                 : error instanceof TypeError ? '连接中断，请检查网络或代理后重试。'
                 : error instanceof Error ? error.message : '网络连接异常，请稍后重试。';
             reportDiagnostic({ errorType: timedOut ? 'timeout' : 'chat_failed', module: 'stream', path: '/api/ai/chat/' });
-            const pendingAnswer = tokenQueueRef.current.map(char => char.value).join('');
-            const pendingThinking = thinkingQueueRef.current.map(char => char.value).join('');
-            tokenQueueRef.current = [];
-            thinkingQueueRef.current = [];
+            const pendingAnswer = tokenQueueRef.current.remainingText();
+            const pendingThinking = thinkingQueueRef.current.remainingText();
+            tokenQueueRef.current.clear();
+            thinkingQueueRef.current.clear();
             streamFinishedRef.current = true;
             isThinkingRef.current = false;
             generationConversationKeyRef.current = '';

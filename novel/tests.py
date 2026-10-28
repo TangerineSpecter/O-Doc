@@ -22,6 +22,9 @@ from utils.sync_manager import SyncError, SyncManager
 
 class NovelTests(TestCase):
     def setUp(self):
+        # Worker calls run synchronously in these tests, inside TestCase's atomic
+        # transaction. Keep connection cleanup from closing that test connection.
+        self.enterContext(patch('novel.worker.close_old_connections'))
         self.user = get_user_model().objects.create_superuser(username='admin', password='test', email='admin@test.local')
         self.other = get_user_model().objects.create_user(username='reader', password='test')
         self.client = APIClient(); self.client.force_authenticate(self.user)

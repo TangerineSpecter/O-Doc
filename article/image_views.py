@@ -3,7 +3,9 @@ import mimetypes
 
 from django.db import models, transaction
 from django.db.models.functions import Coalesce
+from django.http import Http404
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 
 from anthology.models import Anthology
@@ -45,7 +47,7 @@ class ImageListView(APIView):
             images = Image.objects.filter(
                 is_valid=True,
                 coll_id=coll_id
-            ).annotate(
+            ).select_related('location').annotate(
                 sort_time=Coalesce('shooting_time', 'created_at')
             ).order_by('-sort_time', '-created_at')
 
@@ -65,10 +67,12 @@ class ImageDetailView(APIView):
         try:
             image = get_object_or_404(Image, image_id=image_id, is_valid=True)
             if not can_access_anthology(request, image.coll_id, 'image'):
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
             serializer = ImageSerializer(image)
             return success_result(data=serializer.data)
 
+        except Http404:
+            return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
         except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
 
@@ -82,15 +86,18 @@ class ImageCreateView(APIView):
         try:
             serializer = ImageSerializer(data=request.data)
             if serializer.is_valid():
-                if not can_manage_anthology(request, serializer.validated_data['coll_id'], 'image'):
-                    return error_result(ErrorCode.RESOURCE_NOT_FOUND)
-                image = serializer.save(author=get_current_user_identifier(request))
+                coll_id = serializer.validated_data['coll_id']
+                with transaction.atomic():
+                    Anthology.objects.select_for_update().filter(coll_id=coll_id).first()
+                    if not can_manage_anthology(request, coll_id, 'image'):
+                        return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
+                    image = serializer.save(author=get_current_user_identifier(request))
 
-                # 更新文集计数
-                anthology_queryset = Anthology.objects.filter(coll_id=image.coll_id)
-                from system_settings.sync_state import record_bulk_change
-                record_bulk_change(anthology_queryset)
-                anthology_queryset.update(count=models.F('count') + 1)
+                    # 图片和计数一起提交；失败时同步修订也随事务回滚。
+                    anthology_queryset = Anthology.objects.filter(coll_id=image.coll_id)
+                    from system_settings.sync_state import record_bulk_change
+                    record_bulk_change(anthology_queryset)
+                    anthology_queryset.update(count=models.F('count') + 1)
 
                 return success_result(data=ImageSerializer(image).data)
             else:
@@ -116,7 +123,7 @@ class ImageGroupCreateView(APIView):
             if not coll_id or not isinstance(photos, list) or not photos:
                 return error_result(ErrorCode.PARAM_ERROR, '请至少提供一张照片')
             if not can_manage_anthology(request, coll_id, 'image'):
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
 
             from utils.id_generator import generate_unique_id
             group_id = generate_unique_id('pgrp') if len(photos) > 1 else ''
@@ -132,19 +139,24 @@ class ImageGroupCreateView(APIView):
             existing_ids = [image_id for image_id in existing_ids if image_id]
             if len(existing_ids) != len(set(existing_ids)):
                 return error_result(ErrorCode.PARAM_ERROR, '同一张照片不能重复加入拍摄组')
-            existing_images = {
-                image.image_id: image
-                for image in Image.objects.filter(
-                    image_id__in=existing_ids,
-                    coll_id=coll_id,
-                    author=get_current_user_identifier(request),
-                    is_valid=True,
-                )
-            }
-            if len(existing_images) != len(existing_ids):
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND, '待转换的图片不存在')
             created = []
             with transaction.atomic():
+                Anthology.objects.select_for_update().filter(coll_id=coll_id).first()
+                if not can_manage_anthology(request, coll_id, 'image'):
+                    return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
+                existing_images = {
+                    image.image_id: image
+                    for image in Image.objects.filter(
+                        image_id__in=existing_ids,
+                        coll_id=coll_id,
+                        author=get_current_user_identifier(request),
+                        is_valid=True,
+                    )
+                }
+                if len(existing_images) != len(existing_ids):
+                    return error_result(ErrorCode.RESOURCE_NOT_FOUND, '待转换的图片不存在', status=404)
+                previous_groups = {image.photo_group_id for image in existing_images.values()
+                                   if image.photo_group_id and image.photo_group_id != group_id}
                 for index, photo in enumerate(photos):
                     data = {
                         **shared,
@@ -156,6 +168,8 @@ class ImageGroupCreateView(APIView):
                     existing_id = str(photo.get('image_id') or photo.get('imageId') or '').strip()
                     if existing_id:
                         existing = existing_images[existing_id]
+                        # Converting an existing photo to a group must not replace its file.
+                        data.pop('image_url')
                         serializer = ImageSerializer(existing, data=data, partial=True)
                         serializer.is_valid(raise_exception=True)
                         created.append(serializer.save())
@@ -163,8 +177,13 @@ class ImageGroupCreateView(APIView):
                         serializer = ImageSerializer(data=data)
                         serializer.is_valid(raise_exception=True)
                         created.append(serializer.save(author=get_current_user_identifier(request)))
-                anthology_queryset = Anthology.objects.filter(coll_id=coll_id)
                 from system_settings.sync_state import record_bulk_change
+                for previous_group in sorted(previous_groups):
+                    remaining = Image.objects.filter(photo_group_id=previous_group, coll_id=coll_id, is_valid=True)
+                    if remaining.count() == 1:
+                        record_bulk_change(remaining)
+                        remaining.update(photo_group_id='', group_index=0)
+                anthology_queryset = Anthology.objects.filter(coll_id=coll_id)
                 record_bulk_change(anthology_queryset)
                 anthology_queryset.update(count=models.F('count') + len(photos) - len(existing_ids))
             return success_result(data=ImageSerializer(created, many=True).data)
@@ -184,6 +203,13 @@ def cleanup_group_image_assets(images):
             delete_asset_record_and_file(asset)
 
 
+def remove_image_index_after_commit(image):
+    try:
+        remove_image_index(image)
+    except Exception:
+        logger.exception('Could not remove local index for deleted image %s', image.pk)
+
+
 class ImageGroupUpdateView(APIView):
     """同步更新组共享字段、组内排序及每张焦段。"""
 
@@ -192,16 +218,33 @@ class ImageGroupUpdateView(APIView):
             owner = get_current_user_identifier(request)
             images = list(Image.objects.filter(photo_group_id=group_id, author=owner, is_valid=True).order_by('group_index'))
             if not images or not can_manage_anthology(request, images[0].coll_id, 'image'):
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
             payload = request.data.copy()
             photos = payload.get('photos') or []
             if not isinstance(photos, list) or not photos:
                 return error_result(ErrorCode.PARAM_ERROR, '请至少保留一张照片')
-            photo_map = {str(photo.get('image_id') or photo.get('imageId')): photo for photo in photos}
+            if any(not isinstance(photo, dict) for photo in photos):
+                return error_result(ErrorCode.PARAM_ERROR, '照片数据格式无效', status=400)
+            photo_ids = [str(photo.get('image_id') or photo.get('imageId') or '') for photo in photos]
+            retained_ids = [image_id for image_id in photo_ids if image_id]
+            if len(retained_ids) != len(set(retained_ids)):
+                return error_result(ErrorCode.PARAM_ERROR, '同一张照片不能重复加入拍摄组', status=400)
+            if not set(retained_ids).issubset({image.image_id for image in images}):
+                return error_result(ErrorCode.PARAM_ERROR, '照片已不在此拍摄组，请刷新后重试', status=400)
+            photo_map = {image_id: photo for image_id, photo in zip(photo_ids, photos) if image_id}
             shared_keys = ('title', 'description', 'shooting_time', 'country', 'city', 'place_name', 'location_id', 'tags')
+            created_ids = []
             with transaction.atomic():
+                coll_id = images[0].coll_id
+                Anthology.objects.select_for_update().filter(coll_id=coll_id).first()
+                images = list(Image.objects.filter(photo_group_id=group_id, author=owner,
+                                                   coll_id=coll_id, is_valid=True).order_by('group_index'))
+                if not images or not can_manage_anthology(request, coll_id, 'image'):
+                    return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
+                if not set(retained_ids).issubset({image.image_id for image in images}):
+                    return error_result(ErrorCode.PARAM_ERROR, '照片已不在此拍摄组，请刷新后重试', status=400)
                 # 移除未提交的组内照片；前端用这一行为实现单张移除。
-                retained_ids = {image_id for image_id in photo_map if image_id and image_id != 'None'}
+                retained_ids = set(retained_ids)
                 removed = [image for image in images if image.image_id not in retained_ids]
                 for image in removed:
                     image.is_valid = False
@@ -238,7 +281,7 @@ class ImageGroupUpdateView(APIView):
                     }
                     serializer = ImageSerializer(data=data)
                     serializer.is_valid(raise_exception=True)
-                    serializer.save(author=owner)
+                    created_ids.append(serializer.save(author=owner).image_id)
                 current = Image.objects.filter(photo_group_id=group_id, is_valid=True)
                 if current.count() == 1:
                     from system_settings.sync_state import record_bulk_change
@@ -248,17 +291,14 @@ class ImageGroupUpdateView(APIView):
                 from system_settings.sync_state import record_bulk_change
                 record_bulk_change(anthology_queryset)
                 anthology_queryset.update(count=models.F('count') - len(removed) + sum(1 for photo in photos if not (photo.get('image_id') or photo.get('imageId'))))
-            cleanup_group_image_assets(removed)
-            for image in removed:
-                try:
-                    remove_image_index(image)
-                except Exception:
-                    logger.exception('Could not remove local index for deleted image %s', image.pk)
+                cleanup_group_image_assets(removed)
+                for image in removed:
+                    transaction.on_commit(lambda target=image: remove_image_index_after_commit(target))
             refreshed = Image.objects.filter(photo_group_id=group_id, is_valid=True).order_by('group_index')
             if not refreshed.exists():
-                # 组内只剩一张时已降级为普通图片，仍需在更新响应中返回它。
+                # 组内只剩一张时已降级为普通图片，包括本次新加入的照片。
                 refreshed = Image.objects.filter(
-                    image_id__in=retained_ids,
+                    image_id__in=retained_ids | set(created_ids),
                     is_valid=True,
                 ).order_by('group_index')
             return success_result(data=ImageSerializer(refreshed, many=True).data)
@@ -273,8 +313,14 @@ class ImageGroupDeleteView(APIView):
             owner = get_current_user_identifier(request)
             images = list(Image.objects.filter(photo_group_id=group_id, author=owner, is_valid=True))
             if not images or not can_manage_anthology(request, images[0].coll_id, 'image'):
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
             with transaction.atomic():
+                coll_id = images[0].coll_id
+                Anthology.objects.select_for_update().filter(coll_id=coll_id).first()
+                images = list(Image.objects.filter(photo_group_id=group_id, author=owner,
+                                                   coll_id=coll_id, is_valid=True))
+                if not images or not can_manage_anthology(request, coll_id, 'image'):
+                    return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
                 for image in images:
                     image.is_valid = False
                     image.save(update_fields=['is_valid', 'updated_at'])
@@ -282,12 +328,9 @@ class ImageGroupDeleteView(APIView):
                 from system_settings.sync_state import record_bulk_change
                 record_bulk_change(anthology_queryset)
                 anthology_queryset.update(count=models.F('count') - len(images))
-            cleanup_group_image_assets(images)
-            for image in images:
-                try:
-                    remove_image_index(image)
-                except Exception:
-                    logger.exception('Could not remove local index for deleted image %s', image.pk)
+                cleanup_group_image_assets(images)
+                for image in images:
+                    transaction.on_commit(lambda target=image: remove_image_index_after_commit(target))
             return success_result(msg='删除成功')
         except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
@@ -300,17 +343,48 @@ class ImageUpdateView(APIView):
 
     def put(self, request, image_id):
         try:
-            image = get_object_or_404(Image, image_id=image_id, author=get_current_user_identifier(request), is_valid=True)
-            serializer = ImageSerializer(image, data=request.data, partial=True)
-            if serializer.is_valid():
-                target_coll_id = serializer.validated_data.get('coll_id', image.coll_id)
-                if not can_manage_anthology(request, target_coll_id, 'image'):
-                    return error_result(ErrorCode.RESOURCE_NOT_FOUND)
-                serializer.save()
-                return success_result(data=serializer.data)
-            else:
+            owner = get_current_user_identifier(request)
+            initial_coll_id = get_object_or_404(Image.objects.only('coll_id'), image_id=image_id,
+                                                author=owner, is_valid=True).coll_id
+            requested_coll_id = request.data.get('coll_id', request.data.get('collId', initial_coll_id))
+            # Use the same field normalization as the update serializer before choosing locks.
+            try:
+                target_coll_id = ImageSerializer().fields['coll_id'].run_validation(requested_coll_id)
+            except ValidationError as exc:
+                return error_result(ErrorCode.PARAM_ERROR, {'coll_id': exc.detail}, status=400)
+            collection_ids = {initial_coll_id, target_coll_id}
+            with transaction.atomic():
+                # Acquire collection locks in a stable order before locking images.
+                list(Anthology.objects.select_for_update().filter(coll_id__in=collection_ids).order_by('coll_id'))
+                image = get_object_or_404(Image.objects.select_for_update(), image_id=image_id,
+                                          author=owner, coll_id=initial_coll_id, is_valid=True)
+                serializer = ImageSerializer(image, data=request.data, partial=True)
+                if serializer.is_valid():
+                    target_coll_id = serializer.validated_data.get('coll_id', image.coll_id)
+                    if not can_manage_anthology(request, target_coll_id, 'image'):
+                        return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
+                    old_group = image.photo_group_id
+                    if target_coll_id != initial_coll_id:
+                        serializer.save(photo_group_id='', group_index=0)
+                        from system_settings.sync_state import record_bulk_change
+                        source = Anthology.objects.filter(coll_id=initial_coll_id)
+                        target = Anthology.objects.filter(coll_id=target_coll_id)
+                        record_bulk_change(source)
+                        source.update(count=models.F('count') - 1)
+                        record_bulk_change(target)
+                        target.update(count=models.F('count') + 1)
+                        if old_group:
+                            remaining = Image.objects.filter(photo_group_id=old_group, coll_id=initial_coll_id, is_valid=True)
+                            if remaining.count() == 1:
+                                record_bulk_change(remaining)
+                                remaining.update(photo_group_id='', group_index=0)
+                    else:
+                        serializer.save()
+                    return success_result(data=serializer.data)
                 return error_result(ErrorCode.PARAM_ERROR, str(serializer.errors))
 
+        except Http404:
+            return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
         except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
 
@@ -375,41 +449,44 @@ class ImageDeleteView(APIView):
 
     def delete(self, request, image_id):
         try:
-            image = get_object_or_404(Image, image_id=image_id, author=get_current_user_identifier(request), is_valid=True)
-            resource_id = extract_resource_id_from_view_url(image.image_url)
-            image.is_valid = False
-            image.save()
-            try:
-                remove_image_index(image)
-            except Exception:
-                logger.exception('Could not remove local index for deleted image %s', image.pk)
+            owner = get_current_user_identifier(request)
+            initial_coll_id = get_object_or_404(Image.objects.only('coll_id'), image_id=image_id,
+                                                author=owner, is_valid=True).coll_id
+            with transaction.atomic():
+                Anthology.objects.select_for_update().filter(coll_id=initial_coll_id).first()
+                image = get_object_or_404(Image.objects.select_for_update(), image_id=image_id,
+                                          author=owner, coll_id=initial_coll_id, is_valid=True)
+                resource_id = extract_resource_id_from_view_url(image.image_url)
+                image.is_valid = False
+                image.save()
 
-            # 组内仅剩一张时降级为普通单图，避免留下没有意义的拍摄组标识。
-            if image.photo_group_id:
-                remaining = Image.objects.filter(
-                    photo_group_id=image.photo_group_id,
-                    coll_id=image.coll_id,
-                    is_valid=True,
-                )
-                if remaining.count() == 1:
-                    from system_settings.sync_state import record_bulk_change
-                    record_bulk_change(remaining)
-                    remaining.update(photo_group_id='', group_index=0)
+                # 组内仅剩一张时降级为普通单图，避免留下没有意义的拍摄组标识。
+                if image.photo_group_id:
+                    remaining = Image.objects.filter(
+                        photo_group_id=image.photo_group_id,
+                        coll_id=image.coll_id,
+                        is_valid=True,
+                    )
+                    if remaining.count() == 1:
+                        from system_settings.sync_state import record_bulk_change
+                        record_bulk_change(remaining)
+                        remaining.update(photo_group_id='', group_index=0)
 
-            if resource_id and not is_asset_used_by_image(resource_id, exclude_image_id=image.image_id):
-                from assets.models import Asset
+                if resource_id and not is_asset_used_by_image(resource_id, exclude_image_id=image.image_id):
+                    asset = Asset.objects.filter(id=resource_id, is_valid=True, linked_article__isnull=True).first()
+                    if asset:
+                        delete_asset_record_and_file(asset)
 
-                asset = Asset.objects.filter(id=resource_id, is_valid=True, linked_article__isnull=True).first()
-                if asset:
-                    delete_asset_record_and_file(asset)
-
-            # 更新文集计数
-            anthology_queryset = Anthology.objects.filter(coll_id=image.coll_id)
-            from system_settings.sync_state import record_bulk_change
-            record_bulk_change(anthology_queryset)
-            anthology_queryset.update(count=models.F('count') - 1)
+                # 关联记录与计数保持同一事务，索引和物理文件在提交后清理。
+                anthology_queryset = Anthology.objects.filter(coll_id=image.coll_id)
+                from system_settings.sync_state import record_bulk_change
+                record_bulk_change(anthology_queryset)
+                anthology_queryset.update(count=models.F('count') - 1)
+                transaction.on_commit(lambda target=image: remove_image_index_after_commit(target))
 
             return success_result(msg="删除成功")
 
+        except Http404:
+            return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
         except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))

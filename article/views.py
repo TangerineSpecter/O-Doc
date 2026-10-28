@@ -12,7 +12,7 @@ from urllib.parse import unquote
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction, models, close_old_connections
-from django.db.models import Avg, Prefetch, Q
+from django.db.models import Avg, Prefetch, Q, prefetch_related_objects
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
@@ -50,7 +50,8 @@ from article.agent_post_views import (
     AgentPostRatingView,
 )
 from article.html_note_locking import lock_html_owner
-from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, Image
+from article.agent_post_projection import creator_profession_cache
+from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticleAsset, ArticlePostComment, ArticlePostRating, Image
 from article.post_sources import post_sources
 from article.version_service import create_article_version, has_versionable_changes
 from article.prompts import ARTICLE_MIND_MAP_PROMPT_TEMPLATE, POLISH_ARTICLE_PROMPT_TEMPLATE
@@ -327,7 +328,7 @@ class ArticleDetailView(APIView):
             article.read_count = (article.read_count or 0) + 1
 
             # 序列化响应数据
-            response_data = dict(ArticleSerializer(article).data)
+            response_data = dict(ArticleSerializer(article, context={'request': request}).data)
             response_data['post_sources'] = post_sources(article)
 
             return success_result(response_data)
@@ -599,7 +600,13 @@ class ArticleListView(APIView):
                 get_visible_article_queryset(request)
                 .select_related('agent_post_category_ref', 'category', 'parent')
                 .prefetch_related(
-                    'tags', 'post_comments', 'post_ratings',
+                    'tags',
+                    Prefetch('post_comments', queryset=ArticlePostComment.objects.filter(is_valid=True).only(
+                        'comment_id', 'article_id', 'actor_agent_id', 'creator_id', 'is_valid',
+                    )),
+                    Prefetch('post_ratings', queryset=ArticlePostRating.objects.filter(is_valid=True).only(
+                        'rating_id', 'article_id', 'actor_agent_id', 'rater_id', 'rating', 'updated_at', 'is_valid',
+                    )),
                     Prefetch('asset_set', queryset=Asset.objects.filter(is_valid=True, source_type='attachment')),
                 )
                 .order_by('sort', '-updated_at')
@@ -628,7 +635,25 @@ class ArticleListView(APIView):
             if summary_only:
                 articles = articles.defer('content', 'mind_map')
             serializer_class = ArticleSummarySerializer if summary_only else ArticleSerializer
-            serializer = serializer_class(articles, many=True)
+            articles = list(articles)
+            html_articles = [article for article in articles if article.content_format == 'html']
+            if html_articles:
+                prefetch_related_objects(html_articles, Prefetch(
+                    'asset_references',
+                    queryset=ArticleAsset.objects.filter(
+                        role__in=('package', 'source'), asset__is_valid=True,
+                    ).only('id', 'article_id', 'asset_id', 'role').order_by('pk'),
+                    to_attr='_list_html_download_sources',
+                ))
+            try:
+                professions = creator_profession_cache(articles)
+            except Exception:
+                # Preserve the existing per-article fallback if the batch lookup fails.
+                logger.warning('Failed to prefetch article creator professions', exc_info=True)
+                professions = {}
+            serializer = serializer_class(articles, many=True, context={
+                'request': request, '_agent_professions': professions,
+            })
 
             return success_result(data=serializer.data)
 

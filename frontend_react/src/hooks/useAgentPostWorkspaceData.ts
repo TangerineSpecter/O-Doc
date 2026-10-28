@@ -20,8 +20,16 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
     const [activePost, setActivePost] = useState<ArticleType | null>(null);
     const articleSession = useRef(0);
     const detailRequest = useRef(0);
+    const listRequest = useRef(0);
+    const listInFlight = useRef(false);
+    const commentRevision = useRef(0);
+    const commentReadRequest = useRef(0);
+    const commentReadApplied = useRef(0);
+    const commentWrites = useRef<Array<{revision: number; comment: AgentPostComment}>>([]);
+    useEffect(() => () => {listRequest.current += 1; listInFlight.current = false;}, []);
     useEffect(() => {
         articleSession.current += 1;
+        commentWrites.current = [];
         return () => {articleSession.current += 1;};
     }, [articleId]);
     const readPostIds = useRef(new Set<string>());
@@ -63,6 +71,14 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
     const [latestComments, setLatestComments] = useState<AgentPostLatestCommentListResult['comments']>([]);
     const [agentList, setAgentList] = useState<AgentConfig[]>([]);
     const toast = useToast();
+
+    const includeCommentsPublishedSince = (comments: AgentPostComment[], revision: number) => {
+        const ids = new Set(comments.map(comment => comment.commentId));
+        const appended = commentWrites.current
+            .filter(write => write.revision > revision && !ids.has(write.comment.commentId))
+            .map(write => write.comment);
+        return appended.length ? [...comments, ...appended] : comments;
+    };
 
     useEffect(() => {
         getAgents().then(res => setAgentList((res as unknown as AgentConfig[]) || [])).catch(() => {});
@@ -186,23 +202,33 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
     }, [hasMore, isLoadingMore, articleId]);
 
     const loadPosts = useCallback(async () => {
-        if (!collId) return;
+        if (!collId) return false;
+        const request = ++listRequest.current;
+        const isCurrent = () => listRequest.current === request;
+        listInFlight.current = true;
         setLoading(true);
         try {
             const [data, latestCommentResult] = await Promise.all([
                 getArticles({collId}),
                 getAgentPostLatestComments(collId, 10)
             ]);
+            if (!isCurrent()) return false;
             // 世界入口会并行加载详情和列表；较晚返回的列表快照不能覆盖已确认的阅读状态。
             setPosts(data.map(post => readPostIds.current.has(post.articleId)
                 ? {...post, agentPostHasBeenRead: true} : post
             ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
             setLatestComments(latestCommentResult.comments || []);
+            return true;
         } catch (error) {
+            if (!isCurrent()) return false;
             console.error('加载 Agent 帖子失败:', error);
             toast.error('加载 Agent 帖子失败');
+            return false;
         } finally {
-            setLoading(false);
+            if (isCurrent()) {
+                listInFlight.current = false;
+                setLoading(false);
+            }
         }
     }, [collId, toast]);
 
@@ -210,8 +236,7 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
         if (refreshing) return;
         setRefreshing(true);
         try {
-            await loadPosts();
-            toast.success('已刷新最新帖子');
+            if (await loadPosts()) toast.success('已刷新最新帖子');
         } finally {
             setRefreshing(false);
         }
@@ -249,9 +274,14 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
             const detail = await getArticleDetail(articleId);
             if (!isCurrent()) return;
             setActivePost(detail);
+            const revision = commentRevision.current;
+            const commentRequest = ++commentReadRequest.current;
             const commentResult = await getAgentPostComments(articleId).catch(() => null);
             if (!isCurrent()) return;
-            setComments(commentResult?.comments || []);
+            if (commentResult && commentRequest > commentReadApplied.current) {
+                commentReadApplied.current = commentRequest;
+                setComments(includeCommentsPublishedSince(commentResult.comments, revision));
+            }
         } catch (error) {
             if (!isCurrent()) return;
             console.error('加载 Agent 帖子详情失败:', error);
@@ -281,7 +311,15 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
         let active = true;
         const timer = window.setInterval(() => {
             if (document.visibilityState !== 'visible') return;
-            void getAgentPostComments(articleId).then(result => {if (active) setComments(result.comments);}).catch(() => {});
+            const revision = commentRevision.current;
+            const session = articleSession.current;
+            const commentRequest = ++commentReadRequest.current;
+            void getAgentPostComments(articleId).then(result => {
+                if (active && articleSession.current === session && commentRequest > commentReadApplied.current) {
+                    commentReadApplied.current = commentRequest;
+                    setComments(includeCommentsPublishedSince(result.comments, revision));
+                }
+            }).catch(() => {});
         }, 30000);
         return () => {active = false; window.clearInterval(timer);};
     }, [articleId]);
@@ -304,6 +342,7 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
             }
             setDeleteTarget(null);
             toast.success('帖子已移入回收站');
+            if (listInFlight.current) void loadPosts();
         } catch (error) {
             console.error('删除 Agent 帖子失败:', error);
             toast.error(error instanceof Error ? error.message : '删除帖子失败');
@@ -317,7 +356,11 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
         setCommentSubmitting(true);
         try {
             const result = await createAgentPostComment(activePost.articleId, commentDraft.trim(), replyTarget?.id, replyTarget?.actorId);
-            if (isCurrent()) setComments(prev => [...prev, result.comment]);
+            if (isCurrent()) {
+                commentWrites.current.push({revision: ++commentRevision.current, comment: result.comment});
+                setComments(prev => prev.some(comment => comment.commentId === result.comment.commentId)
+                    ? prev : [...prev, result.comment]);
+            }
             if (isCurrent()) setActivePost(prev => prev?.articleId === activePost.articleId ? {
                 ...prev,
                 postCommentCount: (prev.postCommentCount || 0) + 1
@@ -340,6 +383,7 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
                 setReplyTarget(null);
                 toast.success('评论已发布');
             }
+            if (listInFlight.current) void loadPosts();
         } catch (error) {
             console.error('发布评论失败:', error);
             if (isCurrent()) toast.error(error instanceof Error ? error.message : '发布评论失败');
@@ -368,6 +412,7 @@ export function useAgentPostWorkspaceData({collId, articleId, anthologyInfo, onN
                 myAgentPostRating: result.myRating
             } : post));
             if (isCurrent()) toast.success('评分已保存');
+            if (listInFlight.current) void loadPosts();
         } catch (error) {
             console.error('保存评分失败:', error);
             if (isCurrent()) toast.error(error instanceof Error ? error.message : '保存评分失败');

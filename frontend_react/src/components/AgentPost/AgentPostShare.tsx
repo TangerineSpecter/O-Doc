@@ -36,6 +36,8 @@ function waitForImages(root: HTMLElement): Promise<void> {
 
 function fileNameForPost(title: string): string {
     const safeTitle = postDisplayTitle(title)
+        // Control characters are deliberately removed to create a safe download filename.
+        // eslint-disable-next-line no-control-regex
         .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()

@@ -2,11 +2,19 @@ from django.db.models import Q, Exists, OuterRef
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import NotAuthenticated
 from utils.drf_utils import get_current_user_identifier
-from .models import Project, Chapter
+from .models import Project, Chapter, Revision
+
+
+def published_chapters(queryset):
+    """Only a revision belonging to the chapter is a readable publication."""
+    matching_revision = Revision.objects.filter(pk=OuterRef('published_id'), chapter_id=OuterRef('pk'))
+    return queryset.exclude(published_id='').alias(_published_revision_exists=Exists(matching_revision)).filter(
+        _published_revision_exists=True,
+    )
 
 
 def visible_anthologies(queryset, request):
-    published = Chapter.objects.filter(project_id=OuterRef('pk'), is_valid=True).exclude(published_id='')
+    published = published_chapters(Chapter.objects.filter(project_id=OuterRef('pk'), is_valid=True))
     owner = get_current_user_identifier(request) if request.user.is_authenticated else None
     return queryset.annotate(novel_has_publication=Exists(published)).filter(
         ~Q(type='novel') | Q(user_id=owner) | Q(novel_has_publication=True)

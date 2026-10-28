@@ -194,7 +194,10 @@ function getEffectIcon(item: ParsedEffectItem) {
 
 export default function RecipeAdventureEffects({effects}: {effects: CookingRecipe['adventureEffects']}) {
     if (!effects?.length) return null;
+    return <RecipeAdventureEffectsContent effects={effects} />;
+}
 
+function RecipeAdventureEffectsContent({effects}: {effects: NonNullable<CookingRecipe['adventureEffects']>}) {
     // 是否是复杂/多属性效果（如满汉全席），若是多属性，默认阶梯列表；否则默认矩阵对比
     const isMultiEffect = useMemo(() => {
         const first = effects[0];

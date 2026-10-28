@@ -1,6 +1,7 @@
 from collections import defaultdict
 
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, F, Q, Window
+from django.db.models.functions import RowNumber
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from rest_framework.views import APIView
@@ -56,9 +57,10 @@ def _build_anthology_count_maps(anthologies):
     novel_ids = [anthology.pk for anthology in by_type['novel']]
     if novel_ids:
         from novel.models import Chapter
+        from novel.access import published_chapters
         base = Chapter.objects.filter(project_id__in=novel_ids, is_valid=True)
         maps['novel'] = _count_map(base, 'project_id')
-        maps['novel_published'] = _count_map(base.exclude(published_id=''), 'project_id')
+        maps['novel_published'] = _count_map(published_chapters(base), 'project_id')
         maps['novel_adopted'] = _count_map(base.exclude(adopted_id=''), 'project_id')
 
     quant_ids = [anthology.pk for anthology in by_type['quant']]
@@ -94,6 +96,167 @@ def _build_anthology_count_maps(anthologies):
     return maps
 
 
+def _image_cover_summaries(anthologies):
+    """Batch the latest twelve cover photos per visible, non-hidden collection."""
+    ids = [anthology.pk for anthology in anthologies if anthology.type == 'image' and not anthology.hide_cover_content]
+    if not ids:
+        return {}
+    images = (Image.objects.filter(coll_id__in=ids, is_valid=True)
+              .annotate(cover_rank=Window(expression=RowNumber(), partition_by=[F('coll_id')],
+                                          order_by=F('created_at').desc()))
+              .filter(cover_rank__lte=12)
+              .order_by('coll_id', '-created_at')
+              .values('coll_id', 'image_id', 'title', 'image_url', 'created_at'))
+    summaries = defaultdict(list)
+    for image in images:
+        summaries[image['coll_id']].append({
+            'image_id': image['image_id'], 'imageId': image['image_id'], 'title': image['title'],
+            'image_url': image['image_url'], 'imageUrl': image['image_url'],
+            'date': image['created_at'].strftime('%m-%d'),
+        })
+    return summaries
+
+
+def _book_cover_summaries(anthologies):
+    """Batch the latest twelve book covers per visible, non-hidden collection."""
+    ids = [anthology.pk for anthology in anthologies if anthology.type == 'book' and not anthology.hide_cover_content]
+    if not ids:
+        return {}
+    books = (Book.objects.filter(anthology_id__in=ids, is_valid=True)
+             .annotate(cover_rank=Window(expression=RowNumber(), partition_by=[F('anthology_id')],
+                                         order_by=F('updated_at').desc()))
+             .filter(cover_rank__lte=12)
+             .order_by('anthology_id', '-updated_at')
+             .values('anthology_id', 'book_id', 'title', 'updated_at'))
+    summaries = defaultdict(list)
+    for book in books:
+        book_id = book['book_id']
+        cover_url = f'/api/anthology/book/{book_id}/cover'
+        summaries[book['anthology_id']].append({
+            'book_id': book_id, 'bookId': book_id, 'title': book['title'],
+            'cover_url': cover_url, 'coverUrl': cover_url, 'date': book['updated_at'].strftime('%m-%d'),
+        })
+    return summaries
+
+
+def _agent_cover_summaries(request, anthologies):
+    """Batch visible recent posts and interaction counts for Agent collection cards."""
+    ids = [anthology.pk for anthology in anthologies if anthology.type == 'agent' and not anthology.hide_cover_content]
+    if not ids:
+        return {}
+    posts = list(get_visible_article_queryset(request).filter(coll_id__in=ids)
+                 .annotate(cover_rank=Window(expression=RowNumber(), partition_by=[F('coll_id')],
+                                             order_by=F('created_at').desc()))
+                 .filter(cover_rank__lte=3)
+                 .order_by('coll_id', '-created_at')
+                 .values('article_id', 'coll_id', 'title', 'created_at', 'post_summary',
+                         'agent_post_creator_id', 'agent_post_creator_name', 'agent_post_creator_avatar',
+                         'agent_post_category', 'agent_post_rating'))
+    if not posts:
+        return {}
+    post_ids = [post['article_id'] for post in posts]
+    ratings = _count_map(ArticlePostRating.objects.filter(article_id__in=post_ids, is_valid=True).order_by(), 'article_id')
+    comments = _count_map(ArticlePostComment.objects.filter(article_id__in=post_ids, is_valid=True).order_by(), 'article_id')
+    summaries = defaultdict(list)
+    for post in posts:
+        created_at = post['created_at']
+        summaries[post['coll_id']].append({
+            'article_id': post['article_id'], 'title': post['title'], 'date': created_at.strftime('%m-%d'),
+            'summary': post['post_summary'], 'agent_id': post['agent_post_creator_id'],
+            'agent_name': post['agent_post_creator_name'] or 'Agent', 'agent_avatar': post['agent_post_creator_avatar'],
+            'category': post['agent_post_category'], 'rating': post['agent_post_rating'],
+            'rating_count': ratings.get(post['article_id'], 0), 'comment_count': comments.get(post['article_id'], 0),
+            'created_at': created_at.isoformat() if created_at else None,
+        })
+    return summaries
+
+
+def _article_cover_summaries(request, anthologies):
+    """Batch ordinary collection cards while retaining their manual sort order."""
+    special_types = {'agent', 'book', 'image', 'learning', 'novel', 'quant', 'backtest'}
+    ids = [anthology.pk for anthology in anthologies
+           if anthology.type not in special_types and not anthology.hide_cover_content]
+    if not ids:
+        return {}
+    articles = (get_visible_article_queryset(request).filter(coll_id__in=ids)
+                .annotate(cover_rank=Window(expression=RowNumber(), partition_by=[F('coll_id')],
+                                            order_by=[F('sort').asc(), F('updated_at').desc()]))
+                .filter(cover_rank__lte=3)
+                .order_by('coll_id', 'sort', '-updated_at')
+                .values('article_id', 'coll_id', 'title', 'updated_at'))
+    summaries = defaultdict(list)
+    for article in articles:
+        summaries[article['coll_id']].append({
+            'article_id': article['article_id'], 'title': article['title'],
+            'date': article['updated_at'].strftime('%m-%d'),
+        })
+    return summaries
+
+
+def _research_cover_summaries(anthologies):
+    """Batch owner-visible quant and MT4 cards with their original tie ordering."""
+    summaries = defaultdict(list)
+    for kind in ('quant', 'backtest'):
+        ids = [anthology.pk for anthology in anthologies if anthology.type == kind and not anthology.hide_cover_content]
+        if not ids:
+            continue
+        if kind == 'quant':
+            from quant.models import Entry
+            model, title_field, tie_order = Entry, 'title', '-id'
+        else:
+            from quant.models import MT4Expert
+            model, title_field, tie_order = MT4Expert, 'name', 'id'
+        tie_expression = F('id').desc() if tie_order == '-id' else F('id').asc()
+        rows = (model.objects.filter(anthology_id__in=ids, is_valid=True)
+                .annotate(cover_rank=Window(expression=RowNumber(), partition_by=[F('anthology_id')],
+                                            order_by=[F('updated_at').desc(), tie_expression]))
+                .filter(cover_rank__lte=3)
+                .order_by('anthology_id', '-updated_at', tie_order)
+                .values('id', 'anthology_id', title_field, 'updated_at'))
+        for row in rows:
+            summaries[row['anthology_id']].append({
+                'entry_id': row['id'], 'title': row[title_field], 'date': row['updated_at'].strftime('%m-%d'),
+            })
+    return summaries
+
+
+def _novel_cover_summaries(request, anthologies):
+    """Batch author and published-reader previews without loading manuscripts."""
+    from novel.models import Chapter, Revision
+    from novel.access import published_chapters
+
+    owner = get_current_user_identifier(request) if request.user.is_authenticated else None
+    visible = [anthology for anthology in anthologies if anthology.type == 'novel' and not anthology.hide_cover_content]
+    owned_ids = [anthology.pk for anthology in visible if owner is not None and anthology.user_id == owner]
+    reader_ids = [anthology.pk for anthology in visible if owner is None or anthology.user_id != owner]
+    summaries = defaultdict(list)
+    for ids, is_owner in ((owned_ids, True), (reader_ids, False)):
+        if not ids:
+            continue
+        chapters = Chapter.objects.filter(project_id__in=ids, is_valid=True)
+        if not is_owner:
+            chapters = published_chapters(chapters)
+        chapters = list(chapters.annotate(cover_rank=Window(
+            expression=RowNumber(), partition_by=[F('project_id')],
+            order_by=[F('position').asc(), F('created_at').asc(), F('id').asc()],
+        )).filter(cover_rank__lte=3).order_by('project_id', 'position', 'created_at', 'id')
+            .values('id', 'project_id', 'title', 'published_id', 'created_at'))
+        revision_titles = {}
+        if not is_owner:
+            revision_ids = [chapter['published_id'] for chapter in chapters if chapter['published_id']]
+            if revision_ids:
+                revision_titles = {(revision_id, chapter_id): title for revision_id, chapter_id, title in
+                                   Revision.objects.filter(pk__in=revision_ids).values_list('id', 'chapter_id', 'title')}
+        for chapter in chapters:
+            title = chapter['title'] if is_owner else revision_titles.get((chapter['published_id'], chapter['id']))
+            if title is None:
+                continue
+            summaries[chapter['project_id']].append({
+                'chapter_id': chapter['id'], 'title': title, 'date': chapter['created_at'].strftime('%m-%d'),
+            })
+    return summaries
+
+
 class AnthologyCreateView(APIView):
     """创建文集接口"""
 
@@ -122,8 +285,9 @@ class AnthologyDetailView(APIView):
         json_data = AnthologySerializer(anthology, context={'request': request}).data
         if anthology.type == 'novel':
             from novel.models import Chapter
+            from novel.access import published_chapters
             if not request.user.is_authenticated or anthology.user_id != get_current_user_identifier(request):
-                json_data['count'] = Chapter.objects.filter(project_id=coll_id, is_valid=True).exclude(published_id='').count()
+                json_data['count'] = published_chapters(Chapter.objects.filter(project_id=coll_id, is_valid=True)).count()
 
         # HiddenField 不返回所属用户；前端管理入口使用服务端计算的权限。
         json_data['can_manage'] = bool(
@@ -151,6 +315,12 @@ class AnthologyListView(APIView):
             # 查询用户可见的有效文集，按置顶、排序升序排序
             anthologies = list(anthologies.select_related('novel').order_by('-is_top', 'sort'))
             count_maps = _build_anthology_count_maps(anthologies)
+            image_cover_summaries = _image_cover_summaries(anthologies)
+            book_cover_summaries = _book_cover_summaries(anthologies)
+            agent_cover_summaries = _agent_cover_summaries(request, anthologies)
+            article_cover_summaries = _article_cover_summaries(request, anthologies)
+            research_cover_summaries = _research_cover_summaries(anthologies)
+            novel_cover_summaries = _novel_cover_summaries(request, anthologies)
             try:
                 from system_settings.embedding_recovery import get_local_article_pending_counts
 
@@ -165,104 +335,34 @@ class AnthologyListView(APIView):
                 item_summaries = []
                 item_count = anthology.count
                 if anthology.type == 'novel':
-                    from novel.models import Chapter, Revision
                     from novel.presentation import anthology_description
                     own = request.user.is_authenticated and anthology.user_id == get_current_user_identifier(request)
                     item_count = (count_maps['novel'] if own else count_maps['novel_published']).get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
-                        chapters = Chapter.objects.filter(project_id=anthology.pk, is_valid=True)
-                        if not own:
-                            chapters = chapters.exclude(published_id='')
-                        target_chapters = list(chapters[:3])
-                        rev_map = {}
-                        if not own:
-                            pub_ids = [ch.published_id for ch in target_chapters if ch.published_id]
-                            if pub_ids:
-                                rev_map = {r.pk: r for r in Revision.objects.filter(pk__in=pub_ids)}
-                        for chapter in target_chapters:
-                            revision = rev_map.get(chapter.published_id) if not own else None
-                            item_summaries.append({'chapter_id': chapter.pk, 'title': (revision.title if revision else chapter.title), 'date': chapter.created_at.strftime('%m-%d')})
+                        item_summaries = novel_cover_summaries.get(anthology.pk, [])
                 elif anthology.type == 'quant':
-                    from quant.models import Entry
                     item_count = count_maps['quant'].get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
-                        entries = Entry.objects.filter(anthology=anthology, is_valid=True).order_by('-updated_at', '-id')
-                        item_summaries = [{'entry_id': entry.pk, 'title': entry.title,
-                                           'date': entry.updated_at.strftime('%m-%d')}
-                                          for entry in entries[:3]]
+                        item_summaries = research_cover_summaries.get(anthology.pk, [])
                 elif anthology.type == 'backtest':
-                    from quant.models import MT4Expert
                     item_count = count_maps['backtest'].get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
-                        experts = MT4Expert.objects.filter(anthology=anthology, is_valid=True)
-                        item_summaries = [{'entry_id': expert.pk, 'title': expert.name,
-                                           'date': expert.updated_at.strftime('%m-%d')}
-                                          for expert in experts[:3]]
+                        item_summaries = research_cover_summaries.get(anthology.pk, [])
                 elif anthology.type == 'image':
                     item_count = count_maps['image'].get(anthology.coll_id, 0)
                     if not anthology.hide_cover_content:
-                        image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
-                        images = image_qs.order_by('-created_at')[:12]
-                        for image in images:
-                            item_summaries.append({
-                                'image_id': image.image_id,
-                                'imageId': image.image_id,
-                                'title': image.title,
-                                'image_url': image.image_url,
-                                'imageUrl': image.image_url,
-                                'date': image.created_at.strftime('%m-%d')
-                            })
+                        item_summaries = image_cover_summaries.get(anthology.coll_id, [])
                 elif anthology.type == 'learning':
                     item_count = count_maps['learning'].get(anthology.pk, 0)
                 elif anthology.type == 'book':
                     item_count = count_maps['book'].get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
-                        book_qs = Book.objects.filter(anthology=anthology, is_valid=True).select_related('cover_asset')
-                        # 书架卡片会根据可用宽度横向展示封面；提供适量预览，窄卡片自动裁切更多图书。
-                        for book in book_qs.order_by('-updated_at')[:12]:
-                            item_summaries.append({
-                                'book_id': book.book_id,
-                                'bookId': book.book_id,
-                                'title': book.title,
-                                'cover_url': f'/api/anthology/book/{book.book_id}/cover',
-                                'coverUrl': f'/api/anthology/book/{book.book_id}/cover',
-                                'date': book.updated_at.strftime('%m-%d')
-                            })
+                        item_summaries = book_cover_summaries.get(anthology.pk, [])
+                elif anthology.type == 'agent':
+                    if not anthology.hide_cover_content:
+                        item_summaries = agent_cover_summaries.get(anthology.pk, [])
                 elif not anthology.hide_cover_content:
-                    order_by = ('-created_at',) if anthology.type == 'agent' else ('sort', '-updated_at')
-                    articles_qs = get_visible_article_queryset(request).filter(coll_id=anthology.coll_id)
-                    if anthology.type == 'agent':
-                        articles_qs = articles_qs.prefetch_related(
-                            Prefetch('post_ratings', queryset=ArticlePostRating.objects.filter(is_valid=True), to_attr='valid_ratings'),
-                            Prefetch('post_comments', queryset=ArticlePostComment.objects.filter(is_valid=True), to_attr='valid_comments'),
-                        )
-                    articles = articles_qs.order_by(*order_by)[:3]
-
-                    # 构建文章摘要列表
-                    for article in articles:
-                        # 格式化日期为MM-DD格式
-                        date_source = article.created_at if anthology.type == 'agent' else article.updated_at
-                        date_str = date_source.strftime('%m-%d')
-                        summary = {
-                            'article_id': article.article_id,
-                            'title': article.title,
-                            'date': date_str
-                        }
-                        if anthology.type == 'agent':
-                            rating_count = len(article.valid_ratings) if hasattr(article, 'valid_ratings') else article.post_ratings.filter(is_valid=True).count()
-                            comment_count = len(article.valid_comments) if hasattr(article, 'valid_comments') else article.post_comments.filter(is_valid=True).count()
-                            summary.update({
-                                'summary': article.post_summary,
-                                'agent_id': article.agent_post_creator_id,
-                                'agent_name': article.agent_post_creator_name or 'Agent',
-                                'agent_avatar': article.agent_post_creator_avatar,
-                                'category': article.agent_post_category,
-                                'rating': article.agent_post_rating,
-                                'rating_count': rating_count,
-                                'comment_count': comment_count,
-                                'created_at': article.created_at.isoformat() if article.created_at else None,
-                            })
-                        item_summaries.append(summary)
+                    item_summaries = article_cover_summaries.get(anthology.coll_id, [])
 
                 # 构建文集数据
                 anthology_data = {

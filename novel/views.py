@@ -7,7 +7,7 @@ from anthology.models import Anthology
 from system_settings.models import AIModel
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result
-from .access import owned_project, readable_project
+from .access import owned_project, published_chapters, readable_project
 from .models import Chapter, Entity, Job, Outline, Project, Revision, Rule, Run, Thread, Relation
 from .locking import project_lock
 from .memory import state_at, invalidate_later
@@ -232,19 +232,36 @@ class ReaderView(NovelView):
     permission_classes = [AllowAny]
 
     def get(self, request, coll_id, chapter_id=None):
+        from django.http import Http404
+
         project = readable_project(request, coll_id)
-        chapters = Chapter.objects.filter(project=project, is_valid=True).exclude(published_id='')
+        chapters = list(published_chapters(Chapter.objects.filter(project=project, is_valid=True)
+                                           .only('id', 'project_id', 'position', 'created_at', 'published_id')))
         owner = request.user.is_authenticated and get_current_user_identifier(request) == project.anthology.user_id
-        if not owner and not chapters.exists():
-            from django.http import Http404
+        revision_ids = [chapter.published_id for chapter in chapters]
+        revisions = {(revision.pk, revision.chapter_id): revision for revision in
+                     Revision.objects.filter(pk__in=revision_ids).only('id', 'chapter_id', 'title', 'volume')}
+        available = [(chapter, revisions[(chapter.published_id, chapter.pk)]) for chapter in chapters
+                     if (chapter.published_id, chapter.pk) in revisions]
+        if not owner and not available:
             raise Http404
-        selected = get_object_or_404(chapters, pk=chapter_id) if chapter_id else chapters.first()
-        def item(chapter):
-            revision = revision_for(chapter, chapter.published_id)
-            return {'id': chapter.pk, 'title': revision.title, 'volume': revision.volume, 'position': chapter.position} if revision else None
+        selected = next((item for item in available if item[0].pk == chapter_id), None) if chapter_id else next(iter(available), None)
+        if chapter_id and selected is None:
+            raise Http404
+
+        def item(chapter, revision):
+            return {'id': chapter.pk, 'title': revision.title, 'volume': revision.volume, 'position': chapter.position}
+
+        selected_data = None
+        if selected:
+            chapter, revision = selected
+            content = Revision.objects.filter(pk=revision.pk, chapter_id=chapter.pk).values_list('content', flat=True).first()
+            if content is None:
+                raise Http404
+            selected_data = {**item(chapter, revision), 'content': content}
         response = success_result({'id': project.pk, 'title': project.anthology.title, 'synopsis': project.setup.get('public_synopsis', ''),
-                               'can_manage': owner, 'chapters': [item(c) for c in chapters],
-                               'chapter': dict(item(selected), content=revision_for(selected, selected.published_id).content) if selected else None})
+                               'can_manage': owner, 'chapters': [item(chapter, revision) for chapter, revision in available],
+                               'chapter': selected_data})
         response['Cache-Control'] = 'private, no-store'
         return response
 
