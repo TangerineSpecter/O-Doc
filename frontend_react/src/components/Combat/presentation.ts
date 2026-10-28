@@ -1,3 +1,4 @@
+import {mergeEventHistory} from './mergeEventHistory';
 import type {CombatEvent, CombatReward, CombatRow} from '../../types/api/combat';
 export const elementOrder = ['water', 'fire', 'earth', 'wind', 'light', 'dark'] as const;
 export const elementLabels: Record<string, string> = {water: '水', fire: '火', earth: '土', wind: '风', light: '光', dark: '暗'};
@@ -58,9 +59,7 @@ export function equipmentTypeLabel(equipmentType?: string) {
 export const statusLabels: Record<string, string> = {waiting_party:'等待下一波加入', preparing: '准备出发', active: '探索中', battle: '交战', searching: '寻找怪物', paused: '已暂停', promotion: '等待 Agent 转职', promotion_failed: '转职选择待重试', completed: '探索完成', recalled: '已召回', fallen: '倒地', failed: '准备失败', exhausted: '资源不足', interrupted: '系统中断', done: '已结束'};
 export const qualityLabels: Record<string, string> = {white: '白装', blue: '蓝装', gold: '金装'};
 export function appendCombatEvents(previous: CombatEvent[], incoming: CombatEvent[]) {
-    const records = new Map(previous.map(row => [row.id, row]));
-    for (const row of incoming) records.set(row.id, row);
-    return [...records.values()].sort((a, b) => a.sequence - b.sequence);
+    return mergeEventHistory(previous, incoming);
 }
 export const elapsed = (seconds: number) => `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
 

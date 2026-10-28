@@ -54,14 +54,14 @@ def can_read_asset(request, asset):
     if asset.source_type == 'quant' or asset.quant_references.exists() or asset.mt4_references.exists():
         return bool(request.user and request.user.is_authenticated
                     and asset.uploader == get_current_user_identifier(request))
+    if request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request):
+        return True
     if request.user and request.user.is_authenticated:
         from system_settings.agent_world.social_models import Moment
         owner = get_current_user_identifier(request)
-        if any(asset.pk in row.images for row in Moment.objects.filter(owner_id=owner, is_valid=True).only('images')):
+        images = Moment.objects.filter(owner_id=owner, is_valid=True).values_list('images', flat=True).iterator(chunk_size=128)
+        if any(asset.pk in image_ids for image_ids in images):
             return True
-    if request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request):
-        return True
-
     visible_coll_ids = get_visible_anthology_ids(request)
     visible_articles = get_visible_article_queryset(request)
     if asset.article_references.filter(article__in=visible_articles).exists():
@@ -125,7 +125,7 @@ class ResourceListView(APIView):
             current_user_id = get_current_user_identifier(request)
 
             queryset = Asset.objects.filter(is_valid=True, uploader=current_user_id)
-            quant_usage = get_quant_resource_usage(owner=current_user_id)
+            quant_usage = get_quant_resource_usage(owner=current_user_id) if linked else None
             # 引用关系只在按关联状态筛选时参与过滤，避免每次翻页都做全库扫描。
             article_usage = None
             referenced_resource_ids = set()
@@ -181,6 +181,8 @@ class ResourceListView(APIView):
                 if article_usage is not None
                 else get_article_resource_usage(page_resource_ids)
             )
+            if quant_usage is None:
+                quant_usage = get_quant_resource_usage(page_resource_ids, owner=current_user_id)
             page_image_usage = get_image_resource_usage(page_resource_ids)
             page_prompt_usage = get_prompt_resource_usage(page_resource_ids)
             page_agent_usage = get_agent_resource_usage(page_resource_ids)

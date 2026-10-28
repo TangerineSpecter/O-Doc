@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {rewardElementDescription} from './presentation.ts';
+import {appendCombatEvents, rewardElementDescription} from './presentation.ts';
 import test from 'node:test';
 import {mergePartyHistory, partyObservationRecords} from './partyObservationRecords.ts';
 import type {AdventurePartySnapshot, CombatEvent, CombatReward} from '../../types/api/combat.ts';
@@ -50,3 +50,19 @@ test('local party sample links shared actions and personal kills to the same tim
     assert.equal(current.timelineLabel,undefined);
     assert.equal(rows.filter(row => row.timelineLabel).length,1);
 });
+
+for (const merge of [appendCombatEvents]) {
+    test(`${merge.name} preserves empty-page identity and immutable sorted history`, () => {
+        assert.equal(merge(personal, []), personal);
+        const next = {...personal[2], id:'next', sequence:4};
+        const appended = merge(personal, [next, next]);
+        assert.deepEqual(appended.map(event => event.id), ['start','receipt','end','next']);
+        const revised = {...personal[1], payload:{report:'revised'}};
+        const historical = {...personal[0], id:'older', sequence:0};
+        const overlapped = merge(appended, [revised, historical]);
+        assert.deepEqual(overlapped.map(event => event.sequence), [0,1,2,3,4]);
+        assert.equal(overlapped[2], revised);
+        assert.equal(personal[1].payload.report, undefined);
+        assert.deepEqual(personal.map(event => event.id), ['start','receipt','end']);
+    });
+}

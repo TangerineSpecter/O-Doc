@@ -1,6 +1,7 @@
 import os
 import shutil
 import tempfile
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
@@ -85,3 +86,20 @@ class ResourceAvailabilityTests(TestCase):
         download_request = self.factory.get(f'/api/resource/view/{cover_asset.id}')
         download_response = ResourceDownloadView.as_view()(download_request, cover_asset.id)
         self.assertEqual(download_response.status_code, 200)
+
+    def test_plain_list_scopes_quant_references_to_current_page(self):
+        from utils.resource_assets import get_quant_resource_usage
+        with patch('assets.views.get_quant_resource_usage', wraps=get_quant_resource_usage) as usage:
+            response = ResourceListView.as_view()(self.factory.get('/api/resource/list'))
+        self.assertEqual(response.status_code, 200)
+        usage.assert_called_once_with({self.asset.id}, owner='admin')
+
+    def test_owned_asset_does_not_scan_moments(self):
+        from types import SimpleNamespace
+        from assets.views import can_read_asset
+        request = SimpleNamespace(user=SimpleNamespace(is_authenticated=True))
+        with patch('assets.views.get_current_user_identifier', return_value='admin'), patch(
+            'system_settings.agent_world.social_models.Moment.objects.filter'
+        ) as moments:
+            self.assertTrue(can_read_asset(request, self.asset))
+        moments.assert_not_called()

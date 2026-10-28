@@ -178,6 +178,29 @@ class AgentWorldActivityTests(TestCase):
         self.assertEqual(len(response.data['data']['items']), 1)
         self.assertEqual(response.data['data']['items'][0]['type'], 'publication')
 
+    def test_today_summary_keeps_latest_running_and_residents_without_history(self):
+        idle = Agent.objects.create(name='无历史居民')
+        archived = Agent.objects.create(name='已归档', archived_at=timezone.now())
+        running = AgentActivity.objects.create(event_key='summary:running', activity_type='work',
+            status='running', agent=self.agent, title='进行中', current_action='执行任务')
+        latest = AgentActivity.objects.create(event_key='summary:latest', activity_type='work',
+            status='success', agent=self.agent, title='最近完成')
+        AgentActivity.objects.create(event_key='summary:archived', activity_type='work',
+            status='running', agent=archived, title='历史活动')
+        user = User.objects.create_user('summary-user', password='password')
+        request = APIRequestFactory().get('/api/settings/agent-activities/today-summary/')
+        force_authenticate(request, user=user)
+        with patch('system_settings.agent_world.life_presence.resident_presence', return_value={}):
+            response = AgentActivityViewSet.as_view({'get': 'today_summary'})(request)
+        self.assertEqual(response.status_code, 200)
+        residents = {item['id']: item for item in response.data['data']['agents']}
+        self.assertNotIn(archived.id, residents)
+        self.assertEqual(residents[idle.id]['status'], 'idle')
+        self.assertEqual(residents[idle.id]['latestTitle'], '')
+        self.assertEqual(residents[self.agent.id]['latestTitle'], latest.title)
+        self.assertEqual(residents[self.agent.id]['status'], 'running')
+        self.assertEqual(residents[self.agent.id]['currentAction'], running.current_action)
+
     @override_settings(USE_TZ=False)
     def test_today_summary_supports_naive_datetimes(self):
         AgentActivity.objects.create(

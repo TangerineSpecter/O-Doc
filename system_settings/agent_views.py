@@ -3,7 +3,7 @@ import logging
 import threading
 
 from django.db import transaction, IntegrityError
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets
@@ -669,17 +669,20 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
             item['agent_id']: item['count']
             for item in today_activities.exclude(agent_id=None).values('agent_id').annotate(count=Count('id'))
         }
-        agents_queryset = list(Agent.objects.filter(archived_at__isnull=True))
-        agent_count = len(agents_queryset)
-        latest_by_agent = {}
-        for activity in ordered_activities.exclude(agent_id=None):
-            if activity.agent_id not in latest_by_agent:
-                latest_by_agent[activity.agent_id] = activity
-            if len(latest_by_agent) >= agent_count:
-                break
-        running_by_agent = {}
-        for activity in ordered_activities.filter(status='running').exclude(agent_id=None):
-            running_by_agent.setdefault(activity.agent_id, activity)
+        # Fetch at most two activity records per current resident, rather than
+        # materializing historical rows until every resident has been found.
+        resident_activities = ordered_activities.filter(agent_id=OuterRef('pk'))
+        agents_queryset = list(Agent.objects.filter(archived_at__isnull=True).annotate(
+            latest_activity_id=Subquery(resident_activities.values('pk')[:1]),
+            running_activity_id=Subquery(resident_activities.filter(status='running').values('pk')[:1]),
+        ))
+        activity_ids = {activity_id for agent in agents_queryset
+                        for activity_id in (agent.latest_activity_id, agent.running_activity_id)
+                        if activity_id is not None}
+        activity_by_id = {activity.pk: activity for activity in
+                          self.get_queryset().filter(pk__in=activity_ids)}
+        latest_by_agent = {agent.pk: activity_by_id.get(agent.latest_activity_id) for agent in agents_queryset}
+        running_by_agent = {agent.pk: activity_by_id.get(agent.running_activity_id) for agent in agents_queryset}
         from .agent_world.life_presence import resident_presence
         from utils.drf_utils import get_current_user_identifier
         exploring=resident_presence(get_current_user_identifier(request))

@@ -394,7 +394,7 @@ function SystemEventCard({event}: {event: CombatEvent}) {
 
 /** 动态事件流 */
 export function ObservationEvents({events, playerName, partyPlayers}: {events: CombatEvent[]; playerName?: string; partyPlayers?: PartyCombatant[]}) {
-    const rawGroups = observationEventGroups(events);
+    const rawGroups = useMemo(() => observationEventGroups(events), [events]);
 
     // 智能提取该组的核心标签
     const groupsWithMeta = useMemo(() => {

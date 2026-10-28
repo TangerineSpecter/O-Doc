@@ -94,7 +94,7 @@ class GlobalSearchView(APIView):
                     Q(content__icontains=keyword) |
                     Q(category__name__icontains=keyword) |
                     Q(tags__name__icontains=keyword)
-                ).distinct().order_by('-updated_at')
+                ).distinct().order_by('-updated_at').prefetch_related('tags')
                 counts['article'] = articles.count()
                 for article in articles[:limit]:
                     anthology = anthology_map.get(article.coll_id, {})

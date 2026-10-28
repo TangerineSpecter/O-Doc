@@ -1,10 +1,10 @@
+import {mergeEventHistory} from './mergeEventHistory';
 import type {AdventurePartySnapshot, CombatEvent} from '../../types/api/combat';
 
 type PartyEvents = AdventurePartySnapshot['events'];
 
 export function mergePartyHistory(previous: PartyEvents, incoming: PartyEvents): PartyEvents {
-    return [...new Map([...previous, ...incoming].map(event => [event.id, event])).values()]
-        .sort((a, b) => a.sequence - b.sequence);
+    return mergeEventHistory(previous, incoming);
 }
 
 /** Shared actions join the personal receipt, whose elapsed time and rewards are authoritative. */
