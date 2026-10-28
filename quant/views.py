@@ -19,6 +19,7 @@ from . import worker
 
 class QuantView(APIView):
     permission_classes = [IsAuthenticated]
+    pure_read_get = False
 
     def dispatch(self, request, *args, **kwargs):
         self._request_transaction = False
@@ -34,7 +35,9 @@ class QuantView(APIView):
             # This precheck never supplies handler state: another request or a
             # snapshot may change ownership while this request waits for its lock.
             owned_collection(request, kwargs['coll_id'])
-            self._request_context.enter_context(collection_lock(kwargs['coll_id']))
+            # GET 也可能恢复任务并写库；仅经确认无副作用的视图开放共享读取。
+            writable = not (self.pure_read_get and request.method in ('GET', 'HEAD', 'OPTIONS'))
+            self._request_context.enter_context(collection_lock(kwargs['coll_id'], exclusive=writable))
             self._request_context.enter_context(transaction.atomic())
             self._request_transaction = True
             self.collection = owned_collection(request, kwargs['coll_id'])
@@ -148,6 +151,8 @@ class VersionView(QuantView):
 
 
 class BacktestView(QuantView):
+    pure_read_get = True
+
     def get(self, request, coll_id, entry_id):
         return success_result(BacktestSerializer(self.entry.backtests.filter(is_valid=True), many=True).data)
 
@@ -175,6 +180,8 @@ class BacktestView(QuantView):
 
 
 class AttachmentView(QuantView):
+    pure_read_get = True
+
     def post(self, request, coll_id, entry_id):
         return success_result(AttachmentSerializer(attach(self.entry, request.data)).data)
 

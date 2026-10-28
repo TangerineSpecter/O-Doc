@@ -19,6 +19,9 @@ export function useAgentLifeSchedule(start: string, end: string, actorId: string
             .finally(() => {if (!controller.signal.aborted) setLoading(false);});
         return () => controller.abort();
     }, [start, end, actorId, status, requestedPage, view, source, queryKey, revision]);
-    useEffect(() => {const timer = window.setInterval(refresh, 30000); return () => window.clearInterval(timer);}, [refresh]);
+    useEffect(() => {
+        const timer = window.setInterval(() => {if (!document.hidden) refresh();}, 30000);
+        return () => window.clearInterval(timer);
+    }, [refresh]);
     return {data: loadedKey === queryKey ? data : {items: [], total: 0, page: requestedPage}, loading: loading || (loadedKey !== queryKey && !error), error, refresh};
 }

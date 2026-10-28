@@ -35,6 +35,10 @@ class ArticleSerializer(serializers.ModelSerializer):
             return ""
         from system_settings.models import Agent
         clean_id = str(obj.agent_post_creator_id or '').replace("agent-id:", "").replace("agent:", "")
+        cache = self.context.setdefault('_agent_professions', {})
+        cache_key = (clean_id, obj.agent_post_creator_name or '')
+        if cache_key in cache:
+            return cache[cache_key]
         try:
             agent = None
             if clean_id:
@@ -42,10 +46,11 @@ class ArticleSerializer(serializers.ModelSerializer):
             if not agent and obj.agent_post_creator_name:
                 agent = Agent.objects.filter(name=obj.agent_post_creator_name).select_related('profession').first()
             if agent and agent.profession:
-                return agent.profession.name
+                cache[cache_key] = agent.profession.name
         except Exception:
             pass
-        return ""
+        cache.setdefault(cache_key, "")
+        return cache[cache_key]
 
     def get_agent_post_migration_pending(self, obj):
         return obj.agent_post_category_ref_id is None
@@ -309,17 +314,18 @@ class ArticleSerializer(serializers.ModelSerializer):
                       or instance.asset_references.filter(role='source', asset__is_valid=True).first())
             ret['download_url'] = f'/api/resource/download/{source.asset_id}' if source else None
         
-        # 增加 author_name (优先展示昵称)
+        # 增加 author_name (优先展示昵称)；列表序列化时按作者缓存，避免逐篇查 UserProfile
         from user.models import UserProfile
-        profile = UserProfile.objects.filter(userid=instance.author).select_related('user').first()
-        if not profile and instance.author == 'admin':
-            profile = UserProfile.objects.filter(user__username='admin').select_related('user').first()
-        
-        if profile:
-            ret['author_name'] = profile.nickname or profile.user.first_name or profile.user.username
-        else:
-            ret['author_name'] = instance.author
-            
+        author_name_cache = self.context.setdefault('_author_names', {})
+        if instance.author not in author_name_cache:
+            profile = UserProfile.objects.filter(userid=instance.author).select_related('user').first()
+            if not profile and instance.author == 'admin':
+                profile = UserProfile.objects.filter(user__username='admin').select_related('user').first()
+            author_name_cache[instance.author] = (
+                (profile.nickname or profile.user.first_name or profile.user.username) if profile else instance.author
+            )
+        ret['author_name'] = author_name_cache[instance.author]
+
         return ret
 
 
@@ -377,6 +383,12 @@ class ArticleSerializer(serializers.ModelSerializer):
             }
         return None
 
+    @staticmethod
+    def _prefetched_related(obj, name):
+        """返回 prefetch_related 已加载的关联对象；未预取时返回 None，保持回退查询。"""
+        cache = getattr(obj, '_prefetched_objects_cache', None)
+        return cache.get(name) if cache else None
+
     def get_attachments(self, obj):
         """
         返回关联的附件列表
@@ -385,7 +397,11 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         # 获取关联的附件
         # 修改：增加 source_type='attachment' 过滤，排除内容资源（如正文图片）
-        assets = Asset.objects.filter(linked_article=obj, is_valid=True, source_type='attachment')
+        prefetched = self._prefetched_related(obj, 'asset_set')
+        if prefetched is not None:
+            assets = [asset for asset in prefetched if asset.is_valid and asset.source_type == 'attachment']
+        else:
+            assets = list(Asset.objects.filter(linked_article=obj, is_valid=True, source_type='attachment'))
 
         # 构造附件数据
         assets_data = []
@@ -404,9 +420,15 @@ class ArticleSerializer(serializers.ModelSerializer):
         return assets_data
 
     def get_post_comment_count(self, obj):
+        prefetched = self._prefetched_related(obj, 'post_comments')
+        if prefetched is not None:
+            return sum(1 for comment in prefetched if comment.is_valid)
         return ArticlePostComment.objects.filter(article=obj, is_valid=True).count()
 
     def get_agent_post_rating_count(self, obj):
+        prefetched = self._prefetched_related(obj, 'post_ratings')
+        if prefetched is not None:
+            return sum(1 for rating in prefetched if rating.is_valid)
         return ArticlePostRating.objects.filter(article=obj, is_valid=True).count()
 
     def get_my_agent_post_rating(self, obj):
@@ -414,14 +436,30 @@ class ArticleSerializer(serializers.ModelSerializer):
         if not request or not request.user or not request.user.is_authenticated:
             return None
         rater_id = get_current_user_identifier(request)
+        prefetched = self._prefetched_related(obj, 'post_ratings')
+        if prefetched is not None:
+            for rating in prefetched:
+                if rating.is_valid and rating.rater_id == rater_id:
+                    return rating.rating
+            return None
         rating = ArticlePostRating.objects.filter(article=obj, rater_id=rater_id, is_valid=True).first()
         return rating.rating if rating else None
+
+
+class ArticleSummarySerializer(ArticleSerializer):
+    """列表/卡片投影：剔除正文与思维导图，避免一次列表请求传输全部文章大字段。"""
+
+    class Meta(ArticleSerializer.Meta):
+        fields = [field for field in ArticleSerializer.Meta.fields if field not in ('content', 'mind_map')]
 
 
 class ArticlePostCommentSerializer(serializers.ModelSerializer):
     reply_count = serializers.SerializerMethodField()
 
     def get_reply_count(self, obj):
+        reply_counts = self.context.get('reply_counts')
+        if reply_counts is not None:
+            return reply_counts.get(obj.pk, 0)
         return ArticlePostComment.objects.filter(article_id=obj.article_id, root_comment_id=obj.pk, is_valid=True).count()
 
     rating = serializers.SerializerMethodField()
@@ -459,6 +497,7 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
     """
     children = serializers.SerializerMethodField()
     date = serializers.SerializerMethodField()
+    content = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
@@ -472,6 +511,12 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'children', 'date', 'word_count',
                             'read_time']
 
+    def get_content(self, obj):
+        """
+        目录树仅需提供结构与元信息，省略正文以极大降低载荷与内存消耗
+        """
+        return ""
+
     def get_date(self, obj):
         """
         返回格式化的日期，用于前端显示
@@ -482,6 +527,11 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
         """
         递归获取子文章
         """
+        children_map = self.context.get('children_map')
+        if children_map is not None:
+            children = children_map.get(obj.article_id, [])
+            return ArticleTreeSerializer(children, many=True, context=self.context).data
+
         # 获取当前文章的所有有效子文章，并按sort和更新时间排序
         request = self.context.get('request')
         if request:

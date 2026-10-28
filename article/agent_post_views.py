@@ -1,4 +1,4 @@
-from django.db.models import Avg
+from django.db.models import Avg, Count
 from rest_framework.views import APIView
 
 from article.agent_post_comment_ratings import comment_ratings
@@ -18,8 +18,19 @@ class AgentPostCommentListCreateView(APIView):
             if not article or not can_access_anthology(request, article.coll_id, 'agent'):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
             comments = list(ArticlePostComment.objects.filter(article=article, is_valid=True))
+            # 一次统计各根评论的回复数，避免序列化器逐条 COUNT。
+            reply_counts = {
+                row['root_comment_id']: row['total']
+                for row in ArticlePostComment.objects.filter(article=article, is_valid=True)
+                .exclude(root_comment_id='')
+                .values('root_comment_id')
+                .annotate(total=Count('pk'))
+            }
             return success_result(data={
-                'comments': ArticlePostCommentSerializer(comments, many=True, context={'comment_ratings': comment_ratings(comments)}).data,
+                'comments': ArticlePostCommentSerializer(comments, many=True, context={
+                    'comment_ratings': comment_ratings(comments),
+                    'reply_counts': reply_counts,
+                }).data,
                 'count': len(comments),
             })
         except ValueError as exc:

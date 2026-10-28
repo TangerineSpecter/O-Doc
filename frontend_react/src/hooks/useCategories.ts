@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {CategoryItem, createCategory, deleteCategory, getCategoryList, updateCategory} from '../api/category';
-import {Article, ArticleItem, getArticles} from '../api/article';
+import {ArticleItem, getArticleSummaries} from '../api/article';
 import {CategoryFormData} from '../components/CategoryModal';
 import {useSearchParams} from 'react-router-dom';
 
@@ -56,9 +56,9 @@ export const useCategories = () => {
             // 如果是 'all'，传 undefined 给后端（假设后端支持不传参数查全部）
             const query = catId === 'all' ? undefined : {categoryId: catId};
 
-            const data = await getArticles(query);
+            const data = await getArticleSummaries(query);
 
-            const formattedData: ArticleItem[] = data.map((article: Article) => ({
+            const formattedData: ArticleItem[] = data.map((article) => ({
                 articleId: article.articleId,
                 title: article.title,
                 desc: article.desc || '',

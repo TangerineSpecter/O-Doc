@@ -20,7 +20,7 @@ export function useAgentRunRecord(id?: string | null) {
             } finally {inFlight = false;}
         };
         void reload();
-        const timer = setInterval(() => {void reload();}, 10000);
+        const timer = setInterval(() => {if (!document.hidden) void reload();}, 10000);
         return () => {live = false; clearInterval(timer);};
     }, [id]);
     return {record, error};

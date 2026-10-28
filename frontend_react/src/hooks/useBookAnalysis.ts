@@ -32,7 +32,7 @@ export function useBookAnalysis(bookId: string, revisionId = '') {
     const running = status?.run?.state === 'queued' || status?.run?.state === 'running';
     useEffect(() => {
         if (!running) return;
-        const interval = window.setInterval(() => void load(), 3000);
+        const interval = window.setInterval(() => {if (!document.hidden) void load();}, 3000);
         return () => clearInterval(interval);
     }, [running, load]);
     const perform = useCallback(async (operation: () => Promise<unknown>) => {

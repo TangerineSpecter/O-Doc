@@ -1,11 +1,13 @@
-from django.db.models import Q
+from collections import defaultdict
+
+from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
 from utils.response_utils import valid_result
 
-from article.models import Article, Image
+from article.models import Article, Image, ArticlePostRating, ArticlePostComment
 from article.access import get_visible_article_queryset
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
@@ -33,6 +35,63 @@ def get_visible_anthology_queryset(request):
 def get_owned_anthology_queryset(request):
     queryset = Anthology.objects.filter(user_id=get_current_user_identifier(request), is_valid=True)
     return queryset if request.user.is_authenticated else queryset.exclude(type__in=['learning', 'novel', 'quant', 'backtest'])
+
+
+def _count_map(queryset, field):
+    """按字段分组统计条目数，供文集列表批量复用（pk 兼容非 id 主键模型，如 Image）。"""
+    return {row[field]: row['total'] for row in queryset.values(field).annotate(total=Count('pk'))}
+
+
+def _build_anthology_count_maps(anthologies):
+    """一次批量统计各类型文集条目数，避免每个文集各发 2-4 条 COUNT。"""
+    maps = {
+        'novel': {}, 'novel_published': {}, 'novel_adopted': {},
+        'quant': {}, 'backtest': {}, 'image': {},
+        'learning': {}, 'learning_pending': {}, 'book': {},
+    }
+    by_type = defaultdict(list)
+    for anthology in anthologies:
+        by_type[anthology.type].append(anthology)
+
+    novel_ids = [anthology.pk for anthology in by_type['novel']]
+    if novel_ids:
+        from novel.models import Chapter
+        base = Chapter.objects.filter(project_id__in=novel_ids, is_valid=True)
+        maps['novel'] = _count_map(base, 'project_id')
+        maps['novel_published'] = _count_map(base.exclude(published_id=''), 'project_id')
+        maps['novel_adopted'] = _count_map(base.exclude(adopted_id=''), 'project_id')
+
+    quant_ids = [anthology.pk for anthology in by_type['quant']]
+    if quant_ids:
+        from quant.models import Entry
+        maps['quant'] = _count_map(Entry.objects.filter(anthology_id__in=quant_ids, is_valid=True), 'anthology_id')
+
+    backtest_ids = [anthology.pk for anthology in by_type['backtest']]
+    if backtest_ids:
+        from quant.models import MT4Expert
+        maps['backtest'] = _count_map(MT4Expert.objects.filter(anthology_id__in=backtest_ids, is_valid=True), 'anthology_id')
+
+    image_ids = [anthology.coll_id for anthology in by_type['image']]
+    if image_ids:
+        maps['image'] = _count_map(Image.objects.filter(coll_id__in=image_ids, is_valid=True), 'coll_id')
+
+    learning_ids = [anthology.pk for anthology in by_type['learning']]
+    if learning_ids:
+        from learning.models import Exercise
+        from learning.services import ACTIVE
+        graded = Exercise.objects.filter(course_id__in=learning_ids, attempt__grade__isnull=False)
+        maps['learning'] = {
+            row['course_id']: row['total']
+            for row in graded.values('course_id').annotate(total=Count('pk', distinct=True))
+        }
+        pending = Exercise.objects.filter(course_id__in=learning_ids, status__in=ACTIVE)
+        maps['learning_pending'] = _count_map(pending, 'course_id')
+
+    book_ids = [anthology.pk for anthology in by_type['book']]
+    if book_ids:
+        maps['book'] = _count_map(Book.objects.filter(anthology_id__in=book_ids, is_valid=True), 'anthology_id')
+
+    return maps
 
 
 class AnthologyCreateView(APIView):
@@ -90,7 +149,8 @@ class AnthologyListView(APIView):
                 anthologies = anthologies.filter(type=coll_type)
 
             # 查询用户可见的有效文集，按置顶、排序升序排序
-            anthologies = anthologies.select_related('novel').order_by('-is_top', 'sort')
+            anthologies = list(anthologies.select_related('novel').order_by('-is_top', 'sort'))
+            count_maps = _build_anthology_count_maps(anthologies)
             try:
                 from system_settings.embedding_recovery import get_local_article_pending_counts
 
@@ -108,34 +168,40 @@ class AnthologyListView(APIView):
                     from novel.models import Chapter, Revision
                     from novel.presentation import anthology_description
                     own = request.user.is_authenticated and anthology.user_id == get_current_user_identifier(request)
-                    chapters = Chapter.objects.filter(project_id=anthology.pk, is_valid=True)
-                    if not own:
-                        chapters = chapters.exclude(published_id='')
-                    item_count = chapters.count()
+                    item_count = (count_maps['novel'] if own else count_maps['novel_published']).get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
-                        for chapter in chapters[:3]:
-                            revision = Revision.objects.filter(pk=chapter.published_id).first() if not own else None
+                        chapters = Chapter.objects.filter(project_id=anthology.pk, is_valid=True)
+                        if not own:
+                            chapters = chapters.exclude(published_id='')
+                        target_chapters = list(chapters[:3])
+                        rev_map = {}
+                        if not own:
+                            pub_ids = [ch.published_id for ch in target_chapters if ch.published_id]
+                            if pub_ids:
+                                rev_map = {r.pk: r for r in Revision.objects.filter(pk__in=pub_ids)}
+                        for chapter in target_chapters:
+                            revision = rev_map.get(chapter.published_id) if not own else None
                             item_summaries.append({'chapter_id': chapter.pk, 'title': (revision.title if revision else chapter.title), 'date': chapter.created_at.strftime('%m-%d')})
                 elif anthology.type == 'quant':
                     from quant.models import Entry
-                    entries = Entry.objects.filter(anthology=anthology, is_valid=True).order_by('-updated_at', '-id')
-                    item_count = entries.count()
+                    item_count = count_maps['quant'].get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
+                        entries = Entry.objects.filter(anthology=anthology, is_valid=True).order_by('-updated_at', '-id')
                         item_summaries = [{'entry_id': entry.pk, 'title': entry.title,
                                            'date': entry.updated_at.strftime('%m-%d')}
                                           for entry in entries[:3]]
                 elif anthology.type == 'backtest':
                     from quant.models import MT4Expert
-                    experts = MT4Expert.objects.filter(anthology=anthology, is_valid=True)
-                    item_count = experts.count()
+                    item_count = count_maps['backtest'].get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
+                        experts = MT4Expert.objects.filter(anthology=anthology, is_valid=True)
                         item_summaries = [{'entry_id': expert.pk, 'title': expert.name,
                                            'date': expert.updated_at.strftime('%m-%d')}
                                           for expert in experts[:3]]
                 elif anthology.type == 'image':
-                    image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
-                    item_count = image_qs.count()
+                    item_count = count_maps['image'].get(anthology.coll_id, 0)
                     if not anthology.hide_cover_content:
+                        image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
                         images = image_qs.order_by('-created_at')[:12]
                         for image in images:
                             item_summaries.append({
@@ -147,13 +213,11 @@ class AnthologyListView(APIView):
                                 'date': image.created_at.strftime('%m-%d')
                             })
                 elif anthology.type == 'learning':
-                    from learning.models import Exercise
-                    from learning.services import ACTIVE
-                    item_count = Exercise.objects.filter(course_id=anthology.pk, attempt__grade__isnull=False).distinct().count()
+                    item_count = count_maps['learning'].get(anthology.pk, 0)
                 elif anthology.type == 'book':
-                    book_qs = Book.objects.filter(anthology=anthology, is_valid=True).select_related('cover_asset')
-                    item_count = book_qs.count()
+                    item_count = count_maps['book'].get(anthology.pk, 0)
                     if not anthology.hide_cover_content:
+                        book_qs = Book.objects.filter(anthology=anthology, is_valid=True).select_related('cover_asset')
                         # 书架卡片会根据可用宽度横向展示封面；提供适量预览，窄卡片自动裁切更多图书。
                         for book in book_qs.order_by('-updated_at')[:12]:
                             item_summaries.append({
@@ -166,7 +230,13 @@ class AnthologyListView(APIView):
                             })
                 elif not anthology.hide_cover_content:
                     order_by = ('-created_at',) if anthology.type == 'agent' else ('sort', '-updated_at')
-                    articles = get_visible_article_queryset(request).filter(coll_id=anthology.coll_id).order_by(*order_by)[:3]
+                    articles_qs = get_visible_article_queryset(request).filter(coll_id=anthology.coll_id)
+                    if anthology.type == 'agent':
+                        articles_qs = articles_qs.prefetch_related(
+                            Prefetch('post_ratings', queryset=ArticlePostRating.objects.filter(is_valid=True), to_attr='valid_ratings'),
+                            Prefetch('post_comments', queryset=ArticlePostComment.objects.filter(is_valid=True), to_attr='valid_comments'),
+                        )
+                    articles = articles_qs.order_by(*order_by)[:3]
 
                     # 构建文章摘要列表
                     for article in articles:
@@ -179,6 +249,8 @@ class AnthologyListView(APIView):
                             'date': date_str
                         }
                         if anthology.type == 'agent':
+                            rating_count = len(article.valid_ratings) if hasattr(article, 'valid_ratings') else article.post_ratings.filter(is_valid=True).count()
+                            comment_count = len(article.valid_comments) if hasattr(article, 'valid_comments') else article.post_comments.filter(is_valid=True).count()
                             summary.update({
                                 'summary': article.post_summary,
                                 'agent_id': article.agent_post_creator_id,
@@ -186,8 +258,8 @@ class AnthologyListView(APIView):
                                 'agent_avatar': article.agent_post_creator_avatar,
                                 'category': article.agent_post_category,
                                 'rating': article.agent_post_rating,
-                                'rating_count': article.post_ratings.filter(is_valid=True).count(),
-                                'comment_count': article.post_comments.filter(is_valid=True).count(),
+                                'rating_count': rating_count,
+                                'comment_count': comment_count,
                                 'created_at': article.created_at.isoformat() if article.created_at else None,
                             })
                         item_summaries.append(summary)
@@ -217,15 +289,15 @@ class AnthologyListView(APIView):
                     anthology_data['updated_at'] = anthology.updated_at
 
                 if anthology.type == 'learning':
-                    anthology_data['pending_count'] = Exercise.objects.filter(course_id=anthology.pk, status__in=ACTIVE).count()
+                    anthology_data['pending_count'] = count_maps['learning_pending'].get(anthology.pk, 0)
                     anthology_data['rag_not_synced_count'] = 0
                 if anthology.type in ('quant', 'backtest'):
                     anthology_data['rag_not_synced_count'] = 0
                 if anthology.type == 'novel':
                     anthology_data['rag_not_synced_count'] = 0
                     if own:
-                        anthology_data['adopted_count'] = chapters.exclude(adopted_id='').count()
-                        anthology_data['published_count'] = chapters.exclude(published_id='').count()
+                        anthology_data['adopted_count'] = count_maps['novel_adopted'].get(anthology.pk, 0)
+                        anthology_data['published_count'] = count_maps['novel_published'].get(anthology.pk, 0)
                 result_list.append(anthology_data)
 
             return success_result(data=result_list)

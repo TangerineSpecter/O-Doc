@@ -34,6 +34,7 @@ export function useLearningGoal(collId: string, subject: string) {
         if (!pending || !proposalId) return;
         const controller = new AbortController();
         const timer = window.setInterval(() => {
+            if (document.hidden) return;
             learningApi.goal(collId, proposalId, controller.signal).then(value => {
                 if (value && !controller.signal.aborted) {setProposal(value); setError(value.error);}
             }).catch(() => {if (!controller.signal.aborted) setError('查询目标状态失败，正在重试；关闭后可继续查看。');});

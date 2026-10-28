@@ -8,7 +8,7 @@ export const localHandlers = [
     http.all('/api/*', async ({request}) => {
         const state = new URLSearchParams(location.search).get('mockState');
         if (state === 'slow') await delay(1800);
-        if (state === 'error' && (new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/'))) {
+        if (state === 'error' && (new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/') || new URL(request.url).pathname === '/api/article/list')) {
             return HttpResponse.json({code: 503, msg: '本地模拟接口失败，可切回样例状态重试', data: null}, {status: 503});
         }
         const quantData = await resolveQuantRoute(request.clone());

@@ -7,7 +7,7 @@ from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse
 from rest_framework.views import APIView
 
 from article.models import Article
@@ -70,11 +70,11 @@ def can_read_asset(request, asset):
         return True
 
     asset_id = str(asset.id)
-    for article in visible_articles.filter(
-            content__contains='/api/resource/',
-    ).only('content'):
-        if asset_id in extract_resource_ids_from_content(article.content):
-            return True
+    if visible_articles.filter(
+        Q(content__contains=f'/api/resource/view/{asset_id}') |
+        Q(content__contains=f'/api/resource/download/{asset_id}')
+    ).exists():
+        return True
 
     if is_asset_used_by_image(asset.id):
         from article.models import Image
@@ -125,24 +125,21 @@ class ResourceListView(APIView):
             current_user_id = get_current_user_identifier(request)
 
             queryset = Asset.objects.filter(is_valid=True, uploader=current_user_id)
-            article_usage = get_article_resource_usage()
-            article_linked_resource_ids = set(article_usage.keys())
-            image_usage = get_image_resource_usage()
-            image_linked_resource_ids = set(image_usage.keys())
-            prompt_usage = get_prompt_resource_usage()
-            prompt_linked_resource_ids = set(prompt_usage.keys())
-            agent_usage = get_agent_resource_usage()
-            agent_linked_resource_ids = set(agent_usage.keys())
             quant_usage = get_quant_resource_usage(owner=current_user_id)
-            book_linked_resource_ids = set()
-            for asset_id, cover_asset_id in Book.objects.filter(is_valid=True).values_list('asset_id', 'cover_asset_id'):
-                book_linked_resource_ids.add(asset_id)
-                if cover_asset_id:
-                    book_linked_resource_ids.add(cover_asset_id)
-            referenced_resource_ids = (
-                article_linked_resource_ids | image_linked_resource_ids |
-                prompt_linked_resource_ids | agent_linked_resource_ids | book_linked_resource_ids | set(quant_usage)
-            )
+            # 引用关系只在按关联状态筛选时参与过滤，避免每次翻页都做全库扫描。
+            article_usage = None
+            referenced_resource_ids = set()
+            if linked:
+                article_usage = get_article_resource_usage()
+                referenced_resource_ids = (
+                    set(article_usage) | set(get_image_resource_usage()) |
+                    set(get_prompt_resource_usage()) | set(get_agent_resource_usage()) |
+                    set(quant_usage)
+                )
+                for asset_id, cover_asset_id in Book.objects.filter(is_valid=True).values_list('asset_id', 'cover_asset_id'):
+                    referenced_resource_ids.add(asset_id)
+                    if cover_asset_id:
+                        referenced_resource_ids.add(cover_asset_id)
 
             # 筛选条件
             if file_type:
@@ -179,7 +176,11 @@ class ResourceListView(APIView):
             serializer = AssetSerializer(page_obj, many=True)
             page_resource_ids = {asset['id'] for asset in serializer.data}
             page_file_paths = {asset.id: asset.file_path for asset in page_obj.object_list}
-            page_article_usage = get_article_resource_usage(page_resource_ids)
+            page_article_usage = (
+                {resource_id: entry for resource_id, entry in article_usage.items() if resource_id in page_resource_ids}
+                if article_usage is not None
+                else get_article_resource_usage(page_resource_ids)
+            )
             page_image_usage = get_image_resource_usage(page_resource_ids)
             page_prompt_usage = get_prompt_resource_usage(page_resource_ids)
             page_agent_usage = get_agent_resource_usage(page_resource_ids)
@@ -410,19 +411,19 @@ class ResourceDownloadView(APIView):
             if not os.path.exists(abs_file_path):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
 
-            with open(abs_file_path, 'rb') as f:
-                file_content = f.read()
-
-            # 设置响应
-            response = HttpResponse(file_content, content_type=asset.mime_type or 'application/octet-stream')
+            file_handle = open(abs_file_path, 'rb')
+            response = FileResponse(
+                file_handle,
+                content_type=asset.mime_type or 'application/octet-stream',
+                as_attachment=(asset.file_type != 'image'),
+                filename=asset.original_name,
+            )
             # 根据文件类型设置不同的Content-Disposition
             if asset.file_type == 'image':
-                response['Content-Disposition'] = f'inline; filename="{asset.original_name}"'
                 # IDs are immutable; allow a short private cache.
                 response['Cache-Control'] = 'private, max-age=3600'
-            else:
-                response['Content-Disposition'] = f'attachment; filename="{asset.original_name}"'
-            response['Content-Length'] = asset.file_size
+            if asset.file_size:
+                response['Content-Length'] = asset.file_size
             response['X-Content-Type-Options'] = 'nosniff'
             if (asset.source_type == 'quant' or asset.quant_references.exists() or asset.mt4_references.exists()
                     or asset.article_references.filter(role__in=['source', 'preview']).exists()):

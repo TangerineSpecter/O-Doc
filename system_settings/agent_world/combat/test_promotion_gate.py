@@ -41,6 +41,38 @@ class PromotionGateTests(TestCase):
         explorations.hold_for_promotion(self.run, profile)
         self.job = attributes.promotion_options(catalog, profile.progression)[0]['id']
 
+    def test_promotion_choices_include_next_branches(self):
+        profile = CombatProfile.objects.get(pk=self.agent.pk)
+        catalog = current(profile.catalog_id)
+        choices = attributes.promotion_choices(catalog, {'level': 30, 'job': 'job.mage'})
+        self.assertEqual([row['id'] for row in choices], ['job.elementalist', 'job.occultist'])
+        self.assertEqual([child['id'] for child in choices[0]['next_jobs']],
+                         ['job.pyromancer', 'job.cryomancer'])
+        self.assertEqual([child['id'] for child in choices[1]['next_jobs']],
+                         ['job.warlock', 'job.summoner'])
+        self.assertTrue(all(child['required_level'] == '50' for child in choices[0]['next_jobs']))
+        third = attributes.promotion_choices(catalog, {'level': 50, 'job': 'job.elementalist'})
+        self.assertEqual([row['id'] for row in third], ['job.pyromancer', 'job.cryomancer'])
+        self.assertTrue(all(row['next_jobs'] == [] for row in third))
+
+    def test_promotion_planner_receives_next_branches(self):
+        from .preparation import _promotion
+        profile = CombatProfile.objects.get(pk=self.agent.pk)
+        catalog = current(profile.catalog_id)
+        profile.progression = {**profile.progression, 'job': 'job.mage', 'level': 30,
+                               'stats': dict.fromkeys(attributes.STATS, 40),
+                               'skills': catalog.learned('job.mage', 30)}
+        profile.save()
+        self.run.refresh_from_db()
+        explorations.hold_for_promotion(self.run, profile)
+        planner = Mock(return_value={'job_id': 'job.elementalist', 'reason': '火系群攻更契合本次战果'})
+        _promotion(self.run.pk, planner=planner)
+        payload = planner.call_args.args[2]
+        self.assertEqual([row['id'] for row in payload['options']], ['job.elementalist', 'job.occultist'])
+        self.assertEqual([row['id'] for row in payload['options'][0]['next_jobs']],
+                         ['job.pyromancer', 'job.cryomancer'])
+        self.assertNotIn('job.pyromancer', {row['id'] for row in payload['options']})
+
     def test_paused_promotion_can_choose_and_resume(self):
         self.pause_at_gate()
         with self.assertRaisesMessage(ValueError, '转职选择尚未完成'):

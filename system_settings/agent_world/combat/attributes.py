@@ -93,6 +93,19 @@ def promotion_options(catalog: Catalog, progress: dict) -> list[dict]:
             and int(row['required_level']) <= progress['level']]
 
 
+def promotion_choices(catalog: Catalog, progress: dict) -> list[dict]:
+    """Promotion options plus the direct branches each one unlocks.
+
+    The model sees every candidate's next stage so a second-stage fork is not
+    chosen blind; only the current stage remains selectable.
+    """
+    return [{**row, 'next_jobs': [
+        {'id': child['id'], 'name': child['name'], 'required_level': child['required_level']}
+        for child in catalog.tables['professions']
+        if child['parent_id'] == row['id'] and child['enabled'] == '1'
+    ]} for row in promotion_options(catalog, progress)]
+
+
 def promotion_level(catalog: Catalog, progress: dict) -> int | None:
     levels = [int(row['required_level']) for row in catalog.tables['professions']
               if row['parent_id'] == progress['job'] and row['enabled'] == '1']

@@ -32,9 +32,15 @@ export function useSprout() {
         const id = activeId;
         let disposed = false;
         const poll = async () => {
+            if (document.hidden) return;
             try {
                 const row = await getSprout(id);
-                if (!disposed) {setActive(current => current?.id === id ? row : current); setError(''); await refresh();}
+                if (!disposed) {
+                    setActive(current => current?.id === id ? row : current);
+                    setError('');
+                    // 列表只在状态真正变化时重取，避免每 2 秒拉一次全量记录。
+                    if (row.status !== activeStatus) await refresh();
+                }
             } catch (e) {if (!disposed) setError((e as Error).message);}
         };
         const timer = window.setInterval(() => void poll(), 2000);

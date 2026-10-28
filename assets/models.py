@@ -73,6 +73,7 @@ class Asset(models.Model):
             models.Index(fields=['file_hash']),
             models.Index(fields=['upload_time']),
             models.Index(fields=['source_type']),  # 添加来源类型索引
+            models.Index(fields=['uploader', 'is_valid'], name='asset_uploader_valid_idx'),
         ]
 
     def __str__(self):

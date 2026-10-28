@@ -9,6 +9,7 @@ export function useQuantCampaigns(collection: string, offset: number, version: n
     useEffect(() => {
         const abort = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
         const read = async () => {
+            if (document.hidden) {timer = setTimeout(() => void read(), 2000); return;}
             try {
                 const response = await quantApi.campaigns(collection, offset, abort.signal);
                 if (abort.signal.aborted) return;

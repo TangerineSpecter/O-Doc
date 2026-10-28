@@ -19,11 +19,12 @@ export function useAgentWorld() {
     const requestId = useRef(0);
     const loadAbort = useRef<AbortController | null>(null);
     const moreAbort = useRef<AbortController | null>(null);
+    const pagedRef = useRef(false);
 
     const load = useCallback(async (quiet = false) => {
         const currentRequest = ++requestId.current;
         loadAbort.current?.abort();
-        if (!quiet) moreAbort.current?.abort();
+        if (!quiet) {moreAbort.current?.abort(); pagedRef.current = false;}
         const controller = new AbortController();
         loadAbort.current = controller;
         if (!quiet) setLoading(true);
@@ -67,6 +68,7 @@ export function useAgentWorld() {
                 exclude_type: type === 'all' ? 'work' : undefined,
             }, controller.signal);
             if (controller.signal.aborted) return;
+            pagedRef.current = true;
             setActivities(previous => {
                 const known = new Set(previous.map(item => item.id));
                 return [...previous, ...(result.items || []).filter(item => !known.has(item.id))];
@@ -96,7 +98,11 @@ export function useAgentWorld() {
 
     useEffect(() => {
         const interval = summary?.activeAgentCount ? 5000 : 30000;
-        const timer = window.setInterval(() => void load(true), interval);
+        const timer = window.setInterval(() => {
+            // 已翻页时静默刷新会退回第一页，隐藏标签页时也没有刷新必要。
+            if (document.hidden || pagedRef.current) return;
+            void load(true);
+        }, interval);
         return () => window.clearInterval(timer);
     }, [load, summary?.activeAgentCount]);
 

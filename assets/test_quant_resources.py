@@ -55,7 +55,7 @@ class QuantResourceIntegrationTests(TestCase):
                     response = self.client.get(f'/api/resource/{route}/{self.asset.pk}')
                     self.assertEqual(response.status_code, expected)
                     if expected == 200:
-                        self.assertEqual(response.content, self.path.read_bytes())
+                        self.assertEqual(b''.join(response.streaming_content) if response.streaming else response.content, self.path.read_bytes())
 
     def test_quant_upload_cannot_be_exposed_by_public_article_content(self):
         self.reference.delete()
@@ -95,7 +95,7 @@ class QuantResourceIntegrationTests(TestCase):
                 with self.subTest(reader=getattr(reader, 'username', 'anonymous'), route=route):
                     response = self.client.get(f'/api/resource/{route}/{self.asset.pk}')
                     self.assertEqual(response.status_code, 200)
-                    self.assertEqual(response.content, self.path.read_bytes())
+                    self.assertEqual(b''.join(response.streaming_content) if response.streaming else response.content, self.path.read_bytes())
 
     def test_resource_list_reports_quant_source_and_linked_filter(self):
         response = self.client.get('/api/resource/list', {'linked': 'true'})

@@ -35,6 +35,7 @@ export function useNovel(id: string) {
         if (!run || !['pending', 'running'].includes(run.status)) return;
         let cancelled = false;
         const timer = window.setInterval(async () => {
+            if (document.hidden) return;
             try {
                 const next = await novelApi.poll(id, run.id);
                 if (cancelled) return;

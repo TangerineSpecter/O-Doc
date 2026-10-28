@@ -9,6 +9,7 @@ export function useQuantValidations(collection: string,source: string) {
     useEffect(()=>{
         const abort=new AbortController();let timer: ReturnType<typeof setTimeout>|undefined;
         const read=async()=>{
+            if (document.hidden) {timer=setTimeout(()=>void read(),2000);return;}
             try {
                 const response=await quantValidations.list(collection,source,offset,abort.signal);
                 const id=selected || response.items[0]?.id;

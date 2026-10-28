@@ -12,14 +12,25 @@ import {nodeColors} from '../../utils/readingGraph';
 const colors: Record<string, string> = {person: nodeColors.person, event: nodeColors.event, place: nodeColors.place, organization: nodeColors.concept, item: nodeColors.clue, clue: nodeColors.clue};
 export function StoryMap({c, timeline = false}: {c: NovelController; timeline?: boolean}) {
     const n = c.novel!, root = useRef<HTMLDivElement>(null);
+    const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null);
     const [through, setThrough] = useState('plan'), [kind, setKind] = useState('all'), [query, setQuery] = useState('');
     const [memory, setMemory] = useState<Memory>(n.memory), [focus, setFocus] = useState('');
     const [order, setOrder] = useState('narrative');
     const [evidence, setEvidence] = useState<Change | null>(null);
     useEffect(() => {let active = true; if (through === 'plan') setMemory(n.memory); else void novelApi.memory(n.id, Number(through)).then(m => {if (active) setMemory(m);}).catch(() => {});return () => {active = false;};}, [through, n.id, n.memory]);
+    // 实例只创建一次；筛选、搜索和数据刷新只更新 option，避免反复重建力导向布局。
     useEffect(() => {
         if (!root.current || timeline) return;
         const chart = echarts.init(root.current);
+        chartRef.current = chart;
+        chart.on('click', p => {const data = p.data as {id?: string; fact?: Change} | undefined;if (data?.fact) setEvidence(data.fact);else setFocus(data?.id || '');});
+        const observer = new ResizeObserver(() => chart.resize());observer.observe(root.current);
+        return () => {observer.disconnect();chart.dispose();if (chartRef.current === chart) chartRef.current = null;};
+    }, [timeline]);
+
+    useEffect(() => {
+        const chart = chartRef.current;
+        if (!chart || timeline) return;
         const visible = n.entities.filter(e => !e.hidden && (through === 'plan' || memory.visibleEntityIds.includes(e.id)) && (kind === 'all' || e.kind === kind) && (!query || [e.name, ...e.aliases].some(v => v.includes(query))));
         const nodes: {id: string; name: string; category: number; symbolSize: number; itemStyle: {color: string}; description?: string}[] = visible.map(e => ({id: e.id, name: e.name, category: 0, symbolSize: e.importance === 'protagonist' ? 35 : e.importance === 'core' ? 28 : 18, itemStyle: {color: colors[e.kind]}, description: e.biography}));
         const ids = new Set(nodes.map(e => e.id));
@@ -29,10 +40,7 @@ export function StoryMap({c, timeline = false}: {c: NovelController; timeline?: 
             for (const t of n.threads.filter(t => (kind === 'all' || kind === 'clue') && (!query || t.title.includes(query)))) {nodes.push({id: t.id, name: t.title, category: 0, symbolSize: 18, itemStyle: {color: colors.clue}, description: t.description});for (const eid of t.entityIds) if (ids.has(eid)) links.push({source: eid, target: t.id, value: '关联线索'});}
             for (const o of n.outlines.filter(o => (kind === 'all' || kind === 'event') && (!query || o.title.includes(query)))) {nodes.push({id: o.id, name: o.title, category: 0, symbolSize: 22, itemStyle: {color: colors.event}, description: o.content});for (const eid of o.entityIds) if (ids.has(eid)) links.push({source: eid, target: o.id, value: '规划出场'});}
         }
-        chart.setOption({animationDuration: 300, tooltip: {trigger: 'item', renderMode: 'richText', formatter: (p: {data: {name?: string; value?: string; evidence?: string}}) => p.data.evidence || p.data.value || p.data.name || ''}, series: [{type: 'graph', layout: 'force', roam: true, draggable: true, data: nodes, links, edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 7, label: {show: true, position: 'bottom', color: '#64748b', fontSize: 12}, lineStyle: {color: '#d4dde7', curveness: .1}, emphasis: {focus: 'adjacency'}, force: {repulsion: 300, edgeLength: [65, 130], gravity: .06}}]});
-        chart.on('click', p => {const data = p.data as {id?: string; fact?: Change} | undefined;if (data?.fact) setEvidence(data.fact);else setFocus(data?.id || '');});
-        const observer = new ResizeObserver(() => chart.resize());observer.observe(root.current);
-        return () => {observer.disconnect();chart.dispose();};
+        chart.setOption({animationDuration: 300, tooltip: {trigger: 'item', renderMode: 'richText', formatter: (p: {data: {name?: string; value?: string; evidence?: string}}) => p.data.evidence || p.data.value || p.data.name || ''}, series: [{type: 'graph', layout: 'force', roam: true, draggable: true, data: nodes, links, edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 7, label: {show: true, position: 'bottom', color: '#64748b', fontSize: 12}, lineStyle: {color: '#d4dde7', curveness: .1}, emphasis: {focus: 'adjacency'}, force: {repulsion: 300, edgeLength: [65, 130], gravity: .06}}]}, true);
     }, [n.entities, n.threads, n.outlines, n.relations, memory, query, kind, through, timeline]);
     const entity = n.entities.find(e => e.id === focus);
     const events = order === 'story' ? [...memory.timeline].sort((a, b) => (a.timeOrder ?? Number.MAX_SAFE_INTEGER) - (b.timeOrder ?? Number.MAX_SAFE_INTEGER)) : memory.timeline;

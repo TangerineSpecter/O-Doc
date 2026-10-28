@@ -33,6 +33,7 @@ export function useSystemLogs() {
     }, [refresh]);
     useEffect(() => {
         const timer = setInterval(() => {
+            if (document.hidden) return;
             const current = ++overviewSequence.current;
             void getLogOverview().then(value => { if (mounted.current && current === overviewSequence.current) setOverview(value); })
                 .catch(e => { if (mounted.current && current === overviewSequence.current) setError(e instanceof Error ? e.message : '自动刷新失败'); });

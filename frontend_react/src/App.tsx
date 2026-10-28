@@ -6,27 +6,28 @@ import GlobalSwipeBack from './components/common/GlobalSwipeBack';
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
-import ImageAnthologyPage from './views/ImageAnthologyPage';
-import BookAnthologyPage from './views/BookAnthologyPage';
+import StarLoader from './components/common/StarLoader';
+const ImageAnthologyPage = lazy(() => import('./views/ImageAnthologyPage'));
+const BookAnthologyPage = lazy(() => import('./views/BookAnthologyPage'));
 const QuantPage = lazy(() => import('./views/QuantPage'));
 const MT4ArchivePage = lazy(() => import('./views/MT4ArchivePage'));
 const NovelPage = lazy(() => import('./views/NovelPage'));
 const LearningPage = lazy(() => import('./views/LearningPage'));
 const BookAnalysisPage = lazy(() => import('./views/BookAnalysisPage'));
-import LoginPage from './views/LoginPage';
-import EditorPage from './views/EditorPage';
-import ResourcesPage from './views/ResourcesPage';
-import StatisticsPage from './views/StatisticsPage';
-import CategoriesPage from './views/CategoriesPage';
-import TagsPage from './views/TagsPage';
-import SettingsPage from './views/SettingsPage';
-import MemosPage from './views/MemosPage';
-import WhiteboardPage from './views/WhiteboardPage'
-import WhiteboardManagePage from './views/WhiteboardManagePage';
-import MaintenancePage from './views/MaintenancePage';
-import AgentWorldPage from './views/AgentWorldPage';
-import PromptLibraryPage from './views/PromptLibraryPage';
-import RecyclePage from './views/RecyclePage';
+const LoginPage = lazy(() => import('./views/LoginPage'));
+const EditorPage = lazy(() => import('./views/EditorPage'));
+const ResourcesPage = lazy(() => import('./views/ResourcesPage'));
+const StatisticsPage = lazy(() => import('./views/StatisticsPage'));
+const CategoriesPage = lazy(() => import('./views/CategoriesPage'));
+const TagsPage = lazy(() => import('./views/TagsPage'));
+const SettingsPage = lazy(() => import('./views/SettingsPage'));
+const MemosPage = lazy(() => import('./views/MemosPage'));
+const WhiteboardPage = lazy(() => import('./views/WhiteboardPage'));
+const WhiteboardManagePage = lazy(() => import('./views/WhiteboardManagePage'));
+const MaintenancePage = lazy(() => import('./views/MaintenancePage'));
+const AgentWorldPage = lazy(() => import('./views/AgentWorldPage'));
+const PromptLibraryPage = lazy(() => import('./views/PromptLibraryPage'));
+const RecyclePage = lazy(() => import('./views/RecyclePage'));
 import {getAuthToken} from './utils/authStorage';
 import {initializeNovelNavigation} from './utils/novelNavigation';
 
@@ -204,6 +205,14 @@ function ImageAnthologyRoute() {
     );
 }
 
+function RouteLoading() {
+    return (
+        <div className="flex h-[60vh] items-center justify-center">
+            <StarLoader variant="dots" />
+        </div>
+    );
+}
+
 // 带有路由上下文的布局组件
 function AppWithRouter() {
     const navigate = useNavigate();
@@ -252,23 +261,23 @@ function AppWithRouter() {
             <GlobalSwipeBack/>
             <Routes>
             <Route path="/" element={
-                <Layout onNavigate={handleNavigate}>
+                <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                     <HomeRoute/>
-                </Layout>
+                </Suspense></Layout>
             }/>
             {/* 核心修复：合并路由
              使用 /* 通配符匹配后续路径，这样切换文章时不会卸载 Layout 和 ArticleRoute 组件
             */}
             <Route path="/article/:collId/*" element={
-                <Layout onNavigate={handleNavigate}>
+                <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                     <ArticleRoute/>
-                </Layout>
+                </Suspense></Layout>
             }/>
             {/* 图片文集路由 */}
             <Route path="/image/:collId" element={
-                <Layout onNavigate={handleNavigate}>
+                <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                     <ImageAnthologyRoute/>
-                </Layout>
+                </Suspense></Layout>
             }/>
             <Route path="/novel/:collId" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage/></Suspense>}/>
             <Route path="/novel/:collId/read" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage readerOnly/></Suspense>}/>
@@ -277,90 +286,90 @@ function AppWithRouter() {
             <Route path="/quant/:collId/entries/:entryId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开量化研究…</div>}><QuantPage/></Suspense></Layout></RequireAuth>}/>
             <Route path="/learning/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开学习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/learning/:collId/exercises/:exerciseId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开练习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>
-            <Route path="/books/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><BookAnthologyRoute/></Layout></RequireAuth>}/>
+            <Route path="/books/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}><BookAnthologyRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/books/:collId/guide/:bookId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-sm text-slate-400">正在打开 AI 导读…</div>}><BookAnalysisPage/></Suspense></Layout></RequireAuth>}/>
-            <Route path="/login" element={<LoginPage/>}/> {/* 新增路由：登录页不使用Layout */}
+            <Route path="/login" element={<Suspense fallback={<RouteLoading />}><LoginPage/></Suspense>}/> {/* 新增路由：登录页不使用Layout */}
             {/* 新增编辑器路由 - 不使用 Layout，提供全屏体验 */}
             <Route path="/editor" element={
                 <RequireAuth>
-                    <EditorPage/>
+                    <Suspense fallback={<RouteLoading />}><EditorPage/></Suspense>
                 </RequireAuth>
             }/>
             <Route path="/editor/:docId" element={
                 <RequireAuth>
-                    <EditorPage/>
+                    <Suspense fallback={<RouteLoading />}><EditorPage/></Suspense>
                 </RequireAuth>
             }/>
             <Route path="/resources" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <ResourcesPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
-            <Route path="/prompts" element={<RequireAuth><Layout onNavigate={handleNavigate}><PromptLibraryPage/></Layout></RequireAuth>}/>
-            <Route path="/recycle" element={<RequireAuth><Layout onNavigate={handleNavigate}><RecyclePage/></Layout></RequireAuth>}/>
+            <Route path="/prompts" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}><PromptLibraryPage/></Suspense></Layout></RequireAuth>}/>
+            <Route path="/recycle" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}><RecyclePage/></Suspense></Layout></RequireAuth>}/>
             <Route path="/stats" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <StatisticsPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/tags" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <TagsPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/categories" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <CategoriesPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/settings" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <SettingsPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/memos" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <MemosPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/maintenance" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <MaintenancePage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/agent-world" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <AgentWorldPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/whiteboard" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <WhiteboardManagePage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
             <Route path="/whiteboard/:boardId" element={
                 <RequireAuth>
-                    <Layout onNavigate={handleNavigate}>
+                    <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>
                         <WhiteboardPage/>
-                    </Layout>
+                    </Suspense></Layout>
                 </RequireAuth>
             }/>
         </Routes>

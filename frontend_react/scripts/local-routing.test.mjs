@@ -129,3 +129,34 @@ for (const state of ['populated', 'empty', 'slow', 'error']) {
         }
     });
 }
+
+for (const state of ['populated', 'empty', 'slow', 'error']) {
+    test(`article summary projection stays local in ${state}`, async () => {
+        location.search = `?mockState=${state}`;
+        const started = performance.now();
+        for (const collId of ['', 'local-world']) {
+            const response = await fetch(`http://localhost/api/article/list?summary=1&collId=${collId}`);
+            const payload = await response.json();
+            assert.equal(response.status, state === 'error' ? 503 : 200);
+            if (state === 'error') continue;
+            assert.ok(Array.isArray(payload.data));
+            if (state === 'empty') assert.equal(payload.data.length, 0);
+            else {
+                assert.ok(payload.data.length > 0);
+                for (const article of payload.data) {
+                    assert.equal('content' in article, false);
+                    assert.equal('mindMap' in article, false);
+                    assert.ok(article.articleId && article.title);
+                }
+            }
+        }
+        if (state === 'slow') assert.ok(performance.now() - started >= 1700);
+    });
+}
+
+test('default article list keeps the full content', async () => {
+    location.search = '?mockState=populated';
+    const response = await fetch('http://localhost/api/article/list');
+    const payload = await response.json();
+    assert.equal(typeof payload.data[0].content, 'string');
+});

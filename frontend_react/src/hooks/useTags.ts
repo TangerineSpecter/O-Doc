@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {createTag, deleteTag, getTagList, TagItem, updateTag} from '../api/tag';
-import {Article, ArticleItem, getArticles} from '../api/article';
+import {ArticleItem, getArticleSummaries} from '../api/article';
 import {TagFormData} from '../components/TagModal';
 import {useToast} from '../components/common/ToastProvider';
 
@@ -38,12 +38,12 @@ export const useTags = () => {
     const fetchArticles = useCallback(async (tagId: string) => {
         try {
             setLoading(true);
-            const data = await getArticles(tagId === 'all' ? undefined : {tagId});
+            const data = await getArticleSummaries(tagId === 'all' ? undefined : {tagId});
             if (tagId === 'all') {
                 setAllArticleCount(data.length);
             }
             // 转换数据格式
-            const formattedData: ArticleItem[] = data.map((article: Article) => ({
+            const formattedData: ArticleItem[] = data.map((article) => ({
                 articleId: article.articleId,
                 title: article.title,
                 desc: article.desc || '',
@@ -70,7 +70,7 @@ export const useTags = () => {
 
     const fetchAllArticleCount = useCallback(async () => {
         try {
-            const data = await getArticles();
+            const data = await getArticleSummaries();
             setAllArticleCount(data.length);
         } catch (error) {
             console.error('获取全部文章数量失败:', error);

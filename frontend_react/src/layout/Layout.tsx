@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
@@ -147,9 +147,11 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
     }, [isChatOpen, isAgentPanelOpen, isSearchOpen, isProfileOpen]);
 
     const isAuthenticated = Boolean(userInfo);
+    // 保持 Provider 值引用稳定，避免布局内的滚动/弹层状态变化触发所有消费方重渲染。
+    const authValue = useMemo(() => ({ userInfo, isAuthenticated }), [userInfo, isAuthenticated]);
 
     return (
-        <AuthProvider value={{ userInfo, isAuthenticated }}>
+        <AuthProvider value={authValue}>
         <div className={`${isQuantWorkspace ? 'min-h-0' : 'min-h-screen'} bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900`}>
 
             <AIChatWindow

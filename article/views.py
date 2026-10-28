@@ -12,7 +12,7 @@ from urllib.parse import unquote
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction, models, close_old_connections
-from django.db.models import Avg, Q
+from django.db.models import Avg, Prefetch, Q
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
@@ -58,6 +58,7 @@ from article.serializers import (
     AgentPostLatestCommentSerializer,
     ArticlePostCommentSerializer,
     ArticleSerializer,
+    ArticleSummarySerializer,
     ArticleTreeSerializer,
     ImageSerializer,
 )
@@ -322,7 +323,8 @@ class ArticleDetailView(APIView):
             read_rows = Article.objects.filter(article_id=article.article_id)
             record_bulk_change(read_rows)
             read_rows.update(read_count=models.F('read_count') + 1)
-            article.refresh_from_db(fields=['read_count'])
+            # 回填本次展示值，避免为一次计数多查一次库。
+            article.read_count = (article.read_count or 0) + 1
 
             # 序列化响应数据
             response_data = dict(ArticleSerializer(article).data)
@@ -593,7 +595,15 @@ class ArticleListView(APIView):
             keyword = request.GET.get('keyword')
 
             # 构建查询集
-            articles = get_visible_article_queryset(request).select_related('agent_post_category_ref').prefetch_related('post_comments', 'post_ratings').order_by('sort', '-updated_at')
+            articles = (
+                get_visible_article_queryset(request)
+                .select_related('agent_post_category_ref', 'category', 'parent')
+                .prefetch_related(
+                    'tags', 'post_comments', 'post_ratings',
+                    Prefetch('asset_set', queryset=Asset.objects.filter(is_valid=True, source_type='attachment')),
+                )
+                .order_by('sort', '-updated_at')
+            )
 
             # 文集ID过滤
             if coll_id:
@@ -613,8 +623,12 @@ class ArticleListView(APIView):
             if keyword:
                 articles = articles.filter(title__icontains=keyword)
 
-            # 序列化响应数据
-            serializer = ArticleSerializer(articles, many=True)
+            # 序列化响应数据；summary=1 时只返回卡片字段，连正文和思维导图都不从库里取。
+            summary_only = request.GET.get('summary') in ('1', 'true')
+            if summary_only:
+                articles = articles.defer('content', 'mind_map')
+            serializer_class = ArticleSummarySerializer if summary_only else ArticleSerializer
+            serializer = serializer_class(articles, many=True)
 
             return success_result(data=serializer.data)
 
@@ -640,14 +654,28 @@ class ArticleTreeListView(APIView):
             if not can_access_anthology(request, coll_id, 'article'):
                 return success_result(data=[])
 
-            # 构建查询集：只获取文集下的主文章（parent为空），并按sort和更新时间排序
-            root_articles = get_visible_article_queryset(request).filter(
-                coll_id=coll_id,
-                parent__isnull=True
-            ).order_by('sort', '-updated_at')
+            # 一次性获取文集下的所有可见文章（使用 defer 避免加载庞大正文，单次查询搞定全树）
+            all_articles = list(
+                get_visible_article_queryset(request)
+                .filter(coll_id=coll_id)
+                .defer('content')
+                .order_by('sort', '-updated_at')
+            )
+            # 在内存中构建 parent_id -> [children] 索引映射
+            children_map = {}
+            root_articles = []
+            for art in all_articles:
+                if art.parent_id:
+                    children_map.setdefault(art.parent_id, []).append(art)
+                else:
+                    root_articles.append(art)
 
-            # 使用树形序列化器序列化响应数据
-            serializer = ArticleTreeSerializer(root_articles, many=True, context={'request': request})
+            # 使用树形序列化器序列化响应数据，通过 context 传入 children_map 消除递归查库
+            serializer = ArticleTreeSerializer(
+                root_articles,
+                many=True,
+                context={'request': request, 'children_map': children_map}
+            )
 
             return success_result(data=serializer.data)
 

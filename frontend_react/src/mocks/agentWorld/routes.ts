@@ -1,3 +1,4 @@
+import {projectArticleList} from '../articleProjection';
 import {reservationItems} from './reservations';
 import {bardProfiles,bardSnapshot,bardParty} from './bardSamples';
 import type {AgentTaskConfig} from '../../types/api/setting';
@@ -256,7 +257,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path.startsWith('/api/settings/agent-tasks/') && writing && !path.endsWith('/run_now/') && path !== '/api/settings/agent-tasks/world_runner/') {const id = path.split('/').filter(Boolean).slice(-1)[0]; const task = tasks.find(row => row.id === id); if (task) {Object.assign(task, body); return task;}}
     if (path.endsWith('/run_now/')) return run;
     if (path === '/api/anthology/list' && url.searchParams.get('type') === 'agent') return list([{collId: 'local-world', title: '居民生活手记', type: 'agent', count: 4, iconId: 'bot', description: '居民创作与旅行记录', permission: 'public', isTop: true, articles: worldPosts}]);
-    if (path === '/api/article/list' && (url.searchParams.get('collId') === 'local-world' || url.searchParams.get('type') === 'agent')) return list(worldPosts);
+    if (path === '/api/article/list' && (url.searchParams.get('collId') === 'local-world' || url.searchParams.get('type') === 'agent')) return projectArticleList(list(worldPosts), url);
     if (path.startsWith('/api/article/detail/local-post-')) return worldPosts.find(r => r.articleId === path.split('/').slice(-1)[0]) || worldPosts[0];
     if (path === '/api/anthology/detail/local-world') return {collId: 'local-world', title: '居民生活手记', type: 'agent', description: '本地样例', permission: 'public', iconId: 'bot', articles: worldPosts};
     if (path === `${base}/combat/catalog/` && emptyScenario()) {

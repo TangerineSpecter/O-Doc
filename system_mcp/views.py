@@ -650,6 +650,20 @@ VISIBLE_MARKET_TOOL_NAMES = MARKET_TOOL_NAMES
 VISIBLE_TOOL_NAMES -= MARKET_TOOL_NAMES
 VISIBLE_TOOL_NAMES -= VISIBLE_VISION_TOOL_NAMES | VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES | VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
+TOOL_NAMES_BY_SCOPE = {
+    'system': VISIBLE_TOOL_NAMES,
+    'memos': VISIBLE_MEMO_TOOL_NAMES,
+    'anthologies': VISIBLE_ANTHOLOGY_TOOL_NAMES,
+    'articles': VISIBLE_ARTICLE_TOOL_NAMES,
+    'agent_posts': VISIBLE_AGENT_POST_TOOL_NAMES,
+    'agent_activities': VISIBLE_ACTIVITY_TOOL_NAMES,
+    'comments': VISIBLE_COMMENT_TOOL_NAMES,
+    'vision': VISIBLE_VISION_TOOL_NAMES,
+    'photo_observation': VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES,
+    'image_generation': VISIBLE_IMAGE_GENERATION_TOOL_NAMES,
+    'market': VISIBLE_MARKET_TOOL_NAMES,
+}
+
 
 def _summary_source(content):
     return re.sub(r'!\[[^\]]*\]\(odoc-illustration:[^)]+\)', ' ', content or '')
@@ -664,20 +678,7 @@ def _argument_flag(value):
 
 
 def get_system_mcp_tools_for_scope(tool_scope):
-    tool_names_by_scope = {
-        'system': VISIBLE_TOOL_NAMES,
-        'memos': VISIBLE_MEMO_TOOL_NAMES,
-        'anthologies': VISIBLE_ANTHOLOGY_TOOL_NAMES,
-        'articles': VISIBLE_ARTICLE_TOOL_NAMES,
-        'agent_posts': VISIBLE_AGENT_POST_TOOL_NAMES,
-        'agent_activities': VISIBLE_ACTIVITY_TOOL_NAMES,
-        'comments': VISIBLE_COMMENT_TOOL_NAMES,
-        'vision': VISIBLE_VISION_TOOL_NAMES,
-        'photo_observation': VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES,
-        'image_generation': VISIBLE_IMAGE_GENERATION_TOOL_NAMES,
-        'market': VISIBLE_MARKET_TOOL_NAMES,
-    }
-    tool_names = tool_names_by_scope.get(tool_scope, VISIBLE_TOOL_NAMES)
+    tool_names = TOOL_NAMES_BY_SCOPE.get(tool_scope, VISIBLE_TOOL_NAMES)
     tools = deepcopy([tool for tool in TOOLS if tool['name'] in tool_names])
 
     if tool_scope == 'agent_posts':
@@ -765,7 +766,8 @@ class ODocSystemMCPView(APIView):
         return get_system_mcp_tools_for_scope(self.tool_scope)
 
     def _is_tool_available(self, name):
-        return any(tool['name'] == name for tool in self._available_tools())
+        # 仅比对名称集合，避免为一次校验深拷贝全部 Tool schema 并重复查询文集。
+        return name in TOOL_NAMES_BY_SCOPE.get(self.tool_scope, VISIBLE_TOOL_NAMES)
 
     @classmethod
     def _auth_error(cls, request):

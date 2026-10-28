@@ -67,30 +67,42 @@ def is_asset_used_by_article(resource_id, exclude_article_id=None):
 
 
 def get_article_resource_usage(resource_ids=None):
+    """按资源 ID 返回引用它的文章；给定 ID 且结构化引用已覆盖时不再扫描正文。"""
     from article.models import Article, ArticleAsset
 
-    usage = {}
-    queryset = Article.objects.filter(
-        is_valid=True,
-        content__contains='/api/resource/',
-    ).only('article_id', 'title', 'coll_id', 'content')
-
     resource_id_filter = set(resource_ids) if resource_ids is not None else None
-    for article in queryset:
-        for resource_id in extract_resource_ids_from_content(article.content):
-            if resource_id_filter is not None and resource_id not in resource_id_filter:
-                continue
-            usage.setdefault(resource_id, {
-                'id': article.article_id,
-                'title': article.title,
-                'collId': article.coll_id,
-            })
 
     references = ArticleAsset.objects.filter(article__is_valid=True).select_related('article')
     if resource_id_filter is not None:
         references = references.filter(asset_id__in=resource_id_filter)
+    reference_usage = {}
     for ref in references:
-        usage.setdefault(ref.asset_id, {'id': ref.article_id, 'title': ref.article.title, 'collId': ref.article.coll_id})
+        reference_usage.setdefault(ref.asset_id, {
+            'id': ref.article_id,
+            'title': ref.article.title,
+            'collId': ref.article.coll_id,
+        })
+
+    # 全量统计或结构化引用未覆盖（历史数据）时才扫描正文，保持原有优先级：正文优先。
+    needs_content_scan = resource_id_filter is None or bool(resource_id_filter - reference_usage.keys())
+    usage = {}
+    if needs_content_scan:
+        queryset = Article.objects.filter(
+            is_valid=True,
+            content__contains='/api/resource/',
+        ).only('article_id', 'title', 'coll_id', 'content')
+        for article in queryset:
+            for resource_id in extract_resource_ids_from_content(article.content):
+                if resource_id_filter is not None and resource_id not in resource_id_filter:
+                    continue
+                usage.setdefault(resource_id, {
+                    'id': article.article_id,
+                    'title': article.title,
+                    'collId': article.coll_id,
+                })
+
+    for resource_id, entry in reference_usage.items():
+        usage.setdefault(resource_id, entry)
     return usage
 
 

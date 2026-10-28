@@ -361,16 +361,17 @@ export const useChatSession = ({
             const length = queue.length;
             if (length === 0) return { conversationKey: '', text: '' };
 
-            // 智能根据积压长度调整消费速率，积压多时大幅提速（秒出段落），积压少时匀速输出（丝滑感）
-            let count = 1;
+            // 智能根据积压长度调整消费速率，积压多时大幅提速（秒出段落），积压少时匀速输出（丝滑感）。
+            // 30fps 渲染即可保持顺滑，同时把逐字 Markdown 重解析的渲染次数减半。
+            let count = 2;
             if (length > 180) {
-                count = 8;
+                count = 16;
             } else if (length > 90) {
-                count = 5;
+                count = 10;
             } else if (length > 36) {
-                count = 3;
+                count = 6;
             } else if (length > 8) {
-                count = 2;
+                count = 4;
             }
 
             const conversationKey = queue[0].conversationKey;
@@ -416,7 +417,7 @@ export const useChatSession = ({
                 completeActivitySteps(generationConversationKeyRef.current);
                 generationConversationKeyRef.current = '';
             }
-        }, 16);
+        }, 32);
 
         return () => clearInterval(interval);
     }, []);

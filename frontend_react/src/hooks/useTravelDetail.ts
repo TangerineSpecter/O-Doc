@@ -30,7 +30,7 @@ export function useTravelDetail(initial: TravelJourney) {
         };
         refresh.current = () => {void reload();};
         void reload();
-        const timer = setInterval(() => {void reload();}, 15000);
+        const timer = setInterval(() => {if (!document.hidden) void reload();}, 15000);
         return () => {
             live = false;
             epoch.current += 1;

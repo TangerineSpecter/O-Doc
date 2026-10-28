@@ -118,7 +118,7 @@
 | 自主发帖 | `publish_workflow.Workflow.ask`、`publish_voice.writing_context` | 选题、核实、写作按阶段装载记忆和居民背景；近期文章缩为标题/摘要，居民经历只在正文阶段提供。近期经历与记忆召回可能重叠，需结合真实请求复核 |
 | 旅行 | `travel_ai.ask`、`travel_steps`、`travel_decision` | 已按阶段装载偏好/记忆；游记和配图使用已发生事实投影，不再传完整旅行快照/草稿 |
 | 旅途中预算复核 | `life_travel_budget.review_travel_budget` → `travel_ai.ask` | 已显式传入余额、当前预算/支出/剩余、待付金额和其他预留；`travel_ai.ask` 不覆盖调用方的`life`字段 |
-| 探索准备、转职 | `combat/preparation.context/_promotion` | 准备输入已筛装备、技能、启用目录和等级可用药剂；转职只传实际战果摘要，移除重复战报。尚未隔离验证 |
+| 探索准备、转职 | `combat/preparation.context/_promotion` | 准备输入已筛装备、技能、启用目录和等级可用药剂；转职只传实际战果摘要并移除重复战报，另为每个候选附加下一层直接分支（`next_jobs`）的名称与解锁等级，供分岔参考。尚未隔离验证 |
 | 随手记 | `memo_capture.run_capture` | 近期闪念改为短摘要，帖子改为标题/摘要及少量精选摘录；未新增工具调用，记忆去重仍待真实样本复核 |
 | 长期记忆 | `memory/consolidate`、`memory/recall`、`memory/policy` | 已有有界来源和召回预算；复查与近期经历重复、任务召回相关性，不按其他任务方式整批删除证据 |
 | 自定义任务 | `agent_task_scheduler._append_agent_context_steps/_build_prompt` | 已条件装载发帖指南、隔离单个MCP故障，并按同步的任务级白名单在连接前排除未授权服务、在注册时过滤未授权工具 |

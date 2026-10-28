@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {
     BookOpen,
     Calendar,
@@ -298,17 +298,31 @@ export default function StatisticsPage() {
         };
     }, [selectedYear]);
 
+    // 派生统计集中在 useMemo 中，避免热力图悬停等交互触发全量重算。
+    const derivedStats = useMemo(() => {
+        if (!data) return null;
+        const categoryDataWithColor = data.categoryStats.map((item, index) => ({
+            ...item,
+            color: COLORS[index % COLORS.length]
+        }));
+        const heatmapCells = buildHeatmapCells(selectedYear, data.dailyCreation, whiteboardCounts);
+        return {
+            categoryDataWithColor,
+            heatmapCells,
+            monthMarkers: getMonthMarkers(heatmapCells),
+            maxCreationCount: heatmapCells.reduce((max, item) => Math.max(max, item.total), 0),
+            yearlyCreationTotal: heatmapCells.reduce((total, item) => total + item.total, 0),
+            activeDaysCount: heatmapCells.filter((item) => !item.isBlank && item.total > 0).length,
+        };
+    }, [data, selectedYear, whiteboardCounts]);
+
     if (loading) {
         return <PageLoading message="正在分析数据..." minHeight="min-h-[calc(100vh-160px)]" />;
     }
 
     if (!data) return null;
 
-    // 为分类数据添加颜色
-    const categoryDataWithColor = data.categoryStats.map((item, index) => ({
-        ...item,
-        color: COLORS[index % COLORS.length]
-    }));
+    const categoryDataWithColor = derivedStats?.categoryDataWithColor ?? [];
 
     // 格式化字数 (例如 1.2m)
     const formatWordCount = (count: number) => {
@@ -326,11 +340,11 @@ export default function StatisticsPage() {
         };
     });
 
-    const heatmapCells = buildHeatmapCells(selectedYear, data.dailyCreation, whiteboardCounts);
-    const monthMarkers = getMonthMarkers(heatmapCells);
-    const maxCreationCount = heatmapCells.reduce((max, item) => Math.max(max, item.total), 0);
-    const yearlyCreationTotal = heatmapCells.reduce((total, item) => total + item.total, 0);
-    const activeDaysCount = heatmapCells.filter((item) => !item.isBlank && item.total > 0).length;
+    const heatmapCells = derivedStats?.heatmapCells ?? [];
+    const monthMarkers = derivedStats?.monthMarkers ?? [];
+    const maxCreationCount = derivedStats?.maxCreationCount ?? 0;
+    const yearlyCreationTotal = derivedStats?.yearlyCreationTotal ?? 0;
+    const activeDaysCount = derivedStats?.activeDaysCount ?? 0;
     const heatmapColumnCount = Math.ceil(heatmapCells.length / 7);
     const heatmapColumnWidth = 17;
     const heatmapWidth = heatmapColumnCount * heatmapColumnWidth;

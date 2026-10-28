@@ -203,9 +203,17 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
 
   const focalLengthStats = useMemo<FocalLengthStat[]>(() => buildFocalLengthStats(images), [images]);
 
-  const focalLengthTotal = focalLengthStats.reduce((total, item) => total + item.count, 0);
-  const missingFocalLengthCount = images.length - focalLengthTotal;
-  const maxFocalLengthCount = focalLengthStats[0]?.count || 0;
+  const focalLengthAggregates = useMemo(() => {
+    const total = focalLengthStats.reduce((sum, item) => sum + item.count, 0);
+    return {
+      total,
+      missing: images.length - total,
+      max: focalLengthStats[0]?.count || 0,
+    };
+  }, [focalLengthStats, images.length]);
+  const focalLengthTotal = focalLengthAggregates.total;
+  const missingFocalLengthCount = focalLengthAggregates.missing;
+  const maxFocalLengthCount = focalLengthAggregates.max;
   const focalLengthSummaryStats = focalLengthStats.slice(0, 5);
 
   const tagStats = useMemo<ImageTagStat[]>(() => {
@@ -222,9 +230,15 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [images]);
 
-  const tagTotal = tagStats.reduce((total, item) => total + item.count, 0);
-  const taggedImageCount = images.filter(image => parseImageTags(image).length > 0).length;
-  const maxTagCount = tagStats[0]?.count || 0;
+  // 标签解析成本较高，聚合结果随 images/tagStats 缓存，避免滚动和悬停时重复解析。
+  const tagAggregates = useMemo(() => ({
+    total: tagStats.reduce((sum, item) => sum + item.count, 0),
+    max: tagStats[0]?.count || 0,
+    taggedImageCount: images.reduce((count, image) => count + (parseImageTags(image).length > 0 ? 1 : 0), 0),
+  }), [tagStats, images]);
+  const tagTotal = tagAggregates.total;
+  const taggedImageCount = tagAggregates.taggedImageCount;
+  const maxTagCount = tagAggregates.max;
   const tagSummaryStats = tagStats.slice(0, 5);
 
   const galleryCountryOptions = useMemo<SelectOption<string>[]>(() => {
@@ -391,6 +405,14 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
 
   const filteredFocalLengthTotal = filteredFocalLengthStats.reduce((total, item) => total + item.count, 0);
   const filteredMissingFocalLengthCount = filteredFocalImages.length - filteredFocalLengthTotal;
+
+  // 智能检索的匹配说明只在结果变化时重建，避免每次渲染新建对象击穿卡片 memo。
+  const matchReasons = useMemo(
+    () => smart.mode === 'none'
+      ? undefined
+      : Object.fromEntries(smart.items.map(item => [item.image.imageId, item.matchReason])),
+    [smart.mode, smart.items]
+  );
 
   const handleFocalCountryChange = (country: string) => {
     setSelectedFocalCountry(country);
@@ -1025,7 +1047,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
                   imageColumns={imageColumns}
                   visibleImageCount={displayImages.length}
                   dominantColors={dominantColors}
-                  matchReasons={smart.mode === 'none' ? undefined : Object.fromEntries(smart.items.map(item => [item.image.imageId, item.matchReason]))}
+                  matchReasons={matchReasons}
                   isAuthenticated={isAuthenticated}
                   onImageClick={handleImageClick}
                   onEditImage={handleOpenEditModal}

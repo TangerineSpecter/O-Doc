@@ -32,7 +32,7 @@ export function useLottery() {
         return () => controller.abort();
     }, [roundId, historyPage, ticketPage, revision]);
     useEffect(() => {
-        const timer = window.setInterval(() => setRevision(v => v + 1), 15000);
+        const timer = window.setInterval(() => {if (!document.hidden) setRevision(v => v + 1);}, 15000);
         return () => window.clearInterval(timer);
     }, []);
     const chooseRound = (id: string) => {setRoundId(id); setTicketPage(1);};

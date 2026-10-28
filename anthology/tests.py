@@ -94,6 +94,22 @@ class AnthologyVisibilityTests(APITestCase):
         self.assertNotIn(self.private_coll.coll_id, coll_ids)
         self.assertIn(self.other_private_coll.coll_id, coll_ids)
 
+    def test_list_counts_image_collection_items(self):
+        # Image 使用 image_id 作主键，批量计数必须按 pk 统计。
+        Image.objects.create(
+            image_id='img_count_extra',
+            title='第二张',
+            image_url='/media/extra.png',
+            coll_id=self.private_image_coll.coll_id,
+        )
+        self.authenticate_admin()
+
+        response = self.client.get('/api/anthology/list')
+
+        self.assertEqual(response.status_code, 200)
+        items = {item.get('collId') or item.get('coll_id'): item for item in response.data['data']}
+        self.assertEqual(items[self.private_image_coll.coll_id]['count'], 2)
+
     def test_anonymous_cannot_get_private_anthology_detail(self):
         response = self.client.get(f'/api/anthology/detail/{self.private_coll.coll_id}')
 

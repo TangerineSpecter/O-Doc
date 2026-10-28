@@ -62,7 +62,7 @@ export const useArticle = (content?: string, scrollContainerId?: string) => {
     useEffect(() => {
         const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
 
-        const handleScroll = () => {
+        const updateOnScroll = () => {
             const currentScrollTop = scrollContainerId
                 ? (target as HTMLElement).scrollTop
                 : (window.pageYOffset || document.documentElement.scrollTop);
@@ -70,18 +70,33 @@ export const useArticle = (content?: string, scrollContainerId?: string) => {
             setShowScrollTop(currentScrollTop > 300);
 
             if (headers.length === 0) return;
-            for (const header of headers) {
-                const el = document.getElementById(header.slug);
+            // 从后往前找第一个已越过的标题，命中即停，避免每个滚动事件遍历全部标题并反复触发布局。
+            for (let index = headers.length - 1; index >= 0; index -= 1) {
+                const el = document.getElementById(headers[index].slug);
                 if (el && el.getBoundingClientRect().top < 150) {
-                    setActiveHeader(header.slug);
+                    setActiveHeader(headers[index].slug);
+                    return;
                 }
             }
         };
 
-        target?.addEventListener('scroll', handleScroll, { passive: true });
-        handleScroll();
+        // 滚动事件按帧合并，避免长文中连续 getBoundingClientRect 造成同步重排。
+        let frame = 0;
+        const handleScroll = () => {
+            if (frame) return;
+            frame = window.requestAnimationFrame(() => {
+                frame = 0;
+                updateOnScroll();
+            });
+        };
 
-        return () => target?.removeEventListener('scroll', handleScroll);
+        target?.addEventListener('scroll', handleScroll, { passive: true });
+        updateOnScroll();
+
+        return () => {
+            target?.removeEventListener('scroll', handleScroll);
+            if (frame) window.cancelAnimationFrame(frame);
+        };
     }, [headers, scrollContainerId]);
 
     const handleScrollToTop = () => {

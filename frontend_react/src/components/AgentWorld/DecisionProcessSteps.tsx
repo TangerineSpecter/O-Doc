@@ -1,6 +1,6 @@
 import type {DecisionProcessGuide} from './decisionProcessTypes';
 
-/** Render the supplied sequence verbatim; never infer links or decisions from step indexes (including hourly replenishment and group-reservation coordination). */
+/** Render the supplied sequence verbatim; never infer links or decisions from step indexes (including hourly replenishment, group reservations and repeated promotion choices). */
 export function DecisionProcessSteps({guide}: {guide: DecisionProcessGuide}) {
     return <div className="space-y-5">
         <p className="text-sm leading-6 text-slate-600">{guide.introduction}</p>

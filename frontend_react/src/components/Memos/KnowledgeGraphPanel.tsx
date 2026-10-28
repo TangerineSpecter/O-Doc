@@ -113,6 +113,7 @@ export default function KnowledgeGraphPanel({
         const chart = graphChartRef.current || echarts.init(graphRef.current);
         graphChartRef.current = chart;
         let graphLabelsVisible = true;
+        let graphZoom = 1;
 
         const option: EChartsOption = {
             backgroundColor: 'transparent',
@@ -219,15 +220,12 @@ export default function KnowledgeGraphPanel({
 
         chart.setOption(option, true);
 
-        const getCurrentGraphZoom = () => {
-            const currentOption = chart.getOption() as any;
-            const series = Array.isArray(currentOption.series) ? currentOption.series[0] : undefined;
-            const zoom = Number(series?.zoom);
-            return Number.isFinite(zoom) ? zoom : 1;
-        };
-
-        const updateGraphLabelVisibility = () => {
-            const shouldShowLabels = getCurrentGraphZoom() >= GRAPH_LABEL_VISIBLE_MIN_ZOOM;
+        const updateGraphLabelVisibility = (event?: unknown) => {
+            // 事件提供本次缩放倍率；累计得到实际 zoom，避免深拷贝整份图数据。
+            const zoomDelta = Number((event as {zoom?: number} | undefined)?.zoom);
+            if (!Number.isFinite(zoomDelta) || zoomDelta <= 0) return;
+            graphZoom *= zoomDelta;
+            const shouldShowLabels = graphZoom >= GRAPH_LABEL_VISIBLE_MIN_ZOOM;
             if (shouldShowLabels === graphLabelsVisible) return;
 
             graphLabelsVisible = shouldShowLabels;
@@ -268,12 +266,10 @@ export default function KnowledgeGraphPanel({
         chart.off('click');
         chart.off('mouseover');
         chart.off('mouseout');
-        chart.off('graphRoam' as any);
         chart.off('graphroam' as any);
         chart.on('click', handleClick);
         chart.on('mouseover', handleMouseOver);
         chart.on('mouseout', handleMouseOut);
-        chart.on('graphRoam' as any, updateGraphLabelVisibility);
         chart.on('graphroam' as any, updateGraphLabelVisibility);
 
         const resizeObserver = new ResizeObserver(() => chart.resize());
@@ -284,7 +280,6 @@ export default function KnowledgeGraphPanel({
             chart.off('click', handleClick);
             chart.off('mouseover', handleMouseOver);
             chart.off('mouseout', handleMouseOut);
-            chart.off('graphRoam' as any, updateGraphLabelVisibility);
             chart.off('graphroam' as any, updateGraphLabelVisibility);
         };
     }, [graphData, onDetailCollapsedChange, onSelectNode]);

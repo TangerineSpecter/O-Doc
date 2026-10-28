@@ -116,6 +116,7 @@ export function useQuant(collection: string, entryId: string) {
         const controller = new AbortController();
         let timer: ReturnType<typeof setTimeout>;
         const poll = async () => {
+            if (document.hidden) {timer = setTimeout(() => void poll(), 1800); return;}
             try {
                 const currentDetail = await quantApi.detail(collection, entryId, controller.signal);
                 const runs = currentDetail.runs;

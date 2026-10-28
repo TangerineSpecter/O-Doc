@@ -14,7 +14,7 @@ from anthology.models import Anthology
 from user.models import UserProfile
 from .access import owned_collection
 from .locking import collection_lock
-from .models import Entry
+from .models import AIRun, Entry
 from .views import QuantView
 
 
@@ -73,16 +73,49 @@ class QuantAuthBoundaryTests(TestCase):
             response = self.client.patch(self.url(detail=True), {'title': '更新研究'}, format='json')
             self.assertEqual(response.status_code, 200, response.data)
             self.assertEqual(lock.call_count, 2)
+            # 详情读取会恢复过期任务，因此同写入请求一样需要排他锁。
+            self.assertTrue(lock.call_args_list[0].kwargs.get('exclusive', True))
+            self.assertTrue(lock.call_args_list[1].kwargs.get('exclusive', True))
         self.entry.refresh_from_db()
         self.assertEqual(self.entry.title, '更新研究')
+
+    def test_run_reads_recover_under_exclusive_lock(self):
+        self.client.force_authenticate(self.owner)
+        run = AIRun.objects.create(entry=self.entry, status='running')
+        base = self.url(detail=True) + 'runs/'
+        for url in (base + f'{run.pk}/', base):
+            AIRun.objects.filter(pk=run.pk).update(status='running')
+            with patch('quant.views.collection_lock', wraps=collection_lock) as lock:
+                response = self.client.get(url)
+            self.assertEqual(response.status_code, 200, response.data)
+            lock.assert_called_once_with(self.collection.pk, exclusive=True)
+            run.refresh_from_db()
+            self.assertEqual(run.status, 'interrupted')
+
+    def test_index_and_experiment_reads_use_exclusive_locks(self):
+        self.client.force_authenticate(self.owner)
+        for path in ('graph/index/', 'experiments/'):
+            with self.subTest(path=path), patch('quant.views.collection_lock', wraps=collection_lock) as lock:
+                # Isolate expensive index projection; test the actual HTTP lock boundary.
+                with patch('quant.graph.views.index_status', return_value={}):
+                    response = self.client.get(f'/api/quant/{self.collection.pk}/{path}')
+                self.assertEqual(response.status_code, 200, response.data)
+                lock.assert_called_once_with(self.collection.pk, exclusive=True)
+
+    def test_pure_reads_keep_shared_lock(self):
+        self.client.force_authenticate(self.owner)
+        with patch('quant.views.collection_lock', wraps=collection_lock) as lock:
+            response = self.client.get(self.url(detail=True) + 'backtests/')
+        self.assertEqual(response.status_code, 200, response.data)
+        lock.assert_called_once_with(self.collection.pk, exclusive=False)
 
     def test_entry_deleted_before_lock_is_rechecked_and_never_resurrected(self):
         self.client.force_authenticate(self.owner)
 
         @contextmanager
-        def delete_before_lock(identity):
+        def delete_before_lock(identity, **kwargs):
             Entry.objects.filter(pk=self.entry.pk).update(is_valid=False)
-            with collection_lock(identity):
+            with collection_lock(identity, **kwargs):
                 yield
 
         with patch('quant.views.collection_lock', side_effect=delete_before_lock):
@@ -101,10 +134,10 @@ class QuantAuthBoundaryTests(TestCase):
             return owned_collection(*args)
 
         @contextmanager
-        def change_owner_before_lock(identity):
+        def change_owner_before_lock(identity, **kwargs):
             self.assertEqual(len(checked), 1, '归属预查应在创建锁文件之前完成')
             Anthology.objects.filter(pk=self.collection.pk).update(user_id=self.other.username)
-            with collection_lock(identity):
+            with collection_lock(identity, **kwargs):
                 yield
 
         with patch('quant.views.owned_collection', side_effect=check_owner), \
@@ -129,8 +162,8 @@ class QuantAuthBoundaryTests(TestCase):
         events = []
 
         @contextmanager
-        def tracking_lock(identity):
-            with collection_lock(identity):
+        def tracking_lock(identity, **kwargs):
+            with collection_lock(identity, **kwargs):
                 events.append('entered')
                 try:
                     yield

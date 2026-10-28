@@ -7,7 +7,7 @@ import {DecisionProcessSteps} from './DecisionProcessSteps';
 
 export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
     const [open, setOpen] = useState(false);
-    // 内容由领域配置提供；探索地点及装备比较包含已配置的元素事实。
+    // 内容由领域配置提供；探索地点及装备比较包含元素事实，转职单列模型输入和直接分支边界。
     const guide = decisionProcessGuides[kind];
     return <>
         <button type="button" aria-label={`查看${guide.title}`} title={`${guide.title}：${guide.subtitle}`}

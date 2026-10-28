@@ -228,3 +228,6 @@ export interface GetArticlesParams {
     categoryId?: string;
     keyword?: string;
 }
+
+/** 列表摘要投影不包含正文和思维导图。 */
+export type ArticleSummary = Omit<Article, 'content' | 'mindMap'>;

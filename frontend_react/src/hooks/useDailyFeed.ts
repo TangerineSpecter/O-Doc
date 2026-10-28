@@ -94,7 +94,7 @@ export function useDailyFeed(actorId: string, category: DailyFeedCategory, pageS
 
     useEffect(() => {
         const timer = window.setInterval(() => {
-            if (!loadingMore) refresh();
+            if (!loadingMore && !document.hidden) refresh();
         }, 30000);
         return () => window.clearInterval(timer);
     }, [loadingMore, refresh]);

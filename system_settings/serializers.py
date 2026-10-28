@@ -454,8 +454,13 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             ids = [obj.agent_id]
         if not ids:
             return []
-        agents = {agent.id: agent.name + ('（已归档）' if agent.archived else '') for agent in Agent.objects.filter(id__in=ids)}
-        return [agents[agent_id] for agent_id in ids if agent_id in agents]
+        # 列表序列化时复用同一份 Agent 名称缓存，避免每个任务各查一次。
+        cache = self.context.setdefault('_agent_name_map', {})
+        missing = [agent_id for agent_id in ids if agent_id not in cache]
+        if missing:
+            for agent in Agent.objects.filter(id__in=missing):
+                cache[agent.id] = agent.name + ('（已归档）' if agent.archived else '')
+        return [cache[agent_id] for agent_id in ids if agent_id in cache]
 
     def get_random_progress(self, obj):
         if obj.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'blacksmith', 'exploration'):

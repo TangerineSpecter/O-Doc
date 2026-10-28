@@ -13,6 +13,7 @@ export function useQuantGraph(collection: string, focus: string) {
         const abort = new AbortController();
         let timer: ReturnType<typeof setTimeout> | undefined;
         const read = async () => {
+            if (document.hidden) {timer = setTimeout(() => void read(), 2000); return;}
             try {
                 const data = await quantApi.graph(collection, focus, abort.signal);
                 if (abort.signal.aborted) return;

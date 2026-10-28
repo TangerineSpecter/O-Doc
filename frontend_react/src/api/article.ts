@@ -1,8 +1,8 @@
 import request from '../utils/request';
-import type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleFileImportProgress, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, ImportArticleFilesResult, SaveWebpageResult, GetArticlesParams, MindMapNode } from '../types/api/article';
+import type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleSummary, ArticleFileImportProgress, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, ImportArticleFilesResult, SaveWebpageResult, GetArticlesParams, MindMapNode } from '../types/api/article';
 
 // 重新导出类型以便其他组件使用
-export type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, ImportArticleFilesResult, SaveWebpageResult, GetArticlesParams };
+export type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleSummary, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, ImportArticleFilesResult, SaveWebpageResult, GetArticlesParams };
 
 export interface ArticleMindMapResult {
     mindMap: MindMapNode;
@@ -47,6 +47,11 @@ export const deleteArticle = async (articleId: string): Promise<void> => {
 export const getArticles = async (params?: GetArticlesParams): Promise<Article[]> => {
     // 修改：直接返回 request 结果
     return request.get('/article/list', {params});
+};
+
+/** 获取列表卡片字段；正文详情通过 getArticleDetail 读取。 */
+export const getArticleSummaries = async (params?: GetArticlesParams): Promise<ArticleSummary[]> => {
+    return request.get('/article/list', {params: {...params, summary: 1}});
 };
 
 /**

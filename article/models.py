@@ -258,6 +258,11 @@ class Article(models.Model):
         ordering = ['sort', '-updated_at']
         # 确保同一个文集中的文章标题唯一
         unique_together = ('author', 'coll_id', 'title')
+        indexes = [
+            models.Index(fields=['coll_id', 'is_valid', 'sort'], name='article_coll_valid_sort_idx'),
+            models.Index(fields=['author', 'is_valid'], name='article_author_valid_idx'),
+            models.Index(fields=['is_valid'], name='article_valid_idx'),
+        ]
         db_table = 'articles'
         db_table_comment = '文章表'
 

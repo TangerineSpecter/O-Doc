@@ -35,7 +35,9 @@ class ArchiveView(APIView):
         coll_id = kwargs['coll_id']
         query = Anthology.objects.filter(pk=coll_id, user_id=owner, type='backtest', permission='private', is_valid=True)
         get_object_or_404(query)
-        self._resources.enter_context(collection_lock(coll_id))
+        # 归档读取同样只需共享锁，允许同一文集的多个只读请求并行。
+        writable = request.method not in ('GET', 'HEAD', 'OPTIONS')
+        self._resources.enter_context(collection_lock(coll_id, exclusive=writable))
         self._resources.enter_context(transaction.atomic())
         self._atomic = True
         self.collection = get_object_or_404(query)

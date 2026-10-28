@@ -29,7 +29,8 @@ def domain_lock(exclusive=False):
 
 
 @contextmanager
-def collection_lock(coll_id):
+def collection_lock(coll_id, exclusive=True):
+    """串行化同一文集的写入；只读请求传 exclusive=False 取得共享锁，可与其它读请求并行。"""
     identity = str(coll_id)
     held = getattr(_local, 'collections', set())
     if identity in held:
@@ -37,7 +38,7 @@ def collection_lock(coll_id):
         return
     root = Path(tempfile.gettempdir()) / f'odoc-quant-{os.getuid()}'
     with domain_lock(), (root / hashlib.sha256(identity.encode()).hexdigest()).open('a') as stream:
-        fcntl.flock(stream, fcntl.LOCK_EX)
+        fcntl.flock(stream, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
         _local.collections = held | {identity}
         try:
             yield

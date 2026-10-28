@@ -333,13 +333,13 @@ def _promotion(run_id: str, *, planner=None, require_permit: bool=False) -> bool
         if require_permit and not CombatRuntime.objects.filter(pk=run_id,requests__promotion_allowed=True).exists():return False
         profile=CombatProfile.objects.get(pk=run.actor_id)
         catalog=current(profile.catalog_id)
-        options=attributes.promotion_options(catalog,profile.progression)
+        options=attributes.promotion_choices(catalog,profile.progression)
         if not options:break
         original_job=profile.progression['job']
         result = run.result if isinstance(run.result, dict) else {}
         outcome = {key: result[key] for key in ('energy', 'experience', 'kills', 'potions_used', 'returned_potions', 'rewards', 'growth') if key in result}
         with usage_scope(agent=agent,purpose='combat_promotion'):
-            plan=(planner or ask)(agent,'你已达到战斗职业转职等级。请从 options 中选择一个直接分支并给出简短理由，返回 {job_id,reason}。完成转职前不得继续探索。',
+            plan=(planner or ask)(agent,'你已达到战斗职业转职等级。请从 options 中选择一个直接分支并给出简短理由，返回 {job_id,reason}。options[].next_jobs 只说明该分支后续可转职方向，不是本次可选目标；完成转职前不得继续探索。',
                 {'progression':{key: profile.progression[key] for key in ('level', 'job', 'stats', 'skills') if key in profile.progression},
                  'options':options,'combat_result':outcome,
                  'exploration':{'elapsed_seconds':run.elapsed_seconds,

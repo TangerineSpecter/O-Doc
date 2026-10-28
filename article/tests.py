@@ -380,3 +380,42 @@ class ImageResourceCleanupTests(TestCase):
 
         self.assertEqual(response.data['code'], ErrorCode.SUCCESS.code)
         self.assertTrue(Asset.objects.filter(id=asset.id).exists())
+
+class ArticleListSummaryTests(APITestCase):
+    """列表接口的 summary 投影只返回卡片字段，避免整表正文传输。"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='list-summary-user', password='password')
+        self.anthology = Anthology.objects.create(
+            coll_id='coll_list_summary',
+            title='列表投影',
+            type='article',
+            user_id=f'user_{self.user.id}',
+            permission='public',
+        )
+        Article.objects.create(
+            article_id='art_list_summary',
+            title='投影文章',
+            content='正文' * 50,
+            coll_id=self.anthology.coll_id,
+            author=f'user_{self.user.id}',
+            permission='public',
+            content_format='markdown',
+            enforce_note_privacy=False,
+        )
+
+    def test_summary_projection_omits_content(self):
+        response = self.client.get('/api/article/list', {'summary': 1})
+
+        self.assertEqual(response.status_code, 200)
+        items = response.data['data']
+        self.assertEqual(len(items), 1)
+        self.assertNotIn('content', items[0])
+        self.assertNotIn('mindMap', items[0])
+        self.assertEqual(items[0]['title'], '投影文章')
+
+    def test_default_projection_keeps_content(self):
+        response = self.client.get('/api/article/list')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('content', response.data['data'][0])

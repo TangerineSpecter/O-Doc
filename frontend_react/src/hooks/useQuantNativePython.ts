@@ -22,7 +22,7 @@ export function useQuantNativePython(collection:string,candidate:string) {
     useEffect(()=>{
         if (!selected)return;
         const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;let archiveRetries=0;
-        const load=()=>{void nativePythonApi.detail(collection,selected,controller.signal).then(record=>{
+        const load=()=>{if (document.hidden) {timer=setTimeout(load,1500);return;}void nativePythonApi.detail(collection,selected,controller.signal).then(record=>{
             if (controller.signal.aborted)return;
             setDetail(record);setDetailError('');
             setData(previous=>previous?{...previous,items:previous.items.map(row=>row.id===record.id?record:row)}:previous);

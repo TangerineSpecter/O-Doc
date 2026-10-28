@@ -10,6 +10,7 @@ export function useQuantBatches(collection: string, offset: number) {
     useEffect(() => {
         const abort = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
         const read = async () => {
+            if (document.hidden) {timer = setTimeout(() => void read(), 2000); return;}
             try {
                 const response = await quantApi.batches(collection, offset, abort.signal);
                 if (abort.signal.aborted) return;

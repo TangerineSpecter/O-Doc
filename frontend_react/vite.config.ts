@@ -18,6 +18,38 @@ export default defineConfig(({ mode }) => {
         '@': resolve(__dirname, 'src')
       }
     },
+    build: {
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('pixi.js') || id.includes('@pixi')) {
+                return 'vendor-pixi';
+              }
+              if (id.includes('echarts') || id.includes('zrender')) {
+                return 'vendor-echarts';
+              }
+              if (id.includes('recharts') || id.includes('d3-')) {
+                return 'vendor-recharts';
+              }
+              if (id.includes('codemirror') || id.includes('@codemirror') || id.includes('@lezer')) {
+                return 'vendor-codemirror';
+              }
+              if (id.includes('katex')) {
+                return 'vendor-katex';
+              }
+              if (id.includes('mermaid') || id.includes('cytoscape') || id.includes('dagre')) {
+                return 'vendor-diagrams';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-lucide';
+              }
+            }
+          }
+        }
+      }
+    },
     server: {
       port: 43127,
       strictPort: true,

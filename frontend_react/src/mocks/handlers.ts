@@ -1,3 +1,4 @@
+import {projectArticleList} from './articleProjection';
 import { http, HttpResponse } from 'msw';
 import { fakerZH_CN as faker } from '@faker-js/faker';
 import { articleDemoData, articleTreeData } from './articleDemoData';
@@ -198,7 +199,7 @@ export const handlers = [
     return HttpResponse.json({
       code: 200,
       msg: 'success',
-      data: articles
+      data: projectArticleList(new URLSearchParams(location.search).get('mockState') === 'empty' ? [] : articles, url)
     });
   }),
 

@@ -35,7 +35,7 @@ export function useImageSmartSearch(collId?: string) {
   const activeJob = summary?.job;
   useEffect(() => {
     if (!activeJob) return;
-    const timer = window.setInterval(() => void refreshStatus(), 3000);
+    const timer = window.setInterval(() => {if (!document.hidden) void refreshStatus();}, 3000);
     return () => window.clearInterval(timer);
   }, [activeJob, refreshStatus]);
 
