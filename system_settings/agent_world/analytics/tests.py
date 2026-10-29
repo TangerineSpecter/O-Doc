@@ -12,7 +12,7 @@ from ..models import WorldLedger
 from ..farm_models import AgentFarm, FarmOperation
 from ..travel_models import TravelJourney
 from ..social_models import Moment, MomentComment
-from ..combat.models import CombatFact, CombatEncounter, CombatProfile, Exploration
+from ..combat.models import CombatCatalog, CombatFact, CombatEncounter, CombatProfile, Exploration
 from ..investment_models import InvestmentDecision, InvestmentTrade
 from .views import AnalyticsParams
 
@@ -339,6 +339,29 @@ class CombatAnalyticsTests(AnalyticsTests):
         rows = {row['id']:row for row in self.fetch()['combatComparison']}
         self.assertEqual((rows[self.a.pk]['jobName'],rows[self.a.pk]['jobLevel']),('牧师',7))
         self.assertEqual((rows[self.b.pk]['jobName'],rows[self.b.pk]['jobLevel']),('法师',12))
+
+    def test_job_names_use_versioned_catalog_and_bard_fallback(self):
+        CombatCatalog.objects.create(pk='test', digest='test', tables={'professions': [
+            {'id': 'job.bard', 'name': '目录中的吟游诗人'},
+            {'id': 'job.future', 'name': '新职业'},
+        ]})
+        profile = CombatProfile.objects.create(pk=self.a.pk, owner_id='admin', actor_name=self.a.name,
+            catalog_id='test', progression={'job': 'job.bard', 'level': 15})
+        run = self.exploration('snapshot-job', self.b)
+        run.snapshot['progression'] = {'job': 'job.future', 'level': 12}
+        run.save(update_fields=['snapshot'])
+        rows = {row['id']: row for row in self.fetch()['combatComparison']}
+        self.assertEqual(rows[self.a.pk]['jobName'], '目录中的吟游诗人')
+        self.assertEqual(rows[self.b.pk]['jobName'], '新职业')
+        profile.catalog_id = 'missing'
+        for job_id, name in [('bard', '吟游诗人'), ('musician', '乐师'), ('cursesinger', '咒歌者'),
+                             ('battleconductor', '战歌指挥'), ('requiemsinger', '镇魂歌者'),
+                             ('virtuoso', '琴圣'), ('sonomancer', '魔音术士'), ('unknown', 'job.unknown')]:
+            with self.subTest(job=job_id):
+                profile.progression['job'] = 'job.' + job_id
+                profile.save(update_fields=['catalog_id', 'progression'])
+                row = next(row for row in self.fetch()['combatComparison'] if row['id'] == self.a.pk)
+                self.assertEqual(row['jobName'], name)
 
     def party_kill(self, run, unit, *, template='monster.slime', rank='normal', shared=None, at=None, owner='admin'):
         from ..combat.party_models import AdventureEvent

@@ -25,6 +25,15 @@ test('local data-free research runs two generations, keeps lineage and editable 
     assert.equal(first.total_score,60);assert.deepEqual(second.parents,[first.candidate_id]);
     assert.equal(second.empirical_status,'unassessed');assert.equal(quantState().experiments.length,0);
     assert.match(studyMarkdown(result),/实证表现未评估/);
+    assert.match(studyMarkdown(result),/程序公式核对/);
+    const disputed = JSON.parse(result.generations[0].dataJson);
+    disputed.format_repair = '已对唯一可验证的格式缺失进行修复，保留原稿。';
+    disputed.result.candidates[0].formula_checks = [{parent_id:'parent',claim:'equivalent',status:'different',reason:'发现反例',parameter_scope:'同输入及参数',default_parameters_differ:false,counterexample:{inputs:{close:'100'},parameters:{N:'20'},parent:'-1',candidate:'0'}}];
+    disputed.result.candidates[0].selected = false;
+    const report = studyMarkdown({...result, generations:[{...result.generations[0],dataJson:JSON.stringify(disputed)}]});
+    assert.match(report,/AI原评分（公式核对未通过）/);
+    assert.match(report,/父代=-1，候选=0/);
+    assert.match(report,/唯一可验证的格式缺失/);
     await call(`ai-studies/${created.id}/report/`,'POST',{markdown:'人工删减后的研究报告'});
     resetQuantStateForTests();assert.equal((await call<QuantStudy>(`ai-studies/${created.id}/`)).userReport,'人工删减后的研究报告');
     const all=(await call<{items:QuantFactorCandidate[]}>('factors/?groupBy=none')).items;

@@ -4,6 +4,8 @@ from quant.models import AIStudy, AIStudyGeneration, ExternalResponse
 from quant.research.contracts import digest
 from .contracts import StudyInput, normalize, fingerprint
 from .publication import ids, candidate_data, version_data
+from .review import validate_review
+from .response_json import parse_generation
 
 LABELS = {'quant.aistudy', 'quant.aistudygeneration', 'quant.externalconnector', 'quant.externalresponse'}
 
@@ -53,7 +55,7 @@ def validate(rows, anthologies, fail):
         form.is_valid(raise_exception=True)
         if (owner not in anthologies or anthologies[owner].get('type') != 'quant' or anthologies[owner].get('permission') != 'private'
                 or not isinstance(row.get('user_report', ''), str) or len(row.get('user_report', '')) > 200000
-                or plan.get('version') != 1 or row.get('content_hash') != digest(plan) or (owner, row['request_key']) in seen_keys): fail('研究计划归属、预算或哈希无效')
+                or plan.get('version') not in (1, 2, 3, 4, 5) or row.get('content_hash') != digest(plan) or (owner, row['request_key']) in seen_keys): fail('研究计划归属、预算或哈希无效')
         seen_keys.add((owner, row['request_key']))
         for seed in plan['seeds']:
             candidate = candidates.get(seed['id'], {})
@@ -62,7 +64,7 @@ def validate(rows, anthologies, fail):
         for proof in plan['evidence']:
             response = responses.get(proof['id'], {}); connector = connectors.get(response.get('connector'), {})
             if connector.get('anthology') != owner or response.get('content_hash') != proof['hash'] or response.get('data', {}).get('normalized') != proof['normalized']: fail('研究外部证据引用无效')
-        previous = plan['seeds']; known = [fingerprint(p['definition']) for p in previous]; summary = ''
+        previous = plan['seeds']; known = [fingerprint(p['definition'], plan['version']) for p in previous]; summary = ''; checks = []; review = None
         ordered = sorted(grouped.get(identity, []), key=lambda pair: pair[1]['number'])
         if len(ordered) > plan['max_generations']: fail('研究代次超过预算')
         for number, (generation_id, generation) in enumerate(ordered, 1):
@@ -70,14 +72,26 @@ def validate(rows, anthologies, fail):
             if generation['number'] != number or generation_id != digest(['ai-study-generation-1', identity, number])[:40]: fail('研究代次顺序无效')
             expected_input = {'parents': previous, 'known_fingerprints': known, 'previous_summary': summary,
                 'external_evidence': plan['evidence'], 'empirical_status': 'unassessed'}
+            if plan['version'] >= 3: expected_input['previous_checks'] = checks
+            if plan['version'] >= 4: expected_input['previous_review'] = review
             if value.get('input') != expected_input or value.get('model_id') != plan['model_id']: fail('研究冻结输入与上一代不一致')
             if value.get('status') == 'failed':
                 if value.get('result') is not None or not value.get('error'): fail('失败代次不能发布候选')
                 continue
             if value.get('status') != 'completed': fail('未知研究代次状态')
             import re
-            raw = json.loads(re.sub(r'^```(?:json)?\s*', '', value['raw_output'].strip()).removesuffix('```').strip())
-            result = normalize(raw, {p['id']: p['definition'] for p in previous}, plan['population'], plan['keep'], known)
+            raw, format_repair = parse_generation(value['raw_output'], plan['version'])
+            if plan['version'] >= 5 and value.get('format_repair') != format_repair: fail('模型输出格式修复记录不一致')
+            result = normalize(raw, {p['id']: p['definition'] for p in previous}, plan['population'], plan['keep'], known, plan['version'])
+            if plan['version'] >= 4:
+                raw_review, review, error = value.get('review_raw'), value.get('review'), value.get('review_error')
+                if not isinstance(raw_review, str) or not isinstance(error, str): fail('AI复核记录无效')
+                if review is None:
+                    if not error: fail('未完成的AI复核缺少提示')
+                else:
+                    if error: fail('AI复核成功时不能同时记录失败')
+                    text = re.sub(r'^```(?:json)?\s*', '', raw_review.strip()).removesuffix('```').strip()
+                    if validate_review(json.loads(text), result) != review: fail('AI复核与程序事实或原稿不一致')
             for item in result['candidates']:
                 if item['selected']: item['candidate_id'] = ids(generation_id, item['index'])[1]
             if result != value['result']: fail('研究评价或选择与保存原稿不一致')
@@ -87,6 +101,10 @@ def validate(rows, anthologies, fail):
             # ORM parent retrieval uses deterministic candidate primary-key ordering.
             previous.sort(key=lambda p: p['id'])
             summary = result['summary']; known += [r['fingerprint'] for r in result['candidates'] if r.get('fingerprint')]
+            if plan['version'] >= 3:
+                checks = [{'candidate_id': item['candidate_id'], 'selected': item['selected'],
+                    'validation_error': item['validation_error'], 'checks': item.get('formula_checks', [])}
+                    for item in result['candidates']]
     for model in (AIStudy, AIStudyGeneration, ExternalResponse):
         incoming = rows.get(model._meta.label_lower, {})
         for local in model.objects.filter(pk__in=incoming):

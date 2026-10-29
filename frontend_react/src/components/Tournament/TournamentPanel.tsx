@@ -1,14 +1,67 @@
+import {useState} from 'react';
+import {ArrowLeft, ChevronDown, Gift, RefreshCw} from 'lucide-react';
 import {useOpenTaskAllocation} from '../../hooks/useOpenTaskAllocation';
-import {ArrowLeft, ChevronLeft, ChevronRight, RefreshCw} from 'lucide-react';
 import {useTournament} from '../../hooks/useTournament';
 import {DecisionProcessInfo} from '../AgentWorld/DecisionProcessInfo';
 import {TournamentRewards} from './TournamentRewards';
 import {TournamentReport} from './TournamentReport';
 import {TournamentBracket} from './TournamentBracket';
+import {TournamentHistoryList} from './TournamentHistoryList';
 import {dateLabel, statusLabel} from './tournamentLabels';
+import type {TournamentDetail} from '../../types/api/tournament';
 
 interface TournamentPanelProps {
     residents?: {id: string; name: string; avatar?: string}[];
+}
+
+function TournamentRewardsCollapsible({
+    event,
+    residents,
+}: {
+    event: TournamentDetail;
+    residents?: {id: string; name: string; avatar?: string}[];
+}) {
+    const [open, setOpen] = useState(true);
+    const grantedCount = event.rewards.filter(r => r.status === 'granted').length;
+    const badgeText = event.status === 'completed' && grantedCount > 0
+        ? `3 档奖励已发放 (${grantedCount}/3)`
+        : event.status === 'active'
+        ? '3 档荣誉奖励竞逐中'
+        : event.status === 'skipped'
+        ? '未开赛 · 不设奖'
+        : '3 档荣誉奖励';
+
+    return (
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-2xs overflow-hidden transition-all">
+            <button
+                type="button"
+                onClick={() => setOpen(prev => !prev)}
+                className="flex w-full items-center justify-between px-4 sm:px-5 py-3.5 text-left transition-colors hover:bg-slate-50/70"
+                aria-expanded={open}
+            >
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 border border-amber-200/60 shadow-2xs">
+                        <Gift className="h-4 w-4" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <span className="text-sm font-bold text-slate-800">本届奖励与发放详情</span>
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                            {badgeText}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                    <span>{open ? '收起' : '展开详情'}</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                </div>
+            </button>
+            {open && (
+                <div className="border-t border-slate-100 p-4 sm:p-5 pt-3">
+                    <TournamentRewards event={event} residents={residents} />
+                </div>
+            )}
+        </section>
+    );
 }
 
 export default function TournamentPanel({residents}: TournamentPanelProps = {}) {
@@ -50,61 +103,23 @@ export default function TournamentPanel({residents}: TournamentPanelProps = {}) 
             </div>
 
             {state.tab === 'history' ? (
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    {state.historyError ? (
+                state.historyError ? (
+                    <section className="rounded-2xl border border-red-200 bg-red-50/50 p-5 shadow-sm">
                         <p role="alert" className="text-sm text-red-600">{state.historyError}</p>
-                    ) : !state.history ? (
+                    </section>
+                ) : !state.history ? (
+                    <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                         <p className="text-sm text-slate-400">正在读取历届记录…</p>
-                    ) : (
-                        <>
-                            {!state.history.items.length && (
-                                <p className="py-8 text-center text-sm text-slate-400">还没有结束的大会</p>
-                            )}
-                            <div className="divide-y divide-slate-100">
-                                {state.history.items.map(row => (
-                                    <button
-                                        key={row.id}
-                                        type="button"
-                                        onClick={() => state.chooseEvent(row.id)}
-                                        className="flex w-full items-center justify-between gap-3 py-4 text-left transition-colors hover:text-orange-600"
-                                    >
-                                        <span className="text-sm font-semibold">
-                                            {row.week} 周赛{' '}
-                                            <span className="ml-2 text-xs font-normal text-slate-400">
-                                                {row.participantCount} 人
-                                            </span>
-                                        </span>
-                                        <span className="flex items-center gap-2 text-xs text-slate-500">
-                                            {statusLabel[row.status]}
-                                            <ChevronRight className="h-4 w-4"/>
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="mt-3 flex items-center justify-end gap-3 text-xs text-slate-500">
-                                <button
-                                    type="button"
-                                    aria-label="上一页"
-                                    disabled={state.page <= 1}
-                                    onClick={() => state.setPage(p => p - 1)}
-                                    className="rounded-lg border border-slate-200 p-1 disabled:opacity-30"
-                                >
-                                    <ChevronLeft className="h-4 w-4"/>
-                                </button>
-                                <span>第 {state.page} 页 · 共 {state.history.total} 届</span>
-                                <button
-                                    type="button"
-                                    aria-label="下一页"
-                                    disabled={state.page * 20 >= state.history.total}
-                                    onClick={() => state.setPage(p => p + 1)}
-                                    className="rounded-lg border border-slate-200 p-1 disabled:opacity-30"
-                                >
-                                    <ChevronRight className="h-4 w-4"/>
-                                </button>
-                            </div>
-                        </>
-                    )}
-                </section>
+                    </section>
+                ) : (
+                    <TournamentHistoryList
+                        history={state.history}
+                        page={state.page}
+                        onPageChange={state.setPage}
+                        onSelectEvent={state.chooseEvent}
+                        residents={residents}
+                    />
+                )
             ) : (
                 <>
                     {state.eventId && (
@@ -142,7 +157,7 @@ export default function TournamentPanel({residents}: TournamentPanelProps = {}) 
                                             />
                                         )}
                                         <TournamentBracket event={event} onMatch={state.setMatchId} residents={residents}/>
-                                        <details className="rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-semibold text-slate-700">本届奖励与发放详情</summary><div className="mt-3"><TournamentRewards event={event}/></div></details>
+                                        <TournamentRewardsCollapsible event={event} residents={residents} />
                                     </>
                                 )}
                             </>

@@ -1,7 +1,7 @@
 {
   "name": "o-doc",
   "private": true,
-  "version": "1.5.80",
+  "version": "1.5.84",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -33,7 +33,7 @@
     "test:agent-tasks": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/agentTaskValidation.test.ts src/utils/agentTaskPayload.test.ts src/mocks/agentWorld/agentTasks.test.ts src/components/Settings/agent/agentTaskDraft.test.ts",
     "test:agent-csv": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/agentCsvExport.test.ts",
     "test:social-theatre": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/socialTheatre.test.ts",
-    "test:tournament": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Tournament/tournamentBracket.test.ts",
+    "test:tournament": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Tournament/tournamentBracket.test.ts src/components/Tournament/tournamentRedesign.test.ts",
     "test:blacksmith": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/blacksmith.test.ts",
     "test:feed-steps": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/feedSteps.test.ts",
     "test:lottery-analytics": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test scripts/lottery-analytics.test.mjs",

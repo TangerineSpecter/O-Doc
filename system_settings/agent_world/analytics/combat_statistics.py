@@ -1,5 +1,5 @@
 """Read-only departure-cohort combat statistics, scoped to the authenticated owner."""
-from ..combat.models import CombatFact, Exploration, CombatProfile
+from ..combat.models import CombatCatalog, CombatFact, Exploration, CombatProfile
 from .combat_kills import load_combat_kills
 
 OPEN = {'preparing', 'active', 'paused', 'settling'}
@@ -12,6 +12,9 @@ JOB_NAMES = {
     'job.pyromancer': '炎术师', 'job.cryomancer': '冰术师', 'job.warlock': '咒术师', 'job.summoner': '召唤师',
     'job.sharpshooter': '神射手', 'job.hunter': '猎人', 'job.shadowdancer': '影舞者', 'job.trickster': '诡术师',
     'job.highpriest': '神官', 'job.inquisitor': '审判者', 'job.druid': '德鲁伊', 'job.warden': '守望者',
+    'job.bard': '吟游诗人', 'job.musician': '乐师', 'job.cursesinger': '咒歌者',
+    'job.battleconductor': '战歌指挥', 'job.requiemsinger': '镇魂歌者',
+    'job.virtuoso': '琴圣', 'job.sonomancer': '魔音术士',
 }
 
 
@@ -27,17 +30,27 @@ def job_level(progression):
 
 def aggregate_combat(residents, runs, kills):
     profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys())}
+    catalog_ids = {p.catalog_id for p in profiles.values()} | {run.catalog_id for run in runs}
+    catalogs = {}
+    for catalog in CombatCatalog.objects.filter(pk__in=catalog_ids):
+        tables = catalog.tables if isinstance(catalog.tables, dict) else {}
+        catalogs[catalog.pk] = {item['id']: item['name'] for item in tables.get('professions', [])
+                                if isinstance(item, dict) and item.get('id') and item.get('name')}
+
+    def job_name(catalog_id, job_id):
+        return catalogs.get(catalog_id, {}).get(job_id) or JOB_NAMES.get(job_id, job_id)
+
     rows = {}
     for actor, resident in residents.items():
         profile = profiles.get(actor)
         progression = profile.progression if profile and profile.progression else None
         job_id = progression.get('job', 'job.novice') if progression else None
-        job_name = JOB_NAMES.get(job_id, job_id) if job_id else None
+        name = job_name(profile.catalog_id, job_id) if job_id else None
         rows[actor] = {
             **resident,
             'professionName': resident.get('professionName'),
             'job': job_id,
-            'jobName': job_name,
+            'jobName': name,
             'jobLevel': job_level(progression) if progression else None,
             'explorations': 0, 'settled': 0, 'completed': 0,
             'ongoing': 0, 'fallen': 0, 'recalled': 0, 'exhausted': 0, 'otherEnded': 0,
@@ -54,7 +67,7 @@ def aggregate_combat(residents, runs, kills):
             snap_job = snap_progression.get('job')
             if snap_job:
                 row['job'] = snap_job
-                row['jobName'] = JOB_NAMES.get(snap_job, snap_job)
+                row['jobName'] = job_name(run.catalog_id, snap_job)
                 if row.get('jobLevel') is None:
                     row['jobLevel'] = job_level(snap_progression)
         seen.add(run.pk)

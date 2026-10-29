@@ -30,7 +30,7 @@ function advance(record:MockStudy){
             if(definition.expression&&definition.output_type==='numeric_series')definition.expression={op:'mul',args:[definition.expression,{op:'constant',value:number+index+1}]};
             const childId=index<record.input.keep?quantId('study-factor'):null;
             candidates.push({index,parents:parents.map(p=>p.id),operation:parents.length>1?'combination':'mutation',definition,rationale:index<record.input.keep?'人工样例：保留一个可比较的变体，继续研究。':'人工样例：与保留项近似，暂不进入下一代。',decision:index<record.input.keep?'keep':'reject',selected:index<record.input.keep,
-                total_score:60,scores:dimensions.map(dimension=>({dimension,score:3,reason:'人工演示研究评分，未调用模型',evidence:'预制样例，不是源码或行情实证'})),risks:['实际价值、参数和运行效果尚未验证'],validation_error:'',candidate_id:childId,empirical_status:'unassessed'});
+                total_score:60,scores:dimensions.map(dimension=>({dimension,score:3,reason:'人工演示研究评分，未调用模型',evidence:'预制样例，不是源码或行情实证'})),risks:['实际价值、参数和运行效果尚未验证'],validation_error:'',candidate_id:childId,empirical_status:'unassessed',formula_checks:parents.map(p=>({parent_id:p.id,claim:'uncertain',status:'unknown',reason:'人工local样例，未执行程序核对',parameter_scope:'相同输入和参数下比较',default_parameters_differ:false,counterexample:null}))});
             if(childId){const versionId=quantId('study-version'),root=parent.data.formulaVersion?.rootId||parent.id;
                 const data:QuantFactorData={...structuredClone(parent.data),name:definition.name,summary:definition.summary,formula:definition.formula,expression:definition.expression,evidence:[],
                     formulaVersion:{version:1,versionId,rootId:root,origin:'ai_study',parentCandidateIds:parents.map(p=>p.id),claim:'ai_research_hypothesis_not_empirical_validation'}};
@@ -40,7 +40,7 @@ function advance(record:MockStudy){
                 state.formulaEdits.push({id:versionId,rootId:root,parentId:parent.id,candidateId:childId,requestKey:'local-study-'+childId,definitionJson:JSON.stringify(definition),reason:'AI研究人工样例，未执行模型或行情'});
             }
         }
-        const data:StudyGenerationData={version:1,status:'completed',input:{parents:parents.map(p=>({id:p.id,hash:p.contentHash,definition:rawDefinition(p.data)}))},result:{summary:`第${number}代人工流程样例：比较候选、保留差异并继续。没有调用真实模型或行情。`,continue:number<record.input.maxGenerations,stop_reason:number===record.input.maxGenerations?'达到设定代数预算':'',candidates,empirical_status:'unassessed'},raw_output:'人工local输出，不是真实模型回答',error:''};
+        const data:StudyGenerationData={version:1,status:'completed',input:{parents:parents.map(p=>({id:p.id,hash:p.contentHash,definition:rawDefinition(p.data)}))},result:{summary:`第${number}代人工流程样例：比较候选、保留差异并继续。没有调用真实模型或行情。`,continue:number<record.input.maxGenerations,stop_reason:number===record.input.maxGenerations?'达到设定代数预算':'',candidates,empirical_status:'unassessed'},raw_output:'人工local输出，不是真实模型回答',review:{summary:'人工样例：核对状态未知，未调用真实模型。',candidates:candidates.map(row=>({index:row.index,explanation:'人工演示复核，结论尚未验证。',checks:(row.formula_checks||[]).map(check=>({parent_id:check.parent_id,status:check.status}))}))},review_error:'',review_raw:'人工local复核样例',format_repair:'',error:''};
         record.data.generations.push({id:generationId,number,dataJson:JSON.stringify(data),createdAt:new Date().toISOString()});
     }
     if(record.data.generations.length>=record.input.maxGenerations){record.data.status='completed';record.data.error='已达到设定代数预算（人工样例）';}else if(record.data.status!=='failed')record.data.status='running';
@@ -56,6 +56,6 @@ export async function resolveStudyRoute(request:Request,collection:string,id?:st
     if(!body.candidateIds?.length||!body.direction?.trim()||body.maxGenerations<1||body.maxGenerations>8||body.population<1||body.population>6||body.keep<1||body.keep>body.population)return fail(400,'研究设置无效');
     const all=collectMockFactors(state.entries.filter(e=>e.collId===collection&&e.isValid));
     if(body.candidateIds.some(key=>!all.some(c=>c.id===key)))return fail(400,'研究父代不存在');
-    const data:QuantStudy={id:quantId('ai-study'),name:body.name,userReport:'',planJson:JSON.stringify({...body,version:1,local_demo:true}),status:'pending',error:'人工local研究流程，不调用模型或运行行情',createdAt:new Date().toISOString(),generations:[]};
+    const data:QuantStudy={id:quantId('ai-study'),name:body.name,userReport:'',planJson:JSON.stringify({...body,version:5,local_demo:true}),status:'pending',error:'人工local研究流程，不调用模型或运行行情',createdAt:new Date().toISOString(),generations:[]};
     state.aiStudies.unshift({collection,input:body,data});persistQuantState();return data;
 }

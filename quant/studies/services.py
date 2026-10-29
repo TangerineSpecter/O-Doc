@@ -10,6 +10,7 @@ from quant import queue_liveness
 from .contracts import fingerprint
 
 ACTIVE = ('pending', 'running')
+STUDY_VERSION = 5
 
 
 def start(collection, data):
@@ -27,7 +28,7 @@ def start(collection, data):
     evidence = list(ExternalResponse.objects.filter(pk__in=data['evidence_ids'], connector__anthology=collection))
     if len(evidence) != len(data['evidence_ids']): raise ValidationError('外部证据不属于当前文集')
     config = model_config(data['model_id'])
-    plan = {key: value for key, value in data.items() if key != 'request_key'} | {'version': 1, 'model_id': str(config['model_id']),
+    plan = {key: value for key, value in data.items() if key != 'request_key'} | {'version': STUDY_VERSION, 'model_id': str(config['model_id']),
         'seeds': [{'id': key, 'hash': candidates[key].content_hash, 'definition': copy.deepcopy(candidates[key].data)} for key in data['candidate_ids']],
         'evidence': [{'id': row.pk, 'hash': row.content_hash, 'normalized': row.data['normalized']} for row in evidence]}
     study = AIStudy.objects.create(anthology=collection, request_key=data['request_key'], plan=plan, content_hash=digest(plan))
@@ -64,11 +65,18 @@ def inputs(study):
         selected = [r['candidate_id'] for r in last.data['result']['candidates'] if r['selected']]
         parents = [{'id': p.pk, 'hash': p.content_hash, 'definition': p.data} for p in FactorCandidate.objects.filter(pk__in=selected).order_by('id')]
     else: parents = copy.deepcopy(study.plan['seeds'])
-    known = [fingerprint(seed['definition']) for seed in study.plan['seeds']]
+    known = [fingerprint(seed['definition'], study.plan['version']) for seed in study.plan['seeds']]
     for generation in study.generations.all():
         known += [r['fingerprint'] for r in (generation.data.get('result') or {}).get('candidates', []) if r.get('fingerprint')]
-    return {'parents': parents, 'known_fingerprints': known, 'previous_summary': last.data['result']['summary'] if last else '',
+    result = {'parents': parents, 'known_fingerprints': known, 'previous_summary': last.data['result']['summary'] if last else '',
         'external_evidence': copy.deepcopy(study.plan['evidence']), 'empirical_status': 'unassessed'}
+    if study.plan['version'] >= 3:
+        result['previous_checks'] = [{'candidate_id': row['candidate_id'], 'selected': row['selected'],
+            'validation_error': row['validation_error'], 'checks': row.get('formula_checks', [])}
+            for row in last.data['result']['candidates']] if last else []
+    if study.plan['version'] >= 4:
+        result['previous_review'] = copy.deepcopy(last.data.get('review')) if last else None
+    return result
 
 
 def presentation(study):

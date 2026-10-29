@@ -11,7 +11,7 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 78
+SCHEMA_VERSION = 82
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
@@ -110,6 +110,14 @@ def validate(data: list, meta=None) -> None:
         fail('冻结统计解读需要量化同步版本74或更高，拒绝降级解释')
     if 'quant_schema_version' in meta and schema_version < 75 and any(rows.get(label) for label in STUDY_LABELS):
         fail('AI研究与动态连接器需要量化同步版本75或更高')
+    if 'quant_schema_version' in meta and schema_version < 79 and any(row.get('plan', {}).get('version') == 2 for row in rows.get('quant.aistudy', {}).values()):
+        fail('新版AI研究去重需要量化同步版本79或更高')
+    if 'quant_schema_version' in meta and schema_version < 80 and any(row.get('plan', {}).get('version') == 3 for row in rows.get('quant.aistudy', {}).values()):
+        fail('AI研究公式核对需要量化同步版本80或更高')
+    if 'quant_schema_version' in meta and schema_version < 81 and any(row.get('plan', {}).get('version') == 4 for row in rows.get('quant.aistudy', {}).values()):
+        fail('AI研究当代复核需要量化同步版本81或更高')
+    if 'quant_schema_version' in meta and schema_version < 82 and any(row.get('plan', {}).get('version') == 5 for row in rows.get('quant.aistudy', {}).values()):
+        fail('AI研究输出格式修复需要量化同步版本82或更高')
     if 'quant_schema_version' in meta and schema_version < 76 and any(rows.get(label) for label in ('quant.mt4expert', 'quant.mt4backtest', 'quant.mt4attachment')):
         fail('回测文集需要量化同步版本76或更高')
     if 'quant_schema_version' in meta and schema_version < 77 and rows.get('quant.mt4expert'):

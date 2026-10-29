@@ -18,6 +18,8 @@ from utils.token_usage import usage_scope
 from .contracts import prompt, normalize
 from .services import ACTIVE, inputs
 from .publication import publish
+from .review import review_prompt, validate_review
+from .response_json import parse_generation
 
 executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='quant-ai-study')
 
@@ -61,19 +63,37 @@ def execute(identity):
             raw = ''
             try:
                 with usage_scope(owner_id=study.anthology.user_id, record=study, purpose='quant', phase=f'ai_study.generation_{number}'), observe_ai(progress, check):
-                    raw = complete(config, prompt(study.plan, frozen), json_output=True, max_tokens=24000,
+                    raw = complete(config, prompt(study.plan, frozen, number), json_output=True, max_tokens=24000,
                         extra_body=AIService._thinking_options(config), deadline_seconds=120, allow_retries=False)
                 check()
-                text = re.sub(r'^```(?:json)?\s*', '', raw.strip()).removesuffix('```').strip()
-                if len(text) > 300000: raise ValueError('研究输出过长')
-                result = normalize(json.loads(text), {p['id']: p['definition'] for p in frozen['parents']},
-                    study.plan['population'], study.plan['keep'], frozen['known_fingerprints'])
+                payload, format_repair = parse_generation(raw, study.plan['version'])
+                result = normalize(payload, {p['id']: p['definition'] for p in frozen['parents']},
+                    study.plan['population'], study.plan['keep'], frozen['known_fingerprints'], study.plan['version'])
                 data = {'version': 1, 'status': 'completed', 'input': frozen, 'raw_output': raw, 'result': result,
                     'model_id': study.plan['model_id'], 'error': ''}
+                if study.plan['version'] >= 5: data['format_repair'] = format_repair
+                if study.plan['version'] >= 4:
+                    data.update(review_raw='', review=None, review_error='')
+                    try:
+                        with usage_scope(owner_id=study.anthology.user_id, record=study, purpose='quant', phase=f'ai_study.review_{number}'), observe_ai(progress, check):
+                            review_raw = complete(config, review_prompt(study.plan, result, number), json_output=True,
+                                max_tokens=12000, extra_body=AIService._thinking_options(config), deadline_seconds=120, allow_retries=False)
+                        check()
+                        data['review_raw'] = review_raw
+                        review_text = re.sub(r'^```(?:json)?\s*', '', review_raw.strip()).removesuffix('```').strip()
+                        if len(review_text) > 120000: raise ValueError('复核输出过长')
+                        data['review'] = validate_review(json.loads(review_text), result)
+                    except InterruptedError:
+                        raise
+                    except Exception:
+                        data['review_error'] = 'AI复核未完成或未正确引用程序结果，保留AI原稿和程序核对。'
             except InterruptedError: raise
             except Exception as exc:
+                message = ('模型输出不是完整有效的JSON，未发布候选；原稿已保留，可继续剩余预算或发起新研究。'
+                    if isinstance(exc, json.JSONDecodeError) else
+                    f'本代未发布：{type(exc).__name__}。原输出保留，可核对后明确继续剩余预算。')
                 data = {'version': 1, 'status': 'failed', 'input': frozen, 'raw_output': raw, 'result': None,
-                    'model_id': study.plan['model_id'], 'error': f'本代未发布：{type(exc).__name__}。原输出保留，可核对后明确继续剩余预算。'}
+                    'model_id': study.plan['model_id'], 'error': message}
             with collection_lock(study.anthology_id), transaction.atomic():
                 check()
                 generation = AIStudyGeneration.objects.create(id=digest(['ai-study-generation-1', study.pk, number])[:40],
