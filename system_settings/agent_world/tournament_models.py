@@ -79,3 +79,12 @@ class TournamentIntegrity(models.Model):
     id = models.CharField(primary_key=True, max_length=64)  # tournament
     digest = models.CharField(max_length=64)
 
+
+class TournamentIllustration(models.Model):
+    """Mutable post-match artwork, separate from immutable tournament facts."""
+    tournament = models.OneToOneField(Tournament, primary_key=True, on_delete=models.PROTECT, related_name='illustration')
+    owner_id = models.CharField(max_length=40, db_index=True)
+    asset_id = models.CharField(max_length=32, blank=True, default='')
+    request_id = models.CharField(max_length=80, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+

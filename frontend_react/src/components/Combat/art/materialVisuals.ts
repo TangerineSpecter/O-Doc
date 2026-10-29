@@ -1,4 +1,7 @@
+import {elementMaterialArtProfiles} from './elementMaterialVisuals';
+
 export const materialArtProfiles = {
+    ...elementMaterialArtProfiles,
     'material.moss_cave.1':{shape:'slime',color:'#67b6ce',shadow:'#337a8a',light:'#c4f4f8'},
     'material.moss_cave.2':{shape:'wing',color:'#9673a4',shadow:'#584862',light:'#ceb0c9'},
     'material.moss_cave.3':{shape:'moss',color:'#8c9e92',shadow:'#516863',light:'#c8d7b1'},

@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from django.core import serializers
 from utils.sync_datetime import normalize_datetime_fraction
 from system_settings.sync_state import canonical_hash
-from .tournament_models import Tournament, TournamentRound, TournamentMatch, TournamentReward, TournamentIntegrity
+from .tournament_models import Tournament, TournamentRound, TournamentMatch, TournamentReward, TournamentIntegrity, TournamentIllustration
 from .tournament_rules import key, draw, POTION_POOL, SLOTS, at_two
 from .life_time import local_time
 
@@ -14,7 +14,8 @@ PREFIX = 'system_settings.'
 EVENT, ROUND, MATCH, REWARD, INTEGRITY = [PREFIX + name for name in (
     'tournament', 'tournamentround', 'tournamentmatch', 'tournamentreward', 'tournamentintegrity')]
 LABELS = {EVENT, ROUND, MATCH, REWARD}
-MODELS = (Tournament, TournamentRound, TournamentMatch, TournamentReward, TournamentIntegrity)
+ILLUSTRATION = PREFIX + 'tournamentillustration'
+MODELS = (Tournament, TournamentRound, TournamentMatch, TournamentReward, TournamentIntegrity, TournamentIllustration)
 
 
 def fail(message: str):
@@ -25,7 +26,7 @@ def fail(message: str):
 def metadata(data=None):
     ids = list(Tournament.objects.order_by('pk').values_list('pk', flat=True)) if data is None else sorted(
         str(row['pk']) for row in data if row['model'] == EVENT)
-    return {'tournament_schema_version': 1, 'tournament_ids': ids}
+    return {'tournament_schema_version': 2, 'tournament_ids': ids}
 
 
 def selected(data: list[dict], identity: str) -> list[dict]:
@@ -71,7 +72,7 @@ def validate_source(data: list[dict], meta=None, *, check_digest=True):
 
 def _validate(data, meta, check_digest):
     version = (meta or {}).get('tournament_schema_version', 0)
-    if type(version) is not int or not 0 <= version <= 1:
+    if type(version) is not int or not 0 <= version <= 2:
         fail('快照版本过新，请升级所有设备')
     groups = {label: {} for label in (*LABELS, INTEGRITY)}
     rows = {(r['model'], str(r['pk'])): {'id': str(r['pk']), **r['fields']} for r in data}
@@ -82,6 +83,35 @@ def _validate(data, meta, check_digest):
                 fail('重复业务身份')
             group[identity] = row['fields']
     events, rounds, matches, rewards, checks = (groups[label] for label in (EVENT, ROUND, MATCH, REWARD, INTEGRITY))
+    seen_art = set()
+    for row in data:
+        if row['model'] != ILLUSTRATION:
+            continue
+        art = row['fields']
+        identity = str(row['pk'])
+        if identity in seen_art or (meta and version < 2):
+            fail('决战配图重复或快照版本不支持')
+        seen_art.add(identity)
+        event = events.get(identity)
+        if not event or event['owner_id'] != art['owner_id'] or event['status'] != 'completed':
+            fail('决战配图赛事或账号无效')
+        if art.get('asset_id'):
+            asset = rows.get(('assets.asset', art['asset_id']))
+            if not asset or asset.get('uploader') != art['owner_id'] or not asset.get('is_valid') or asset.get('file_type') != 'image':
+                fail('决战配图资源缺失或账号不一致')
+        if art.get('request_id'):
+            matching = [r for r in data if r['model'] == 'prompts.imagegenerationtask'
+                        and r['fields'].get('user_id') == art['owner_id']
+                        and r['fields'].get('agent_key') == ''
+                        and r['fields'].get('request_id') == art['request_id']]
+            if matching and matching[0]['fields'].get('request_data', {}).get('scene') != 'tournament_illustration':
+                fail('决战配图生图任务类型无效')
+            if matching:
+                task = matching[0]['fields']
+                for reference in task.get('request_data', {}).get('reference_image_ids', []):
+                    asset = rows.get(('assets.asset', reference))
+                    if not asset or asset.get('uploader') != art['owner_id'] or not asset.get('is_valid'):
+                        fail('决战配图参考图缺失或账号不一致')
     if meta and 'tournament_ids' in meta and meta['tournament_ids'] != sorted(events):
         fail('赛事清单缺失')
     if check_digest and set(events) != set(checks):
@@ -244,7 +274,19 @@ def _validate_reward(identity, reward, rows):
 
 def database_data():
     from .combat.models import CombatFact
-    return json.loads(serializers.serialize('json', [obj for model in (*MODELS, CombatFact) for obj in model.objects.all()]))
+    from assets.models import Asset
+    from prompts.models import ImageGenerationTask
+    art = list(TournamentIllustration.objects.all())
+    task_requests = {item.request_id for item in art if item.request_id}
+    tasks = list(ImageGenerationTask.objects.filter(agent_key='', request_id__in=task_requests))
+    asset_ids = {item.asset_id for item in art if item.asset_id}
+    for task in tasks:
+        asset_ids.update(task.request_data.get('reference_image_ids', []))
+    objects = [obj for model in (*MODELS[:-1], CombatFact) for obj in model.objects.all()]
+    objects.extend(art)
+    objects.extend(tasks)
+    objects.extend(Asset.objects.filter(pk__in=asset_ids))
+    return json.loads(serializers.serialize('json', objects))
 
 
 def checkpoint_all():

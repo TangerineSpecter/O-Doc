@@ -37,9 +37,9 @@
 
 ## 持久数据与 WebDAV
 
-已确认全部业务事实同步：`Tournament`、`TournamentRound`、`TournamentMatch`、`TournamentReward`、`TournamentIntegrity`。赛事按账号和周日日期唯一，轮次、比赛、名次奖品使用稳定业务键。
+已确认全部业务事实同步：`Tournament`、`TournamentRound`、`TournamentMatch`、`TournamentReward`、`TournamentIntegrity`。赛事按账号和周日日期唯一，轮次、比赛、名次奖品使用稳定业务键。赛后可变的决战配图关联使用独立 `TournamentIllustration`，不改写对阵、战报及赛事事实指纹。
 
-- 同步协议新增 `tournament_schema_version=1`、赛事清单与赛事摘要；验证名单、抽签、轮次、战报、名次、奖励来源和对应资产链。
+- 同步协议 `tournament_schema_version=2`、赛事清单与赛事摘要验证名单、抽签、轮次、战报、名次、奖励来源和对应资产链；配图关联与图片 Asset、生图任务和参考图一起同步，校验赛事归属及已应用图片资源。旧版本 1 快照可读取；所有同步设备须升级后才能读取版本 2 快照。
 - 战斗协议升至11：新增 `CombatFact.kind=tournament_reward`，固化奖励装备属性与穿戴条件。不能只导入装备行而缺少获奖与发放事实。奖励出售和市场转移继续使用原事实链。
 - 季军发放事实纳入炼金资产指纹；药水沿用 `elixir.<recipeId>`、`source.stars=1` 和库存价格批次，不伪造炼金制作经验。
 - 同一比赛或奖品在两端生成不同结果时拒绝逐行拼接，须选择整份设备快照；不重新发奖修复。旧快照无大会数据表示没有历史赛事。
@@ -50,6 +50,8 @@
 ## 界面与接口
 
 Agent 世界工具栏「武道大会」打开当前赛事、赛程、奖品、历届记录；比赛详情按需加载文字战报。没有新增像素对战动画。`(i)` 展示完整流程，世界决策设置可单独排除奖励部位场景。
+
+已结束赛事的「决战纪念图」可上传 PNG/JPEG/WebP，或者选择支持参考图的生图模型，预览后手动应用。生成从决赛战报中提取双方当时职业和装备及一次真实命中攻击；默认选最高伤害，也可选择具体回合行动。身份参考采用双方目前已上传的全身图或头像，可另传画风参考图；历史外貌可能与比赛时不同。无有效战报的赛事只能上传。任务状态保留、恢复时查询同一任务，不自动重复提交；提交状态不明时用户可主动放弃等待，重新生成可能再次计费。
 
 实际接口前缀为 `/api/settings/agent-world/tournaments/`，提供 `current/`、分页列表、`<id>/`、`<id>/matches/<match_id>/`。全部要求登录并按账号隔离，GET 不建档、不抽签、不发奖。页面隐藏停止轮询，失败退避刷新。
 
@@ -63,6 +65,7 @@ Agent 世界工具栏「武道大会」打开当前赛事、赛程、奖品、�
 - 调度：`world_cycle.tick` 分派独立大会后台线程，使用本机租约及提交许可复核。
 - 资产：`combat/facts.py`、`combat/sync.py`、`alchemy_integrity.py`、共用 `inventory_stock.py`；同步总入口 `utils/sync_manager.py`。
 - 前端：`components/Tournament/`、`hooks/useTournament.ts`、`api/tournament.ts`、`types/api/tournament.ts`；流程配置在 `decisionProcessGuides.ts` 和 `DecisionProcessInfo.tsx`。
+- 决战纪念图：`tournament_art_prompt.py`、`tournament_art_views.py`、`api/tournamentArt.ts`、`components/Tournament/TournamentArtDialog.tsx`；数据库迁移 `0097_tournament_illustration`。
 - Local 模式样例：`mocks/agentWorld/tournament.ts` 与 `routes.ts` 提供当前八十人赛（含预选与三人半决赛轮空）、历届四人赛、金蓝装备、一星药水和文字战报；沿用顶部样例、空数据、加载中、接口错误场景，不请求后端。
 - 自动化：`system_settings/agent_world/test_tournaments.py`；测试必须使用隔离数据库、模拟外部服务。
 

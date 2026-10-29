@@ -7,6 +7,7 @@ import {TournamentRewards} from './TournamentRewards';
 import {TournamentReport} from './TournamentReport';
 import {TournamentBracket} from './TournamentBracket';
 import {TournamentHistoryList} from './TournamentHistoryList';
+import {TournamentArtDialog} from './TournamentArtDialog';
 import {dateLabel, statusLabel} from './tournamentLabels';
 import type {TournamentDetail} from '../../types/api/tournament';
 
@@ -65,6 +66,7 @@ function TournamentRewardsCollapsible({
 }
 
 export default function TournamentPanel({residents}: TournamentPanelProps = {}) {
+    const [artOpen, setArtOpen] = useState(false);
     const state = useTournament();
     const openTasks = useOpenTaskAllocation();
     const event = state.data?.event;
@@ -157,6 +159,8 @@ export default function TournamentPanel({residents}: TournamentPanelProps = {}) 
                                             />
                                         )}
                                         <TournamentBracket event={event} onMatch={state.setMatchId} residents={residents}/>
+                                        {event.status === 'completed' && <section className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><p className="font-semibold text-slate-800">决战纪念图</p><p className="mt-1 text-xs text-slate-500">为本届决赛留下一张画面</p></div><button type="button" onClick={() => setArtOpen(true)} className="shrink-0 rounded-lg border border-orange-200 px-3 py-2 text-sm font-medium text-orange-700">查看与制作</button></section>}
+                                        {artOpen && event.status === 'completed' && <TournamentArtDialog key={event.id} event={event} onClose={() => setArtOpen(false)}/>}
                                         <TournamentRewardsCollapsible event={event} residents={residents} />
                                     </>
                                 )}

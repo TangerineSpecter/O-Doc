@@ -20,6 +20,7 @@ import {lifeScheduleResponse, projectLifeStatusReason} from './lifeSchedule';
 import {localCombatPreparation} from './combatPreparation';
 import {combatAnalyticsMock} from './combatAnalytics';
 import {localEquipmentPreview} from './combatEquipmentPreview';
+import {resolveTournamentArtRoute} from './tournamentArt';
 
 const base = '/api/settings/agent-world';
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
@@ -100,6 +101,8 @@ function schedule(url: URL) {
 
 export async function resolveLocalRoute(request: Request): Promise<unknown> {
     const url = new URL(request.url), path = url.pathname;
+    const artResult = await resolveTournamentArtRoute(request.clone());
+    if (artResult !== undefined) return artResult;
     const iconResult = await resolveItemIconRoute(request.clone(), emptyScenario());
     if (iconResult !== undefined) return iconResult;
     const blacksmithResult = await resolveBlacksmithRoute(request.clone(), emptyScenario());

@@ -431,6 +431,30 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertEqual(row['monsters'],[])
         self.assertEqual(result['outcomes']['wins'],0)
 
+    def test_kill_lookup_checks_run_owner_actor_and_party_in_both_modes(self):
+        from .combat_kills import load_combat_kills
+        party = self.exploration('old-party', self.a)
+        Exploration.objects.filter(pk=party.pk).update(created_at=self.at-timedelta(days=90))
+        self.party_kill(party, 'valid-unit')
+        mismatched = self.party_kill(party, 'wrong-actor')
+        mismatched.actor_id = self.b.pk
+        mismatched.save(update_fields=['actor_id'])
+        foreign = self.exploration('foreign-run', self.a, owner='other', departed=False)
+        self.party_kill(foreign, 'wrong-owner')
+        solo = self.exploration('old-solo', self.a)
+        Exploration.objects.filter(pk=solo.pk).update(created_at=self.at-timedelta(days=90))
+        CombatEncounter.objects.create(pk='solo-kill', owner_id='admin', actor_id=self.a.pk,
+            exploration_id=solo.pk, number=1, monster={'id': 'slime'}, result={'killed': True}, ended_at=self.at)
+        CombatEncounter.objects.create(pk='party-wave', owner_id='admin', actor_id=self.a.pk,
+            exploration_id=party.pk, number=1, monster={'id': 'slime'}, result={'killed': True}, ended_at=self.at)
+        for kwargs in ({'start': self.at-timedelta(hours=1), 'end': self.at+timedelta(hours=1)},
+                       {'exploration_ids': [party.pk, solo.pk, foreign.pk]}):
+            with self.subTest(kwargs=kwargs):
+                kills = list(load_combat_kills('admin', actor_ids=[self.a.pk, self.b.pk], **kwargs))
+                self.assertEqual({kill.identity for kill in kills}, {'party:valid-unit', 'solo:solo-kill'})
+                self.assertTrue(all(kill.actor_id == self.a.pk for kill in kills))
+                self.assertEqual(list(load_combat_kills('admin', actor_ids=[self.b.pk], **kwargs)), [])
+
     def test_party_kills_across_shanghai_midnight_and_empty_new_day(self):
         self.at = storage_time(datetime(2026, 10, 24, 23, 59, 59, tzinfo=SHANGHAI))
         run = self.exploration('midnight-party', self.a, kills=3)

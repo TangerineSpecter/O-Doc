@@ -213,7 +213,7 @@ class SyncManager:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('combat_schema_version',0)>17:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('tournament_schema_version', 0) > 1:raise SyncError('武道大会快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('tournament_schema_version', 0) > 2:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
             raise SyncError('炼金快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
@@ -287,7 +287,7 @@ class SyncManager:
             raise SyncError('量化快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('combat_schema_version',0)>17:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('tournament_schema_version', 0) > 1:raise SyncError('武道大会快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('tournament_schema_version', 0) > 2:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
             raise SyncError('炼金快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:

@@ -349,3 +349,9 @@ npm run build
 ### 探索观察顶部摘要与时间标签 v3
 
 探索摘要移入现有弹窗标题栏；场景下方不再保留摘要卡片或说明行。桌面场景在左列剩余宽高内按 720:423 等比适配，右侧记录独立滚动。战报按相邻同一有效战斗时间归组，使用醒目的橙色时间标签与组内吸顶。预览复用同一摘要与左右内容组件，截图为 `docs/agents/assets/combat/combat-observation-header-timeline-v3.png`；未运行测试。
+
+### 四元素材料检查（2026-10-29）
+
+原combat-1.0.18全图鉴预览的28种材料快照保留其版本范围。当前正式目录44种材料均有内置图，新增四元素16种由`Combat/art/elementMaterialVisuals.ts`、`elementMaterialArtDrawing.ts`维护。
+
+纯local Vite服务下运行`python3 scripts/test-material-art-browser.py`（默认端口43135），脚本临时挂载`scripts/material-art-preview.tsx`并在结束时移除入口，覆盖16种图鉴列表／详情、背包／市场／交易公共图标、掉落格子及详情和三种屏宽。样例来自`mocks/agentWorld/materialArtSamples.ts`，API复用现有MSW目录路由，显示测试不执行实际交易或探索。

@@ -1,3 +1,4 @@
+import {drawElementMaterialArt} from './elementMaterialArtDrawing';
 import {PixelPainter} from './pixelPainter';
 import type {MaterialArtProfile} from './materialVisuals';
 
@@ -8,6 +9,23 @@ export function drawMaterialArt(ctx:CanvasRenderingContext2D,p:MaterialArtProfil
     const gem=(x:number,y:number,w:number,h:number)=>{g.polygon([x,y-h,x+w,y-3,x+w-1,y+h,x,y+h+3,x-w,y+h,x-w,y-3],s);g.polygon([x,y-h+2,x+w-2,y-2,x,y+h,x-w+2,y-2],c);g.polygon([x,y-h+2,x,y+h,x-w+2,y-2],l);};
     const spark=(x:number,y:number,col:string=l)=>{g.rect(x-2,y,5,1,col);g.rect(x,y-2,1,5,col);};
     switch(shape) {
+        case 'bubble_shell':
+        case 'tidal_drop':
+        case 'coral_plate':
+        case 'tide_crown':
+        case 'sand_shards':
+        case 'rockbud_grain':
+        case 'amber_plate':
+        case 'dragon_scale':
+        case 'cloud_plume':
+        case 'chime_fragment':
+        case 'gale_plume':
+        case 'crown_plume':
+        case 'ember_scale':
+        case 'charcoal_shell':
+        case 'molten_horn':
+        case 'flame_plume':
+            drawElementMaterialArt(g,p);return;
         case 'slime':
             g.polygon([5,26,6,19,10,13,15,5,17,10,25,18,28,25,24,28,10,28],s);
             g.polygon([7,25,8,19,12,14,16,8,17,12,24,19,26,25,21,27,11,27],c);

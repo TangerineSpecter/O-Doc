@@ -1052,7 +1052,7 @@ from .agent_world.lottery_models import LotteryConfig, LotteryRound, LotteryTick
 
 from .agent_world.fishing.models import FishingCatalog, FishingConfig, FishingProfile, FishingTrip, FishingEvent, FishingIntegrity, FishingRuntime  # noqa: E402,F401
 
-from .agent_world.tournament_models import Tournament, TournamentRound, TournamentMatch, TournamentReward, TournamentRuntime, TournamentIntegrity  # noqa: E402,F401
+from .agent_world.tournament_models import Tournament, TournamentRound, TournamentMatch, TournamentReward, TournamentRuntime, TournamentIntegrity, TournamentIllustration  # noqa: E402,F401
 
 from .agent_world.life_models import LifeInterleavingState
 

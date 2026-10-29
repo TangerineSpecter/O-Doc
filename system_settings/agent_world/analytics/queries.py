@@ -58,7 +58,7 @@ def load_facts(request, owner, start, end):
     actors.update(CookingSkill.objects.filter(owner_id=owner).values_list('id', flat=True))
     actors.update(FishingProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
     for model in (CookingOperation, InvestmentTrade, MarketTransaction, Exploration, CombatFact):
-        actors.update(model.objects.filter(owner_id=owner).values_list('actor_id', flat=True))
+        actors.update(model.objects.filter(owner_id=owner).order_by().values_list('actor_id', flat=True).distinct())
 
     def remember(actor, name='', avatar=''):
         if actor:
@@ -72,7 +72,14 @@ def load_facts(request, owner, start, end):
                              (TravelJourney, 'actor_id', None), (Exploration, 'actor_id', 'actor_name'),
                              (FishingTrip, 'actor_id', 'actor_name'), (LotteryTicket, 'actor_id', 'actor_name')):
         fields = [key, name] if name else [key, 'snapshot']
-        for actor, value in model.objects.filter(owner_id=owner).values_list(*fields):
+        candidates = model.objects.filter(owner_id=owner)
+        if model is Exploration:
+            # Many explorations share the same resident and name; identity discovery
+            # only needs each pair once, irrespective of the reporting window.
+            candidates = candidates.order_by().values_list(*fields).distinct()
+        else:
+            candidates = candidates.values_list(*fields)
+        for actor, value in candidates:
             remember(actor, value if name else value.get('agent_name', ''))
     for actor, identity in Moment.objects.filter(owner_id=owner).values_list('actor_id', 'identity'):
         remember(resident_id(actor), identity.get('name', ''), identity.get('avatar', ''))

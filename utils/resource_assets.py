@@ -196,9 +196,12 @@ def is_asset_used_by_agent(resource_id):
     from django.db.models.fields.json import KeyTextTransform
     # Keep the ordered references needed to inspect/recover a battle-head task.
     references = ImageGenerationTask.objects.filter(
-        request_data__scene__in=['battle_head', 'loadout_portrait'], request_data__icontains=resource_id,
+        request_data__scene__in=['battle_head', 'loadout_portrait', 'tournament_illustration'], request_data__icontains=resource_id,
     ).values_list('request_data', flat=True)
     if any(resource_id in data.get('reference_image_ids', []) for data in references):
+        return True
+    from system_settings.agent_world.tournament_models import TournamentIllustration
+    if TournamentIllustration.objects.filter(asset_id=resource_id).exists():
         return True
     from system_settings.agent_world.social_models import Moment
     if any(resource_id in row.images for row in Moment.objects.filter(is_valid=True).only('images')):

@@ -58,6 +58,7 @@ from .decision.views import (DecisionConfigView, DecisionTestView,
 
 from .agent_world.combat.views import CombatView
 from .agent_world.tournament_views import TournamentView
+from .agent_world.tournament_art_views import TournamentArtView
 
 from .agent_world.publish_media_views import PostPhotoView
 
@@ -68,6 +69,7 @@ urlpatterns = [
     path('agent-world/tournaments/', TournamentView.as_view(section='list')),
     path('agent-world/tournaments/<str:identity>/', TournamentView.as_view()),
     path('agent-world/tournaments/<str:identity>/matches/<str:match_id>/', TournamentView.as_view()),
+    path('agent-world/tournaments/<str:identity>/illustration/', TournamentArtView.as_view()),
     path('agent-world/stamina/config/', StaminaSettingsView.as_view()),
     path('decision-models/', DecisionConfigView.as_view()),
     path('decision-models/test/', DecisionTestView.as_view()),
