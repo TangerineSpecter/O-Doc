@@ -46,7 +46,11 @@ export function TournamentTree({
     event,
     onMatch,
     residents,
+    backgroundImage,
+    onPreview,
 }: {
+    backgroundImage?: string;
+    onPreview?: () => void;
     event: TournamentDetail;
     onMatch: (id: string) => void;
     residents?: {id: string; name: string; avatar?: string}[];
@@ -168,6 +172,8 @@ export function TournamentTree({
                         />
                     </div>
 
+                    {onPreview && <button type="button" onClick={onPreview} className="tournament-action-btn"><Eye size={13}/><span>查看决赛图</span></button>}
+
                     {/* 一屏全览（无横向滚动）与大图模式切换 */}
                     <button
                         type="button"
@@ -211,6 +217,7 @@ export function TournamentTree({
 
             <div ref={scrollRef} className={`tournament-tree-scroll ${isFit ? 'is-fit' : ''} scrollbar-hide`}>
                 <div className="tournament-tree-canvas" style={{width, height}} aria-label="晋级淘汰赛树">
+                    {backgroundImage && <img src={backgroundImage} alt="" aria-hidden="true" className="tournament-tree-background"/>}
                     {/* SVG 平滑贝塞尔连线 */}
                     <svg width={width} height={height} className="tournament-tree-lines" aria-hidden="true">
                         <defs>

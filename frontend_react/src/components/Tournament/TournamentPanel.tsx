@@ -8,11 +8,30 @@ import {TournamentReport} from './TournamentReport';
 import {TournamentBracket} from './TournamentBracket';
 import {TournamentHistoryList} from './TournamentHistoryList';
 import {TournamentArtDialog} from './TournamentArtDialog';
+import {useTournamentArt} from './useTournamentArt';
+import {usePortraitImage} from '../Combat/useLoadoutPortrait';
+import WorldDialog from '../AgentWorld/WorldDialog';
 import {dateLabel, statusLabel} from './tournamentLabels';
 import type {TournamentDetail} from '../../types/api/tournament';
 
 interface TournamentPanelProps {
     residents?: {id: string; name: string; avatar?: string}[];
+}
+
+function TournamentCompletedArt({event, onMatch, residents}: {event: TournamentDetail; onMatch: (id: string) => void; residents?: {id: string; name: string; avatar?: string}[]}) {
+    const [artOpen, setArtOpen] = useState(false);
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const art = useTournamentArt(event.id, '');
+    const image = usePortraitImage(art.data?.assetId);
+    return <>
+        <TournamentBracket event={event} onMatch={onMatch} residents={residents} backgroundImage={image.url} onPreview={image.url ? () => setPreviewOpen(true) : undefined}/>
+        <section className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+            <div><p className="font-semibold text-slate-800">决战纪念图</p><p className="mt-1 text-xs text-slate-500">{art.error || image.error || (art.data?.assetId ? '已展示在晋级图背景' : art.data ? '为本届决赛留下一张画面' : '正在读取纪念图…')}</p></div>
+            <button type="button" onClick={() => setArtOpen(true)} className="shrink-0 rounded-lg border border-orange-200 px-3 py-2 text-sm font-medium text-orange-700">查看与制作</button>
+        </section>
+        {artOpen && <TournamentArtDialog event={event} onClose={() => {setArtOpen(false); art.reload();}}/>}
+        {previewOpen && image.url && <WorldDialog title="决赛纪念图" onClose={() => setPreviewOpen(false)} size="wide" fixedHeight={false}><img src={image.url} alt="本届武道大会决赛纪念图" className="mx-auto block max-h-[75vh] w-auto max-w-full rounded-xl object-contain"/></WorldDialog>}
+    </>;
 }
 
 function TournamentRewardsCollapsible({
@@ -66,7 +85,6 @@ function TournamentRewardsCollapsible({
 }
 
 export default function TournamentPanel({residents}: TournamentPanelProps = {}) {
-    const [artOpen, setArtOpen] = useState(false);
     const state = useTournament();
     const openTasks = useOpenTaskAllocation();
     const event = state.data?.event;
@@ -158,9 +176,7 @@ export default function TournamentPanel({residents}: TournamentPanelProps = {}) 
                                                 roster={event?.roster}
                                             />
                                         )}
-                                        <TournamentBracket event={event} onMatch={state.setMatchId} residents={residents}/>
-                                        {event.status === 'completed' && <section className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><p className="font-semibold text-slate-800">决战纪念图</p><p className="mt-1 text-xs text-slate-500">为本届决赛留下一张画面</p></div><button type="button" onClick={() => setArtOpen(true)} className="shrink-0 rounded-lg border border-orange-200 px-3 py-2 text-sm font-medium text-orange-700">查看与制作</button></section>}
-                                        {artOpen && event.status === 'completed' && <TournamentArtDialog key={event.id} event={event} onClose={() => setArtOpen(false)}/>}
+                                        {event.status === 'completed' ? <TournamentCompletedArt key={event.id} event={event} onMatch={state.setMatchId} residents={residents}/> : <TournamentBracket event={event} onMatch={state.setMatchId} residents={residents}/>}
                                         <TournamentRewardsCollapsible event={event} residents={residents} />
                                     </>
                                 )}

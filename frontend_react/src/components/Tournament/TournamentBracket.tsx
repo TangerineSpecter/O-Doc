@@ -15,7 +15,11 @@ export function TournamentBracket({
     event,
     onMatch,
     residents,
+    backgroundImage,
+    onPreview,
 }: {
+    backgroundImage?: string;
+    onPreview?: () => void;
     event: TournamentDetail;
     onMatch: (id: string) => void;
     residents?: {id: string; name: string; avatar?: string}[];
@@ -33,7 +37,7 @@ export function TournamentBracket({
             <div className="tournament-view-toggle">{([{id:'bracket', label:'晋级图', Icon:Trophy}, {id:'list', label:'每日轮次表', Icon:CalendarDays}] as const).map(({id,label,Icon}) => <button key={id} type="button" onClick={() => setView(id)} aria-pressed={view === id}><Icon size={13}/>{label}</button>)}</div>
         </div>
         {view === 'bracket' ? <>
-            <TournamentTree event={event} onMatch={onMatch} residents={residents}/>
+            <TournamentTree event={event} onMatch={onMatch} residents={residents} backgroundImage={backgroundImage} onPreview={onPreview}/>
             {event.rounds.filter(r => r.phase === 'preliminary').map(r => <details key={r.id} className="tournament-preliminary"><summary className="cursor-pointer text-xs font-medium text-slate-600">{roundTitle(r)} <span className="ml-2 font-normal text-slate-500">{r.entrantCount} 人 · {r.matches.length} 场</span></summary><div className="mt-3"><TournamentMatchList round={r} names={names} onMatch={onMatch}/></div></details>)}
         </> : <div className="tournament-schedule">
             <nav className="tournament-round-nav scrollbar-hide" aria-label="比赛轮次"><h3>比赛轮次</h3>{event.rounds.map(r => <button key={r.id} type="button" onClick={() => setRoundId(r.id)} aria-pressed={selected?.id === r.id}>{roundTitle(r)}<span>{r.matches.length} 场</span></button>)}</nav>
