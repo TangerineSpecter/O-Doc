@@ -1,3 +1,4 @@
+import {seedDemoEntry} from './demoSeed';
 import {resolveStudyRoute} from './studies';
 import {resolveMT4Route} from '../mt4/routes';
 import {resolveConnectorRoute} from './connectors';
@@ -133,7 +134,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     ensureSources(entry);
     if (section==='sources' && action==='supplements' && id) return request.method==='POST' ? supplementMockSource(entry,id,body as unknown as import('../../types/api/quantSourceSupplement').QuantSourceSupplementInput) : fail(405,'只支持补充依赖源码');
     if (!section) {
-        if (request.method === 'GET') {advanceEntry(entry); return presentMockEntry(entry);}
+        if (request.method === 'GET') {seedDemoEntry(entry); advanceEntry(entry); return presentMockEntry(entry);}
         if (request.method === 'DELETE') {entry.isValid = false; touch(entry); return null;}
         if (request.method === 'PATCH') {
             if (body.title !== undefined && (typeof body.title !== 'string' || !body.title.trim())) return fail(400, '请填写研究标题');

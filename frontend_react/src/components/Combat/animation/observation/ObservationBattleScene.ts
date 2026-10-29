@@ -113,8 +113,10 @@ export class ObservationBattleScene {
     }
     setPaused(paused:boolean){this.paused=paused;this.draw();if(this.initialized&&!this.disposed)this.app.render();this.sync();}
     private configureHero() {
-        const baseWeapon=elementEquipmentArt(this.visual.weaponId).baseId;
-        const weapon=independentWeapons.some(item=>item.id===baseWeapon)?baseWeapon:'none';
+        const rawWeapon=this.visual.weaponId;
+        const baseWeapon=elementEquipmentArt(rawWeapon).baseId;
+        const weapon=independentWeapons.some(item=>item.id===rawWeapon)?rawWeapon
+            :independentWeapons.some(item=>item.id===baseWeapon)?baseWeapon:'none';
         this.hero!.configure({outfit:this.visual.jobId,weapon,aura:getProfessionAura(this.visual.jobId),showBody:true,
             showOutfit:true,showWeapon:weapon!=='none',showRear:true,showGround:true,backdrop:'plain',paused:this.paused});
         if(this.visual.headImageUrl!==this.previousHeadUrl){

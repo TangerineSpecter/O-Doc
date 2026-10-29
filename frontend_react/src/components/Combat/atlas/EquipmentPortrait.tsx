@@ -16,18 +16,20 @@ export function EquipmentPortrait({equipmentId, name, slot, equipmentType, bossO
     const visual = getEquipmentVisual(slot || '', name, bossOnly, equipmentType);
     const Icon = visual.icon;
     const {baseId, element} = elementEquipmentArt(equipmentId);
-    const art = weaponConcepts.find(item => item.id === baseId)?.art;
-    const equipmentIcon = getEquipmentIcon(baseId);
+    const directRedesign = equipmentArtProfile(equipmentId);
+    const baseRedesign = directRedesign ? undefined : equipmentArtProfile(baseId);
+    const redesignedId = directRedesign ? equipmentId : baseRedesign ? baseId : undefined;
+    const art = redesignedId ? undefined : (weaponConcepts.find(item => item.id === equipmentId) ?? weaponConcepts.find(item => item.id === baseId))?.art;
+    const equipmentIcon = redesignedId || art ? undefined : getEquipmentIcon(baseId);
     const canDrawPixelArt = ['weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'accessory'].includes(slot || '');
-    const needsPixelArt = canDrawPixelArt && !art && !equipmentIcon;
-    const redesigned = equipmentArtProfile(baseId);
+    const needsPixelArt = canDrawPixelArt && !redesignedId && !art && !equipmentIcon;
     const elementConfig = element ? ELEMENT_CONFIGS[element] : undefined;
     const ElementIcon = elementConfig?.Icon;
     return <div className={`relative flex items-center justify-center ${className}`} data-equipment-art-id={equipmentId}
         role={decorative ? undefined : 'img'} aria-hidden={decorative || undefined}
         aria-label={decorative ? undefined : `${name || equipmentId}形象`}>
-        {redesigned
-            ? <EquipmentRedesignArt equipmentId={baseId} className="h-[90%] w-[90%]" />
+        {redesignedId
+            ? <EquipmentRedesignArt equipmentId={redesignedId} className="h-[90%] w-[90%]" />
             : needsPixelArt
             ? <EquipmentPixelArt equipmentId={equipmentId} slot={slot || ''} equipmentType={equipmentType || ''} className="h-[90%] w-[90%]" />
             : art

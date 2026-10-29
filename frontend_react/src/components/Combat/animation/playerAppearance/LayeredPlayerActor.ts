@@ -121,8 +121,10 @@ export class LayeredPlayerActor extends Container {
                 // Registered in item texture coordinates; read the live transform
                 // after placement so a replaced weapon never emits from the wrist.
                 this.emitter=options.weapon==='equip.mage_staff'?{x:width*.5,y:height*.16}
+                    :options.weapon.startsWith('equip.mage_staff.')?{x:24,y:11}
                     :options.weapon==='equip.staff'?{x:width*.58,y:height*.13}
-                        :options.weapon==='equip.bow'?registration.grip:{x:width*.55,y:height*.16};
+                    :options.weapon.startsWith('equip.staff.')||options.weapon.startsWith('equip.holy_staff.')?{x:33,y:14}
+                        :options.weapon==='equip.bow'||options.weapon.startsWith('equip.bow.')?registration.grip:{x:width*.55,y:height*.16};
             }
         }
         const anchors=options.showOutfit?getPlayerHandAnchors(options.outfit):noviceHandAnchors;

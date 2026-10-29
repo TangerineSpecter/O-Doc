@@ -24,15 +24,15 @@ def run(browser,base,filename,width,out):
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,page.locator('body').inner_text()[:150])
     try:
         go('gallery')
-        expect(page.locator('[data-equipment-row]')).to_have_count(103)
-        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(416)
+        expect(page.locator('[data-equipment-row]')).to_have_count(150)
+        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(600)
         ids=page.locator('[data-equipment-row]').evaluate_all('rows=>rows.map(row=>row.dataset.equipmentRow)')
         art=page.locator('[data-equipment-row]').evaluate_all("rows=>rows.map(row=>Array.from(row.querySelectorAll('svg[data-equipment-pixel-version]')).map(svg=>svg.innerHTML))")
         assert all(len(set(row))==1 for row in art), 'Atlas / no-metadata / market snapshot / template-known record mismatch'
         fits()
         page.screenshot(path=str(out/f'gallery-{width}.png'),full_page=True)
         if width==1440:
-            page.locator('[data-equipment-row]').evaluate_all("rows=>window.artExport=Object.fromEntries(rows.map(row=>[row.dataset.equipmentRow,{name:row.querySelector('p').textContent,svg:row.querySelector('svg').outerHTML}]))")
+            page.locator('[data-equipment-row]').evaluate_all("rows=>window.artExport=Object.fromEntries(rows.map(row=>[row.dataset.equipmentRow,{name:row.querySelector('p').textContent,svg:row.querySelector('svg[data-equipment-pixel-version]').outerHTML}]))")
             (out/'art-export.json').write_text(json.dumps(page.evaluate('window.artExport'),ensure_ascii=False))
         go('atlas')
         expect(page.get_by_placeholder('搜索装备名称...')).to_be_visible()
@@ -40,25 +40,30 @@ def run(browser,base,filename,width,out):
             page.get_by_placeholder('搜索装备名称...').fill(id)
             icon=page.locator(f'button [data-equipment-art-id="{id}"]').first
             icon.click()
-            expect(page.locator(f'[aria-label="装备详情"] [data-equipment-art-id="{id}"] svg')).to_have_attribute('data-equipment-pixel-version','2')
+            expect(page.locator(f'[aria-label="装备详情"] [data-equipment-art-id="{id}"] svg[data-equipment-pixel-version="2"]')).to_have_attribute('data-equipment-pixel-version','2')
         fits()
         page.screenshot(path=str(out/f'atlas-{width}.png'),full_page=True)
         page.get_by_placeholder('搜索装备名称...').fill('不存在的装备')
         expect(page.get_by_text('未找到符合条件的装备')).to_be_visible()
         fits()
         go('surfaces')
-        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(624)
+        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(900)
         fits()
         page.locator('[data-equipment-row="equip.two_handed_sword"]').screenshot(path=str(out/f'bag-and-slot-{width}.png'))
         go('loot')
-        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(103)
+        expect(page.locator('[data-equipment-pixel-version="2"]')).to_have_count(150)
         page.get_by_role('button',name='查看双手剑，数量1',exact=True).click()
         expect(page.get_by_role('dialog')).to_contain_text('掉落详情')
         expect(page.get_by_role('dialog').locator('[data-equipment-pixel-version="2"]')).to_have_count(2)
         fits()
         page.screenshot(path=str(out/f'loot-detail-{width}.png'),full_page=True)
-        go('market')
-        expect(page.locator('[data-equipment-art-id="equip.two_handed_sword"] svg')).to_have_attribute('data-equipment-pixel-version','2')
+        page.goto(f'{url}?view=market&item=equip.two_handed_sword')
+        page.wait_for_load_state('networkidle')
+        expect(page.locator('[data-equipment-art-id="equip.two_handed_sword"] svg[data-equipment-pixel-version="2"]')).to_have_attribute('data-equipment-pixel-version','2')
+        fits()
+        page.goto(f'{url}?view=market&item=equip.sword.30.element.fire')
+        page.wait_for_load_state('networkidle')
+        expect(page.locator('[data-equipment-art-id="equip.sword.30.element.fire"] svg[data-equipment-pixel-version="2"]')).to_have_attribute('data-equipment-pixel-version','2')
         fits()
         page.screenshot(path=str(out/f'market-{width}.png'),full_page=True)
         for state in ('slow','error'):
@@ -72,7 +77,7 @@ def run(browser,base,filename,width,out):
         assert not errors,errors
         assert responses and all(sw for _,_,sw in responses),responses
         assert all(status!=501 for _,status,_ in responses),responses
-        print({'width':width,'items':103,'states':['populated','empty-search','loading','error'],'apiResponses':len(responses),'pageErrors':errors,'overflow':False})
+        print({'width':width,'items':150,'states':['populated','empty-search','loading','error'],'apiResponses':len(responses),'pageErrors':errors,'overflow':False})
     except Exception:
         print({'width':width,'errors':errors,'body':page.locator('body').inner_text()[:1000]})
         page.screenshot(path=str(out/f'failure-{width}.png'),full_page=True)

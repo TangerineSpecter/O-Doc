@@ -1,5 +1,6 @@
 import type {CombatSnapshot} from '../../../../types/api/combat';
 import type {BattleAppearanceOverlays} from '../../../../types/api/setting';
+import {elementEquipmentArt} from '../../art/elementEquipmentArt';
 import {getAtlasSkill} from '../skillPreview/atlasSkillProfiles';
 import type {AtlasSkillProfile} from '../skillPreview/atlasSkillProfiles';
 
@@ -29,10 +30,11 @@ export function observationVisual(snapshot:CombatSnapshot,disconnected:boolean):
 }
 
 export function basicObservationAttack(weapon:string):AtlasSkillProfile {
-    const source=weapon==='equip.bow'?getAtlasSkill('skill.player.007')
-        :weapon==='equip.staff'||weapon==='equip.mage_staff'||weapon==='equip.holy_staff'?getAtlasSkill('skill.player.004')
+    const base=elementEquipmentArt(weapon).baseId;
+    const source=base==='equip.bow'?getAtlasSkill('skill.player.007')
+        :base==='equip.staff'||base==='equip.mage_staff'||base==='equip.holy_staff'?getAtlasSkill('skill.player.004')
             :getAtlasSkill('preview.novice.strike');
-    return {...source!,id:'observation.basic',name:weapon==='equip.bow'?'普通射击':'普通攻击',weapon};
+    return {...source!,id:'observation.basic',name:base==='equip.bow'?'普通射击':'普通攻击',weapon};
 }
 
 /** Randomness only chooses illustrative motions, never skills learned or real outcomes. */

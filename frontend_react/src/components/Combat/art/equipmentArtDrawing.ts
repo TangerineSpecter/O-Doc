@@ -5,6 +5,8 @@ import {drawEquipmentArmor} from './equipmentArmorArt';
 import {drawInstrument} from './equipmentInstrumentArt';
 import {drawEquipmentHead} from './equipmentHeadArt';
 import {drawEquipmentRelic} from './equipmentRelicArt';
+import {drawRedesignedAxe, drawRedesignedDagger, drawRedesignedSword} from './equipmentBladeArt';
+import {drawRedesignedBow, drawRedesignedGrandStaff, drawRedesignedMageStaff} from './equipmentBowStaffArt';
 
 const cache=new Map<string,ReturnType<typeof buildEquipmentArt>>();
 function buildEquipmentArt(id:string) {
@@ -16,7 +18,15 @@ function buildEquipmentArt(id:string) {
     const palette=equipmentPalette(family,tier);
     if(profile.kind==='armor')drawEquipmentArmor(painter,palette,profile.family,profile.slot,profile.tier);
     else if(profile.kind==='head')drawEquipmentHead(painter,palette,profile.family,profile.tier);
-    else if(profile.kind==='instrument')drawInstrument(painter,palette,profile.tier);
+    else if(profile.kind==='instrument')drawInstrument(painter,palette,profile.tier,profile.element);
+    else if(profile.kind==='weapon') {
+        if(profile.weapon==='sword')drawRedesignedSword(painter,profile.element,profile.refined);
+        else if(profile.weapon==='axe')drawRedesignedAxe(painter,profile.element,profile.refined);
+        else if(profile.weapon==='dagger')drawRedesignedDagger(painter,profile.element,profile.refined);
+        else if(profile.weapon==='bow')drawRedesignedBow(painter,profile.element,profile.refined);
+        else if(profile.weapon==='mage_staff')drawRedesignedMageStaff(painter,profile.element,profile.refined);
+        else drawRedesignedGrandStaff(painter,profile.weapon,profile.element);
+    }
     else drawEquipmentRelic(painter,palette,profile);
     // Flatten overpaint once; tiny icons need only one SVG path per visible colour.
     const pixels=new Map<string,string>();

@@ -1,10 +1,10 @@
 # Agent 装备图标素材
 
-装备图鉴、独立装备行囊、装备槽、战利品及市场共用 `EquipmentPortrait.tsx`。当前内置素材按稳定模板 ID 分派：下述103个条目采用48×48整数像素绘制，长剑等已确认武器继续复用 `professionConcepts.ts`，新手护甲/手套/靴子及吊坠继续使用 `art/equipmentIcons.ts` 的透明PNG。未知ID保留原绘制或占位回退，不根据中文名称猜测模板。
+装备图鉴、独立装备行囊、装备槽、战利品及市场共用 `EquipmentPortrait.tsx`。当前内置素材按稳定模板 ID 分派：下述 150 个目录条目采用 48×48 整数像素绘制；1～30 级无属性基础武器（`equip.sword`、`equip.axe`、`equip.bow`、`equip.dagger`、`equip.mage_staff`、`equip.staff`、`equip.holy_staff`）继续保持原已确认素材（`professionConcepts.ts` 与 `equipment-mage-staff-v1.svg`），新手护甲/手套/靴子及吊坠继续使用 `art/equipmentIcons.ts` 的透明 PNG。未知 ID 保留原绘制或占位回退，不根据中文名称猜测模板。
 
-## 当前装备绘制（2026-10-25）
+## 当前装备绘制（2026-10-29）
 
-对照已确认长剑和炼金药水，使用深棕轮廓、左上方亮面、明确的材质色阶及紧凑透明留白；不使用平滑渐变或抗锯齿路径。SVG只承载整数像素格，48格细节在图鉴和小尺寸装备槽内共用。
+对照已确认基础长剑和炼金药水，使用深棕黑轮廓（`#261513`）、左上方亮面、部件级内部分隔轮廓、明确的材质色阶及紧凑透明留白；不使用平滑渐变或抗锯齿路径。SVG 只承载整数像素格，48 格细节在图鉴、小尺寸装备槽及角色持握切片（`equipment-instruments-v1.svg`）内共用。
 
 | 范围 | 稳定ID | 数量与区别 |
 | --- | --- | --- |
@@ -14,11 +14,15 @@
 | 轻甲 | `equip.armor.light.{body,hands,feet}`及`.50/.70/.90` | 12件；短身非对称护肩、灵活叠片与轻巧腰片 |
 | 板甲 | `equip.armor.plate.{body,hands,feet}`及`.50/.70/.90` | 12件；曲面胸铠、中脊、分层裙甲、金属手甲及护胫 |
 | 分类头部 | 布甲`equip.head`系列；其他`equip.head.{leather,light,heavy,plate}`及`.30/.50/.70/.90` | 25件；法帽、皮帽、轻盔、战盔、面盔各五档；新系列名字与造型不再按冠冕处理 |
-| 乐器 | `equip.instrument`及`.30/.50` | 3件；旅人／吟风／月弦竖琴；高两档不再进入当前目录，旧快照仍保留图标回退 |
+| 乐器（竖琴） | `equip.instrument`、`equip.instrument.element_low`、`.30/.50` 及四元素竖琴 | 9件目录模板（8种独立像素图，其中 `equip.instrument.element_low` 与 `equip.instrument` 同为10级无属性旅人竖琴，保持原外观）；高阶无属性为青羽天风 `吟风竖琴` 与弯月星辉 `月弦竖琴`；四元素竖琴分别为海螺珊瑚 `潮汐旅人竖琴`、玄岩原石 `琥岩旅人竖琴`、黑金龙脊 `琥岩吟风竖琴`、纯白四翼 `岚羽吟风竖琴`、炽凰火羽 `熔羽吟风竖琴` |
+| 精制无属性武器（Lv.31～50） | `equip.{sword,axe,bow,dagger,mage_staff}.30` | 5件；采用秘银蓝钢、皇家鎏金翼饰与蓝宝石核心，包含金翼宽刃 `精制长剑`、皇家双翼战戟 `精制战斧`、金翼复合弓 `精制长弓`、锯背双血槽 `精制猎手短刃`、星轨金环 `精制法杖` |
+| 四元素武器（潮汐/琥岩/岚羽/熔羽） | `equip.{sword,axe,bow,dagger,mage_staff,staff,holy_staff}` 及其 `.30` 的 `.element.{water,earth,wind,fire}` | 36件；不再复用10级基础武器轮廓，按元素与阶位绘制独立外形：潮汐系采用海浪齿刃、扇贝巨浪斧、珊瑚珍珠与旋涡水球；琥岩系区分10级玄武裂岩原石晶簇与31级黑金龙脊切割琥珀巨晶；岚羽系结合苍翠风刃、纯白层叠飞羽与破风金铃；熔羽系采用黑曜金甲、赤橙黄三阶凤凰火羽与炽白烈阳火核 |
 | 盾牌 | `equip.offhand.{magic,small,large}_shield` | 3件；符文镶晶法盾、橡木拼板圆盾、厚钢中脊塔盾 |
 | 戒指、双手剑、训练木剑 | `equip.ring`、`equip.two_handed_sword`、`equip.training_sword` | 3件；透空金戒；非对称钩刃巨剑、锯齿背、剑根缺口与长握柄；带木纹、收尖剑头、平直双刃、木护手和缠带的训练剑 |
 
-`art/equipmentArtProfile.ts`负责模板识别；`equipmentArtPalette.ts`负责材质与等级配色；`equipmentPixelPainter.ts`负责整数遮罩与亮暗倒角；`equipmentArmorArt.ts`、`equipmentRelicArt.ts`、`equipmentHeadArt.ts`、`equipmentInstrumentArt.ts`负责轮廓、结构与纹样；`equipmentArtDrawing.ts`合成并缓存可见像素，按颜色压为少量SVG路径；`EquipmentRedesignArt.tsx`只负责显示。各等级保留原名称和身份，同时在相应阶段增加肩饰、缝线、纹样、护片、嵌石或甲片。
+`art/equipmentArtProfile.ts` 负责模板识别；`equipmentArtPalette.ts` 负责材质与等级配色；`equipmentPixelPainter.ts` 负责整数遮罩与亮暗倒角；`equipmentArmorArt.ts`、`equipmentRelicArt.ts`、`equipmentHeadArt.ts`、`equipmentInstrumentArt.ts`、`equipmentBladeArt.ts`（精制与四元素长剑、战斧、猎手短刃对角线像素绘制）、`equipmentBowStaffArt.ts`（精制与四元素长弓、单手法杖、双手秘法杖与晨祷权杖像素绘制）负责轮廓、结构与纹样；`equipmentArtDrawing.ts` 合成并缓存可见像素，按颜色压为少量 SVG 路径；`EquipmentRedesignArt.tsx` 负责图标渲染。`EquipmentPortrait.tsx` 优先匹配具体模板 ID 的独立重绘形象，保留右下角元素徽标。
+
+角色持握与战斗场景同步：`equipment-instruments-v1.svg`（2544×48，共53帧）收录全部竖琴、训练木剑、双手剑及 46 款精制/四元素武器切片，在 `professionConcepts.ts`、`playerWeaponRegistration.ts`、`LayeredPlayerActor.ts`、`ObservationBattleScene.ts`、`PartyBattleScene.ts` 与 `observationPresentation.ts` 中按具体武器 ID 注册握点坐标、缩放、旋转角、镜像及施法/普攻锚点，使角色在分层换装、头像预览、单人与组队探索观察战斗中握持对应外观的精制与元素武器。
 
 市场的 `source.equipmentId` 是唯一实例ID，不能当作素材模板。`MarketListingItemIcon.tsx`优先使用既有冻结快照的 `equipmentSnapshot.templateId`，类型补全同名可选字段；老载荷仍保留原回退。没有新增API、数据库字段或同步格式。
 
@@ -73,3 +77,10 @@
 木剑连接修正：握柄先绘制并穿入护手和剑根，护手覆盖接合处；剑头改收尖、剑身改直边双斜面。新增四邻域连通检查，保证全部实色像素属于一个连通整体，防止握柄断开或缠带出现悬空像素。六项像素检查通过。
 
 双手剑当前轮廓：沿左下至右上对角线展开，剑尖回钩，一侧锯齿背、一侧弧形宽刃，剑根保留开放缺口；偏置铆接底座直接连接长握柄，不再使用对称双刃或十字护手。保持48格公共绘制及原稳定模板ID，装备数值与角色动作不变。
+
+## 2026-10-29 精制武器、四元素武器与高阶竖琴重做及角色持握接入
+
+除 1～30 级无属性基础武器（`equip.training_sword`、`equip.sword`、`equip.axe`、`equip.bow`、`equip.dagger`、`equip.mage_staff`、`equip.staff`、`equip.holy_staff`、`equip.two_handed_sword`、`equip.instrument` 及共享基础旅人竖琴外观的 `equip.instrument.element_low`）保持原确认素材不变外，其余 48 款武器（2 款高阶无属性竖琴 `吟风竖琴`/`月弦竖琴`、5 款 31 级精制无属性武器、6 款潮汐水系武器、14 款琥岩土系武器、13 款岚羽风系武器、8 款熔羽火系武器）全部重做为独立 48×48 像素造型，并同步生成 53 帧 `equipment-instruments-v1.svg` 切片供角色持握与探索观察战斗场景使用。
+
+- 单元测试：`npm run test:equipment-art`（7 项测试）验证全部 150 个内置像素模板 ID 解析、149 幅独立栅格唯一性（`equip.instrument.element_low` 与 `equip.instrument` 同为 10 级旅人竖琴）、48 款重做武器的 48 种独立剪影轮廓、100% 四邻域连通性（无悬空像素或断柄）以及手部握持锚点必落于实心柄部像素。
+- 跨入口与持握浏览器验证：纯 local 模式下通过 `scripts/test-equipment-art-browser.py` 在 `1440px`、`390px`、`320px` 视口验证 150 个模板的图鉴列表与详情弹窗、600 个公共展示图标（图鉴大/小图标、市场挂单、显式模板交易记录同源一致性）、900 个装备行囊卡片与装备槽实例、150 个战利品格子与掉落详情、双手剑与熔羽精制长剑市场详情，以及图鉴空搜索、加载中、错误状态；另在 `player-layered-preview.html` 验证角色持握各系重做武器的握点、比例、旋转与手部遮挡协调性。所有 API 请求均由 MSW 处理，无 501 或真实后端落盘。

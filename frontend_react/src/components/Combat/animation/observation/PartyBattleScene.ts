@@ -89,8 +89,10 @@ export class PartyBattleScene {
                     if(side===0){
                         actor=new LayeredPlayerActor(this.sheets);
                         const job=unit.jobId||'job.novice';
-                        const baseWeapon=elementEquipmentArt(unit.visual?.weaponId||'').baseId;
-                        const weapon=independentWeapons.some(w=>w.id===baseWeapon)?baseWeapon:'none';
+                        const rawWeapon=unit.visual?.weaponId||'';
+                        const baseWeapon=elementEquipmentArt(rawWeapon).baseId;
+                        const weapon=independentWeapons.some(w=>w.id===rawWeapon)?rawWeapon
+                            :independentWeapons.some(w=>w.id===baseWeapon)?baseWeapon:'none';
                         actor.configure({outfit:job,weapon,aura:getProfessionAura(job),showBody:true,showOutfit:true,showWeapon:weapon!=='none',showRear:true,showGround:true,backdrop:'plain',paused:false});
                         if(unit.visual?.characterImageUrl)void actor.setFullBodyImage(unit.visual.characterImageUrl);
                         else if(unit.visual?.headImageUrl)void actor.setHeadImage(unit.visual.headImageUrl);
