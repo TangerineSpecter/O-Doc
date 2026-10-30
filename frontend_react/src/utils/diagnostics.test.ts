@@ -68,3 +68,13 @@ test('request IDs work without secure-context randomUUID', () => {
     try { assert.match(createDiagnosticId(), /^[a-f0-9]{32}$/); }
     finally { Object.defineProperty(crypto, 'randomUUID', { value: original, configurable: true }); }
 });
+
+test('request errors retain safe stack frames without explicit input stack', () => {
+    reports.length = 0;
+    const error = new Error('private response body');
+    error.stack = 'Error: private response body\n    at request (http://localhost/app.js?token=secret:12:3)';
+    reportDiagnostic({ errorType: 'timeout', module: 'network', requestId: 'e'.repeat(32) }, error);
+    assert.match(String(reports[0].stack), /at request/);
+    assert.ok(!JSON.stringify(reports).includes('private response body'));
+    assert.ok(!JSON.stringify(reports).includes('token=secret'));
+});

@@ -24,7 +24,7 @@ export function reportDiagnostic(input: { errorType: string; module?: string; pa
     // Dedicated transport: never feeds its own failures back into collection.
     void nativeFetch('/api/system/logs/report/', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Token ${token}` },
-        body: JSON.stringify({ ...input, eventId: createDiagnosticId(), module: input.module || 'frontend', path: safePath(input.path || window.location.href), stack: stackFrames(input.stack) }),
+        body: JSON.stringify({ ...input, eventId: createDiagnosticId(), module: input.module || 'frontend', path: safePath(input.path || window.location.href), stack: stackFrames(input.stack || (error instanceof Error ? error.stack : undefined)) }),
         signal: AbortSignal.timeout(5000),
     }).catch(() => undefined);
 }

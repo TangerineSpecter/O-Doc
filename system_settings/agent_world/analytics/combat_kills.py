@@ -44,7 +44,7 @@ def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None
         encounters = CombatEncounter.objects.filter(owner_id=owner, exploration_id__in=actors,
             result__killed=True).exclude(exploration_id__in=party_ids)
     seen = set()
-    for fact in facts.order_by('actor_id', 'sequence', 'pk').iterator():
+    for fact in facts.only('actor_id', 'exploration_id', 'payload').order_by('actor_id', 'sequence', 'pk').iterator():
         if (actors is not None and actors.get(fact.exploration_id) != fact.actor_id) or not fact.payload.get('shared_event_id'):
             continue
         for event in fact.payload.get('events', []):
@@ -57,7 +57,7 @@ def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None
             if key not in seen:
                 seen.add(key)
                 yield CombatKill(fact.actor_id, fact.exploration_id, identity, monster)
-    for encounter in encounters.order_by('pk').iterator():
+    for encounter in encounters.only('id', 'actor_id', 'exploration_id', 'monster').order_by('pk').iterator():
         if actors is None or actors.get(encounter.exploration_id) == encounter.actor_id:
             yield CombatKill(encounter.actor_id, encounter.exploration_id,
                 'solo:' + encounter.pk, encounter.monster or {})

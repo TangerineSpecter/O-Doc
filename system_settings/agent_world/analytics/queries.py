@@ -170,7 +170,7 @@ def load_facts(request, owner, start, end):
             add(category+':'+row.pk, row.actor_id, row.created_at, category, row.actor_name)
     for row in window(TravelJourney.objects.filter(owner_id=owner), 'departed_at'):
         add('travel:'+row.pk, row.actor_id, row.departed_at, 'travel')
-    for row in window(FishingTrip.objects.filter(owner_id=owner), 'departed_at'):
+    for row in window(FishingTrip.objects.filter(owner_id=owner), 'departed_at').only('id', 'actor_id', 'departed_at'):
         add('fishing:'+row.pk, row.actor_id, row.departed_at, 'fishing')
     for row in window(LotteryTicket.objects.filter(owner_id=owner, round__owner_id=owner)):
         add('lottery:'+row.purchase_key+':'+row.actor_id, row.actor_id, row.created_at, 'lottery')
@@ -179,13 +179,13 @@ def load_facts(request, owner, start, end):
         facts.unknown.add('部分旧旅行未记录返程时间，未计入区间完成成果。')
     # The immutable departure fact is the actual start, not preparing/created_at or mutable updated_at.
     # 归档会删除保留期之前的 depart 事实，已归档探索改由仍保留的 Exploration 行提供时间与归属。
-    departures = {str(row.exploration_id): row for row in window(CombatFact.objects.filter(owner_id=owner, kind='depart'))}
-    for row in window(Exploration.objects.filter(owner_id=owner)).exclude(status__in=('preparing', 'failed')):
+    departures = {str(row.exploration_id): row for row in window(CombatFact.objects.filter(owner_id=owner, kind='depart')).only('exploration_id', 'actor_id', 'created_at')}
+    for row in window(Exploration.objects.filter(owner_id=owner)).exclude(status__in=('preparing', 'failed')).only('id', 'actor_id', 'created_at'):
         departed = departures.pop(row.pk, None)
         add('exploration:'+row.pk, row.actor_id, departed.created_at if departed else row.created_at, 'exploration')
     for row in departures.values():
         add('exploration:'+row.exploration_id, row.actor_id, row.created_at, 'exploration')
-    facts.explorations = list(window(Exploration.objects.filter(owner_id=owner), 'ended_at'))
+    facts.explorations = list(window(Exploration.objects.filter(owner_id=owner), 'ended_at').only('id', 'actor_id'))
     facts.wins = list(load_combat_kills(owner, actor_ids=actors, start=start, end=end))
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)))
     from ..market_finance import classify_market_ledger_entries

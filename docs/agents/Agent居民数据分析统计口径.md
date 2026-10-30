@@ -84,3 +84,5 @@
 历史居民通过本账号保留的彩票稳定 ID 与名称快照加入居民筛选，归档沿用现有标识。统计只读已有票据、期次与账本，不创建配置或期次，不触发开奖，不新增持久字段，无新增 WebDAV 同步项。后端入口为 `analytics/lottery_statistics.py`，前端为 `Analytics/LotteryStatistics.tsx`，local 样例为 `mocks/agentWorld/lotteryAnalytics.ts`。
 
 2026-10-23 大乐透验证：隔离数据库／临时媒体下统计模块51项测试通过，覆盖重复同号票、奖档、待开奖、跨期到账、历史结果缺失、账号与居民筛选、历史居民、日期边界和金额精度。Node 22类型检查、局部ESLint、生产构建及local接口回归通过；1440px／390px纯local浏览器验证样例、空、加载、错误、单居民筛选和窄屏表格横向滚动，API均由Service Worker处理，无501、页面异常或页面横向溢出。未执行生产部署或真实业务数据验收。前端 `npm run test:lottery-analytics` 验证mock；浏览器脚本为 `python3 scripts/test-fishing-analytics-browser.py --domain lottery --url <local-url> --browser <Chrome路径>`。
+
+2026-10-30 读取优化：出发与完成数量只投影探索 ID、居民和必要时间，钓鱼出发只投影身份和时间；逐怪击杀只读取事实 payload 或 Encounter 的 monster，不加载无关战斗状态与结算快照。统计口径、接口与同步范围不变。浏览器通用请求时限为10秒，超时本身不能区分后端计算、代理和网络耗时；此优化未验证生产数据下的响应时间。

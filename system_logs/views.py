@@ -121,7 +121,11 @@ class ReportView(APIView):
         data = dict(serializer.validated_data)
         event_id = data.pop('event_id')
         request_id = data.pop('request_id', '')
-        capture('浏览器操作异常', **data, request_id=request_id,
+        reason = {
+            'timeout': '浏览器等待响应超过请求时限；需结合请求 ID 排查后端处理、代理及网络耗时，不能据此认定用户网络异常。',
+            'network': '浏览器未获得可用响应；需排查连接、代理、跨域及服务可用性。',
+        }.get(data.get('error_type'), '')
+        capture('浏览器操作异常', **data, reason=reason, request_id=request_id,
                 fault_key=f'{request_id}:0' if request_id else f'frontend:{request.user.pk}:{event_id}',
                 user_id=request.user.pk, source='frontend')
         return success_result()
