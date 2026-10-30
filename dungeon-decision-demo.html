@@ -678,9 +678,7 @@
     .tag-safe { background: #dcfce7; color: #166534; }
     .tag-unsafe { background: #fef3c7; color: #92400e; }
     .tag-illegal { background: #fee2e2; color: #991b1b; }
-    .tag-best { background: #ede9fe; color: #6d28d9; }
-    .tag-subtle { background: #f1f5f9; color: #475569; }
-    .tag-monster { background: #fee2e2; color: #b91c1c; }
+    .tag-best { background: #e0e7ff; color: #3730a3; }
 
     .track {
       background: var(--surface-muted);
@@ -1082,7 +1080,6 @@ window.DungeonEngine = (() => {
     const g = {
       W, H, grid, explored,
       player: [1, 1],
-      prevPos: null,
       keyPos: [16, 1],
       exitPos: [16, 10],
       potions: [[6, 4], [12, 10]],
@@ -1118,26 +1115,6 @@ window.DungeonEngine = (() => {
     return Math.hypot(x - px, y - py) <= 3.5;
   }
 
-  // 迷宫最短路径 BFS 计算
-  function bfsDist(g, start, target) {
-    if (start[0] === target[0] && start[1] === target[1]) return 0;
-    const queue = [[start[0], start[1], 0]];
-    const visited = new Set([`${start[0]},${start[1]}`]);
-    while (queue.length > 0) {
-      const [cx, cy, d] = queue.shift();
-      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-        const nx = cx + dx, ny = cy + dy;
-        if (nx === target[0] && ny === target[1]) return d + 1;
-        const key = `${nx},${ny}`;
-        if (nx >= 0 && nx < W && ny >= 0 && ny < H && g.grid[ny][nx] === 0 && !visited.has(key)) {
-          visited.add(key);
-          queue.push([nx, ny, d + 1]);
-        }
-      }
-    }
-    return Infinity;
-  }
-
   function getGoal(g) {
     if (g.hasKey) return g.exitPos;
     if (g.keyPos && (isVisible(g, g.keyPos[0], g.keyPos[1]) || g.explored[g.keyPos[1]][g.keyPos[0]])) {
@@ -1149,7 +1126,7 @@ window.DungeonEngine = (() => {
     for (let y = 1; y < H - 1; y++) {
       for (let x = 1; x < W - 1; x++) {
         if (!g.explored[y][x] && g.grid[y][x] === 0) {
-          const d = bfsDist(g, [px, py], [x, y]);
+          const d = Math.abs(x - px) + Math.abs(y - py);
           if (d < bestDist) {
             bestDist = d;
             bestFog = [x, y];
@@ -1167,117 +1144,68 @@ window.DungeonEngine = (() => {
     const evaluated = Object.entries(DIRS).map(([id, [dx, dy, name, arrow]]) => {
       const tx = px + dx, ty = py + dy;
       if (tx < 0 || tx >= W || ty < 0 || ty >= H || g.grid[ty][tx] === 1) {
-        return {
-          id, name, arrow, target: [tx, ty],
-          legal: false, safe: false, dist: Infinity,
-          reason: '禁止，前方为石墙障碍', tag: '无法通行', tagClass: 'tag-illegal'
-        };
+        return { id, name, arrow, target: [tx, ty], legal: false, safe: false, dist: Infinity, reason: '禁止，前方为石墙障碍' };
       }
 
-      const isUturn = Boolean(g.prevPos && tx === g.prevPos[0] && ty === g.prevPos[1]);
       const hasMonster = g.monsters.some(m => m[0] === tx && m[1] === ty);
       const hasTrap = g.traps.some(t => t[0] === tx && t[1] === ty);
       const isExit = g.exitPos[0] === tx && g.exitPos[1] === ty;
       const hasKey = g.keyPos && g.keyPos[0] === tx && g.keyPos[1] === ty;
       const hasPotion = g.potions.some(p => p[0] === tx && p[1] === ty);
-      const dist = bfsDist(g, [tx, ty], goal);
+      const dist = Math.abs(tx - goal[0]) + Math.abs(ty - goal[1]);
 
       return {
-        id, name, arrow, target: [tx, ty],
-        legal: true, safe: !isUturn, dist, isUturn,
+        id, name, arrow, target: [tx, ty], legal: true, safe: true, dist,
         hasMonster, hasTrap, isExit, hasKey, hasPotion
       };
     });
 
-    // 挑选最佳前进候选（排除立即回头折返路线）
-    const forwardLegals = evaluated.filter(m => m.legal && !m.isUturn && !m.hasMonster && !m.hasTrap);
-    const candList = forwardLegals.length ? forwardLegals : evaluated.filter(m => m.legal);
-    const minDist = Math.min(...candList.map(m => m.dist));
-
-    // 唯一确定最佳推荐方向（平局时选择更能缩减更大坐标差的方向）
-    const bestMove = candList
-      .filter(m => m.dist === minDist)
-      .sort((a, b) => (Math.abs(a.target[1] - goal[1]) - Math.abs(b.target[1] - goal[1])) || (Math.abs(a.target[0] - goal[0]) - Math.abs(b.target[0] - goal[0])))[0];
+    const legals = evaluated.filter(m => m.legal);
+    const minDist = legals.length ? Math.min(...legals.map(m => m.dist)) : Infinity;
 
     return evaluated.map(m => {
       if (!m.legal) return m;
 
+      let reason = '';
       if (m.isExit && g.hasKey) {
-        return {
-          ...m, safe: true, best: true, tag: '通关脱出', tagClass: 'tag-best',
-          reason: '终点传送门！步入即可胜利脱出，唯一最佳选择'
-        };
-      }
-
-      if (m.hasKey) {
-        return {
-          ...m, safe: true, best: true, tag: '黄金钥匙', tagClass: 'tag-best',
-          reason: '黄金钥匙！立即拾取解锁传送门，唯一最佳选择'
-        };
-      }
-
-      if (m.hasPotion && g.hp < 80) {
-        return {
-          ...m, safe: true, best: true, tag: '治愈药水', tagClass: 'tag-best',
-          reason: '治愈药水！拾取恢复30点生命，最佳选择'
-        };
-      }
-
-      if (m.isUturn) {
-        return {
-          ...m, safe: false, best: false, tag: '避免折返', tagClass: 'tag-unsafe',
-          reason: '避免折返：上一格刚刚走过，折返会导致原地反复摆动死锁'
-        };
-      }
-
-      if (m.hasMonster) {
+        reason = '传送门！步入即可胜利脱出，最佳选择';
+      } else if (m.hasKey) {
+        reason = '黄金钥匙！立即拾取解锁传送门，最佳选择';
+      } else if (m.hasPotion && g.hp < 80) {
+        reason = '治愈药水！拾取恢复30点生命，最佳选择';
+      } else if (m.hasMonster) {
         if (g.hp <= 25) {
-          return {
-            ...m, safe: false, best: false, tag: '致命危险', tagClass: 'tag-illegal',
-            reason: '危险禁止，残血与魔物交战可能阵亡'
-          };
+          m.safe = false;
+          reason = '危险禁止，残血与魔物交战可能阵亡';
+        } else {
+          reason = '巡逻魔物，交战消耗20生命并斩获50金币';
         }
-        return {
-          ...m, safe: true, best: false, tag: '巡逻魔物', tagClass: 'tag-monster',
-          reason: '巡逻魔物，交战消耗20生命并斩获50金币'
-        };
-      }
-
-      if (m.hasTrap) {
+      } else if (m.hasTrap) {
         if (g.hp <= 25) {
-          return {
-            ...m, safe: false, best: false, tag: '致命陷阱', tagClass: 'tag-illegal',
-            reason: '危险禁止，残血踩中尖刺陷阱直接致命'
-          };
+          m.safe = false;
+          reason = '危险禁止，残血踩中尖刺陷阱直接致命';
+        } else {
+          reason = '地面存在尖刺陷阱，将扣除25点生命';
         }
-        return {
-          ...m, safe: true, best: false, tag: '尖刺陷阱', tagClass: 'tag-unsafe',
-          reason: '地面存在尖刺陷阱，将扣除25点生命'
-        };
-      }
-
-      if (m === bestMove) {
-        return {
-          ...m, safe: true, best: true, tag: '最佳路线', tagClass: 'tag-best',
-          reason: g.hasKey
-            ? '通畅路线，向传送门推进的最短路径，最佳选择'
+      } else {
+        if (m.dist === minDist) {
+          reason = g.hasKey
+            ? '安全，全速朝传送门推进，最佳选择'
             : (g.keyPos && (isVisible(g, g.keyPos[0], g.keyPos[1]) || g.explored[g.keyPos[1]][g.keyPos[0]]))
-              ? '通畅路线，朝已知钥匙方位推进的最优路径，最佳选择'
-              : '通畅路线，向未探明迷雾深处推进的最优路径，最佳选择'
-        };
+              ? '安全，朝已知钥匙方位推进最多，最佳选择'
+              : '安全，向未探索迷雾深处推进最多，最佳选择';
+        } else {
+          reason = '安全，但推进较慢或向已探索区域回退';
+        }
       }
-
-      return {
-        ...m, safe: true, best: false, tag: '次选路线', tagClass: 'tag-subtle',
-        reason: '通畅路线，但属于偏离当前目标方向的次选'
-      };
+      return { ...m, reason };
     });
   }
 
   function describe(g) {
     const options = moves(g);
     const [px, py] = g.player;
-    const best = options.find(m => m.best) || options.find(m => m.legal && m.safe);
+    const best = options.find(m => m.legal && m.reason.includes('最佳选择')) || options.find(m => m.legal && m.safe);
 
     // 统计视野可见要素
     const visibleMonsters = g.monsters.filter(m => isVisible(g, m[0], m[1]));
@@ -1287,43 +1215,38 @@ window.DungeonEngine = (() => {
 
     const criteria = Object.fromEntries(options.map(m => [m.id, `${m.name}：${m.reason}`]));
 
-    const state = g.hasKey
-      ? `地牢探索现场。探险家坐标(${px},${py})，生命值 ${g.hp}/100，金币 ${g.gold}。已成功持有黄金钥匙！当前唯一使命：全速沿最短路线赶往传送门脱出！周围无直接致命危险。候选已标注最短寻路规划，避免走回头路。请依据这些事实选择。`
-      : `地牢探索现场。棋盘${W}×${H}，探险家坐标(${px},${py})，生命值 ${g.hp}/100，金币 ${g.gold}，持有钥匙：否。视野感知：可见魔物 ${visibleMonsters.length} 只，钥匙${keySeen ? '在已知方位' : '藏在迷雾深处未探明区域'}。当前处于安全探索状态，推荐优先沿最短路线推进。候选已包含探索规划器判断，请依据这些事实选择。`;
-
-    const questions = {
-      move: {
-        type: 'choice',
-        instructions: '选择探险家的四向移动方向，避免折返走回头路，朝当前目标推进。',
-        criteria
-      },
-      danger: {
-        type: 'choice',
-        instructions: '根据当前视野事实，周围是否存在致命或高危威胁？',
-        criteria: {
-          safe: '周围无直接致命危险，路线通畅，环境安全',
-          threat: '前方遭遇魔物、残血踩陷阱或濒临死亡'
-        }
-      },
-      objective: {
-        type: 'choice',
-        instructions: '评估当前阶段的核心战术意图。',
-        criteria: g.hasKey ? {
-          escape: '已取得黄金钥匙，全速前往传送门脱出（当前唯一目标）',
-          explore: '已获取钥匙，无需继续在迷雾中徘徊',
-          loot: '钥匙已到手，无需搜刮'
-        } : {
-          explore: '向未探索迷雾深处推进，搜寻钥匙与宝藏（推荐）',
-          loot: '搜刮视野内已发现的钥匙或药水补给',
-          escape: '尚未取得钥匙，无法脱出'
-        }
-      }
-    };
+    const state = `地牢探索现场。棋盘${W}×${H}，探险家坐标(${px},${py})，生命值 ${g.hp}/100，金币 ${g.gold}，持有钥匙：${g.hasKey ? '是' : '否'}。视野感知：可见魔物 ${visibleMonsters.length} 只，可见治愈药水 ${visiblePotions.length} 瓶，钥匙${g.hasKey ? '已取得' : keySeen ? '在地图已知方位' : '位于地牢深处未探明区域'}，传送门${exitSeen ? '位于东南方' : '藏在迷雾中'}。周围视野安全，推荐优先向未探明迷雾推进。候选已包含探索规划器判断，请依据这些事实选择。`;
 
     return {
       options,
       bestId: best?.id,
-      decision: { state, questions }
+      decision: {
+        state,
+        questions: {
+          move: {
+            type: 'choice',
+            instructions: '选择探险家的四向移动方向，避免撞墙与陷阱，朝当前目标推进。',
+            criteria
+          },
+          danger: {
+            type: 'choice',
+            instructions: '根据当前视野事实，周围是否存在致命或高危威胁？',
+            criteria: {
+              safe: '周围无魔物逼近且无残血危险，环境安全',
+              threat: '发现魔物逼近、残血或陷阱高危'
+            }
+          },
+          objective: {
+            type: 'choice',
+            instructions: '评估当前阶段的核心战术意图。',
+            criteria: {
+              explore: '向未探索迷雾深处推进，搜寻钥匙与宝藏（推荐）',
+              loot: '搜刮视野内已发现的钥匙或药水补给',
+              escape: '已取得钥匙，全速前往传送门脱出'
+            }
+          }
+        }
+      }
     };
   }
 
@@ -1332,7 +1255,6 @@ window.DungeonEngine = (() => {
     if (!m || !m.legal) throw Error('非法移动方向');
     g.ticks++;
 
-    g.prevPos = [...g.player];
     g.player = [...m.target];
     const [px, py] = g.player;
 
@@ -1722,8 +1644,28 @@ window.DungeonRenderer = (() => {
 
       const opt = optMap.get(id);
       const tag = document.createElement('span');
-      tag.className = 'bar-tag ' + (opt.tagClass || 'tag-subtle');
-      tag.textContent = opt.tag || (opt.legal ? '次选路线' : '无法通行');
+      if (!opt.legal) {
+        tag.className = 'bar-tag tag-illegal';
+        tag.textContent = '无法通行';
+      } else if (!opt.safe) {
+        tag.className = 'bar-tag tag-unsafe';
+        tag.textContent = '致命危险';
+      } else if (opt.hasKey) {
+        tag.className = 'bar-tag tag-best';
+        tag.textContent = '黄金钥匙';
+      } else if (opt.hasPotion) {
+        tag.className = 'bar-tag tag-safe';
+        tag.textContent = '治愈药水';
+      } else if (opt.isExit && game.hasKey) {
+        tag.className = 'bar-tag tag-best';
+        tag.textContent = '通关脱出';
+      } else if (opt.reason.includes('最佳选择')) {
+        tag.className = 'bar-tag tag-best';
+        tag.textContent = '最佳推进';
+      } else {
+        tag.className = 'bar-tag tag-safe';
+        tag.textContent = '安全路线';
+      }
 
       const track = document.createElement('div');
       track.className = 'track';
@@ -1804,8 +1746,8 @@ window.DungeonRenderer = (() => {
       dBox.classList.toggle('safe-pass', !changed && shield);
 
       $('shield-note').textContent = changed
-        ? '生存直觉层已介入：拦截折返往复或高危动作，改用前进路线。'
-        : shield ? '模型首选方向已通过生存与路线检查。' : '直觉辅助已关闭，直接按模型指令执行。';
+        ? '生存直觉层已介入：拦截残血高危移动，改用避险方向。'
+        : shield ? '模型首选方向已通过生存安全检查。' : '直觉辅助已关闭，直接按模型指令执行。';
 
       bars(scores, proposed, description);
       $('danger-prob').textContent = `${answers.danger.choice.toUpperCase()} (${(answers.danger.probabilities[answers.danger.choice] * 100).toFixed(1)}%)`;

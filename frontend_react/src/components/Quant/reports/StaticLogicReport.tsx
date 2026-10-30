@@ -37,7 +37,7 @@ export const StaticLogicReport = memo(function StaticLogicReport({ report, draft
                     </div>
                 </details>
             </div>
-            {(hasScore || hasFactors) && <aside aria-label="评分与提取结果" className={`min-w-0 space-y-4 ${twoColumn ? 'xl:sticky xl:top-28 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto scrollbar-hide' : ''}`}>
+            {(hasScore || hasFactors) && <aside aria-label="评分与提取结果" className={`min-w-0 space-y-4 ${twoColumn ? 'xl:sticky xl:top-0 xl:max-h-screen xl:overflow-y-auto scrollbar-hide' : ''}`}>
                 {hasScore && <ReportScore report={report}/>}
                 <ExtractedFactors key={report.id} report={report} openFactors={openFactors} notes={reading.notes}/>
             </aside>}

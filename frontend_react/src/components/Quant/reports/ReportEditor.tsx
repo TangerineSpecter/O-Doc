@@ -58,6 +58,9 @@ export const ReportEditor = memo(function ReportEditor({
     const copied = copiedKey === 'copy';
 
     const data = report.data;
+    const title = data.title || '历史代码解释';
+    const platformSuffix = title.match(/\s*[（(]([^（）()]*\b(?:Pine|TradingView)\b[^（）()]*)[）)]\s*$/i);
+    const displayTitle = platformSuffix ? title.slice(0, platformSuffix.index).trim() || title : title;
     const isStaticSource = [2, 3].includes(report.schemaVersion);
     const significant =
         data.sourceFindings?.filter((row) => row.severity === 'critical' || row.severity === 'high') || [];
@@ -115,7 +118,14 @@ export const ReportEditor = memo(function ReportEditor({
                         </span>
                     </div>
                     <h2 className="mt-1.5 break-words text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">
-                        {data.title || '历史代码解释'}
+                        {displayTitle}
+                        {platformSuffix && displayTitle !== title && (
+                            <span className="ml-2 inline-flex flex-wrap items-center gap-1.5 align-middle text-xs font-medium tracking-normal text-slate-500">
+                                {platformSuffix[1].split(/[,，、]/).map((label) => label.trim()).filter(Boolean).map((label) => (
+                                    <QuantBadge key={label} tone="slate">{label}</QuantBadge>
+                                ))}
+                            </span>
+                        )}
                     </h2>
                 </div>
 

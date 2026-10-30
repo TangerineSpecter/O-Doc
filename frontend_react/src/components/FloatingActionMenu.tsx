@@ -8,8 +8,9 @@ const CompanionFloatingMenu = lazy(() => import('./FloatingMenu/CompanionFloatin
 export default function FloatingActionMenu() {
     const style = useFloatingMenuStyle();
     const articleRoute = useMatch('/article/:collId/*');
+    const quantRoute = useMatch('/quant/:collId/*');
     // Articles and Agent posts share this detail route. Keep collection lists navigable.
-    if (articleRoute?.params['*']) return null;
+    if (articleRoute?.params['*'] || quantRoute) return null;
     if (style === 'classic') return <ClassicFloatingMenu/>;
     return <Suspense fallback={null}><CompanionFloatingMenu/></Suspense>;
 }
