@@ -47,11 +47,11 @@ class TheatreRelationshipRegressionTests(TestCase):
         for _ in range(2):
             self.assertEqual(client.delete(url).status_code, 200)
             relation.refresh_from_db()
-            self.assertEqual((relation.affinity, relation.familiarity), (11, 5))
+            self.assertEqual((relation.affinity, relation.familiarity), (10, 5))
         checkpoint_all()
         reconcile_social()
         relation.refresh_from_db()
-        self.assertEqual(relation.affinity, 11)
+        self.assertEqual(relation.affinity, 10)
 
 
 class TheatreSnapshotGateRegressionTests(TransactionTestCase):

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {beforeEach,test} from 'node:test';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {quantState,resetQuantStateForTests} from './state.ts';
 import {readVerification} from '../../utils/quantVerification.ts';
 import {readValidation,readPreview,readAudit} from '../../utils/quantValidation.ts';

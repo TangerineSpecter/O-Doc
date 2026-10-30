@@ -1,17 +1,19 @@
+import type {QuantRunSummary} from '../../../types/api/quantReading';
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import { Activity, Sparkles } from 'lucide-react';
 import { Select } from '../../common/Select';
 import { quantApi } from '../../../api/quant';
 import { quantDate } from '../../../utils/quant';
 import type { QuantController } from '../../../hooks/useQuant';
-import type { QuantAIRun, QuantReport, QuantSource } from '../../../types/api/quant';
+import type { QuantSource } from '../../../types/api/quant';
 import { QuantButton } from '../ui';
 import { SourcePreview } from '../SourcePreview';
 
-export function ReportAnalysisSettings({ source, sources, report, lastRun, active, otherActive, controller,
+export function ReportAnalysisSettings({ source, report, lastRun, active, otherActive, controller,
     collection, entryId, modelId, onModelChange, setSourceId, start, code, request, openSupplement,
     analyzeDisabledReason, supplementNotice }: {
-    source?: QuantSource; sources: QuantSource[]; report?: QuantReport; lastRun?: QuantAIRun; active?: QuantAIRun;
-    otherActive: QuantAIRun[]; controller: QuantController; collection: string; entryId: string; modelId: string;
+    source?: QuantSource; report?: QuantReportReading; lastRun?: QuantRunSummary; active?: QuantRunSummary;
+    otherActive: QuantRunSummary[]; controller: QuantController; collection: string; entryId: string; modelId: string;
     onModelChange: (id: string) => void; setSourceId: (id: string) => void; start: () => void; code: () => void;
     request: (action: () => void) => void; openSupplement: (source: QuantSource) => void;
     analyzeDisabledReason: string; supplementNotice: string;
@@ -50,6 +52,7 @@ export function ReportAnalysisSettings({ source, sources, report, lastRun, activ
                 </div>
             </div>
 
+            {controller.pages.sources?.hasMore&&<QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('sources',true),false)}>更多来源</QuantButton>}
             <div className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 sm:grid-cols-2">
                 <label className="min-w-0 space-y-1 text-xs font-semibold text-slate-700">
                     <span className="block">分析来源</span>
@@ -57,20 +60,7 @@ export function ReportAnalysisSettings({ source, sources, report, lastRun, activ
                         menuPortal
                         value={source?.id || ''}
                         onChange={setSourceId}
-                        options={sources.map((row, i) => ({
-                            value: row.id,
-                            label: `${
-                                row.payload.fetchStatus === 'fetched'
-                                    ? '网页快照'
-                                    : row.payload.fetchStatus === 'failed'
-                                      ? '获取失败快照'
-                                      : row.payload.provenance === 'code_version'
-                                        ? '代码快照'
-                                        : '提交资料'
-                            } · ${row.payload.title || row.payload.language || '文字'} · ${quantDate(row.createdAt)} · ${i + 1}${
-                                row.materialCurrentSourceId === row.id ? ' · 材料当前快照' : ''
-                            }`,
-                        }))}
+                        options={controller.detail!.sourceHeaders.filter(row=>row.provenance!=='external_feedback').map((row,i)=>({value:row.id,label:`${row.title||row.language||'来源快照'} · ${quantDate(row.createdAt)}${i===0?' · 最新':''}`}))}
                         emptyMessage="尚无来源材料"
                     />
                 </label>
@@ -129,7 +119,7 @@ export function ReportAnalysisSettings({ source, sources, report, lastRun, activ
                         任务正在执行，结束后可启动新的完整分析。
                         <span className="block break-words text-[11px] text-slate-500">
                             来源：
-                            {sources.find((row) => row.id === (run.resolvedSourceId || run.sourceId))
+                            {controller.detail?.sources.find((row) => row.id === (run.resolvedSourceId || run.sourceId))
                                 ?.payload.title ||
                                 run.sourceId ||
                                 '未指定'}{' '}

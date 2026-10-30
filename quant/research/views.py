@@ -3,7 +3,7 @@ from rest_framework import serializers
 from utils.response_utils import success_result
 from quant.views import QuantView
 from quant.models import ResearchReport
-from quant.presentation import entry_detail
+from quant.reading.projections import overview, report_body
 from .intake import collect
 from .presentation import report_data
 from .services import revise_report
@@ -12,7 +12,7 @@ from .services import revise_report
 class IntakeView(QuantView):
     def post(self, request, coll_id):
         entry, notice = collect(self.collection, request.data)
-        return success_result({'entry': entry_detail(entry), 'notice': notice})
+        return success_result({'entry': overview(entry), 'notice': notice})
 
 
 class ReportView(QuantView):
@@ -25,4 +25,4 @@ class ReportView(QuantView):
         report = get_object_or_404(ResearchReport, pk=report_id, entry=self.entry)
         revise_report(report, **serializer.validated_data)
         report.refresh_from_db()
-        return success_result(report_data(report))
+        return success_result(report_body(report))

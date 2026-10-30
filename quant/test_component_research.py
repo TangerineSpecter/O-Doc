@@ -1,4 +1,5 @@
 """Dependency edits invalidate the right AI component inputs, without a model."""
+from quant.sync import SCHEMA_VERSION
 import copy
 import json
 from django.test import SimpleTestCase, TestCase
@@ -189,7 +190,7 @@ class ComponentWorkflowTests(TestCase):
         self.__class__.wire = evidence
         self.assertEqual(ResearchReport.objects.filter(run__in=(old,second,third)).count(),3)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'],74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'],SCHEMA_VERSION)
         validate(snapshot,metadata(snapshot)); reset_execution()
         with patch('quant.worker.dispatch') as dispatch:
             SyncManager().apply_snapshot_data(snapshot,remote_meta=metadata(snapshot))

@@ -1,13 +1,14 @@
 import type {QuantReport} from '../types/api/quant';
+type ReportRecord=Omit<QuantReport,'originalMarkdown'|'revisions'>;
 import type {NamedReportChange, ReportRecordDiff, ReportDiffLine, ReportTextDiff} from '../types/quantReportDiff';
 
-export const isStaticReport = (report: QuantReport) => [1, 2, 3].includes(report.schemaVersion);
-const time = (report: QuantReport) => Number.isFinite(Date.parse(report.createdAt)) ? Date.parse(report.createdAt) : 0;
-export function comparisonReports(reports: QuantReport[], current: QuantReport): QuantReport[] {
+export const isStaticReport = (report: Pick<ReportRecord,'schemaVersion'>) => [1, 2, 3].includes(report.schemaVersion);
+const time = (report: ReportRecord) => Number.isFinite(Date.parse(report.createdAt)) ? Date.parse(report.createdAt) : 0;
+export function comparisonReports(reports: ReportRecord[], current: ReportRecord): ReportRecord[] {
     if (!isStaticReport(current)) return [];
     return reports.filter(row => row.id !== current.id && isStaticReport(row)).sort((a, b) => time(b) - time(a) || a.id.localeCompare(b.id));
 }
-export function defaultReportBaseline(reports: QuantReport[], current: QuantReport): QuantReport | undefined {
+export function defaultReportBaseline(reports: ReportRecord[], current: ReportRecord): ReportRecord | undefined {
     const options = comparisonReports(reports, current);
     return options.find(row => time(row) <= time(current)) || options[options.length - 1];
 }
@@ -35,7 +36,7 @@ export function namedReportChanges<T extends object>(before: T[], after: T[], ke
     });
 }
 
-export function compareReportRecords(baseline: QuantReport, current: QuantReport): ReportRecordDiff {
+export function compareReportRecords(baseline: ReportRecord, current: ReportRecord): ReportRecordDiff {
     if (!isStaticReport(baseline) || !isStaticReport(current)) throw new Error('仅可对照同一条目的静态研究报告');
     const before = baseline.data, after = current.data;
     const comparable = !!before.rubricVersion && before.rubricVersion === after.rubricVersion;

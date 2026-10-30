@@ -1,4 +1,5 @@
 """AI findings stay source-bound and visible even when quality scores are high."""
+from quant.testing_reading import read_fixture
 import json
 from unittest.mock import patch
 from django.test import SimpleTestCase, TestCase
@@ -77,7 +78,7 @@ class SourceFindingsWorkflowTests(TestCase):
         self.assertEqual(run.status, 'completed', run.error); self.assertEqual(run.workflow_version, 25)
         self.assertTrue(any('source_findings_note' in call.args[1] for call in model.call_args_list))
         report = ResearchReport.objects.get(run=run)
-        data = self.client.get(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/').json()['data']
+        data = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{entry.pk}/')
         wire = data['reports'][0]['data']
         self.assertEqual(wire['sourceFindingsVersion'], 1); self.assertEqual(wire['totalScore'], 100)
         self.assertEqual(wire['sourceFindings'][0]['evidence'][0]['quote'], 'close.shift(-1) / close - 1')

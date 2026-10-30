@@ -1,3 +1,4 @@
+import type {QuantEntryOverview,QuantReportReading} from '../types/api/quantReading';
 import type {QuantCampaign, QuantCampaignInput} from '../types/api/quantCampaign';
 import type {QuantBatch, QuantBatchInput, QuantBatchRetry} from '../types/api/quantIntake';
 import type {QuantExperiment, QuantExperimentInput} from '../types/api/quantExperiment';
@@ -12,14 +13,11 @@ import type {
     QuantFactorGrouping,
     QuantAIRun,
     QuantIntakeInput,
-    QuantReport,
     QuantAttachment,
     QuantBacktest,
     QuantBacktestInput,
     QuantEntry,
-    QuantEntryDetail,
     QuantEntryInput,
-    QuantImplementation,
     QuantImplementationInput,
     QuantModels,
     QuantRunInput,
@@ -112,23 +110,16 @@ export const quantApi = {
     factorOccurrences: (collection: string, id: string, groupBy: QuantFactorGrouping, offset: number, signal?: AbortSignal) =>
         request.get<never, {total: number; items: QuantFactorCandidate[]}>(`${base(collection)}factors/${encodeURIComponent(id)}/occurrences/`, {params: {groupBy, offset, limit: 20}, signal}),
     collect: (collection: string, data: QuantIntakeInput) =>
-        request.post<never, { entry: QuantEntryDetail; notice: string }>(`${base(collection)}intake/`, data),
+        request.post<never, { entry: QuantEntryOverview; notice: string }>(`${base(collection)}intake/`, data),
     reviseReport: (collection: string, id: string, report: string, markdown: string, expectedRevisionId: string) =>
-        request.patch<never, QuantReport>(`${entry(collection, id)}reports/${encodeURIComponent(report)}/`, { markdown, expectedRevisionId }),
-    entries: (collection: string, signal?: AbortSignal, language = '') =>
-        request.get<never, QuantEntry[]>(`${base(collection)}entries/`, {
-            signal,
-            params: language ? { language } : undefined,
-        }),
-    detail: (collection: string, id: string, signal?: AbortSignal) =>
-        request.get<never, QuantEntryDetail>(entry(collection, id), { signal }),
+        request.patch<never, QuantReportReading>(`${entry(collection, id)}reports/${encodeURIComponent(report)}/`, { markdown, expectedRevisionId }),
     create: (collection: string, data: QuantEntryInput) =>
         request.post<never, QuantEntry>(`${base(collection)}entries/`, data),
     update: (collection: string, id: string, data: QuantEntryInput) =>
         request.patch<never, QuantEntry>(entry(collection, id), data),
     remove: (collection: string, id: string) => request.delete<never, void>(entry(collection, id)),
     implementation: (collection: string, id: string, data: QuantImplementationInput) =>
-        request.post<never, QuantImplementation>(`${entry(collection, id)}implementations/`, data),
+        request.post<never, import('../types/api/quantReading').QuantImplementationHeader>(`${entry(collection, id)}implementations/`, data),
     rename: (collection: string, id: string, implementation: string, name: string) =>
         request.patch(`${entry(collection, id)}implementations/${encodeURIComponent(implementation)}/`, { name }),
     version: (collection: string, id: string, implementation: string, data: QuantVersionInput) =>
@@ -165,16 +156,14 @@ export const quantApi = {
         request.get<never, QuantModels>('/quant/models/', { signal }),
     run: (collection: string, id: string, data: QuantRunInput) =>
         request.post<never, QuantAIRun>(`${entry(collection, id)}runs/`, data),
-    runs: (collection: string, id: string, signal?: AbortSignal) =>
-        request.get<never, QuantAIRun[]>(`${entry(collection, id)}runs/`, { signal }),
     poll: (collection: string, id: string, run: string, signal?: AbortSignal) =>
         request.get<never, QuantAIRun>(`${entry(collection, id)}runs/${encodeURIComponent(run)}/`, { signal }),
     workflowEvidence: (collection: string, id: string, run: string, stage: string, signal?: AbortSignal) =>
         request.get<never, import('../types/api/quantWorkflow').QuantStageEvidence>(`${entry(collection, id)}runs/${encodeURIComponent(run)}/workflow/${encodeURIComponent(stage)}/`, {signal}),
     cancel: (collection: string, id: string, run: string) =>
-        request.post<never, QuantAIRun>(`${entry(collection, id)}runs/${encodeURIComponent(run)}/cancel/`),
+        request.post<never, import('../types/api/quantReading').QuantRunSummary>(`${entry(collection, id)}runs/${encodeURIComponent(run)}/cancel/`),
     adopt: (collection: string, id: string, run: string) =>
-        request.post<never, { implementation?: QuantImplementation; explanation?: string }>(
+        request.post<never, { implementation?: import('../types/api/quantReading').QuantImplementationHeader; explanation?: string }>(
             `${entry(collection, id)}runs/${encodeURIComponent(run)}/adopt/`,
         ),
 };

@@ -6,9 +6,10 @@ from system_settings.agent_prompts import build_agent_system_prompt
 from system_settings.decision.routing import choose_scene, complete_json, owner_for
 from .social_context import social_decision_context
 from .social_prompt import (
-    SOCIAL_SELECTION_RULES, decision_instruction, validate_auto_reply, AUTO_COMMENT_MAX_LENGTH,
+    SOCIAL_SELECTION_RULES, RELATION_APPRAISAL_RULES, decision_instruction, validate_auto_reply, AUTO_COMMENT_MAX_LENGTH,
 )
 from .social_relations import RULES
+from .social_appraisal import validate_appraisal
 from .social_content import text
 
 
@@ -24,16 +25,18 @@ def validate_result(value, context, selected):
     elif action == 'publish' or (action == 'read' and value.get('content')):
         text(value.get('content'), 3000 if action == 'publish' else AUTO_COMMENT_MAX_LENGTH)
     text(value.get('reason'), 1000)
-    required_appraisals = ('received_appraisal', 'sent_appraisal') if action == 'reply' else (
+    required_appraisals = ('received_appraisal',) if action == 'reply' else (
         ('sent_appraisal',) if action == 'read' and value.get('content') else ())
     if any(key not in value for key in required_appraisals):
         raise ValueError('关系事件分类缺失')
-    for key in ('received_appraisal', 'sent_appraisal'):
-        if key in value:
-            appraisal = value[key]
-            if not isinstance(appraisal, dict) or appraisal.get('category') not in RULES:
-                raise ValueError('事件理解类别无效')
-            text(appraisal.get('reason'), 1000)
+    if action == 'reply':
+        source = ((context.get('inbox') or {}).get('discussion') or {}).get('source', '')
+        value['received_appraisal'] = validate_appraisal(value['received_appraisal'], source)
+        # 旧表达结果可能仍带该字段；不让自己的回复再增加一次对对方的好感。
+        value.pop('sent_appraisal', None)
+    elif action == 'read' and value.get('content'):
+        selected_moment = next((row for row in context.get('moments', []) if row['id'] == value.get('moment_id')), {})
+        value['sent_appraisal'] = validate_appraisal(value['sent_appraisal'], selected_moment.get('content', ''))
     moment_ids = {row['id'] for row in context.get('moments', [])}
     if not isinstance(value.get('likes', []), list) or any(identity not in moment_ids for identity in value.get('likes', [])):
         raise ValueError('点赞动态无效')
@@ -89,7 +92,18 @@ def decide_social(agent, context, *, owner=None):
     if selected['action'] == 'skip':
         return {**selected, 'reason': '本次跳过社交机会', 'image_choice': 'none'}
     if selected['action'] in ('ignore', 'defer'):
-        return {**selected, 'reason': f'系统选择说明：{source}选择{selected_key}，不是人物感受。', 'image_choice': 'none'}
+        # 不生成回复也可以形成真实感受，不能把不回复等同于关系中性。
+        discussion = ((context.get('inbox') or {}).get('discussion') or {})
+        prompt = (role_text(agent, 'social') + RELATION_APPRAISAL_RULES
+                  + '\n行为已确定为不回复或延后，只判断自己读到来信后的感受，不生成回复。'
+                  + 'category只能为' + ','.join(key for key in RULES if key != 'like') + '。'
+                  + '返回 {"received_appraisal":{"category":"neutral","reason":"实际感受","quote":"非中性时逐字原文"}}。\n资料：'
+                  + json.dumps({'discussion': discussion}, ensure_ascii=False))
+        appraisal = complete_json(agent, prompt,
+                                  lambda value: validate_appraisal(value.get('received_appraisal'), discussion.get('source', '')),
+                                  owner=owner, scene='社交来信感受', check=check)
+        return {**selected, 'reason': f'系统选择说明：{source}选择{selected_key}，不是人物感受。',
+                'received_appraisal': appraisal, 'image_choice': 'none'}
     scoped = {**context, 'allowed': [selected['action']]}
     if selected['action'] != 'publish':
         scoped['image_choices'], scoped['existing_images'] = ['none'], []
@@ -102,7 +116,7 @@ def decide_social(agent, context, *, owner=None):
     from .memory.recall import memory_context
     prompt = build_agent_system_prompt(role_text(agent), conversation=False) + '\n' + memory_context(agent, '社交 ' + json.dumps(expression_context, ensure_ascii=False)[:1500])
     prompt += '\n' + decision_instruction([selected['action']], has_inbox=bool(scoped.get('inbox')),
-        image_choices=scoped['image_choices'], categories=tuple(RULES))
+        image_choices=scoped['image_choices'], categories=tuple(key for key in RULES if key != 'like'))
     prompt += '\n行为和目标已选定，不得改变。可不赞不评；说明只能根据真实资料。\n资料：' + json.dumps(expression_context, ensure_ascii=False)
     return complete_json(agent, prompt, lambda value: validate_result(value, context, selected),
                          owner=owner, scene='社交表达', check=check)

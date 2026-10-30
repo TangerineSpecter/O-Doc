@@ -88,7 +88,7 @@ def prompt(run: AIRun) -> str:
 def recover(run: AIRun) -> AIRun:
     if run.status not in ('pending', 'running'):
         return run
-    job = Job.objects.filter(run=run).first()
+    job = Job.objects.only('run_id','cancelled','lease_until','lease_token','stage').filter(run=run).first()
     if not job or not job.lease_until or job.lease_until < timezone.now():
         if (run.status == 'pending' and job and not job.cancelled
                 and queue_liveness.alive(run.pk, job.lease_token)):

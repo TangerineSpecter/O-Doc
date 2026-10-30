@@ -121,6 +121,7 @@ export function QuantModal({
     close,
     children,
     wide = false,
+    fixedHeight = false,
     busy = false,
     footer,
     layer = 'default',
@@ -130,6 +131,7 @@ export function QuantModal({
     close: () => void;
     children: ReactNode;
     wide?: boolean;
+    fixedHeight?: boolean;
     busy?: boolean;
     footer?: ReactNode;
     layer?: 'default' | 'confirmation';
@@ -147,7 +149,7 @@ export function QuantModal({
     return (
         <div
             data-modal-scroll-lock
-            className={`fixed inset-0 ${layer === 'confirmation' ? 'z-[130]' : 'z-[120]'} flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-sm animate-in fade-in duration-150 sm:p-6`}
+            className={`fixed inset-0 ${layer === 'confirmation' ? 'z-[130]' : 'z-[120]'} flex items-center justify-center bg-slate-900/40 p-3 sm:p-6 ${fixedHeight ? '' : 'backdrop-blur-sm animate-in fade-in duration-150'}`}
             onClick={dismiss}
         >
             <section
@@ -155,7 +157,7 @@ export function QuantModal({
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
-                className={`flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 ${wide ? 'max-w-4xl' : 'max-w-2xl'}`}
+                className={`flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${fixedHeight ? '' : 'animate-in zoom-in-95 slide-in-from-bottom-2 duration-200'} ${wide ? 'max-w-4xl' : 'max-w-2xl'} ${fixedHeight ? 'h-[90dvh]' : ''}`}
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                     if (e.key !== 'Tab') return;
@@ -190,7 +192,7 @@ export function QuantModal({
                         <X size={18} />
                     </button>
                 </header>
-                <div className="min-h-0 space-y-5 overflow-auto p-6 scrollbar-hide">{children}</div>
+                <div className={fixedHeight ? "min-h-0 flex-1 overflow-hidden p-4 sm:p-6" : "min-h-0 space-y-5 overflow-auto p-6 scrollbar-hide"}>{children}</div>
                 {footer && (
                     <footer className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
                         {footer}

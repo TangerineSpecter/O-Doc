@@ -1,9 +1,11 @@
+import type {QuantReportReading} from '../../../types/api/quantReading';
+import type {QuantWorkspace} from '../../../types/api/quantReading';
 import {useState} from 'react';
 import {GitCompareArrows, Sparkles} from 'lucide-react';
-import type {QuantEntryDetail, QuantReport, QuantSource} from '../../../types/api/quant';
+import type {QuantSource} from '../../../types/api/quant';
 import type {QuantSourceImpactPreview} from '../../../types/api/quantSourceImpact';
 import {useQuantSourceImpact} from '../../../hooks/useQuantSourceImpact';
-import {readSourceImpact, staticSourceReports} from '../../../utils/quantSourceImpact';
+import {readSourceImpact} from '../../../utils/quantSourceImpact';
 import {quantDate} from '../../../utils/quant';
 import {Select} from '../../common/Select';
 import {cardClass, QuantButton} from '../ui';
@@ -28,24 +30,27 @@ function ImpactResult({value}: {value: QuantSourceImpactPreview}) {
     </div>;
 }
 
-export function SourceImpactPanel({entry, collection, source, currentReport, analyze, incremental, analyzeDisabledReason, inModal = false}: {
-    entry: QuantEntryDetail; collection: string; source?: QuantSource; currentReport?: QuantReport;
+export function SourceImpactPanel({controller, entry, collection, source, currentReport, analyze, incremental, analyzeDisabledReason, inModal = false}: {
+    controller: import('../../../hooks/useQuant').QuantController; entry: QuantWorkspace; collection: string; source?: QuantSource; currentReport?: QuantReportReading;
     analyze: () => void; incremental: (baselineRunId: string) => void; analyzeDisabledReason: string; inModal?: boolean;
 }) {
-    const reports = staticSourceReports(entry);
+    const reports = entry.reportHeaders.filter(row=>[1,2,3].includes(row.schemaVersion));
+    const sourceMeta=entry.sourceHeaders.find(row=>row.id===currentReport?.sourceId);
+    const targetId=source?.id||sourceMeta?.materialCurrentSourceId||currentReport?.sourceId||'';
     const [baselineSelection, setBaselineSelection] = useState('');
     const baseline = reports.find(report => report.id === baselineSelection) || (!baselineSelection ? reports.find(report => report.id === currentReport?.id) : undefined);
-    const state = useQuantSourceImpact(collection, entry.id, source?.id || '', baseline?.id || '');
+    const state = useQuantSourceImpact(collection, entry.id, targetId, baseline?.id || '');
     let value: QuantSourceImpactPreview | undefined, decodingError = '';
-    if (state.json && source && baseline) try {value = readSourceImpact(state.json, {sourceId: source.id, reportId: baseline.id, baselineSourceId: baseline.sourceId});} catch (cause) {decodingError = cause instanceof Error ? cause.message : '源码影响预览无法读取';}
+    if (state.json && targetId && baseline) try {value = readSourceImpact(state.json, {sourceId: targetId, reportId: baseline.id, baselineSourceId: baseline.sourceId});} catch (cause) {decodingError = cause instanceof Error ? cause.message : '源码影响预览无法读取';}
     const error = state.error || decodingError;
     const baselineRun = entry.runs.find(row => row.id === baseline?.runId && row.kind === 'analyze' && row.status === 'completed' && [1, 2, 3].includes(row.workflow?.version || 0));
     const canIncremental = value?.relationship === 'same_material' && !!baselineRun;
     return <section className={`${cardClass} space-y-4`} aria-label="源码变更影响预览">
+        {controller.pages.reports?.hasMore&&<QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('reports',true),false)}>更多基准报告</QuantButton>}
         <div><h3 className="font-semibold text-slate-900">源码变更影响</h3><p className="mt-2 text-sm leading-7 text-slate-500">用上方所选来源，与一份明确的历史静态报告核对原文、参数引文和候选依赖。预览不调用模型，也不改写历史报告。</p></div>
-        {!source ? <p className="text-sm leading-7 text-slate-500">保存来源快照后可开始对照。</p> : !reports.length ? <p className="text-sm leading-7 text-slate-500">尚无可作基准的静态报告。先生成第一份研究报告，后续保存新快照即可比较。</p> : <>
-            <div className="flex flex-wrap items-end gap-3"><label className="min-w-0 flex-1 space-y-2 text-sm text-slate-600"><span className="block">基准静态报告</span><Select menuPortal={inModal} value={baseline?.id || ''} onChange={setBaselineSelection} placeholder="选择同一研究条目的静态报告" options={reports.map(report => ({value: report.id, label: `${report.schemaVersion === 1 ? '历史代码解释 · ' : ''}${report.data.title || '静态报告'} · ${quantDate(report.createdAt)}`}))}/></label><QuantButton disabled={!baseline || state.loading} onClick={state.preview}><GitCompareArrows size={15}/>{state.loading ? '读取预览中…' : state.started ? '重新预览' : '预览源码变更影响'}</QuantButton></div>
-            <p className="break-words text-xs leading-6 text-slate-500">目标来源：{source.payload.title || source.payload.language || source.id} · {quantDate(source.createdAt)}。更换目标或基准后需要重新预览。</p>
+        {!targetId ? <p className="text-sm leading-7 text-slate-500">保存来源快照后可开始对照。</p> : !reports.length ? <p className="text-sm leading-7 text-slate-500">尚无可作基准的静态报告。先生成第一份研究报告，后续保存新快照即可比较。</p> : <>
+            <div className="flex flex-wrap items-end gap-3"><label className="min-w-0 flex-1 space-y-2 text-sm text-slate-600"><span className="block">基准静态报告</span><Select menuPortal={inModal} value={baseline?.id || ''} onChange={id=>{setBaselineSelection(id);const row=reports.find(report=>report.id===id);if(row)void controller.safe(()=>controller.ensureRun(row.runId),false);}} placeholder="选择同一研究条目的静态报告" options={reports.map(report => ({value: report.id, label: `${report.schemaVersion === 1 ? '历史代码解释 · ' : ''}${report.title || '静态报告'} · ${quantDate(report.createdAt)}`}))}/></label><QuantButton disabled={!baseline || state.loading} onClick={state.preview}><GitCompareArrows size={15}/>{state.loading ? '读取预览中…' : state.started ? '重新预览' : '预览源码变更影响'}</QuantButton></div>
+            <p className="break-words text-xs leading-6 text-slate-500">目标来源：{source?.payload.title || source?.payload.language || sourceMeta?.title || targetId} · {quantDate(source?.createdAt||sourceMeta?.createdAt||currentReport?.createdAt||'')}。更换目标或基准后需要重新预览。</p>
             {baseline?.schemaVersion === 1 && <p className="text-xs leading-6 text-slate-500">基准是历史代码解释；未提供的结构化参数、候选将保持为空。</p>}
             {state.loading && <p role="status" className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">正在读取所选两份快照的差异与保守依赖线索…</p>}
             {error && <div role="alert" className="rounded-xl bg-orange-50 p-4 text-sm leading-7 text-orange-800"><p>{error}</p><p className="mt-1 text-xs">可以重新预览；原报告和来源快照仍保留。</p></div>}

@@ -1,6 +1,6 @@
 import { quantHeadingIds } from '../../utils/quantMarkdownHeadings';
 import { useQuantCopyFeedback } from '../../hooks/useQuantCopyFeedback';
-import { useId, type ReactNode } from 'react';
+import { memo, useId, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -48,7 +48,7 @@ function CodeBlockCard({ language, code }: { language: string; code: string }) {
     );
 }
 
-export function ReportMarkdown({
+export const ReportMarkdown = memo(function ReportMarkdown({
     text,
     stripTitle,
     stripSummary,
@@ -150,4 +150,4 @@ export function ReportMarkdown({
             </ReactMarkdown>
         </div>
     );
-}
+});

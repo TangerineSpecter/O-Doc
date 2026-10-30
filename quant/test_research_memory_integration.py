@@ -3,6 +3,7 @@
 Only the provider response is faked. Calculations use synthetic OHLCV and the
 test settings' temporary media/database; no restored record gains execution.
 """
+from quant.testing_reading import read_fixture
 import copy
 import json
 from datetime import timedelta
@@ -143,7 +144,7 @@ class ResearchMemoryIntegrationTests(TestCase):
         self.assertEqual(report.data['findings'][0]['evidence_refs'], [experiment_ref])
         self.assertFalse(report.data['independent_holdout_proven'])
         self.assertIn('memory_assessment', run.result)
-        detail = self.client.get(f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/').json()['data']
+        detail = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/')
         presented = next(row for row in detail['runs'] if row['id'] == run.pk)
         self.assertEqual(json.loads(presented['researchMemoryJson']), self.memory(run))
         self.assertEqual(presented['result']['review']['memoryAssessment'][0]['action'], 'reject')
@@ -171,7 +172,7 @@ class ResearchMemoryIntegrationTests(TestCase):
             ref for item in report.data['memory_assessment'] for ref in item['evidence_refs']})
         self.assertEqual(report.data['evidence_hash'], digest(context))
         self.assertNotIn('total_score', report.data)
-        detail = self.client.get(f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/').json()['data']
+        detail = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/')
         presented = next(row for row in detail['runs'] if row['id'] == run.pk)
         self.assertEqual(json.loads(presented['researchMemoryJson']), self.memory(run))
         replay = self.client.post(path, values, format='json')

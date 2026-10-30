@@ -1,4 +1,5 @@
 """Source → report → initial proposal → local experiment, with no prior experiment."""
+from quant.testing_reading import read_fixture
 import copy
 import json
 from unittest.mock import patch
@@ -66,7 +67,7 @@ class InitialPlanningTests(TestCase):
         self.assertEqual(proposal.data['seeds'][0]['parameters'], {'N': 20})
         self.assertEqual(proposal.data['seeds'][0]['variants'], [{'N': 15}, {'N': 25}])
         self.assertFalse(ExperimentJob.objects.exists())
-        detail = self.client.get(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/').json()['data']
+        detail = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{entry.pk}/')
         self.assertEqual(detail['reports'][0]['proposal']['id'], proposal.pk)
         self.assertIn('首轮实验规划', detail['reports'][0]['markdown'])
         dataset = self.dataset()

@@ -2,6 +2,7 @@
 import copy
 import time
 from datetime import timedelta
+from decimal import Decimal
 from django.db import transaction
 from system_settings.decision.routing import choose_scene, jev_enabled
 from .farm_gate import farm_gate, guarded
@@ -38,13 +39,48 @@ def eligibility(owner, agent, at, item_id='') -> str:
     return ''
 
 
+def recent_personal_results(owner: str, actor: str, row: LotteryRound) -> list[dict]:
+    """Recent account draws, including nonparticipation; cash comes from actual awards."""
+    from .lottery_models import LotteryTicket
+    from .models import WorldLedger
+    rounds = list(LotteryRound.objects.filter(owner_id=owner, status='settled',
+        sequence__lt=row.sequence).order_by('-sequence')[:3])
+    if not rounds:
+        return []
+    tickets = {previous.pk: [] for previous in rounds}
+    for round_id, picked in LotteryTicket.objects.filter(owner_id=owner, actor_id=actor,
+            round_id__in=tickets).values_list('round_id', 'numbers'):
+        tickets[round_id].append(picked)
+    prizes = dict.fromkeys(tickets, Decimal(0))
+    for snapshot, amount in WorldLedger.objects.filter(agent_id=actor, kind='lottery',
+            snapshot__owner_id=owner, snapshot__lottery_kind='award',
+            snapshot__round_id__in=list(tickets), amount__gt=0).values_list('snapshot', 'amount'):
+        prizes[snapshot['round_id']] += amount
+    results = []
+    for previous in rounds:
+        picked = tickets[previous.pk]
+        winning = previous.result.get('winning_numbers')
+        known = isinstance(winning, list) and len(winning) == 3
+        matches = [len(set(numbers) & set(winning)) for numbers in picked] if known else []
+        results.append({'sequence': previous.sequence,
+            'draws_at': local_time(previous.draws_at).isoformat(),
+            'purchased_tickets': len(picked),
+            'winning_tickets': sum(count > 0 for count in matches) if known or not picked else None,
+            'best_prize_tier': min((4 - count for count in matches if count), default=None),
+            'awarded_prize': format(prizes[previous.pk], '.2f')})
+    return results
+
+
 def summary(owner, actor):
     row = current_round(owner)
     if row is None:
         return None
-    return {'pool': str(pool(row)), 'held': row.tickets.filter(actor_id=actor).count(),
+    context = {'pool': str(pool(row)), 'held': row.tickets.filter(actor_id=actor).count(),
             'pending': reserved_tickets(owner, actor, row.pk), 'limit': 10,
             'price': str(price(row.rules)), 'draws_at': local_time(row.draws_at).isoformat()}
+    if recent := recent_personal_results(owner, actor, row):
+        context['recent_personal_results'] = recent
+    return context
 
 
 def state(item, agent, row, selected=None):

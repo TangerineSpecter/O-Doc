@@ -1,9 +1,10 @@
+type QuantSourceSupplementResult=Omit<WireSupplementResult,'entry'>&{entry:QuantEntryDetail};
 import assert from 'node:assert/strict';
 import {beforeEach,test} from 'node:test';
 import type {QuantEntryDetail} from '../../types/api/quant.ts';
 import type {QuantStageEvidence} from '../../types/api/quantWorkflow.ts';
-import type {QuantSourceSupplementInput,QuantSourceSupplementResult} from '../../types/api/quantSourceSupplement.ts';
-import {resolveQuantRoute} from './routes.ts';
+import type {QuantSourceSupplementInput,QuantSourceSupplementResult as WireSupplementResult} from '../../types/api/quantSourceSupplement.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {quantState,resetQuantStateForTests} from './state.ts';
 
 const storage=new Map<string,string>();

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import type {QuantController} from '../../hooks/useQuant';
 import {
     Activity,
     Award,
@@ -15,7 +15,7 @@ import {
 import { Select } from '../common/Select';
 import { QuantButton, inputClass } from './ui';
 import { quantKindOptions as kindOptions, quantLanguageOptions as languageOptions } from '../../utils/quant';
-import type { QuantEntry, QuantKind } from '../../types/api/quant';
+import type { QuantKind } from '../../types/api/quant';
 
 const kindMeta: Record<
     QuantKind,
@@ -55,6 +55,7 @@ function summarizeMarkdown(content?: string): string {
 
 export function EntryList({
     entries,
+    directory,
     current,
     loading,
     busy,
@@ -65,42 +66,19 @@ export function EntryList({
 }: {
     language: string;
     setLanguage: (value: string) => void;
-    entries: QuantEntry[];
+    entries: QuantController['entries'];
+    directory: QuantController['directory'];
     current: string;
     loading: boolean;
     busy: boolean;
     select: (id: string) => void;
     create: () => void;
 }) {
-    const [search, setSearch] = useState('');
-    const [kind, setKind] = useState('');
-    const [sortBy, setSortBy] = useState<'updated' | 'title'>('updated');
-
-    const kindCounts = useMemo(() => {
-        const counts: Record<string, number> = { '': entries.length, factor: 0, indicator: 0, strategy: 0 };
-        for (const item of entries) {
-            counts[item.kind] = (counts[item.kind] || 0) + 1;
-        }
-        return counts;
-    }, [entries]);
-
-    const filtered = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        const list = entries.filter(
-            (entry) =>
-                (!kind || entry.kind === kind) &&
-                (!query ||
-                    [entry.title, entry.content, ...entry.tags]
-                        .join(' ')
-                        .toLowerCase()
-                        .includes(query)),
-        );
-        if (sortBy === 'title') {
-            return [...list].sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
-        }
-        return list;
-    }, [entries, kind, search, sortBy]);
-
+    const {q:search,kind,sort:sortBy}=directory.query;
+    const setSearch=(q:string)=>directory.update({q});
+    const setKind=(value:string)=>directory.update({kind:value});
+    const kindCounts:Record<string,number>={...directory.kindCounts,'':Object.values(directory.kindCounts).reduce((sum,n)=>sum+n,0)};
+    const filtered=entries;
     const hasFilters = Boolean(search.trim() || kind || language);
 
     return (
@@ -112,9 +90,7 @@ export function EntryList({
                             研究目录
                         </span>
                         <span className="inline-flex items-center rounded-full border border-orange-200/70 bg-orange-50 px-2 py-0.5 font-mono text-[10px] font-bold text-orange-600">
-                            {filtered.length === entries.length
-                                ? entries.length
-                                : `${filtered.length}/${entries.length}`}
+                            {`${entries.length}/${directory.total}`}
                         </span>
                     </div>
                     <QuantButton primary size="sm" disabled={busy} onClick={create} className="!px-2.5 !py-1 !text-xs">
@@ -197,7 +173,7 @@ export function EntryList({
                         type="button"
                         aria-label={sortBy === 'updated' ? '当前按更新时间排序，点击按标题排序' : '当前按标题排序，点击按更新时间排序'}
                         title={sortBy === 'updated' ? '按更新时间排序' : '按标题排序'}
-                        onClick={() => setSortBy((prev) => (prev === 'updated' ? 'title' : 'updated'))}
+                        onClick={() => directory.update({sort:sortBy==='updated'?'title':'updated'})}
                         className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 transition hover:border-orange-200 hover:text-orange-600"
                     >
                         <ArrowUpDown size={11} />
@@ -216,7 +192,7 @@ export function EntryList({
                         const isSelected = current === entry.id;
                         const meta = kindMeta[entry.kind] || kindMeta.factor;
                         const KindIcon = meta.icon;
-                        const snippet = summarizeMarkdown(entry.content);
+                        const snippet = summarizeMarkdown(entry.preview);
                         return (
                             <button
                                 type="button"
@@ -309,6 +285,8 @@ export function EntryList({
                         )}
                     </div>
                 )}
+                {directory.error && <p role="alert" className="p-3 text-xs text-red-600">{directory.error}</p>}
+                {(directory.hasMore || directory.error) && <div className="flex justify-center py-3"><QuantButton disabled={directory.moreLoading||loading} onClick={()=>void (directory.error ? directory.retry() : directory.loadMore())}>{directory.moreLoading?'正在加载…':directory.error?'重试':'加载更多'}</QuantButton></div>}
             </div>
         </>
     );

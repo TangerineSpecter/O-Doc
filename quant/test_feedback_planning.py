@@ -1,4 +1,5 @@
 """Feedback proposals reach real local calculations without inventing external verification."""
+from quant.testing_reading import read_fixture
 import copy
 import json
 from unittest.mock import patch
@@ -63,7 +64,7 @@ class FeedbackPlanningTests(TestCase):
         proposal = self.finish(run, result)
         self.assertEqual(proposal.data['origin'], 'external_feedback')
         self.assertFalse(ExperimentJob.objects.exists())
-        detail = self.client.get(f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/').json()['data']
+        detail = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/')
         report = next(row for row in detail['reports'] if row['runId'] == run.pk)
         self.assertEqual(report['proposal']['id'], proposal.pk)
         self.assertEqual(report['data']['feedbackPlanningVersion'], 1)

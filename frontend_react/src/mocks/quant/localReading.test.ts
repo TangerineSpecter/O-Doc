@@ -4,7 +4,7 @@ import type {QuantAIRun, QuantEntryDetail, QuantImplementation} from '../../type
 import type {QuantStageEvidence} from '../../types/api/quantWorkflow.ts';
 import {readLocalReading,readingLocations} from '../../utils/quantLocalReading.ts';
 import {readStageInput} from '../../utils/quantStageInput.ts';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {quantState, resetQuantStateForTests} from './state.ts';
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, 'localStorage', {value: {getItem: (key: string) => storage.get(key) || null,

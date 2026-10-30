@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import type {QuantWorkspace} from '../../types/api/quantReading';
+import { useCallback, useEffect, useState } from 'react';
 import { BarChart3, Edit3, Plus, Trash2 } from 'lucide-react';
 import { quantApi } from '../../api/quant';
 import { Select } from '../common/Select';
@@ -8,7 +9,7 @@ import { quantVersionLabel as versionLabel } from '../../utils/quant';
 import { quantDate } from '../../utils/quant';
 import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
-import type { QuantBacktest, QuantBacktestInput, QuantEntryDetail } from '../../types/api/quant';
+import type { QuantBacktest, QuantBacktestInput } from '../../types/api/quant';
 
 export function BacktestsPanel({
     entry,
@@ -17,7 +18,7 @@ export function BacktestsPanel({
     register,
     request,
 }: {
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;
@@ -25,8 +26,8 @@ export function BacktestsPanel({
 }) {
     const [editing, setEditing] = useState<QuantBacktest | 'new' | null>(null);
     const [removing, setRemoving] = useState<QuantBacktest | null>(null);
-    const versions = entry.implementations.flatMap((implementation) =>
-        implementation.versions.map((version) => ({ version, implementation })),
+    const versions = entry.implementationHeaders.flatMap((implementation) =>
+        (entry.versionHeaders[implementation.id]||[]).map((version) => ({ version, implementation })),
     );
     return (
         <div className="space-y-5">
@@ -199,7 +200,7 @@ function BacktestModal({
     saved,
 }: {
     backtest: QuantBacktest | null;
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;
@@ -242,10 +243,17 @@ function BacktestModal({
     useQuantDraftRegistration('backtest', JSON.stringify(draft) !== baseline, save, register, () =>
         setDraft(JSON.parse(baseline) as QuantBacktestInput),
     );
+    const [implementationId,setImplementationId]=useState('');
+    const ensureVersionHeader=controller.ensureVersionHeader,setReadError=controller.setError;
+    useEffect(()=>{
+        if(!backtest?.versionId)return;
+        let alive=true;void ensureVersionHeader(backtest.versionId).then(row=>{if(alive)setImplementationId(row.implementationId);}).catch(cause=>setReadError(String(cause)));
+        return()=>{alive=false;};
+    },[backtest?.versionId,ensureVersionHeader,setReadError]);
     const versionOptions = [
         { value: '', label: '代码版本未知' },
-        ...entry.implementations.flatMap((implementation) =>
-            implementation.versions.map((version) => ({
+        ...entry.implementationHeaders.flatMap((implementation) =>
+            (entry.versionHeaders[implementation.id]||[]).map((version) => ({
                 value: version.id,
                 label: versionLabel(implementation, version),
             })),
@@ -253,6 +261,9 @@ function BacktestModal({
     ];
     return (
         <QuantModal title={backtest ? '编辑回测记录' : '记录回测'} close={close} wide busy={controller.busy}>
+            <label className="mb-4 block space-y-2 text-sm"><span>代码实现（用于选择版本）</span><Select menuPortal value={implementationId} options={[{value:'',label:'暂不指定'},...entry.implementationHeaders.map(row=>({value:row.id,label:row.name}))]} onChange={id=>{setImplementationId(id);void controller.safe(()=>controller.loadVersionHeaders(id),false);}}/></label>
+            {implementationId&&controller.pages[`versions:${implementationId}`]?.hasMore&&<QuantButton onClick={()=>void controller.safe(()=>controller.moreVersions(implementationId),false)}>更多代码版本</QuantButton>}
+            {controller.pages.implementations?.hasMore&&<QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('implementations',true),false)}>更多代码实现</QuantButton>}
             <div className="grid gap-4 sm:grid-cols-2">
                 <QuantField
                     label="回测名称"

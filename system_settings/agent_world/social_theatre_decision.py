@@ -120,7 +120,7 @@ def validate_review(value, *, actor_id, participants, transcript):
             raise ValueError('只能对其他参与者各评价一次')
         seen.add(target)
         category = row.get('category')
-        if category not in RULES:
+        if category not in RULES or category == 'like':
             raise ValueError('关系评价类别无效')
         evidence = row.get('evidence_ids')
         if (not isinstance(evidence, list) or not evidence
@@ -142,14 +142,14 @@ def review_relations(agent, *, topic, participants, transcript, owner, check):
         '评价的是自己如何看待别人：甲嘲讽你时，记录你对甲的感受；不能替甲或其他人决定感受。'
         '按最终实际消息判断，不知道发言决策，也不参考原有关系分数。'
         '被理解、真诚维护、合拍、敷衍、轻视、被误解、越界、解释或道歉等，可以影响感受；'
-        '必须有具体的人际依据，不能因为对方对新闻持不同观点就扣分，普通礼貌附和也不必加分。'
+        '必须有具体的人际依据：普通礼貌附和、赞同新闻观点默认neutral；确实增加欣赏、信任或被理解感才选agreement。不能只因对方观点不同就扣分，但敷衍、说教、轻视你的关切或触碰个人重要价值观，确实影响你对其本人感受时允许disagreement。温柔角色也可有真实不满。解释、道歉和帮助必须是对方实际做过的，不能因自己友善而给对方加分。like只用于系统点赞，不作为本阶段选择。'
         '允许没有变化，不能为了制造戏剧性分配正负事件。先看完整经过，包括后来的解释与修复。'
         '每位对方最多评价一次，选最符合本次整体感受的类别；引用对方的真实消息id作为依据。'
         '返回 {"appraisals":[{"target_actor_id":"其他参与者id","category":"类别",'
         '"reason":"具体说法如何影响了你对他的看法","evidence_ids":["消息id"]}]}，无变化返回空数组。\n资料：'
         + json.dumps({'self': participant_profile(agent),
                       'participants': [participant_profile(person) for person in participants], 'topic': discussion_topic(topic),
-                      'chat': chat_data(transcript), 'categories': list(RULES)}, ensure_ascii=False))
+                      'chat': chat_data(transcript), 'categories': [key for key in RULES if key != 'like']}, ensure_ascii=False))
     return complete_json(agent, prompt,
                          lambda value: validate_review(value, actor_id=agent.pk,
                                                        participants=participants, transcript=transcript),

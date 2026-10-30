@@ -1,0 +1,428 @@
+{
+  "date": "2026-10-30",
+  "scope": "Isolated synthetic fixtures only; no production deployment, business DB migration, live model or remote synchronization.",
+  "methodology": {
+    "fixtures": [
+      "100 and 1000 entries, each with 10000-character notes, report Markdown and source code",
+      "one entry, 100 reports, each with 5 revisions",
+      "large stage input/output, running/failed/cancelled/completed states"
+    ],
+    "bytes": "UTF-8 JSON. Directory/legacy use the configured CamelCaseJSONRenderer and a success envelope; initial reading sums actual APIClient response.content bytes from overview, three metadata pages, current report and its task summary.",
+    "queries": "Django CaptureQueriesContext. Directory projection measures domain SQL only; HTTP reading/status includes ownership/authentication/transaction overhead.",
+    "memory": "tracemalloc peak Python allocations; not process RSS, database cache, PostgreSQL server memory or disk usage.",
+    "cold_warm": "first/repeated callback within an isolated process; database/OS caches are not flushed. HTTP first access can include first user-profile setup. No best-only sampling.",
+    "cache": "Browser body-cache revisit is measured independently; zero body requests does not imply zero metadata requests.",
+    "storage": "Logical character fixtures are not a production capacity diagnosis. Original text, revisions and frozen evidence retained."
+  },
+  "databases": {
+    "sqlite": {
+      "directory": [
+        {
+          "count": 100,
+          "legacy_cold": {
+            "bytes": 3025243,
+            "queries": 1,
+            "ms": 43,
+            "peak_bytes": 7483702
+          },
+          "bounded_cold": {
+            "bytes": 34072,
+            "queries": 3,
+            "ms": 12,
+            "peak_bytes": 227187
+          },
+          "legacy_warm": {
+            "bytes": 3025243,
+            "queries": 1,
+            "ms": 44,
+            "peak_bytes": 7456304
+          },
+          "bounded_warm": {
+            "bytes": 34072,
+            "queries": 3,
+            "ms": 12,
+            "peak_bytes": 266876
+          }
+        },
+        {
+          "count": 1000,
+          "legacy_cold": {
+            "bytes": 30252043,
+            "queries": 1,
+            "ms": 380,
+            "peak_bytes": 74422026
+          },
+          "bounded_cold": {
+            "bytes": 34074,
+            "queries": 3,
+            "ms": 13,
+            "peak_bytes": 266375
+          },
+          "legacy_warm": {
+            "bytes": 30252043,
+            "queries": 1,
+            "ms": 450,
+            "peak_bytes": 74418804
+          },
+          "bounded_warm": {
+            "bytes": 34074,
+            "queries": 3,
+            "ms": 14,
+            "peak_bytes": 280001
+          }
+        }
+      ],
+      "plans": [
+        "QUANT_DIRECTORY_QUERY_PLAN sqlite 5 0 116 SEARCH quant_entry USING INDEX quant_entry_read_idx (anthology_id=?)",
+        "QUANT_HISTORY_QUERY_PLAN sqlite 4 0 54 SEARCH quant_researchreport USING COVERING INDEX quant_report_read_idx (entry_id=?)",
+        "QUANT_HISTORY_QUERY_PLAN sqlite 4 0 55 SEARCH quant_reportrevision USING COVERING INDEX quant_revision_read_idx (report_id=?)"
+      ],
+      "stage_json_status": [
+        {
+          "state": "running",
+          "visit": "first",
+          "bytes": 2846,
+          "queries": 36,
+          "ms": 102,
+          "peak_bytes": 699778
+        },
+        {
+          "state": "running",
+          "visit": "repeat",
+          "bytes": 2846,
+          "queries": 16,
+          "ms": 32,
+          "peak_bytes": 152826
+        },
+        {
+          "state": "failed",
+          "visit": "first",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 18,
+          "peak_bytes": 82227
+        },
+        {
+          "state": "failed",
+          "visit": "repeat",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 18,
+          "peak_bytes": 78028
+        },
+        {
+          "state": "cancelled",
+          "visit": "first",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 19,
+          "peak_bytes": 78535
+        },
+        {
+          "state": "cancelled",
+          "visit": "repeat",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 19,
+          "peak_bytes": 78609
+        },
+        {
+          "state": "completed",
+          "visit": "first",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 18,
+          "peak_bytes": 78423
+        },
+        {
+          "state": "completed",
+          "visit": "repeat",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 17,
+          "peak_bytes": 77482
+        }
+      ],
+      "history": {
+        "legacy": {
+          "bytes": 24240010,
+          "queries": 207,
+          "ms": 399,
+          "peak_bytes": 57242559
+        },
+        "overview": {
+          "bytes": 532,
+          "queries": 37,
+          "ms": 74,
+          "peak_bytes": 361640
+        },
+        "initial": {
+          "bytes": 49998,
+          "queries": 77,
+          "ms": 124,
+          "peak_bytes": 411030
+        },
+        "repeat_without_browser_cache": {
+          "bytes": 49998,
+          "queries": 77,
+          "ms": 124,
+          "peak_bytes": 387846
+        }
+      },
+      "tests": {
+        "count": 11,
+        "passed": true
+      }
+    },
+    "postgresql": {
+      "directory": [
+        {
+          "count": 100,
+          "legacy_cold": {
+            "bytes": 3025243,
+            "queries": 1,
+            "ms": 58,
+            "peak_bytes": 7502986
+          },
+          "bounded_cold": {
+            "bytes": 34072,
+            "queries": 3,
+            "ms": 18,
+            "peak_bytes": 269343
+          },
+          "legacy_warm": {
+            "bytes": 3025243,
+            "queries": 1,
+            "ms": 60,
+            "peak_bytes": 7464373
+          },
+          "bounded_warm": {
+            "bytes": 34072,
+            "queries": 3,
+            "ms": 19,
+            "peak_bytes": 269680
+          }
+        },
+        {
+          "count": 1000,
+          "legacy_cold": {
+            "bytes": 30252043,
+            "queries": 1,
+            "ms": 479,
+            "peak_bytes": 74552109
+          },
+          "bounded_cold": {
+            "bytes": 34074,
+            "queries": 3,
+            "ms": 28,
+            "peak_bytes": 269247
+          },
+          "legacy_warm": {
+            "bytes": 30252043,
+            "queries": 1,
+            "ms": 473,
+            "peak_bytes": 74430755
+          },
+          "bounded_warm": {
+            "bytes": 34074,
+            "queries": 3,
+            "ms": 17,
+            "peak_bytes": 268209
+          }
+        }
+      ],
+      "plans": [
+        "QUANT_DIRECTORY_QUERY_PLAN postgresql Limit  (cost=0.28..14.29 rows=50 width=73)\n  ->  Index Scan using quant_entry_read_idx on quant_entry  (cost=0.28..280.65 rows=1000 width=73)\n        Index Cond: (((anthology_id)::text = 'coll_EwsRp1X45u'::text) AND (is_valid = true))",
+        "QUANT_HISTORY_QUERY_PLAN postgresql Limit  (cost=17.78..17.79 rows=4 width=106)\n  ->  Sort  (cost=17.78..17.79 rows=4 width=106)\n        Sort Key: created_at DESC, id DESC\n        ->  Bitmap Heap Scan on quant_researchreport  (cost=4.31..17.74 rows=4 width=106)\n              Recheck Cond: ((entry_id)::text = 'bb0cd54d476a45ba8a726e10132f164b'::text)\n              ->  Bitmap Index Scan on quant_report_read_idx  (cost=0.00..4.31 rows=4 width=0)\n                    Index Cond: ((entry_id)::text = 'bb0cd54d476a45ba8a726e10132f164b'::text)",
+        "QUANT_HISTORY_QUERY_PLAN postgresql Limit  (cost=0.14..8.16 rows=1 width=106)\n  ->  Index Only Scan using quant_revision_read_idx on quant_reportrevision  (cost=0.14..8.16 rows=1 width=106)\n        Index Cond: (report_id = '673343304e7149fa88c38cbbc01343f9'::text)"
+      ],
+      "stage_json_status": [
+        {
+          "state": "running",
+          "visit": "first",
+          "bytes": 2846,
+          "queries": 36,
+          "ms": 118,
+          "peak_bytes": 671107
+        },
+        {
+          "state": "running",
+          "visit": "repeat",
+          "bytes": 2846,
+          "queries": 16,
+          "ms": 46,
+          "peak_bytes": 153679
+        },
+        {
+          "state": "failed",
+          "visit": "first",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 29,
+          "peak_bytes": 79869
+        },
+        {
+          "state": "failed",
+          "visit": "repeat",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 29,
+          "peak_bytes": 77784
+        },
+        {
+          "state": "cancelled",
+          "visit": "first",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 30,
+          "peak_bytes": 77444
+        },
+        {
+          "state": "cancelled",
+          "visit": "repeat",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 30,
+          "peak_bytes": 77713
+        },
+        {
+          "state": "completed",
+          "visit": "first",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 29,
+          "peak_bytes": 76628
+        },
+        {
+          "state": "completed",
+          "visit": "repeat",
+          "bytes": 187,
+          "queries": 13,
+          "ms": 40,
+          "peak_bytes": 77087
+        }
+      ],
+      "history": {
+        "legacy": {
+          "bytes": 24240010,
+          "queries": 207,
+          "ms": 693,
+          "peak_bytes": 57202142
+        },
+        "overview": {
+          "bytes": 532,
+          "queries": 37,
+          "ms": 95,
+          "peak_bytes": 345859
+        },
+        "initial": {
+          "bytes": 49998,
+          "queries": 77,
+          "ms": 291,
+          "peak_bytes": 394028
+        },
+        "repeat_without_browser_cache": {
+          "bytes": 49998,
+          "queries": 77,
+          "ms": 265,
+          "peak_bytes": 373884
+        }
+      },
+      "tests": {
+        "count": 11,
+        "passed": true
+      }
+    }
+  },
+  "validation": {
+    "backend_full_suite": {
+      "run": 827,
+      "passed": 825,
+      "failed": 2,
+      "note": "The full run predates the final two additional reading tests; all 11 reading tests passed separately on SQLite and PostgreSQL."
+    },
+    "frontend_quant_tests": 211,
+    "type_check": "passed",
+    "scoped_eslint": "passed",
+    "production_build": "passed; existing large-chunk warning",
+    "migration_check": "No changes detected in quant after index migration",
+    "browser": {
+      "widths": [
+        1440,
+        768,
+        390
+      ],
+      "mode": "pure local MSW; real API blocked; no 501",
+      "checks": [
+        "pagination and off-page global search",
+        "lazy original/revision/current-code reads",
+        "report body cache",
+        "report edit/save",
+        "fixed 90dvh modal",
+        "copy failure/fallback/retry",
+        "feedback report navigation",
+        "append failure retains data and retries offset",
+        "abandoned slow request cancellation",
+        "entry/report deep links and explicit 404 without fallback",
+        "task completion retains selected historical report and unsaved draft",
+        "navigation draft protection",
+        "empty/slow/error scenarios",
+        "saving code updates the current version before leaving",
+        "comparison close/reopen uses cached body without replacing selected report"
+      ],
+      "body_cache_sample": {
+        "first_report_switch_ms": 159,
+        "cached_report_switch_ms": 80,
+        "cached_body_requests": 0
+      },
+      "modal_cpu4_samples": [
+        {
+          "width": 1440,
+          "open_ms": 202,
+          "tabs_ms": [
+            20,
+            53,
+            57,
+            24
+          ],
+          "height": 900
+        },
+        {
+          "width": 768,
+          "open_ms": 147,
+          "tabs_ms": [
+            19,
+            55,
+            58,
+            31
+          ],
+          "height": 900
+        },
+        {
+          "width": 390,
+          "open_ms": 162,
+          "tabs_ms": [
+            26,
+            52,
+            54,
+            27
+          ],
+          "height": 900
+        }
+      ],
+      "comparison_cached_body_requests": 0
+    }
+  },
+  "known_existing_failures": [
+    {
+      "test": "quant.test_graph.GraphTests.test_no_model_still_shows_provenance_and_exact_edges",
+      "reason": "existing graph includes scenario_hypothesis edge in addition to old fixture expectation",
+      "baseline": "Reproduced in separate clean HEAD archive"
+    },
+    {
+      "test": "quant.test_tongdaxin_parameters.TongdaxinReportTests.test_plain_table_report_proposal_experiment_restore_and_v1_preservation",
+      "reason": "existing fake model output fails current result validation",
+      "baseline": "Reproduced in separate clean HEAD archive"
+    }
+  ]
+}

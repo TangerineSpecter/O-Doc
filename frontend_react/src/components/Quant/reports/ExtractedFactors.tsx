@@ -1,7 +1,8 @@
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, ArrowUpRight, ChevronDown, ChevronUp, Filter, Sigma, Zap } from 'lucide-react';
-import type { QuantFactorRole, QuantReport } from '../../../types/api/quant';
+import type { QuantFactorRole } from '../../../types/api/quant';
 import { conciseFactorSummary, type FactorReading } from '../../../utils/quantFactorReading';
 import { factorRoles } from '../factorPresentation';
 import { QuantButton } from '../ui';
@@ -16,7 +17,7 @@ const appearance: Record<QuantFactorRole, { icon: typeof Sigma; color: string }>
     display: {icon: Sigma, color: 'bg-slate-100 text-slate-700'},
 };
 
-export function ExtractedFactors({ report, openFactors, notes = {} }: { report: QuantReport; openFactors: () => void; notes?: Record<string, FactorReading> }) {
+export function ExtractedFactors({ report, openFactors, notes = {} }: { report: QuantReportReading; openFactors: () => void; notes?: Record<string, FactorReading> }) {
     const [expanded, setExpanded] = useState(false);
     const [selected, setSelected] = useState<number | null>(null);
     if (report.data.extractionVersion !== 1) return null;

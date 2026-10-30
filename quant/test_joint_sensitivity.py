@@ -1,4 +1,5 @@
 """Joint evidence cannot invent missing combinations or mix modes/folds."""
+from quant.sync import SCHEMA_VERSION
 import copy
 import json
 from unittest.mock import patch
@@ -185,7 +186,7 @@ class JointReviewTests(TestCase):
         run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)
         self.assertEqual(run.result['scores'][0]['score'], 2)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], SCHEMA_VERSION)
         validate(snapshot, metadata(snapshot))
         forged = copy.deepcopy(snapshot)
         next(row['fields'] for row in forged if row['model'] == 'quant.airun' and row['pk'] == run.pk)['review_version'] = 4

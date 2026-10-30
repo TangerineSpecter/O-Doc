@@ -1,4 +1,4 @@
-import type {QuantEntryDetail, QuantReport, QuantSource} from '../types/api/quant';
+import type {QuantReport, QuantSource, QuantAIRun} from '../types/api/quant';
 import type {QuantSourceImpactPreview} from '../types/api/quantSourceImpact';
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -13,11 +13,11 @@ const metadata = (value: unknown) => object(value) && ['source_id', 'source_hash
 export const sourceImpactLabels = {direct: '直接变化线索', potential: '潜在影响', unknown: '影响未知', quote_present: '原引文仍在', not_observed: '未观测到影响线索'};
 export const sourceQuoteLabels = {missing: '原引文未找到', moved: '引文位置变化', present: '引文仍存在', ambiguous: '多处匹配，定位不明确', unknown: '无法确定'};
 
-export function staticSourceReports(entry: QuantEntryDetail): QuantReport[] {
+export function staticSourceReports<T extends Pick<QuantReport,'id'|'sourceId'|'schemaVersion'>>(entry: {reports?:T[];sources?:QuantSource[]}): T[] {
     return (entry.reports || []).filter(report => [1, 2, 3].includes(report.schemaVersion) && entry.sources?.some(source => source.id === report.sourceId && source.payload.provenance !== 'external_feedback'));
 }
 /** Follow only an authoritative pointer within the report's own material, never another implementation. */
-export function selectedAnalysisSource(entry: QuantEntryDetail, report?: QuantReport, explicitSourceId = ''): QuantSource | undefined {
+export function selectedAnalysisSource(entry: {sources?:QuantSource[]}, report?: Pick<QuantReport,'sourceId'|'schemaVersion'>, explicitSourceId = ''): QuantSource | undefined {
     const sources = (entry.sources || []).filter(source => source.payload.provenance !== 'external_feedback');
     const explicit = sources.find(source => source.id === explicitSourceId);
     if (explicit) return explicit;
@@ -25,7 +25,7 @@ export function selectedAnalysisSource(entry: QuantEntryDetail, report?: QuantRe
     if (baseline && report && [1, 2, 3].includes(report.schemaVersion)) return sources.find(source => source.id === baseline.materialCurrentSourceId && source.materialId === baseline.materialId) || baseline;
     return baseline || sources[0];
 }
-export function sourceAnalysisRuns(entry: QuantEntryDetail, sourceId?: string) {
+export function sourceAnalysisRuns<T extends Pick<QuantAIRun,'kind'|'sourceId'|'resolvedSourceId'>>(entry: {runs:T[]}, sourceId?: string) {
     return entry.runs.filter(run => run.kind === 'analyze' && !!sourceId && [run.sourceId, run.resolvedSourceId].includes(sourceId));
 }
 

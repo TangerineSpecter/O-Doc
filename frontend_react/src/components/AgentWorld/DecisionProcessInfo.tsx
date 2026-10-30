@@ -7,7 +7,7 @@ import {DecisionProcessSteps} from './DecisionProcessSteps';
 
 export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
     const [open, setOpen] = useState(false);
-    // 内容由领域配置提供；探索地点及装备比较包含元素事实，转职单列模型输入和直接分支边界。
+    // 关系v2单列忽略/延期后的来信感受，回复不重复结算自身发言；帖子评论与独立评分分别展示，内容由领域配置提供，包含大乐透日程的近期本人中奖摘要；探索地点及装备比较包含元素事实，转职单列模型输入和直接分支边界。
     const guide = decisionProcessGuides[kind];
     return <>
         <button type="button" aria-label={`查看${guide.title}`} title={`${guide.title}：${guide.subtitle}`}

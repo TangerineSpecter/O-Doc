@@ -1,10 +1,10 @@
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import { ArrowUpRight, Cpu, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
-import type { QuantReport } from '../../../types/api/quant';
 import { ReportParameters } from './ReportParameters';
 import { ParameterConfiguration } from '../feedback/ParameterConfiguration';
 
 /** Read the saved report fields; never fill an actual configuration from defaults. */
-export function ReportParameterDetails({ report, revealPlan }: { report: QuantReport; revealPlan: () => void }) {
+export function ReportParameterDetails({ report, revealPlan }: { report: QuantReportReading; revealPlan: () => void }) {
     const data = report.data;
     if (report.schemaVersion === 4) {
         return (

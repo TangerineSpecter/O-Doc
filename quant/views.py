@@ -11,9 +11,8 @@ from utils.response_utils import success_result
 from .access import owned_collection, owned_entry
 from .locking import collection_lock
 from .models import AIRun, Attachment, Backtest, CodeVersion, Entry, Implementation, Job, SourceRevision
-from .presentation import entry_detail, run_data
-from .research.list_scores import with_default_report_score
-from .serializers import AttachmentSerializer, BacktestSerializer, CodeVersionSerializer, EntryListSerializer, EntrySerializer, ImplementationSerializer, VerificationSerializer
+from .presentation import run_data
+from .serializers import AttachmentSerializer, BacktestSerializer, CodeVersionSerializer, EntrySerializer, VerificationSerializer
 from .services import adopt, attach, create_implementation, queue, read_script, save_version, touch
 from . import worker
 
@@ -63,34 +62,12 @@ class QuantView(APIView):
 
 
 class EntryView(QuantView):
+    pure_read_get = True
+
     def get(self, request, coll_id, entry_id=None):
-        if entry_id:
-            for run in self.entry.runs.filter(status__in=['pending', 'running']):
-                worker.recover(run)
-            return success_result(entry_detail(self.entry))
-        entries = with_default_report_score(Entry.objects.filter(anthology=self.collection, is_valid=True))
-        query = request.query_params.get('q', '').strip()[:200]
-        if query:
-            # JSON tags may differ by database backend; title/content matching is
-            # SQL portable and tag matching is applied to the bounded domain list.
-            candidates = list(entries)
-            entries = [entry for entry in candidates if query.casefold() in entry.title.casefold()
-                       or any(query.casefold() in str(tag).casefold() for tag in entry.tags)]
-        else:
-            entries = list(entries)
-        kind, language = request.query_params.get('kind'), request.query_params.get('language')
-        if kind:
-            if kind not in Entry.KINDS:
-                raise serializers.ValidationError('研究类型无效')
-            entries = [entry for entry in entries if entry.kind == kind]
-        if language:
-            if language not in (*Implementation.LANGUAGES, 'tongdaxin', 'text'):
-                raise serializers.ValidationError('代码语言无效')
-            ids = set(Implementation.objects.filter(entry__anthology=self.collection, language=language).values_list('entry_id', flat=True))
-            ids.update(SourceRevision.objects.filter(material__entry__anthology=self.collection,
-                payload__language=language).values_list('material__entry_id', flat=True))
-            entries = [entry for entry in entries if entry.pk in ids]
-        return success_result(EntryListSerializer(entries, many=True).data)
+        from .reading.projections import overview
+        from .reading.directory import directory
+        return success_result(overview(self.entry) if entry_id else directory(self.collection, request.query_params))
 
     def post(self, request, coll_id):
         serializer = EntrySerializer(data=request.data)
@@ -122,7 +99,8 @@ class EntryView(QuantView):
 class ImplementationView(QuantView):
     def post(self, request, coll_id, entry_id):
         implementation = create_implementation(self.entry, request.data)
-        return success_result(ImplementationSerializer(implementation).data)
+        from .reading.projections import implementation_receipt
+        return success_result(implementation_receipt(implementation))
 
     def patch(self, request, coll_id, entry_id, impl_id):
         class Rename(serializers.Serializer):
@@ -133,7 +111,8 @@ class ImplementationView(QuantView):
         implementation.name = serializer.validated_data['name']
         implementation.save(update_fields=['name', 'updated_at'])
         touch(self.entry)
-        return success_result(ImplementationSerializer(implementation).data)
+        from .reading.projections import implementation_receipt
+        return success_result(implementation_receipt(implementation))
 
 
 class VersionView(QuantView):
@@ -209,26 +188,34 @@ class ModelsView(QuantView):
 
 
 class RunView(QuantView):
+    pure_read_get = True
+
     def get(self, request, coll_id, entry_id, run_id=None):
         if run_id:
-            run = worker.recover(get_object_or_404(AIRun, pk=run_id, entry=self.entry))
+            run = get_object_or_404(AIRun, pk=run_id, entry=self.entry)
             return success_result(run_data(run))
-        return success_result([run_data(worker.recover(run)) for run in self.entry.runs.all()])
+        from .reading.directory import page
+        from .reading.projections import RUN_FIELDS, run_summary
+        return success_result(page(self.entry.runs.only(*RUN_FIELDS),request.query_params,lambda run:run_summary(run,workflow=False)))
 
     def post(self, request, coll_id, entry_id, run_id=None, action=None):
         if not run_id:
             return success_result(run_data(queue(self.entry, request.data)))
-        run = worker.recover(get_object_or_404(AIRun.objects.select_related('source_version'), pk=run_id, entry=self.entry))
+        from .reading.projections import RUN_FIELDS
+        rows=AIRun.objects.only(*RUN_FIELDS) if action=='cancel' else AIRun.objects.select_related('source_version')
+        run = worker.recover(get_object_or_404(rows, pk=run_id, entry=self.entry))
         if action == 'cancel':
             if run.status in ('pending', 'running'):
                 Job.objects.filter(run=run).update(cancelled=True, stage='已取消', lease_until=None)
                 run.status, run.error = 'cancelled', '任务已取消'
                 run.save(update_fields=['status', 'error', 'updated_at'])
                 transaction.on_commit(lambda: worker.interrupt(run.pk))
-            return success_result(run_data(run))
+            from .reading.projections import run_summary
+            return success_result(run_summary(run))
         if action == 'adopt':
             data = adopt(run)
             if 'implementation' in data:
-                data['implementation'] = ImplementationSerializer(data['implementation']).data
+                from .reading.projections import implementation_receipt
+                data['implementation'] = implementation_receipt(data['implementation'])
             return success_result(data)
         raise serializers.ValidationError('任务操作无效')

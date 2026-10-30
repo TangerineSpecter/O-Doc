@@ -5,7 +5,7 @@ import type {QuantVerification, VerificationIndexProgress} from '../../types/api
 import type {QuantExperiment} from '../../types/api/quantExperiment.ts';
 import type {QuantFormulaHistory, QuantFormulaEditResult} from '../../types/api/quantFormulaVersion.ts';
 import {readQualification, readVerification} from '../../utils/quantVerification.ts';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {quantState, resetQuantStateForTests} from './state.ts';
 import {mockQualification} from './qualification.ts';
 import type {QuantGraph} from '../../types/api/quantGraph.ts';

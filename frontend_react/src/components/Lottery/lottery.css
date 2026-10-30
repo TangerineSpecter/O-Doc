@@ -1044,38 +1044,6 @@
     font-size: 13px;
 }
 
-.lottery-resident {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-    border-radius: 8px;
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
-    font-size: 11px;
-    font-weight: 700;
-    color: #ea580c;
-}
-
-.lottery-resident--sage {
-    border-color: #bbf7d0;
-    background: #f0fdf4;
-    color: #16a34a;
-}
-
-.lottery-resident--blue {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #2563eb;
-}
-
-.lottery-resident--rose {
-    border-color: #fbcfe8;
-    background: #fdf2f8;
-    color: #db2777;
-}
-
 .lottery-ticket-prize {
     display: inline-flex;
     align-items: center;

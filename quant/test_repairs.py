@@ -1,4 +1,5 @@
 """Automatic AI revisions remain distinct hypotheses with executable provenance."""
+from quant.testing_reading import read_fixture
 import copy
 import json
 from unittest.mock import patch
@@ -122,7 +123,7 @@ class AutomaticRepairTests(TestCase):
         parent = FactorCandidate.objects.get(pk=root)
         self.assertIsNone(parent.data['expression']); self.assertIsNotNone(child.data['expression'])
         self.assertEqual(child.data['formula_version']['origin'], 'ai_repair')
-        report_wire = self.client.get(f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/').json()['data']['reports'][0]
+        report_wire = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{run.entry_id}/')['reports'][0]
         self.assertEqual(report_wire['data']['factorRepair']['items'][0]['status'], 'revised')
         self.assertEqual(report_wire['proposal']['candidates'][0]['data']['formulaVersion']['origin'], 'ai_repair')
         root_wire = self.client.get(f'/api/quant/{self.collection.pk}/factors/{root}/verification/').json()['data']

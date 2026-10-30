@@ -1,4 +1,5 @@
-import type { QuantReport } from '../../../types/api/quant';
+import {memo} from 'react';
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import { logicReportBody } from '../../../utils/quantLogicReport';
 import { factorReadingNotes } from '../../../utils/quantFactorReading';
 import { ReportMarkdown } from '../ReportMarkdown';
@@ -6,8 +7,8 @@ import { SourceFindings } from '../SourceFindings';
 import { ReportScore } from './ReportScore';
 import { ExtractedFactors } from './ExtractedFactors';
 
-export function StaticLogicReport({ report, draft, revised, openFactors, twoColumn }: {
-    report: QuantReport; draft: string; revised: boolean; openFactors: () => void; twoColumn: boolean;
+export const StaticLogicReport = memo(function StaticLogicReport({ report, draft, revised, openFactors, twoColumn }: {
+    report: QuantReportReading; draft: string; revised: boolean; openFactors: () => void; twoColumn: boolean;
 }) {
     const hasScore = !!report.data.scores?.length;
     const hasFactors = report.data.extractionVersion === 1;
@@ -42,4 +43,4 @@ export function StaticLogicReport({ report, draft, revised, openFactors, twoColu
             </aside>}
         </div>
     </div>;
-}
+});

@@ -8,7 +8,7 @@ import type {AdmissionPage} from '../../types/api/quantAdmission.ts';
 import type {QuantVerification} from '../../types/api/quantVerification.ts';
 import {readAdmission,admissionValues} from '../../utils/quantAdmission.ts';
 import {readVerification} from '../../utils/quantVerification.ts';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {quantState,resetQuantStateForTests} from './state.ts';
 beforeEach(()=>resetQuantStateForTests());
 const call=async<T>(path:string,method='GET',body?:unknown):Promise<T>=>await resolveQuantRoute(new Request(`http://localhost/api/quant/local-quant/${path}`,{method,headers:{Authorization:'local-test','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})})) as T;

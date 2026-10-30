@@ -1,5 +1,7 @@
+import {ReportHistory} from './ReportHistory';
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import { useQuantCopyFeedback } from '../../../hooks/useQuantCopyFeedback';
-import { useId, useMemo, useState } from 'react';
+import { memo, useId, useMemo, useState } from 'react';
 import {
     AlertTriangle,
     ArrowUpRight,
@@ -8,14 +10,12 @@ import {
     Check,
     Columns2,
     Copy,
-    FileClock,
     ListTree,
     PenLine,
     Save,
     SlidersHorizontal,
     Sparkles,
 } from 'lucide-react';
-import type { QuantReport } from '../../../types/api/quant';
 import type { QuantController } from '../../../hooks/useQuant';
 import type { QuantRegisterDraft } from '../../../hooks/useQuantNavigation';
 import { useQuantReportDraft } from '../../../hooks/useQuantReportDraft';
@@ -30,7 +30,7 @@ import { ReportScore } from './ReportScore';
 import { ReportParameterDetails } from './ReportParameterDetails';
 import { StaticLogicReport } from './StaticLogicReport';
 
-export function ReportEditor({
+export const ReportEditor = memo(function ReportEditor({
     report,
     collection,
     entryId,
@@ -41,12 +41,12 @@ export function ReportEditor({
     openFactors,
     reportTwoColumn,
 }: {
-    report: QuantReport;
+    report: QuantReportReading;
     collection: string;
     entryId: string;
     controller: QuantController;
     register: QuantRegisterDraft;
-    pin: () => void;
+    pin: (reportId: string) => void;
     revealPlan: () => void;
     openFactors: () => void;
     reportTwoColumn: boolean;
@@ -185,7 +185,7 @@ export function ReportEditor({
                         size="sm"
                         primary={state.editing && !state.dirty}
                         onClick={() => {
-                            pin();
+                            pin(report.id);
                             state.setEditing(!state.editing);
                             setView('report');
                         }}
@@ -216,7 +216,7 @@ export function ReportEditor({
                         aria-label="编辑研究报告"
                         value={state.draft}
                         onChange={(e) => {
-                            pin();
+                            pin(report.id);
                             state.setDraft(e.target.value);
                         }}
                         rows={28}
@@ -437,40 +437,8 @@ export function ReportEditor({
                 </div>
             )}
 
-            {/* 原稿与历史修订查看区 */}
-            <details className="mt-6 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
-                <summary className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600 hover:text-orange-600 sm:text-sm">
-                    <FileClock size={15} className="text-orange-500" />
-                    <span>查看 AI 原稿与历史修订</span>
-                    {report.revisions.length > 0 && (
-                        <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200/70">
-                            {report.revisions.length} 次修订
-                        </span>
-                    )}
-                </summary>
-                <div className="mt-4 space-y-4 border-t border-slate-200/60 pt-4">
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
-                            <span className="text-xs font-bold text-slate-700">AI 不可变原稿</span>
-                            <span className="text-[11px] text-slate-400">{quantDate(report.createdAt)}</span>
-                        </div>
-                        <ReportMarkdown text={report.originalMarkdown} />
-                    </div>
-                    {report.revisions.map((item, idx) => (
-                        <details
-                            key={item.id}
-                            className="rounded-xl border border-slate-200 bg-white p-3.5"
-                        >
-                            <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-orange-600">
-                                修订 #{idx + 1} · {quantDate(item.createdAt)}
-                            </summary>
-                            <div className="mt-3 border-t border-slate-100 pt-3">
-                                <ReportMarkdown text={item.markdown} />
-                            </div>
-                        </details>
-                    ))}
-                </div>
-            </details>
+            <ReportHistory report={report} collection={collection} entryId={entryId} controller={controller}/>
+
         </section>
     );
-}
+});

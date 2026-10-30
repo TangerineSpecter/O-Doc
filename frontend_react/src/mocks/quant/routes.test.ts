@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {beforeEach, test} from 'node:test';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {decodeFeedbackFile} from '../../utils/quantFeedbackFile.ts';
 import {clearQuantMockData, quantState, resetQuantStateForTests} from './state.ts';
 import type {QuantAIRun, QuantEntryDetail, QuantImplementation, QuantAttachment, QuantEntry, QuantCodeVersion} from '../../types/api/quant.ts';

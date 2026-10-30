@@ -373,16 +373,64 @@ class LotteryTests(TestCase):
             self.assertIsNone(config.first_draw_at.tzinfo)
             self.assertEqual(local_time(config.first_draw_at).hour, 20)
 
+    def test_daily_history_is_recent_personal_and_uses_actual_awards(self):
+        from .lottery_decision import summary
+        self.enterContext(patch('system_settings.agent_world.lottery_decision.current_round', return_value=self.round))
+        self.round.sequence = 6
+        self.round.save(update_fields=['sequence'])
+        self.assertNotIn('recent_personal_results', summary('admin', self.agent.pk))
+        histories = {}
+        for sequence, owner, status in [(n, 'admin', 'settled') for n in range(1, 6)] + [
+                (5, 'other', 'settled'), (7, 'admin', 'settled'), (0, 'admin', 'open')]:
+            previous = LotteryRound.objects.create(pk=f'{owner}-{sequence}', owner_id=owner,
+                sequence=sequence, status=status, opens_at=self.round.opens_at,
+                closes_at=self.round.closes_at, draws_at=self.round.draws_at,
+                result={'winning_numbers': [1, 2, 3], 'carry_out': '0.00'})
+            histories[(owner, sequence)] = previous
+        previous = histories[('admin', 5)]
+        for ordinal, (actor, picked) in enumerate([
+                (self.agent.pk, [1, 2, 3]), (self.agent.pk, [1, 2, 4]),
+                (self.agent.pk, [1, 2, 4]), ('other-resident', [1, 2, 3])]):
+            LotteryTicket.objects.create(pk=f'history-ticket-{ordinal}', owner_id='admin',
+                round=previous, actor_id=actor, actor_name='居民', life_item_id='history',
+                purchase_key='history', ordinal=ordinal, numbers=picked)
+        for key, owner, actor, amount in [('first', 'admin', self.agent.pk, '2000.25'),
+                ('second', 'admin', self.agent.pk, '500.00'),
+                ('foreign', 'other', self.agent.pk, '9999.00'),
+                ('other-resident', 'admin', 'other-resident', '9999.00')]:
+            WorldLedger.objects.create(pk=f'history-award-{key}', agent_id=actor,
+                agent_name='居民', kind='lottery', amount=amount,
+                snapshot={'owner_id': owner, 'round_id': previous.pk, 'lottery_kind': 'award'})
+        losing = histories[('admin', 3)]
+        LotteryTicket.objects.create(pk='losing-history', owner_id='admin', round=losing,
+            actor_id=self.agent.pk, actor_name='居民', life_item_id='history',
+            purchase_key='losing-history', ordinal=1, numbers=[8, 9, 10])
+        results = summary('admin', self.agent.pk)['recent_personal_results']
+        self.assertEqual([r['sequence'] for r in results], [5, 4, 3])
+        self.assertEqual([(r['purchased_tickets'], r['winning_tickets'],
+            r['best_prize_tier'], r['awarded_prize']) for r in results],
+            [(3, 3, 1, '2500.25'), (0, 0, None, '0.00'), (1, 0, None, '0.00')])
+        self.assertNotIn('winning_numbers', results[0])
+        losing.result = {'carry_out': '0.00'}
+        losing.save(update_fields=['result'])
+        self.assertIsNone(summary('admin', self.agent.pk)['recent_personal_results'][2]['winning_tickets'])
+
     def test_daily_planner_short_summary_quantity_and_execution(self):
         from .life_planner import plan_items
         from .life_runner import execute_item
         item = self.item()
         item.activity, item.context, item.budget = 'unplanned', {}, 0
         item.save()
+        self.round.sequence = 2
+        self.round.save(update_fields=['sequence'])
+        LotteryRound.objects.create(pk='daily-history', owner_id='admin', sequence=1,
+            status='settled', opens_at=self.round.opens_at, closes_at=self.round.closes_at,
+            draws_at=self.round.draws_at, result={'winning_numbers': [1, 2, 3], 'carry_out': '0.00'})
         def daily(agent, instruction, context, **kwargs):
             self.assertEqual(context['lottery']['held'], 0)
             self.assertNotIn('held_numbers', context['lottery'])
-            self.assertLess(len(str(context['lottery'])), 180)
+            self.assertEqual(len(context['lottery']['recent_personal_results']), 1)
+            self.assertEqual(context['lottery']['recent_personal_results'][0]['purchased_tickets'], 0)
             return {'plans': [{'id': item.pk, 'activity': 'lottery', 'reason': '试试手气'}]}
         with patch('system_settings.agent_world.lottery_decision.enabled', return_value=True), \
              patch('system_settings.agent_world.lottery_decision.choose_scene', return_value='2'), \
@@ -398,6 +446,9 @@ class LotteryTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.status, 'completed')
         self.assertEqual(LotteryTicket.objects.count(), 2)
+        LotteryRound.objects.filter(pk='daily-history').delete()
+        self.round.sequence = 1
+        self.round.save(update_fields=['sequence'])
         checkpoint_all(); validate_source(database_data())
 
     def test_quantity_failure_does_not_repeat_day_model(self):

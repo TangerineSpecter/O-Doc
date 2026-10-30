@@ -29,6 +29,7 @@ SCENES = {'fishing_spot': '钓鱼地点选择', 'fishing_duration': '钓鱼时�
 # Usage purpose per scene. Exploration preparation shares one purpose on both paths: the
 # structured questions here and the single text plan recorded by preparation.prepare.
 SCENES['life_interleaving'] = '空档活动选择'
+SCENES['post_rating'] = '帖子评分'
 SCENES['publish_category'] = '自主发帖分类选择'
 SCENES['tournament_reward_slot'] = '武道大会奖励部位'
 SCENE_PURPOSES = {'social_action': 'social', 'combat_preparation': 'exploration_prepare'}

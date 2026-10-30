@@ -1,3 +1,4 @@
+from quant.sync import SCHEMA_VERSION
 import copy
 import json
 from datetime import datetime, timedelta, timezone
@@ -74,7 +75,7 @@ class CorrelationIntegrationTests(TestCase):
         self.assertIsNone(edge['similarity']);self.assertEqual(edge['comparisonId'],comparison.pk)
         self.assertEqual(json.loads(edge['correlationJson']),value)
         snapshot=SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'],74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'],SCHEMA_VERSION)
         with self.assertRaises(SyncError):validate(snapshot,{**metadata(snapshot),'quant_schema_version':71})
         with patch('quant.worker.dispatch') as queue,patch('quant.native_python.runtime.run') as source:
             SyncManager().apply_snapshot_data(snapshot,remote_meta=metadata(snapshot))

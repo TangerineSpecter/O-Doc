@@ -1,4 +1,5 @@
 """Imported accounting drives bounded AI research, never platform verification."""
+from quant.testing_reading import read_fixture
 import copy
 import json
 from unittest.mock import patch
@@ -139,7 +140,7 @@ class ExecutionFeedbackTests(TestCase):
         self.assertFalse(Job.objects.exists())
         changed = self.client.post(url, {**data, 'notes': 'different'}, format='json')
         self.assertEqual(changed.status_code, 409)
-        detail = self.client.get(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/').json()['data']
+        detail = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{entry.pk}/')
         report_data = detail['reports'][0]['data']
         self.assertEqual(json.loads(report_data['computedExecutionJson'])['execution_summary'], report.data['execution_summary'])
         self.assertEqual(report_data['executionAssessment']['findings'][0]['refs'], run.result['execution_assessment']['findings'][0]['refs'])

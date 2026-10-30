@@ -1,4 +1,4 @@
-import type {QuantEntryDetail} from './quant';
+import type {QuantEntryOverview} from './quantReading';
 
 export interface QuantSourceFile {
     name: string;
@@ -17,7 +17,7 @@ export interface QuantSourceSupplementInput {
     modelId: string;
 }
 export interface QuantSourceSupplementResult {
-    entry: QuantEntryDetail;
+    entry: QuantEntryOverview;
     sourceId: string;
     notice: string;
 }

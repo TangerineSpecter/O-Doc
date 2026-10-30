@@ -1,15 +1,16 @@
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import {useState} from 'react';
 import {createPortal} from 'react-dom';
 import {FlaskConical} from 'lucide-react';
-import type {QuantReport} from '../../../types/api/quant';
 import type {QuantRegisterDraft} from '../../../hooks/useQuantNavigation';
 import {ExperimentProposalCard} from './ExperimentProposalCard';
 import {StartExperiment} from './StartExperiment';
 import {StartCampaign} from './StartCampaign';
+import {PlanningNote} from './PlanningNote';
 import {QuantBadge, cardClass} from '../ui';
 
 export function InitialExperimentPlan({report, collection, register, request, openExperiments}: {
-    report: QuantReport; collection: string; register: QuantRegisterDraft; request: (action: () => void) => void;
+    report: QuantReportReading; collection: string; register: QuantRegisterDraft; request: (action: () => void) => void;
     openExperiments: (id?: string) => void;
 }) {
     const [mode, setMode] = useState<'experiment' | 'campaign' | null>(null);
@@ -49,13 +50,10 @@ export function InitialExperimentPlan({report, collection, register, request, op
                     prepare={() => request(() => setMode('experiment'))}
                     startCampaign={() => request(() => setMode('campaign'))}
                 />
-            ) : (
-                <p className="text-sm leading-7 text-slate-500">实验方案用于整理验证哪些因子，以及使用哪些数据和参数。</p>
-            )}
-            {note && <details className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs leading-6 text-slate-600">
-                <summary className="cursor-pointer font-medium text-slate-600 hover:text-orange-600">查看原始生成说明</summary>
-                <p className="mt-2 whitespace-pre-wrap break-words">{note}</p>
-            </details>}
+            ) : !note ? (
+                <p className="text-sm leading-7 text-slate-500">暂无生成说明。实验方案用于整理待验证的因子、数据和参数。</p>
+            ) : null}
+            {note && <PlanningNote key={`${report.id}-${note}`} note={note}/>}
             {mode === 'experiment' && proposal && createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Tab') event.stopPropagation(); }}>
                 <StartExperiment
                     collection={collection}

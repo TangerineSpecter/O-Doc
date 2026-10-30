@@ -1,6 +1,12 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-require('../decision-debugger-input.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const html = fs.readFileSync(path.join(__dirname, '../../decision-model-debugger.html'), 'utf8');
+const source = html.match(/<script id="decision-debugger-input">([\s\S]*?)<\/script>/);
+assert.ok(source, '页面缺少导入解析脚本');
+vm.runInThisContext(source[1], {filename: 'decision-debugger-input.inline.js'});
 const {parseImport, buildDecision} = globalThis.DecisionDebuggerInput;
 
 const decision = {

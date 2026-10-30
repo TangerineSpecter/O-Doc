@@ -85,7 +85,9 @@ class Entry(Record):
 
     class Meta:
         ordering = ['-updated_at', 'id']
-        indexes = [models.Index(fields=['anthology', 'is_valid'], name='quant_entry_collection_idx')]
+        indexes = [models.Index(fields=['anthology', 'is_valid'], name='quant_entry_collection_idx'),
+                   models.Index(fields=['anthology', '-updated_at', '-id', 'is_valid'], name='quant_entry_read_idx'),
+                   models.Index(fields=['anthology','title','id','is_valid'],name='quant_entry_title_idx')]
 
 
 class Implementation(Record):
@@ -124,6 +126,7 @@ class CodeVersion(Record):
     verification_notes = models.TextField(blank=True)
 
     class Meta:
+        indexes = [models.Index(fields=['implementation', '-created_at', '-id'], name='quant_version_read_idx')]
         ordering = ['-created_at', '-id']
 
     def save(self, *args, **kwargs):
@@ -193,6 +196,8 @@ class AIRun(Record):
     adopted_implementation_id = models.CharField(max_length=40, null=True, blank=True)
 
     class Meta:
+        indexes = [models.Index(fields=['entry', 'status', '-created_at', '-id'], name='quant_run_status_idx'),
+                   models.Index(fields=['entry','-created_at','-id'],name='quant_run_history_idx')]
         ordering = ['-created_at', '-id']
         constraints = [models.UniqueConstraint(fields=['entry', 'request_key'], name='quant_run_request_key')]
 
@@ -276,6 +281,7 @@ class ResearchReport(ImmutableRecord):
     current_revision_id = models.CharField(max_length=40, blank=True)
 
     class Meta:
+        indexes = [models.Index(fields=['entry', '-created_at', '-id'], name='quant_report_read_idx')]
         ordering = ['-created_at', '-id']
 
 
@@ -288,6 +294,7 @@ class ReportRevision(ImmutableRecord):
     content_hash = models.CharField(max_length=64)
 
     class Meta:
+        indexes = [models.Index(fields=['report', '-created_at', '-id'], name='quant_revision_read_idx')]
         ordering = ['created_at', 'id']
 
 

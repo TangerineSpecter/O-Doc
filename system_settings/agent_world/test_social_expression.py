@@ -72,6 +72,10 @@ class SocialLifeContextTests(SimpleTestCase):
 
 class AutoCommentLengthTests(SimpleTestCase):
     def setUp(self):
+        owner = patch('system_settings.agent_world.action_runner.require_rating_owner', return_value='owner')
+        owner.start(); self.addCleanup(owner.stop)
+        score = patch('system_settings.agent_world.action_runner.score_post', return_value=8)
+        self.score = score.start(); self.addCleanup(score.stop)
         for target, value in [('system_settings.decision.routing.candidates', ['model']), ('system_settings.agent_world.social_model.owner_for', 'owner')]:
             mocked = patch(target, return_value=value); mocked.start(); self.addCleanup(mocked.stop)
         active = patch('system_settings.agent_availability.require_active_agent', new=lambda agent: agent)
@@ -100,7 +104,8 @@ class AutoCommentLengthTests(SimpleTestCase):
             return result, complete.call_count
 
     def feedback(self, content):
-        return {'action': 'interact', 'comment': content, 'stance': 'approve', 'rating': 8,
+        return {'action': 'interact', 'comment': content, 'stance': 'approve',
+                'assessment': {'strengths': [], 'concerns': [], 'preference': '喜欢料理', 'overall': '普通的早餐分享'},
                 'appraisal': {'category': 'neutral', 'reason': '只是评价内容，没有影响对作者的关系'}}
 
     def test_long_first_comment_is_rewritten_before_it_can_be_committed(self):
@@ -120,9 +125,8 @@ class AutoCommentLengthTests(SimpleTestCase):
         result, calls = self.evaluate([self.feedback('想吃！')])
         self.assertEqual(result['comment'], '想吃！')
         self.assertEqual(calls, 1)
-        result, calls = self.evaluate([{'action': 'rest', 'reason': '没什么想补充的'}])
-        self.assertEqual(result['action'], 'rest')
-        self.assertEqual(calls, 1)
+        with self.assertRaises(ValueError):
+            self.evaluate([{'action': 'rest', 'reason': '没什么想补充的'}] * 2)
 
     def test_first_comment_request_keeps_scoring_out_of_daily_comment_voice(self):
         from .action_runner import evaluate
@@ -157,29 +161,27 @@ class AutoCommentLengthTests(SimpleTestCase):
                 self.assertIn('通常一两句', prompt)
                 self.assertIn('不是文章评审', prompt)
 
-    def test_content_judgments_preserve_low_mixed_and_high_ratings(self):
-        cases = [
-            ('disapprove', 1, '这个结论没有依据，我不认同。'),
-            ('neutral', 5, '配色挺好，味道说得太少了。'),
-            ('approve', 10, '这搭配我喜欢，做法也说清楚了。'),
-        ]
-        for stance, rating, content in cases:
-            with self.subTest(stance=stance, rating=rating):
-                feedback = {'action': 'interact', 'comment': content,
-                            'stance': stance, 'rating': rating,
-                            'appraisal': {'category': 'neutral', 'reason': '评价作品本身，没有影响对作者的关系'}}
-                result, calls = self.evaluate([feedback])
-                self.assertEqual(result, feedback)
+    def test_rating_is_taken_from_independent_decision_and_assessment_is_ephemeral(self):
+        for rating in (1, 5, 10):
+            with self.subTest(rating=rating):
+                self.score.return_value = rating
+                result, calls = self.evaluate([self.feedback('这个做法我有保留。')])
+                self.assertEqual(result['rating'], rating)
+                self.assertNotIn('assessment', result)
+                self.assertIn('assessment', self.score.call_args.args[-1])
                 self.assertEqual(calls, 1)
 
-    def test_invalid_ratings_are_rewritten_without_clamping_to_high_scores(self):
-        for rating in (0, 11, True, 7.5):
-            with self.subTest(rating=rating):
-                invalid = {**self.feedback('没看出这个结论的依据。'), 'rating': rating}
-                corrected = {**invalid, 'stance': 'disapprove', 'rating': 3}
-                result, calls = self.evaluate([invalid, corrected])
-                self.assertEqual(result, corrected)
+    def test_expression_rating_and_fabricated_evidence_require_repair(self):
+        bad_rating = {**self.feedback('看看。'), 'rating': 9}
+        bad_quote = self.feedback('看看。')
+        bad_quote['assessment']['strengths'] = [{'quote': '并不存在的原文', 'judgment': '喜欢'}]
+        for invalid in (bad_rating, bad_quote):
+            with self.subTest(invalid=invalid):
+                self.score.reset_mock()
+                result, calls = self.evaluate([invalid, self.feedback('看看。')])
                 self.assertEqual(calls, 2)
+                self.assertEqual(result['rating'], 8)
+                self.score.assert_called_once()
 
     def social_decision(self, action, content):
         from .social_runner import decide

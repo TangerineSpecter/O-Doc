@@ -3,6 +3,7 @@ import type {QuantEntryDetail, QuantReport} from '../../types/api/quant';
 import {collectMockFactors} from './factors';
 import {buildSeed, initialSeed} from '../../components/Quant/experiments/plan';
 import {applyNestedMockPlan} from './planningCapabilities';
+import {blockedPlanningNoteSample} from './planningNote';
 
 /** Explicit synthetic fixture, never claims to interpret arbitrary pasted source. */
 export function mockInitialPlan(entry: QuantEntryDetail, report: QuantReport) {
@@ -12,7 +13,7 @@ export function mockInitialPlan(entry: QuantEntryDetail, report: QuantReport) {
     const candidates = collectMockFactors([entry]);
     const candidate = candidates.find(row => row.reportId === report.id && row.data.formulaVersion?.origin === 'ai_repair') || candidates.find(row => row.reportId === report.id);
     if (!candidate || !candidate.data.expression) {
-        report.data.initialPlanningNote = '本地流程样例：没有可计算的代码候选；请补充源码和输入参数后重新分析。';
+        report.data.initialPlanningNote = blockedPlanningNoteSample;
         return;
     }
     const seed = buildSeed(candidate, initialSeed(candidate), true);

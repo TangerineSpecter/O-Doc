@@ -73,24 +73,25 @@ class QuantAuthBoundaryTests(TestCase):
             response = self.client.patch(self.url(detail=True), {'title': '更新研究'}, format='json')
             self.assertEqual(response.status_code, 200, response.data)
             self.assertEqual(lock.call_count, 2)
-            # 详情读取会恢复过期任务，因此同写入请求一样需要排他锁。
-            self.assertTrue(lock.call_args_list[0].kwargs.get('exclusive', True))
+            # 概览纯读使用共享锁，任务恢复仅在独立状态入口执行。
+            self.assertFalse(lock.call_args_list[0].kwargs.get('exclusive', True))
             self.assertTrue(lock.call_args_list[1].kwargs.get('exclusive', True))
         self.entry.refresh_from_db()
         self.assertEqual(self.entry.title, '更新研究')
 
-    def test_run_reads_recover_under_exclusive_lock(self):
+    def test_status_reads_recover_under_exclusive_lock(self):
         self.client.force_authenticate(self.owner)
         run = AIRun.objects.create(entry=self.entry, status='running')
         base = self.url(detail=True) + 'runs/'
-        for url in (base + f'{run.pk}/', base):
+        for url in (base + f'{run.pk}/', base, self.url(detail=True)+'status/'):
             AIRun.objects.filter(pk=run.pk).update(status='running')
             with patch('quant.views.collection_lock', wraps=collection_lock) as lock:
                 response = self.client.get(url)
             self.assertEqual(response.status_code, 200, response.data)
-            lock.assert_called_once_with(self.collection.pk, exclusive=True)
+            recovers=url.endswith('/status/')
+            lock.assert_called_once_with(self.collection.pk, exclusive=recovers)
             run.refresh_from_db()
-            self.assertEqual(run.status, 'interrupted')
+            self.assertEqual(run.status, 'interrupted' if recovers else 'running')
 
     def test_index_and_experiment_reads_use_exclusive_locks(self):
         self.client.force_authenticate(self.owner)

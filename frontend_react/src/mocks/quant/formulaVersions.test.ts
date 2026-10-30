@@ -2,7 +2,7 @@ import {beforeEach, test} from 'node:test';
 import assert from 'node:assert/strict';
 import type {QuantEntryDetail, QuantFactorCandidate} from '../../types/api/quant.ts';
 import type {QuantFormulaHistory, QuantFormulaEditResult} from '../../types/api/quantFormulaVersion.ts';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {quantState, resetQuantStateForTests} from './state.ts';
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, 'localStorage', {value: {getItem: (key: string) => storage.get(key) || null,

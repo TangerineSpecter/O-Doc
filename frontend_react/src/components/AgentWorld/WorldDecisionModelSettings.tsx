@@ -38,6 +38,7 @@ const decisionSceneLabels = {
     cooking_continue: '美食继续制作',
     cooking_ingredient_strategy: '美食用料策略',
     social_action: '社交行为选择',
+    post_rating: '帖子评分',
     bounty_accept: '悬赏接单选择',
     travel_destination: '旅行目的地',
     travel_visit: '旅行游览',
@@ -163,7 +164,7 @@ export function WorldDecisionModelSettings() {
 
             <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold text-slate-700">决策优先级</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">支持回退的场景：决策连接顺序 → 普通文本决策模型 → 居民模型 → 系统默认对话模型。发帖分类、大乐透等只允许决策连接的选择失败后保留阶段，不改用文本模型。</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">支持回退的场景：决策连接顺序 → 普通文本决策模型 → 居民模型 → 系统默认对话模型。发帖分类、大乐透等仅支持决策连接；帖子评分也不改用文本模型，关闭或失败时不提交评论与评分。</p>
             </div>
 
             <div className="mt-5 max-w-2xl space-y-2">

@@ -1,4 +1,5 @@
 """Actual numerical transformations, search isolation and immutable lineage replay."""
+from quant.sync import SCHEMA_VERSION
 import copy
 import json
 import random
@@ -165,7 +166,7 @@ class EvolutionIntegrationTests(TestCase):
             if b is None: self.assertIsNone(a)
             else: self.assertAlmostEqual(a,b,places=8)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], SCHEMA_VERSION)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertFalse(ExperimentJob.objects.exists())

@@ -90,6 +90,9 @@
     .inline-symbol { color: #6c9777; font-weight: 900; }
     .split-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .import-tools { margin-bottom: 15px; }
+    .import-drop-zone { padding: 12px; border: 1px dashed #cbd7cb; border-radius: 10px; background: #f9fbf8; transition: border-color .16s, background .16s; }
+    .import-drop-zone.dragging { border-color: var(--orange); background: var(--orange-soft); }
+    .import-drop-title { margin: 0 0 8px; color: #536057; font-size: 12px; font-weight: 700; }
     .import-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
     .import-bar p { flex: 1 1 190px; margin: 0; color: var(--muted); font-size: 11px; }
     .import-tools details { margin-top: 10px; }
@@ -264,10 +267,13 @@
           </div>
           <div class="panel-body">
             <div class="import-tools">
-              <div class="import-bar">
-                <button id="import-file-button" class="subtle-btn" type="button">导入 JSON 文件</button>
-                <input id="import-file" class="sr-only" type="file" accept=".json,application/json" tabindex="-1" aria-label="选择决策 JSON 文件">
-                <p>支持 input.json 和 request.json，导入后手动发送测试。</p>
+              <div id="import-drop-zone" class="import-drop-zone">
+                <p class="import-drop-title">将 JSON 文件拖到这里导入</p>
+                <div class="import-bar">
+                  <button id="import-file-button" class="subtle-btn" type="button">导入 JSON 文件</button>
+                  <input id="import-file" class="sr-only" type="file" accept=".json,application/json" tabindex="-1" aria-label="选择决策 JSON 文件">
+                  <p>支持 input.json 和 request.json，导入后手动发送测试。</p>
+                </div>
               </div>
               <details id="import-paste">
                 <summary>粘贴 JSON 导入</summary>
@@ -353,7 +359,75 @@
     </div>
   </main>
 
-  <script src="scripts/decision-debugger-input.js"></script>
+  <script id="decision-debugger-input">
+/* 导入解析器与页面一同保存，file:// 打开时无需加载额外脚本。 */
+(() => {
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const parse = text => {
+    try { return JSON.parse(text.replace(/^\uFEFF/, '')); }
+    catch (_) { throw new Error('JSON 格式无效，请检查文件或粘贴内容。'); }
+  };
+
+  function parseImport(text) {
+    let decision = parse(text);
+    let model;
+    if (object(decision) && object(decision.json)) decision = decision.json;
+    if (object(decision) && Array.isArray(decision.messages)) {
+      if (decision.messages.length !== 1 || decision.messages[0]?.role !== 'user' || typeof decision.messages[0].content !== 'string') {
+        throw new Error('请求体须只有一条 user 消息；请导入原始 state + questions，避免丢失历史或系统提示。');
+      }
+      if (Object.keys(decision).some(key => !['model', 'messages'].includes(key))) {
+        throw new Error('请求体含额外参数，请改为导入 state + questions；当前表单只编辑 model 和单条决策消息。');
+      }
+      if (typeof decision.model !== 'string' || !decision.model.trim()) throw new Error('请求体缺少有效的模型 ID。');
+      model = decision.model;
+      decision = parse(decision.messages[0].content);
+    }
+    if (!object(decision) || !Object.hasOwn(decision, 'state') || !object(decision.questions)) {
+      throw new Error('需要包含 state 和 questions 的决策 JSON，或对应的 Chat Completions 请求体。');
+    }
+    const entries = Object.entries(decision.questions);
+    if (entries.length !== 1) throw new Error('当前调试台一次测试一个问题，请仅保留一个 questions 条目。');
+    const [questionId, question] = entries[0];
+    if (!questionId.trim() || questionId !== questionId.trim() || !object(question) || question.type !== 'choice') throw new Error('问题 ID 不能为空或带首尾空格，问题类型须为 choice。');
+    if (typeof question.instructions !== 'string' || !question.instructions.trim()) throw new Error('问题说明 instructions 不能为空。');
+    if (!object(question.criteria)) throw new Error('候选选项 criteria 须为对象。');
+    const criteria = Object.entries(question.criteria);
+    if (!criteria.length || criteria.length > 255) throw new Error('候选选项须为 1～255 项。');
+    if (criteria.some(([key, value]) => !key.trim() || key !== key.trim() || (typeof value === 'string' && !value.trim()))) {
+      throw new Error('候选 key 不能为空或带首尾空格，文本候选内容不能为空。');
+    }
+    return {
+      ...(model === undefined ? {} : {model}),
+      state: typeof decision.state === 'string' ? decision.state : JSON.stringify(decision.state, null, 2),
+      stateType: typeof decision.state === 'string' ? 'text' : 'json',
+      questionId, instructions: question.instructions,
+      options: criteria.map(([key, value]) => ({key,
+        label: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
+        valueType: typeof value === 'string' ? 'text' : 'json'}))
+    };
+  }
+
+  function buildDecision(config) {
+    const criteria = Object.fromEntries(config.options.map(option => {
+      let value = option.label;
+      if (option.valueType === 'json') {
+        try { value = JSON.parse(option.label); }
+        catch (_) { value = option.label; }
+      }
+      return [option.key, value];
+    }));
+    let state = config.state;
+    if (config.stateType === 'json') {
+      try { state = JSON.parse(state); }
+      catch (_) { throw new Error('State 的 JSON 格式无效。'); }
+    }
+    return {state, questions: {[config.questionId]: {type: 'choice', instructions: config.instructions, criteria}}};
+  }
+
+  globalThis.DecisionDebuggerInput = Object.freeze({parseImport, buildDecision});
+})();
+  </script>
   <script>
     (() => {
       const CONFIG_KEY = 'odoc-decision-debugger-config-v1';
@@ -809,20 +883,52 @@
       });
       runButton.addEventListener('click', sendRequest);
       $('#import-file-button').addEventListener('click', () => $('#import-file').click());
-      $('#import-file').addEventListener('change', async (event) => {
-        const file = event.target.files[0];
+      async function importFile(file) {
         const sequence = ++importSequence;
-        if (!file) return;
+        if (!file || runButton.disabled) return;
         try {
           if (file.size > 5 * 1024 * 1024) throw new Error('JSON 文件不能超过 5 MB。');
           const text = await file.text();
           if (sequence !== importSequence || runButton.disabled) return;
           importJson(text, file.name);
         } catch (error) {
-          if (sequence === importSequence) showImportStatus(error.message, true);
-        } finally {
-          if (sequence === importSequence) event.target.value = '';
+          if (sequence === importSequence && !runButton.disabled) showImportStatus(error.message, true);
         }
+      }
+      $('#import-file').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        event.target.value = '';
+        if (file) importFile(file);
+      });
+      const dropZone = $('#import-drop-zone');
+      window.addEventListener('dragover', (event) => {
+        if (Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault();
+      });
+      window.addEventListener('drop', (event) => {
+        if (event.dataTransfer?.files.length) event.preventDefault();
+        dropZone.classList.remove('dragging');
+      });
+      dropZone.addEventListener('dragover', (event) => {
+        if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = runButton.disabled ? 'none' : 'copy';
+        if (!runButton.disabled) dropZone.classList.add('dragging');
+      });
+      dropZone.addEventListener('dragleave', (event) => {
+        if (!dropZone.contains(event.relatedTarget)) dropZone.classList.remove('dragging');
+      });
+      dropZone.addEventListener('drop', (event) => {
+        event.preventDefault();
+        dropZone.classList.remove('dragging');
+        if (runButton.disabled) return;
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return;
+        if (files.length !== 1) {
+          importSequence += 1;
+          showImportStatus('请一次拖入一个 JSON 文件。', true);
+          return;
+        }
+        importFile(files[0]);
       });
       $('#import-apply').addEventListener('click', () => {
         importSequence += 1;

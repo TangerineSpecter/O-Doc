@@ -1,3 +1,4 @@
+from quant.sync import SCHEMA_VERSION
 import hashlib
 import json
 import tempfile
@@ -172,7 +173,7 @@ class ArchiveAPITests(TestCase):
         manager = SyncManager()
         snapshot = manager.build_snapshot_data()
         meta = metadata(snapshot)
-        self.assertEqual(meta['quant_schema_version'], 78)
+        self.assertEqual(meta['quant_schema_version'], SCHEMA_VERSION)
         self.assertTrue(any(row['model'] == 'quant.mt4attachment' for row in snapshot))
         media = manager.media.compose_media_manifest()
         self.assertIn(self.asset.file_path, media)

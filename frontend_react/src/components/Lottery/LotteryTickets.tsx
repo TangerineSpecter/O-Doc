@@ -3,23 +3,22 @@ import type {LotteryPage, LotteryRound, LotteryTicket} from '../../types/api/lot
 import {LotteryBalls, LotteryPagination} from './LotteryUi';
 import {lotteryDate, lotteryMoney} from './lotteryPresentation';
 import {LotteryIcon} from './LotteryIcon';
-
-const residentTone = (id: string) => {
-    const hash = Array.from(id).reduce((value, char) => value + char.charCodeAt(0), 0);
-    return ['orange', 'sage', 'blue', 'rose'][hash % 4];
-};
+import AgentAvatar from '../AgentWorld/AgentAvatar';
 
 export function LotteryTickets({
     tickets,
     round,
     page,
     onPage,
+    residents,
 }: {
     tickets: LotteryPage<LotteryTicket>;
     round: LotteryRound | null;
     page: number;
     onPage: (page: number) => void;
+    residents: {id: string; avatar?: string}[];
 }) {
+    const avatars = new Map(residents.map(resident => [resident.id, resident.avatar]));
     const winning = round?.result.winningNumbers || [];
 
     const getTierLabel = (matches: number | null) => {
@@ -80,12 +79,7 @@ export function LotteryTickets({
                             </div>
 
                             <div className="lottery-ticket-owner">
-                                <span
-                                    className={`lottery-resident lottery-resident--${residentTone(ticket.actorId)}`}
-                                    aria-hidden="true"
-                                >
-                                    {ticket.actorName.slice(0, 1)}
-                                </span>
+                                <AgentAvatar name={ticket.actorName} avatar={avatars.get(ticket.actorId)} size="sm"/>
                                 <span className="truncate font-bold text-slate-800">{ticket.actorName}</span>
 
                                 {tierLabel ? (

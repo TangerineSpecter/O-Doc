@@ -1,5 +1,5 @@
+import type {QuantWorkspace} from '../../../types/api/quantReading';
 import {useCallback, useEffect, useRef, useState} from 'react';
-import type {QuantEntryDetail} from '../../../types/api/quant';
 import {feedbackModes, type QuantFeedbackInput, type FeedbackMode, type FeedbackFormat} from '../../../types/api/quantFeedback';
 import type {QuantController} from '../../../hooks/useQuant';
 import {useQuantDraftRegistration, type QuantRegisterDraft} from '../../../hooks/useQuantNavigation';
@@ -17,10 +17,10 @@ import {ExecutionImport} from './evidence/ExecutionImport';
 import type {QuantExecutionAdapter} from '../../../types/api/quantPlatformEvidence';
 
 export function FeedbackImport({entry, collection, controller, register, close, saved}: {
-    entry: QuantEntryDetail; collection: string; controller: QuantController; register: QuantRegisterDraft;
+    entry: QuantWorkspace; collection: string; controller: QuantController; register: QuantRegisterDraft;
     close: () => void; saved: (notice: string) => void;
 }) {
-    const sources = (entry.sources || []).filter(row => row.payload.provenance !== 'external_feedback');
+    const sources = entry.sourceHeaders.filter(row => row.provenance !== 'external_feedback');
     const [draft, setDraft] = useState<QuantFeedbackInput>(() => ({requestKey: createRequestKey(), title: '', targetSourceId: sources[0]?.id || '',
         factorId: '', experimentResultId: '', mode: 'unknown', documentFormat: 'text', document: '', platform: '', notes: '', analyze: true,
         modelId: controller.models.defaultModelId || controller.models.models[0]?.id || ''}));
@@ -65,7 +65,8 @@ export function FeedbackImport({entry, collection, controller, register, close, 
             <div className="inline-flex max-w-full rounded-full bg-slate-100 p-1">{[{value: false, label: '报告文字 / SET 配置'}, {value: true, label: '结构化执行证据'}].map(item => <button key={item.label} type="button" onClick={() => {if (execution === item.value) return; fileRead.current++; setFileError(''); setDraft(old => item.value ? {...old, executionAdapter: 'standard-execution-json-v1', executionOptionsJson: JSON.stringify(defaultExecutionOptions()), documentFormat: 'json', mode: old.mode === 'configuration' ? 'unknown' : old.mode} : {...old, executionAdapter: undefined, executionOptionsJson: undefined, documentFormat: 'text'});}} className={`rounded-full px-3 py-2 text-xs font-medium transition ${execution === item.value ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500'}`}>{item.label}</button>)}</div>
             <QuantField label="反馈标题" required value={draft.title} onChange={value => patch('title', value)}/>
             <label className="block space-y-2 text-sm"><span>对应的代码或资料来源</span><Select menuPortal value={draft.targetSourceId} onChange={value => setDraft(old => ({...old, targetSourceId: value, factorId: '', experimentResultId: ''}))}
-                options={sources.map((source, index) => ({value: source.id, label: `${source.payload.title || source.payload.language || '来源资料'} · ${index + 1}`}))}/></label>
+                options={sources.map((source, index) => ({value: source.id, label: `${source.title || source.language || '来源资料'} · ${index + 1}`}))}/></label>
+            {controller.pages.sources?.hasMore && <QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('sources',true),false)}>更多来源</QuantButton>}
             <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2 text-sm"><span className="block">记录类型（按你提供的说明）</span><Select menuPortal value={draft.mode} onChange={value => patch('mode', value as FeedbackMode)} options={Object.entries(feedbackModes).filter(([value]) => !execution || value !== 'configuration').map(([value, label]) => ({value, label}))}/></label>
                 <QuantField label="平台与版本（可留空）" value={draft.platform} onChange={value => patch('platform', value)} placeholder="例如 MT4 / TradingView"/>
@@ -84,7 +85,7 @@ export function FeedbackImport({entry, collection, controller, register, close, 
                 <QuantField label="搜索本研究的因子" value={query} onChange={setQuery}/>
                 {factors.error && <p role="alert" className="text-sm text-red-600">{factors.error} <button onClick={factors.reload}>重试</button></p>}
                 <label className="block space-y-2 text-sm"><span>对应因子</span><Select menuPortal value={draft.factorId} onChange={value => patch('factorId', value)} options={[{value: '', label: '关联整个来源'}, ...factors.items.filter(row => row.sourceId === draft.targetSourceId).map(row => ({value: row.id, label: row.curation.name || row.data.name}))]} emptyMessage={factors.loading ? '加载候选中…' : '暂无匹配候选'}/></label>
-                <label className="block space-y-2 text-sm"><span>对照本机实验</span><Select menuPortal value={draft.experimentResultId} onChange={value => patch('experimentResultId', value)} options={[{value: '', label: '暂不关联'}, ...resultIds.map(value => ({value, label: experiments.find(run => run.experimentResultId === value)?.result.review?.title || `实验结果 ${value.slice(0, 8)}`}))]}/></label>
+                <label className="block space-y-2 text-sm"><span>对照本机实验</span><Select menuPortal value={draft.experimentResultId} onChange={value => patch('experimentResultId', value)} options={[{value: '', label: '暂不关联'}, ...resultIds.map(value => ({value, label: entry.reportHeaders.find(report=>report.runId===experiments.find(run=>run.experimentResultId===value)?.id)?.title || `实验结果 ${value.slice(0, 8)}`}))]}/></label>
             </div></details>
             <label className="block space-y-2 text-sm"><span>分析模型</span><Select menuPortal value={draft.modelId} onChange={value => patch('modelId', value)} options={controller.models.models.map(row => ({value: row.id, label: row.name}))} emptyMessage="尚未配置，仍可保存反馈"/></label>
             <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={draft.analyze} onChange={event => patch('analyze', event.target.checked)} className="accent-orange-500"/>保存后交给 AI 分析并规划下一轮实验</label>

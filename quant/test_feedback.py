@@ -1,4 +1,5 @@
 """External facts are preserved, quote-checked and never become calculated performance."""
+from quant.testing_reading import read_fixture
 import copy
 import json
 from unittest.mock import patch
@@ -56,7 +57,7 @@ class FeedbackTests(TestCase):
         self.assertEqual(report.data['reported_parameters'][0]['value'], '10')
         self.assertNotIn('total_score', report.data)
         self.assertEqual(report.data['evidence_status'], 'external_report_unverified')
-        detail = self.client.get(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/').json()['data']
+        detail = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{entry.pk}/')
         self.assertEqual(detail['runs'][0]['result']['feedback']['reportedMetrics'][0]['value'], '-2%')
         self.assertEqual(self.client.patch(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/reports/{report.pk}/',
             {'markdown': '人工补充核对', 'expected_revision_id': ''}, format='json').status_code, 200)

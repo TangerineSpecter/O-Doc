@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import type {QuantReportReading} from '../../types/api/quantReading';
+import type {QuantWorkspace} from '../../types/api/quantReading';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Activity,
@@ -16,20 +18,19 @@ import { quantDate } from '../../utils/quant';
 import { Select } from '../common/Select';
 import { type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
-import type { QuantEntryDetail, QuantReport, QuantSource } from '../../types/api/quant';
+import type { QuantSource } from '../../types/api/quant';
 import { QuantEmpty, QuantModal, cardClass } from './ui';
 import { ReportAnalysisSettings } from './reports/ReportAnalysisSettings';
-import { defaultResearchReport } from '../../utils/quantReportScore';
-import { selectedAnalysisSource, sourceAnalysisRuns, staticSourceReports } from '../../utils/quantSourceImpact';
-import { ExecutionEvidence } from './feedback/evidence/ExecutionEvidence';
+import { sourceAnalysisRuns } from '../../utils/quantSourceImpact';
+import {ReportExecutionEvidence} from './reports/ReportExecutionEvidence';
 import { ExecutionAssessment } from './feedback/evidence/ExecutionAssessment';
 import { ReportEditor } from './reports/ReportEditor';
 import { SourceSupplement } from './sources/SourceSupplement';
 import { ResearchDetails, type ResearchDetailsTab } from './ResearchDetails';
 
-function reportTypeMeta(row: QuantReport) {
+function reportTypeMeta(row: Pick<QuantReportReading,'schemaVersion'> & Partial<Pick<QuantReportReading,'data'>>) {
     if (row.schemaVersion === 5) {
-        return row.data.nativeReview
+        return row.data?.nativeReview
             ? { label: 'Python 对照', tone: 'blue' as const }
             : { label: '反馈解读', tone: 'amber' as const };
     }
@@ -52,7 +53,7 @@ export function ReportPanel({
     selectedModelId,
     onModelChange,
 }: {
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;
@@ -64,8 +65,8 @@ export function ReportPanel({
     selectedModelId: string;
     onModelChange: (id: string) => void;
 }) {
-    const sources = (entry.sources || []).filter((row) => row.payload.provenance !== 'external_feedback');
-    const reports = entry.reports || [];
+    const reports = entry.reports;
+    const headers = entry.reportHeaders;
     const [sourceId, setSourceId] = useState('');
     const modelId = controller.models.models.some((row) => row.id === selectedModelId)
         ? selectedModelId
@@ -73,39 +74,48 @@ export function ReportPanel({
     const [selectedId, setSelectedId] = useState(initialReportId);
     const [supplementSource, setSupplementSource] = useState<QuantSource | null>(null);
     const [supplementNotice, setSupplementNotice] = useState('');
-    const [inspectorTab, setInspectorTab] = useState<ResearchDetailsTab>('all');
+    const [initialInspectorTab, setInitialInspectorTab] = useState<ResearchDetailsTab>('all');
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
 
-    // 优先展示静态研究主报告，避免初次打开被外部反馈报告遮挡核心研究结论
-    const defaultReport = defaultResearchReport(reports);
-    const report = reports.find((row) => row.id === selectedId) || defaultReport;
+    const targetId=selectedId||entry.defaultReportId||'';
+    const report=reports.find(row=>row.id===targetId);
+    const ensureReport=controller.ensureReport;
+    const setReadError=controller.setReadingError;
+    useEffect(()=>{
+        if(!targetId||report)return;
+        const abort=new AbortController();
+        void ensureReport(targetId,abort.signal).catch(cause=>{if(!abort.signal.aborted)setReadError(cause instanceof Error?cause.message:'报告读取失败');});
+        return()=>abort.abort();
+    },[targetId,report,ensureReport,setReadError]);
 
     const reportRun = entry.runs.find((row) => row.id === report?.runId);
-    const source = selectedAnalysisSource(entry, report, sourceId);
-    const sourceRuns = sourceAnalysisRuns(entry, source?.id);
+    const sourceMeta=entry.sourceHeaders.find(row=>row.id===report?.sourceId);
+    const targetSourceId=sourceId||sourceMeta?.materialCurrentSourceId||report?.sourceId||entry.sourceHeaders.find(row=>row.provenance!=='external_feedback')?.id;
+    const source=entry.sources.find(row=>row.id===targetSourceId);
+    const ensureSource=controller.ensureSource;
+    useEffect(()=>{
+        if(!settingsOpen||!targetSourceId)return;
+        const abort=new AbortController();
+        void ensureSource(targetSourceId,abort.signal).catch(error=>{if(!abort.signal.aborted)setReadError(error instanceof Error?error.message:'来源读取失败');});
+        return()=>abort.abort();
+    },[settingsOpen,targetSourceId,ensureSource,setReadError]);
+    const sourceRuns = sourceAnalysisRuns(entry, targetSourceId);
     const active = sourceRuns.find((run) => ['pending', 'running'].includes(run.status));
     const lastRun = sourceRuns[0];
     const entryActive = entry.runs.find((run) => ['pending', 'running'].includes(run.status));
     const otherActive = entry.runs.filter(
         (run) => ['pending', 'running'].includes(run.status) && !sourceRuns.some((row) => row.id === run.id),
     );
-    const reportSource = sources.find((row) => row.id === report?.sourceId);
-    const staticReports = staticSourceReports(entry);
-    const newerCurrentSource =
-        report &&
-        staticReports.some((row) => row.id === report.id) &&
-        reportSource &&
-        source &&
-        source.id !== reportSource.id &&
-        source.materialId === reportSource.materialId &&
-        source.id === reportSource.materialCurrentSourceId;
-    const sourceReport = staticReports.find((row) => row.sourceId === source?.id);
+    const staticReports = headers.filter(row=>[1,2,3].includes(row.schemaVersion));
+    const newerCurrentSource=!!(report&&staticReports.some(row=>row.id===report.id)&&sourceMeta?.materialCurrentSourceId&&
+        targetSourceId===sourceMeta.materialCurrentSourceId&&targetSourceId!==report.sourceId);
+    const sourceReport=staticReports.find(row=>row.sourceId===targetSourceId);
     const analyzeDisabledReason = controller.busy
         ? '当前操作尚未完成。'
         : entryActive
           ? '本条目有任务正在执行，结束后可启动新的完整分析。'
-          : !source
+          : !targetSourceId
             ? '请先保存来源资料。'
             : !modelId
               ? '请先选择分析模型。'
@@ -115,54 +125,45 @@ export function ReportPanel({
             void controller.safe(() =>
                 quantApi.run(collection, entry.id, {
                     kind: 'analyze',
-                    sourceId: source?.id,
+                    sourceId: targetSourceId,
                     modelId,
                     requestKey: createRequestKey(),
                 }),
             );
         });
     const resume = (restartStage?: ResearchStage) => {
-        if (lastRun)
-            request(() => {
-                void controller.safe(() =>
-                    quantApi.run(collection, entry.id, {
-                        kind: 'analyze',
-                        sourceId: lastRun.sourceId,
-                        modelId: lastRun.modelId,
-                        requirements: lastRun.requirements,
-                        resumeRunId: lastRun.id,
-                        restartStage,
-                        requestKey: createRequestKey(),
-                    }),
-                );
-            });
+        if(lastRun)request(()=>void controller.safe(async()=>{
+            const original=await controller.ensureRun(lastRun.id);
+            await quantApi.run(collection,entry.id,{kind:'analyze',sourceId:original.sourceId,
+                modelId:original.modelId,requirements:original.requirements,resumeRunId:original.id,
+                restartStage,requestKey:createRequestKey()});
+        }));
     };
-    const incremental = (baselineRunId: string) =>
-        request(() => {
-            void controller.safe(() =>
-                quantApi.run(collection, entry.id, {
-                    kind: 'analyze',
-                    sourceId: source?.id,
-                    modelId,
-                    resumeRunId: baselineRunId,
-                    requirements: entry.runs.find((row) => row.id === baselineRunId)?.requirements || '',
-                    requestKey: createRequestKey(),
-                }),
-            );
-        });
+    const incremental = (baselineRunId: string) => request(()=>void controller.safe(async()=>{
+        const original=await controller.ensureRun(baselineRunId);
+        await quantApi.run(collection,entry.id,{kind:'analyze',sourceId:targetSourceId,
+            modelId,resumeRunId:baselineRunId,requirements:original.requirements||'',requestKey:createRequestKey()});
+    }));
+    const revealPlan = useCallback(() => request(() => {
+        setInitialInspectorTab('experiment');
+        setDetailsOpen(true);
+    }), [request, setInitialInspectorTab, setDetailsOpen]);
+    const pinReportId=controller.pinReportId;
+    const pinReport=useCallback((id:string)=>{pinReportId(id);setSelectedId(id);},[pinReportId,setSelectedId]);
+    const guardedOpenFactors = useCallback(() => request(openFactors), [request, openFactors]);
     return (
         <div className="space-y-3">
             {/* 报告切换与研究操作 */}
             <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 shadow-2xs">
-                {reports.length > 1 && report ? (
+                {entry.counts.reports > 1 ? (
                     <div className="flex min-w-0 flex-1 items-center gap-1.5">
                         <span className="inline-flex shrink-0 items-center gap-1 text-xs font-extrabold text-slate-700">
                             <FileSpreadsheet size={13} className="text-orange-500" />
-                            报告 ({reports.length})：
+                            报告 ({entry.counts.reports})：
                         </span>
                         <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide">
-                            {reports.map((row) => {
-                                const activeReport = row.id === report.id;
+                            {headers.map((row) => {
+                                const activeReport = row.id === targetId;
                                 const meta = reportTypeMeta(row);
                                 return (
                                     <button
@@ -170,7 +171,7 @@ export function ReportPanel({
                                         type="button"
                                         onClick={() =>
                                             request(() => {
-                                                setSelectedId(row.id);
+                                                setSelectedId(row.id);controller.pinReportId(row.id);
                                                 setSourceId('');
                                             })
                                         }
@@ -189,14 +190,14 @@ export function ReportPanel({
                                         >
                                             {meta.label}
                                         </span>
-                                        <span className="max-w-[150px] truncate">{row.data.title || '历史报告'}</span>
-                                        {row.data.totalScore !== undefined && row.data.totalScore !== null && (
+                                        <span className="max-w-[150px] truncate">{row.title || '历史报告'}</span>
+                                        {row.totalScore !== undefined && row.totalScore !== null && (
                                             <span
                                                 className={`font-mono text-[10px] ${
                                                     activeReport ? 'text-orange-300' : 'text-orange-600'
                                                 }`}
                                             >
-                                                {row.data.totalScore}分
+                                                {row.totalScore}分
                                             </span>
                                         )}
                                     </button>
@@ -207,16 +208,16 @@ export function ReportPanel({
                             <span className="sr-only">阅读报告</span>
                             <div className="w-48">
                                 <Select
-                                    value={report.id}
+                                    value={targetId}
                                     onChange={(id) =>
                                         request(() => {
-                                            setSelectedId(id);
+                                            setSelectedId(id);controller.pinReportId(id);
                                             setSourceId('');
                                         })
                                     }
-                                    options={reports.map((row) => ({
+                                    options={headers.map((row) => ({
                                         value: row.id,
-                                        label: `${row.data.title || '历史报告'} · ${quantDate(row.createdAt)}`,
+                                        label: `${row.title || '历史报告'} · ${quantDate(row.createdAt)}`,
                                     }))}
                                     buttonClassName="!h-7 !min-h-7 !py-0.5 !text-[11px]"
                                 />
@@ -249,7 +250,7 @@ export function ReportPanel({
                         <span>{active ? '正在分析' : report ? '重新分析、来源与模型' : '来源与分析设置'}</span>
                     </button>
                     {report && (
-                        <button type="button" onClick={() => request(() => { setInspectorTab('all'); setDetailsOpen(true); })}
+                        <button type="button" onClick={() => request(() => { setInitialInspectorTab('all'); setDetailsOpen(true); })}
                             className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-white">
                             <Compass size={12} />查看研究详情
                         </button>
@@ -257,9 +258,10 @@ export function ReportPanel({
                 </div>
             </div>
 
+            {controller.pages.reports?.hasMore && <button type="button" className="text-xs text-orange-600" onClick={()=>void controller.safe(()=>controller.loadPage('reports',true),false)}>更多历史报告</button>}
             {settingsOpen && createPortal(
                 <QuantModal title="来源与分析设置" wide close={() => setSettingsOpen(false)}>
-                    <ReportAnalysisSettings source={source} sources={sources} report={report} lastRun={lastRun}
+                    <ReportAnalysisSettings source={source} report={report} lastRun={lastRun}
                         active={active} otherActive={otherActive} controller={controller} collection={collection} entryId={entry.id}
                         modelId={modelId} onModelChange={onModelChange} setSourceId={setSourceId} start={start} code={code}
                         request={request} openSupplement={value => { setSettingsOpen(false); setSupplementSource(value); }}
@@ -294,7 +296,7 @@ export function ReportPanel({
                         同一材料已有新的当前快照。下方正在阅读的报告仍绑定旧来源；
                         {sourceReport
                             ? '所选快照已有另一份静态报告。'
-                            : '所选快照尚未生成静态报告，可先预览变更再完整分析。'}
+                            : '可先预览变更，或在来源与分析设置中查看对应研究。'}
                     </p>
                     {sourceReport && (
                         <button
@@ -302,7 +304,7 @@ export function ReportPanel({
                             className="mt-1.5 text-xs font-semibold text-orange-700 underline underline-offset-4"
                             onClick={() =>
                                 request(() => {
-                                    setSelectedId(sourceReport.id);
+                                    setSelectedId(sourceReport.id);controller.pinReportId(sourceReport.id);
                                     setSourceId('');
                                 })
                             }
@@ -313,7 +315,7 @@ export function ReportPanel({
                 </div>
             )}
 
-            {report && report.schemaVersion !== 5 && source?.id !== report.sourceId && (
+            {report && report.schemaVersion !== 5 && source && source.id !== report.sourceId && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 text-xs text-slate-500">
                     <span>所选来源用于下一次分析。</span>
                     <button
@@ -340,16 +342,14 @@ export function ReportPanel({
                             collection={collection}
                             controller={controller}
                             register={register}
-                            pin={() => setSelectedId(report.id)}
-                            openFactors={() => request(openFactors)}
+                            pin={pinReport}
+                            openFactors={guardedOpenFactors}
                             reportTwoColumn={true}
-                            revealPlan={() => {
-                                request(() => { setInspectorTab('experiment'); setDetailsOpen(true); });
-                            }}
+                            revealPlan={revealPlan}
                         />
                     ) : (
                         <QuantEmpty
-                            title={active ? '报告正在生成' : '让 AI 完成第一份研究报告'}
+                            title={targetId ? '正在读取所选报告' : active ? '报告正在生成' : '让 AI 完成第一份研究报告'}
                             description="报告会自动保存在这里，你可以阅读、修改和删减，并保留原稿。"
                         />
                     )}
@@ -365,35 +365,21 @@ export function ReportPanel({
                                     json={report.data.computedExecutionJson}
                                     assessment={report.data.executionAssessment}
                                 />
-                                <details className="rounded-xl border border-slate-200 p-4">
-                                    <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-                                        完整执行证据与核算
-                                    </summary>
-                                    <div className="mt-4">
-                                        <ExecutionEvidence
-                                            json={
-                                                entry.sources?.find((row) => row.id === report.sourceId)?.payload
-                                                    .executionPreviewJson
-                                            }
-                                        />
-                                    </div>
-                                </details>
+                                <ReportExecutionEvidence key={report.id} sourceId={report.sourceId} ensureSource={ensureSource}/>
                             </section>
                         )}
                 </div>
 
             </div>
 
-            {!report && <ResearchDetails entry={entry} report={report} source={source} collection={collection} register={register}
-                    request={request} openFactors={openFactors} openExperiments={openExperiments} inspectorTab={inspectorTab}
-                    setInspectorTab={setInspectorTab} staticReports={staticReports} lastRun={lastRun} reportRun={reportRun}
+            {!report && <ResearchDetails controller={controller} entry={entry} report={report} source={source} collection={collection} register={register}
+                    request={request} openFactors={openFactors} openExperiments={openExperiments} initialTab={initialInspectorTab} lastRun={lastRun} reportRun={reportRun}
                     entryActive={entryActive} controllerBusy={controller.busy} start={start} incremental={incremental}
                     analyzeDisabledReason={analyzeDisabledReason} resume={resume} inModal={false}/> }
             {report && detailsOpen && createPortal(
-                <QuantModal title="研究详情" subtitle="查看实验规划、来源对照和研究进度" wide close={() => request(() => setDetailsOpen(false))}>
-                    <ResearchDetails entry={entry} report={report} source={source} collection={collection} register={register}
-                    request={request} openFactors={openFactors} openExperiments={openExperiments} inspectorTab={inspectorTab}
-                    setInspectorTab={setInspectorTab} staticReports={staticReports} lastRun={lastRun} reportRun={reportRun}
+                <QuantModal title="研究详情" subtitle="查看实验规划、来源对照和研究进度" wide fixedHeight close={() => request(() => setDetailsOpen(false))}>
+                    <ResearchDetails controller={controller} entry={entry} report={report} source={source} collection={collection} register={register}
+                    request={request} openFactors={openFactors} openExperiments={openExperiments} initialTab={initialInspectorTab} lastRun={lastRun} reportRun={reportRun}
                     entryActive={entryActive} controllerBusy={controller.busy} start={start} incremental={incremental}
                     analyzeDisabledReason={analyzeDisabledReason} resume={resume} inModal />
                 </QuantModal>, document.body,

@@ -1,3 +1,4 @@
+import type {QuantWorkspace} from '../../types/api/quantReading';
 import { useCallback, useState } from 'react';
 import { Download, Eye, FileCode2, FileText, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
 import { quantApi } from '../../api/quant';
@@ -11,7 +12,7 @@ import { quantVersionLabel as versionLabel } from '../../utils/quant';
 import { downloadQuantBlob, quantScriptLanguage } from '../../utils/quant';
 import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
-import type { QuantAttachment, QuantEntryDetail } from '../../types/api/quant';
+import type { QuantAttachment } from '../../types/api/quant';
 
 function fileSize(bytes: number) {
     return bytes >= 1024 * 1024
@@ -30,7 +31,7 @@ export function AttachmentsPanel({
     request,
     importCode,
 }: {
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;
@@ -68,12 +69,12 @@ export function AttachmentsPanel({
             {entry.attachments.length ? (
                 <div className="grid gap-4 xl:grid-cols-2">
                     {entry.attachments.map((attachment) => {
-                        const implementation = entry.implementations.find(
+                        const implementation = entry.implementationHeaders.find(
                             (item) =>
                                 item.id === attachment.implementationId ||
-                                item.versions.some((version) => version.id === attachment.versionId),
+                                (entry.versionHeaders[item.id]||[]).some((version) => version.id === attachment.versionId),
                         );
-                        const version = implementation?.versions.find((item) => item.id === attachment.versionId);
+                        const version = implementation?(entry.versionHeaders[implementation.id]||[]).find((item) => item.id === attachment.versionId):undefined;
                         const backtest = entry.backtests.find((item) => item.id === attachment.backtestId);
                         return (
                             <article
@@ -222,7 +223,7 @@ function AttachmentUpload({
     close,
     saved,
 }: {
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;
@@ -260,7 +261,7 @@ function AttachmentUpload({
         setFile(null);
         setAssetId('');
     });
-    const implementation = entry.implementations.find((item) => item.id === implementationId);
+    const implementation = entry.implementationHeaders.find((item) => item.id === implementationId);
     return (
         <QuantModal title="上传研究附件" close={close} busy={controller.busy}>
             <label className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-orange-200 bg-orange-50/30 px-5 py-8 text-center">
@@ -283,6 +284,8 @@ function AttachmentUpload({
                     }}
                 />
             </label>
+            {controller.pages.implementations?.hasMore&&<QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('implementations',true),false)}>更多代码实现</QuantButton>}
+            {implementationId&&controller.pages[`versions:${implementationId}`]?.hasMore&&<QuantButton onClick={()=>void controller.safe(()=>controller.moreVersions(implementationId),false)}>更多代码版本</QuantButton>}
             <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2 text-sm font-semibold text-slate-700">
                     <span className="block">关联代码实现（可选）</span>
@@ -291,11 +294,12 @@ function AttachmentUpload({
                         value={implementationId}
                         options={[
                             { value: '', label: '整个研究条目' },
-                            ...entry.implementations.map((item) => ({ value: item.id, label: item.name })),
+                            ...entry.implementationHeaders.map((item) => ({ value: item.id, label: item.name })),
                         ]}
                         onChange={(value) => {
                             setImplementationId(value);
                             setVersionId('');
+                            if(value)void controller.safe(()=>controller.loadVersionHeaders(value),false);
                         }}
                     />
                 </label>
@@ -307,7 +311,7 @@ function AttachmentUpload({
                         disabled={!implementationId}
                         options={[
                             { value: '', label: '不指定版本' },
-                            ...(implementation?.versions || []).map((version) => ({
+                            ...(entry.versionHeaders[implementationId] || []).map((version) => ({
                                 value: version.id,
                                 label: versionLabel(implementation!, version),
                             })),

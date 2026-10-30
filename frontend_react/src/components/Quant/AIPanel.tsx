@@ -1,3 +1,5 @@
+import {quantReadingApi} from '../../api/quantReading';
+import type {QuantWorkspace} from '../../types/api/quantReading';
 import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, Check, Clock3, Loader2, RefreshCw, Sparkles, Square } from 'lucide-react';
 import { quantApi } from '../../api/quant';
@@ -8,7 +10,7 @@ import { QuantButton, QuantModal, QuantField, cardClass } from './ui';
 import { CodeEditor } from './CodeEditor';
 import { quantLanguageOptions as languageOptions } from '../../utils/quant';
 import type { QuantController } from '../../hooks/useQuant';
-import type { QuantAIRun, QuantCodeVersion, QuantEntryDetail, QuantLanguage } from '../../types/api/quant';
+import type { QuantAIRun, QuantCodeVersion, QuantLanguage } from '../../types/api/quant';
 
 export interface QuantAIRequest {
     version: QuantCodeVersion;
@@ -32,7 +34,7 @@ export function AIStartModal({
 }: {
     request: QuantAIRequest;
     collection: string;
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     controller: QuantController;
     close: () => void;
     started: (run: QuantAIRun) => void;
@@ -146,14 +148,20 @@ export function AIHistory({
 }: {
     request: (proceed: () => void) => void;
     collection: string;
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     controller: QuantController;
     selectedId: string;
     select: (id: string) => void;
     appendExplanation: (text: string) => void;
 }) {
     const codeRuns = entry.runs.filter(item => ['explain', 'convert'].includes(item.kind));
-    const run = codeRuns.find((item) => item.id === selectedId);
+    const run = entry.runBodies.find(item=>item.id===selectedId);
+    const ensureRunBody=controller.ensureRunBody;
+    const setReadError=controller.setReadingError;
+    useEffect(()=>{
+        if(!selectedId||run)return;
+        const abort=new AbortController();void ensureRunBody(selectedId,abort.signal).catch(cause=>{if(!abort.signal.aborted)setReadError(quantError(cause));});return()=>abort.abort();
+    },[selectedId,run,ensureRunBody,setReadError]);
     return (
         <section className={cardClass}>
             <div className="mb-4 flex items-center gap-2">
@@ -202,6 +210,8 @@ export function AIHistory({
                     从代码实现中选择一个版本，即可解释逻辑或生成其他语言的候选实现。
                 </p>
             )}
+            {selectedId && !run && <QuantModal title="读取任务结果" close={()=>select('')}><p role="status">正在读取所选任务…</p></QuantModal>}
+            {controller.pages.runs?.hasMore && <QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('runs',true),false)}>更多任务记录</QuantButton>}
             {run && (
                 <AIRunModal
                     key={run.id}
@@ -229,7 +239,7 @@ function AIRunModal({
 }: {
     initial: QuantAIRun;
     collection: string;
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     controller: QuantController;
     close: () => void;
     select: (id: string) => void;
@@ -245,7 +255,9 @@ function AIRunModal({
         let timer: ReturnType<typeof setTimeout>;
         const poll = async () => {
             try {
-                const result = await quantApi.poll(collection, entry.id, initial.id, abort.signal);
+                if(document.hidden){timer=setTimeout(()=>void poll(),1500);return;}
+                const summary = await quantReadingApi.run(collection, entry.id, initial.id, abort.signal);
+                const result = ['pending','running'].includes(summary.status) ? {...run,...summary} : await quantApi.poll(collection,entry.id,initial.id,abort.signal);
                 if (abort.signal.aborted) return;
                 setRun(result);
                 setPollError('');
@@ -266,7 +278,8 @@ function AIRunModal({
     }, [collection, entry.id, initial.id, pollRetry]);
     const cancel = async () => {
         await controller.safe(async () => {
-            setRun(await quantApi.cancel(collection, entry.id, run.id));
+            const stopped=await quantApi.cancel(collection, entry.id, run.id);
+            setRun(old=>({...old,...stopped}));
         });
     };
     const retry = async () => {

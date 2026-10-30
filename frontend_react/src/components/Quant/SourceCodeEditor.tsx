@@ -1,14 +1,15 @@
+import type {QuantWorkspace} from '../../types/api/quantReading';
 import { useCallback, useState } from 'react';
 import { Save } from 'lucide-react';
 import { quantApi } from '../../api/quant';
 import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
-import type { QuantEntryDetail, QuantLanguage, QuantSource } from '../../types/api/quant';
+import type { QuantLanguage, QuantSource } from '../../types/api/quant';
 import { CodeEditor } from './CodeEditor';
 import { QuantButton, cardClass } from './ui';
 
 export function SourceCodeEditor({ source, entry, collection, controller, register, saved }: {
-    source: QuantSource; entry: QuantEntryDetail; collection: string; controller: QuantController;
+    source: QuantSource; entry: QuantWorkspace; collection: string; controller: QuantController;
     register: QuantRegisterDraft; saved: (id: string) => void;
 }) {
     const original = source.payload.code || '';

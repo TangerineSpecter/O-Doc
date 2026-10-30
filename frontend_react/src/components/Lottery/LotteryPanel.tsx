@@ -108,7 +108,7 @@ function LotteryWinners({awards}: {awards: LotteryAward[]}) {
     </section>;
 }
 
-export function LotteryPanel() {
+export function LotteryPanel({residents}: {residents: {id: string; avatar?: string}[]}) {
     const openTasks = useOpenTaskAllocation();
     const state = useLottery();
     const {data, loading, error} = state;
@@ -214,6 +214,7 @@ export function LotteryPanel() {
             )}
 
             <LotteryTickets
+                residents={residents}
                 tickets={data.tickets}
                 round={round}
                 page={state.ticketPage}

@@ -1,4 +1,5 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import type {QuantWorkspace} from '../../types/api/quantReading';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Copy, Download, FileCode2, History, Plus, RotateCcw, Save, ShieldCheck, Sparkles } from 'lucide-react';
 import { quantApi } from '../../api/quant';
 import { Select } from '../common/Select';
@@ -12,7 +13,6 @@ import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/
 import type { QuantController } from '../../hooks/useQuant';
 import type {
     QuantCodeVersion,
-    QuantEntryDetail,
     QuantImplementation,
     QuantImplementationInput,
     QuantLanguage,
@@ -36,7 +36,7 @@ export function CodePanel({
     consumeSeed,
     startAI,
 }: {
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;
@@ -46,10 +46,19 @@ export function CodePanel({
     startAI: (version: QuantCodeVersion, kind: 'explain' | 'convert') => void;
 }) {
     const sources = collectedCodeSources(entry.sources || []);
-    const [selected, setSelected] = useState(sources[0] ? `source:${sources[0].id}` : entry.implementations[0]?.id || '');
+    const [selection,setSelected]=useState('');
+    const selected=selection||(entry.sourceHeaders.find(row=>row.provenance!=='external_feedback'&&!row.codeVersionId&&row.hasCode)?`source:${entry.sourceHeaders.find(row=>row.provenance!=='external_feedback'&&!row.codeVersionId&&row.hasCode)!.id}`:entry.implementationHeaders[0]?.id||'');
     const [creating, setCreating] = useState(false);
     const source = sources.find((item) => `source:${item.id}` === selected);
-    const implementation = source ? undefined : entry.implementations.find((item) => item.id === selected) || entry.implementations[0];
+    const implementation = selected.startsWith('source:')?undefined:entry.implementations.find(item=>item.id===selected);
+    const ensureSource=controller.ensureSource,ensureImplementation=controller.ensureImplementation,setError=controller.setError;
+    const loaded=!!(source||implementation);
+    useEffect(()=>{
+        if(!selected||loaded)return;
+        const abort=new AbortController();
+        void (selected.startsWith('source:')?ensureSource(selected.slice(7),abort.signal):ensureImplementation(selected,abort.signal)).catch(cause=>{if(!abort.signal.aborted)setError(String(cause));});
+        return()=>abort.abort();
+    },[selected,loaded,ensureSource,ensureImplementation,setError]);
     const close = () =>
         request(() => {
             setCreating(false);
@@ -68,57 +77,20 @@ export function CodePanel({
                         新增实现
                     </QuantButton>
                 </div>
-                {(entry.implementations.length > 0 || sources.length > 0) && (
-                    <div className="mt-5 space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                            {sources.map((item) => (
-                                <button key={item.id} type="button" onClick={() => request(() => setSelected(`source:${item.id}`))}
-                                    className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-left text-xs transition ${source?.id === item.id ? 'border-orange-300 bg-orange-50/70 text-orange-900' : 'border-slate-200/80 bg-slate-50/60 text-slate-600'}`}>
-                                    <FileCode2 size={14}/><span className="font-bold">来源代码</span>
-                                    <span>{languageName(item.payload.language || '')} · {quantDate(item.createdAt)}</span>
-                                </button>
-                            ))}
-                            {entry.implementations.map((item) => {
-                                const isActive = implementation?.id === item.id;
-                                return (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        onClick={() => request(() => setSelected(item.id))}
-                                        className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-left text-xs transition ${
-                                            isActive
-                                                ? 'border-orange-300 bg-orange-50/70 text-orange-900 shadow-xs'
-                                                : 'border-slate-200/80 bg-slate-50/60 text-slate-600 hover:border-slate-300 hover:bg-white'
-                                        }`}
-                                    >
-                                        <FileCode2 size={14} className={isActive ? 'text-orange-500' : 'text-slate-400'} />
-                                        <span className="font-bold">{item.name}</span>
-                                        <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500 shadow-2xs">
-                                            {languageName(item.language)}
-                                            {item.languageVersion ? ` ${item.languageVersion}` : ''}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400">{item.versions.length} 版本</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        <div className="max-w-sm">
-                            <Select
-                                value={source ? `source:${source.id}` : implementation?.id || ''}
-                                options={[...sources.map((item) => ({ value: `source:${item.id}`, label: `来源代码 · ${languageName(item.payload.language || '')}`, description: quantDate(item.createdAt) })), ...entry.implementations.map((item) => ({
-                                    value: item.id,
-                                    label: item.name,
-                                    description: `${languageName(item.language)} ${item.languageVersion}`,
-                                }))]}
-                                onChange={(id) => request(() => setSelected(id))}
-                            />
-                        </div>
+                <div className="mt-4 space-y-3">
+                    <Select value={selected} options={[
+                        ...entry.sourceHeaders.filter(row=>row.provenance!=='external_feedback'&&!row.codeVersionId&&row.hasCode).map(row=>({value:`source:${row.id}`,label:`来源代码 · ${languageName(row.language)}`,description:quantDate(row.createdAt)})),
+                        ...entry.implementationHeaders.map(row=>({value:row.id,label:row.name,description:languageName(row.language)}))
+                    ]} onChange={id=>request(()=>setSelected(id))}/>
+                    <div className="flex flex-wrap gap-2">
+                        {controller.pages.sources?.hasMore && <QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('sources',true),false)}>更多来源</QuantButton>}
+                        {controller.pages.implementations?.hasMore && <QuantButton onClick={()=>void controller.safe(()=>controller.loadPage('implementations',true),false)}>更多实现</QuantButton>}
                     </div>
-                )}
+                </div>
             </section>
             {source ? (
                 <SourceCodeEditor key={source.id} source={source} entry={entry} collection={collection}
-                    controller={controller} register={register} saved={setSelected}/>
+                    controller={controller} register={register} saved={id=>{setSelected(id);void controller.safe(()=>controller.ensureImplementation(id),false);}}/>
             ) : implementation ? (
                 <ImplementationEditor
                     key={implementation.id}
@@ -130,7 +102,7 @@ export function CodePanel({
                     request={request}
                     startAI={startAI}
                 />
-            ) : (
+            ) : selected ? <p role="status" className="p-5 text-sm text-slate-500">正在读取代码…</p> : (
                 <QuantEmpty
                     title="给这个想法添上第一份代码"
                     description="支持 Python、Pine Script、MQL4。上传的文本脚本也能读取为代码草稿。"
@@ -150,7 +122,7 @@ export function CodePanel({
                     seed={seed}
                     close={close}
                     saved={(id) => {
-                        setSelected(id);
+                        setSelected(id);void controller.ensureImplementation(id);
                         setCreating(false);
                         consumeSeed();
                     }}
@@ -285,7 +257,7 @@ function ImplementationEditor({
     startAI,
 }: {
     implementation: QuantImplementation;
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;
@@ -391,14 +363,15 @@ function ImplementationEditor({
                 <div className="min-w-48 flex-1">
                     <Select
                         value={version.id}
-                        options={implementation.versions.map((item) => ({
+                        options={(entry.versionHeaders[implementation.id]||implementation.versions).map((item) => ({
                             value: item.id,
                             label: `${item.id === implementation.currentVersionId ? '当前版本' : '历史版本'} · ${quantDate(item.createdAt)}`,
                             description: `${item.id.slice(0, 8)}${item.note ? ` · ${item.note}` : ''}`,
                         }))}
-                        onChange={(value) => request(() => setViewId(value))}
+                        onChange={(value) => request(() => {void controller.safe(async()=>{await controller.ensureVersion(implementation.id,value);setViewId(value);},false);})}
                     />
                 </div>
+                {controller.pages[`versions:${implementation.id}`]?.hasMore && <QuantButton onClick={()=>void controller.safe(()=>controller.moreVersions(implementation.id),false)}>更多版本</QuantButton>}
                 <QuantButton disabled={controller.busy} onClick={() => request(() => setChecking(true))}>
                     <ShieldCheck size={15} />
                     验证记录
@@ -552,7 +525,7 @@ function VerificationModal({
     saved,
 }: {
     version: QuantCodeVersion;
-    entry: QuantEntryDetail;
+    entry: QuantWorkspace;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;

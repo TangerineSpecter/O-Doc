@@ -7,7 +7,7 @@ import { ReportMarkdown } from './ReportMarkdown';
 import { quantKindOptions as kindOptions, quantTags } from '../../utils/quant';
 import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
-import type { QuantEntryDetail, QuantEntryInput } from '../../types/api/quant';
+import type { QuantEntry, QuantEntryInput } from '../../types/api/quant';
 
 const QUICK_SNIPPETS = [
     { label: '章节标题', icon: Heading2, snippet: '\n## 核心逻辑与假设\n' },
@@ -25,7 +25,7 @@ export function EntryEditor({
     extra,
     consumeExtra,
 }: {
-    entry: QuantEntryDetail;
+    entry: QuantEntry;
     collection: string;
     controller: QuantController;
     register: QuantRegisterDraft;

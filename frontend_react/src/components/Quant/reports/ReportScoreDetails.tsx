@@ -1,10 +1,10 @@
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import { useState } from 'react';
 import { Award, ChevronDown, ChevronUp, FileCheck2, HelpCircle, MessageSquareText } from 'lucide-react';
-import type { QuantReport } from '../../../types/api/quant';
 import { QuantModal } from '../ui';
 import { scoreColor } from './scoreColors';
 
-export function ReportScoreDetails({ report, selected, close }: { report: QuantReport; selected: number | 'all'; close: () => void }) {
+export function ReportScoreDetails({ report, selected, close }: { report: QuantReportReading; selected: number | 'all'; close: () => void }) {
     const data = report.data;
     const [openMap, setOpenMap] = useState<Record<string, boolean>>(() =>
         Object.fromEntries((report.data.scores || []).map((item, index) => [item.dimension, selected === 'all' || selected === index])),

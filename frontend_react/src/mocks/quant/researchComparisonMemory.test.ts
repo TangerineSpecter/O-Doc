@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type {QuantAIRun, QuantEntryDetail, QuantFactorCandidate, QuantSource} from '../../types/api/quant.ts';
 import type {QuantComparison, QuantFactorMerge} from '../../types/api/quantComparison.ts';
 import {readResearchMemory, researchMemoryReference} from '../../utils/quantResearchMemory.ts';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {quantState, resetQuantStateForTests} from './state.ts';
 import {mockComparisonMemory} from './researchComparisonMemory.ts';
 

@@ -1,4 +1,5 @@
 """Analysis, collection and report revision contracts against isolated fake models."""
+from quant.testing_reading import read_fixture
 import json
 from unittest.mock import patch
 from django.test import TestCase
@@ -51,7 +52,7 @@ class AnalysisTests(TestCase):
         self.assertEqual(SourceRevision.objects.count(), 1)
         self.assertEqual(AIRun.objects.count(), 1)
         listed = self.client.get(f'/api/quant/{self.collection.pk}/entries/?language=python')
-        self.assertEqual([row['id'] for row in listed.data['data']], [entry.pk])
+        self.assertEqual([row['id'] for row in listed.data['data']['items']], [entry.pk])
         run = AIRun.objects.get()
         self.assertIsNone(run.source_version_id)
         self.assertIn('原作者的解释', prompt(run))
@@ -59,7 +60,7 @@ class AnalysisTests(TestCase):
             execute(run.pk)
         run.refresh_from_db()
         self.assertEqual(run.status, 'completed', run.error)
-        detail = self.client.get(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/').json()['data']
+        detail = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{entry.pk}/')
         self.assertEqual(detail['runs'][0]['result']['analysis']['totalScore'], 60)
         report = ResearchReport.objects.get()
         self.assertEqual(report.data['total_score'], 60)
@@ -69,7 +70,9 @@ class AnalysisTests(TestCase):
         saved = self.client.patch(url, {'markdown': '我的修订', 'expected_revision_id': ''}, format='json')
         self.assertEqual(saved.status_code, 200, saved.data)
         self.assertEqual(saved.data['data']['markdown'], '我的修订')
-        self.assertIn('动量研究', saved.json()['data']['originalMarkdown'])
+        self.assertNotIn('revisions', saved.json()['data'])
+        original=self.client.get(url.replace('/reports/', '/reading/reports/')+'original/').json()['data']
+        self.assertIn('动量研究', original['markdown'])
         stale = self.client.patch(url, {'markdown': '冲突覆盖', 'expected_revision_id': ''}, format='json')
         self.assertEqual(stale.status_code, 409)
         snapshot = SyncManager().build_snapshot_data()
@@ -82,7 +85,7 @@ class AnalysisTests(TestCase):
         entry = self.collect()
         url = f'/api/quant/{self.collection.pk}/entries/'
         def score():
-            return self.client.get(url).json()['data'][0]['researchScore']
+            return self.client.get(url).json()['data']['items'][0]['researchScore']
 
         self.assertIsNone(score())
         first_run = AIRun.objects.get(entry=entry)

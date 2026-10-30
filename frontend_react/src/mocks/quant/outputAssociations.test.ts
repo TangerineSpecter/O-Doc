@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {beforeEach, test} from 'node:test';
-import {resolveQuantRoute} from './routes';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture';
 import {quantState, resetQuantStateForTests} from './state';
 import {advanceRun} from './runs';
 import {readOutputAssociations} from '../../utils/quantOutputAssociations';

@@ -1,6 +1,11 @@
+import type {QuantController} from '../../hooks/useQuant';
+import type {QuantRunSummary} from '../../types/api/quantReading';
+import type {QuantReportReading} from '../../types/api/quantReading';
+import type {QuantWorkspace} from '../../types/api/quantReading';
+import {useEffect, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {ArrowUpRight, FlaskConical} from 'lucide-react';
-import type {QuantAIRun, QuantEntryDetail, QuantReport, QuantSource} from '../../types/api/quant';
+import type {QuantSource} from '../../types/api/quant';
 import type {ResearchStage} from '../../types/api/quantWorkflow';
 import type {QuantRegisterDraft} from '../../hooks/useQuantNavigation';
 import {QuantBadge, QuantButton, cardClass} from './ui';
@@ -10,25 +15,43 @@ import {SourceImpactPanel} from './sourceImpact/SourceImpactPanel';
 import {ResearchWorkflow} from './workflows/ResearchWorkflow';
 import {NativeAudit} from './nativePython/NativeAudit';
 import {ReportComparison} from './reports/ReportComparison';
+import {quantError} from '../../utils/quant';
 import {ResearchMemory} from './ResearchMemory';
 
 export type ResearchDetailsTab = 'all' | 'experiment' | 'source';
 
 export function ResearchDetails({entry, report, source, collection, register, request, openFactors, openExperiments,
-    inspectorTab, setInspectorTab, staticReports, lastRun, reportRun, entryActive, controllerBusy,
+    controller, initialTab = 'all', lastRun, reportRun, entryActive, controllerBusy,
     start, incremental, analyzeDisabledReason, resume, inModal}: {
-    entry: QuantEntryDetail; report?: QuantReport; source?: QuantSource; collection: string;
+    controller: QuantController; entry: QuantWorkspace; report?: QuantReportReading; source?: QuantSource; collection: string;
     register: QuantRegisterDraft; request: (action: () => void) => void;
     openFactors: () => void; openExperiments: (id?: string) => void;
-    inspectorTab: ResearchDetailsTab; setInspectorTab: (tab: ResearchDetailsTab) => void;
-    staticReports: QuantReport[]; lastRun?: QuantAIRun; reportRun?: QuantAIRun; entryActive?: QuantAIRun;
+    initialTab?: ResearchDetailsTab;
+    lastRun?: QuantRunSummary; reportRun?: QuantRunSummary; entryActive?: QuantRunSummary;
     controllerBusy: boolean; start: () => void; incremental: (id: string) => void;
     analyzeDisabledReason: string; resume: (stage?: ResearchStage) => void; inModal: boolean;
 }) {
     const navigate = useNavigate();
+    const [inspectorTab, setInspectorTab] = useState(initialTab);
+    const content = useRef<HTMLDivElement>(null);
+    const [memoryFailure, setMemoryFailure] = useState<{runId: string; message: string} | null>(null);
+    const [memoryRetry, setMemoryRetry] = useState(0);
+    const memoryVisible = inspectorTab === 'all' || inspectorTab === 'source';
+    const memoryRunId = !report?.researchMemoryJson ? report?.runId : undefined;
+    const memoryError = memoryFailure && memoryFailure.runId === memoryRunId ? memoryFailure.message : '';
+    const memoryBody = entry.runBodies.find(run => run.id === memoryRunId);
+    const ensureRunBody = controller.ensureRunBody;
+    useEffect(() => {
+        if (!memoryVisible || !memoryRunId || memoryBody) return;
+        const abort = new AbortController();
+        void ensureRunBody(memoryRunId, abort.signal).catch(cause => {
+            if (!abort.signal.aborted) setMemoryFailure({runId: memoryRunId, message: quantError(cause)});
+        });
+        return () => abort.abort();
+    }, [memoryVisible, memoryRunId, memoryBody, ensureRunBody, memoryRetry]);
     return (
-        <div className="min-w-0 space-y-4">
-        <div role="group" aria-label="研究详情分类" className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 text-sm">
+        <div className={inModal ? "flex h-full min-h-0 min-w-0 flex-col gap-4" : "min-w-0 space-y-4"}>
+        <div role="group" aria-label="研究详情分类" className="flex shrink-0 flex-wrap gap-1 rounded-xl bg-slate-100 p-1 text-sm">
                 {(
                     [
                         ['all', '全部'],
@@ -40,8 +63,8 @@ export function ResearchDetails({entry, report, source, collection, register, re
                         key={id}
                         type="button"
                         aria-pressed={inspectorTab === id}
-                        onClick={() => setInspectorTab(id)}
-                        className={`rounded-lg px-3 py-1.5 font-medium transition ${
+                        onClick={() => { setInspectorTab(id); if (content.current) content.current.scrollTop = 0; }}
+                        className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 font-medium ${
                             inspectorTab === id
                                 ? 'bg-white text-orange-700 shadow-sm'
                                 : 'text-slate-600 hover:text-slate-900'
@@ -52,6 +75,7 @@ export function ResearchDetails({entry, report, source, collection, register, re
                 ))}
         </div>
 
+        <div ref={content} className={inModal ? "min-h-0 flex-1 space-y-4 overflow-y-auto scrollbar-hide" : "space-y-4"}>
         {/* 自动提取的因子候选预览与入口 */}
         {(inspectorTab === 'all' || inspectorTab === 'experiment') &&
             report?.data.extractionVersion === 1 && ![2, 3].includes(report.schemaVersion) && (
@@ -124,7 +148,7 @@ export function ResearchDetails({entry, report, source, collection, register, re
         {/* 源码变更影响预览 */}
         {(inspectorTab === 'all' || inspectorTab === 'source') && (
             <div id="quant-source-impact-section" className="scroll-mt-24">
-                <SourceImpactPanel
+                <SourceImpactPanel controller={controller}
                     inModal={inModal}
                     entry={entry}
                     collection={collection}
@@ -170,7 +194,8 @@ export function ResearchDetails({entry, report, source, collection, register, re
                     inModal={inModal}
                     key={`comparison-${report.id}`}
                     report={report}
-                    reports={staticReports}
+                    headers={entry.reportHeaders}
+                    controller={controller}
                     runs={entry.runs}
                 />
             </div>
@@ -179,10 +204,13 @@ export function ResearchDetails({entry, report, source, collection, register, re
         {/* 跨来源历史研究记忆 */}
         {(inspectorTab === 'all' || inspectorTab === 'source') && report && (
             <div id="quant-memory-section" className="scroll-mt-24">
+                {memoryRunId && !memoryBody && (memoryError
+                    ? <p role="alert">{memoryError}<QuantButton onClick={() => {setMemoryFailure(null); setMemoryRetry(n => n + 1);}}>重试</QuantButton></p>
+                    : <p role="status">正在读取历史研究记忆…</p>)}
                 <ResearchMemory
                     json={
                         report.researchMemoryJson ||
-                        entry.runs.find((run) => run.id === report.runId)?.researchMemoryJson
+                        entry.runBodies.find((run) => run.id === report.runId)?.researchMemoryJson
                     }
                     note={report.data.memoryNote}
                     assessments={report.data.memoryAssessment}
@@ -196,6 +224,7 @@ export function ResearchDetails({entry, report, source, collection, register, re
                 />
             </div>
         )}
+        </div>
         </div>
     );
 }

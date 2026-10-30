@@ -1,11 +1,11 @@
+import type {QuantReportReading} from '../../../types/api/quantReading';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Award, ChevronRight, ExternalLink } from 'lucide-react';
-import type { QuantReport } from '../../../types/api/quant';
 import { ReportScoreDetails } from './ReportScoreDetails';
 import { scoreColor } from './scoreColors';
 
-export function ReportScore({ report }: { report: QuantReport }) {
+export function ReportScore({ report }: { report: QuantReportReading }) {
     const data = report.data;
     const [selected, setSelected] = useState<number | 'all' | null>(null);
     if (!data.scores) return null;

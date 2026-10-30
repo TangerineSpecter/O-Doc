@@ -1,4 +1,5 @@
 """Text is a declared categorical choice, never executable source or a number."""
+from quant.sync import SCHEMA_VERSION
 import copy
 import json
 from django.test import SimpleTestCase, TestCase
@@ -165,7 +166,7 @@ class StringParameterIntegrationTests(TestCase):
         self.assertEqual(attempts[1]['requested_parameters']['mode'], 'reverse')
         self.assertEqual(attempts[1]['status'], 'evaluated')
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], SCHEMA_VERSION)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertFalse(ExperimentJob.objects.exists())

@@ -1,3 +1,4 @@
+from .reading.views import ReadingView, StatusView
 from .strategy_exports.views import StrategyExportView
 from .studies.views import StudyView
 from .connectors.views import ConnectorView, ConnectorExecuteView
@@ -28,6 +29,23 @@ from .graph.correlation_views import CorrelationView
 from .mt4_reports.views import ExpertView as MT4ExpertView, PreviewView as MT4PreviewView, TestView as MT4TestView, AttachmentView as MT4AttachmentView, VisionView as MT4VisionView, ZipChartView
 
 urlpatterns = [
+    path('<str:coll_id>/entries/<str:entry_id>/reading/notes/', ReadingView.as_view(), {'section': 'notes'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/reports/', ReadingView.as_view(), {'section': 'reports'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/reports/<str:identity>/', ReadingView.as_view(), {'section': 'reports'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/sources/', ReadingView.as_view(), {'section': 'sources'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/sources/<str:identity>/', ReadingView.as_view(), {'section': 'sources'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/implementations/', ReadingView.as_view(), {'section': 'implementations'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/implementations/<str:identity>/', ReadingView.as_view(), {'section': 'implementations'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/versions/<str:identity>/', ReadingView.as_view(), {'section': 'versions'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/runs/', ReadingView.as_view(), {'section': 'runs'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/runs/<str:identity>/', ReadingView.as_view(), {'section': 'runs'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/attachments/', ReadingView.as_view(), {'section': 'attachments'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/backtests/', ReadingView.as_view(), {'section': 'backtests'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/reports/<str:identity>/<str:child>/', ReadingView.as_view(), {'section': 'reports'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/reports/<str:identity>/revisions/<str:child_id>/', ReadingView.as_view(), {'section': 'reports', 'child': 'revisions'}),
+    path('<str:coll_id>/entries/<str:entry_id>/reading/implementations/<str:identity>/versions/', ReadingView.as_view(), {'section': 'implementations', 'child': 'versions'}),
+    path('<str:coll_id>/entries/<str:entry_id>/status/', StatusView.as_view()),
+
     path('<str:coll_id>/mt4/experts/', MT4ExpertView.as_view()),
     path('<str:coll_id>/mt4/experts/<str:expert_id>/', MT4ExpertView.as_view()),
     path('<str:coll_id>/mt4/experts/<str:expert_id>/preview/', MT4PreviewView.as_view()),

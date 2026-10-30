@@ -4,7 +4,7 @@ import {quantState,resetQuantStateForTests,quantId} from './state.ts';
 import {ensureSources,publishMockReport} from './research.ts';
 import {collectMockFeedback} from './feedback.ts';
 import {advanceRun} from './runs.ts';
-import {resolveQuantRoute} from './routes.ts';
+import {resolveQuantFixtureRequest as resolveQuantRoute} from './testReadingFixture.ts';
 import {readNativeReview} from '../../utils/quantNativeReview.ts';
 import {nativeAlignmentFixture} from './nativeAlignment.ts';
 import {readNativeAlignment} from '../../utils/quantNativeAlignment.ts';

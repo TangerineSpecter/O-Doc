@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     ArrowLeft,
     BarChart3,
@@ -60,9 +60,12 @@ export default function QuantPage() {
 function QuantWorkbench({ collection, entryId }: { collection: string; entryId: string }) {
     const navigate = useNavigate();
     const { attach: attachViewport, height: viewportHeight } = useQuantViewport();
-    const controller = useQuant(collection, entryId);
+    const [params]=useSearchParams();
+    const deepReportId=params.get('report')||'';
     const guard = useQuantNavigation();
-    const [tab, setTab] = useState('report');
+    const [tabState,setTabState]=useState({entryId,reportId:deepReportId,value:'report'});
+    const tab=tabState.entryId===entryId&&tabState.reportId===deepReportId?tabState.value:'report';
+    const setTab=(value:string)=>setTabState({entryId,reportId:deepReportId,value});
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [wideMode, setWideMode] = useState(false);
     const [library, setLibrary] = useState(false);
@@ -70,7 +73,10 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
     const [initialComparison, setInitialComparison] = useState<string>();
     const [graph, setGraph] = useState<string | null>(null);
     const [lastGraphFocus, setLastGraphFocus] = useState('');
-    const [sourceReport, setSourceReport] = useState('');
+    const [reportState,setReportState]=useState({entryId:'',routeReport:'',id:''});
+    const sourceReport=reportState.entryId===entryId&&reportState.routeReport===deepReportId?reportState.id:'';
+    const setSourceReport=(id:string,target=entryId,routeReport=deepReportId)=>setReportState({entryId:target,routeReport,id});
+    const controller = useQuant(collection,entryId,sourceReport||deepReportId);
     const [creating, setCreating] = useState(false);
     const [batches, setBatches] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -79,13 +85,13 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
     const [selectedRun, setSelectedRun] = useState('');
     const [analysisModels, setAnalysisModels] = useState<Record<string, string>>({});
     const [extra, setExtra] = useState('');
-    const clearExtra = useCallback(() => setExtra(''), []);
-    const clearSeed = useCallback(() => setSeed(null), []);
+    const clearExtra = useCallback(() => setExtra(''), [setExtra]);
+    const clearSeed = useCallback(() => setSeed(null), [setSeed]);
     const selectEntry = (id: string, report = '') =>
         guard.request(() => {
             setGraph(null);
             setLibrary(false);
-            setSourceReport(report);
+            setSourceReport(report,id,'');
             setTab('report');
             setExtra('');
             setSeed(null);
@@ -94,20 +100,26 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
         });
     const startAI = (version: QuantCodeVersion, kind: 'explain' | 'convert') => setAIRequest({ version, kind });
     const entry = controller.detail;
+    const loadTab=controller.loadTab;
+    const setReadError=controller.setReadingError;
+    useEffect(()=>{
+        if(!entryId||controller.detailLoading)return;
+        const abort=new AbortController();
+        void loadTab(tab,abort.signal).catch(cause=>{if(!abort.signal.aborted)setReadError(cause instanceof Error?cause.message:'读取失败');});
+        return()=>abort.abort();
+    },[entryId,tab,loadTab,setReadError,controller.detailLoading]);
 
-    const feedbackCount = (entry?.sources || []).filter(
-        (row) => row.payload.provenance === 'external_feedback',
-    ).length;
-    const reportCount = entry?.reports?.length || 0;
+    const feedbackCount = entry?.counts.feedback || 0;
+    const reportCount = entry?.counts.reports || 0;
     const hasRunningTask = entry?.runs.some((run) => ['pending', 'running'].includes(run.status)) || false;
 
     const tabs = [
         { id: 'report', label: 'AI 研究报告', icon: FlaskConical, count: reportCount, pulse: hasRunningTask },
-        { id: 'notes', label: '补充笔记', icon: BookOpen, count: entry?.content?.trim() ? 1 : 0 },
-        { id: 'code', label: '代码实现', icon: Code2, count: entry?.implementations.length || 0 },
-        { id: 'backtests', label: '回测记录', icon: BarChart3, count: entry?.backtests.length || 0 },
+        { id: 'notes', label: '补充笔记', icon: BookOpen, count: entry?.hasNotes ? 1 : 0 },
+        { id: 'code', label: '代码实现', icon: Code2, count: entry?.counts.implementations || 0 },
+        { id: 'backtests', label: '回测记录', icon: BarChart3, count: entry?.counts.backtests || 0 },
         { id: 'feedback', label: '使用反馈', icon: MessageSquareQuote, count: feedbackCount },
-        { id: 'attachments', label: '附件', icon: Paperclip, count: entry?.attachments.length || 0 },
+        { id: 'attachments', label: '附件', icon: Paperclip, count: entry?.counts.attachments || 0 },
     ];
 
     const kindInfo = entry ? kindBadgeConfig[entry.kind] || kindBadgeConfig.factor : null;
@@ -350,6 +362,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                 >
                     <EntryList
                         entries={controller.entries}
+                        directory={controller.directory}
                         current={entryId}
                         loading={controller.loading}
                         busy={controller.busy}
@@ -420,7 +433,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                             openSource={(node) => {
                                 setGraph(null);
                                 setLibrary(false);
-                                setSourceReport(node.reportId);
+                                setSourceReport(node.reportId,node.entryId,'');
                                 setTab('report');
                                 navigate(`/quant/${collection}/entries/${node.entryId}`);
                             }}
@@ -444,7 +457,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                             }}
                             openSource={(candidate) => {
                                 setLibrary(false);
-                                setSourceReport(candidate.reportId);
+                                setSourceReport(candidate.reportId,candidate.entryId,'');
                                 setTab('report');
                                 if (candidate.entryId === entryId) void controller.safe(controller.refresh, false);
                                 navigate(`/quant/${collection}/entries/${candidate.entryId}`);
@@ -465,8 +478,8 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                             >
                                 {tab === 'report' && (
                                     <ReportPanel
-                                        key={`${entry.id}:${sourceReport}`}
-                                        initialReportId={sourceReport}
+                                        key={`${entry.id}:${sourceReport}:${deepReportId}`}
+                                        initialReportId={sourceReport||deepReportId}
                                         entry={entry}
                                         selectedModelId={analysisModels[entry.id] || ''}
                                         onModelChange={(id) => setAnalysisModels((current) => ({ ...current, [entry.id]: id }))}
@@ -500,10 +513,10 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                         }}
                                     />
                                 )}
-                                {tab === 'notes' && (
+                                {tab === 'notes' && entry.notes && (
                                     <EntryEditor
                                         key={entry.id}
-                                        entry={entry}
+                                        entry={entry.notes}
                                         collection={collection}
                                         controller={controller}
                                         register={guard.register}
@@ -562,7 +575,8 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                             setTab('code');
                                         }}
                                     />
-                                )}
+                                )}                                {(tab==='attachments'||tab==='backtests')&&controller.pages[tab]?.hasMore&&<QuantButton disabled={controller.readingPending} onClick={()=>void controller.safe(()=>controller.loadPage(tab,true),false)}>加载更多</QuantButton>}
+
                             </div>
                         </div>
                     ) : (

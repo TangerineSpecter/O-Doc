@@ -1,7 +1,7 @@
+import type {QuantRunSummary} from '../../../types/api/quantReading';
 import {useEffect, useState} from 'react';
 import {CheckCircle2, Clock3, Loader2, Play, RotateCcw, XCircle, Sparkles} from 'lucide-react';
 import {quantApi} from '../../../api/quant';
-import type {QuantAIRun} from '../../../types/api/quant';
 import type {QuantStageEvidence, ResearchStage, ResearchStageState} from '../../../types/api/quantWorkflow';
 import {Select} from '../../common/Select';
 import {SourceStructure} from './SourceStructure';
@@ -95,7 +95,7 @@ export function ResearchWorkflow({
     resume,
     inModal = false,
 }: {
-    run: QuantAIRun;
+    run: QuantRunSummary;
     collection: string;
     busy: boolean;
     resume: (stage?: ResearchStage) => void;

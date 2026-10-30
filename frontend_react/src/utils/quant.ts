@@ -11,7 +11,7 @@ export const quantLanguageOptions = [
     { value: 'pine' as const, label: 'Pine Script' },
     { value: 'mql4' as const, label: 'MQL4' },
 ];
-export function quantVersionLabel(implementation: QuantImplementation, version: QuantCodeVersion) {
+export function quantVersionLabel(implementation: Pick<QuantImplementation,'name'|'currentVersionId'>, version: Pick<QuantCodeVersion,'id'>) {
     return `${implementation.name} · ${version.id.slice(0, 8)}${version.id === implementation.currentVersionId ? '（当前）' : ''}`;
 }
 

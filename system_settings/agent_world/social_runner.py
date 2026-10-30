@@ -195,7 +195,8 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
             current = thread_context(incoming)
             if incoming.status not in ('pending', 'deferred') or not current or current != discussion:
                 raise ValueError('讨论或待回应事项发生变化')
-            apply_event(op.owner_id, agent.pk, incoming.sender_id, f'read:{incoming.pk}', value.get('received_appraisal'), incoming.identity)
+            if value.get('received_appraisal'):
+                apply_event(op.owner_id, agent.pk, incoming.sender_id, f'read:{incoming.pk}', value['received_appraisal'], incoming.identity)
             incoming.read_at = timezone.now()
             if action == 'reply':
                 if auto_reply_count(current) >= 6: action = 'ignore'; value['reason'] = '讨论已达到连续自动回复上限'
@@ -213,7 +214,6 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
                     result = comment(op.owner_id, incoming.content_id, own_key, agent_identity(agent), value['content'], incoming.source_id, incoming.sender_id)
                     value['moment_id'] = result.moment_id
                     artifact = {'artifact_kind': 'momentComment', 'artifact_id': result.pk}
-                apply_event(op.owner_id, agent.pk, incoming.sender_id, f'sent:{result.pk}', value.get('sent_appraisal'), incoming.identity)
                 incoming.status = 'replied'
             elif action == 'ignore': incoming.status = 'ignored'
             else:

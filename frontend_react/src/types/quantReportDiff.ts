@@ -23,8 +23,8 @@ export interface ReportRecordDiff {
     factors: NamedReportChange<QuantFactorData>[];
     findingsAvailable: boolean;
     findings: NamedReportChange<QuantSourceFinding>[];
-    baseline: QuantReport;
-    current: QuantReport;
+    baseline: Omit<QuantReport,'originalMarkdown'|'revisions'>;
+    current: Omit<QuantReport,'originalMarkdown'|'revisions'>;
 }
 export interface ReportDiffLine {
     kind: 'context' | 'added' | 'removed';

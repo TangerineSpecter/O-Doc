@@ -1,4 +1,6 @@
 """Read-only change previews use explicit owned versions and preserve old research."""
+from quant.sync import SCHEMA_VERSION
+from quant.testing_reading import read_fixture
 import copy
 import json
 from unittest.mock import patch
@@ -69,7 +71,7 @@ class SourceChangeAPITests(TestCase):
         report.refresh_from_db()
         self.assertEqual(report.data, old_facts)
         self.assertEqual(report.revisions.get().markdown, '保留我的报告删减')
-        detail = self.client.get(self.base).json()['data']
+        detail = read_fixture(self.client, self.base)
         sources = {row['id']: row for row in detail['sources']}
         self.assertEqual(sources[old.pk]['materialCurrentSourceId'], new.pk)
         self.assertEqual(sources[new.pk]['materialCurrentSourceId'], new.pk)
@@ -79,7 +81,7 @@ class SourceChangeAPITests(TestCase):
         self.assertEqual(same['relationship'], 'same_source')
         self.assertEqual(same['impact']['status'], 'identical')
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], SCHEMA_VERSION)
         validate(snapshot, metadata(snapshot))
 
     def test_cross_material_requires_explicit_baseline_and_never_claims_new_version(self):

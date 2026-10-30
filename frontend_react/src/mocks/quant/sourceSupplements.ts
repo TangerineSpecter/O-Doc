@@ -1,3 +1,4 @@
+import {mockOverview} from './reading';
 import {HttpResponse} from 'msw';
 import type {QuantEntryDetail, QuantSource} from '../../types/api/quant';
 import type {QuantSourceFile, QuantSourceSupplementInput} from '../../types/api/quantSourceSupplement';
@@ -18,7 +19,7 @@ export async function supplementMockSource(entry:QuantEntryDetail,sourceId:strin
     if (!body || typeof body.requestKey!=='string' || !/^[A-Za-z0-9_-]{16,64}$/.test(body.requestKey) || typeof body.reason!=='string' || !body.reason.trim() || body.reason.length>2000 || !Array.isArray(body.files) || body.files.length<1 || body.files.length>4) return fail(400,'请提交原因和1–4份依赖源码');
     const fingerprint=JSON.stringify(body),identity=`supplement-${source.materialId}-${body.requestKey}`;
     const old=entry.sources!.find(row=>row.id===identity);
-    if (old) return old.payload.requestFingerprint===fingerprint && old.payload.parentSourceId===sourceId ? {entry:presentMockEntry(entry),sourceId:old.id,notice:''} : fail(409,'补充请求内容已发生变化');
+    if (old) return old.payload.requestFingerprint===fingerprint && old.payload.parentSourceId===sourceId ? {entry:mockOverview(presentMockEntry(entry)),sourceId:old.id,notice:''} : fail(409,'补充请求内容已发生变化');
     if (body.expectedSourceId!==sourceId || quantState().materialCurrentSources[source.materialId]!==sourceId) return fail(409,'来源已有新版本，请选择材料当前快照后补充');
     if (!source.payload.code?.trim()) return fail(400,'请先提供主源码');
     const depth=(source.payload.bundleDepth || 0)+1;
@@ -61,5 +62,5 @@ export async function supplementMockSource(entry:QuantEntryDetail,sourceId:strin
         else createRun(entry,{kind:'analyze',sourceId:created.id,requestKey:body.requestKey,modelId});
     }
     entry.updatedAt=created.createdAt;persistQuantState();
-    return {entry:presentMockEntry(entry),sourceId:created.id,notice};
+    return {entry:mockOverview(presentMockEntry(entry)),sourceId:created.id,notice};
 }

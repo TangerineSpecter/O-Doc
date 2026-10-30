@@ -10,4 +10,4 @@ def owned_collection(request, coll_id):
 
 
 def owned_entry(collection, entry_id):
-    return get_object_or_404(Entry, pk=entry_id, anthology=collection, is_valid=True)
+    return get_object_or_404(Entry.objects.defer('content'), pk=entry_id, anthology=collection, is_valid=True)

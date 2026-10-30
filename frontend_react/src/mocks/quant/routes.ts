@@ -1,5 +1,5 @@
+import {mockImplementationReceipt,mockRunSummary,mockDirectory,mockOverview,mockReportBody,mockStatus,resolveReading} from './reading';
 import {seedDemoEntry} from './demoSeed';
-import {researchReportScore} from '../../utils/quantReportScore';
 import {resolveStudyRoute} from './studies';
 import {resolveMT4Route} from '../mt4/routes';
 import {resolveConnectorRoute} from './connectors';
@@ -101,7 +101,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         const existing = state.entries.find(row => row.id === identity);
         if (existing) {
             if (!existing.isValid || existing.sources?.[0]?.payload.requestFingerprint !== fingerprint) return fail(409, '收集请求内容发生变化或资料已删除');
-            return {entry: presentMockEntry(existing), notice: ''};
+            return {entry: mockOverview(presentMockEntry(existing)), notice: ''};
         }
         const now = new Date().toISOString();
         const created: QuantEntryDetail = {id: identity, collId, title: String(body.title || '待分析资料'), kind: 'factor', content: '', sourceUrl: String(body.url || ''), tags: [], isValid: true, createdAt: now, updatedAt: now, implementations: [], backtests: [], attachments: [], runs: [], reports: [], sources: [{id: identity, materialId: identity, codeVersionId: null, createdAt: now, payload: {title: String(body.title || ''), code: String(body.code || ''), description: String(body.description || ''), url: String(body.url || ''), language: String(body.language || 'text'), fetchStatus: 'not_fetched'}}]};
@@ -111,13 +111,11 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         setMockMaterialCurrent(created.sources![0]);
         const unavailable = body.modelId && !quantModels.models.some(row => row.id === body.modelId);
         if (body.analyze !== false && !unavailable) createRun(created, {kind: 'analyze', sourceId: identity, requestKey: body.requestKey, modelId: String(body.modelId || '')});
-        touch(created); return {entry: presentMockEntry(created), notice: body.analyze !== false && unavailable ? '请选择已配置的对话模型' : ''};
+        touch(created); return {entry: mockOverview(presentMockEntry(created)), notice: body.analyze !== false && unavailable ? '请选择已配置的对话模型' : ''};
     }
     if (!entryId) {
         if (request.method === 'GET') {
-            const query = (url.searchParams.get('q') || '').toLowerCase();
-            const kind = url.searchParams.get('kind'), language = url.searchParams.get('language');
-            return state.entries.filter(row => row.collId === collId && row.isValid && (!kind || row.kind === kind) && (!language || row.implementations.some(impl => impl.language === language) || row.sources?.some(source => source.payload.language === language)) && (!query || `${row.title} ${row.tags.join(' ')}`.toLowerCase().includes(query))).map(({implementations: _implementations, backtests: _backtests, attachments: _attachments, runs: _runs, sources: _sources, reports, ...entry}) => ({...entry, researchScore: researchReportScore(reports)}));
+            return mockDirectory(state.entries.filter(row=>row.collId===collId&&row.isValid),url.searchParams);
         }
         if (request.method === 'POST') {
             if (typeof body.title !== 'string' || !body.title.trim()) return fail(400, '请填写研究标题');
@@ -131,11 +129,13 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     const entry = state.entries.find(row => row.collId === collId && row.id === entryId && row.isValid);
     if (!entry) return fail(404, '研究条目不存在或已删除');
     if (section === 'source-impact') return mockSourceImpact(request, entry);
+    if(section==='reading')return resolveReading(request,presentMockEntry(entry),route.slice(4));
+    if(section==='status'&&request.method==='GET'){advanceEntry(entry);return mockStatus(presentMockEntry(entry));}
     if (section === 'feedback' && id === 'preview') return request.method === 'POST' ? previewMockExecution(body as unknown as import('./platformEvidence').MockExecutionInput) : fail(405, '只支持执行证据预览');
     ensureSources(entry);
     if (section==='sources' && action==='supplements' && id) return request.method==='POST' ? supplementMockSource(entry,id,body as unknown as import('../../types/api/quantSourceSupplement').QuantSourceSupplementInput) : fail(405,'只支持补充依赖源码');
     if (!section) {
-        if (request.method === 'GET') {seedDemoEntry(entry); advanceEntry(entry); return presentMockEntry(entry);}
+        if (request.method === 'GET') {seedDemoEntry(entry); return mockOverview(presentMockEntry(entry));}
         if (request.method === 'DELETE') {entry.isValid = false; touch(entry); return null;}
         if (request.method === 'PATCH') {
             if (body.title !== undefined && (typeof body.title !== 'string' || !body.title.trim())) return fail(400, '请填写研究标题');
@@ -156,16 +156,16 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         if (body.expectedRevisionId !== report.currentRevisionId) return fail(409, '报告已有新的修订，请刷新');
         const revision = {id: quantId('revision'), markdown: body.markdown, createdAt: new Date().toISOString()};
         report.revisions.push(revision); report.markdown = revision.markdown; report.currentRevisionId = revision.id;
-        touch(entry); return report;
+        touch(entry); return mockReportBody(report);
     }
     if (section === 'implementations') {
         if (!id && request.method === 'POST') {
             if (!languages.includes(String(body.language)) || !String(body.code || '').trim()) return fail(400, '请选择语言并填写代码');
-            const implementation = newImplementation(entry, body as unknown as QuantImplementationInput); touch(entry); return implementation;
+            const implementation = newImplementation(entry, body as unknown as QuantImplementationInput); touch(entry); return mockImplementationReceipt(implementation);
         }
         const implementation = entry.implementations.find(row => row.id === id);
         if (!implementation) return fail(404, '代码实现不存在');
-        if (!action && request.method === 'PATCH') {implementation.name = String(body.name || implementation.name); touch(entry); return implementation;}
+        if (!action && request.method === 'PATCH') {implementation.name = String(body.name || implementation.name); touch(entry); return mockImplementationReceipt(implementation);}
         if (action === 'versions' && request.method === 'POST') {
             if (!String(body.code || '').trim()) return fail(400, '代码内容不能为空');
             if (body.sourceVersionId && !findVersion(entry, String(body.sourceVersionId))) return fail(400, '来源版本必须属于当前研究');
@@ -224,7 +224,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         }
     }
     if (section === 'runs') {
-        if (!id && request.method === 'GET') {advanceEntry(entry); return entry.runs;}
+        if (!id && request.method === 'GET') return resolveReading(request,entry,['runs']);
         if (!id && request.method === 'POST') {
             const input = body as unknown as QuantRunInput;
             const auditError=validateMockAudit(entry,input);if(auditError)return fail(400,auditError);
@@ -257,19 +257,18 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         }
         const run = entry.runs.find(row => row.id === id); if (!run) return fail(404, 'AI 任务不存在');
         if (action === 'workflow' && request.method === 'GET') {
-            advanceEntry(entry);
             const detail = run.nativeReviewWorkflow?mockNativeReviewEvidence(run,route[6]):workflowEvidence(run, route[6], entry.sources?.find(row => row.id === (run.resolvedSourceId || run.sourceId)));
             return detail || fail(404, '阶段尚未开始');
         }
-        if (!action && request.method === 'GET') {advanceEntry(entry); return run;}
+        if (!action && request.method === 'GET') return run;
         if (action === 'cancel' && request.method === 'POST') {
-            if (run.status === 'pending' || run.status === 'running') {run.status = 'cancelled'; interruptWorkflow(run); run.preview = ''; run.updatedAt = new Date().toISOString(); touch(entry);} return run;
+            if (run.status === 'pending' || run.status === 'running') {run.status = 'cancelled'; interruptWorkflow(run); run.preview = ''; run.updatedAt = new Date().toISOString(); touch(entry);} return mockRunSummary(run);
         }
         if (action === 'adopt' && request.method === 'POST') {
             advanceEntry(entry);
             if (run.status !== 'completed' || (run.kind === 'convert' && !run.result.code)) return fail(409, '只有完整完成的任务结果可以采用');
             if (['analyze', 'experiment_review', 'feedback_review'].includes(run.kind)) return fail(400, '分析报告已自动保存');
-            const adopted = adoptRun(entry, run); touch(entry); return adopted;
+            const adopted = adoptRun(entry, run); touch(entry); return {...adopted,...(adopted.implementation?{implementation:mockImplementationReceipt(adopted.implementation)}:{})};
         }
     }
     return undefined;

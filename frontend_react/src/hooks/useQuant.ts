@@ -1,158 +1,37 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getAnthologyDetail } from '../api/anthology';
-import { quantApi } from '../api/quant';
-import type { QuantEntry, QuantEntryDetail, QuantModels } from '../types/api/quant';
-import { quantError } from '../utils/quant';
-import { researchReportScore } from '../utils/quantReportScore';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {getAnthologyDetail} from '../api/anthology';
+import {quantApi} from '../api/quant';
+import type {QuantModels} from '../types/api/quant';
+import {quantError} from '../utils/quant';
+import {useQuantDirectory} from './useQuantDirectory';
+import {useQuantWorkspace} from './useQuantWorkspace';
 
-export function useQuant(collection: string, entryId: string) {
-    const [title, setTitle] = useState('');
-    const [entries, setEntries] = useState<QuantEntry[]>([]);
-    const [languageFilter, setLanguageFilter] = useState('');
-    const [detail, setDetail] = useState<QuantEntryDetail | null>(null);
-    const [models, setModels] = useState<QuantModels>({ models: [], defaultModelId: '' });
-    const [loading, setLoading] = useState(true);
-    const [detailLoading, setDetailLoading] = useState(!!entryId);
-    const [error, setError] = useState('');
-    const [busy, setBusy] = useState(false);
-    const busyRef = useRef(false);
-    const generation = useRef(0);
-    const target = useRef({ collection, entryId });
-    useLayoutEffect(() => {
-        target.current = { collection, entryId };
-    }, [collection, entryId]);
-    const refresh = useCallback(async () => {
-        const at = { collection, entryId };
-        const [list, current] = await Promise.all([
-            quantApi.entries(collection, undefined, languageFilter),
-            entryId ? quantApi.detail(collection, entryId) : Promise.resolve(null),
-        ]);
-        if (target.current.collection !== at.collection || target.current.entryId !== at.entryId) return;
-        setEntries(list);
-        setDetail(current);
-    }, [collection, entryId, languageFilter]);
-    useEffect(() => {
-        const controller = new AbortController();
-        const current = ++generation.current;
-        // Reset the state of the external request when its collection/filter changes.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setLoading(true);
-        setError('');
-        setEntries([]);
-        void Promise.all([
-            quantApi.entries(collection, controller.signal, languageFilter),
-            quantApi.models(controller.signal),
-            getAnthologyDetail(collection),
-        ])
-            .then(([list, modelOptions, anthology]) => {
-                if (current === generation.current) {
-                    setEntries(list);
-                    setModels(modelOptions);
-                    setTitle(anthology.title);
-                }
-            })
-            .catch((error) => {
-                if (!controller.signal.aborted) setError(quantError(error));
-            })
-            .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
-            });
-        return () => controller.abort();
-    }, [collection, languageFilter]);
-    useEffect(() => {
-        const controller = new AbortController();
-        // Reset the state owned by the selected entry request before fetching it.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setDetail(null);
-        setDetailLoading(!!entryId);
-        setError('');
-        if (entryId)
-            void quantApi
-                .detail(collection, entryId, controller.signal)
-                .then((result) => {
-                    if (!controller.signal.aborted) setDetail(result);
-                })
-                .catch((error) => {
-                    if (!controller.signal.aborted) setError(quantError(error));
-                })
-                .finally(() => {
-                    if (!controller.signal.aborted) setDetailLoading(false);
-                });
-        return () => controller.abort();
-    }, [collection, entryId]);
-    const safe = useCallback(
-        async (operation: () => Promise<unknown>, reload = true): Promise<boolean> => {
-            if (busyRef.current) return false;
-            busyRef.current = true;
-            setBusy(true);
-            setError('');
-            try {
-                await operation();
-                if (reload) await refresh();
-                return true;
-            } catch (error) {
-                setError(quantError(error));
-                return false;
-            } finally {
-                busyRef.current = false;
-                setBusy(false);
-            }
-        },
-        [refresh],
-    );
-    const reload = useCallback(async () => {
-        await refresh();
-        const [modelOptions, anthology] = await Promise.all([
-            quantApi.models(),
-            getAnthologyDetail(collection),
-        ]);
-        if (target.current.collection === collection) {
-            setModels(modelOptions);
-            setTitle(anthology.title);
-        }
-    }, [collection, refresh]);
-    const running = detail?.runs.some((run) => run.status === 'running' || run.status === 'pending') || false;
-    useEffect(() => {
-        if (!entryId || !running) return;
-        const controller = new AbortController();
-        let timer: ReturnType<typeof setTimeout>;
-        const poll = async () => {
-            if (document.hidden) {timer = setTimeout(() => void poll(), 1800); return;}
-            try {
-                const currentDetail = await quantApi.detail(collection, entryId, controller.signal);
-                const runs = currentDetail.runs;
-                if (!controller.signal.aborted) {
-                    setDetail((current) => (current?.id === entryId ? { ...current, runs, reports: currentDetail.reports, sources: currentDetail.sources, title: currentDetail.title, kind: currentDetail.kind, tags: currentDetail.tags } : current));
-                    setEntries(current => current.map(row => row.id === entryId ? { ...row, title: currentDetail.title, kind: currentDetail.kind, tags: currentDetail.tags, researchScore: researchReportScore(currentDetail.reports) } : row));
-                    setError((current) => (current.startsWith('AI 任务状态更新失败：') ? '' : current));
-                }
-            } catch (error) {
-                if (!controller.signal.aborted) setError(`AI 任务状态更新失败：${quantError(error)}`);
-            }
-            if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 1800);
-        };
-        timer = setTimeout(() => void poll(), 1200);
-        return () => {
-            controller.abort();
-            clearTimeout(timer);
-        };
-    }, [collection, entryId, running]);
-    return {
-        title,
-        entries,
-        detail,
-        models,
-        loading,
-        detailLoading,
-        busy,
-        error,
-        safe,
-        refresh,
-        reload,
-        setError,
-        languageFilter,
-        setLanguageFilter,
-        removeLocal: (id: string) => setEntries((current) => current.filter((entry) => entry.id !== id)),
-    };
+export function useQuant(collection:string,entryId:string,reportId='') {
+    const directory=useQuantDirectory(collection);
+    const workspace=useQuantWorkspace(collection,entryId,reportId);
+    const [title,setTitle]=useState(''),[models,setModels]=useState<QuantModels>({models:[],defaultModelId:''});
+    const header=workspace.detail?.reportHeaders.find(row=>row.id===workspace.detail?.defaultReportId);
+    const score=typeof header?.totalScore==='number'&&Number.isFinite(header.totalScore)&&header.totalScore>=0&&header.totalScore<=100?header.totalScore:null;
+    const patchEntry=directory.patchEntry;
+    useEffect(()=>{if(entryId&&header)patchEntry({id:entryId,researchScore:score});},[entryId,header,score,patchEntry]);
+    const [error,setError]=useState(''),[busy,setBusy]=useState(false);
+    const busyRef=useRef(false);
+    useEffect(()=>{
+        const abort=new AbortController();
+        void Promise.all([quantApi.models(abort.signal),getAnthologyDetail(collection)]).then(([options,anthology])=>{
+            if(!abort.signal.aborted){setModels(options);setTitle(anthology.title);}
+        }).catch(cause=>{if(!abort.signal.aborted)setError(quantError(cause));});return()=>abort.abort();
+    },[collection]);
+    const refreshWorkspace=workspace.refresh,refreshDirectory=directory.refresh;
+    const refresh=useCallback(async()=>{await refreshWorkspace();},[refreshWorkspace]);
+    const safe=useCallback(async(operation:()=>Promise<unknown>,reload=true):Promise<boolean>=>{
+        if(busyRef.current)return false;busyRef.current=true;setBusy(true);setError('');
+        try{await operation();if(reload){await refresh();await refreshDirectory();}return true;}
+        catch(cause){setError(quantError(cause));return false;}
+        finally{busyRef.current=false;setBusy(false);}
+    },[refresh,refreshDirectory]);
+    return {...workspace,title,models,entries:directory.entries,directory,loading:directory.loading,busy,
+        error:error||workspace.readingError||directory.error,safe,refresh,reload:async()=>{await refresh();await refreshDirectory();},setError,
+        languageFilter:directory.query.language,setLanguageFilter:(language:string)=>directory.update({language}),removeLocal:directory.removeLocal};
 }
-export type QuantController = ReturnType<typeof useQuant>;
+export type QuantController=ReturnType<typeof useQuant>;

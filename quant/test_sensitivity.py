@@ -1,4 +1,5 @@
 """Deterministic evidence invariants and end-to-end versioned review restore."""
+from quant.sync import SCHEMA_VERSION
 import copy
 import json
 from unittest.mock import patch
@@ -124,7 +125,7 @@ class SensitivityReviewTests(TestCase):
         self.client.force_authenticate(user=None)
         self.assertNotEqual(self.client.get(self.path + request.pk + '/').status_code, 200)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], SCHEMA_VERSION)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertEqual(for_run(AIRun.objects.get(pk=run.pk)), evidence)

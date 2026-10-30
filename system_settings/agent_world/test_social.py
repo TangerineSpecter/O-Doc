@@ -29,6 +29,8 @@ class SocialTests(TestCase):
         def provider(agent, prompt, validate, **kwargs):
             result = value() if callable(value) else deepcopy(value)
             context = json.loads(prompt.rsplit('\n资料：', 1)[1])
+            if kwargs.get('scene') == '社交来信感受':
+                return validate({'received_appraisal': result.get('received_appraisal', {'category': 'neutral', 'reason': '本次来信没有改变感受'})})
             if kwargs.get('decision'):
                 options = context['choices']
                 key = next(key for key, description in options.items()
@@ -212,14 +214,14 @@ class SocialTests(TestCase):
         peer = f'agent-id:{self.other.pk}'
         for i in range(12): apply_event(self.owner, self.agent.pk, peer, f'disagree:{i}', {'category': 'disagreement', 'reason': '观点不同'})
         relation = SocialRelation.objects.get(actor_id=self.agent.pk)
-        self.assertEqual(relation.affinity, -12); self.assertEqual(relation.familiarity, 24)
+        self.assertEqual(relation.affinity, -24); self.assertEqual(relation.familiarity, 24)
         self.assertEqual(emotion_now(relation.emotion)['kind'], '不满')
         apply_event(self.owner, self.agent.pk, peer, 'insult', {'category': 'insult', 'reason': '受到轻视'})
         apply_event(self.owner, self.agent.pk, peer, 'insult', {'category': 'insult', 'reason': '受到轻视'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, -20)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, -32)
         self.assertEqual(SocialEvent.objects.count(), 13)
         apply_event(self.owner, self.agent.pk, peer, 'apology', {'category': 'apology', 'reason': '对方道歉并解释'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, -15)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, -27)
         self.assertFalse(SocialRelation.objects.filter(actor_id=self.other.pk).exists())
         old = {**relation.emotion, 'at': (local_time()-timedelta(days=8)).isoformat()}
         self.assertEqual(emotion_now(old)['intensity'], 0)
@@ -229,9 +231,11 @@ class SocialTests(TestCase):
         incoming = SocialInbox.objects.get(source_id=first.pk)
         self.assertEqual(incoming.target_id, f'agent-id:{self.agent.pk}')
         with self.mock_social({'action': 'reply', 'reason': '值得讨论', 'content': '你能具体说说吗？',
-                'received_appraisal': {'category': 'disagreement', 'reason': '观点不同但值得了解'},
-                'sent_appraisal': {'category': 'neutral', 'reason': '想继续了解'}}): run(self.op(), self.agent)
+                'received_appraisal': {'category': 'disagreement', 'reason': '对方的表达让我有一点不满', 'quote': '我觉得还有另一种可能。'},
+                'sent_appraisal': {'category': 'help', 'reason': '我耐心提供建议，不应给自己加分'}}): run(self.op(), self.agent)
         incoming.refresh_from_db(); self.assertEqual(incoming.status, 'replied')
+        self.assertEqual(SocialEvent.objects.filter(actor_id=self.agent.pk).count(), 1)
+        self.assertEqual(SocialRelation.objects.get(actor_id=self.agent.pk).affinity, -2)
         reply = self.moment.comments.exclude(pk=first.pk).get()
         self.assertEqual(reply.parent_id, first.pk); self.assertEqual(reply.root_id, first.pk)
         self.assertTrue(SocialInbox.objects.filter(target_id=user_actor(self.owner), source_id=reply.pk).exists())
@@ -247,6 +251,27 @@ class SocialTests(TestCase):
         incoming.status = 'pending'; incoming.available_at = timezone.now(); incoming.save()
         with self.mock_social({'action': 'ignore', 'reason': '不想继续'}): run(self.op(), self.agent)
         incoming.refresh_from_db(); self.assertEqual(incoming.status, 'ignored')
+
+    def test_ignoring_offensive_message_can_lower_affinity_without_reply(self):
+        row = comment(self.owner, self.moment.pk, user_actor(self.owner), {'name': '我'}, '你真是个蠢货。')
+        with self.mock_social({'action': 'ignore', 'reason': '不回应',
+                               'received_appraisal': {'category': 'insult', 'quote': '蠢货', 'reason': '对方直接辱骂我'}}):
+            run(self.op(), self.agent)
+        incoming = SocialInbox.objects.get(source_id=row.pk)
+        self.assertEqual(incoming.status, 'ignored')
+        self.assertEqual(self.moment.comments.count(), 1)
+        self.assertEqual(SocialRelation.objects.get(actor_id=self.agent.pk).affinity, -8)
+        self.assertEqual(SocialEvent.objects.filter(actor_id=self.agent.pk).count(), 1)
+
+    def test_failed_ignore_appraisal_preserves_inbox_and_relation(self):
+        row = comment(self.owner, self.moment.pk, user_actor(self.owner), {'name': '我'}, '普通来信')
+        with self.mock_social({'action': 'ignore', 'reason': '不回应',
+                               'received_appraisal': {'category': 'insult', 'quote': '虚构辱骂', 'reason': '缺少依据'}}):
+            run(self.op(), self.agent)
+        self.assertEqual(SocialInbox.objects.get(source_id=row.pk).status, 'pending')
+        self.assertFalse(SocialEvent.objects.exists())
+        self.assertFalse(SocialRelation.objects.exists())
+        self.assertEqual(self.moment.comments.count(), 1)
 
     def feed_activity(self, activity):
         from .daily_feed import day_events
@@ -357,8 +382,19 @@ class SocialTests(TestCase):
     def test_like_toggle_cannot_farm_affinity(self):
         actor = f'agent-id:{self.other.pk}'
         for active in (True, False, True, False, True): like(self.owner, self.moment.pk, actor, {'name': '菲伦'}, active)
-        self.assertEqual(SocialRelation.objects.get(actor_id=self.other.pk).affinity, 1)
+        self.assertEqual(SocialRelation.objects.get(actor_id=self.other.pk).affinity, 0)
         self.assertEqual(SocialEvent.objects.count(), 1)
+
+    def test_likes_on_many_posts_only_increase_familiarity(self):
+        actor = f'agent-id:{self.other.pk}'
+        for i in range(5):
+            moment = publish(self.owner, f'agent-id:{self.agent.pk}', {'name': self.agent.name}, f'普通分享{i}')
+            like(self.owner, moment.pk, actor, {'name': self.other.name}, True)
+        row = SocialRelation.objects.get(actor_id=self.other.pk)
+        self.assertEqual(row.affinity, 0)
+        self.assertEqual(row.familiarity, 5)
+        events = SocialEvent.objects.filter(actor_id=self.other.pk)
+        self.assertTrue(all(e.rule_version == 2 and e.after['rule_effect']['affinity'] == 0 for e in events))
 
     def test_invalid_parent_and_delete_cancel_inbox(self):
         with self.assertRaises(ValueError): comment(self.owner, self.moment.pk, user_actor(self.owner), {}, '回复', 'missing')
@@ -509,7 +545,7 @@ class SocialTests(TestCase):
         self.assertEqual(relation.affinity, 65); self.assertEqual(relation.familiarity, 60)
         self.assertEqual(relation.pk, stable_id(self.owner, self.agent.pk, f'agent-id:{self.other.pk}'))
         apply_event(self.owner, self.agent.pk, f'agent-id:{self.other.pk}', 'new', {'category': 'disagreement', 'reason': '有分歧'})
-        relation.refresh_from_db(); self.assertEqual(relation.affinity, 64)
+        relation.refresh_from_db(); self.assertEqual(relation.affinity, 63)
 
     def test_media_failure_does_not_overwrite_new_request(self):
         from .social_media import recover_image

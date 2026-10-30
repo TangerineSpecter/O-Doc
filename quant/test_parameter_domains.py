@@ -1,4 +1,6 @@
 """Executable declaration constraints across proposals, experiments, derivation and sync."""
+from quant.sync import SCHEMA_VERSION
+from quant.testing_reading import read_fixture
 import copy
 import json
 from unittest.mock import patch
@@ -141,7 +143,7 @@ class DomainIntegrationTests(TestCase):
         candidate, proposal = FactorCandidate.objects.get(), ExperimentProposal.objects.get()
         detail = self.client.get(f'/api/quant/{self.collection.pk}/factors/{candidate.pk}/').json()['data']
         self.assertEqual(detail['data']['parameters'][0]['domain']['stepOrigin'], 0)
-        markdown = self.client.get(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/').json()['data']['reports'][0]['markdown']
+        markdown = read_fixture(self.client, f'/api/quant/{self.collection.pk}/entries/{entry.pk}/')['reports'][0]['markdown']
         self.assertIn('本机实验将检查', markdown)
         request_input = experiment_input(proposal, self.dataset().pk, 'domain_experiment_0001')
         invalid = copy.deepcopy(request_input); invalid['seeds'][0]['parameters'][0]['value'] = 31
@@ -161,7 +163,7 @@ class DomainIntegrationTests(TestCase):
         self.assertEqual(manifest['parameter_domains'][0]['name'], 'p0')
         self.assertEqual(manifest['parameter_domains'][0]['domain']['maximum'], 30)
         snapshot = SyncManager().build_snapshot_data()
-        self.assertEqual(metadata(snapshot)['quant_schema_version'], 74)
+        self.assertEqual(metadata(snapshot)['quant_schema_version'], SCHEMA_VERSION)
         validate(snapshot, metadata(snapshot))
         SyncManager().apply_snapshot_data(snapshot, remote_meta=metadata(snapshot))
         self.assertEqual(FactorCandidate.objects.get(pk=candidate.pk).data, candidate.data)

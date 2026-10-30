@@ -8,8 +8,9 @@ from .social_models import SocialRelation, SocialEvent
 
 BANDS = ('敌对', '反感', '不合', '中性', '友好', '朋友', '知己')
 FLOORS = (-100, -74, -44, -19, 20, 45, 75)
-RULES = {'like': (1, 1, '开心'), 'neutral': (0, 2, '平静'), 'agreement': (3, 2, '开心'),
-         'disagreement': (-1, 2, '不满'), 'misunderstanding': (-2, 2, '委屈'),
+RULE_VERSION = 2
+RULES = {'like': (0, 1, '平静'), 'neutral': (0, 2, '平静'), 'agreement': (2, 2, '开心'),
+         'disagreement': (-2, 2, '不满'), 'misunderstanding': (-2, 2, '委屈'),
          'insult': (-8, 3, '烦躁'), 'boundary_violation': (-8, 3, '不满'),
          'explanation': (2, 2, '平静'), 'apology': (5, 2, '释然'), 'help': (8, 3, '感激')}
 
@@ -73,7 +74,7 @@ def apply_event(owner, actor, peer, source, appraisal=None, identity=None):
                    'at': local_time().isoformat(), 'reason': reason, 'source': source}
     row.save()
     return SocialEvent.objects.create(id=key, owner_id=owner, actor_id=actor, counterpart_id=peer,
-        source_key=source, category=category, reason=reason, before=before, after={**relation_data(row),
+        source_key=source, category=category, reason=reason, rule_version=RULE_VERSION, before=before, after={**relation_data(row),
             'rule_effect': {'affinity': delta, 'familiarity': familiarity},
             'actor_identity': {'name': actor_row.name, 'avatar': actor_row.avatar},
             'counterpart_identity': row.counterpart_identity})
