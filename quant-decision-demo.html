@@ -1,0 +1,1790 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>量化交易 · 决策实验室</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f5f8;
+      --surface: #ffffff;
+      --surface-subtle: #f8fafc;
+      --surface-muted: #f1f5f9;
+      --border: #e2e8f0;
+      --border-subtle: #edf2f7;
+      --text: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --text-faint: #94a3b8;
+
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-soft: #eff6ff;
+      --primary-border: #bfdbfe;
+      --primary-text: #1d4ed8;
+
+      --emerald: #10b981;
+      --emerald-dark: #059669;
+      --emerald-soft: #ecfdf5;
+      --emerald-border: #a7f3d0;
+      --emerald-text: #047857;
+
+      --amber: #f59e0b;
+      --amber-soft: #fffbeb;
+      --amber-border: #fde68a;
+      --amber-text: #b45309;
+
+      --danger: #ef4444;
+      --danger-dark: #dc2626;
+      --danger-soft: #fef2f2;
+      --danger-border: #fecaca;
+      --danger-text: #b91c1c;
+
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px 28px 40px;
+    }
+
+    button, input { font: inherit; }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 20px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--primary-soft);
+      border: 1px solid var(--primary-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .brand-icon svg { width: 22px; height: 22px; }
+
+    .title-wrap h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .title-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary-text);
+      border: 1px solid var(--primary-border);
+    }
+
+    .title-wrap p {
+      margin: 2px 0 0;
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+    }
+
+    .nav-link:hover {
+      border-color: var(--primary);
+      color: var(--primary-text);
+      background: var(--primary-soft);
+    }
+
+    /* ── Panel Base ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      min-width: 0;
+    }
+
+    /* ── Connection Settings ── */
+    .settings {
+      margin-bottom: 16px;
+      padding: 0;
+      overflow: visible;
+    }
+
+    .settings summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      user-select: none;
+      transition: background-color 0.15s;
+    }
+
+    .settings summary::-webkit-details-marker { display: none; }
+    .settings summary:hover { background: var(--surface-subtle); }
+
+    .summary-left { display: flex; align-items: center; gap: 10px; }
+
+    .summary-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      display: inline-block;
+      box-shadow: 0 0 0 3px var(--amber-soft);
+    }
+
+    .summary-dot.ready {
+      background: var(--emerald);
+      box-shadow: 0 0 0 3px var(--emerald-soft);
+    }
+
+    .connection-hint {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .settings-chevron {
+      color: var(--text-faint);
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+
+    .settings[open] .settings-chevron { transform: rotate(180deg); }
+
+    .settings-body {
+      padding: 16px 20px 18px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-subtle);
+      border-bottom-left-radius: var(--radius-lg);
+      border-bottom-right-radius: var(--radius-lg);
+    }
+
+    .provider-field {
+      position: relative;
+      max-width: 380px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    #provider {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      margin-top: 6px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    #provider:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    #provider-options {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      background: white;
+      padding: 6px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px #0f172a18;
+    }
+
+    #provider-options button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border: 0;
+      border-radius: 6px;
+      background: white;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #provider-options button:hover, #provider-options [aria-selected=true] {
+      background: var(--primary-soft);
+      color: var(--primary-text);
+    }
+
+    #provider-options small { display: block; margin-top: 3px; font-size: 11px; color: var(--text-muted); }
+
+    .fields {
+      display: grid;
+      grid-template-columns: 1.8fr 1fr 1.2fr;
+      gap: 14px;
+    }
+
+    label.field-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    input:not([type=checkbox]):not([type=range]) {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    input:not([type=checkbox]):not([type=range]):focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    input:disabled { background: var(--surface-muted); color: var(--text-muted); cursor: not-allowed; }
+
+    .settings-note { margin: 10px 0 0; font-size: 12px; color: var(--text-muted); }
+
+    /* ── Main Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .arena-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tag-symbol {
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    /* ── Stats ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat span { font-size: 11.5px; color: var(--text-muted); font-weight: 500; }
+    .stat strong { font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--text); }
+    .stat.profit strong { color: var(--emerald-dark); }
+    .stat.loss strong { color: var(--danger-dark); }
+
+    /* ── Canvas Board ── */
+    .chart-container {
+      position: relative;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      aspect-ratio: 16 / 10;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    canvas#market-chart {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart-overlay-info {
+      position: absolute;
+      top: 10px;
+      left: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #94a3b8;
+      pointer-events: none;
+    }
+
+    .chart-overlay-info span strong { color: #f8fafc; font-weight: 600; }
+
+    .chart-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .legend { display: flex; align-items: center; gap: 14px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot-legend { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot-k-up { background: #10b981; }
+    .dot-k-down { background: #ef4444; }
+    .dot-ema7 { background: #38bdf8; }
+    .dot-ema25 { background: #f59e0b; }
+
+    .kbd-hint { display: inline-flex; align-items: center; gap: 6px; }
+    kbd {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .note { margin: 10px 0 0; font-size: 12px; color: var(--text-muted); }
+
+    /* ── Controls ── */
+    .control-bar {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    button {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--surface-muted);
+      border-color: #cbd5e1;
+      color: var(--text);
+    }
+
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+      color: #ffffff;
+    }
+
+    button:disabled { opacity: 0.48; cursor: not-allowed; }
+
+    #status {
+      margin: 0;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    #status.error {
+      background: var(--danger-soft);
+      border-color: var(--danger-border);
+      color: var(--danger-text) !important;
+    }
+
+    .options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    input[type=checkbox] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      margin: 0;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 120px;
+      height: 6px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    /* ── Right Panel: Decision View ── */
+    .timing-pill {
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .decision {
+      margin-top: 10px;
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+
+    .decision.intervened {
+      background: var(--amber-soft);
+      border-color: var(--amber-border);
+    }
+
+    .decision.safe-pass {
+      background: var(--emerald-soft);
+      border-color: var(--emerald-border);
+    }
+
+    .decision-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .decision-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .decision strong {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .decision small {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .sub-heading {
+      margin-top: 16px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .sub-heading small {
+      font-weight: 500;
+      color: var(--text-faint);
+    }
+
+    /* ── Bars ── */
+    .bars {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 80px 72px 1fr 48px;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+    }
+
+    .bar-row.chosen {
+      background: #eff6ff;
+      border: 1px solid var(--primary-border);
+    }
+
+    .bar-action { font-weight: 700; color: var(--text); font-family: var(--mono); }
+    .bar-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .tag-buy { background: #dcfce7; color: #166534; }
+    .tag-sell { background: #fee2e2; color: #991b1b; }
+    .tag-hold { background: #f1f5f9; color: #475569; }
+    .tag-blocked { background: #fef3c7; color: #92400e; }
+
+    .track {
+      background: var(--surface-muted);
+      height: 7px;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      background: var(--primary);
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+
+    .bar-val {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      text-align: right;
+      color: var(--text-secondary);
+    }
+
+    /* ── Estimates ── */
+    .estimates {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .estimate-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .estimate-card small { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .estimate-card strong { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--text); }
+
+    .facts-box {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.6;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      color: var(--text-secondary);
+      max-height: 130px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .logs {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 140px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    .logs li {
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--mono);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── Debug Drawer ── */
+    .debug {
+      margin-top: 16px;
+      padding: 0;
+    }
+
+    .debug summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .debug summary::-webkit-details-marker { display: none; }
+    .debug summary:hover { background: var(--surface-subtle); }
+
+    .debug-body {
+      padding: 16px 20px 20px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-subtle);
+      border-bottom-left-radius: var(--radius-lg);
+      border-bottom-right-radius: var(--radius-lg);
+    }
+
+    .debug-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .debug-col h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      background: #0f172a;
+      color: #cbd5e1;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.5;
+      overflow: auto;
+      max-height: 280px;
+    }
+
+    footer {
+      margin-top: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    footer a { color: var(--primary-text); text-decoration: none; font-weight: 500; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 980px) {
+      main { padding: 14px; }
+      .layout, .debug-grid, .fields { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand-group">
+      <div class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+          <polyline points="16 7 22 7 22 13"></polyline>
+        </svg>
+      </div>
+      <div class="title-wrap">
+        <h1>
+          量化交易 · 决策实验室
+          <span class="title-badge">3 Questions / Bar</span>
+        </h1>
+        <p>时序 K 线与动态盘口。将结构化决策模型的每步买卖与风控判断变成直观可见的交易执行。</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a class="nav-link" href="snake-decision-demo.html">贪吃蛇实验室 ↗</a>
+      <a class="nav-link" href="dungeon-decision-demo.html">迷雾地牢实验室 ↗</a>
+      <a class="nav-link" href="decision-model-debugger.html">结构化调试台 ↗</a>
+    </div>
+  </header>
+
+  <details class="panel settings">
+    <summary>
+      <span class="summary-left">
+        <i id="conn-dot" class="summary-dot"></i>
+        <span>连接设置</span>
+      </span>
+      <span class="connection-hint">
+        <span id="conn-summary-text">本地 Laya · multilingual · 无需密钥</span>
+        <span class="settings-chevron">▾</span>
+      </span>
+    </summary>
+    <div class="settings-body">
+      <div class="provider-field">
+        <span id="provider-label">决策服务</span>
+        <button id="provider" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="provider-options" aria-labelledby="provider-label provider-value">
+          <span id="provider-value">本地 Laya</span><span aria-hidden="true">▾</span>
+        </button>
+        <div id="provider-options" role="listbox" aria-labelledby="provider-label" hidden>
+          <button type="button" role="option" data-provider="laya" aria-selected="true">本地 Laya <small>multilingual · 无需密钥</small></button>
+          <button type="button" role="option" data-provider="chat" aria-selected="false">原有决策服务 <small>startlux-decision · Chat Completions</small></button>
+        </div>
+      </div>
+      <div class="fields">
+        <label class="field-item">
+          API 地址
+          <input id="endpoint" value="http://127.0.0.1:8420/v1/systemone" autocomplete="url">
+        </label>
+        <label class="field-item">
+          模型 ID
+          <input id="model" value="multilingual" spellcheck="false">
+        </label>
+        <label class="field-item">
+          API Key
+          <input id="key" type="password" autocomplete="off" placeholder="填写当前服务的密钥">
+        </label>
+      </div>
+      <p id="connection-note" class="settings-note">本地 Laya 无需 API Key，页面直接连接本地服务。</p>
+    </div>
+  </details>
+
+  <div class="layout">
+    <!-- 左侧：实时行情与持仓走势 -->
+    <section class="panel">
+      <div class="section-head">
+        <h2>模拟行情现场</h2>
+        <div class="arena-meta">
+          <span class="tag-symbol">ALPHA/USDT 1m</span>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat" id="stat-equity-box">
+          <span>账户净值</span>
+          <strong id="equity">10,000.00</strong>
+        </div>
+        <div class="stat" id="stat-pnl-box">
+          <span>累计收益率</span>
+          <strong id="pnl">+0.00%</strong>
+        </div>
+        <div class="stat">
+          <span>当前持仓</span>
+          <strong id="position">空仓 (0%)</strong>
+        </div>
+        <div class="stat">
+          <span>风控介入</span>
+          <strong id="interventions">0</strong>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-overlay-info">
+          <span>最新价: <strong id="overlay-price">0.00</strong></span>
+          <span>EMA7: <strong id="overlay-ema7" style="color:#38bdf8">0.00</strong></span>
+          <span>EMA25: <strong id="overlay-ema25" style="color:#f59e0b">0.00</strong></span>
+          <span>RSI: <strong id="overlay-rsi">0.0</strong></span>
+        </div>
+        <canvas id="market-chart" width="960" height="600" aria-label="K线走势与持仓成交点位"></canvas>
+      </div>
+
+      <div class="chart-caption">
+        <div class="legend">
+          <span><i class="dot-legend dot-k-up"></i>阳线/买入</span>
+          <span><i class="dot-legend dot-k-down"></i>阴线/卖出</span>
+          <span><i class="dot-legend dot-ema7"></i>EMA 7</span>
+          <span><i class="dot-legend dot-ema25"></i>EMA 25</span>
+        </div>
+        <div class="kbd-hint">
+          <span>快捷键：<kbd>Space</kbd> 暂停/运行 · <kbd>R</kbd> 重新开始</span>
+        </div>
+      </div>
+
+      <p id="board-hint" class="note">当前状态：准备就绪。单步决策或开始自动推进下一根 K 线。</p>
+
+      <div class="control-bar">
+        <div class="toolbar-row">
+          <div class="toolbar">
+            <button class="primary" id="start">开始运行</button>
+            <button id="step">单步决策</button>
+            <button id="reset">重新开始</button>
+          </div>
+          <p id="status" role="status">等待开始；可先单步查看模型交易决策。</p>
+        </div>
+
+        <div class="options">
+          <label>
+            <input type="checkbox" id="shield" checked>
+            启用量化风控辅助（阻断超买追高与硬止损）
+          </label>
+          <label>
+            步间隔
+            <input id="pace" type="range" min="200" max="3000" step="100" value="600">
+            <span id="pace-label">600 ms</span>
+          </label>
+        </div>
+      </div>
+
+      <p class="note">风控辅助逻辑：当持仓亏损超过 3.5% 时强制止损卖出；当 RSI > 78 超买极值时拦截加仓追高。切换辅助会重开模拟局。</p>
+    </section>
+
+    <!-- 右侧：模型决策与概率面板 -->
+    <section class="panel" aria-live="polite">
+      <div class="section-head">
+        <h2>模型交易决策</h2>
+        <span id="timing" class="timing-pill">尚无请求 · 每步 3 题</span>
+      </div>
+
+      <p id="decision-context" class="note">尚未请求；下方是当前盘面的交易候选。</p>
+
+      <div id="decision-box" class="decision">
+        <div class="decision-top">
+          <span class="decision-label">模型首选 → 实际执行</span>
+        </div>
+        <strong id="action">等待决策</strong>
+        <small id="shield-note">风控层介入会单独标记，概率保持模型原值。</small>
+      </div>
+
+      <div class="sub-heading">
+        <span id="candidate-title">待发送的交易动作候选</span>
+        <small>高亮项为模型首选</small>
+      </div>
+      <div id="bars" class="bars"></div>
+
+      <div class="estimates">
+        <div class="estimate-card">
+          <small>行情形态预判 (BULL)</small>
+          <strong id="trend-prob">—</strong>
+        </div>
+        <div class="estimate-card">
+          <small>波动风控评估 (HIGH)</small>
+          <strong id="risk-prob">—</strong>
+        </div>
+      </div>
+
+      <div class="sub-heading">
+        <span id="facts-title">待发送的技术面事实</span>
+      </div>
+      <div id="facts" class="facts-box"></div>
+
+      <div class="sub-heading">
+        <span>最近交易流水</span>
+      </div>
+      <ol id="logs" class="logs">
+        <li>尚未执行。点击“单步决策”开始。</li>
+      </ol>
+    </section>
+  </div>
+
+  <details class="panel debug">
+    <summary>
+      <span>请求与响应原文（JSON）</span>
+      <span class="connection-hint">点击展开 / 收起 ▾</span>
+    </summary>
+    <div class="debug-body">
+      <p class="note" style="margin-top:0">展示最近一次请求及对应响应；首次请求前展示待发送内容。请求不包含密钥。</p>
+      <div class="debug-grid">
+        <div class="debug-col">
+          <h3>请求 JSON</h3>
+          <pre id="request"></pre>
+        </div>
+        <div class="debug-col">
+          <h3>响应 JSON</h3>
+          <pre id="response">尚未请求</pre>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <footer>
+    量化决策实验室 · 支持本地 Laya /systemone 与 Chat Completions 双协议。独立实验页，不写入数据持久层。
+  </footer>
+</main>
+
+<!-- 量化行情与风控计算引擎 -->
+<script id="quant-engine">
+window.QuantEngine = (() => {
+  const INITIAL_CASH = 10000;
+  const ACTIONS = {
+    BUY: { id: 'BUY', name: '买入', desc: '入场建仓/加仓' },
+    HOLD: { id: 'HOLD', name: '观望', desc: '维持当前仓位' },
+    SELL: { id: 'SELL', name: '卖出', desc: '减仓/平仓止盈止损' }
+  };
+
+  function create() {
+    let price = 100.0;
+    const bars = [];
+    // 生成初始 30 根 K 线建立指标底蕴
+    for (let i = 0; i < 35; i++) {
+      const change = (Math.random() - 0.49) * 2.2;
+      const open = price;
+      price = Math.max(20, price + change);
+      const high = Math.max(open, price) + Math.random() * 1.5;
+      const low = Math.min(open, price) - Math.random() * 1.5;
+      bars.push({ open, high, low, close: price, volume: Math.round(500 + Math.random() * 1000) });
+    }
+
+    return {
+      bars,
+      cash: INITIAL_CASH,
+      positionPct: 0, // 0, 50, 100
+      avgCost: 0,
+      trades: 0,
+      ticks: 0,
+      historyEquity: [INITIAL_CASH],
+      alive: true
+    };
+  }
+
+  function computeIndicators(bars) {
+    const closes = bars.map(b => b.close);
+    // EMA calc
+    function calcEMA(period) {
+      const k = 2 / (period + 1);
+      let ema = closes[0];
+      for (let i = 1; i < closes.length; i++) {
+        ema = closes[i] * k + ema * (1 - k);
+      }
+      return ema;
+    }
+
+    // RSI(14)
+    let gains = 0, losses = 0;
+    for (let i = Math.max(1, closes.length - 14); i < closes.length; i++) {
+      const diff = closes[i] - closes[i - 1];
+      if (diff > 0) gains += diff;
+      else losses -= diff;
+    }
+    const rs = losses === 0 ? 100 : gains / losses;
+    const rsi = 100 - (100 / (1 + rs));
+
+    const ema7 = calcEMA(7);
+    const ema25 = calcEMA(25);
+    const last = bars[bars.length - 1];
+
+    return {
+      price: last.close,
+      ema7: Number(ema7.toFixed(2)),
+      ema25: Number(ema25.toFixed(2)),
+      rsi: Number(rsi.toFixed(1)),
+      cross: ema7 >= ema25 ? 'GOLDEN_CROSS' : 'DEATH_CROSS'
+    };
+  }
+
+  function describe(g) {
+    const ind = computeIndicators(g.bars);
+    const currPrice = ind.price;
+    const pos = g.positionPct;
+    const unPnlPct = pos > 0 && g.avgCost > 0 ? ((currPrice - g.avgCost) / g.avgCost) * 100 : 0;
+
+    // 动作合法性与风控预检
+    const options = [
+      {
+        id: 'BUY',
+        name: '买入',
+        legal: pos < 100,
+        safe: ind.rsi < 78,
+        reason: pos >= 100 ? '已满仓无法买入' : ind.rsi >= 78 ? 'RSI严重超买，存在冲高回落风险' : '技术面支持买入/加仓'
+      },
+      {
+        id: 'HOLD',
+        name: '观望',
+        legal: true,
+        safe: unPnlPct > -3.5,
+        reason: unPnlPct <= -3.5 ? '持仓浮亏超过3.5%红线，观望违反止损纪律' : '行情明朗前保持不动'
+      },
+      {
+        id: 'SELL',
+        name: '卖出',
+        legal: pos > 0,
+        safe: true,
+        reason: pos === 0 ? '无仓位可卖' : unPnlPct <= -3.5 ? '触发风控止损卖出' : '减仓锁定收益或规避风险'
+      }
+    ];
+
+    // 推荐最优选项供对比
+    let bestId = 'HOLD';
+    if (pos > 0 && unPnlPct <= -3.5) bestId = 'SELL';
+    else if (ind.cross === 'GOLDEN_CROSS' && ind.rsi < 70 && pos < 100) bestId = 'BUY';
+    else if (ind.cross === 'DEATH_CROSS' && pos > 0) bestId = 'SELL';
+
+    const criteria = {
+      BUY: `买入：${!options[0].legal ? '禁止，已满仓无法买入' : !options[0].safe ? '不安全，RSI严重超买存在回落风险' : bestId === 'BUY' ? '均线金叉多头排列，最佳入场选择' : '均线或动量尚未就绪，追高需谨慎'}`,
+      HOLD: `观望：${!options[1].safe ? '禁止，已触及3.5%硬止损线必须平仓' : bestId === 'HOLD' ? '盘面震荡或持仓中，最佳选择' : '信号明确，观望可能错失行情或承担亏损'}`,
+      SELL: `卖出：${!options[2].legal ? '禁止，当前无仓位可卖' : bestId === 'SELL' ? (unPnlPct <= -3.5 ? '触及止损红线，最佳平仓止损选择' : '均线死叉下行，最佳减仓锁盈选择') : '多头趋势良好，过早卖出可能踏空'}`
+    };
+
+    const state = `当前标的行情与持仓事实：最新收盘价 ${ind.price.toFixed(2)} USDT；EMA7 为 ${ind.ema7}，EMA25 为 ${ind.ema25}（呈现${ind.cross==='GOLDEN_CROSS'?'金叉多头':'死叉空头'}）；14周期 RSI 值为 ${ind.rsi}；当前仓位 ${pos}%（持仓成本 ${g.avgCost ? g.avgCost.toFixed(2) : '无'}，当前浮盈浮亏 ${unPnlPct.toFixed(2)}%）。候选已包含量化指标逻辑判断，请依据这些事实选择。`;
+
+    const questions = {
+      action: {
+        type: 'choice',
+        instructions: '结合当前均线趋势、RSI超买超卖状态及持仓盈亏，选择当前最适合的操作。',
+        criteria
+      },
+      trend: {
+        type: 'choice',
+        instructions: '预判当前标的未来数根K线的主要形态特征。',
+        criteria: {
+          BULL: '多头趋势，均线多头排列且动量强劲',
+          BEAR: '空头破位，均线压制或动能耗尽',
+          RANGE: '横盘整理或震荡洗盘，方向未明'
+        }
+      },
+      risk: {
+        type: 'choice',
+        instructions: '评估当前盘面的波动风险等级。',
+        criteria: {
+          low: '低风险：指标正常，波动在合理可控范围',
+          high: '高风险：触及严重超买/超卖，或处于破位风控边缘'
+        }
+      }
+    };
+
+    return {
+      options,
+      bestId,
+      indicators: ind,
+      decision: { state, questions }
+    };
+  }
+
+  function step(g, chosenAction) {
+    g.ticks++;
+    const currPrice = g.bars[g.bars.length - 1].close;
+
+    // 执行交易
+    if (chosenAction === 'BUY' && g.positionPct < 100) {
+      if (g.positionPct === 0) {
+        g.positionPct = 100;
+        g.avgCost = currPrice;
+      }
+      g.trades++;
+    } else if (chosenAction === 'SELL' && g.positionPct > 0) {
+      const pnlAmt = ((currPrice - g.avgCost) / g.avgCost) * g.cash;
+      g.cash += pnlAmt;
+      g.positionPct = 0;
+      g.avgCost = 0;
+      g.trades++;
+    }
+
+    // 生成新一根 K 线推进时间
+    const trendFactor = (Math.random() - 0.48) * 2.5;
+    const open = currPrice;
+    const nextPrice = Math.max(15, open + trendFactor);
+    const high = Math.max(open, nextPrice) + Math.random() * 1.8;
+    const low = Math.min(open, nextPrice) - Math.random() * 1.8;
+    g.bars.push({
+      open,
+      high,
+      low,
+      close: nextPrice,
+      volume: Math.round(600 + Math.random() * 1200)
+    });
+    if (g.bars.length > 60) g.bars.shift();
+
+    // 更新净值
+    const curEquity = g.positionPct > 0 ? g.cash * (nextPrice / g.avgCost) : g.cash;
+    g.historyEquity.push(curEquity);
+
+    return {
+      equity: curEquity,
+      action: chosenAction,
+      price: nextPrice
+    };
+  }
+
+  return { ACTIONS, create, describe, step };
+})();
+</script>
+
+<!-- 通信协议层 -->
+<script id="quant-transport">
+window.QuantTransport = (() => {
+  function payload(model, decision, provider = 'chat') {
+    return provider === 'laya'
+      ? { state: { body: decision.state }, questions: decision.questions, model }
+      : { model, messages: [{ role: 'user', content: JSON.stringify(decision) }] };
+  }
+
+  function parse(envelope) {
+    if (envelope.usage?.truncated || envelope.usage?.state_tokens_dropped > 0 || envelope.usage?.truncated_questions?.length) {
+      throw Error('模型输入被截断，本步不执行，请缩短输入或检查模型上下文限制');
+    }
+    let content = envelope.answers ? envelope : envelope.choices?.[0]?.message?.content;
+    if (typeof content === 'string') {
+      content = JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+    }
+    if (!content || typeof content !== 'object') throw Error('响应缺少有效的决策正文');
+    const answers = content.answers ?? content;
+
+    for (const [id, keys] of Object.entries({
+      action: ['BUY', 'HOLD', 'SELL'],
+      trend: ['BULL', 'BEAR', 'RANGE'],
+      risk: ['low', 'high']
+    })) {
+      const a = answers[id];
+      if (!a || !keys.includes(a.choice ?? a.selected ?? a.value)) {
+        throw Error(`问题 ${id} 缺少合法 choice (${keys.join('/')})`);
+      }
+      if (!a.probabilities || keys.some(k => typeof a.probabilities[k] !== 'number' || !Number.isFinite(a.probabilities[k]))) {
+        throw Error(`问题 ${id} 概率缺失或无效`);
+      }
+    }
+    return answers;
+  }
+
+  async function request(config, decision, signal, onResponse) {
+    const url = new URL(config.endpoint);
+    if (!['http:', 'https:'].includes(url.protocol)) throw Error('API 地址须为 HTTP(S)');
+    url.pathname = url.pathname.replace(/\/+$/, '');
+    if (config.provider === 'laya') {
+      if (!/\/systemone$/i.test(url.pathname)) url.pathname += (/\/v1$/i.test(url.pathname) ? '/systemone' : '/v1/systemone');
+    } else if (!/\/chat\/completions$/i.test(url.pathname)) {
+      url.pathname += '/chat/completions';
+    }
+    const headers = { 'Content-Type': 'application/json' };
+    if (config.key) headers.Authorization = `Bearer ${config.key}`;
+    let res;
+    try {
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload(config.model, decision, config.provider)), signal });
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
+      throw Error('无法连接模型服务，请检查服务地址、跨域 CORS 及浏览器本地网络访问权限');
+    }
+    const text = await res.text();
+    onResponse(text);
+    if (!res.ok) throw Error(`HTTP ${res.status}，查看响应原文`);
+    return parse(JSON.parse(text));
+  }
+
+  return { payload, parse, request };
+})();
+</script>
+
+<!-- 画布渲染模块：专业级 Dark 风格 K 线走势与成交标记 -->
+<script id="quant-renderer">
+window.QuantRenderer = (() => {
+  function draw(game) {
+    const canvas = document.getElementById('market-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    // 清屏与深色背景
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, W, H);
+
+    const bars = game.bars;
+    if (!bars || bars.length === 0) return;
+
+    // 分割视口：K线主图 (70%) + RSI/指标副图 (30%)
+    const mainH = H * 0.72;
+    const subH = H * 0.28;
+
+    // 计算价格上下限
+    let minPrice = Infinity, maxPrice = -Infinity;
+    bars.forEach(b => {
+      if (b.low < minPrice) minPrice = b.low;
+      if (b.high > maxPrice) maxPrice = b.high;
+    });
+    const padding = (maxPrice - minPrice) * 0.08 || 2;
+    minPrice -= padding;
+    maxPrice += padding;
+
+    const barW = Math.max(6, (W - 80) / bars.length);
+    const scaleY = (p) => mainH - 20 - ((p - minPrice) / (maxPrice - minPrice)) * (mainH - 40);
+
+    // 绘制横向网格线与价格刻度
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    const gridRows = 5;
+    for (let r = 0; r <= gridRows; r++) {
+      const p = minPrice + (maxPrice - minPrice) * (r / gridRows);
+      const y = scaleY(p);
+      ctx.beginPath();
+      ctx.moveTo(30, y);
+      ctx.lineTo(W - 20, y);
+      ctx.stroke();
+      ctx.fillText(p.toFixed(1), W - 65, y - 4);
+    }
+
+    // 绘制副图分界线
+    ctx.strokeStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(0, mainH);
+    ctx.lineTo(W, mainH);
+    ctx.stroke();
+
+    // 绘制 K 线
+    const ema7Points = [], ema25Points = [];
+    let ema7 = bars[0].close, ema25 = bars[0].close;
+
+    bars.forEach((b, i) => {
+      const x = 40 + i * barW + barW / 2;
+      ema7 = b.close * (2 / 8) + ema7 * (1 - 2 / 8);
+      ema25 = b.close * (2 / 26) + ema25 * (1 - 2 / 26);
+      ema7Points.push({ x, y: scaleY(ema7) });
+      ema25Points.push({ x, y: scaleY(ema25) });
+
+      const isUp = b.close >= b.open;
+      const color = isUp ? '#10b981' : '#ef4444';
+
+      // 影线
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, scaleY(b.high));
+      ctx.lineTo(x, scaleY(b.low));
+      ctx.stroke();
+
+      // 实体
+      ctx.fillStyle = color;
+      const yOpen = scaleY(b.open);
+      const yClose = scaleY(b.close);
+      const bodyH = Math.max(2, Math.abs(yClose - yOpen));
+      ctx.fillRect(x - barW * 0.38, Math.min(yOpen, yClose), barW * 0.76, bodyH);
+    });
+
+    // 绘制 EMA7 与 EMA25 曲线
+    function drawCurve(points, color) {
+      if (points.length < 2) return;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+      ctx.stroke();
+    }
+    drawCurve(ema7Points, '#38bdf8');
+    drawCurve(ema25Points, '#f59e0b');
+
+    // 绘制副图 RSI 线
+    const subY = (rsiVal) => mainH + 15 + (1 - rsiVal / 100) * (subH - 30);
+    // 70 / 30 虚线警示线
+    ctx.strokeStyle = '#475569';
+    ctx.setLineDash([4, 4]);
+    [70, 30].forEach(level => {
+      const y = subY(level);
+      ctx.beginPath();
+      ctx.moveTo(30, y);
+      ctx.lineTo(W - 20, y);
+      ctx.stroke();
+      ctx.fillText(`${level}`, W - 50, y + 4);
+    });
+    ctx.setLineDash([]);
+
+    // 持仓均价与当前价高亮虚线
+    if (game.positionPct > 0 && game.avgCost > 0) {
+      const costY = scaleY(game.avgCost);
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(30, costY);
+      ctx.lineTo(W - 70, costY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#c084fc';
+      ctx.fillText(`持仓成本: ${game.avgCost.toFixed(1)}`, 45, costY - 5);
+    }
+
+    // 绘制最新价格标记
+    const lastBar = bars[bars.length - 1];
+    const lastX = 40 + (bars.length - 1) * barW + barW / 2;
+    const lastY = scaleY(lastBar.close);
+    ctx.fillStyle = lastBar.close >= lastBar.open ? '#10b981' : '#ef4444';
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  return { draw };
+})();
+</script>
+
+<!-- 页面控制器模块 -->
+<script id="quant-controller">
+(() => {
+  const $ = id => document.getElementById(id);
+  const E = QuantEngine, T = QuantTransport, R = QuantRenderer;
+
+  let game = E.create();
+  let running = false, busy = false, controller = null, timer = null;
+  let generation = 0, interventions = 0, history = [];
+  let provider = 'laya';
+
+  const profiles = {
+    laya: { endpoint: 'http://127.0.0.1:8420/v1/systemone', model: 'multilingual', key: '' },
+    chat: { endpoint: 'https://tennewapi.shenzhuo.vip/v1/chat/completions', model: 'startlux-decision', key: '' }
+  };
+
+  const config = () => ({
+    provider,
+    endpoint: $('endpoint').value.trim(),
+    model: $('model').value.trim(),
+    key: $('key').value.trim()
+  });
+
+  function closeProviders() {
+    $('provider-options').hidden = true;
+    $('provider').setAttribute('aria-expanded', 'false');
+  }
+
+  function applyProvider(next) {
+    if (busy || running) return;
+    profiles[provider] = { endpoint: $('endpoint').value, model: $('model').value, key: $('key').value };
+    provider = next;
+    for (const id of ['endpoint', 'model', 'key']) $(id).value = profiles[provider][id];
+    $('key').closest('label').hidden = (provider === 'laya');
+    $('provider-value').textContent = provider === 'laya' ? '本地 Laya' : '原有决策服务';
+    document.querySelectorAll('[data-provider]').forEach(el => el.setAttribute('aria-selected', String(el.dataset.provider === provider)));
+    $('connection-note').textContent = provider === 'laya' ? '本地 Laya 无需 API Key，页面直接连接本地服务。' : '原有服务使用 Chat Completions；密钥仅保留在当前页面内存中。';
+    closeProviders();
+    showPreview();
+    updateConnectionHint();
+  }
+
+  $('provider').onclick = () => {
+    const open = $('provider-options').hidden;
+    $('provider-options').hidden = !open;
+    $('provider').setAttribute('aria-expanded', String(open));
+  };
+
+  document.querySelectorAll('[data-provider]').forEach(el => {
+    el.onclick = () => { applyProvider(el.dataset.provider); $('provider').focus(); };
+  });
+
+  document.addEventListener('click', e => { if (!e.target.closest('.provider-field')) closeProviders(); });
+
+  function updateConnectionHint() {
+    const cfg = config();
+    const ready = Boolean(cfg.endpoint && cfg.model && (cfg.provider === 'laya' || cfg.key));
+    $('conn-dot').classList.toggle('ready', ready);
+    $('conn-summary-text').textContent = `${cfg.provider === 'laya' ? '本地 Laya' : '原有服务'} · ${cfg.model || '未填模型'} · ${ready ? (cfg.provider === 'laya' ? '无需密钥' : '密钥已就绪') : '待完善配置'}`;
+  }
+
+  function status(text, error = false) {
+    $('status').textContent = text;
+    $('status').classList.toggle('error', error);
+  }
+
+  function controls() {
+    $('start').textContent = running ? '暂停运行' : '开始运行';
+    $('step').disabled = busy || running || !game.alive;
+    $('start').disabled = !game.alive;
+    for (const id of ['endpoint', 'model', 'key', 'provider']) $(id).disabled = busy || running;
+    updateConnectionHint();
+  }
+
+  function preview() {
+    const d = E.describe(game);
+    $('request').textContent = JSON.stringify(T.payload(config().model, d.decision, provider), null, 2);
+    $('facts').textContent = d.decision.state;
+    return d;
+  }
+
+  function clearDecision(description, requesting = false) {
+    const step = game.ticks + 1;
+    $('action').textContent = requesting ? '正在请求' : '等待决策';
+    $('decision-box').classList.remove('intervened', 'safe-pass');
+    $('shield-note').textContent = requesting ? '等待模型返回，本步尚未执行。' : '风控层改写会单独标记，概率保持模型原值。';
+    $('trend-prob').textContent = $('risk-prob').textContent = '—';
+    $('timing').textContent = requesting ? '请求中 · 3 题' : '尚无本次请求 · 每步 3 题';
+    $('response').textContent = requesting ? '等待响应' : '尚未请求';
+    $('candidate-title').textContent = requesting ? `第 ${step} 根K线候选` : '待发送的交易动作候选';
+    $('facts-title').textContent = requesting ? `第 ${step} 根K线技术面事实` : '待发送的技术面事实';
+    $('decision-context').textContent = `第 ${step} 步${requesting ? '请求中' : '待发送'}：当前收盘价 ${description.indicators.price.toFixed(2)} USDT。`;
+    bars({}, undefined, description);
+  }
+
+  function showPreview() {
+    if (!game.alive) return;
+    clearDecision(preview());
+  }
+
+  function draw() {
+    R.draw(game);
+    const ind = QuantEngine.describe(game).indicators;
+    $('overlay-price').textContent = ind.price.toFixed(2);
+    $('overlay-ema7').textContent = ind.ema7.toFixed(2);
+    $('overlay-ema25').textContent = ind.ema25.toFixed(2);
+    $('overlay-rsi').textContent = ind.rsi.toFixed(1);
+
+    const curEquity = game.historyEquity[game.historyEquity.length - 1];
+    $('equity').textContent = curEquity.toFixed(2);
+    const pnlPct = ((curEquity - 10000) / 10000) * 100;
+    $('pnl').textContent = `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+    $('stat-pnl-box').className = 'stat ' + (pnlPct > 0 ? 'profit' : pnlPct < 0 ? 'loss' : '');
+    $('position').textContent = game.positionPct === 0 ? '空仓 (0%)' : '满仓 (100%)';
+    $('interventions').textContent = interventions;
+  }
+
+  function bars(prob = {}, chosen, desc) {
+    const d = desc || E.describe(game);
+    const optMap = new Map(d.options.map(o => [o.id, o]));
+    $('bars').replaceChildren();
+
+    for (const [id, meta] of Object.entries(E.ACTIONS)) {
+      const row = document.createElement('div');
+      row.className = 'bar-row' + (chosen === id ? ' chosen' : '');
+
+      const actSpan = document.createElement('span');
+      actSpan.className = 'bar-action';
+      actSpan.textContent = meta.name;
+
+      const opt = optMap.get(id);
+      const tag = document.createElement('span');
+      if (!opt.legal) {
+        tag.className = 'bar-tag tag-blocked';
+        tag.textContent = '无法执行';
+      } else if (!opt.safe) {
+        tag.className = 'bar-tag tag-blocked';
+        tag.textContent = '违背风控';
+      } else if (id === 'BUY') {
+        tag.className = 'bar-tag tag-buy';
+        tag.textContent = '多头加仓';
+      } else if (id === 'SELL') {
+        tag.className = 'bar-tag tag-sell';
+        tag.textContent = '平仓变现';
+      } else {
+        tag.className = 'bar-tag tag-hold';
+        tag.textContent = '观望';
+      }
+
+      const track = document.createElement('div');
+      track.className = 'track';
+      const fill = document.createElement('div');
+      fill.className = 'fill';
+      fill.style.width = `${(prob[id] ?? 0) * 100}%`;
+      track.append(fill);
+
+      const val = document.createElement('span');
+      val.className = 'bar-val';
+      val.textContent = prob[id] === undefined ? '—' : `${(prob[id] * 100).toFixed(1)}%`;
+
+      row.append(actSpan, tag, track, val);
+      $('bars').append(row);
+    }
+  }
+
+  function stop() {
+    running = false;
+    clearTimeout(timer);
+    generation++;
+    controller?.abort();
+    busy = false;
+    controls();
+  }
+
+  async function tick() {
+    if (busy || !game.alive) return;
+    const cfg = config();
+    if ((cfg.provider !== 'laya' && !cfg.key) || !cfg.model || !cfg.endpoint) {
+      stop();
+      document.querySelector('.settings').open = true;
+      status(cfg.provider === 'laya' ? '请填写本地 Laya 地址和模型 ID。' : '请填写 API 地址、模型 ID 和 API Key。', true);
+      return;
+    }
+
+    const epoch = generation, description = preview(), shield = $('shield').checked;
+    clearDecision(description, true);
+    controller = new AbortController();
+    const active = controller;
+    const timeout = setTimeout(() => active.abort(), 120000);
+    busy = true;
+    controls();
+    status('正在请求模型交易决策…');
+    const begin = performance.now();
+
+    try {
+      const answers = await T.request(cfg, description.decision, active.signal, text => {
+        if (epoch === generation) $('response').textContent = text;
+      });
+      if (epoch !== generation) return;
+
+      const scores = answers.action.probabilities;
+      const ranked = Object.keys(E.ACTIONS).sort((a, b) => scores[b] - scores[a]);
+      const proposed = ranked[0];
+
+      // 风控介入层检查
+      let executed = proposed;
+      let changed = false;
+      if (shield) {
+        const propOpt = description.options.find(o => o.id === proposed);
+        if (!propOpt.legal || !propOpt.safe) {
+          // 挑选合法且安全的最高概率动作
+          const safeCand = ranked.find(id => {
+            const opt = description.options.find(o => o.id === id);
+            return opt && opt.legal && opt.safe;
+          });
+          if (safeCand && safeCand !== proposed) {
+            executed = safeCand;
+            changed = true;
+            interventions++;
+          }
+        }
+      }
+
+      const actNames = { BUY: '买入', HOLD: '观望', SELL: '卖出' };
+      $('action').textContent = `${actNames[proposed]} → ${actNames[executed]}`;
+      const dBox = $('decision-box');
+      dBox.classList.toggle('intervened', changed);
+      dBox.classList.toggle('safe-pass', !changed && shield);
+
+      $('shield-note').textContent = changed
+        ? '风控层已介入：拦截高危或无效指令，改用合规动作。'
+        : shield ? '模型首选动作已通过量化风控规则检查。' : '风控辅助已关闭，直接按模型指令执行。';
+
+      bars(scores, proposed, description);
+      $('trend-prob').textContent = `${answers.trend.choice} (${(answers.trend.probabilities[answers.trend.choice] * 100).toFixed(1)}%)`;
+      $('risk-prob').textContent = `${answers.risk.choice.toUpperCase()} (${(answers.risk.probabilities[answers.risk.choice] * 100).toFixed(1)}%)`;
+      $('timing').textContent = `耗时 ${Math.round(performance.now() - begin)} ms · 3 题`;
+
+      // 执行步进
+      const result = E.step(game, executed);
+      draw();
+
+      history.unshift(`第 ${game.ticks} 根：模型 ${actNames[proposed]} → 执行 ${actNames[executed]}${changed ? ' (风控介入)' : ''} · 净值 ${result.equity.toFixed(2)}`);
+      history = history.slice(0, 10);
+      $('logs').replaceChildren(...history.map(t => {
+        const li = document.createElement('li');
+        li.textContent = t;
+        return li;
+      }));
+
+      status(running ? '运行中，等待下一根 K 线…' : '本步完成；可继续单步或开始运行。');
+    } catch (error) {
+      if (epoch !== generation) return;
+      running = false;
+      $('action').textContent = '请求失败';
+      status(error.name === 'AbortError' ? '请求超时已暂停。' : `已暂停：${error.message}`, true);
+    } finally {
+      clearTimeout(timeout);
+      if (epoch === generation) {
+        busy = false;
+        controller = null;
+        controls();
+        if (running) timer = setTimeout(tick, Number($('pace').value));
+      }
+    }
+  }
+
+  function reset() {
+    stop();
+    game = E.create();
+    interventions = 0;
+    history = [];
+    $('action').textContent = '等待决策';
+    $('decision-box').classList.remove('intervened', 'safe-pass');
+    $('trend-prob').textContent = $('risk-prob').textContent = '—';
+    $('timing').textContent = '尚无请求 · 每步 3 题';
+    $('response').textContent = '尚未请求';
+    const emptyLi = document.createElement('li');
+    emptyLi.textContent = '尚未执行。点击“单步决策”开始。';
+    $('logs').replaceChildren(emptyLi);
+    showPreview();
+    draw();
+    status('新一轮模拟行情已重置。');
+    controls();
+  }
+
+  $('start').onclick = () => {
+    if (running) {
+      stop();
+      status('已暂停。');
+    } else {
+      running = true;
+      controls();
+      if (!busy) tick();
+    }
+  };
+  $('step').onclick = tick;
+  $('reset').onclick = reset;
+  $('shield').onchange = reset;
+  $('pace').oninput = () => { $('pace-label').textContent = `${$('pace').value} ms`; };
+  $('model').oninput = () => { updateConnectionHint(); if (game.alive) showPreview(); };
+  $('endpoint').oninput = updateConnectionHint;
+  $('key').oninput = updateConnectionHint;
+
+  document.addEventListener('keydown', e => {
+    if (['INPUT', 'TEXTAREA', 'BUTTON', 'SUMMARY'].includes(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); $('start').click(); }
+    if (e.key.toLowerCase() === 'r') reset();
+  });
+
+  window.addEventListener('pagehide', stop);
+  applyProvider('laya');
+  draw();
+  controls();
+})();
+</script>
+</body>
+</html>
+

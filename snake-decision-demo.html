@@ -1,0 +1,1739 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>贪吃蛇 · 决策实验室</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f5f8;
+      --surface: #ffffff;
+      --surface-subtle: #f8fafc;
+      --surface-muted: #f1f5f9;
+      --border: #e2e8f0;
+      --border-subtle: #edf2f7;
+      --text: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --text-faint: #94a3b8;
+
+      --primary: #f97316;
+      --primary-hover: #ea580c;
+      --primary-soft: #fff7ed;
+      --primary-border: #fed7aa;
+      --primary-text: #c2410c;
+
+      --emerald: #10b981;
+      --emerald-dark: #059669;
+      --emerald-soft: #ecfdf5;
+      --emerald-border: #a7f3d0;
+      --emerald-text: #047857;
+
+      --amber: #f59e0b;
+      --amber-soft: #fffbeb;
+      --amber-border: #fde68a;
+      --amber-text: #b45309;
+
+      --danger: #ef4444;
+      --danger-soft: #fef2f2;
+      --danger-border: #fecaca;
+      --danger-text: #b91c1c;
+
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px 28px 40px;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 20px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--emerald-soft);
+      border: 1px solid var(--emerald-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--emerald-dark);
+      flex-shrink: 0;
+    }
+
+    .brand-icon svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .title-wrap h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .title-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary-text);
+      border: 1px solid var(--primary-border);
+    }
+
+    .title-wrap p {
+      margin: 2px 0 0;
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+    }
+
+    .nav-link:hover {
+      border-color: var(--primary);
+      color: var(--primary-text);
+      background: var(--primary-soft);
+    }
+
+    /* ── Panel Base ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      min-width: 0;
+    }
+
+    /* ── Connection Settings ── */
+    .settings {
+      margin-bottom: 16px;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .settings summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      user-select: none;
+      transition: background-color 0.15s;
+    }
+
+    .settings summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .settings summary:hover {
+      background: var(--surface-subtle);
+    }
+
+    .summary-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .summary-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      display: inline-block;
+      box-shadow: 0 0 0 3px var(--amber-soft);
+    }
+
+    .summary-dot.ready {
+      background: var(--emerald);
+      box-shadow: 0 0 0 3px var(--emerald-soft);
+    }
+
+    .connection-hint {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .settings-chevron {
+      color: var(--text-faint);
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+
+    .settings[open] .settings-chevron {
+      transform: rotate(180deg);
+    }
+
+    .settings-body {
+      padding: 16px 20px 18px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-subtle);
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: 1.8fr 1fr 1.2fr;
+      gap: 14px;
+    }
+
+    label.field-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    input:not([type=checkbox]):not([type=range]) {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    input:not([type=checkbox]):not([type=range]):focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+    }
+
+    input:disabled {
+      background: var(--surface-muted);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    .settings-note {
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ── Main Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.52fr) minmax(370px, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .layout > .panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .arena-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .arena-size {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--emerald-text);
+      background: var(--emerald-soft);
+      border: 1px solid var(--emerald-border);
+      padding: 2px 9px;
+      border-radius: 6px;
+    }
+
+    /* ── Stats Row ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .stat span {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat strong {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+
+    .stat.stat-score {
+      background: var(--primary-soft);
+      border-color: var(--primary-border);
+    }
+
+    .stat.stat-score span {
+      color: var(--primary-text);
+    }
+
+    .stat.stat-score strong {
+      color: var(--primary);
+    }
+
+    /* ── Board ── */
+    .board {
+      background: #e9f2ec;
+      border: 1px solid #cfe0d5;
+      border-radius: var(--radius-md);
+      padding: 8px;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      border-radius: 8px;
+      background: #f2f7f4;
+    }
+
+    .board-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      padding: 0 2px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .legend i {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .legend i.dot-snake {
+      background: var(--emerald);
+      border: 1px solid var(--emerald-dark);
+    }
+
+    .legend i.dot-food {
+      background: var(--primary);
+      border-radius: 50%;
+    }
+
+    .legend i.dot-hint {
+      background: rgba(16, 185, 129, 0.18);
+      border: 1.5px dashed var(--emerald-dark);
+    }
+
+    .kbd-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    kbd {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    /* ── Controls & Status Bar ── */
+    .control-bar {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--surface-muted);
+      border-color: #cbd5e1;
+      color: var(--text);
+    }
+
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+      color: #ffffff;
+    }
+
+    button:disabled {
+      opacity: 0.48;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin: 0;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    #status.error {
+      background: var(--danger-soft);
+      border-color: var(--danger-border);
+      color: var(--danger-text) !important;
+    }
+
+    .options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    input[type=checkbox] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      margin: 0;
+    }
+
+    /* 自定义扁平滑块 */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 120px;
+      height: 6px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+
+    #pace-label {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      min-width: 50px;
+      text-align: right;
+    }
+
+    .note {
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Right Column: Decision Inspector ── */
+    .timing-pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+
+    .decision {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+
+    .decision-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .decision-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .decision strong {
+      display: block;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.3;
+      margin-bottom: 4px;
+    }
+
+    #shield-note {
+      display: block;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .decision.intervened {
+      background: var(--amber-soft);
+      border-color: var(--amber-border);
+    }
+
+    .decision.intervened strong {
+      color: var(--amber-text);
+    }
+
+    .decision.safe-pass {
+      background: var(--emerald-soft);
+      border-color: var(--emerald-border);
+    }
+
+    .decision.safe-pass strong {
+      color: var(--emerald-text);
+    }
+
+    /* ── Probability Bars ── */
+    .sub-heading {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 14px 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sub-heading small {
+      font-weight: 400;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .bars {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 48px 74px 1fr 52px;
+      gap: 10px;
+      align-items: center;
+      padding: 7px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+    }
+
+    .bar-row.chosen {
+      background: var(--primary-soft);
+      border-color: var(--primary-border);
+    }
+
+    .bar-dir {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .bar-row.chosen .bar-dir {
+      color: var(--primary-text);
+    }
+
+    .bar-tag {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .bar-tag.tag-best {
+      background: var(--emerald-soft);
+      color: var(--emerald-text);
+      border: 1px solid var(--emerald-border);
+    }
+
+    .bar-tag.tag-safe {
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+
+    .bar-tag.tag-unsafe {
+      background: var(--amber-soft);
+      color: var(--amber-text);
+      border: 1px solid var(--amber-border);
+    }
+
+    .bar-tag.tag-illegal {
+      background: var(--danger-soft);
+      color: var(--danger-text);
+      border: 1px solid var(--danger-border);
+    }
+
+    .track {
+      background: #e2e8f0;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      background: #64748b;
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+
+    .bar-row.chosen .track {
+      background: #fed7aa;
+    }
+
+    .bar-row.chosen .fill {
+      background: var(--primary);
+    }
+
+    .bar-val {
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bar-row.chosen .bar-val {
+      color: var(--primary-text);
+    }
+
+    /* ── Estimates ── */
+    .estimates {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .estimate-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .estimate-card small {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .estimate-card strong {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Facts & Logs ── */
+    .facts-box {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    .logs {
+      flex: 1;
+      min-height: 110px;
+      max-height: 165px;
+      overflow-y: auto;
+      scrollbar-width: none;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+    }
+
+    .logs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .logs li {
+      padding: 7px 14px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-subtle);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .logs li:last-child {
+      border-bottom: 0;
+    }
+
+    /* ── Debug Panel ── */
+    .debug {
+      margin-top: 16px;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .debug summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    .debug summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .debug summary:hover {
+      background: var(--surface-subtle);
+    }
+
+    .debug-body {
+      padding: 16px 20px 20px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .debug-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .debug-col h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      max-height: 340px;
+      overflow-y: auto;
+      scrollbar-width: none;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      padding: 14px;
+      border-radius: var(--radius-sm);
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-secondary);
+    }
+
+    pre::-webkit-scrollbar {
+      display: none;
+    }
+
+    footer {
+      margin-top: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    footer a {
+      color: var(--primary-text);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 980px) {
+      main {
+        padding: 14px;
+      }
+      .layout,
+      .debug-grid,
+      .fields {
+        grid-template-columns: 1fr;
+      }
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  
+    .provider-field { position:relative; max-width:380px; margin-bottom:16px; font-size:12px; font-weight:600; }
+    #provider { display:flex; align-items:center; justify-content:space-between; width:100%; height:38px; padding:0 12px; margin-top:6px; border:1px solid var(--border); border-radius:8px; background:white; color:var(--text); cursor:pointer; }
+    #provider:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+    #provider-options { position:absolute; top:100%; left:0; right:0; z-index:20; background:white; padding:6px; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px #0f172a18; }
+    #provider-options button { display:block; width:100%; height:auto; min-height:50px; padding:10px; border:0; border-radius:6px; background:white; color:var(--text); text-align:left; white-space:normal; cursor:pointer; }
+    #provider-options button:hover, #provider-options button:focus-visible, #provider-options [aria-selected=true] { background:var(--primary-soft); color:var(--primary-text); }
+    #provider-options small { display:block; margin-top:3px; font-size:11px; color:var(--text-muted); }
+    .settings { overflow:visible; }
+    [hidden] { display:none!important; }
+  </style>
+</head>
+<body>
+<main data-ui>
+  <header>
+    <div class="brand-group">
+      <div class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 17V9a4 4 0 0 1 8 0v6a4 4 0 0 0 8 0V7"/>
+          <circle cx="20" cy="6" r="2" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="title-wrap">
+        <h1>
+          贪吃蛇 · 决策实验室
+          <span class="title-badge">3 Questions / Step</span>
+        </h1>
+        <p>一个棋盘，三个问题。将结构化决策模型的每一步判断变成直观可见的行动。</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a class="nav-link" href="quant-decision-demo.html">量化决策实验室 ↗</a>
+      <a class="nav-link" href="dungeon-decision-demo.html">迷雾地牢实验室 ↗</a>
+      <a class="nav-link" href="decision-model-debugger.html">打开决策调试台 ↗</a>
+    </div>
+  </header>
+
+  <details class="panel settings">
+    <summary>
+      <span class="summary-left">
+        <i id="conn-dot" class="summary-dot"></i>
+        <span>连接设置</span>
+      </span>
+      <span class="connection-hint">
+        <span id="conn-summary-text">startlux-decision · 请填写 API Key</span>
+        <span class="settings-chevron">▾</span>
+      </span>
+    </summary>
+    <div class="settings-body">
+      <div class="provider-field">
+        <span id="provider-label">决策服务</span>
+        <button id="provider" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="provider-options" aria-labelledby="provider-label provider-value"><span id="provider-value">本地 Laya</span><span aria-hidden="true">▾</span></button>
+        <div id="provider-options" role="listbox" aria-labelledby="provider-label" hidden>
+          <button type="button" role="option" data-provider="laya" aria-selected="true">本地 Laya <small>multilingual · 无需密钥</small></button>
+          <button type="button" role="option" data-provider="chat" aria-selected="false">原有决策服务 <small>startlux-decision · Chat Completions</small></button>
+        </div>
+      </div>
+      <div class="fields">
+        <label class="field-item">
+          API 地址
+          <input id="endpoint" value="http://127.0.0.1:8420/v1/systemone" autocomplete="url">
+        </label>
+        <label class="field-item">
+          模型 ID
+          <input id="model" value="multilingual" spellcheck="false">
+        </label>
+        <label class="field-item">
+          API Key
+          <input id="key" type="password" autocomplete="off" placeholder="填写当前服务的密钥">
+        </label>
+      </div>
+      <p id="connection-note" class="settings-note">本地 Laya 无需 API Key，页面直接连接本地服务。</p>
+    </div>
+  </details>
+
+  <div class="layout">
+    <!-- 左侧：对局现场 -->
+    <section class="panel">
+      <div class="section-head">
+        <h2>对局现场</h2>
+        <div class="arena-meta">
+          <span class="arena-size">24 × 16 格</span>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat stat-score">
+          <span>当前得分</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="stat">
+          <span>蛇身长度</span>
+          <strong id="length">6</strong>
+        </div>
+        <div class="stat">
+          <span>已走步数</span>
+          <strong id="ticks">0</strong>
+        </div>
+        <div class="stat">
+          <span>当前可选方向</span>
+          <strong id="safe-count">0</strong>
+        </div>
+      </div>
+
+      <div class="board">
+        <canvas id="board" width="960" height="640" aria-label="贪吃蛇棋盘，橘子为食物，绿色小蛇按模型决策移动">
+          浏览器需要支持 Canvas。
+        </canvas>
+      </div>
+
+      <div class="board-caption">
+        <div class="legend">
+          <span><i class="dot-snake"></i>小蛇</span>
+          <span><i class="dot-food"></i>橘子</span>
+          <span><i class="dot-hint"></i>下一步较短的安全方向</span>
+        </div>
+        <div class="kbd-hint">
+          <span>快捷键：<kbd>Space</kbd> 暂停/运行 · <kbd>R</kbd> 重新开始</span>
+        </div>
+      </div>
+
+      <p id="board-hint" class="note" aria-live="polite"></p>
+
+      <div class="control-bar">
+        <div class="toolbar-row">
+          <div class="toolbar">
+            <button class="primary" id="start">开始运行</button>
+            <button id="step">单步决策</button>
+            <button id="reset">重新开始</button>
+          </div>
+          <p id="status" role="status">等待开始；可先单步查看模型决策。</p>
+        </div>
+
+        <div class="options">
+          <label>
+            <input type="checkbox" id="shield" checked>
+            启用安全候选筛选
+          </label>
+          <label>
+            步间隔
+            <input id="pace" type="range" min="0" max="2000" step="100" value="300">
+            <span id="pace-label">300 ms</span>
+          </label>
+        </div>
+      </div>
+
+      <p class="note">开启后，代码排除立即碰撞及走完后无法连到蛇尾的方向；如果有通往食物的路线，优先保留这些路线。判断基于当前静态蛇身，不保证后续永不陷入死路。</p>
+    </section>
+
+    <!-- 右侧：模型决策 -->
+    <section class="panel" aria-live="polite">
+      <div class="section-head">
+        <h2>模型决策</h2>
+        <span id="timing" class="timing-pill">尚无请求 · 每步 3 题</span>
+      </div>
+
+      <p id="decision-context" class="note">尚未请求；下方是当前棋盘的候选预览。</p>
+
+      <div id="decision-box" class="decision">
+        <div class="decision-top">
+          <span class="decision-label">模型首选 → 实际执行</span>
+        </div>
+        <strong id="action">等待决策</strong>
+        <small id="shield-note">开启筛选时，模型只收到可选的安全方向。</small>
+      </div>
+
+      <div class="sub-heading">
+        <span id="candidate-title">待发送的方向候选</span>
+        <small>高亮为模型首选 · 未发送项无概率</small>
+      </div>
+      <div id="bars" class="bars"></div>
+
+      <div class="estimates">
+        <div class="estimate-card">
+          <small>模型判断无安全候选</small>
+          <strong id="risk">—</strong>
+        </div>
+        <div class="estimate-card">
+          <small>食物可达估计</small>
+          <strong id="food-prob">—</strong>
+        </div>
+      </div>
+
+      <div class="sub-heading">
+        <span id="facts-title">待发送的输入事实</span>
+      </div>
+      <div id="facts" class="facts-box"></div>
+
+      <div class="sub-heading">
+        <span>最近执行记录</span>
+      </div>
+      <ol id="logs" class="logs">
+        <li>尚未执行。点击“单步决策”开始。</li>
+      </ol>
+    </section>
+  </div>
+
+  <details class="panel debug">
+    <summary>
+      <span>请求与响应原文（JSON）</span>
+      <span class="connection-hint">点击展开 / 收起 ▾</span>
+    </summary>
+    <div class="debug-body">
+      <p class="note" style="margin-top:0">展示最近一次请求及对应响应；首次请求前展示待发送内容。请求不包含密钥。</p>
+      <div class="debug-grid">
+        <div class="debug-col">
+          <h3>请求 JSON</h3>
+          <pre id="request"></pre>
+        </div>
+        <div class="debug-col">
+          <h3>响应 JSON</h3>
+          <pre id="response">尚未请求</pre>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <footer>
+    参考 <a href="https://github.com/mizorewww/laya-mlx/blob/main/docs/SNAKE_DEMO.md" target="_blank" rel="noreferrer">Laya-MLX Snake</a> 的三题决策与安全辅助方式，改写为中文及当前 Laya /systemone 与 Chat Completions 双协议。独立实验页，不写入 Agent 世界或 WebDAV。
+  </footer>
+</main>
+
+<!-- 领域模块：棋盘规则、候选路线评估与中文问题。独立于网络和 DOM。 -->
+<script id="snake-engine">
+window.SnakeEngine = (() => {
+  const W=24,H=16,N=W*H;
+  const dirs={UP:[0,-1,'上'],DOWN:[0,1,'下'],LEFT:[-1,0,'左'],RIGHT:[1,0,'右']};
+  const cells=Array.from({length:N},(_,i)=>[i%W,Math.floor(i/W)]);
+  const key=p=>p.join(','),equal=(a,b)=>a&&b&&key(a)===key(b);
+  function spawn(g){const occupied=new Set(g.body.map(key)),empty=cells.filter(p=>!occupied.has(key(p)));g.food=empty.length?empty[Math.floor(Math.random()*empty.length)]:null;}
+  function create(){const g={body:Array.from({length:6},(_,i)=>[12-i,8]),score:0,ticks:0,alive:true,won:false};spawn(g);return g;}
+
+  // Search the current static cells. Opening the tail models its next release,
+  // but does not predict the rest of the body's future movement.
+  function search(body,destination,openTail=false){
+    const head=body[0],blocked=new Set((openTail?body.slice(1,-1):body.slice(1)).map(key));
+    const seen=new Set([key(head)]),queue=[{pos:head,steps:0}];
+    let distance=equal(head,destination)?0:null;
+    for(let i=0;i<queue.length;i++){
+      const {pos,steps}=queue[i];
+      for(const [dx,dy] of Object.values(dirs)){
+        const p=[pos[0]+dx,pos[1]+dy],k=key(p);
+        if(p[0]<0||p[0]>=W||p[1]<0||p[1]>=H||blocked.has(k)||seen.has(k))continue;
+        if(i===0&&equal(p,body[1]))continue;
+        seen.add(k);queue.push({pos:p,steps:steps+1});
+        if(equal(p,destination))distance=steps+1;
+      }
+    }
+    return {distance,space:seen.size};
+  }
+
+  function moves(g){return Object.entries(dirs).map(([id,[dx,dy,name]])=>{
+    const target=[g.body[0][0]+dx,g.body[0][1]+dy],eats=equal(target,g.food);
+    const occupied=eats?g.body:g.body.slice(0,-1);
+    let reason=target[0]<0||target[0]>=W||target[1]<0||target[1]>=H?'撞墙':equal(target,g.body[1])?'反向撞颈':occupied.some(p=>equal(p,target))?'撞到蛇身':'';
+    if(reason)return {id,name,target,legal:false,safe:false,eats,reason,foodDistance:null,space:0};
+    const nextBody=[target,...(eats?g.body:g.body.slice(0,-1))];
+    if(nextBody.length===N)return {id,name,target,legal:true,safe:true,eats,reason:'',foodDistance:0,space:0};
+    const tailPath=search(nextBody,nextBody.at(-1),true);
+    const foodPath=eats?{distance:0}:search(nextBody,g.food);
+    const safe=tailPath.distance!==null;
+    return {id,name,target,legal:true,safe,eats,reason:safe?'':'暂无法连到蛇尾',foodDistance:foodPath.distance,space:tailPath.space};
+  });}
+
+  function describe(g,assisted=true){
+    const options=moves(g),safe=options.filter(m=>m.safe),reachableFood=safe.filter(m=>m.foodDistance!==null);
+    const candidates=assisted?(reachableFood.length?reachableFood:safe):options;
+    const bestDistance=reachableFood.length?Math.min(...reachableFood.map(m=>m.foodDistance)):null;
+    const maxSpace=safe.length?Math.max(...safe.map(m=>m.space)):0;
+    const bestIds=safe.filter(m=>bestDistance!==null?m.foodDistance===bestDistance:m.space===maxSpace).map(m=>m.id);
+    const tied=bestIds.length>1,reach=search(g.body,g.food);
+    const route=bestDistance===null?'':`静态最短路线：${bestIds.map(id=>dirs[id][2]).join('、')}，还需${bestDistance}步${tied?'（并列）':''}。`;
+    // 入参文案实测：把结论放在最前、数字紧跟其后，模型最稳；补充比较从句会诱导它选更远的方向。
+    const criteria=Object.fromEntries(candidates.map(m=>[m.id,`${m.name}：${!m.legal?`禁止，${m.reason}`:!m.safe?'可走，但走完连不到蛇尾，不推荐':m.eats?'可走，立即吃到食物':m.foodDistance===null?`可走，静态路径暂时到不了食物，可连通${m.space}格`:`${bestIds.includes(m.id)?(tied?'并列最短':'路线最短'):'不是最短路线'}，${m.foodDistance}步${bestIds.includes(m.id)?'到食物':'才到食物'}`}`]));
+    const state=`贪吃蛇游戏。棋盘${W}×${H}，蛇头(${g.body[0]})，食物(${g.food})，蛇长${g.body.length}。代码评估：${safe.length}个方向走后能连到蛇尾；食物通过当前空格${reach.distance!==null?'可达':'暂不可达'}，可连通${reach.space}格。${route}路径长度按当前蛇身静态计算。`;
+    return {options,bestIds,bestId:bestIds[0],bestDistance,sentIds:candidates.map(m=>m.id),decision:{state,questions:{move:{type:'choice',instructions:'选择避免碰撞且尽快吃到食物的方向。优先选择到食物步数最少的可行路线；若多个方向并列最短，任选其一即可。',criteria},risk:{type:'choice',instructions:'根据代码评估，是否有至少一个走后能连到蛇尾的方向？',criteria:{yes:'是，存在走后能连到蛇尾的方向',no:'否，没有走后能连到蛇尾的方向'}},food:{type:'choice',instructions:'根据当前空格的连通结果，食物是否可达？不预测蛇尾移动后的情况。',criteria:{yes:'是，可通过当前空格到达食物',no:'否，当前蛇身阻断了通向食物的路线'}}}}};
+  }
+
+  // 候选项标签：同一个局面里必须能区分“唯一最短 / 并列最短 / 远 N 步 / 不可达 / 不可走”。
+  function label(option,advice){
+    const best=advice.bestIds.includes(option.id),tied=advice.bestIds.length>1;
+    if(!option.legal)return {text:option.reason,tone:'illegal',title:`立即碰撞：${option.reason}，不会发送给模型`};
+    if(!option.safe)return {text:'无法连尾',tone:'unsafe',title:'走后按当前静态蛇身找不到通往蛇尾的路线，未必立即碰撞'};
+    if(option.eats)return {text:'立即吃橘',tone:'best',title:'本步执行后即可吃到食物'};
+    if(option.foodDistance===null)return best
+      ?{text:'空间较大',tone:'best',title:`静态路径暂时到不了食物，走后可连通 ${option.space} 格`}
+      :{text:'食物不可达',tone:'safe',title:`静态路径暂时到不了食物，走后可连通 ${option.space} 格`};
+    if(best)return tied
+      ?{text:`并列${option.foodDistance}步`,tone:'best',title:`与另外 ${advice.bestIds.length-1} 个方向并列最短：到食物还需 ${option.foodDistance} 步`}
+      :{text:`最短${option.foodDistance}步`,tone:'best',title:`到食物还需 ${option.foodDistance} 步，本步唯一最短`};
+    const gap=option.foodDistance-advice.bestDistance;
+    return {text:`远${gap}步`,tone:'safe',title:`到食物还需 ${option.foodDistance} 步，比最短路线多 ${gap} 步`};
+  }
+  function step(g,id){const move=moves(g).find(m=>m.id===id);if(!move)throw Error('未知移动方向');g.ticks++;if(!move.legal){g.alive=false;return move.reason;}g.body.unshift(move.target);if(move.eats){g.score++;spawn(g);g.won=!g.food;}else g.body.pop();return g.won?'已填满棋盘':null;}
+  return {W,H,dirs,create,moves,describe,label,step};
+})();
+</script>
+
+<!-- 协议模块：与现有调试台相同的单条 user 消息封装。 -->
+<script id="snake-transport">
+window.SnakeTransport = (()=>{
+  function payload(model,decision,provider='chat'){return provider==='laya'?{state:{body:decision.state},questions:decision.questions,model}:{model,messages:[{role:'user',content:JSON.stringify(decision)}]};}
+  function parse(envelope,moveKeys=['UP','DOWN','LEFT','RIGHT']){if(envelope.usage?.truncated||envelope.usage?.state_tokens_dropped>0||envelope.usage?.truncated_questions?.length)throw Error('模型输入被截断，本步不执行，请缩短输入或检查模型上下文限制');let content=envelope.answers?envelope:envelope.choices?.[0]?.message?.content;if(typeof content==='string')content=JSON.parse(content.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));if(!content||typeof content!=='object')throw Error('响应缺少有效的决策正文');const answers=content.answers??content;
+    for(const [id,keys] of Object.entries({move:moveKeys,risk:['yes','no'],food:['yes','no']})){
+      const a=answers[id];if(!a||!keys.includes(a.choice??a.selected??a.value))throw Error(`问题 ${id} 缺少合法 choice`);
+      if(!a.probabilities||keys.some(k=>typeof a.probabilities[k]!=='number'||!Number.isFinite(a.probabilities[k])||a.probabilities[k]<0||a.probabilities[k]>1))throw Error(`问题 ${id} 概率缺失或无效`);
+      if(Math.abs(keys.reduce((s,k)=>s+a.probabilities[k],0)-1)>.03)throw Error(`问题 ${id} 概率之和不为 1`);
+    }return answers;
+  }
+  async function request(config,decision,signal,onResponse){
+    const url=new URL(config.endpoint);
+    if(!['http:','https:'].includes(url.protocol))throw Error('API 地址须为 HTTP(S)');
+    url.pathname=url.pathname.replace(/\/+$/,'');
+    if(config.provider==='laya'){
+      if(!/\/systemone$/i.test(url.pathname))url.pathname+=(/\/v1$/i.test(url.pathname)?'/systemone':'/v1/systemone');
+    }else if(!/\/chat\/completions$/i.test(url.pathname))url.pathname+='/chat/completions';
+    const headers={'Content-Type':'application/json'};
+    if(config.key)headers.Authorization=`Bearer ${config.key}`;
+    let res;
+    try{res=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload(config.model,decision,config.provider)),signal});}
+    catch(error){if(error.name==='AbortError')throw error;throw Error('无法连接模型服务，请检查服务地址、跨域 CORS 及浏览器本地网络访问权限');}
+    const text=await res.text();onResponse(text);
+    if(!res.ok)throw Error(`HTTP ${res.status}，查看响应原文`);
+    return parse(JSON.parse(text),Object.keys(decision.questions.move.criteria));
+  }
+  return {payload,parse,request};
+})();
+</script>
+
+<!-- 画面模块：扁平柔和的 2D 棋盘、翠绿小蛇与橘子食物 -->
+<script id="snake-renderer">
+window.SnakeRenderer=(()=>{
+  let frame=0;
+  const size=40,center=p=>({x:p[0]*size+20,y:p[1]*size+20});
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  function ellipse(ctx,x,y,rx,ry,color,rotation=0){ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,rotation,0,Math.PI*2);ctx.fill();}
+
+  function field(ctx,advice){
+    // 统一柔和薄荷灰绿底色，避免产生类似“透明棋盘格”的视觉干扰
+    ctx.fillStyle='#f2f7f4';
+    ctx.fillRect(0,0,960,640);
+
+    // 细微扁平网格线
+    ctx.strokeStyle='#e3ede7';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    for(let x=1;x<24;x++){
+      ctx.moveTo(x*40+0.5,0);
+      ctx.lineTo(x*40+0.5,640);
+    }
+    for(let y=1;y<16;y++){
+      ctx.moveTo(0,y*40+0.5);
+      ctx.lineTo(960,y*40+0.5);
+    }
+    ctx.stroke();
+
+    // 在棋盘上轻量标记最佳安全候选格，直观辅助观察
+    if(advice){
+      for(const bestOpt of advice.options.filter(option=>advice.bestIds.includes(option.id))){
+        const [bx,by]=bestOpt.target;
+        ctx.save();
+        ctx.fillStyle='rgba(16, 185, 129, 0.10)';
+        ctx.strokeStyle='rgba(5, 150, 105, 0.45)';
+        ctx.lineWidth=1.5;
+        ctx.setLineDash([4,3]);
+        ctx.beginPath();
+        ctx.roundRect(bx*40+5,by*40+5,30,30,7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  function orange(ctx,p){
+    const {x,y}=center(p);
+    ctx.save();
+    ctx.translate(x,y);
+    // 柔和浅橘色底圈
+    ellipse(ctx,0,0,16.5,16.5,'rgba(249, 115, 22, 0.14)');
+    // 橘子扁平外描边与主体
+    ellipse(ctx,0,1,12.5,12,'#ea580c');
+    ellipse(ctx,0,1,11,10.5,'#f97316');
+    // 顶部小果蒂与绿叶
+    ctx.fillStyle='#9a3412';
+    ctx.fillRect(-1,-12.5,2,3.5);
+    ellipse(ctx,4.5,-11.5,4.8,2.4,'#16a34a',-0.35);
+    // 扁平小高光
+    ellipse(ctx,-3.8,-2.8,2.4,1.5,'#ffedd5',-0.5);
+    ctx.restore();
+  }
+
+  function snake(ctx,points){
+    function path(){
+      ctx.beginPath();
+      points.forEach((p,i)=>{if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});
+    }
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+
+    // 扁平双层描边：外圈深绿勾边 + 内层亮翠绿填充，使蛇头与蛇身浑然一体
+    path();
+    ctx.strokeStyle='#059669';
+    ctx.lineWidth=28;
+    ctx.stroke();
+
+    path();
+    ctx.strokeStyle='#10b981';
+    ctx.lineWidth=23;
+    ctx.stroke();
+
+    // 蛇身轻量节段斑点
+    for(let i=1;i<points.length-1;i++){
+      const p=points[i];
+      ellipse(ctx,p.x,p.y,2.4,2.4,'#059669');
+    }
+
+    // 蛇头（与蛇身同色系圆角矩形）
+    const head=points[0],neck=points[1]||head,angle=Math.atan2(head.y-neck.y,head.x-neck.x);
+    ctx.save();
+    ctx.translate(head.x,head.y);
+    ctx.rotate(angle);
+    ctx.fillStyle='#059669';
+    ctx.beginPath();
+    ctx.roundRect(-14,-15,31,30,11);
+    ctx.fill();
+
+    ctx.fillStyle='#10b981';
+    ctx.beginPath();
+    ctx.roundRect(-12,-12.5,26.5,25,9);
+    ctx.fill();
+
+    // 扁平大眼睛
+    for(const y of [-6.5,6.5]){
+      ellipse(ctx,5.5,y,4.2,4.2,'#ffffff');
+      ellipse(ctx,7,y,2.1,2.1,'#064e3b');
+    }
+    ctx.restore();
+  }
+
+  function draw(game,previous,ate,advice){
+    cancelAnimationFrame(frame);
+    const ctx=document.getElementById('board').getContext('2d'),start=performance.now(),duration=previous&&!reduced.matches?180:0;
+    const target=game.body.map(center),from=previous?target.map((_,i)=>center(previous[Math.min(i,previous.length-1)])):target;
+    const food=game.food&&[...game.food],eaten=ate&&previous?center(game.body[0]):null;
+    function paint(now){
+      const t=duration?Math.min(1,(now-start)/duration):1,ease=1-Math.pow(1-t,3);
+      field(ctx,advice);
+      if(food)orange(ctx,food);
+      snake(ctx,target.map((p,i)=>({x:from[i].x+(p.x-from[i].x)*ease,y:from[i].y+(p.y-from[i].y)*ease})));
+      if(eaten&&t<1){
+        ctx.strokeStyle=`rgba(249, 115, 22, ${1-t})`;
+        ctx.lineWidth=2.5;
+        ctx.beginPath();
+        ctx.arc(eaten.x,eaten.y,14+t*20,0,Math.PI*2);
+        ctx.stroke();
+      }
+      if(t<1)frame=requestAnimationFrame(paint);
+    }
+    paint(start);
+  }
+  window.addEventListener('pagehide',()=>cancelAnimationFrame(frame));
+  return {draw};
+})();
+</script>
+
+<!-- 页面控制器：渲染和可取消的串行运行；重置后旧响应不能推进新棋盘。 -->
+<script id="snake-controller">
+(()=>{
+  const $=id=>document.getElementById(id),E=SnakeEngine,T=SnakeTransport;
+  const arrows={UP:'↑',DOWN:'↓',LEFT:'←',RIGHT:'→'};
+  let game=E.create(),running=false,busy=false,controller=null,timer=null,generation=0,history=[];
+  const pct=v=>`${(v*100).toFixed(1)}%`,name=id=>E.dirs[id][2];
+  let provider='laya';
+  const profiles={laya:{endpoint:'http://127.0.0.1:8420/v1/systemone',model:'multilingual',key:''},chat:{endpoint:'https://tennewapi.shenzhuo.vip/v1/chat/completions',model:'startlux-decision',key:''}};
+  const config=()=>({provider,endpoint:$('endpoint').value.trim(),model:$('model').value.trim(),key:$('key').value.trim()});
+  // Keep service profiles in memory; the old debugger settings apply only to its Chat connection.
+  try{const saved=JSON.parse(localStorage.getItem('odoc-decision-debugger-config-v1')||'null');if(saved?.endpoint)profiles.chat.endpoint=saved.endpoint;if(saved?.model)profiles.chat.model=saved.model;}catch{/* Storage may be unavailable for file://. */}
+  function closeProviders(){ $('provider-options').hidden=true;$('provider').setAttribute('aria-expanded','false'); }
+  function applyProvider(next){
+    if(busy||running)return;
+    profiles[provider]={endpoint:$('endpoint').value,model:$('model').value,key:$('key').value};
+    provider=next;
+    for(const id of ['endpoint','model','key'])$(id).value=profiles[provider][id];
+    $('key').closest('label').hidden=provider==='laya';
+    $('provider-value').textContent=provider==='laya'?'本地 Laya':'原有决策服务';
+    document.querySelectorAll('[data-provider]').forEach(el=>el.setAttribute('aria-selected',String(el.dataset.provider===provider)));
+    $('connection-note').textContent=provider==='laya'?'本地 Laya 无需 API Key，页面直接连接本地服务。':'原有服务使用 Chat Completions；密钥仅保留在当前页面内存中。';
+    closeProviders();showPreview();updateConnectionHint();
+  }
+  $('provider').onclick=()=>{const open=$('provider-options').hidden;$('provider-options').hidden=!open;$('provider').setAttribute('aria-expanded',String(open));if(open)document.querySelector(`[data-provider="${provider}"]`).focus();};
+  const providerOptions=[...document.querySelectorAll('[data-provider]')];
+  providerOptions.forEach(el=>el.onclick=()=>{applyProvider(el.dataset.provider);$('provider').focus();});
+  document.addEventListener('click',event=>{if(!event.target.closest('.provider-field'))closeProviders();});
+  document.querySelector('.provider-field').addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeProviders();$('provider').focus();}
+    if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();$('provider-options').hidden=false;$('provider').setAttribute('aria-expanded','true');const index=providerOptions.indexOf(document.activeElement),next=event.key==='Home'?0:event.key==='End'?1:index<0?(event.key==='ArrowDown'?0:1):(index+(event.key==='ArrowDown'?1:-1)+2)%2;providerOptions[next].focus();}
+  });
+
+  function updateConnectionHint(){
+    const cfg=config();
+    const ready=Boolean(cfg.endpoint&&cfg.model&&(cfg.provider==='laya'||cfg.key));
+    $('conn-dot').classList.toggle('ready',ready);
+    $('conn-summary-text').textContent=`${cfg.provider==='laya'?'本地 Laya':'原有服务'} · ${cfg.model||'未填模型'} · ${ready?(cfg.provider==='laya'?'无需密钥':'密钥已就绪'):'待完善配置'}`;
+  }
+
+  function status(text,error=false){
+    $('status').textContent=text;
+    $('status').classList.toggle('error',error);
+  }
+
+  function controls(){
+    $('start').textContent=running?'暂停运行':'开始运行';
+    $('step').disabled=busy||running||!game.alive||game.won;
+    $('start').disabled=!game.alive||game.won;
+    $('shield').disabled=busy||running;
+    for(const id of ['endpoint','model','key','provider'])$(id).disabled=busy||running;
+    updateConnectionHint();
+  }
+
+  function preview(){
+    const d=E.describe(game,$('shield').checked);
+    $('request').textContent=JSON.stringify(T.payload(config().model,d.decision,provider),null,2);
+    $('facts').textContent=d.decision.state;
+    return d;
+  }
+
+  // 移动前候选的路线摘要，让“并列最短”在面板上可见，避免与执行后的棋盘提示混淆。
+  function routeSummary(description){
+    const ids=description.bestIds;
+    if(!ids.length)return '';
+    if(description.bestDistance===null)return `静态路径暂时到不了食物，按走后可连通空间比较：${ids.map(name).join('、')}较大。`;
+    return `静态路线：${ids.map(name).join('、')}${ids.length>1?' 并列':' '}最短，还需 ${description.bestDistance} 步。`;
+  }
+
+  function clearDecision(description, requesting=false){
+    const step=game.ticks+1;
+    $('action').textContent=requesting?'正在请求':'等待决策';
+    $('decision-box').classList.remove('intervened','safe-pass');
+    $('shield-note').textContent=requesting?'等待模型返回，本步尚未执行。':'开启筛选时，模型只收到可选的安全方向。';
+    $('risk').textContent=$('food-prob').textContent='—';
+    $('timing').textContent=requesting?'请求中 · 3 题':'尚无本次请求 · 每步 3 题';
+    $('response').textContent=requesting?'等待响应':'尚未请求';
+    $('candidate-title').textContent=requesting?`第 ${step} 步候选（移动前）`:'待发送的方向候选';
+    $('facts-title').textContent=requesting?`第 ${step} 步输入（移动前）`:'待发送的输入事实';
+    $('decision-context').textContent=`第 ${step} 步${requesting?'请求中':'待发送'}（移动前）：蛇头 (${game.body[0]})，食物 (${game.food})。${routeSummary(description)}`;
+    bars({},undefined,description);
+  }
+
+  function showPreview(){
+    if(!game.alive||game.won)return;
+    clearDecision(preview());
+  }
+
+  function draw(previous,ate=false){
+    const d=game.alive&&!game.won?E.describe(game,$('shield').checked):null;
+    SnakeRenderer.draw(game,previous,ate,d);
+    for(const [id,val]of Object.entries({score:game.score,length:game.body.length,ticks:game.ticks,'safe-count':d?.sentIds.length??0}))$(id).textContent=val;
+    if(game.alive&&!game.won){
+      const best=d.options.filter(option=>d.bestIds.includes(option.id)),tie=d.bestIds.length>1?'并列':'';
+      const description=best.length?`${best.map(option=>name(option.id)).join('、')}${best.some(option=>option.eats)?'（可立即吃到橘子）':best[0].foodDistance===null?'（通向食物的路线暂不可见）':`（${tie}最短，到食物还需 ${best[0].foodDistance} 步）`}`:'无';
+      $('board-hint').textContent=`当前棋盘：${game.ticks?`第 ${game.ticks} 步执行后`:'尚未移动'}。从当前棋盘出发的较短安全方向：${description}。`;
+    }else{
+      $('board-hint').textContent='当前棋盘：本局已结束。';
+    }
+  }
+
+  function bars(prob={},chosen,desc){
+    const d=desc||E.describe(game,$('shield').checked);
+    const optMap=new Map(d.options.map(o=>[o.id,o]));
+    $('bars').replaceChildren();
+    for(const [id,[,,label]]of Object.entries(E.dirs)){
+      const row=document.createElement('div');
+      row.className='bar-row'+(chosen===id?' chosen':'');
+
+      const dirSpan=document.createElement('span');
+      dirSpan.className='bar-dir';
+      dirSpan.textContent=`${arrows[id]} ${label}`;
+
+      const opt=optMap.get(id);
+      const info=E.label(opt,d);
+      const tag=document.createElement('span');
+      tag.className=`bar-tag tag-${info.tone}`;
+      tag.textContent=info.text;
+      tag.title=info.title;
+
+      const track=document.createElement('div');
+      track.className='track';
+      const fill=document.createElement('div');
+      fill.className='fill';
+      fill.style.width=`${(prob[id]??0)*100}%`;
+      track.append(fill);
+
+      const value=document.createElement('span');
+      value.className='bar-val';
+      value.textContent=!d.sentIds.includes(id)?'未发送':prob[id]===undefined?'—':pct(prob[id]);
+
+      row.append(dirSpan,tag,track,value);
+      $('bars').append(row);
+    }
+  }
+
+  function stop(){
+    running=false;
+    clearTimeout(timer);
+    generation++;
+    controller?.abort();
+    if(busy){
+      $('action').textContent='请求已取消';
+      $('shield-note').textContent='本步未执行，棋盘保持原状态。';
+      $('timing').textContent='请求已取消';
+      $('response').textContent='请求已取消';
+      $('decision-context').textContent=`第 ${game.ticks+1} 步请求已取消，棋盘未推进。`;
+    }
+    busy=false;
+    controls();
+  }
+
+  async function tick(){
+    if(busy||!game.alive||game.won)return;
+    const cfg=config();
+    if((cfg.provider!=='laya'&&!cfg.key)||!cfg.model||!cfg.endpoint){
+      stop();
+      document.querySelector('.settings').open=true;
+      status(cfg.provider==='laya'?'请填写本地 Laya 地址和模型 ID。':'请填写 API 地址、模型 ID 和 API Key。',true);
+      return;
+    }
+    const epoch=generation,description=preview(),shield=$('shield').checked;
+    if(description.sentIds.length===0){
+      running=false;
+      clearDecision(description);
+      $('action').textContent='暂无可选路线';
+      $('shield-note').textContent='静态检查找不到能连到蛇尾的路线；可暂停后关闭筛选继续尝试。';
+      status('没有通过安全筛选的方向，本步未请求模型。',true);
+      controls();
+      return;
+    }
+    clearDecision(description,true);
+    controller=new AbortController();
+    const active=controller;
+    const timeout=setTimeout(()=>active.abort(),120000);
+    busy=true;
+    controls();
+    status('正在请求模型决策…');
+    const begin=performance.now();
+    try{
+      const answers=await T.request(cfg,description.decision,active.signal,text=>{if(epoch===generation)$('response').textContent=text;});
+      if(epoch!==generation)return;
+      const scores=answers.move.probabilities,ranked=[...description.sentIds].sort((a,b)=>scores[b]-scores[a]),proposed=ranked[0],executed=proposed;
+
+      $('action').textContent=`${arrows[proposed]} ${name(proposed)} → ${arrows[executed]} ${name(executed)}`;
+      const dBox=$('decision-box');
+      dBox.classList.remove('intervened');
+      dBox.classList.toggle('safe-pass',shield);
+
+      $('shield-note').textContent=shield
+        ?`发送前筛掉 ${description.options.length-description.sentIds.length} 个方向；模型在 ${description.sentIds.length} 个候选中选择。`
+        :'安全筛选已关闭，模型可选择包括碰撞方向在内的全部方向。';
+
+      bars(scores,proposed,description);
+      $('risk').textContent=pct(1-answers.risk.probabilities.yes);
+      $('food-prob').textContent=pct(answers.food.probabilities.yes);
+      $('timing').textContent=`耗时 ${Math.round(performance.now()-begin)} ms · 3 题`;
+
+      const step=game.ticks+1,head=game.body[0].join(','),food=game.food.join(',');
+      $('candidate-title').textContent=`第 ${step} 步候选与模型概率（移动前）`;
+      $('facts-title').textContent=`第 ${step} 步输入（移动前）`;
+      $('decision-context').textContent=`第 ${step} 步移动前：蛇头 (${head})，食物 (${food})。${routeSummary(description)}左侧棋盘显示执行后的状态。`;
+
+      const previous=game.body.map(p=>[...p]),oldScore=game.score;
+      const reason=E.step(game,executed);
+      draw(previous,game.score>oldScore);
+
+      history.unshift(`第 ${game.ticks} 步：模型 ${name(proposed)} → 执行 ${name(executed)}${reason?' · '+reason:''}`);
+      history=history.slice(0,12);
+      $('logs').replaceChildren(...history.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
+
+      if(!game.alive||game.won){
+        running=false;
+        status(game.won?'已填满棋盘，本局完成！':`游戏结束：${reason}。点击重新开始。`,!game.alive);
+      }else{
+        status(running?'运行中，等待下一步…':'本步完成；可继续单步或开始运行。');
+      }
+    }catch(error){
+      if(epoch!==generation)return;
+      running=false;
+      $('action').textContent='请求失败';
+      $('shield-note').textContent='本步未执行，棋盘保持原状态。';
+      $('timing').textContent='请求失败';
+      $('decision-context').textContent=`第 ${game.ticks+1} 步请求失败，棋盘未推进。`;
+      status(error.name==='AbortError'?'请求超过 120 秒，已暂停，棋盘未推进。':`已暂停：${error.message}。本步未执行。`,true);
+    }finally{
+      clearTimeout(timeout);
+      if(epoch===generation){
+        busy=false;
+        controller=null;
+        controls();
+        if(running)timer=setTimeout(tick,Number($('pace').value));
+      }
+    }
+  }
+
+  function reset(){
+    stop();
+    game=E.create();
+    history=[];
+    $('action').textContent='等待决策';
+    $('decision-box').classList.remove('intervened','safe-pass');
+    $('risk').textContent=$('food-prob').textContent='—';
+    $('timing').textContent='尚无请求 · 每步 3 题';
+    $('response').textContent='尚未请求';
+    $('shield-note').textContent='开启筛选时，模型只收到可选的安全方向。';
+    const emptyLi=document.createElement('li');
+    emptyLi.textContent='尚未执行。点击“单步决策”开始。';
+    $('logs').replaceChildren(emptyLi);
+    showPreview();
+    draw();
+    status('新一局已就绪。');
+    controls();
+  }
+
+  $('start').onclick=()=>{
+    if(running){
+      stop();
+      status('已暂停，未完成的请求已取消。');
+    }else{
+      running=true;
+      controls();
+      if(!busy)tick();
+    }
+  };
+  $('step').onclick=tick;
+  $('reset').onclick=reset;
+  $('shield').onchange=()=>{
+    showPreview();draw();
+    status($('shield').checked?'已开启安全候选筛选。':'已关闭筛选，模型可选择碰撞方向。');
+  };
+  $('pace').oninput=()=>{$('pace-label').textContent=`${$('pace').value} ms`;};
+  $('model').oninput=()=>{updateConnectionHint();if(game.alive&&!game.won)showPreview();};
+  $('endpoint').oninput=updateConnectionHint;
+  $('key').oninput=updateConnectionHint;
+
+  document.addEventListener('keydown',event=>{
+    if(['INPUT','TEXTAREA','BUTTON','SUMMARY'].includes(event.target.tagName))return;
+    if(event.code==='Space'){event.preventDefault();$('start').click();}
+    if(event.key.toLowerCase()==='r')reset();
+  });
+  window.addEventListener('pagehide',stop);
+  applyProvider('laya');
+  draw();
+  controls();
+})();
+</script>
+</body>
+</html>

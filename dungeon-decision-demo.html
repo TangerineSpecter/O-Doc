@@ -1,0 +1,1900 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>迷雾地牢 · 决策实验室</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f5f8;
+      --surface: #ffffff;
+      --surface-subtle: #f8fafc;
+      --surface-muted: #f1f5f9;
+      --border: #e2e8f0;
+      --border-subtle: #edf2f7;
+      --text: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --text-faint: #94a3b8;
+
+      --primary: #8b5cf6;
+      --primary-hover: #7c3aed;
+      --primary-soft: #f5f3ff;
+      --primary-border: #ddd6fe;
+      --primary-text: #6d28d9;
+
+      --emerald: #10b981;
+      --emerald-dark: #059669;
+      --emerald-soft: #ecfdf5;
+      --emerald-border: #a7f3d0;
+      --emerald-text: #047857;
+
+      --amber: #f59e0b;
+      --amber-soft: #fffbeb;
+      --amber-border: #fde68a;
+      --amber-text: #b45309;
+
+      --danger: #ef4444;
+      --danger-dark: #dc2626;
+      --danger-soft: #fef2f2;
+      --danger-border: #fecaca;
+      --danger-text: #b91c1c;
+
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px 28px 40px;
+    }
+
+    button, input { font: inherit; }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 20px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--primary-soft);
+      border: 1px solid var(--primary-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .brand-icon svg { width: 22px; height: 22px; }
+
+    .title-wrap h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .title-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary-text);
+      border: 1px solid var(--primary-border);
+    }
+
+    .title-wrap p {
+      margin: 2px 0 0;
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+    }
+
+    .nav-link:hover {
+      border-color: var(--primary);
+      color: var(--primary-text);
+      background: var(--primary-soft);
+    }
+
+    /* ── Panel Base ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      min-width: 0;
+    }
+
+    /* ── Connection Settings ── */
+    .settings {
+      margin-bottom: 16px;
+      padding: 0;
+      overflow: visible;
+    }
+
+    .settings summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      user-select: none;
+      transition: background-color 0.15s;
+    }
+
+    .settings summary::-webkit-details-marker { display: none; }
+    .settings summary:hover { background: var(--surface-subtle); }
+
+    .summary-left { display: flex; align-items: center; gap: 10px; }
+
+    .summary-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      display: inline-block;
+      box-shadow: 0 0 0 3px var(--amber-soft);
+    }
+
+    .summary-dot.ready {
+      background: var(--emerald);
+      box-shadow: 0 0 0 3px var(--emerald-soft);
+    }
+
+    .connection-hint {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .settings-chevron {
+      color: var(--text-faint);
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+
+    .settings[open] .settings-chevron { transform: rotate(180deg); }
+
+    .settings-body {
+      padding: 16px 20px 18px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-subtle);
+      border-bottom-left-radius: var(--radius-lg);
+      border-bottom-right-radius: var(--radius-lg);
+    }
+
+    .provider-field {
+      position: relative;
+      max-width: 380px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    #provider {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      margin-top: 6px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    #provider:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    #provider-options {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      background: white;
+      padding: 6px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px #0f172a18;
+    }
+
+    #provider-options button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border: 0;
+      border-radius: 6px;
+      background: white;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #provider-options button:hover, #provider-options [aria-selected=true] {
+      background: var(--primary-soft);
+      color: var(--primary-text);
+    }
+
+    #provider-options small { display: block; margin-top: 3px; font-size: 11px; color: var(--text-muted); }
+
+    .fields {
+      display: grid;
+      grid-template-columns: 1.8fr 1fr 1.2fr;
+      gap: 14px;
+    }
+
+    label.field-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    input:not([type=checkbox]):not([type=range]) {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    input:not([type=checkbox]):not([type=range]):focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    }
+
+    input:disabled { background: var(--surface-muted); color: var(--text-muted); cursor: not-allowed; }
+
+    .settings-note { margin: 10px 0 0; font-size: 12px; color: var(--text-muted); }
+
+    /* ── Main Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .arena-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tag-symbol {
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    /* ── Stats ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat span { font-size: 11.5px; color: var(--text-muted); font-weight: 500; }
+    .stat strong { font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--text); }
+    .stat-hp strong { color: var(--emerald-dark); }
+    .stat-gold strong { color: var(--amber-text); }
+
+    /* ── Canvas Board ── */
+    .dungeon-container {
+      position: relative;
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      aspect-ratio: 16 / 10;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+
+    canvas#dungeon-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .dungeon-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .dot-legend { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .dot-hero { background: #8b5cf6; }
+    .dot-key { background: #eab308; }
+    .dot-exit { background: #38bdf8; }
+    .dot-monster { background: #ef4444; }
+    .dot-potion { background: #10b981; }
+
+    .kbd-hint { display: inline-flex; align-items: center; gap: 6px; }
+    kbd {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .note { margin: 10px 0 0; font-size: 12px; color: var(--text-muted); }
+
+    /* ── Controls ── */
+    .control-bar {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    button {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--surface-muted);
+      border-color: #cbd5e1;
+      color: var(--text);
+    }
+
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+      color: #ffffff;
+    }
+
+    button:disabled { opacity: 0.48; cursor: not-allowed; }
+
+    #status {
+      margin: 0;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    #status.error {
+      background: var(--danger-soft);
+      border-color: var(--danger-border);
+      color: var(--danger-text) !important;
+    }
+
+    .options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    input[type=checkbox] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      margin: 0;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 120px;
+      height: 6px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    /* ── Right Panel: Decision View ── */
+    .timing-pill {
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .decision {
+      margin-top: 10px;
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+
+    .decision.intervened {
+      background: var(--amber-soft);
+      border-color: var(--amber-border);
+    }
+
+    .decision.safe-pass {
+      background: var(--emerald-soft);
+      border-color: var(--emerald-border);
+    }
+
+    .decision-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .decision-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .decision strong {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .decision small {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .sub-heading {
+      margin-top: 16px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .sub-heading small {
+      font-weight: 500;
+      color: var(--text-faint);
+    }
+
+    /* ── Bars ── */
+    .bars {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 80px 72px 1fr 48px;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+    }
+
+    .bar-row.chosen {
+      background: #f5f3ff;
+      border: 1px solid var(--primary-border);
+    }
+
+    .bar-action { font-weight: 700; color: var(--text); font-family: var(--mono); }
+    .bar-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .tag-safe { background: #dcfce7; color: #166534; }
+    .tag-unsafe { background: #fef3c7; color: #92400e; }
+    .tag-illegal { background: #fee2e2; color: #991b1b; }
+    .tag-best { background: #ede9fe; color: #6d28d9; }
+    .tag-subtle { background: #f1f5f9; color: #475569; }
+    .tag-monster { background: #fee2e2; color: #b91c1c; }
+
+    .track {
+      background: var(--surface-muted);
+      height: 7px;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      background: var(--primary);
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+
+    .bar-val {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      text-align: right;
+      color: var(--text-secondary);
+    }
+
+    /* ── Estimates ── */
+    .estimates {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .estimate-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .estimate-card small { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .estimate-card strong { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--text); }
+
+    .facts-box {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.6;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      color: var(--text-secondary);
+      max-height: 130px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .logs {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 140px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    .logs li {
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--mono);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── Debug Drawer ── */
+    .debug {
+      margin-top: 16px;
+      padding: 0;
+    }
+
+    .debug summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .debug summary::-webkit-details-marker { display: none; }
+    .debug summary:hover { background: var(--surface-subtle); }
+
+    .debug-body {
+      padding: 16px 20px 20px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-subtle);
+      border-bottom-left-radius: var(--radius-lg);
+      border-bottom-right-radius: var(--radius-lg);
+    }
+
+    .debug-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .debug-col h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      background: #0f172a;
+      color: #cbd5e1;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.5;
+      overflow: auto;
+      max-height: 280px;
+    }
+
+    footer {
+      margin-top: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    footer a { color: var(--primary-text); text-decoration: none; font-weight: 500; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 980px) {
+      main { padding: 14px; }
+      .layout, .debug-grid, .fields { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand-group">
+      <div class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 19 8.5 19 15.5 12 22 5 15.5 5 8.5 12 2"></polygon>
+          <line x1="12" y1="22" x2="12" y2="15.5"></line>
+          <polyline points="19 8.5 12 15.5 5 8.5"></polyline>
+          <polyline points="12 2 12 8.5 19 8.5"></polyline>
+        </svg>
+      </div>
+      <div class="title-wrap">
+        <h1>
+          迷雾地牢 · 决策实验室
+          <span class="title-badge">3 Questions / Step · POMDP 迷雾探索</span>
+        </h1>
+        <p>局部视野、陷阱与宝箱。测试结构化决策模型在不完全信息下的空间感知、避险与探索规划。</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a class="nav-link" href="snake-decision-demo.html">贪吃蛇实验室 ↗</a>
+      <a class="nav-link" href="quant-decision-demo.html">量化决策实验室 ↗</a>
+      <a class="nav-link" href="decision-model-debugger.html">结构化调试台 ↗</a>
+    </div>
+  </header>
+
+  <details class="panel settings">
+    <summary>
+      <span class="summary-left">
+        <i id="conn-dot" class="summary-dot"></i>
+        <span>连接设置</span>
+      </span>
+      <span class="connection-hint">
+        <span id="conn-summary-text">本地 Laya · multilingual · 无需密钥</span>
+        <span class="settings-chevron">▾</span>
+      </span>
+    </summary>
+    <div class="settings-body">
+      <div class="provider-field">
+        <span id="provider-label">决策服务</span>
+        <button id="provider" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="provider-options" aria-labelledby="provider-label provider-value">
+          <span id="provider-value">本地 Laya</span><span aria-hidden="true">▾</span>
+        </button>
+        <div id="provider-options" role="listbox" aria-labelledby="provider-label" hidden>
+          <button type="button" role="option" data-provider="laya" aria-selected="true">本地 Laya <small>multilingual · 无需密钥</small></button>
+          <button type="button" role="option" data-provider="chat" aria-selected="false">原有决策服务 <small>startlux-decision · Chat Completions</small></button>
+        </div>
+      </div>
+      <div class="fields">
+        <label class="field-item">
+          API 地址
+          <input id="endpoint" value="http://127.0.0.1:8420/v1/systemone" autocomplete="url">
+        </label>
+        <label class="field-item">
+          模型 ID
+          <input id="model" value="multilingual" spellcheck="false">
+        </label>
+        <label class="field-item">
+          API Key
+          <input id="key" type="password" autocomplete="off" placeholder="填写当前服务的密钥">
+        </label>
+      </div>
+      <p id="connection-note" class="settings-note">本地 Laya 无需 API Key，页面直接连接本地服务。</p>
+    </div>
+  </details>
+
+  <div class="layout">
+    <!-- 左侧：地牢探索棋盘 -->
+    <section class="panel">
+      <div class="section-head">
+        <h2>地牢探索现场</h2>
+        <div class="arena-meta">
+          <span class="tag-symbol">18 × 12 迷雾地牢</span>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat stat-hp">
+          <span>生命值 (HP)</span>
+          <strong id="stat-hp">100 / 100</strong>
+        </div>
+        <div class="stat stat-gold">
+          <span>收集宝金</span>
+          <strong id="stat-gold">0 G</strong>
+        </div>
+        <div class="stat">
+          <span>持有钥匙</span>
+          <strong id="stat-key">未获取</strong>
+        </div>
+        <div class="stat">
+          <span>安全层介入</span>
+          <strong id="stat-interventions">0</strong>
+        </div>
+      </div>
+
+      <div class="dungeon-container">
+        <canvas id="dungeon-canvas" width="960" height="640" aria-label="迷雾地牢，探险家需搜集钥匙到达出口"></canvas>
+      </div>
+
+      <div class="dungeon-caption">
+        <div class="legend">
+          <span><i class="dot-legend dot-hero"></i>探险家</span>
+          <span><i class="dot-legend dot-key"></i>黄金钥匙</span>
+          <span><i class="dot-legend dot-exit"></i>传送门</span>
+          <span><i class="dot-legend dot-monster"></i>巡逻魔物</span>
+          <span><i class="dot-legend dot-potion"></i>治愈药水</span>
+        </div>
+        <div class="kbd-hint">
+          <span>快捷键：<kbd>Space</kbd> 暂停/运行 · <kbd>R</kbd> 重新开始</span>
+        </div>
+      </div>
+
+      <p id="board-hint" class="note">当前状态：准备就绪。单步决策或点击运行开始探索。</p>
+
+      <div class="control-bar">
+        <div class="toolbar-row">
+          <div class="toolbar">
+            <button class="primary" id="start">开始运行</button>
+            <button id="step">单步决策</button>
+            <button id="reset">重新开始</button>
+          </div>
+          <p id="status" role="status">等待开始；可先单步查看模型探险决策。</p>
+        </div>
+
+        <div class="options">
+          <label>
+            <input type="checkbox" id="shield" checked>
+            启用生存直觉辅助（拦截自杀式残血移动）
+          </label>
+          <label>
+            步间隔
+            <input id="pace" type="range" min="100" max="2000" step="100" value="400">
+            <span id="pace-label">400 ms</span>
+          </label>
+        </div>
+      </div>
+
+      <p class="note">生存直觉辅助逻辑：当 HP &le; 25 且模型意图撞向怪物或踩已知陷阱时，安全层将强制改写为安全方向撤退或寻找药水。切换辅助会重置地牢。</p>
+    </section>
+
+    <!-- 右侧：决策面板 -->
+    <section class="panel" aria-live="polite">
+      <div class="section-head">
+        <h2>模型探险决策</h2>
+        <span id="timing" class="timing-pill">尚无请求 · 每步 3 题</span>
+      </div>
+
+      <p id="decision-context" class="note">尚未请求；下方是当前视野内的行动候选。</p>
+
+      <div id="decision-box" class="decision">
+        <div class="decision-top">
+          <span class="decision-label">模型首选 → 实际执行</span>
+        </div>
+        <strong id="action">等待决策</strong>
+        <small id="shield-note">安全层介入会单独标记，概率保持模型原值。</small>
+      </div>
+
+      <div class="sub-heading">
+        <span id="candidate-title">待发送的四向行动候选</span>
+        <small>高亮项为模型首选</small>
+      </div>
+      <div id="bars" class="bars"></div>
+
+      <div class="estimates">
+        <div class="estimate-card">
+          <small>环境危险感知 (THREAT)</small>
+          <strong id="danger-prob">—</strong>
+        </div>
+        <div class="estimate-card">
+          <small>核心意图 (OBJECTIVE)</small>
+          <strong id="obj-prob">—</strong>
+        </div>
+      </div>
+
+      <div class="sub-heading">
+        <span id="facts-title">待发送的地牢感知事实</span>
+      </div>
+      <div id="facts" class="facts-box"></div>
+
+      <div class="sub-heading">
+        <span>最近探险流水</span>
+      </div>
+      <ol id="logs" class="logs">
+        <li>尚未执行。点击“单步决策”开始。</li>
+      </ol>
+    </section>
+  </div>
+
+  <details class="panel debug">
+    <summary>
+      <span>请求与响应原文（JSON）</span>
+      <span class="connection-hint">点击展开 / 收起 ▾</span>
+    </summary>
+    <div class="debug-body">
+      <p class="note" style="margin-top:0">展示最近一次请求及对应响应；首次请求前展示待发送内容。请求不包含密钥。</p>
+      <div class="debug-grid">
+        <div class="debug-col">
+          <h3>请求 JSON</h3>
+          <pre id="request"></pre>
+        </div>
+        <div class="debug-col">
+          <h3>响应 JSON</h3>
+          <pre id="response">尚未请求</pre>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <footer>
+    迷雾地牢决策实验室 · 支持本地 Laya /systemone 与 Chat Completions 双协议。独立实验页，不写入数据持久层。
+  </footer>
+</main>
+
+<!-- 地牢与战争迷雾规则引擎 -->
+<script id="dungeon-engine">
+window.DungeonEngine = (() => {
+  const W = 18, H = 12;
+  const DIRS = {
+    UP: [0, -1, '北（上）', '↑'],
+    DOWN: [0, 1, '南（下）', '↓'],
+    LEFT: [-1, 0, '西（左）', '←'],
+    RIGHT: [1, 0, '东（右）', '→']
+  };
+
+  // 生成固定/可随机的地牢迷宫地图
+  function create() {
+    const grid = Array.from({ length: H }, () => Array(W).fill(0)); // 0: floor, 1: wall
+    // 外墙
+    for (let x = 0; x < W; x++) { grid[0][x] = 1; grid[H - 1][x] = 1; }
+    for (let y = 0; y < H; y++) { grid[y][0] = 1; grid[y][W - 1] = 1; }
+
+    // 内部隔墙
+    const walls = [
+      [3, 2], [3, 3], [3, 4], [3, 6], [3, 7], [3, 8], [3, 9],
+      [7, 2], [7, 3], [7, 5], [7, 6], [7, 8], [7, 9],
+      [11, 2], [11, 4], [11, 5], [11, 7], [11, 8], [11, 9],
+      [14, 3], [14, 4], [14, 5], [14, 6], [14, 8]
+    ];
+    walls.forEach(([x, y]) => { if (x < W - 1 && y < H - 1) grid[y][x] = 1; });
+
+    const explored = Array.from({ length: H }, () => Array(W).fill(false));
+
+    const g = {
+      W, H, grid, explored,
+      player: [1, 1],
+      prevPos: null,
+      keyPos: [16, 1],
+      exitPos: [16, 10],
+      potions: [[6, 4], [12, 10]],
+      traps: [[5, 2], [10, 6], [14, 7]],
+      monsters: [[9, 3], [13, 3], [10, 9]],
+      hp: 100,
+      gold: 0,
+      hasKey: false,
+      ticks: 0,
+      alive: true,
+      won: false
+    };
+
+    updateFog(g);
+    return g;
+  }
+
+  function updateFog(g) {
+    const [px, py] = g.player;
+    const radius = 3.5;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const d = Math.hypot(x - px, y - py);
+        if (d <= radius) {
+          g.explored[y][x] = true;
+        }
+      }
+    }
+  }
+
+  function isVisible(g, x, y) {
+    const [px, py] = g.player;
+    return Math.hypot(x - px, y - py) <= 3.5;
+  }
+
+  // 迷宫最短路径 BFS 计算
+  function bfsDist(g, start, target) {
+    if (start[0] === target[0] && start[1] === target[1]) return 0;
+    const queue = [[start[0], start[1], 0]];
+    const visited = new Set([`${start[0]},${start[1]}`]);
+    while (queue.length > 0) {
+      const [cx, cy, d] = queue.shift();
+      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx === target[0] && ny === target[1]) return d + 1;
+        const key = `${nx},${ny}`;
+        if (nx >= 0 && nx < W && ny >= 0 && ny < H && g.grid[ny][nx] === 0 && !visited.has(key)) {
+          visited.add(key);
+          queue.push([nx, ny, d + 1]);
+        }
+      }
+    }
+    return Infinity;
+  }
+
+  function getGoal(g) {
+    if (g.hasKey) return g.exitPos;
+    if (g.keyPos && (isVisible(g, g.keyPos[0], g.keyPos[1]) || g.explored[g.keyPos[1]][g.keyPos[0]])) {
+      return g.keyPos;
+    }
+    // 寻找最近的未探索迷雾边缘格 (Frontier)
+    const [px, py] = g.player;
+    let bestFog = null, bestDist = Infinity;
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        if (!g.explored[y][x] && g.grid[y][x] === 0) {
+          const d = bfsDist(g, [px, py], [x, y]);
+          if (d < bestDist) {
+            bestDist = d;
+            bestFog = [x, y];
+          }
+        }
+      }
+    }
+    return bestFog || g.keyPos || g.exitPos;
+  }
+
+  function moves(g) {
+    const [px, py] = g.player;
+    const goal = getGoal(g);
+
+    const evaluated = Object.entries(DIRS).map(([id, [dx, dy, name, arrow]]) => {
+      const tx = px + dx, ty = py + dy;
+      if (tx < 0 || tx >= W || ty < 0 || ty >= H || g.grid[ty][tx] === 1) {
+        return {
+          id, name, arrow, target: [tx, ty],
+          legal: false, safe: false, dist: Infinity,
+          reason: '禁止，前方为石墙障碍', tag: '无法通行', tagClass: 'tag-illegal'
+        };
+      }
+
+      const isUturn = Boolean(g.prevPos && tx === g.prevPos[0] && ty === g.prevPos[1]);
+      const hasMonster = g.monsters.some(m => m[0] === tx && m[1] === ty);
+      const hasTrap = g.traps.some(t => t[0] === tx && t[1] === ty);
+      const isExit = g.exitPos[0] === tx && g.exitPos[1] === ty;
+      const hasKey = g.keyPos && g.keyPos[0] === tx && g.keyPos[1] === ty;
+      const hasPotion = g.potions.some(p => p[0] === tx && p[1] === ty);
+      const dist = bfsDist(g, [tx, ty], goal);
+
+      return {
+        id, name, arrow, target: [tx, ty],
+        legal: true, safe: !isUturn, dist, isUturn,
+        hasMonster, hasTrap, isExit, hasKey, hasPotion
+      };
+    });
+
+    // 挑选最佳前进候选（排除立即回头折返路线）
+    const forwardLegals = evaluated.filter(m => m.legal && !m.isUturn && !m.hasMonster && !m.hasTrap);
+    const candList = forwardLegals.length ? forwardLegals : evaluated.filter(m => m.legal);
+    const minDist = Math.min(...candList.map(m => m.dist));
+
+    // 唯一确定最佳推荐方向（平局时选择更能缩减更大坐标差的方向）
+    const bestMove = candList
+      .filter(m => m.dist === minDist)
+      .sort((a, b) => (Math.abs(a.target[1] - goal[1]) - Math.abs(b.target[1] - goal[1])) || (Math.abs(a.target[0] - goal[0]) - Math.abs(b.target[0] - goal[0])))[0];
+
+    return evaluated.map(m => {
+      if (!m.legal) return m;
+
+      if (m.isExit && g.hasKey) {
+        return {
+          ...m, safe: true, best: true, tag: '通关脱出', tagClass: 'tag-best',
+          reason: '终点传送门！步入即可胜利脱出，唯一最佳选择'
+        };
+      }
+
+      if (m.hasKey) {
+        return {
+          ...m, safe: true, best: true, tag: '黄金钥匙', tagClass: 'tag-best',
+          reason: '黄金钥匙！立即拾取解锁传送门，唯一最佳选择'
+        };
+      }
+
+      if (m.hasPotion && g.hp < 80) {
+        return {
+          ...m, safe: true, best: true, tag: '治愈药水', tagClass: 'tag-best',
+          reason: '治愈药水！拾取恢复30点生命，最佳选择'
+        };
+      }
+
+      if (m.isUturn) {
+        return {
+          ...m, safe: false, best: false, tag: '避免折返', tagClass: 'tag-unsafe',
+          reason: '避免折返：上一格刚刚走过，折返会导致原地反复摆动死锁'
+        };
+      }
+
+      if (m.hasMonster) {
+        if (g.hp <= 25) {
+          return {
+            ...m, safe: false, best: false, tag: '致命危险', tagClass: 'tag-illegal',
+            reason: '危险禁止，残血与魔物交战可能阵亡'
+          };
+        }
+        return {
+          ...m, safe: true, best: false, tag: '巡逻魔物', tagClass: 'tag-monster',
+          reason: '巡逻魔物，交战消耗20生命并斩获50金币'
+        };
+      }
+
+      if (m.hasTrap) {
+        if (g.hp <= 25) {
+          return {
+            ...m, safe: false, best: false, tag: '致命陷阱', tagClass: 'tag-illegal',
+            reason: '危险禁止，残血踩中尖刺陷阱直接致命'
+          };
+        }
+        return {
+          ...m, safe: true, best: false, tag: '尖刺陷阱', tagClass: 'tag-unsafe',
+          reason: '地面存在尖刺陷阱，将扣除25点生命'
+        };
+      }
+
+      if (m === bestMove) {
+        return {
+          ...m, safe: true, best: true, tag: '最佳路线', tagClass: 'tag-best',
+          reason: g.hasKey
+            ? '通畅路线，向传送门推进的最短路径，最佳选择'
+            : (g.keyPos && (isVisible(g, g.keyPos[0], g.keyPos[1]) || g.explored[g.keyPos[1]][g.keyPos[0]]))
+              ? '通畅路线，朝已知钥匙方位推进的最优路径，最佳选择'
+              : '通畅路线，向未探明迷雾深处推进的最优路径，最佳选择'
+        };
+      }
+
+      return {
+        ...m, safe: true, best: false, tag: '次选路线', tagClass: 'tag-subtle',
+        reason: '通畅路线，但属于偏离当前目标方向的次选'
+      };
+    });
+  }
+
+  function describe(g) {
+    const options = moves(g);
+    const [px, py] = g.player;
+    const best = options.find(m => m.best) || options.find(m => m.legal && m.safe);
+
+    // 统计视野可见要素
+    const visibleMonsters = g.monsters.filter(m => isVisible(g, m[0], m[1]));
+    const visiblePotions = g.potions.filter(p => isVisible(g, p[0], p[1]));
+    const keySeen = g.keyPos && (isVisible(g, g.keyPos[0], g.keyPos[1]) || g.explored[g.keyPos[1]][g.keyPos[0]]);
+    const exitSeen = isVisible(g, g.exitPos[0], g.exitPos[1]) || g.explored[g.exitPos[1]][g.exitPos[0]];
+
+    const criteria = Object.fromEntries(options.map(m => [m.id, `${m.name}：${m.reason}`]));
+
+    const state = g.hasKey
+      ? `地牢探索现场。探险家坐标(${px},${py})，生命值 ${g.hp}/100，金币 ${g.gold}。已成功持有黄金钥匙！当前唯一使命：全速沿最短路线赶往传送门脱出！周围无直接致命危险。候选已标注最短寻路规划，避免走回头路。请依据这些事实选择。`
+      : `地牢探索现场。棋盘${W}×${H}，探险家坐标(${px},${py})，生命值 ${g.hp}/100，金币 ${g.gold}，持有钥匙：否。视野感知：可见魔物 ${visibleMonsters.length} 只，钥匙${keySeen ? '在已知方位' : '藏在迷雾深处未探明区域'}。当前处于安全探索状态，推荐优先沿最短路线推进。候选已包含探索规划器判断，请依据这些事实选择。`;
+
+    const questions = {
+      move: {
+        type: 'choice',
+        instructions: '选择探险家的四向移动方向，避免折返走回头路，朝当前目标推进。',
+        criteria
+      },
+      danger: {
+        type: 'choice',
+        instructions: '根据当前视野事实，周围是否存在致命或高危威胁？',
+        criteria: {
+          safe: '周围无直接致命危险，路线通畅，环境安全',
+          threat: '前方遭遇魔物、残血踩陷阱或濒临死亡'
+        }
+      },
+      objective: {
+        type: 'choice',
+        instructions: '评估当前阶段的核心战术意图。',
+        criteria: g.hasKey ? {
+          escape: '已取得黄金钥匙，全速前往传送门脱出（当前唯一目标）',
+          explore: '已获取钥匙，无需继续在迷雾中徘徊',
+          loot: '钥匙已到手，无需搜刮'
+        } : {
+          explore: '向未探索迷雾深处推进，搜寻钥匙与宝藏（推荐）',
+          loot: '搜刮视野内已发现的钥匙或药水补给',
+          escape: '尚未取得钥匙，无法脱出'
+        }
+      }
+    };
+
+    return {
+      options,
+      bestId: best?.id,
+      decision: { state, questions }
+    };
+  }
+
+  function step(g, chosenId) {
+    const m = moves(g).find(o => o.id === chosenId);
+    if (!m || !m.legal) throw Error('非法移动方向');
+    g.ticks++;
+
+    g.prevPos = [...g.player];
+    g.player = [...m.target];
+    const [px, py] = g.player;
+
+    // 拾取钥匙
+    if (g.keyPos && g.keyPos[0] === px && g.keyPos[1] === py) {
+      g.hasKey = true;
+      g.keyPos = null;
+    }
+
+    // 拾取药水
+    const pIdx = g.potions.findIndex(p => p[0] === px && p[1] === py);
+    if (pIdx >= 0) {
+      g.hp = Math.min(100, g.hp + 30);
+      g.potions.splice(pIdx, 1);
+    }
+
+    // 踩中陷阱
+    const tIdx = g.traps.findIndex(t => t[0] === px && t[1] === py);
+    if (tIdx >= 0) {
+      g.hp -= 25;
+    }
+
+    // 遭遇魔物
+    const mIdx = g.monsters.findIndex(mon => mon[0] === px && mon[1] === py);
+    if (mIdx >= 0) {
+      g.hp -= 20;
+      g.gold += 50;
+      g.monsters.splice(mIdx, 1);
+    }
+
+    // 终点脱出
+    if (g.exitPos[0] === px && g.exitPos[1] === py && g.hasKey) {
+      g.won = true;
+    }
+
+    if (g.hp <= 0) {
+      g.hp = 0;
+      g.alive = false;
+    }
+
+    updateFog(g);
+    return {
+      alive: g.alive,
+      won: g.won,
+      hp: g.hp,
+      gold: g.gold
+    };
+  }
+
+  return { W, H, DIRS, create, moves, describe, step, isVisible };
+})();
+</script>
+
+<!-- 通信协议层 -->
+<script id="dungeon-transport">
+window.DungeonTransport = (() => {
+  function payload(model, decision, provider = 'chat') {
+    return provider === 'laya'
+      ? { state: { body: decision.state }, questions: decision.questions, model }
+      : { model, messages: [{ role: 'user', content: JSON.stringify(decision) }] };
+  }
+
+  function parse(envelope) {
+    if (envelope.usage?.truncated || envelope.usage?.state_tokens_dropped > 0 || envelope.usage?.truncated_questions?.length) {
+      throw Error('模型输入被截断，本步不执行，请检查模型上下文限制');
+    }
+    let content = envelope.answers ? envelope : envelope.choices?.[0]?.message?.content;
+    if (typeof content === 'string') {
+      content = JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+    }
+    if (!content || typeof content !== 'object') throw Error('响应缺少有效的决策正文');
+    const answers = content.answers ?? content;
+
+    for (const [id, keys] of Object.entries({
+      move: ['UP', 'DOWN', 'LEFT', 'RIGHT'],
+      danger: ['safe', 'threat'],
+      objective: ['explore', 'loot', 'escape']
+    })) {
+      const a = answers[id];
+      if (!a || !keys.includes(a.choice ?? a.selected ?? a.value)) {
+        throw Error(`问题 ${id} 缺少合法 choice (${keys.join('/')})`);
+      }
+      if (!a.probabilities || keys.some(k => typeof a.probabilities[k] !== 'number' || !Number.isFinite(a.probabilities[k]))) {
+        throw Error(`问题 ${id} 概率缺失或无效`);
+      }
+    }
+    return answers;
+  }
+
+  async function request(config, decision, signal, onResponse) {
+    const url = new URL(config.endpoint);
+    if (!['http:', 'https:'].includes(url.protocol)) throw Error('API 地址须为 HTTP(S)');
+    url.pathname = url.pathname.replace(/\/+$/, '');
+    if (config.provider === 'laya') {
+      if (!/\/systemone$/i.test(url.pathname)) url.pathname += (/\/v1$/i.test(url.pathname) ? '/systemone' : '/v1/systemone');
+    } else if (!/\/chat\/completions$/i.test(url.pathname)) {
+      url.pathname += '/chat/completions';
+    }
+    const headers = { 'Content-Type': 'application/json' };
+    if (config.key) headers.Authorization = `Bearer ${config.key}`;
+    let res;
+    try {
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload(config.model, decision, config.provider)), signal });
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
+      throw Error('无法连接模型服务，请检查服务地址、跨域 CORS 及浏览器本地网络访问权限');
+    }
+    const text = await res.text();
+    onResponse(text);
+    if (!res.ok) throw Error(`HTTP ${res.status}，查看响应原文`);
+    return parse(JSON.parse(text));
+  }
+
+  return { payload, parse, request };
+})();
+</script>
+
+<!-- 画布渲染模块：迷雾与地牢元素绘制 -->
+<script id="dungeon-renderer">
+window.DungeonRenderer = (() => {
+  function draw(game) {
+    const canvas = document.getElementById('dungeon-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cols = game.W, rows = game.H;
+    const tileW = W / cols, tileH = H / rows;
+
+    // 清屏
+    ctx.fillStyle = '#06090e';
+    ctx.fillRect(0, 0, W, H);
+
+    const [px, py] = game.player;
+
+    // 绘制地面与墙壁
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = c * tileW, y = r * tileH;
+        const seen = game.explored[r][c];
+        const isWall = game.grid[r][c] === 1;
+
+        if (!seen) {
+          // 未探索完全黑雾
+          ctx.fillStyle = '#05070a';
+          ctx.fillRect(x, y, tileW, tileH);
+          continue;
+        }
+
+        // 已经探索的地块
+        if (isWall) {
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(x, y, tileW, tileH);
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 1, y + 1, tileW - 2, tileH - 2);
+        } else {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(x, y, tileW, tileH);
+          ctx.strokeStyle = '#1e293b';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(x, y, tileW, tileH);
+        }
+      }
+    }
+
+    // 绘制当前视野内的物体
+    // 药水
+    game.potions.forEach(([x, y]) => {
+      if (DungeonEngine.isVisible(game, x, y)) {
+        const cx = x * tileW + tileW / 2, cy = y * tileH + tileH / 2;
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(cx, cy, tileW * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ecfdf5';
+        ctx.fillText('P', cx - 4, cy + 4);
+      }
+    });
+
+    // 陷阱（若在视野内微弱警告）
+    game.traps.forEach(([x, y]) => {
+      if (DungeonEngine.isVisible(game, x, y)) {
+        const cx = x * tileW + tileW / 2, cy = y * tileH + tileH / 2;
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cx - 10, cy - 10, 20, 20);
+      }
+    });
+
+    // 魔物
+    game.monsters.forEach(([x, y]) => {
+      if (DungeonEngine.isVisible(game, x, y)) {
+        const cx = x * tileW + tileW / 2, cy = y * tileH + tileH / 2;
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(cx, cy, tileW * 0.32, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('M', cx - 6, cy + 4);
+      }
+    });
+
+    // 钥匙
+    if (game.keyPos && (DungeonEngine.isVisible(game, game.keyPos[0], game.keyPos[1]) || game.explored[game.keyPos[1]][game.keyPos[0]])) {
+      const cx = game.keyPos[0] * tileW + tileW / 2, cy = game.keyPos[1] * tileH + tileH / 2;
+      ctx.fillStyle = '#eab308';
+      ctx.beginPath();
+      ctx.arc(cx, cy, tileW * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('K', cx - 5, cy + 4);
+    }
+
+    // 传送门 Exit
+    if (DungeonEngine.isVisible(game, game.exitPos[0], game.exitPos[1]) || game.explored[game.exitPos[1]][game.exitPos[0]]) {
+      const cx = game.exitPos[0] * tileW + tileW / 2, cy = game.exitPos[1] * tileH + tileH / 2;
+      ctx.fillStyle = game.hasKey ? '#38bdf8' : '#475569';
+      ctx.beginPath();
+      ctx.arc(cx, cy, tileW * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(game.hasKey ? 'EXIT' : 'LOCK', cx - 13, cy + 4);
+    }
+
+    // 绘制视野迷雾暗化遮罩（不在当前可见范围内的已探索格做半透明蒙层）
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (game.explored[r][c] && !DungeonEngine.isVisible(game, c, r)) {
+          ctx.fillStyle = 'rgba(6, 9, 14, 0.65)';
+          ctx.fillRect(c * tileW, r * tileH, tileW, tileH);
+        }
+      }
+    }
+
+    // 绘制主角探险家
+    const hx = px * tileW + tileW / 2, hy = py * tileH + tileH / 2;
+    // 视野微光光环
+    const grad = ctx.createRadialGradient(hx, hy, 10, hx, hy, tileW * 3.5);
+    grad.addColorStop(0, 'rgba(139, 92, 246, 0.15)');
+    grad.addColorStop(1, 'rgba(139, 92, 246, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(hx, hy, tileW * 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 英雄主体
+    ctx.fillStyle = '#8b5cf6';
+    ctx.beginPath();
+    ctx.arc(hx, hy, tileW * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('勇', hx - 6, hy + 4);
+  }
+
+  return { draw };
+})();
+</script>
+
+<!-- 控制器模块 -->
+<script id="dungeon-controller">
+(() => {
+  const $ = id => document.getElementById(id);
+  const E = DungeonEngine, T = DungeonTransport, R = DungeonRenderer;
+
+  let game = E.create();
+  let running = false, busy = false, controller = null, timer = null;
+  let generation = 0, interventions = 0, history = [];
+  let provider = 'laya';
+
+  const profiles = {
+    laya: { endpoint: 'http://127.0.0.1:8420/v1/systemone', model: 'multilingual', key: '' },
+    chat: { endpoint: 'https://tennewapi.shenzhuo.vip/v1/chat/completions', model: 'startlux-decision', key: '' }
+  };
+
+  const config = () => ({
+    provider,
+    endpoint: $('endpoint').value.trim(),
+    model: $('model').value.trim(),
+    key: $('key').value.trim()
+  });
+
+  function closeProviders() {
+    $('provider-options').hidden = true;
+    $('provider').setAttribute('aria-expanded', 'false');
+  }
+
+  function applyProvider(next) {
+    if (busy || running) return;
+    profiles[provider] = { endpoint: $('endpoint').value, model: $('model').value, key: $('key').value };
+    provider = next;
+    for (const id of ['endpoint', 'model', 'key']) $(id).value = profiles[provider][id];
+    $('key').closest('label').hidden = (provider === 'laya');
+    $('provider-value').textContent = provider === 'laya' ? '本地 Laya' : '原有决策服务';
+    document.querySelectorAll('[data-provider]').forEach(el => el.setAttribute('aria-selected', String(el.dataset.provider === provider)));
+    $('connection-note').textContent = provider === 'laya' ? '本地 Laya 无需 API Key，页面直接连接本地服务。' : '原有服务使用 Chat Completions；密钥仅保留在当前页面内存中。';
+    closeProviders();
+    showPreview();
+    updateConnectionHint();
+  }
+
+  $('provider').onclick = () => {
+    const open = $('provider-options').hidden;
+    $('provider-options').hidden = !open;
+    $('provider').setAttribute('aria-expanded', String(open));
+  };
+
+  document.querySelectorAll('[data-provider]').forEach(el => {
+    el.onclick = () => { applyProvider(el.dataset.provider); $('provider').focus(); };
+  });
+
+  document.addEventListener('click', e => { if (!e.target.closest('.provider-field')) closeProviders(); });
+
+  function updateConnectionHint() {
+    const cfg = config();
+    const ready = Boolean(cfg.endpoint && cfg.model && (cfg.provider === 'laya' || cfg.key));
+    $('conn-dot').classList.toggle('ready', ready);
+    $('conn-summary-text').textContent = `${cfg.provider === 'laya' ? '本地 Laya' : '原有服务'} · ${cfg.model || '未填模型'} · ${ready ? (cfg.provider === 'laya' ? '无需密钥' : '密钥已就绪') : '待完善配置'}`;
+  }
+
+  function status(text, error = false) {
+    $('status').textContent = text;
+    $('status').classList.toggle('error', error);
+  }
+
+  function controls() {
+    $('start').textContent = running ? '暂停运行' : '开始运行';
+    $('step').disabled = busy || running || !game.alive || game.won;
+    $('start').disabled = !game.alive || game.won;
+    for (const id of ['endpoint', 'model', 'key', 'provider']) $(id).disabled = busy || running;
+    updateConnectionHint();
+  }
+
+  function preview() {
+    const d = E.describe(game);
+    $('request').textContent = JSON.stringify(T.payload(config().model, d.decision, provider), null, 2);
+    $('facts').textContent = d.decision.state;
+    return d;
+  }
+
+  function clearDecision(description, requesting = false) {
+    const step = game.ticks + 1;
+    $('action').textContent = requesting ? '正在请求' : '等待决策';
+    $('decision-box').classList.remove('intervened', 'safe-pass');
+    $('shield-note').textContent = requesting ? '等待模型返回，本步尚未执行。' : '安全层改写会单独标记，概率保持模型原值。';
+    $('danger-prob').textContent = $('obj-prob').textContent = '—';
+    $('timing').textContent = requesting ? '请求中 · 3 题' : '尚无本次请求 · 每步 3 题';
+    $('response').textContent = requesting ? '等待响应' : '尚未请求';
+    $('candidate-title').textContent = requesting ? `第 ${step} 步候选（移动前）` : '待发送的四向行动候选';
+    $('facts-title').textContent = requesting ? `第 ${step} 步输入（移动前）` : '待发送的地牢感知事实';
+    $('decision-context').textContent = `第 ${step} 步${requesting ? '请求中' : '待发送'}：勇者坐标 (${game.player[0]}, ${game.player[1]})。`;
+    bars({}, undefined, description);
+  }
+
+  function showPreview() {
+    if (!game.alive || game.won) return;
+    clearDecision(preview());
+  }
+
+  function draw() {
+    R.draw(game);
+    $('stat-hp').textContent = `${game.hp} / 100`;
+    $('stat-gold').textContent = `${game.gold} G`;
+    $('stat-key').textContent = game.hasKey ? '已获取 ✔' : '未获取';
+    $('stat-interventions').textContent = interventions;
+  }
+
+  function bars(prob = {}, chosen, desc) {
+    const d = desc || E.describe(game);
+    const optMap = new Map(d.options.map(o => [o.id, o]));
+    $('bars').replaceChildren();
+
+    for (const [id, [,, label, arrow]] of Object.entries(E.DIRS)) {
+      const row = document.createElement('div');
+      row.className = 'bar-row' + (chosen === id ? ' chosen' : '');
+
+      const actSpan = document.createElement('span');
+      actSpan.className = 'bar-action';
+      actSpan.textContent = `${arrow} ${label}`;
+
+      const opt = optMap.get(id);
+      const tag = document.createElement('span');
+      tag.className = 'bar-tag ' + (opt.tagClass || 'tag-subtle');
+      tag.textContent = opt.tag || (opt.legal ? '次选路线' : '无法通行');
+
+      const track = document.createElement('div');
+      track.className = 'track';
+      const fill = document.createElement('div');
+      fill.className = 'fill';
+      fill.style.width = `${(prob[id] ?? 0) * 100}%`;
+      track.append(fill);
+
+      const val = document.createElement('span');
+      val.className = 'bar-val';
+      val.textContent = prob[id] === undefined ? '—' : `${(prob[id] * 100).toFixed(1)}%`;
+
+      row.append(actSpan, tag, track, val);
+      $('bars').append(row);
+    }
+  }
+
+  function stop() {
+    running = false;
+    clearTimeout(timer);
+    generation++;
+    controller?.abort();
+    busy = false;
+    controls();
+  }
+
+  async function tick() {
+    if (busy || !game.alive || game.won) return;
+    const cfg = config();
+    if ((cfg.provider !== 'laya' && !cfg.key) || !cfg.model || !cfg.endpoint) {
+      stop();
+      document.querySelector('.settings').open = true;
+      status(cfg.provider === 'laya' ? '请填写本地 Laya 地址和模型 ID。' : '请填写 API 地址、模型 ID 和 API Key。', true);
+      return;
+    }
+
+    const epoch = generation, description = preview(), shield = $('shield').checked;
+    clearDecision(description, true);
+    controller = new AbortController();
+    const active = controller;
+    const timeout = setTimeout(() => active.abort(), 120000);
+    busy = true;
+    controls();
+    status('正在请求模型探险决策…');
+    const begin = performance.now();
+
+    try {
+      const answers = await T.request(cfg, description.decision, active.signal, text => {
+        if (epoch === generation) $('response').textContent = text;
+      });
+      if (epoch !== generation) return;
+
+      const scores = answers.move.probabilities;
+      const ranked = Object.keys(E.DIRS).sort((a, b) => scores[b] - scores[a]);
+      const proposed = ranked[0];
+
+      let executed = proposed;
+      let changed = false;
+      if (shield) {
+        const propOpt = description.options.find(o => o.id === proposed);
+        if (!propOpt.legal || !propOpt.safe) {
+          const safeCand = ranked.find(id => {
+            const opt = description.options.find(o => o.id === id);
+            return opt && opt.legal && opt.safe;
+          });
+          if (safeCand && safeCand !== proposed) {
+            executed = safeCand;
+            changed = true;
+            interventions++;
+          }
+        }
+      }
+
+      const dirNames = Object.fromEntries(Object.entries(E.DIRS).map(([k, v]) => [k, `${v[3]} ${v[2]}`]));
+      $('action').textContent = `${dirNames[proposed]} → ${dirNames[executed]}`;
+      const dBox = $('decision-box');
+      dBox.classList.toggle('intervened', changed);
+      dBox.classList.toggle('safe-pass', !changed && shield);
+
+      $('shield-note').textContent = changed
+        ? '生存直觉层已介入：拦截折返往复或高危动作，改用前进路线。'
+        : shield ? '模型首选方向已通过生存与路线检查。' : '直觉辅助已关闭，直接按模型指令执行。';
+
+      bars(scores, proposed, description);
+      $('danger-prob').textContent = `${answers.danger.choice.toUpperCase()} (${(answers.danger.probabilities[answers.danger.choice] * 100).toFixed(1)}%)`;
+      $('obj-prob').textContent = `${answers.objective.choice.toUpperCase()} (${(answers.objective.probabilities[answers.objective.choice] * 100).toFixed(1)}%)`;
+      $('timing').textContent = `耗时 ${Math.round(performance.now() - begin)} ms · 3 题`;
+
+      // 执行步进
+      const res = E.step(game, executed);
+      draw();
+
+      history.unshift(`第 ${game.ticks} 步：${dirNames[proposed]} → 执行 ${dirNames[executed]}${changed ? ' (直觉介入)' : ''} · HP ${res.hp}`);
+      history = history.slice(0, 10);
+      $('logs').replaceChildren(...history.map(t => {
+        const li = document.createElement('li');
+        li.textContent = t;
+        return li;
+      }));
+
+      if (!game.alive || game.won) {
+        running = false;
+        status(game.won ? '🎉 勇者已成功收集钥匙并逃离地牢！' : '💀 勇者阵亡在迷雾之中。点击重新开始。', !game.alive);
+      } else {
+        status(running ? '探索中，等待下一步…' : '本步完成；可继续单步或开始运行。');
+      }
+    } catch (error) {
+      if (epoch !== generation) return;
+      running = false;
+      $('action').textContent = '请求失败';
+      status(error.name === 'AbortError' ? '请求超时已暂停。' : `已暂停：${error.message}`, true);
+    } finally {
+      clearTimeout(timeout);
+      if (epoch === generation) {
+        busy = false;
+        controller = null;
+        controls();
+        if (running) timer = setTimeout(tick, Number($('pace').value));
+      }
+    }
+  }
+
+  function reset() {
+    stop();
+    game = E.create();
+    interventions = 0;
+    history = [];
+    $('action').textContent = '等待决策';
+    $('decision-box').classList.remove('intervened', 'safe-pass');
+    $('danger-prob').textContent = $('obj-prob').textContent = '—';
+    $('timing').textContent = '尚无请求 · 每步 3 题';
+    $('response').textContent = '尚未请求';
+    const emptyLi = document.createElement('li');
+    emptyLi.textContent = '尚未执行。点击“单步决策”开始。';
+    $('logs').replaceChildren(emptyLi);
+    showPreview();
+    draw();
+    status('新地牢已生成，战争迷雾已重置。');
+    controls();
+  }
+
+  $('start').onclick = () => {
+    if (running) {
+      stop();
+      status('已暂停。');
+    } else {
+      running = true;
+      controls();
+      if (!busy) tick();
+    }
+  };
+  $('step').onclick = tick;
+  $('reset').onclick = reset;
+  $('shield').onchange = reset;
+  $('pace').oninput = () => { $('pace-label').textContent = `${$('pace').value} ms`; };
+  $('model').oninput = () => { updateConnectionHint(); if (game.alive && !game.won) showPreview(); };
+  $('endpoint').oninput = updateConnectionHint;
+  $('key').oninput = updateConnectionHint;
+
+  document.addEventListener('keydown', e => {
+    if (['INPUT', 'TEXTAREA', 'BUTTON', 'SUMMARY'].includes(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); $('start').click(); }
+    if (e.key.toLowerCase() === 'r') reset();
+  });
+
+  window.addEventListener('pagehide', stop);
+  applyProvider('laya');
+  draw();
+  controls();
+})();
+</script>
+</body>
+</html>
+
