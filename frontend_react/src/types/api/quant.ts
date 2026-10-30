@@ -14,6 +14,7 @@ export interface QuantEntry {
     isValid: boolean;
     createdAt: string;
     updatedAt: string;
+    researchScore?: number | null;
 }
 export interface QuantCodeVersion {
     strategyArtifactId?: string;

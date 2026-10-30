@@ -1,7 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { quantFilename, quantScriptLanguage, quantTags } from './quant.ts';
+import { deduplicateMarkdown, extractMarkdownHeadings, quantFilename, quantScriptLanguage, quantTags } from './quant.ts';
 import {readResearchMemory, researchMemoryNegativeLabel, researchMemoryReference} from './quantResearchMemory.ts';
+
+test('report markdown deduplicates leading title and summary without altering body sections', () => {
+    const raw = '# 样本运行记录 · 本地演示 · 本地演示解读\n\n本地演示记录；没有执行外部或本机回测。\n\n## 指标与声明\n\n- 指标 A';
+    const cleaned = deduplicateMarkdown(
+        raw,
+        '样本运行记录 · 本地演示 · 本地演示解读',
+        '本地演示记录；没有执行外部或本机回测。',
+    );
+    assert.equal(cleaned, '## 指标与声明\n\n- 指标 A');
+    const headings = extractMarkdownHeadings(raw, '样本运行记录 · 本地演示 · 本地演示解读');
+    assert.deepEqual(headings, [{ level: 2, text: '指标与声明', id: 'quant-sec-指标与声明' }]);
+});
 
 test('only known text scripts become editable drafts', () => {
     assert.equal(quantScriptLanguage('ALPHA.PY'), 'python');
@@ -132,4 +144,18 @@ test('固定样本对照解码保留各自参数与出处，超时和全缺失�
     assert.throws(() => readComparison({...pass, datasetJson: JSON.stringify({...snapshot, content_hash: 'changed'})}), /无法读取/);
     assert.throws(() => readComparison({...pass, planJson: JSON.stringify({...plan, left: {...plan.left, id: 'other'}})}), /无法读取/);
     assert.throws(() => readComparison({...pass, planJson: JSON.stringify({...plan, policy: {...plan.policy, absolute_tolerance: .1}})}), /无法读取/);
+});
+
+
+test('report headings share Markdown semantics, collision handling and document scope', () => {
+    const raw = '# Report\n\n## **Same**\n\n## Same\n\n## Same-2\n\n~~~python\n## ignored\n~~~\n\nSetext `title`\n---\n\n## [Linked](https://example.com)\n';
+    const headings = extractMarkdownHeadings(raw, 'Report', 'main');
+    assert.deepEqual(headings.map(h => [h.text, h.id]), [
+        ['Same', 'main-quant-sec-same'], ['Same', 'main-quant-sec-same-2'],
+        ['Same-2', 'main-quant-sec-same-2-2'], ['Setext title', 'main-quant-sec-setext-title'],
+        ['Linked', 'main-quant-sec-linked'],
+    ]);
+    const historical = extractMarkdownHeadings(raw, 'Report', 'history');
+    assert.ok(headings.every(h => historical.every(other => other.id !== h.id)));
+    assert.deepEqual(extractMarkdownHeadings(raw, 'Report', 'main'), headings);
 });

@@ -6,7 +6,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 from quant.parameters.inventory import build, encode
-from quant.parameters.bindings import bind, extension, validate_source, validate_admission, validate_inheritance, repair_origins
+from quant.parameters.bindings import bind, extension, validate_source, validate_admission, validate_inheritance, repair_origins, normalize_model_binding_ids, propagate
 from quant.research.supplements.contracts import build as bundle
 from quant.research.contracts import digest
 from quant.test_research_analysis import result
@@ -24,6 +24,37 @@ def parameter(name, default='20', **changes):
 
 
 class ParameterIdentityTests(PureTestCase):
+    def test_candidate_compact_parameter_reference_preserves_parent_and_rejects_forgery(self):
+        inventory = build({'language': 'python', 'code': 'N=20\n'})
+        parent = bind([parameter('N')], [parameter('N')], inventory)[0]
+        factor = {'parameters': [{'name': 'N'}], 'expression': None}
+        expanded = propagate([factor], [factor], [parent])
+        self.assertEqual(expanded[0]['parameters'], [parent])
+        expanded[0]['parameters'][0]['default_value'] = '999'
+        self.assertEqual(parent['default_value'], '20')
+        for item in ({'name': 'missing'}, {'name': 'N', 'default_value': '99'}):
+            bad = {'parameters': [item], 'expression': None}
+            with self.assertRaises(ValidationError): propagate([bad], [bad], [parent])
+
+    def test_bad_model_hint_recovers_only_independent_unique_match(self):
+        inventory = build({'language': 'python', 'code': 'N=20\nM=30\n'})
+        n, m = inventory['declarations']
+        for bad_id in ('parameter-binding:0e...', m['id']):
+            raw = parameter('N', binding_id=bad_id)
+            fixed = normalize_model_binding_ids([raw], inventory)
+            self.assertEqual(raw['binding_id'], bad_id)
+            self.assertNotIn('binding_id', fixed[0])
+            bound = bind([parameter('N')], fixed, inventory)
+            self.assertEqual(bound[0]['source_binding']['id'], n['id'])
+            with self.assertRaises(ValidationError):
+                bind([parameter('N', '99')], fixed, inventory)
+        ambiguous = build(source())
+        raw = parameter('N', binding_id='foreign')
+        with self.assertRaises(ValidationError):
+            bind([raw], normalize_model_binding_ids([raw], ambiguous), ambiguous)
+        forged = parameter('N', binding_id='foreign', source_binding={'status': 'resolved', 'id': n['id']})
+        self.assertEqual(normalize_model_binding_ids([forged], inventory), [forged])
+
     def test_files_scopes_repeated_and_stable_identity_do_not_merge(self):
         original = source('N=20\ndef f(N=5): return N\n', 'N=30\n')
         inventory = build(original)

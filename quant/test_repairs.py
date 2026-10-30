@@ -29,6 +29,24 @@ def repaired():
 
 
 class RepairContractTests(SimpleTestCase):
+    def test_invalid_optional_repairs_preserve_valid_items_and_originals(self):
+        from quant.repairs.model_response import normalize
+        factors = [copy.deepcopy(broken()['factors'][0]) for _ in range(2)]
+        good = repaired()['items'][0]
+        bad = copy.deepcopy(good)
+        bad['factor_index'] = 1
+        bad['definition']['expression'] = {'op': 'untrusted', 'args': []}
+        source = {'code': 'close / close.shift(N) - 1'}
+        raw = {'items': [good, bad]}
+        normalized = normalize(raw, factors, lambda value: validate_repair(value, factors, source))
+        result = validate_repair(normalized, factors, source)
+        self.assertEqual([row['status'] for row in result['items']], ['revised', 'unresolved'])
+        self.assertIsNone(result['items'][1]['definition'])
+        self.assertIn('保留原候选', result['items'][1]['summary'])
+        duplicate = {'items': [good, copy.deepcopy(good)]}
+        result = normalize(duplicate, factors, lambda value: validate_repair(value, factors, source))
+        self.assertEqual([row['status'] for row in result['items']], ['unresolved', 'unresolved'])
+
     def test_unresolved_platform_action_still_obeys_evidence_and_unknown_bounds(self):
         factor = broken()['factors'][0]
         value = {'items':[{'factor_index':0,'status':'unresolved','summary':'平台动作无法转为纯计算',
@@ -147,6 +165,34 @@ class AutomaticRepairTests(TestCase):
         self.assertEqual(FactorCandidate.objects.count(), 1)
         self.assertFalse(FactorFormulaVersion.objects.exists())
         self.assertIsNone(run.result['initial_proposal'])
+        validate(SyncManager().build_snapshot_data(), metadata(SyncManager().build_snapshot_data()))
+
+    def test_invalid_optional_repair_does_not_block_report(self):
+        self.collect(); run = AIRun.objects.get(); analysis = broken()
+        proposal = repaired()
+        proposal['items'][0]['definition']['expression'] = {'op': 'unsupported', 'args': []}
+        def model(_config, prompt, **_kwargs):
+            return json.dumps(proposal if '只完成“修订候选定义”' in prompt else analysis)
+        with patch('quant.worker.complete', side_effect=model):
+            execute(run.pk)
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'completed', run.error)
+        self.assertEqual(run.result['factor_repair']['items'][0]['status'], 'unresolved')
+        self.assertFalse(FactorFormulaVersion.objects.exists())
+        validate(SyncManager().build_snapshot_data(), metadata(SyncManager().build_snapshot_data()))
+
+    def test_optional_repair_timeout_records_unresolved_and_keeps_report(self):
+        from utils.bounded_completion import AIRequestTimeout
+        self.collect(); run = AIRun.objects.get(); analysis = broken()
+        def model(_config, prompt, **_kwargs):
+            if '只完成“修订候选定义”' in prompt:
+                raise AIRequestTimeout('test')
+            return json.dumps(analysis)
+        with patch('quant.worker.complete', side_effect=model): execute(run.pk)
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'completed', run.error)
+        self.assertIn('修订未完成', run.result['factor_repair']['items'][0]['summary'])
+        self.assertFalse(FactorFormulaVersion.objects.exists())
         validate(SyncManager().build_snapshot_data(), metadata(SyncManager().build_snapshot_data()))
 
     def test_rehashed_formula_or_missing_revision_is_rejected_and_old_versions_stay_old(self):

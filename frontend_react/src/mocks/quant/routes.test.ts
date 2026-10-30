@@ -22,6 +22,17 @@ const invoke = async <T>(path: string, method = 'GET', body?: unknown, authorize
     return await resolveQuantRoute(request) as T;
 };
 
+test('研究列表投影默认报告评分，未生成报告时保持未知', async () => {
+    const detail = await invoke<QuantEntryDetail>(entryBase);
+    const list = await invoke<QuantEntry[]>(base + 'entries/');
+    assert.equal(list.find(row => row.id === detail.id)?.researchScore, detail.reports?.find(row => row.schemaVersion !== 4 && row.schemaVersion !== 5)?.data.totalScore);
+    const {entry} = await invoke<{entry: QuantEntryDetail}>(base + 'intake/', 'POST', {
+        requestKey: 'score_unassessed_0001', code: 'plot(close)', analyze: false,
+    });
+    const after = await invoke<QuantEntry[]>(base + 'entries/');
+    assert.equal(after.find(row => row.id === entry.id)?.researchScore, null);
+});
+
 test('研究图谱保持来源假设、正反反馈引文与实际参数，恢复不改变主张', async () => {
     const {readGraphResearch} = await import('../../utils/quantGraphResearch.ts');
     type Graph = import('../../types/api/quantGraph.ts').QuantGraph;

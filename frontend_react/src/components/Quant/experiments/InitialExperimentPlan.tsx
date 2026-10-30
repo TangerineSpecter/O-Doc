@@ -1,10 +1,12 @@
 import {useState} from 'react';
+import {createPortal} from 'react-dom';
+import {FlaskConical} from 'lucide-react';
 import type {QuantReport} from '../../../types/api/quant';
 import type {QuantRegisterDraft} from '../../../hooks/useQuantNavigation';
 import {ExperimentProposalCard} from './ExperimentProposalCard';
 import {StartExperiment} from './StartExperiment';
 import {StartCampaign} from './StartCampaign';
-import {cardClass} from '../ui';
+import {QuantBadge, cardClass} from '../ui';
 
 export function InitialExperimentPlan({report, collection, register, request, openExperiments}: {
     report: QuantReport; collection: string; register: QuantRegisterDraft; request: (action: () => void) => void;
@@ -15,13 +17,70 @@ export function InitialExperimentPlan({report, collection, register, request, op
     const followup = report.schemaVersion === 4;
     if (report.data.initialPlanningVersion !== 1 && !feedback && !followup) return null;
     const proposal = report.proposal;
-    return <section id={`quant-report-plan-${report.id}`} className={`${cardClass} space-y-4`} aria-label={followup ? '后续实验规划' : feedback ? '反馈实验规划' : '首轮实验规划'}>
-        <div><h3 className="text-sm font-semibold">{followup ? 'AI 后续实验规划' : feedback ? 'AI 反馈实验规划' : 'AI 首轮实验规划'}</h3><p className="mt-2 text-sm leading-7 text-slate-600">{followup ? report.data.planningNote : feedback ? report.data.feedbackPlanningNote : report.data.initialPlanningNote}</p></div>
-        {proposal ? <ExperimentProposalCard proposal={proposal} prepare={() => request(() => setMode('experiment'))} startCampaign={() => request(() => setMode('campaign'))}/>
-            : <p className="text-sm text-slate-500">本次未生成可执行方案。报告与候选已保留，补充上述缺失材料后可以重新分析。</p>}
-        {mode === 'experiment' && proposal && <StartExperiment collection={collection} proposal={proposal} candidates={proposal.candidates} register={register}
-            close={() => request(() => setMode(null))} saved={value => {setMode(null); openExperiments(value.id);}}/>}
-        {mode === 'campaign' && proposal && <StartCampaign collection={collection} proposal={proposal} register={register}
-            close={() => request(() => setMode(null))} saved={() => {setMode(null); openExperiments();}}/>}
-    </section>;
+    const title = followup ? 'AI 后续实验规划' : feedback ? 'AI 反馈实验规划' : 'AI 首轮实验规划';
+    const note = followup ? report.data.planningNote : feedback ? report.data.feedbackPlanningNote : report.data.initialPlanningNote;
+    return (
+        <section
+            id={`quant-report-plan-${report.id}`}
+            className={`${cardClass} space-y-4`}
+            aria-label={followup ? '后续实验规划' : feedback ? '反馈实验规划' : '首轮实验规划'}
+        >
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
+                        <FlaskConical size={18} />
+                    </div>
+                    <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-bold text-slate-900">{title}</h3>
+                            <QuantBadge tone={proposal ? 'orange' : 'slate'}>
+                                {proposal ? '已生成方案' : '未生成方案'}
+                            </QuantBadge>
+                        </div>
+                        <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                            {proposal ? '已整理后续实验方案，可以在下方查看和准备。' : '研究报告已保存，这次没有生成可直接准备的实验方案。'}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {proposal ? (
+                <ExperimentProposalCard
+                    proposal={proposal}
+                    prepare={() => request(() => setMode('experiment'))}
+                    startCampaign={() => request(() => setMode('campaign'))}
+                />
+            ) : (
+                <p className="text-sm leading-7 text-slate-500">实验方案用于整理验证哪些因子，以及使用哪些数据和参数。</p>
+            )}
+            {note && <details className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs leading-6 text-slate-600">
+                <summary className="cursor-pointer font-medium text-slate-600 hover:text-orange-600">查看原始生成说明</summary>
+                <p className="mt-2 whitespace-pre-wrap break-words">{note}</p>
+            </details>}
+            {mode === 'experiment' && proposal && createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Tab') event.stopPropagation(); }}>
+                <StartExperiment
+                    collection={collection}
+                    proposal={proposal}
+                    candidates={proposal.candidates}
+                    register={register}
+                    close={() => request(() => setMode(null))}
+                    saved={(value) => {
+                        setMode(null);
+                        openExperiments(value.id);
+                    }}
+                />
+            </div>, document.body)}
+            {mode === 'campaign' && proposal && createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Tab') event.stopPropagation(); }}>
+                <StartCampaign
+                    collection={collection}
+                    proposal={proposal}
+                    register={register}
+                    close={() => request(() => setMode(null))}
+                    saved={() => {
+                        setMode(null);
+                        openExperiments();
+                    }}
+                />
+            </div>, document.body)}
+        </section>
+    );
 }

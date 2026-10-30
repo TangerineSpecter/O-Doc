@@ -62,6 +62,66 @@ class StageInputTests(SimpleTestCase):
         self.assertNotEqual(old,changed)
         self.assertEqual(old['prompt_hash'],digest(text))
 
+    def test_v28_extraction_prompt_remains_compatible_with_saved_input_hash(self):
+        from quant.test_research_analysis import result
+        source, outputs, plan, vocabulary = self.inputs()
+        data = result()
+        outputs.update(
+            identify={key: data[key] for key in ('title', 'kind', 'tags', 'source_facts')},
+            parameters={'parameters': outputs['extract']['factors'][0]['parameters'],
+                'risks': data['risks'], 'unknowns': data['unknowns']},
+            research={key: data[key] for key in ('summary', 'principle', 'formula', 'usage', 'assumptions', 'validation_plan')},
+        )
+        contract, text, error = request('extract', source, '', outputs, 28, plan, vocabulary)
+        self.assertIsNone(error)
+        self.assertEqual(digest(text), '580c9bc9710f1df8216ac2efc57b89e2f9907814c24acab9a56b63d54fb1f0ee')
+        self.assertEqual(contract['prompt_hash'], digest(text))
+
+    def test_current_research_prompt_focuses_on_how_code_works(self):
+        from quant.test_research_analysis import result
+        from quant.workflows.prompts import prompt
+        source, outputs, _, vocabulary = self.inputs()
+        data = result()
+        outputs.update(
+            identify={key: data[key] for key in ('title', 'kind', 'tags', 'source_facts')},
+            parameters={'parameters': outputs['extract']['factors'][0]['parameters'],
+                'risks': data['risks'], 'unknowns': data['unknowns']},
+        )
+        text = prompt('research', source, '', outputs, 25, None, vocabulary)
+        self.assertIn('先用易读中文解释指标做什么', text)
+        self.assertIn('不在正文反复列行号', text)
+        self.assertIn('独立公式使用单独成行的 $$ 包围 LaTeX', text)
+        self.assertIn('换行及 LaTeX 反斜杠须按 JSON 正确转义', text)
+        self.assertNotIn('使用行号或逐字引文定位关键结论', text)
+
+    def test_current_parameter_prompt_prioritizes_use_and_effect(self):
+        from quant.test_research_analysis import result
+        from quant.workflows.prompts import prompt
+        source, outputs, _, vocabulary = self.inputs()
+        data = result()
+        outputs['identify'] = {key: data[key] for key in ('title', 'kind', 'tags', 'source_facts')}
+        text = prompt('parameters', source, '', outputs, 25, None, vocabulary)
+        self.assertIn('优先说明输入是什么、默认值和调大调小的实际影响', text)
+        self.assertIn('close 是收盘价', text)
+
+    def test_current_extraction_prompt_requests_python_and_concise_logic(self):
+        from quant.test_research_analysis import result
+        from quant.workflows.prompts import prompt
+        source, outputs, plan, vocabulary = self.inputs()
+        data = result()
+        outputs.update(
+            identify={key: data[key] for key in ('title', 'kind', 'tags', 'source_facts')},
+            parameters={'parameters': outputs['extract']['factors'][0]['parameters'],
+                'risks': data['risks'], 'unknowns': data['unknowns']},
+            research={key: data[key] for key in ('summary', 'principle', 'formula', 'usage', 'assumptions', 'validation_plan')},
+        )
+        for version in (21, 22, 23, 24, 25, 26, 27):
+            text = prompt('extract', source, '', outputs, version, plan, vocabulary)
+            self.assertIn('parameters（只列相关参数引用，格式为[{"name":"参数内部符号"}]，不要输出其他参数字段）', text)
+            self.assertNotIn('parameters(与报告parameters完全相同的字段结构，只列该候选相关参数)', text)
+        self.assertIn('summary 简洁解释因子的计算逻辑和用途', text)
+        self.assertIn('formula 用 Markdown 的 ```python 代码块', text)
+
     def test_missing_ambiguous_and_dynamic_dependencies_retain_full_source(self):
         for code in ('N=20\ndef factor(x): return x*N\ndef independent(x): return x+1\nprint(N)\n',
             'N=20\ndef factor(x): return x*N\ndef independent(x): return unknown(x)\n'):

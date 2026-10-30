@@ -77,7 +77,9 @@ def validate_evidence(factors: list[dict], source: dict) -> None:
                 raise serializers.ValidationError('因子出处引文必须逐字存在于对应来源快照')
 
 
-def extraction_prompt() -> str:
+def extraction_prompt(*, parameters_references_only: bool = False) -> str:
+    parameter_shape = ('parameters（只列相关参数引用，格式为[{"name":"参数内部符号"}]，不要输出其他参数字段）'
+        if parameters_references_only else 'parameters(与报告parameters完全相同的字段结构，只列该候选相关参数)')
     return '''\n同时提取值得独立研究的候选，新增 extraction_version:1、extraction_note:提取范围与边界、factors:数组（最多20项）。
 没有可靠可分离模块时 factors=[] 并解释原因，不为凑数编造因子。优先提取独立计算、条件、过滤模块，区分 role=factor/signal/filter/risk/execution/display，不能都称为收益因子。
 role 按模块实际用途判断，不按输出是否画在图上判断。可独立复用的数值变换（例如均线偏离、平滑后的特征）可为 factor，即使同时作为指标曲线输出；factor 只表示待研究特征，不保证预测或收益。display 用于纯显示开关、样式或显示门控，不把所有指标曲线都排除在可研究特征之外；无需为同一变换重复建立显示候选。
@@ -85,7 +87,7 @@ role 按模块实际用途判断，不按输出是否画在图上判断。可独
 inputs:[{name:英文变量名,meaning,availability:数据何时可得,missing_policy:缺失处理未知要说明}],
 inputs 必须有1–20项，仅列有原文依据的数据或运行上下文。黑箱平台函数的完整数据输入未知时，可记录原文实际引用的品种/周期/平台上下文并明确未知，不捏造 close 等行情列；若连这类输入也无法确认，则不要创建无输入候选，保留未提取原因。
 output_type(numeric_series/boolean_series/scalar/platform_specific), units, timeframe(计算窗口与适用周期，未知明确说明),
-parameters(与报告parameters完全相同的字段结构，只列该候选相关参数), dependencies:字符串数组,
+''' + parameter_shape + ''', dependencies:字符串数组,
 limitations, tags:字符串数组, evidence:[{field:code/description/web_markdown,quote:来自该字段的逐字原文，不能用行号代替}], expression。
 文字字段除参数 default_value 外不能为空，不适用时明确说明原因。name≤200、summary/limitations≤3000、formula≤6000、units≤300、timeframe≤1000字符；输入的 name≤80且是英文标识符，其余输入文字≤1000字符。parameters≤30项；dependencies≤20项且各≤1000字符；tags≤20项且各≤50字符；evidence 为1–10段且每段 quote≤6000字符。
 expression 仅在明确能描述时提供声明式JSON，否则 null 并在 limitations 解释平台依赖或缺失语义。

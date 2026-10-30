@@ -124,7 +124,7 @@ def execute(run_id: str) -> None:
             run.status = 'running'
             run.save(update_fields=['status', 'updated_at'])
             job.stage = '正在请求模型'
-            job.lease_until = timezone.now() + timedelta(minutes=3)
+            job.lease_until = timezone.now() + timedelta(minutes=9 if run.kind == 'analyze' and run.workflow_version else 3)
             job.save()
         with _control_lock:
             _controls[run_id] = event
@@ -144,7 +144,7 @@ def execute(run_id: str) -> None:
             if time.monotonic() - last_flush >= .4:
                 # Metadata only: partial code must never become a business result.
                 Job.objects.filter(run_id=run_id, lease_token=token, cancelled=False).update(
-                    stage=title[:100], preview=title[:100], lease_until=timezone.now() + timedelta(minutes=3))
+                    stage=title[:100], preview=title[:100], lease_until=timezone.now() + timedelta(minutes=9 if run.kind == 'analyze' and run.workflow_version else 3))
                 last_flush = time.monotonic()
 
         if run.kind == 'analyze' and not run.workflow_version:
@@ -220,7 +220,7 @@ def execute(run_id: str) -> None:
                 elif isinstance(exc, AIOutputTruncated):
                     run.error = '模型输出被截断，本次未采用，请调整要求后重试'
                 elif isinstance(exc, AIRequestTimeout):
-                    run.error = '模型调用超过 120 秒时限，本次未采用，请手动重试'
+                    run.error = '模型调用超时，本次未采用，请手动重试'
                 elif isinstance(exc,NativeReviewStopped):
                     run.error=exc.safe_user_message
                 elif isinstance(exc, ValidationError):

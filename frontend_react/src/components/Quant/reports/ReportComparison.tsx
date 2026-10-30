@@ -26,7 +26,7 @@ function ComparisonBody({baseline, report, runs}: {baseline: QuantReport; report
     </div>;
 }
 
-export function ReportComparison({reports, report, runs = []}: {reports: QuantReport[]; report: QuantReport; runs?: QuantAIRun[]}) {
+export function ReportComparison({reports, report, runs = [], inModal = false}: {reports: QuantReport[]; report: QuantReport; runs?: QuantAIRun[]; inModal?: boolean}) {
     const [open, setOpen] = useState(false);
     const [baselineId, setBaselineId] = useState(() => defaultReportBaseline(reports, report)?.id || '');
     const options = comparisonReports(reports, report);
@@ -35,7 +35,7 @@ export function ReportComparison({reports, report, runs = []}: {reports: QuantRe
     return <details className={cardClass} onToggle={event => setOpen(event.currentTarget.open)}>
         <summary className="cursor-pointer text-sm font-semibold text-slate-800">报告对照 · 查看判断、参数和正文变化</summary>
         {open && <><p className="mt-3 text-xs leading-6 text-slate-500">默认选择相邻的可用报告，可更换基准；对照方向为基准 → 所选报告。评分规则、未知项与人工修订分别处理，文本变化不证明研究更可靠。</p>
-            <label className="mt-4 block space-y-2 text-sm text-slate-600"><span className="block">对照基准报告</span><Select value={baseline.id} onChange={setBaselineId} options={options.map(row => ({value: row.id, label: `${row.data.title || '历史报告'} · ${quantDate(row.createdAt)} · ${row.id.slice(-6)}`}))}/></label>
+            <label className="mt-4 block space-y-2 text-sm text-slate-600"><span className="block">对照基准报告</span><Select menuPortal={inModal} value={baseline.id} onChange={setBaselineId} options={options.map(row => ({value: row.id, label: `${row.data.title || '历史报告'} · ${quantDate(row.createdAt)} · ${row.id.slice(-6)}`}))}/></label>
             <ComparisonBody key={baseline.id} baseline={baseline} report={report} runs={runs}/>
         </>}
     </details>;

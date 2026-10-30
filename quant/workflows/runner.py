@@ -3,6 +3,7 @@ import time
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 from utils.ai_service import AIService
+from utils.bounded_completion import AIOutputTruncated, AIRequestTimeout
 from utils.token_usage import usage_scope
 from quant.locking import collection_lock
 from quant.models import AIRun, WorkflowStep, WorkflowOutcome, SourceRevision, Job
@@ -10,6 +11,32 @@ from quant.research.contracts import digest
 from quant.research.analysis import validate_analysis
 from .contracts import stages, budget, NAMES, MODEL_STAGES, input_snapshot, normalized, combined, decode, validate_output, may_reuse, uses_snippets, uses_vocabulary
 from .prompts import prompt
+
+
+def validation_reason(exc: ValidationError) -> str:
+    detail = exc.detail
+    if isinstance(detail, list) and len(detail) == 1:
+        message = str(detail[0])
+        known = {
+            '参数binding_id不属于本次固定来源目录': '模型给出的参数编号无法对应源码声明',
+            '参数名称与所选源码声明不一致': '模型给出的参数名称与源码声明不一致',
+            '同一源码参数声明不能重复生成参数行': '模型重复列出了同一个源码参数',
+            'AI默认值与所选声明的字面值不一致，不能发布为源码默认': '模型给出的参数默认值与源码不一致',
+            '动态或无默认值参数不能填入猜测的源码默认值': '模型将未确定的参数默认值当成了源码事实',
+        }
+        if message in known:
+            return known[message]
+    return '模型结果格式或源码依据未通过检查'
+
+
+def completion_limits(stage: str, version: int, config: dict) -> tuple[int, int]:
+    # DeepSeek Flash supports larger outputs; keep the frozen v28 model-input
+    # contract and all other providers' request limits unchanged.
+    if (stage == 'extract' and version in (21, 22, 23, 24, 25, 26, 27)
+            and config.get('provider_type') == 'DeepSeek' and config.get('model_name') == 'deepseek-flash'):
+        return 65536, 480
+    return 32000, 300 if stage == 'extract' else 120
+
 
 def model_identity(config: dict) -> dict:
     value = {key: str(config.get(key) or '') for key in ('model_id', 'model_name', 'provider_type')}
@@ -134,14 +161,35 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
                         stage, source.payload, run.requirements, outputs, run.workflow_version, snippet_plan, vocabulary))
                     calls += 1
                     with usage_scope(owner_id=run.entry.anthology.user_id, record=run, purpose='quant', phase=f'research.{stage}'):
-                        raw = complete(config, text, json_output=True, max_tokens=32000,
-                            extra_body=AIService._thinking_options(config),
-                            deadline_seconds=min(120, max(1, max_seconds - (time.monotonic() - started))), allow_retries=False)
+                        max_tokens, call_limit = completion_limits(stage, run.workflow_version, config)
+                        try:
+                            raw = complete(config, text, json_output=True, max_tokens=max_tokens,
+                                extra_body=AIService._thinking_options(config),
+                                deadline_seconds=min(call_limit, max(1, max_seconds - (time.monotonic() - started))),
+                                max_deadline_seconds=call_limit, allow_retries=False)
+                        except (AIRequestTimeout, AIOutputTruncated):
+                            if stage != 'repair':
+                                raise
+                            raw = None  # Optional repair failed; preserve the extracted originals.
                 check_cancel()
                 if stage == 'snippets':
                     output = snippets.assemble(decode(raw) if pending else {'units': []}, source.payload, snippet_plan, baseline)
                 else:
-                    output = validate_output(stage, decode(raw) if pending else {'items': []}, outputs, source.payload, run.workflow_version, snippet_plan)
+                    if stage == 'repair' and pending:
+                        from quant.repairs.model_response import normalize as normalize_repair
+                        try:
+                            value = decode(raw) if raw is not None else None
+                        except ValidationError:
+                            value = None
+                        def validate_repair_candidate(candidate):
+                            checked = validate_output(stage, candidate, outputs, source.payload, run.workflow_version, snippet_plan)
+                            if uses_vocabulary(run.workflow_version):
+                                from quant.taxonomy.prompts import validate_tags
+                                validate_tags(stage, checked, vocabulary)
+                        value = normalize_repair(value, outputs['extract']['factors'], validate_repair_candidate, unavailable=raw is None)
+                    else:
+                        value = decode(raw) if pending else {'items': []}
+                    output = validate_output(stage, value, outputs, source.payload, run.workflow_version, snippet_plan)
                     if uses_vocabulary(run.workflow_version):
                         from quant.taxonomy.prompts import validate_tags
                         validate_tags(stage, output, vocabulary)
@@ -152,7 +200,14 @@ def execute(run, config: dict, complete, check_cancel, progress) -> dict:
             # If authority was revoked, leave the durable input without outcome;
             # never let a stale worker publish failure facts after restore.
             check_cancel()
-            error = NAMES[stage] + '未完成：' + ('结果不符合阶段合同' if isinstance(exc, ValidationError) else '调用失败或超时')
+            reason = ('模型输出超过长度限制，已保留前面完成的阶段' if isinstance(exc, AIOutputTruncated)
+                else '模型调用超时，已保留前面完成的阶段' if isinstance(exc, AIRequestTimeout)
+                else validation_reason(exc) if isinstance(exc, ValidationError) else '模型调用或阶段处理失败')
+            error = NAMES[stage] + '未完成：' + reason
+            from system_logs.capture import capture, exception_metadata
+            capture('量化研究阶段失败', module='quant', task_id=run.pk, operation=stage,
+                error_type=type(exc).__name__, reason=reason, stack=exception_metadata(exc)['stack'],
+                duration_ms=round((time.monotonic()-stage_start)*1000))
             save_outcome(step, 'failed', {}, error, '', time.monotonic()-stage_start, run, check_cancel)
             raise
     return validate_analysis(combined(outputs))

@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react';
+import {createPortal} from 'react-dom';
 import type {NativeReviewEvidence,NativeReviewStage,NativeReviewWorkflow,NativeReviewOutcome} from '../../../types/api/quantNativeReview';
 import {nativeReviewApi} from '../../../api/quantNativeReview';
 import {readNativeReview,nativeReviewDecisions,nativeReviewErrors,nativeReviewIssues} from '../../../utils/quantNativeReview';
@@ -41,6 +42,6 @@ export function NativeAudit({collection,entryId,runId,workflow,onResumed,allowRe
         {allowResume&&workflow.canResume&&workflow.sourceId&&<div className="space-y-2"><QuantButton disabled={continuation.busy||!!continuation.notice} onClick={()=>void continuation.resume()}>{continuation.busy?'正在创建续作…':'从失败阶段继续AI解读'}</QuantButton><p>复用已完成的原稿及修订，从未完成阶段继续；原稿不完整时重新生成。每次续作仍受3次调用、6分钟和一次修订限制，不重跑原始函数。</p></div>}
         {continuation.notice&&<p role="status">{continuation.notice}</p>}{continuation.error&&<p role="alert" className="text-red-600">{continuation.error}</p>}
         {!workflow.stages.length&&<p>{workflow.canResume?'此任务未保存完整阶段，可显式续作；父链中已完成的原稿与修订仍会复用。':'等待本机模型队列；不会因数据恢复自动开始。'}</p>}
-        {selected&&<Inspector key={`${selected.run}:${selected.stage}`} collection={collection} entryId={entryId} runId={selected.run} stage={selected.stage} workflow={workflow} close={()=>setSelected(null)} openOriginal={run=>setSelected({run,stage:selected.stage})}/>}
+        {selected&&createPortal(<div onClick={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==='Tab')event.stopPropagation();}}><Inspector key={`${selected.run}:${selected.stage}`} collection={collection} entryId={entryId} runId={selected.run} stage={selected.stage} workflow={workflow} close={()=>setSelected(null)} openOriginal={run=>setSelected({run,stage:selected.stage})}/></div>, document.body)}
     </section>;
 }

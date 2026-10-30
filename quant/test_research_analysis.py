@@ -78,6 +78,33 @@ class AnalysisTests(TestCase):
         self.assertEqual(ResearchReport.objects.get().revisions.get().markdown, '我的修订')
         self.assertFalse(Job.objects.exists())
 
+    def test_entry_list_score_matches_default_report_and_keeps_unknown(self):
+        entry = self.collect()
+        url = f'/api/quant/{self.collection.pk}/entries/'
+        def score():
+            return self.client.get(url).json()['data'][0]['researchScore']
+
+        self.assertIsNone(score())
+        first_run = AIRun.objects.get(entry=entry)
+        source = SourceRevision.objects.get(material__entry=entry)
+        ResearchReport.objects.create(entry=entry, source=source, run=first_run, schema_version=3,
+                                      data={'total_score': 60}, markdown='', content_hash='static')
+        self.assertEqual(score(), 60)
+        later_run = AIRun.objects.create(entry=entry, source=source, request_key='feedback_score_0001',
+                                         input_hash='feedback', kind='feedback_review')
+        ResearchReport.objects.create(entry=entry, source=source, run=later_run, schema_version=5,
+                                      data={'total_score': 80}, markdown='', content_hash='feedback')
+        self.assertEqual(score(), 60)
+        latest_run = AIRun.objects.create(entry=entry, source=source, request_key='static_score_000002',
+                                          input_hash='later', kind='analyze')
+        latest = ResearchReport.objects.create(entry=entry, source=source, run=latest_run, schema_version=3,
+                                               data={'total_score': None}, markdown='', content_hash='later')
+        self.assertIsNone(score())
+        ResearchReport.objects.filter(pk=latest.pk).update(data={'total_score': 0})
+        self.assertEqual(score(), 0)
+        ResearchReport.objects.filter(pk=latest.pk).update(data={'total_score': True})
+        self.assertIsNone(score())
+
     def test_missing_model_keeps_material_and_input_errors_do_not(self):
         self.payload['model_id'] = 'missing'
         entry = self.collect()

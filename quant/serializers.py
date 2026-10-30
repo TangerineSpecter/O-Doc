@@ -1,5 +1,7 @@
 """HTTP input validation and typed, camel-case-rendered research resources."""
+import json
 from datetime import date
+from math import isfinite
 from rest_framework import serializers
 from .models import Attachment, Backtest, CodeVersion, Entry, Implementation
 
@@ -28,6 +30,22 @@ class EntrySerializer(serializers.ModelSerializer):
     def validate_tags(self, value):
         return list(dict.fromkeys(value))
 
+
+class EntryListSerializer(EntrySerializer):
+    research_score = serializers.SerializerMethodField()
+
+    class Meta(EntrySerializer.Meta):
+        fields = EntrySerializer.Meta.fields + ['research_score']
+        read_only_fields = EntrySerializer.Meta.read_only_fields + ['research_score']
+
+    def get_research_score(self, entry):
+        score = getattr(entry, 'default_report_score', None)
+        if isinstance(score, str):
+            try:
+                score = json.loads(score)
+            except (ValueError, TypeError):
+                return None
+        return score if isinstance(score, (int, float)) and not isinstance(score, bool) and 0 <= score <= 100 and isfinite(score) else None
 
 class CodeVersionSerializer(serializers.ModelSerializer):
     class Meta:

@@ -158,10 +158,11 @@ def validate_output(stage: str, value: dict, outputs: dict, payload: dict, versi
         result = contract.run_validation(value)
         if stage == 'parameters':
             if version in (21, 22, 23, 24, 25, 26, 27, 28):
-                from quant.parameters.bindings import bind
+                from quant.parameters.bindings import bind, normalize_model_binding_ids
                 from quant.parameters.inventory import encode
                 inventory = outputs['normalize']['parameter_inventory']
-                result['parameters'] = bind(result['parameters'], value['parameters'], inventory)
+                raw_parameters = normalize_model_binding_ids(value['parameters'], inventory)
+                result['parameters'] = bind(result['parameters'], raw_parameters, inventory)
                 result.update(parameter_binding_version=inventory['version'], parameter_inventory_json=encode(inventory))
             domains.validate_contract(result['parameters'])
             domains.validate_evidence(result['parameters'], payload)

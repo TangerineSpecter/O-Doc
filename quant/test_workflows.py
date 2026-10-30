@@ -79,6 +79,44 @@ class WorkflowTests(TestCase):
         snapshot = SyncManager().build_snapshot_data()
         validate(snapshot, metadata(snapshot))
 
+    def test_extraction_timeout_is_diagnosable_and_can_resume(self):
+        from utils.bounded_completion import AIRequestTimeout
+        run = self.start()
+        answer = json.dumps(fixtures.result())
+        with patch('quant.worker.complete', side_effect=[answer, answer, answer, AIRequestTimeout('private')]) as model, \
+                patch('system_logs.capture.capture') as log:
+            execute(run.pk)
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'failed')
+        self.assertEqual(model.call_args.kwargs['deadline_seconds'], 300)
+        self.assertEqual(model.call_args.kwargs['max_deadline_seconds'], 300)
+        self.assertIn('模型调用超时', run.workflow_steps.get(stage='extract').outcome.data['error'])
+        self.assertEqual(log.call_args.kwargs['operation'], 'extract')
+        self.assertEqual(log.call_args.kwargs['task_id'], run.pk)
+        self.assertEqual(log.call_args.kwargs['error_type'], 'AIRequestTimeout')
+        self.assertIn('quant/workflows/runner.py', log.call_args.kwargs['stack'])
+        self.assertIn('模型调用超时', log.call_args.kwargs['reason'])
+        self.assertNotIn('exc', log.call_args.kwargs)
+        self.assertNotIn('private', str(log.call_args))
+        resumed = self.retry(run)
+        self.assertEqual(self.finish(resumed).call_count, 3)
+
+    def test_validation_failure_reason_does_not_expose_model_content(self):
+        from rest_framework.exceptions import ValidationError
+        from quant.workflows.runner import validation_reason
+        self.assertEqual(validation_reason(ValidationError('参数binding_id不属于本次固定来源目录')),
+            '模型给出的参数编号无法对应源码声明')
+        self.assertEqual(validation_reason(ValidationError('private model output')),
+            '模型结果格式或源码依据未通过检查')
+
+    def test_extraction_limits_are_provider_specific_and_preserve_v28_contract(self):
+        from quant.workflows.runner import completion_limits
+        config = {'provider_type': 'DeepSeek', 'model_name': 'deepseek-flash'}
+        self.assertEqual(completion_limits('extract', 25, config), (65536, 480))
+        self.assertEqual(completion_limits('extract', 28, config), (32000, 300))
+        self.assertEqual(completion_limits('extract', 25, {'provider_type': 'OpenAi'}), (32000, 300))
+        self.assertEqual(completion_limits('review', 25, config), (32000, 120))
+
     def test_v1_rerun_preserves_original_contract_and_idempotence(self):
         from quant.services import _run_input
         from system_settings.sync_state import canonical_hash

@@ -3,6 +3,7 @@ import { getAnthologyDetail } from '../api/anthology';
 import { quantApi } from '../api/quant';
 import type { QuantEntry, QuantEntryDetail, QuantModels } from '../types/api/quant';
 import { quantError } from '../utils/quant';
+import { researchReportScore } from '../utils/quantReportScore';
 
 export function useQuant(collection: string, entryId: string) {
     const [title, setTitle] = useState('');
@@ -122,7 +123,7 @@ export function useQuant(collection: string, entryId: string) {
                 const runs = currentDetail.runs;
                 if (!controller.signal.aborted) {
                     setDetail((current) => (current?.id === entryId ? { ...current, runs, reports: currentDetail.reports, sources: currentDetail.sources, title: currentDetail.title, kind: currentDetail.kind, tags: currentDetail.tags } : current));
-                    setEntries(current => current.map(row => row.id === entryId ? { ...row, title: currentDetail.title, kind: currentDetail.kind, tags: currentDetail.tags } : row));
+                    setEntries(current => current.map(row => row.id === entryId ? { ...row, title: currentDetail.title, kind: currentDetail.kind, tags: currentDetail.tags, researchScore: researchReportScore(currentDetail.reports) } : row));
                     setError((current) => (current.startsWith('AI 任务状态更新失败：') ? '' : current));
                 }
             } catch (error) {

@@ -12,7 +12,8 @@ from .access import owned_collection, owned_entry
 from .locking import collection_lock
 from .models import AIRun, Attachment, Backtest, CodeVersion, Entry, Implementation, Job, SourceRevision
 from .presentation import entry_detail, run_data
-from .serializers import AttachmentSerializer, BacktestSerializer, CodeVersionSerializer, EntrySerializer, ImplementationSerializer, VerificationSerializer
+from .research.list_scores import with_default_report_score
+from .serializers import AttachmentSerializer, BacktestSerializer, CodeVersionSerializer, EntryListSerializer, EntrySerializer, ImplementationSerializer, VerificationSerializer
 from .services import adopt, attach, create_implementation, queue, read_script, save_version, touch
 from . import worker
 
@@ -67,7 +68,7 @@ class EntryView(QuantView):
             for run in self.entry.runs.filter(status__in=['pending', 'running']):
                 worker.recover(run)
             return success_result(entry_detail(self.entry))
-        entries = Entry.objects.filter(anthology=self.collection, is_valid=True)
+        entries = with_default_report_score(Entry.objects.filter(anthology=self.collection, is_valid=True))
         query = request.query_params.get('q', '').strip()[:200]
         if query:
             # JSON tags may differ by database backend; title/content matching is
@@ -89,7 +90,7 @@ class EntryView(QuantView):
             ids.update(SourceRevision.objects.filter(material__entry__anthology=self.collection,
                 payload__language=language).values_list('material__entry_id', flat=True))
             entries = [entry for entry in entries if entry.pk in ids]
-        return success_result(EntrySerializer(entries, many=True).data)
+        return success_result(EntryListSerializer(entries, many=True).data)
 
     def post(self, request, coll_id):
         serializer = EntrySerializer(data=request.data)

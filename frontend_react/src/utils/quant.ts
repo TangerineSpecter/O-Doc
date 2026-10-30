@@ -1,3 +1,4 @@
+import { markdownHeadings } from './quantMarkdownHeadings';
 import type { QuantCodeVersion, QuantImplementation } from '../types/api/quant';
 
 export const quantKindOptions = [
@@ -85,4 +86,35 @@ export async function copyQuantText(value: string): Promise<void> {
         field.remove();
         previous?.focus({ preventScroll: true });
     }
+}
+
+export { slugifyHeading } from './quantMarkdownHeadings';
+
+export function deduplicateMarkdown(text: string, stripTitle?: string, stripSummary?: string): string {
+    if (!text) return '';
+    let result = text.trimStart();
+
+    if (stripTitle?.trim()) {
+        const firstLineMatch = /^#\s+([^\r\n]+)\r?\n+/.exec(result);
+        if (firstLineMatch) {
+            const headingText = firstLineMatch[1].trim();
+            const targetTitle = stripTitle.trim();
+            if (headingText === targetTitle || headingText.includes(targetTitle) || targetTitle.includes(headingText)) {
+                result = result.slice(firstLineMatch[0].length).trimStart();
+            }
+        }
+    }
+
+    if (stripSummary?.trim()) {
+        const cleanSummary = stripSummary.trim();
+        if (result.startsWith(cleanSummary)) {
+            result = result.slice(cleanSummary.length).trimStart();
+        }
+    }
+
+    return result;
+}
+
+export function extractMarkdownHeadings(markdown: string, stripTitle?: string, scope = '', stripSummary?: string) {
+    return markdownHeadings(deduplicateMarkdown(markdown, stripTitle, stripSummary), scope);
 }

@@ -3,6 +3,8 @@ import { Copy, Download, FileCode2, History, Plus, RotateCcw, Save, ShieldCheck,
 import { quantApi } from '../../api/quant';
 import { Select } from '../common/Select';
 import { CodeEditor } from './CodeEditor';
+import { SourceCodeEditor } from './SourceCodeEditor';
+import { collectedCodeSources } from '../../utils/quantSourceCode';
 import { QuantButton, QuantEmpty, QuantField, QuantModal, cardClass } from './ui';
 import { quantLanguageOptions as languageOptions } from '../../utils/quant';
 import { copyQuantText, downloadQuantBlob, quantDate, quantFilename } from '../../utils/quant';
@@ -43,9 +45,11 @@ export function CodePanel({
     consumeSeed: () => void;
     startAI: (version: QuantCodeVersion, kind: 'explain' | 'convert') => void;
 }) {
-    const [selected, setSelected] = useState(entry.implementations[0]?.id || '');
+    const sources = collectedCodeSources(entry.sources || []);
+    const [selected, setSelected] = useState(sources[0] ? `source:${sources[0].id}` : entry.implementations[0]?.id || '');
     const [creating, setCreating] = useState(false);
-    const implementation = entry.implementations.find((item) => item.id === selected) || entry.implementations[0];
+    const source = sources.find((item) => `source:${item.id}` === selected);
+    const implementation = source ? undefined : entry.implementations.find((item) => item.id === selected) || entry.implementations[0];
     const close = () =>
         request(() => {
             setCreating(false);
@@ -64,21 +68,58 @@ export function CodePanel({
                         新增实现
                     </QuantButton>
                 </div>
-                {entry.implementations.length > 0 && (
-                    <div className="mt-5 max-w-sm">
-                        <Select
-                            value={implementation?.id || ''}
-                            options={entry.implementations.map((item) => ({
-                                value: item.id,
-                                label: item.name,
-                                description: `${languageName(item.language)} ${item.languageVersion}`,
-                            }))}
-                            onChange={(id) => request(() => setSelected(id))}
-                        />
+                {(entry.implementations.length > 0 || sources.length > 0) && (
+                    <div className="mt-5 space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                            {sources.map((item) => (
+                                <button key={item.id} type="button" onClick={() => request(() => setSelected(`source:${item.id}`))}
+                                    className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-left text-xs transition ${source?.id === item.id ? 'border-orange-300 bg-orange-50/70 text-orange-900' : 'border-slate-200/80 bg-slate-50/60 text-slate-600'}`}>
+                                    <FileCode2 size={14}/><span className="font-bold">来源代码</span>
+                                    <span>{languageName(item.payload.language || '')} · {quantDate(item.createdAt)}</span>
+                                </button>
+                            ))}
+                            {entry.implementations.map((item) => {
+                                const isActive = implementation?.id === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => request(() => setSelected(item.id))}
+                                        className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-left text-xs transition ${
+                                            isActive
+                                                ? 'border-orange-300 bg-orange-50/70 text-orange-900 shadow-xs'
+                                                : 'border-slate-200/80 bg-slate-50/60 text-slate-600 hover:border-slate-300 hover:bg-white'
+                                        }`}
+                                    >
+                                        <FileCode2 size={14} className={isActive ? 'text-orange-500' : 'text-slate-400'} />
+                                        <span className="font-bold">{item.name}</span>
+                                        <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500 shadow-2xs">
+                                            {languageName(item.language)}
+                                            {item.languageVersion ? ` ${item.languageVersion}` : ''}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">{item.versions.length} 版本</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="max-w-sm">
+                            <Select
+                                value={source ? `source:${source.id}` : implementation?.id || ''}
+                                options={[...sources.map((item) => ({ value: `source:${item.id}`, label: `来源代码 · ${languageName(item.payload.language || '')}`, description: quantDate(item.createdAt) })), ...entry.implementations.map((item) => ({
+                                    value: item.id,
+                                    label: item.name,
+                                    description: `${languageName(item.language)} ${item.languageVersion}`,
+                                }))]}
+                                onChange={(id) => request(() => setSelected(id))}
+                            />
+                        </div>
                     </div>
                 )}
             </section>
-            {implementation ? (
+            {source ? (
+                <SourceCodeEditor key={source.id} source={source} entry={entry} collection={collection}
+                    controller={controller} register={register} saved={setSelected}/>
+            ) : implementation ? (
                 <ImplementationEditor
                     key={implementation.id}
                     implementation={implementation}
@@ -460,19 +501,31 @@ function ImplementationEditor({
                     />
                 </div>
             )}
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 text-[11px]">
+                <span className="text-xs font-semibold text-slate-500">外部验证状态：</span>
                 {[
                     ['编译', version.compileCheck],
                     ['运行', version.runCheck],
                     ['结果核对', version.resultCheck],
                 ].map(([label, status]) => (
-                    <span
+                    <button
+                        type="button"
                         key={label}
-                        className={`rounded-full px-2 py-1 ${status === 'passed' ? 'bg-lime-50 text-lime-700' : status === 'failed' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}
+                        onClick={() => request(() => setChecking(true))}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-medium transition hover:opacity-85 ${
+                            status === 'passed'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : status === 'failed'
+                                  ? 'border-red-200 bg-red-50 text-red-600'
+                                  : 'border-slate-200 bg-slate-50 text-slate-600'
+                        }`}
                     >
                         {label}：{status === 'passed' ? '通过' : status === 'failed' ? '失败' : '待验证'}
-                    </span>
+                    </button>
                 ))}
+                {version.verificationNotes && (
+                    <span className="ml-1 truncate text-xs text-slate-400">备注：{version.verificationNotes}</span>
+                )}
             </div>
             {checking && (
                 <VerificationModal

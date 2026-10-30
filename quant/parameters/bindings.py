@@ -62,6 +62,22 @@ def entry_for(raw: dict, inventory: dict) -> dict | None:
     return matches[0] if len(matches) == 1 and matches[0].get('auto_match', True) else None
 
 
+def normalize_model_binding_ids(parameters: list[dict], inventory: dict) -> list[dict]:
+    """Discard a model's bad hint only when the name independently identifies one declaration."""
+    result = copy.deepcopy(parameters)
+    rows = {row['id']: row for row in inventory['declarations']}
+    for raw in result:
+        if not isinstance(raw, dict) or not raw.get('binding_id') or raw.get('source_binding') is not None:
+            continue
+        row = rows.get(raw['binding_id']) if isinstance(raw['binding_id'], str) else None
+        if row and raw.get('name') in (row['source_name'], row['symbol']):
+            continue
+        without_hint = {key: value for key, value in raw.items() if key != 'binding_id'}
+        if entry_for(without_hint, inventory) is not None:
+            raw.pop('binding_id')
+    return result
+
+
 def bind(parameters: list[dict], raw: list[dict], inventory: dict) -> list[dict]:
     if len(parameters) != len(raw): raise ValidationError('参数绑定输入数量不一致')
     result, used, ids = [], set(), set()
@@ -130,8 +146,9 @@ def propagate(factors: list[dict], raw_factors: list[dict], parameters: list[dic
             if parent is None: raise ValidationError('候选参数须引用本报告明确的内部符号或binding_id')
             if row.get('name') not in (parent['name'], parent['source_binding']['source_name']):
                 raise ValidationError('候选参数名称与所选声明不一致')
-            for key in ('type', 'default_value', 'category', 'domain'):
-                if row.get(key) != parent.get(key): raise ValidationError('原始候选参数类型、默认、用途及约束须与参数阶段一致')
+            if set(row) != {'name'}:
+                for key in ('type', 'default_value', 'category', 'domain'):
+                    if row.get(key) != parent.get(key): raise ValidationError('原始候选参数类型、默认、用途及约束须与参数阶段一致')
             if row.get('source_binding') is not None and encode(row['source_binding']) != encode(parent['source_binding']):
                 raise ValidationError('候选不能改写参数来源')
             if factor.get('expression') is not None and parent['source_binding']['status'] == 'unresolved':
@@ -267,12 +284,15 @@ def repair_origins(value: dict, factors: list[dict], source_hash: str) -> dict:
         if not isinstance(definition, dict): continue
         index = item.get('factor_index')
         if type(index) is not int or not 0 <= index < len(factors): continue
-        parents = {row['name']: row.get('source_binding') for row in factors[index]['parameters']}
+        parents = {row['name']: row for row in factors[index]['parameters']}
         parameters = definition.get('parameters', [])
         if not isinstance(parameters, list) or any(not isinstance(row, dict) for row in parameters):
             raise ValidationError('修订参数须为完整对象数组')
         for parameter in parameters:
-            origin = parents.get(parameter.get('name')) or {'version': 1, 'status': 'hypothesis', 'source_hash': source_hash,
+            parent = parents.get(parameter.get('name'))
+            if parent and 'evidence' not in parameter:
+                parameter['evidence'] = parent['evidence']
+            origin = (parent or {}).get('source_binding') or {'version': 1, 'status': 'hypothesis', 'source_hash': source_hash,
                 'source_name': parameter.get('name', ''), 'reason': 'AI修订新增的实验参数，不是已定位的原始源码输入。'}
             if parameter.get('source_binding') is not None and encode(parameter['source_binding']) != encode(origin):
                 raise ValidationError('AI修订不得更改参数的原始来源事实')

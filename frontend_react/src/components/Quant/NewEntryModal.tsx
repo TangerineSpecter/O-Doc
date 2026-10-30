@@ -3,8 +3,9 @@ import { quantApi } from '../../api/quant';
 import { createRequestKey } from '../../utils/requestKey';
 import { detectQuantLanguage } from '../../utils/quantLanguage';
 import { Select } from '../common/Select';
+import { Checkbox } from '../common/Checkbox';
 import { QuantButton, QuantField, QuantModal } from './ui';
-import { CodeEditor } from './CodeEditor';
+import { SourceFileInput } from './sourceImport/SourceFileInput';
 import {TongdaxinParameterHelp} from './TongdaxinParameterHelp';
 import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
@@ -46,16 +47,16 @@ export function NewEntryModal({ collection, controller, register, close, created
         <p className="text-sm leading-6 text-slate-600">放入你发现的代码和说明，AI 将整理原理、参数、研究评价与验证计划。普通新分析最多7次模型调用；没有修订目标时跳过额外调用。</p>
         <div className="grid gap-4 sm:grid-cols-2">
             <QuantField label="标题（可留空，由 AI 命名）" value={draft.title} onChange={v => patch('title', v)} />
-            <label className="space-y-2 text-sm font-semibold text-slate-700"><span className="block">代码语言</span>
+            <label className="space-y-1.5 text-sm font-semibold text-slate-700"><span className="block">代码语言</span>
                 <Select menuPortal value={draft.language} onChange={v => patch('language', v)} options={[
                     { value: 'auto', label: '自动识别' }, { value: 'pine', label: 'Pine Script' },
                     { value: 'mql4', label: 'MQL4 / MQ4' }, { value: 'python', label: 'Python / 聚宽' },
                     { value: 'tongdaxin', label: '通达信公式' }, { value: 'text', label: '其他 / 纯文本' },
                 ]} /></label>
         </div>
-        <div className="space-y-2"><span className="text-sm font-semibold text-slate-700">源代码</span>
-            <CodeEditor value={draft.code} onChange={v => patch('code', v)} language={draft.language === 'auto' ? detectQuantLanguage(draft.code) : draft.language} />
-        </div>
+        <SourceFileInput code={draft.code} disabled={controller.busy} onChange={v => patch('code', v)}
+            language={draft.language === 'auto' ? detectQuantLanguage(draft.code) : draft.language}
+            onImport={({code, language}) => setDraft(current => ({...current, code, language}))} />
         <QuantField label="作者说明、使用方法或你关注的问题" value={draft.description} onChange={v => patch('description', v)} multiline rows={4} />
         {(draft.language === 'tongdaxin' || draft.language === 'auto' && detectQuantLanguage(draft.code) === 'tongdaxin') && <TongdaxinParameterHelp fieldLabel="作者说明、使用方法或你关注的问题"/>}
         <QuantField label="来源网址" value={draft.url} onChange={v => patch('url', v)} placeholder="https://…" />
@@ -63,7 +64,7 @@ export function NewEntryModal({ collection, controller, register, close, created
         <label className="space-y-2 text-sm font-semibold text-slate-700"><span className="block">分析模型</span>
             <Select menuPortal value={draft.modelId} onChange={v => patch('modelId', v)} options={controller.models.models.map(m => ({ value: m.id, label: m.name }))} emptyMessage="尚未配置模型，资料将先归档" />
         </label>
-        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={draft.analyze} onChange={e => patch('analyze', e.target.checked)} />保存后自动分析</label>
+        <Checkbox checked={draft.analyze} onChange={checked => patch('analyze', checked)} label="保存后自动分析" labelClassName="text-sm font-normal text-slate-700" />
         <div className="flex justify-end gap-3"><QuantButton onClick={close} disabled={controller.busy}>取消</QuantButton>
             <QuantButton primary onClick={() => void save()} disabled={controller.busy || !(draft.code.trim() || draft.description.trim() || draft.url.trim())}>
                 {controller.busy ? '正在保存…' : draft.analyze ? '收集并分析' : '仅收集'}

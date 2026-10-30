@@ -1,4 +1,5 @@
 import {seedDemoEntry} from './demoSeed';
+import {researchReportScore} from '../../utils/quantReportScore';
 import {resolveStudyRoute} from './studies';
 import {resolveMT4Route} from '../mt4/routes';
 import {resolveConnectorRoute} from './connectors';
@@ -116,7 +117,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         if (request.method === 'GET') {
             const query = (url.searchParams.get('q') || '').toLowerCase();
             const kind = url.searchParams.get('kind'), language = url.searchParams.get('language');
-            return state.entries.filter(row => row.collId === collId && row.isValid && (!kind || row.kind === kind) && (!language || row.implementations.some(impl => impl.language === language) || row.sources?.some(source => source.payload.language === language)) && (!query || `${row.title} ${row.tags.join(' ')}`.toLowerCase().includes(query))).map(({implementations: _implementations, backtests: _backtests, attachments: _attachments, runs: _runs, sources: _sources, reports: _reports, ...entry}) => entry);
+            return state.entries.filter(row => row.collId === collId && row.isValid && (!kind || row.kind === kind) && (!language || row.implementations.some(impl => impl.language === language) || row.sources?.some(source => source.payload.language === language)) && (!query || `${row.title} ${row.tags.join(' ')}`.toLowerCase().includes(query))).map(({implementations: _implementations, backtests: _backtests, attachments: _attachments, runs: _runs, sources: _sources, reports, ...entry}) => ({...entry, researchScore: researchReportScore(reports)}));
         }
         if (request.method === 'POST') {
             if (typeof body.title !== 'string' || !body.title.trim()) return fail(400, '请填写研究标题');

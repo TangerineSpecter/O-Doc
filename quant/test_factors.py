@@ -41,6 +41,27 @@ class FactorTests(TestCase):
         self.assertEqual(run.status, 'completed', run.error)
         return entry, FactorCandidate.objects.get()
 
+    def test_compact_parameter_references_publish_full_facts_and_sync(self):
+        self.collect()
+        value = extracted()
+        compact = copy.deepcopy(value)
+        compact['factors'][0]['parameters'] = [{'name': 'N'}]
+        def answer(_config, text, **_kwargs):
+            if '“提取因子”' in text:
+                context = json.loads(text.split('\n材料：', 1)[1])
+                binding = context['previous']['parameters']['parameters'][0]['source_binding']
+                self.assertEqual(set(binding), {'status', 'source_name'})
+                return json.dumps(compact)
+            return json.dumps(value)
+        with patch('quant.worker.complete', side_effect=answer):
+            execute(AIRun.objects.get().pk)
+        run = AIRun.objects.get()
+        self.assertEqual(run.status, 'completed', run.error)
+        factor = FactorCandidate.objects.get().data
+        self.assertEqual(factor['parameters'][0], run.result['parameters'][0])
+        snapshot = SyncManager().build_snapshot_data()
+        validate(snapshot, metadata(snapshot))
+
     def test_auto_publication_queries_and_restore(self):
         entry, candidate = self.complete()
         self.assertEqual(candidate.report.schema_version, 3)

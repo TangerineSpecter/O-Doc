@@ -48,12 +48,24 @@ export function BacktestsPanel({
                     const attachments = entry.attachments.filter((item) => item.backtestId === backtest.id);
                     return (
                         <article key={backtest.id} className={cardClass}>
-                            <div className="flex items-start gap-3">
-                                <div className="rounded-xl bg-orange-50 p-2.5 text-orange-500">
+                            <div className="flex flex-wrap items-start gap-3 border-b border-slate-100 pb-4">
+                                <div className="rounded-xl bg-orange-50 p-2.5 text-orange-500 shadow-2xs">
                                     <BarChart3 size={18} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <h3 className="break-words text-base font-bold text-slate-800">{backtest.name}</h3>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="break-words text-base font-bold text-slate-900">{backtest.name}</h3>
+                                        {backtest.symbol && (
+                                            <span className="rounded-md bg-orange-50 px-2 py-0.5 font-mono text-xs font-semibold text-orange-700">
+                                                {backtest.symbol}
+                                            </span>
+                                        )}
+                                        {backtest.timeframe && (
+                                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                                                {backtest.timeframe}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="mt-1 break-words text-xs text-slate-400">
                                         {reference
                                             ? versionLabel(reference.implementation, reference.version)
@@ -61,51 +73,49 @@ export function BacktestsPanel({
                                         · {quantDate(backtest.createdAt)}
                                     </p>
                                 </div>
-                                <QuantButton
-                                    aria-label={`编辑回测 ${backtest.name}`}
-                                    onClick={() => setEditing(backtest)}
-                                >
-                                    <Edit3 size={15} />
-                                </QuantButton>
-                                <QuantButton
-                                    danger
-                                    aria-label={`删除回测 ${backtest.name}`}
-                                    onClick={() => setRemoving(backtest)}
-                                >
-                                    <Trash2 size={15} />
-                                </QuantButton>
+                                <div className="flex items-center gap-2">
+                                    <QuantButton
+                                        size="sm"
+                                        aria-label={`编辑回测 ${backtest.name}`}
+                                        onClick={() => setEditing(backtest)}
+                                    >
+                                        <Edit3 size={14} />
+                                        编辑
+                                    </QuantButton>
+                                    <QuantButton
+                                        size="sm"
+                                        danger
+                                        aria-label={`删除回测 ${backtest.name}`}
+                                        onClick={() => setRemoving(backtest)}
+                                    >
+                                        <Trash2 size={14} />
+                                    </QuantButton>
+                                </div>
                             </div>
-                            <dl className="mt-5 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
+                            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
                                 {[
                                     ['标的', backtest.symbol],
                                     ['周期', backtest.timeframe],
                                     ['开始时间', backtest.startDate],
                                     ['结束时间', backtest.endDate],
                                 ].map(([label, value]) => (
-                                    <div key={label}>
-                                        <dt className="text-xs text-slate-400">{label}</dt>
-                                        <dd className="mt-1 break-words text-slate-700">{value || '未填写'}</dd>
+                                    <div key={label} className="rounded-xl border border-slate-200/70 bg-slate-50/70 p-3">
+                                        <dt className="text-[11px] font-semibold text-slate-400">{label}</dt>
+                                        <dd className="mt-1 break-words font-medium text-slate-800">{value || '未填写'}</dd>
                                     </div>
                                 ))}
                             </dl>
-                            <div className="mt-5 grid gap-3 rounded-xl bg-slate-50 p-4 text-xs sm:grid-cols-2">
-                                <p className="whitespace-pre-wrap leading-6 text-slate-600">
-                                    <span className="font-semibold">参数：</span>
-                                    {backtest.parameters || '未填写'}
-                                </p>
-                                <p className="whitespace-pre-wrap leading-6 text-slate-600">
-                                    <span className="font-semibold">费用假设：</span>
-                                    {backtest.fees || '未填写'}
-                                </p>
-                            </div>
                             {backtest.metrics.length ? (
                                 <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                                     {backtest.metrics.map((metric, index) => (
-                                        <div key={index} className="rounded-xl border border-slate-100 p-3">
-                                            <p className="truncate text-xs text-slate-400">
+                                        <div
+                                            key={index}
+                                            className="rounded-xl border border-orange-200/60 bg-gradient-to-br from-orange-50/40 via-white to-white p-3.5 shadow-2xs"
+                                        >
+                                            <p className="truncate text-xs font-medium text-slate-500">
                                                 {metric.name || '未命名指标'}
                                             </p>
-                                            <p className="mt-1 break-words font-mono text-base font-semibold text-slate-700">
+                                            <p className="mt-1.5 break-words font-mono text-lg font-extrabold text-slate-900">
                                                 {metric.value || '未填写'}
                                             </p>
                                         </div>
@@ -114,11 +124,24 @@ export function BacktestsPanel({
                             ) : (
                                 <p className="mt-4 text-xs text-slate-400">指标未填写</p>
                             )}
-                            <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-slate-600">
-                                {backtest.conclusion || '尚未记录结论'}
-                            </p>
+                            <div className="mt-4 grid gap-3 rounded-xl border border-slate-200/70 bg-slate-50/60 p-4 text-xs sm:grid-cols-2">
+                                <p className="whitespace-pre-wrap leading-6 text-slate-600">
+                                    <span className="font-bold text-slate-700">参数：</span>
+                                    {backtest.parameters || '未填写'}
+                                </p>
+                                <p className="whitespace-pre-wrap leading-6 text-slate-600">
+                                    <span className="font-bold text-slate-700">费用假设：</span>
+                                    {backtest.fees || '未填写'}
+                                </p>
+                            </div>
+                            <div className="mt-4 rounded-xl border border-slate-100 bg-white p-4">
+                                <p className="mb-1 text-xs font-bold text-slate-400">实验结论与备注</p>
+                                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                                    {backtest.conclusion || '尚未记录结论'}
+                                </p>
+                            </div>
                             {attachments.length > 0 && (
-                                <p className="mt-4 text-xs text-orange-600">
+                                <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700">
                                     关联附件：{attachments.map((item) => item.name).join('、')}
                                 </p>
                             )}

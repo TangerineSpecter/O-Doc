@@ -28,9 +28,9 @@ function ImpactResult({value}: {value: QuantSourceImpactPreview}) {
     </div>;
 }
 
-export function SourceImpactPanel({entry, collection, source, currentReport, analyze, incremental, analyzeDisabledReason}: {
+export function SourceImpactPanel({entry, collection, source, currentReport, analyze, incremental, analyzeDisabledReason, inModal = false}: {
     entry: QuantEntryDetail; collection: string; source?: QuantSource; currentReport?: QuantReport;
-    analyze: () => void; incremental: (baselineRunId: string) => void; analyzeDisabledReason: string;
+    analyze: () => void; incremental: (baselineRunId: string) => void; analyzeDisabledReason: string; inModal?: boolean;
 }) {
     const reports = staticSourceReports(entry);
     const [baselineSelection, setBaselineSelection] = useState('');
@@ -44,7 +44,7 @@ export function SourceImpactPanel({entry, collection, source, currentReport, ana
     return <section className={`${cardClass} space-y-4`} aria-label="源码变更影响预览">
         <div><h3 className="font-semibold text-slate-900">源码变更影响</h3><p className="mt-2 text-sm leading-7 text-slate-500">用上方所选来源，与一份明确的历史静态报告核对原文、参数引文和候选依赖。预览不调用模型，也不改写历史报告。</p></div>
         {!source ? <p className="text-sm leading-7 text-slate-500">保存来源快照后可开始对照。</p> : !reports.length ? <p className="text-sm leading-7 text-slate-500">尚无可作基准的静态报告。先生成第一份研究报告，后续保存新快照即可比较。</p> : <>
-            <div className="flex flex-wrap items-end gap-3"><label className="min-w-0 flex-1 space-y-2 text-sm text-slate-600"><span className="block">基准静态报告</span><Select value={baseline?.id || ''} onChange={setBaselineSelection} placeholder="选择同一研究条目的静态报告" options={reports.map(report => ({value: report.id, label: `${report.schemaVersion === 1 ? '历史代码解释 · ' : ''}${report.data.title || '静态报告'} · ${quantDate(report.createdAt)}`}))}/></label><QuantButton disabled={!baseline || state.loading} onClick={state.preview}><GitCompareArrows size={15}/>{state.loading ? '读取预览中…' : state.started ? '重新预览' : '预览源码变更影响'}</QuantButton></div>
+            <div className="flex flex-wrap items-end gap-3"><label className="min-w-0 flex-1 space-y-2 text-sm text-slate-600"><span className="block">基准静态报告</span><Select menuPortal={inModal} value={baseline?.id || ''} onChange={setBaselineSelection} placeholder="选择同一研究条目的静态报告" options={reports.map(report => ({value: report.id, label: `${report.schemaVersion === 1 ? '历史代码解释 · ' : ''}${report.data.title || '静态报告'} · ${quantDate(report.createdAt)}`}))}/></label><QuantButton disabled={!baseline || state.loading} onClick={state.preview}><GitCompareArrows size={15}/>{state.loading ? '读取预览中…' : state.started ? '重新预览' : '预览源码变更影响'}</QuantButton></div>
             <p className="break-words text-xs leading-6 text-slate-500">目标来源：{source.payload.title || source.payload.language || source.id} · {quantDate(source.createdAt)}。更换目标或基准后需要重新预览。</p>
             {baseline?.schemaVersion === 1 && <p className="text-xs leading-6 text-slate-500">基准是历史代码解释；未提供的结构化参数、候选将保持为空。</p>}
             {state.loading && <p role="status" className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">正在读取所选两份快照的差异与保守依赖线索…</p>}
