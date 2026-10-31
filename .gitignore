@@ -13,7 +13,9 @@ dist-ssr
 *.local
 package-lock.json
 !frontend_react/package-lock.json
+# Local Django SQLite database and its WAL/shared-memory/journal files
 db.sqlite3
+db.sqlite3-*
 chroma_data/*
 
 # 忽略迁移目录中的缓存，但保留 Django 迁移文件

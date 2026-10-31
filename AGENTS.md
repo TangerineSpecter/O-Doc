@@ -2,6 +2,14 @@
 
 本项目使用 `nvm` 管理 Node 版本，前端默认运行环境为 Node.js 22。后端采用 `uv` 管理依赖，Python 版本为 3.11。
 
+## 本地开发数据库
+
+- 本地开发和调试统一复用已有的 PostgreSQL 容器数据库，SQLite 不是本地开发的必需依赖。默认容器为 Compose 项目 `deploy` 下的 `o-doc-postgres`，宿主机连接地址为 `127.0.0.1:15432`（映射容器内 `5432`）；实际容器名和端口以 `compose.prod.yml` 与本地环境配置为准。
+- 启动后端或单独执行可能访问本地业务数据库的 Django 命令、临时脚本前（包括 `runserver`、`migrate`、`shell`、`check` 等），先确认容器数据库可用，并显式加载 PostgreSQL 连接配置。配置来源为 `deploy/.env` 或 `ODOC_DEV_ENV_FILE` 指定文件；宿主机命令使用发布端口，容器间连接使用服务名 `db:5432`。注意 `DATABASE_URL` 优先于 `DJANGO_DB_ENGINE`，不得因遗漏配置而触发 `o_doc/settings.py` 的 SQLite 默认回退。
+- 未发现可用的容器数据库，或容器未启动、连接失败、配置缺失时，先询问用户如何提供或启动数据库；收到回复前不执行依赖数据库的操作。不得擅自创建替代数据库，不得使用 `ODOC_DEV_USE_POSTGRES=false` 或其他方式回退到 SQLite，也不得为本地调试或校验生成磁盘 SQLite 数据库。
+- 仅验证前端时使用 `sh dev.sh local`，通过 local mock 调试，无需启动后端或数据库。
+- `db.sqlite3`、`db.sqlite3-wal`、`db.sqlite3-shm`、`db.sqlite3-journal` 等本地数据库运行文件不得进入 Git；忽略规则需覆盖主库及辅助文件，已被跟踪的文件须取消跟踪。运行中的 SQLite 文件不得直接删除。
+
 # 按任务逐步阅读文档
 
 不需要通读 `docs/`。先按任务打开下列入口，再沿索引进入对应业务说明：
