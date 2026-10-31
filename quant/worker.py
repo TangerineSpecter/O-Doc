@@ -16,6 +16,7 @@ from utils.token_usage import usage_scope
 from .locking import collection_lock
 from .models import AIRun, Job
 from .native_reviews.errors import NativeReviewStopped
+from .algorithms.correction import ExtractionIncomplete
 from . import queue_liveness
 from .services import model_config, parse_result, touch
 
@@ -182,9 +183,9 @@ def execute(run_id: str) -> None:
                 from .research.analysis import validate_source_evidence
                 from quant.experiments.initial_planning import validate_strategy_admission
                 validate_strategy_admission(result, run.workflow_version)
-                if 'source_memory_version' in result and run.workflow_version not in (12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28):
+                if 'source_memory_version' in result and run.workflow_version not in (12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40, 41, 42):
                     raise ValidationError('历史源码工作流不能追加未冻结的研究记忆')
-                if 'factor_repair' in result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28):
+                if 'factor_repair' in result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42):
                     raise ValidationError('此历史工作流不接受 AI 定义修订成果')
                 if result.get('extraction_version') != 1:
                     raise ValidationError('新分析需要完整的候选提取结果；没有候选应明确说明原因')
@@ -223,8 +224,11 @@ def execute(run_id: str) -> None:
                     run.error = '模型调用超时，本次未采用，请手动重试'
                 elif isinstance(exc,NativeReviewStopped):
                     run.error=exc.safe_user_message
+                elif isinstance(exc, ExtractionIncomplete):
+                    run.error = '源码算法转换未完成，自动纠正后仍未生成可入库算法；前序分析已保留'
                 elif isinstance(exc, ValidationError):
-                    run.error = '模型未返回完整有效的结果，本次未采用，请调整要求后重试'
+                    from quant.workflows.runner import validation_reason
+                    run.error = validation_reason(exc)[:300]
                 else:
                     run.error = '任务已取消' if cancelled else '任务中断或模型调用失败，请检查配置后手动重试'
                 run.save(update_fields=['status', 'error', 'updated_at'])

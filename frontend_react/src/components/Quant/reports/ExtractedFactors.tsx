@@ -7,6 +7,7 @@ import { conciseFactorSummary, type FactorReading } from '../../../utils/quantFa
 import { factorRoles } from '../factorPresentation';
 import { QuantButton } from '../ui';
 import { FactorReadingModal } from './FactorReadingModal';
+import {factorName} from '../../../utils/quantFactorName';
 
 const appearance: Record<QuantFactorRole, { icon: typeof Sigma; color: string }> = {
     factor: {icon: Sigma, color: 'bg-orange-50 text-orange-700'},
@@ -32,11 +33,13 @@ export function ExtractedFactors({ report, openFactors, notes = {} }: { report: 
             {shown.map((factor, index) => {
                 const look = appearance[factor.role] || appearance.factor;
                 const Icon = look.icon;
+                const name = factorName(report.factorNames?.[index] || factor.name, factor.name);
                 return <button type="button" key={`${factor.name}-${index}`} onClick={() => setSelected(index)}
                     className="group flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-left transition hover:border-orange-200 hover:bg-orange-50/30">
                     <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${look.color}`}><Icon size={15}/></span>
                     <span className="min-w-0 flex-1">
-                        <span className="flex items-center justify-between gap-2"><span className="min-w-0 break-all text-sm font-semibold text-slate-900">{factor.name}</span><ArrowRight size={14} className="shrink-0 text-slate-400 group-hover:text-orange-600"/></span>
+                        <span className="flex items-center justify-between gap-2"><span className="min-w-0 break-all text-sm font-semibold text-slate-900">{name.title}</span><ArrowRight size={14} className="shrink-0 text-slate-400 group-hover:text-orange-600"/></span>
+                        {name.identifier && <span className="mt-1 block break-all font-mono text-xs text-slate-400">{name.identifier}</span>}
                         <span className="mt-1 block text-xs font-medium text-slate-500">{factorRoles[factor.role] || factor.role}</span>
                         <span className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600">{notes[factor.name]?.summary || conciseFactorSummary(factor.summary)}</span>
                     </span>

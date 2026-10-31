@@ -9,6 +9,9 @@ VERSION = 1
 
 
 def qualification(data: dict) -> dict:
+    if (data.get('expression') or {}).get('op') == 'python':
+        from quant.algorithms.python_definition import qualification as python_qualification
+        return python_qualification(data)
     checks, nodes, blockers = [], [], []
     used_inputs, used_parameters = set(), set()
     parameters = {row['name']: row for row in data['parameters']}
@@ -22,52 +25,64 @@ def qualification(data: dict) -> dict:
     else:
         try:
             validate_expression(expression, set(inputs), set(parameters))
+            if expression.get('op') == 'program':
+                from quant.algorithms.contract import expressions, references as program_refs
+                used = set().union(*(program_refs(text) for text in [*expressions(expression['steps']), expression['output']]))
+                used_inputs.update(set(inputs) & used)
+                used_parameters.update(set(parameters) & used)
+                if expression['output_type'] != data['output_type']:
+                    raise ValueError('算法输出与声明类型不一致')
+                check('references', 'passed', '算法内部状态、历史引用及全部输入已经闭合。')
+                check('types', 'passed', '逐根计算步骤已转换为统一算法；原始更新顺序和条件分支保留。')
             def references(node):
                 if node['op'] == 'input': used_inputs.add(node['name'])
                 if node['op'] == 'parameter': used_parameters.add(node['name'])
                 for child in node.get('args', []): references(child)
-            references(expression)
-            check('references', 'passed', '表达式输入、参数引用均有声明；内嵌树无外部执行或未声明函数调用。')
-            def visit(node, path='root'):
-                op = node['op']
-                children = [visit(child, path + '.' + str(i)) for i, child in enumerate(node.get('args', []))]
-                kind = 'number'
-                if op == 'parameter':
-                    category = parameter_kind(parameters[node['name']])
-                    if not category: raise ValueError(path + '：参数类型未识别')
-                    if category == 'string' and (parameters[node['name']].get('domain', {}).get('version') not in (3, 4)
-                            or not parameters[node['name']].get('domain', {}).get('choices')):
-                        raise ValueError(path + '：字符串参数缺少声明式枚举约束')
-                    kind = 'boolean' if category == 'bool' else 'string' if category == 'string' else 'number'
-                elif op == 'constant': kind = 'string' if isinstance(node['value'], str) else 'number'
-                elif op in ROLLING:
-                    window = node['args'][1]
-                    if window['op'] == 'constant' and window['value'] > 2000:
-                        raise ValueError(path + '：窗口超过本机受控引擎的 2000 根上限')
-                    if window['op'] == 'parameter' and parameter_kind(parameters[window['name']]) != 'int':
-                        raise ValueError(path + '：窗口参数须明确声明为整数')
-                    if children[0] == 'string' or op != 'lag' and children[0] != 'number':
-                        raise ValueError(path + '：窗口输入类型不满足算子要求')
-                    kind = children[0] if op == 'lag' else 'number'
-                elif op == 'gate':
-                    if children[1] != 'boolean' or children[0] == 'string': raise ValueError(path + '：门控需要布尔条件及数值/布尔输出')
-                    kind = children[0]
-                elif op in ('and', 'or'):
-                    if children != ['boolean', 'boolean']: raise ValueError(path + '：逻辑算子需要两个布尔条件')
-                    kind = 'boolean'
-                elif op == 'eq':
-                    if children[0] != children[1]: raise ValueError(path + '：相等比较需要相同类型')
-                    kind = 'boolean'
-                elif op not in ('input', 'constant', 'parameter'):
-                    if any(value != 'number' for value in children): raise ValueError(path + '：数值算子收到非数值输入')
-                    kind = 'boolean' if op in ('gt', 'lt') else 'number'
-                nodes.append({'id': path, 'op': op, 'name': node.get('name', ''), 'kind': kind,
-                    'dependencies': [path + '.' + str(i) for i in range(len(children))]})
-                return kind
-            output_kind = visit(expression)
-            expected = {'numeric_series': 'number', 'boolean_series': 'boolean'}.get(data['output_type'])
-            if not expected or output_kind != expected: raise ValueError('root：声明输出与表达式实际类型不一致，或尚不支持该输出形式')
-            check('types', 'passed', '数值、布尔、字符串比较、窗口及声明输出类型一致；检查不运行源码。')
+            if expression.get('op') != 'program':
+                references(expression)
+                check('references', 'passed', '表达式输入、参数引用均有声明；内嵌树无外部执行或未声明函数调用。')
+                def visit(node, path='root'):
+                    op = node['op']
+                    if op == 'program':
+                        return 'boolean' if node['output_type'] == 'boolean_series' else 'number'
+                    children = [visit(child, path + '.' + str(i)) for i, child in enumerate(node.get('args', []))]
+                    kind = 'number'
+                    if op == 'parameter':
+                        category = parameter_kind(parameters[node['name']])
+                        if not category: raise ValueError(path + '：参数类型未识别')
+                        if category == 'string' and (parameters[node['name']].get('domain', {}).get('version') not in (3, 4)
+                                or not parameters[node['name']].get('domain', {}).get('choices')):
+                            raise ValueError(path + '：字符串参数缺少声明式枚举约束')
+                        kind = 'boolean' if category == 'bool' else 'string' if category == 'string' else 'number'
+                    elif op == 'constant': kind = 'string' if isinstance(node['value'], str) else 'number'
+                    elif op in ROLLING:
+                        window = node['args'][1]
+                        if window['op'] == 'constant' and window['value'] > 2000:
+                            raise ValueError(path + '：窗口超过本机受控引擎的 2000 根上限')
+                        if window['op'] == 'parameter' and parameter_kind(parameters[window['name']]) != 'int':
+                            raise ValueError(path + '：窗口参数须明确声明为整数')
+                        if children[0] == 'string' or op != 'lag' and children[0] != 'number':
+                            raise ValueError(path + '：窗口输入类型不满足算子要求')
+                        kind = children[0] if op == 'lag' else 'number'
+                    elif op == 'gate':
+                        if children[1] != 'boolean' or children[0] == 'string': raise ValueError(path + '：门控需要布尔条件及数值/布尔输出')
+                        kind = children[0]
+                    elif op in ('and', 'or'):
+                        if children != ['boolean', 'boolean']: raise ValueError(path + '：逻辑算子需要两个布尔条件')
+                        kind = 'boolean'
+                    elif op == 'eq':
+                        if children[0] != children[1]: raise ValueError(path + '：相等比较需要相同类型')
+                        kind = 'boolean'
+                    elif op not in ('input', 'constant', 'parameter'):
+                        if any(value != 'number' for value in children): raise ValueError(path + '：数值算子收到非数值输入')
+                        kind = 'boolean' if op in ('gt', 'lt') else 'number'
+                    nodes.append({'id': path, 'op': op, 'name': node.get('name', ''), 'kind': kind,
+                        'dependencies': [path + '.' + str(i) for i in range(len(children))]})
+                    return kind
+                output_kind = visit(expression)
+                expected = {'numeric_series': 'number', 'boolean_series': 'boolean'}.get(data['output_type'])
+                if not expected or output_kind != expected: raise ValueError('root：声明输出与表达式实际类型不一致，或尚不支持该输出形式')
+                check('types', 'passed', '数值、布尔、字符串比较、窗口及声明输出类型一致；检查不运行源码。')
         except (ValidationError, ValueError, TypeError, KeyError) as exc:
             check('types' if checks else 'references', 'blocked', str(exc)[:1000])
             nodes = []

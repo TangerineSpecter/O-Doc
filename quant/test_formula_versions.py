@@ -186,6 +186,8 @@ class FormulaVersionTests(TestCase):
         for row in snapshot:
             if row['model'] == 'quant.factorcandidate':
                 row['fields'].pop('formula_version_id'); row['fields'].pop('formula_selection_id')
+        from quant.testing_documents import without_documents
+        snapshot = without_documents(snapshot)
         meta = metadata(snapshot); meta['quant_schema_version'] = 37
         child = self.edit(); self.select(child)
         with patch('quant.worker.dispatch') as model, patch('quant.experiments.worker.dispatch') as experiment:

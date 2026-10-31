@@ -44,7 +44,7 @@ export function NewEntryModal({ collection, controller, register, close, created
         <QuantButton primary onClick={() => created(archived.id)}>查看已收集资料</QuantButton>
     </QuantModal>;
     return <QuantModal title="收集并分析" close={close} wide busy={controller.busy}>
-        <p className="text-sm leading-6 text-slate-600">放入你发现的代码和说明，AI 将整理原理、参数、研究评价与验证计划。普通新分析最多7次模型调用；没有修订目标时跳过额外调用。</p>
+        <p className="text-sm leading-6 text-slate-600">放入代码和说明，AI 将提取算法、输入参数、计算公式与 Python 实现。普通新分析最多8次模型调用；没有修订目标时跳过额外调用，评分与实验规划不阻碍已提取算法入库。</p>
         <div className="grid gap-4 sm:grid-cols-2">
             <QuantField label="标题（可留空，由 AI 命名）" value={draft.title} onChange={v => patch('title', v)} />
             <label className="space-y-1.5 text-sm font-semibold text-slate-700"><span className="block">代码语言</span>

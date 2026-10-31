@@ -1,6 +1,7 @@
 """Collection owner boundary for automatically archived and user-curated candidates."""
 from quant.admissions.services import compact_prefetch as admission_prefetch
 import json
+from functools import partial
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import MethodNotAllowed
@@ -9,7 +10,7 @@ from quant.models import FactorCandidate
 from quant.views import QuantView
 from .services import candidate_data
 from .contracts import ROLES, FAMILIES
-from .curation import curation_data, revise_candidate
+from .curation import curation_data, curation_data_many, revise_candidate
 from .grouping import group_candidates, group_key
 
 
@@ -26,8 +27,8 @@ class Query(serializers.Serializer):
     limit = serializers.IntegerField(min_value=1, max_value=100, default=40)
 
 
-def matches(candidate: FactorCandidate, query: dict, vocabulary=None) -> bool:
-    curated = curation_data(candidate)['curation']
+def matches(candidate: FactorCandidate, query: dict, vocabulary=None, *, curations=None) -> bool:
+    curated = curation_data(candidate, curations=curations)['curation']
     if query.get('role') and query['role'] != candidate.data['role']:
         return False
     if query.get('family') and query['family'] != curated['family']:
@@ -73,16 +74,19 @@ class FactorView(QuantView):
         query.is_valid(raise_exception=True)
         values = query.validated_data
         start, limit = values['offset'], values['limit']
+        curations = curation_data_many(list(candidates))
+        match = partial(matches, vocabulary=vocabulary, curations=curations)
+        present = partial(candidate_data, vocabulary=vocabulary, curations=curations)
         if values['group_by'] == 'lineage':
             from .versions.groups import groups
             grouped = groups(list(candidates))
             if action == 'occurrences':
                 target = get_object_or_404(candidates, pk=factor_id)
                 related = next(members for members, _, _ in grouped if any(row.pk == target.pk for row in members))
-                return success_result({'total': len(related), 'items': [candidate_data(row, vocabulary) for row in related[start:start + limit]]})
-            selected = [(members, head, meta) for members, head, meta in grouped if matches(head,{'admission_stage':values.get('admission_stage')},vocabulary) and any(matches(row,{**values,'admission_stage':''},vocabulary) for row in members)]
+                return success_result({'total': len(related), 'items': [present(row) for row in related[start:start + limit]]})
+            selected = [(members, head, meta) for members, head, meta in grouped if match(head,{'admission_stage':values.get('admission_stage')}) and any(match(row,{**values,'admission_stage':''}) for row in members)]
             return success_result({'total': len(selected), 'occurrence_total': sum(len(members) for members, _, _ in selected),
-                'items': [candidate_data(head, vocabulary) | {'occurrence_count': len(members), 'formula_lineage': meta}
+                'items': [present(head) | {'occurrence_count': len(members), 'formula_lineage': meta}
                     for members, head, meta in selected[start:start + limit]]})
         if values['group_by'] == 'merged':
             from quant.comparisons.groups import components, group_data
@@ -90,27 +94,27 @@ class FactorView(QuantView):
             if action == 'occurrences':
                 target = get_object_or_404(candidates, pk=factor_id)
                 related = next(group for group in groups if any(row.pk == target.pk for row in group))
-                return success_result({'total': len(related), 'items': [candidate_data(row, vocabulary) for row in related[start:start + limit]]})
+                return success_result({'total': len(related), 'items': [present(row) for row in related[start:start + limit]]})
             selected = []
             for group in groups:
-                metadata = group_data(group, links)
+                metadata = group_data(group, links, curations=curations)
                 term = values.get('q', '').casefold()
                 label_match = term and any(term in item.casefold() for item in metadata['names'] + metadata['aliases'])
-                if not matches(group[0],{'admission_stage':values.get('admission_stage')},vocabulary):continue
-                if any(matches(row,{**values,'admission_stage':''},vocabulary) for row in group) or label_match and any(matches(row,{**values,'admission_stage':'','q':''},vocabulary) for row in group):
+                if not match(group[0],{'admission_stage':values.get('admission_stage')}):continue
+                if any(match(row,{**values,'admission_stage':''}) for row in group) or label_match and any(match(row,{**values,'admission_stage':'','q':''}) for row in group):
                     selected.append((group, metadata))
             return success_result({'total': len(selected), 'occurrence_total': sum(len(group) for group, _ in selected),
-                'items': [candidate_data(group[0], vocabulary) | {'occurrence_count': len(group), 'merged_group': metadata}
+                'items': [present(group[0]) | {'occurrence_count': len(group), 'merged_group': metadata}
                           for group, metadata in selected[start:start + limit]]})
         if action == 'occurrences':
             target = get_object_or_404(candidates, pk=factor_id)
             key = group_key(target, values['group_by'])
             related = [item for item in candidates if group_key(item, values['group_by']) == key]
-            return success_result({'total': len(related), 'items': [candidate_data(row, vocabulary) for row in related[start:start + limit]]})
-        filtered = [row for row in candidates if matches(row, values, vocabulary)]
+            return success_result({'total': len(related), 'items': [present(row) for row in related[start:start + limit]]})
+        filtered = [row for row in candidates if match(row, values)]
         groups = group_candidates(filtered, values['group_by'])
         return success_result({'total': len(groups), 'occurrence_total': len(filtered),
-            'items': [candidate_data(group[0], vocabulary) | {'occurrence_count': len(group)} for group in groups[start:start + limit]]})
+            'items': [present(group[0]) | {'occurrence_count': len(group)} for group in groups[start:start + limit]]})
 
     def patch(self, request, coll_id, factor_id=None, action=None):
         if not factor_id or action:
@@ -118,6 +122,7 @@ class FactorView(QuantView):
         class Edit(serializers.Serializer):
             data = serializers.DictField()
             expected_revision_id = serializers.CharField(max_length=40, allow_blank=True)
+            expected_curation_revision_id = serializers.CharField(max_length=40, allow_blank=True)
         serializer = Edit(data=request.data)
         serializer.is_valid(raise_exception=True)
         candidate = get_object_or_404(self.candidates(), pk=factor_id)

@@ -29,12 +29,13 @@ def validate_proposals(rows: dict, fail) -> None:
             expected = feedback_data(run['result'], for_run_rows(run, rows, fail))
         elif run['kind'] == 'analyze':
             from .initial_planning import initial_data
-            expected = initial_data(run['result'], reports[run_id])
+            expected = initial_data(run['result'], reports[run_id], rows['quant.researchreport'][reports[run_id]].get('factor_bindings'))
         else:
             expected = proposal_data(run['result'], review_evidence_from_rows(run, rows, fail))
         if identity != digest(['experiment-proposal-v1', run_id])[:40] or fields.get('data') != expected or fields.get('content_hash') != digest(expected):
             fail('AI 实验方案与研究依据不一致')
-    expected_runs = {identity for identity, run in runs.items() if eligible(run)}
+    expected_runs = {identity for identity, run in runs.items() if eligible(run) and
+        rows.get('quant.researchreport', {}).get(reports.get(identity), {}).get('publication_mode', 'legacy') in ('legacy', 'adopted')}
     if seen != expected_runs:
         fail('已完成研究解读的实验方案记录不完整')
     parents = {}

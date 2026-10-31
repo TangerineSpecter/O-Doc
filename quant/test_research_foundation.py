@@ -167,7 +167,7 @@ class ResearchMigrationTests(TransactionTestCase):
                 result={'explanation': '解释', 'assumptions': '假设', 'limitations': '限制'})
         finally:
             executor = MigrationExecutor(connection)
-            executor.migrate([('quant', '0015_airun_planning_context')])
+            executor.migrate(executor.loader.graph.leaf_nodes())
         report = ResearchReport.objects.get(run_id=run.pk)
         self.assertIn('假设', report.markdown)
         self.assertIn('限制', report.markdown)

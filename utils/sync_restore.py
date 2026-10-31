@@ -229,6 +229,8 @@ class SnapshotRestorer:
         group_id_mapping = self._reuse_local_group_ids(data_list)
         user_id_mapping = self._reuse_local_user_ids(data_list, group_id_mapping)
         self._reuse_local_user_profile_ids(data_list, user_id_mapping)
+        from quant.documents.identity import reuse_local_ids as reuse_document_ids
+        reuse_document_ids(data_list)
         self._remap_notification_users(data_list, user_id_mapping)
         remote_pk_map = defaultdict(set)
         model_map = {}

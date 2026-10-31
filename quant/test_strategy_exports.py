@@ -128,6 +128,8 @@ class NativeArchiveRestoreTests(TestCase):
         snapshot=SyncManager().build_snapshot_data()
         for row in snapshot:
             if row['model']=='quant.codeversion': row['fields'].pop('strategy_artifact_id',None)
+        from quant.testing_documents import without_documents
+        snapshot = without_documents(snapshot)
         old=metadata(snapshot); old['quant_schema_version']=42
         self.assertEqual(self.client.post(path,{},format='json').status_code,200)
         self.assertEqual(StrategyArtifact.objects.count(),1)

@@ -1,8 +1,10 @@
+import {algorithmProfile, algorithmSimilarity} from '../../utils/quantAlgorithm';
 import {HttpResponse} from 'msw';
 import type {QuantEntryDetail, QuantFactorCandidate} from '../../types/api/quant';
 import type {QuantGraph, QuantGraphEdge, QuantIndexJob, QuantIndexStatus} from '../../types/api/quantGraph';
 import type {QuantCorrelationEvidence} from '../../types/api/quantComparison';
 import {collectMockFactors} from './factors';
+import {canonicalRoots} from './factorIdentity';
 import {mockComparisonEdges} from './comparisons';
 import {appendMockGraphEvidence} from './graphEvidence';
 import {appendMockGraphResearch} from './graphResearch';
@@ -40,7 +42,7 @@ export function queueMockIndex(collection: string, entries: QuantEntryDetail[]) 
     return job;
 }
 export function resolveGraphRoute(request: Request, collection: string, entries: QuantEntryDetail[], section?: string, jobId?: string, action?: string) {
-    const items = collectMockFactors(entries);
+    let items = collectMockFactors(entries);
     const index = status(collection, items);
     if (section === 'index') {
         if (request.method === 'GET' && !jobId) return index;
@@ -62,6 +64,9 @@ export function resolveGraphRoute(request: Request, collection: string, entries:
     if (focus && !center) return fail(404, '因子不存在');
     const graph: QuantGraph = {focusId: center?.id || '', nodes: [], edges: [], index, limited: false};
     if (!center) return graph;
+    const aliases = canonicalRoots(items), ids = new Set(aliases.values());
+    ids.delete(aliases.get(center.id)!); ids.add(center.id);
+    items = items.filter(row => ids.has(row.id));
     const selected = [center];
     for (const item of items.filter(item => item.id !== center.id)) {
         const same = item.fingerprints.expression && item.fingerprints.expression === center.fingerprints.expression;
@@ -112,10 +117,15 @@ export function resolveGraphRoute(request: Request, collection: string, entries:
                 label: item.data.formulaVersion ? '公式修订' : '实验衍生', historical: false, similarity: null, detail: '本地演示谱系；未计算真实行情，也不证明组合优于父代'});
         }
     }
+    const matches = items.filter(item => item.id !== center.id).map(item => ({item, match: algorithmSimilarity({...center.data, family: center.curation.family}, {...item.data, family: item.curation.family})})).filter(row => row.match && row.match.score >= .35).sort((a,b) => b.match!.score - a.match!.score).slice(0,8);
+    for (const {item, match} of matches) {
+        if (!selected.some(row => row.id === item.id)) selected.push(item);
+        graph.edges.push({id: `attributes:${item.id}`, from: `factor:${center.id}`, to: `factor:${item.id}`, kind: 'attribute_similar', label: '算法属性相似', similarity: match!.score, historical: false, attributes: match!, detail: '机制30%、计算结构25%、输入20%、输出15%、参数10%；纯local属性展示样例，未计算行情。'});
+    }
     const nodes = new Map<string, QuantGraph['nodes'][number]>(), edges = new Map<string, QuantGraphEdge>();
     for (const item of selected) {
         for (const [kind, id, label] of [['factor', item.id, item.curation.name], ['report', item.reportId, item.entryTitle], ['source', item.sourceId, '来源材料']] as const) {
-            nodes.set(`${kind}:${id}`, {id: `${kind}:${id}`, kind, label, entryId: item.entryId, reportId: item.reportId});
+            nodes.set(`${kind}:${id}`, {id: `${kind}:${id}`, kind, label, entryId: item.entryId, reportId: item.reportId, ...(kind === 'factor' ? {originalName: item.data.name, algorithmProfile: algorithmProfile({...item.data, family: item.curation.family})} : {})});
         }
         for (const [id, from, to, kind, label] of [[`report:${item.id}`, `report:${item.reportId}`, `factor:${item.id}`, item.data.derivation || item.data.formulaVersion ? 'origin_context' : 'extracted_from', item.data.derivation || item.data.formulaVersion ? '祖先来源' : '提取'], [`source:${item.reportId}`, `source:${item.sourceId}`, `report:${item.reportId}`, 'analyzed_from', '分析']] as const) {
             edges.set(id, {id, from, to, kind, label, historical: false, similarity: null, detail: '报告绑定的不可变来源快照'});
@@ -133,5 +143,8 @@ export function resolveGraphRoute(request: Request, collection: string, entries:
     graph.nodes = [...nodes.values()]; graph.edges.push(...edges.values());
     appendMockGraphEvidence(graph,center,collection,entries);
     appendMockGraphResearch(graph,center,collection,entries,items);
+    graph.edges = graph.edges.filter(edge => !['semantic_similar', 'scenario_hypothesis', 'complement_hypothesis', 'reported_support', 'reported_counterexample'].includes(edge.kind));
+    const connected = new Set(graph.edges.flatMap(edge => [edge.from, edge.to]));
+    graph.nodes = graph.nodes.filter(node => connected.has(node.id));
     return graph;
 }

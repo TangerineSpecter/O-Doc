@@ -209,13 +209,17 @@ export interface QuantAnalysis {
     rubricVersion: string;
 }
 export interface QuantReport {
+    documentRevision?: number;
+    sectionReportIds?: Partial<Record<import('./quantDocument').ResearchSection,string>>;
+    publicationMode?: 'legacy'|'pending'|'adopted';
+    factorNames?: Record<string, string>;
     researchMemoryJson?: string | null;
     proposal?: QuantExperimentProposal | null;
     id: string;
     sourceId: string;
     runId: string;
     schemaVersion: number;
-    data: Partial<Pick<QuantAnalysis, 'parameters' | 'parameterBindingVersion' | 'parameterInventoryJson' | 'sourceChangeReviewVersion' | 'sourceChangeFactsJson' | 'sourceChangeAssessment' | 'sourceFindingsVersion' | 'sourceFindings' | 'sourceFindingsNote' | 'sourceMemoryVersion' | 'initialPlanningVersion' | 'initialPlanningNote' | 'factorRepair' | 'title' | 'summary' | 'scores' | 'totalScore' | 'extractionVersion' | 'extractionNote' | 'factors' | 'evidenceStatus' | 'rubricVersion'>> & Partial<Pick<import('./quantFeedback').QuantFeedbackAnalysis, 'nativeReview' | 'nativeReviewVersion' | 'computedNativeJson' | 'reportedParameters'>> & Partial<Pick<QuantExperimentAnalysis, 'parameterAssessment'>> & {executionAssessment?: import('./quantPlatformEvidence').QuantExecutionAssessment; computedExecutionJson?: string; memoryNote?: string; memoryAssessment?: import('./quantResearchMemory').QuantMemoryAssessment[]; parameterConfiguration?: import('./quantParameters').QuantParameterConfiguration; parameterComparison?: import('./quantParameters').QuantParameterComparison; format?: string; planningNote?: string; feedbackPlanningVersion?: number; feedbackPlanningNote?: string};
+    data: Partial<Pick<QuantAnalysis, 'kind' | 'principle' | 'formula' | 'usage' | 'assumptions' | 'validationPlan' | 'parameters' | 'parameterBindingVersion' | 'parameterInventoryJson' | 'sourceChangeReviewVersion' | 'sourceChangeFactsJson' | 'sourceChangeAssessment' | 'sourceFindingsVersion' | 'sourceFindings' | 'sourceFindingsNote' | 'sourceMemoryVersion' | 'initialPlanningVersion' | 'initialPlanningNote' | 'factorRepair' | 'title' | 'summary' | 'scores' | 'totalScore' | 'extractionVersion' | 'extractionNote' | 'factors' | 'evidenceStatus' | 'rubricVersion'>> & Partial<Pick<import('./quantFeedback').QuantFeedbackAnalysis, 'nativeReview' | 'nativeReviewVersion' | 'computedNativeJson' | 'reportedParameters'>> & Partial<Pick<QuantExperimentAnalysis, 'parameterAssessment'>> & {executionAssessment?: import('./quantPlatformEvidence').QuantExecutionAssessment; computedExecutionJson?: string; memoryNote?: string; memoryAssessment?: import('./quantResearchMemory').QuantMemoryAssessment[]; parameterConfiguration?: import('./quantParameters').QuantParameterConfiguration; parameterComparison?: import('./quantParameters').QuantParameterComparison; format?: string; planningNote?: string; feedbackPlanningVersion?: number; feedbackPlanningNote?: string};
     originalMarkdown: string;
     markdown: string;
     currentRevisionId: string;
@@ -256,6 +260,7 @@ export interface QuantFactorData {
     derivation?: {transformation?: import('./quantExperiment').QuantFormulaTransform; localDemo?: boolean; version: string; requestId: string; checkpointId: string; attemptId: string; parentCandidateIds: string[]; parentAttemptIds: string[]; operation: string; engineVersion: string; datasetHash: string; selectionRule: string};
 }
 export interface QuantFactorCandidate {
+    algorithmProfile?: import('./quantAlgorithm').AlgorithmProfile | null;
     admission?: import('./quantAdmission').AdmissionSummary;
     verification?: import('./quantVerification').QuantVerificationSummary;
     classification?: import('./quantVocabulary').FactorClassification;
@@ -276,6 +281,8 @@ export interface QuantFactorCandidate {
     fingerprints: {raw: string; expression: string};
     occurrenceCount: number;
     currentRevisionId: string;
+    curationRevisionId: string;
+    curationInherited: boolean;
     curation: QuantFactorCuration;
     revisions: {id: string; parentId: string; data: QuantFactorCuration; createdAt: string}[];
 }

@@ -51,6 +51,11 @@ def build_candidate(request_id, checkpoint_id, plan, snapshot, attempts, attempt
     # Merge inputs with the same explicit column. Keep parameters namespaced,
     # including each branch's actual values, so later variants remain possible.
     def rename(node):
+        if node['op'] == 'program':
+            from quant.algorithms.renaming import rename_program
+            renamed = rename_program(node, value['bindings'])
+            node.clear(); node.update(renamed)
+            return
         if node['op'] == 'input':
             node['name'] = value['bindings'][node['name']]
         for child in node.get('args', []):

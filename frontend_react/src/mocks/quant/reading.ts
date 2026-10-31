@@ -3,11 +3,15 @@ import type {QuantEntryDetail,QuantReport,QuantSource} from '../../types/api/qua
 import type {QuantEntryOverview,QuantReportReading,QuantSourceHeader,QuantRunSummary} from '../../types/api/quantReading';
 import {defaultResearchReport,researchReportScore} from '../../utils/quantReportScore';
 import {HttpResponse} from 'msw';
+import {quantState} from './state';
+import {collectMockFactors} from './factors';
+const adoptedReport=(entry:QuantEntryDetail,section:'reading'|'review')=>entry.reports?.find(row=>row.id===quantState().documents?.[entry.id]?.sections[section]?.reportId);
+const adoptedScore=(entry:QuantEntryDetail)=>quantState().documents?.[entry.id]?adoptedReport(entry,'review')?.data.totalScore??null:researchReportScore(entry.reports);
 const fail=(status:number,msg:string)=>HttpResponse.json({code:status,msg,data:null},{status});
 const ordered=<T extends {createdAt:string;id:string}>(rows:T[])=>[...rows].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id));
 export function mockOverview(entry:QuantEntryDetail):QuantEntryOverview {
     const {content,implementations,backtests,attachments,runs,reports=[],sources=[],...base}=entry;
-    return {...base,hasNotes:!!content,currentSourceId:sources.find(row=>row.payload.provenance!=='external_feedback')?.id||null,defaultReportId:defaultResearchReport(reports)?.id||null,
+    return {...base,researchScore:adoptedScore(entry),hasNotes:!!content,currentSourceId:sources.find(row=>row.payload.provenance!=='external_feedback')?.id||null,defaultReportId:(adoptedReport(entry,'reading')||defaultResearchReport(reports))?.id||null,
         activeRunIds:runs.filter(row=>['pending','running'].includes(row.status)).map(row=>row.id),
         counts:{reports:reports.length,sources:sources.length,implementations:implementations.length,
             backtests:backtests.length,attachments:attachments.length,runs:runs.length,
@@ -31,7 +35,7 @@ export function mockDirectory(entries:QuantEntryDetail[],params:URLSearchParams)
     const kindCounts:Record<string,number>={factor:0,indicator:0,strategy:0};for(const row of rows)kindCounts[row.kind]++;
     const filtered=rows.filter(row=>!kind||row.kind===kind).sort(params.get('sort')==='title'?(a,b)=>a.title<b.title?-1:a.title>b.title?1:a.id.localeCompare(b.id):(a,b)=>b.updatedAt.localeCompare(a.updatedAt)||b.id.localeCompare(a.id));
     const page=mockPage(filtered,params,row=>({id:row.id,title:row.title,kind:row.kind,createdAt:row.createdAt,updatedAt:row.updatedAt,
-        preview:row.content.slice(0,640).replace(/[#>*`~_-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,160),researchScore:researchReportScore(row.reports)}),50);
+        preview:row.content.slice(0,640).replace(/[#>*`~_-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,160),researchScore:adoptedScore(row)}),50);
     return page instanceof Response?page:{...page,kindCounts};
 }
 function mockPage<T,R=T>(rows:T[],params:URLSearchParams,project:(row:T)=>R=(row=>row as unknown as R),defaultLimit=20) {
@@ -52,7 +56,10 @@ export function resolveReading(request:Request,entry:QuantEntryDetail,path:strin
             if(childId){const row=report.revisions.find(row=>row.id===childId);return row||fail(404,'修订不存在');}
             return mockPage(ordered(report.revisions),url.searchParams,row=>({id:row.id,parentId:'',createdAt:row.createdAt,contentHash:`local-reading-${row.id}`}));
         }
-        return mockReportBody(report);
+        const candidates = collectMockFactors([entry]);
+        const factorNames = Object.fromEntries((report.data.factors || []).map((factor,index) => [String(index),
+            candidates.find(row => row.id === `candidate-${report.id}-${index}`)?.curation.name || factor.name]));
+        return {...mockReportBody(report), factorNames};
     }
     if(section==='sources'){
         const rows=ordered(entry.sources||[]).filter(row=>!url.searchParams.get('provenance')||row.payload.provenance===url.searchParams.get('provenance'));
@@ -84,7 +91,7 @@ export function resolveReading(request:Request,entry:QuantEntryDetail,path:strin
 }
 export function mockStatus(entry:QuantEntryDetail) {
     return {changeMarker:JSON.stringify([entry.updatedAt,entry.reports?.map(row=>[row.id,row.currentRevisionId]),entry.sources?.map(row=>row.id),entry.runs.map(row=>[row.id,row.status])]),
-        activeRuns:entry.runs.filter(row=>['pending','running'].includes(row.status)).map(row=>mockRunSummary(row,false)),defaultReportId:defaultResearchReport(entry.reports)?.id||null};
+        activeRuns:entry.runs.filter(row=>['pending','running'].includes(row.status)).map(row=>mockRunSummary(row,false)),defaultReportId:(adoptedReport(entry,'reading')||defaultResearchReport(entry.reports))?.id||null};
 }
 
 export function mockImplementationReceipt(row:QuantEntryDetail['implementations'][number]) {

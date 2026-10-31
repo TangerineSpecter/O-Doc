@@ -89,7 +89,7 @@ class GraphResearchIntegrationTests(TestCase):
         self.assertEqual((Job.objects.count(), FactorRelation.objects.count()), (jobs, relations))
         hypotheses = [row for row in graph['edges'] if row['kind'] == 'complement_hypothesis']
         observations = [row for row in graph['edges'] if row['kind'].startswith('combination_')]
-        self.assertEqual(len(hypotheses), 1); self.assertTrue(observations)
+        self.assertEqual(hypotheses, []); self.assertTrue(observations)
         payload = json.loads(observations[0]['researchJson'])
         self.assertEqual(payload['candidate_hash'], digest(b.data))
         self.assertFalse(payload['rule']['uses_holdout']); self.assertFalse(payload['rule']['registered_before_experiment'])
@@ -100,8 +100,7 @@ class GraphResearchIntegrationTests(TestCase):
         self.assertTrue(payload['ai_interpretation'])
         from pathlib import Path
         Path('/private/tmp/odoc-graph-research-wire.json').write_text(json.dumps(graph))
-        scenario = json.loads(next(row for row in graph['edges'] if row['kind'] == 'scenario_hypothesis')['researchJson'])
-        self.assertEqual(scenario['scope'], 'source_level_context_not_component_applicability')
+        self.assertFalse(any(row['kind'] == 'scenario_hypothesis' for row in graph['edges']))
         derived = FactorCandidate.objects.filter(derived_checkpoint_id__in=request.checkpoints.values('id')).first()
         self.assertIsNotNone(derived)
         self.assertFalse(any(row['kind'] == 'scenario_hypothesis' for row in self.graph(derived)['edges']))
@@ -127,7 +126,9 @@ class GraphResearchIntegrationTests(TestCase):
         run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)
         graph = self.graph(candidate)
         selected = [row for row in graph['edges'] if row['kind'].startswith('reported_')]
-        self.assertEqual({row['kind'] for row in selected}, {'reported_support', 'reported_counterexample'})
+        self.assertEqual(selected, [])
+        self.assertEqual(run.result['supporting_evidence'], answer['supporting_evidence'])
+        self.assertEqual(run.result['counter_evidence'], answer['counter_evidence'])
         for edge in selected:
             payload = json.loads(edge['researchJson'])
             self.assertFalse(payload['platform_authenticated']); self.assertFalse(payload['independent_evidence'])

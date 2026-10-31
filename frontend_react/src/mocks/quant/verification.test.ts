@@ -108,3 +108,15 @@ test('旧样例显式归集保持幂等、筛选可复用层；错误与空数�
     Object.defineProperty(globalThis, 'location', {value: new URL('http://localhost/?mockState=empty'), configurable: true});
     assert.equal((await invoke<Response>(path)).status, 404);
 });
+
+test('内部状态样例的列表、详情与结构检查保持缺失语义，不伪造计算记录', async () => {
+    const {entry, candidate} = await seed('LOCAL_INTERNAL_STATE_FACTORS');
+    const list = await invoke<{items: QuantFactorCandidate[]}>(base + `factors/?entryId=${entry.id}&groupBy=none`);
+    assert.equal(list.items.length, 3);
+    const original = list.items.find(row => row.data.name === 'major_unusual_move_signal') || candidate;
+    const proof = await invoke<QuantVerification>(base + `factors/${original.id}/verification/`);
+    assert.equal(proof.automaticExperimentReady, false);
+    assert.equal(proof.total, 0);
+    assert.deepEqual(readQualification(proof.qualificationJson).inputs_requiring_mapping, ['isAnomaly', 'testStatistic']);
+    assert.deepEqual(proof.levels, []);
+});

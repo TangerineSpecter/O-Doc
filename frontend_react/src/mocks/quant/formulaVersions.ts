@@ -1,3 +1,4 @@
+import {readAlgorithmProgram} from '../../utils/quantAlgorithm';
 import {mockRepairDetail} from './repairs';
 /** Typed local artifacts and reversible working heads; no model/market claims. */
 import {HttpResponse} from 'msw';
@@ -15,9 +16,18 @@ function canonical(value: unknown, depth = 0): string {
     return JSON.stringify(value);
 }
 export const rootId = (candidate: QuantFactorCandidate) => quantState().formulaRoots[candidate.id] || candidate.data.formulaVersion?.rootId || candidate.id;
+function expressionFormat(value: unknown, storage: boolean): unknown {
+    if (!object(value)) return value;
+    const program = readAlgorithmProgram(value);
+    if (program) {
+        const {outputType, ...rest} = program;
+        return storage ? {...rest, output_type: outputType} : program;
+    }
+    return {...value, ...(Array.isArray(value.args) ? {args: value.args.map(child => expressionFormat(child, storage))} : {})};
+}
 function encode(candidate: QuantFactorCandidate): string {
     const {evidence: _evidence, derivation: _derivation, formulaVersion: _version, outputType, inputs, parameters, ...rest} = candidate.data;
-    return JSON.stringify({...rest, output_type: outputType, inputs: inputs.map(({missingPolicy, ...row}) => ({...row, missing_policy: missingPolicy})),
+    return JSON.stringify({...rest, expression: expressionFormat(rest.expression, true), output_type: outputType, inputs: inputs.map(({missingPolicy, ...row}) => ({...row, missing_policy: missingPolicy})),
         parameters: parameters.map(({defaultValue, domain, ...row}) => ({...row, default_value: defaultValue,
             ...(domain ? {domain: Object.fromEntries(Object.entries(domain).map(([key, value]) => [key === 'stepOrigin' ? 'step_origin' : key, value]))} : {})}))}, null, 2);
 }
@@ -39,6 +49,7 @@ function decode(json: string): QuantFactorData {
     let count = 0;
     const visit = (node: unknown, depth: number) => {
         if (++count > 128 || depth > 12 || !object(node) || typeof node.op !== 'string') throw new Error('表达式过深、过大或无效');
+        if (node.op === 'program') {readAlgorithmProgram(node); return;}
         if (node.op === 'input' && inputs.some(row => row.name === node.name)) return;
         if (node.op === 'parameter' && parameters.some(row => row.name === node.name)) return;
         if (node.op === 'constant' && (typeof node.value === 'string' || typeof node.value === 'number' && Number.isFinite(node.value))) return;
@@ -48,7 +59,7 @@ function decode(json: string): QuantFactorData {
     };
     if (value.expression !== null) visit(value.expression, 0);
     const {output_type, inputs: _inputs, parameters: _parameters, ...rest} = value;
-    return {...rest, outputType: output_type, inputs, parameters, evidence: []} as unknown as QuantFactorData;
+    return {...rest, expression: expressionFormat(rest.expression, false), outputType: output_type, inputs, parameters, evidence: []} as unknown as QuantFactorData;
 }
 function history(target: QuantFactorCandidate, items: QuantFactorCandidate[], offset: number): QuantFormulaHistory {
     const state = quantState(), root = rootId(target), members = items.filter(row => rootId(row) === root);

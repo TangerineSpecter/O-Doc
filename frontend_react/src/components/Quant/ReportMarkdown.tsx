@@ -53,15 +53,17 @@ export const ReportMarkdown = memo(function ReportMarkdown({
     stripTitle,
     stripSummary,
     headingScope,
+    preserveOriginal = false,
 }: {
     text: string;
     stripTitle?: string;
     stripSummary?: string;
     headingScope?: string;
+    preserveOriginal?: boolean;
 }) {
     const instanceScope = useId();
     const scope = headingScope ?? instanceScope;
-    const cleaned = deduplicateMarkdown(text, stripTitle, stripSummary);
+    const cleaned = preserveOriginal ? text : deduplicateMarkdown(text, stripTitle, stripSummary);
     return (
         <div className="prose prose-slate max-w-none overflow-x-auto text-sm leading-7 prose-headings:font-bold prose-headings:tracking-tight prose-h1:text-lg prose-h2:text-base prose-h3:text-sm prose-p:my-2.5 prose-p:leading-7 prose-a:font-medium prose-a:text-orange-600 prose-li:my-1 prose-strong:text-slate-900 scrollbar-hide">
             <ReactMarkdown

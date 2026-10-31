@@ -10,6 +10,10 @@ def summary(run) -> dict | None:
               'outcome__id', 'outcome__data__status', 'outcome__data__reused_from', 'outcome__data__error',
               'outcome__data__elapsed_ms', 'outcome__data__usage')
     rows = {row['stage']: row for row in run.workflow_steps.values(*fields)}
+    # Project just the two auxiliary outputs, never the large extraction bodies.
+    from .optional_analysis import incomplete_reason
+    incomplete = {row['stage']: incomplete_reason(row['stage'], row['outcome__data__output'] or {})
+        for row in run.workflow_steps.filter(stage__in=('review', 'plan')).values('stage', 'outcome__data__output')}
     stages = []
     for stage in stage_order(run.workflow_version):
         step = rows.get(stage)
@@ -17,10 +21,12 @@ def summary(run) -> dict | None:
         value = lambda key, default=None: step.get('outcome__data__' + key, default) if step else default
         state = ('reused' if value('reused_from') else value('status')) if has_outcome else (
             'running' if run.status == 'running' else 'interrupted') if step else 'waiting'
+        if incomplete.get(stage):
+            state = 'partial'
         stages.append({'stage': stage, 'name': NAMES[stage], 'status': state,
             'step_id': step['id'] if step else '', 'input_hash': step['content_hash'] if step else '',
             'outcome_id': step['outcome__id'] if has_outcome else '', 'reused_from': value('reused_from') or '',
-            'error': value('error') or '', 'elapsed_ms': value('elapsed_ms'),
+            'error': incomplete.get(stage) or value('error') or '', 'elapsed_ms': value('elapsed_ms'),
             'usage': value('usage'), 'model_name': step['input__model__model_name'] or '' if step else ''})
     max_calls, max_seconds = budget(run.workflow_version)
     local_reading = None

@@ -40,7 +40,7 @@ class GraphTests(TestCase):
         data = self.client.get(url, {'candidateId': first.pk}).json()['data']
         self.assertEqual(data['focusId'], first.pk)
         self.assertFalse(data['index']['configured'])
-        self.assertEqual({row['kind'] for row in data['edges']}, {'analyzed_from', 'extracted_from', 'same_expression'})
+        self.assertEqual({row['kind'] for row in data['edges']}, {'analyzed_from', 'extracted_from', 'same_expression', 'attribute_similar'})
         self.assertEqual(self.client.post(url + 'index/').status_code, 400)
         self.assertFalse(FactorIndexJob.objects.exists())
         self.client.force_authenticate(get_user_model().objects.create_user('graph-stranger'))
@@ -59,7 +59,8 @@ class GraphTests(TestCase):
         self.assertIsNone(queue_index(self.collection))
         self.assertEqual(FactorRelation.objects.count(), 1)
         graph = self.client.get(f'/api/quant/{self.collection.pk}/graph/', {'candidateId': first.pk}).json()['data']
-        self.assertFalse(next(edge for edge in graph['edges'] if edge['kind'] == 'semantic_similar')['historical'])
+        self.assertTrue(any(edge['kind'] == 'attribute_similar' for edge in graph['edges']))
+        self.assertFalse(any(edge['kind'] == 'semantic_similar' for edge in graph['edges']))
         snapshot = SyncManager().build_snapshot_data()
         self.assertFalse(any(row['model'] in ('quant.factorvector', 'quant.factorindexjob') for row in snapshot))
         validate(snapshot, metadata(snapshot))
@@ -109,13 +110,14 @@ class GraphTests(TestCase):
         self.run_job(queue_index(self.collection))
         old = projection(first)[1]
         changed = {'name': '新的说明', 'family': 'momentum', 'tags': ['窗口'], 'aliases': [], 'note': '重新解释用途'}
-        result = self.client.patch(f'/api/quant/{self.collection.pk}/factors/{first.pk}/', {'data': changed, 'expectedRevisionId': ''}, format='json')
+        result = self.client.patch(f'/api/quant/{self.collection.pk}/factors/{first.pk}/', {'data': changed, 'expectedRevisionId': '', 'expectedCurationRevisionId': ''}, format='json')
         self.assertEqual(result.status_code, 200)
         first.refresh_from_db()
         self.assertNotEqual(projection(first)[1], old)
         self.assertEqual(index_status(self.collection)['missing'], 1)
         graph = self.client.get(f'/api/quant/{self.collection.pk}/graph/', {'candidateId': first.pk}).json()['data']
-        self.assertTrue(next(edge for edge in graph['edges'] if edge['kind'] == 'semantic_similar')['historical'])
+        self.assertFalse(any(edge['kind'] == 'semantic_similar' for edge in graph['edges']))
+        self.assertTrue(any(edge['kind'] == 'attribute_similar' for edge in graph['edges']))
         auto_index(first.report_id)
         self.assertEqual(FactorIndexJob.objects.filter(status='pending').count(), 1)
         self.run_job(FactorIndexJob.objects.get(status='pending'))
@@ -152,7 +154,7 @@ class GraphTests(TestCase):
         job = queue_index(self.collection)
         def response(*args, **kwargs):
             changed = {'name': '新投影', 'family': 'trend', 'tags': [], 'aliases': [], 'note': ''}
-            saved = self.client.patch(f'/api/quant/{self.collection.pk}/factors/{candidate.pk}/', {'data': changed, 'expected_revision_id': ''}, format='json')
+            saved = self.client.patch(f'/api/quant/{self.collection.pk}/factors/{candidate.pk}/', {'data': changed, 'expected_revision_id': '', 'expected_curation_revision_id': ''}, format='json')
             self.assertEqual(saved.status_code, 200)
             return [[1., .1]]
         with patch('quant.graph.worker.embed_texts', side_effect=response):

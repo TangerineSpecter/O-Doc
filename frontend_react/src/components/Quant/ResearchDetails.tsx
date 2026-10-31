@@ -37,7 +37,7 @@ export function ResearchDetails({entry, report, source, collection, register, re
     const [memoryFailure, setMemoryFailure] = useState<{runId: string; message: string} | null>(null);
     const [memoryRetry, setMemoryRetry] = useState(0);
     const memoryVisible = inspectorTab === 'all' || inspectorTab === 'source';
-    const memoryRunId = !report?.researchMemoryJson ? report?.runId : undefined;
+    const memoryRunId = !report?.documentRevision && !report?.researchMemoryJson ? report?.runId : undefined;
     const memoryError = memoryFailure && memoryFailure.runId === memoryRunId ? memoryFailure.message : '';
     const memoryBody = entry.runBodies.find(run => run.id === memoryRunId);
     const ensureRunBody = controller.ensureRunBody;
@@ -210,7 +210,7 @@ export function ResearchDetails({entry, report, source, collection, register, re
                 <ResearchMemory
                     json={
                         report.researchMemoryJson ||
-                        entry.runBodies.find((run) => run.id === report.runId)?.researchMemoryJson
+                        (!report.documentRevision ? entry.runBodies.find((run) => run.id === report.runId)?.researchMemoryJson : undefined)
                     }
                     note={report.data.memoryNote}
                     assessments={report.data.memoryAssessment}

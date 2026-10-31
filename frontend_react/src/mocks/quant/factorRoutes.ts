@@ -6,12 +6,13 @@ import {HttpResponse} from 'msw';
 import {mockFactorExport} from './exports';
 import type {QuantEntryDetail, QuantFactorCandidate, QuantFactorCuration, QuantFactorGrouping} from '../../types/api/quant';
 import {collectMockFactors} from './factors';
+import {canonicalRoots} from './factorIdentity';
 import {mockMergedGroup} from './comparisons';
 import {resolveFormulaVersionRoute, rootId} from './formulaVersions';
 import {persistQuantState, quantId, quantState} from './state';
 const fail = (status: number, msg: string) => HttpResponse.json({code: status, msg, data: null}, {status});
 const families = ['', 'momentum', 'trend', 'volatility', 'mean_reversion', 'volume', 'price_structure', 'fundamental', 'other'];
-const groupKey = (item: QuantFactorCandidate, mode: QuantFactorGrouping, collection: string, items: QuantFactorCandidate[]) => mode === 'none' ? item.id : mode === 'lineage' ? rootId(item) : mode === 'merged' ? mockMergedGroup(collection, item.id, items)?.id || item.id : item.fingerprints[mode] || item.id;
+const groupKey = (item: QuantFactorCandidate, mode: QuantFactorGrouping, collection: string, items: QuantFactorCandidate[]) => mode === 'none' ? item.id : mode === 'lineage' ? canonicalRoots(items).get(rootId(item)) || rootId(item) : mode === 'merged' ? mockMergedGroup(collection, item.id, items)?.id || item.id : item.fingerprints[mode] || item.id;
 const normalize = (values: string[]) => [...new Map(values.map(item => item.normalize('NFKC').trim()).filter(Boolean).map(item => [item.toLowerCase(), item])).values()];
 export async function resolveFactorRoute(request: Request, entries: QuantEntryDetail[], id?: string, action?: string, detailAction?: string) {
     let items = collectMockFactors(entries).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
@@ -24,11 +25,15 @@ export async function resolveFactorRoute(request: Request, entries: QuantEntryDe
     if (target && action === 'verification') return resolveVerificationRoute(request, target, collection);
     if (target && action === 'formula-versions') return resolveFormulaVersionRoute(request, target, items, detailAction);
     if (request.method === 'PATCH' && target && !action) {
-        const body = await request.json() as {data?: QuantFactorCuration; expectedRevisionId?: string};
+        const body = await request.json() as {data?: QuantFactorCuration; expectedRevisionId?: string; expectedCurationRevisionId?: string};
         const data = body.data;
+        if (typeof body.expectedRevisionId !== 'string' || typeof body.expectedCurationRevisionId !== 'string') return fail(400, '请提供本记录和当前整理的预期修订');
         if (!data || typeof data.name !== 'string' || !data.name.trim() || data.name.trim().length > 200 || !families.slice(1).includes(data.family) || typeof data.note !== 'string' || data.note.length > 10000 || !Array.isArray(data.tags) || data.tags.length > 30 || data.tags.some(tag => typeof tag !== 'string' || !tag.trim() || tag.normalize('NFKC').trim().length > 50) || !Array.isArray(data.aliases) || data.aliases.length > 30 || data.aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.normalize('NFKC').trim().length > 100)) return fail(400, '候选整理字段无效');
         if (body.expectedRevisionId !== target.currentRevisionId) return fail(409, '因子已有新修订，请刷新后合并修改');
-        const revision = {id: quantId('factor-revision'), parentId: target.currentRevisionId, data: {name: data.name.trim(), family: data.family, tags: normalize(data.tags), aliases: normalize(data.aliases), note: data.note}, createdAt: new Date().toISOString()};
+        if (body.expectedCurationRevisionId !== target.curationRevisionId) return fail(409, '同一算法的整理已有新修订，请刷新后合并修改');
+        const previous = allItems.flatMap(row => row.revisions).find(row => row.id === target.curationRevisionId);
+        const createdAt = new Date(Math.max(Date.now(), previous ? Date.parse(previous.createdAt) + 1 : 0)).toISOString();
+        const revision = {id: quantId('factor-revision'), parentId: target.currentRevisionId, data: {name: data.name.trim(), family: data.family, tags: normalize(data.tags), aliases: normalize(data.aliases), note: data.note}, createdAt};
         (quantState().factorRevisions[target.id] ||= []).push(revision); persistQuantState();
         return collectMockFactors(entries).find(row => row.id === target.id);
     }
@@ -51,15 +56,16 @@ export async function resolveFactorRoute(request: Request, entries: QuantEntryDe
     }
     const matches = (row: QuantFactorCandidate, withTerm = true,withAdmission=true) => (!withAdmission||!admissionStage||row.admission?.stage===admissionStage)&& (!role || row.data.role === role) && (!family || row.curation.family === family) && (!sourceEntry || row.entryId === sourceEntry) && (!taxonomyTerm || row.classification?.terms.some(term => term.id === taxonomyTerm)) && (!reuseStatus || row.verification?.reuseStatus === reuseStatus) && (!withTerm || !q || `${row.data.name} ${row.data.summary} ${row.data.formula} ${row.data.expression ? JSON.stringify(row.data.expression) : ''} ${row.curation.name} ${row.curation.note} ${row.curation.tags.join(' ')} ${row.curation.aliases.join(' ')} ${row.entryTitle} ${mockClassificationLabels(row).join(' ')}`.toLowerCase().includes(q));
     if (mode === 'lineage') {
+        const aliases = canonicalRoots(allItems);
         const groups = new Map<string, QuantFactorCandidate[]>();
-        for (const row of allItems) {const key = rootId(row); groups.set(key, [...(groups.get(key) || []), row]);}
+        for (const row of allItems) {const key = aliases.get(rootId(row)) || rootId(row); groups.set(key, [...(groups.get(key) || []), row]);}
         const state = quantState();
         const selected = [...groups.entries()].filter(([, members]) => members.some(row => matches(row,true,false))).map(([root, members]) => {
             const pointer = state.formulaHeads[root] || '';
             const current = state.formulaSelections.find(row => row.id === pointer)?.candidateId || root;
             const head = members.find(row => row.id === current) || members.find(row => row.id === root) || members[0];
             return {...head, occurrenceCount: members.length, formulaLineage: {id: 'lineage:' + root, rootCandidateId: root, currentCandidateId: current,
-                currentSelectionId: pointer, currentAvailable: members.some(row => row.id === current), versionsTotal: members.length}};
+                currentSelectionId: pointer, currentAvailable: members.some(row => row.id === current), versionsTotal: new Set(members.map(row => aliases.get(row.id) || row.id)).size}};
         }).filter(row=>!admissionStage||row.admission?.stage===admissionStage);
         return {total: selected.length, occurrenceTotal: selected.reduce((sum, row) => sum + row.occurrenceCount, 0), items: selected.slice(offset, offset + limit)};
     }

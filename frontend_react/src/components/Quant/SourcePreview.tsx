@@ -5,6 +5,7 @@ import type { QuantSource } from '../../types/api/quant';
 import { quantDate } from '../../utils/quant';
 import { CodeEditor } from './CodeEditor';
 import { SourceBundlePreview } from './sources/SourceBundlePreview';
+import { ReportMarkdown } from './ReportMarkdown';
 
 export function SourcePreview({ source }: { source: QuantSource }) {
     const data = source.payload;
@@ -61,9 +62,7 @@ export function SourcePreview({ source }: { source: QuantSource }) {
                             <FileText size={13} className="text-orange-500" />
                             提交的说明
                         </h3>
-                        <p className="whitespace-pre-wrap break-words text-xs leading-6 text-slate-700 sm:text-sm">
-                            {data.description}
-                        </p>
+                        <ReportMarkdown text={data.description} preserveOriginal />
                     </div>
                 )}
                 {data.bundleVersion === 1 ? (

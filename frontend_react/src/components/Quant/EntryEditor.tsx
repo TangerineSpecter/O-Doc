@@ -8,6 +8,8 @@ import { quantKindOptions as kindOptions, quantTags } from '../../utils/quant';
 import { useQuantDraftRegistration, type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
 import type { QuantEntry, QuantEntryInput } from '../../types/api/quant';
+import {useQuantVocabulary} from '../../hooks/useQuantVocabulary';
+import {tagLabels, tagTextForDisplay, tagTextForStorage} from '../../utils/quantTagLabels';
 
 const QUICK_SNIPPETS = [
     { label: '章节标题', icon: Heading2, snippet: '\n## 核心逻辑与假设\n' },
@@ -46,6 +48,9 @@ export function EntryEditor({
             : initial.content,
     }));
     const [tagsText, setTagsText] = useState(entry.tags.join('，'));
+    const vocabulary = useQuantVocabulary(collection);
+    const terms = vocabulary.data?.catalog.terms || [];
+    const names = tagLabels(terms);
     const [baseline, setBaseline] = useState(JSON.stringify(initial));
     const [viewMode, setViewMode] = useState<'edit' | 'split' | 'preview'>('edit');
     const parsedTags = quantTags(tagsText);
@@ -131,18 +136,20 @@ export function EntryEditor({
                     <div className="space-y-2">
                         <QuantField
                             label="标签"
-                            value={tagsText}
-                            onChange={setTagsText}
-                            placeholder="趋势，动量，待研究（逗号分隔）"
+                            value={vocabulary.loading ? '' : tagTextForDisplay(tagsText, terms)}
+                            onChange={value => setTagsText(tagTextForStorage(value, terms, parsedTags))}
+                            disabled={vocabulary.loading}
+                            placeholder={vocabulary.loading ? '正在加载标签名称…' : '趋势，波动率，卡尔曼滤波（逗号分隔）'}
                         />
-                        {parsedTags.length > 0 && (
+                        {vocabulary.error && <p role="alert" className="text-xs text-red-600">{vocabulary.error} <button type="button" onClick={vocabulary.reload} className="underline">重试</button></p>}
+                        {!vocabulary.loading && parsedTags.length > 0 && (
                             <div className="flex flex-wrap gap-1.5">
                                 {parsedTags.map((tag) => (
                                     <span
                                         key={tag}
                                         className="rounded-md border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600"
                                     >
-                                        #{tag}
+                                        #{names.get(tag) || tag}
                                     </span>
                                 ))}
                             </div>

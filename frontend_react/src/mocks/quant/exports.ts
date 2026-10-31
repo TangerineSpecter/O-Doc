@@ -1,3 +1,4 @@
+import {readAlgorithmProgram, algorithmCode, readPythonAlgorithm, containsAlgorithmProgram} from '../../utils/quantAlgorithm';
 import type {QuantFactorCandidate} from '../../types/api/quant';
 import type {QuantExportBundle, QuantExportTarget} from '../../types/api/quantExport';
 import {renameParameterCondition} from '../../utils/quantParameterConditions';
@@ -7,6 +8,17 @@ import {checkParameterDomains} from '../../utils/quantParameterDomain';
 export function mockFactorExport(candidate: QuantFactorCandidate, target: string): QuantExportBundle | Response {
     const extensions: Record<QuantExportTarget, string> = {python: 'py', pine: 'pine', mql4: 'mq4', tongdaxin: 'txt'};
     if (!Object.prototype.hasOwnProperty.call(extensions, target) || !candidate.data.expression) return HttpResponse.json({code: 400, msg: '此目标或候选暂不能导出', data: null}, {status: 400});
+    const program = readAlgorithmProgram(candidate.data.expression);
+    const python = readPythonAlgorithm(candidate.data.expression);
+    if (python) {
+        if (target !== 'python') return HttpResponse.json({code:400,msg:'此算法提供Python实现',data:null},{status:400});
+        return {filename:`algorithm-${candidate.id}.py`,code:python,manifestJson:JSON.stringify({local_demo:true},null,2)};
+    }
+    if (program) {
+        if (target !== 'python') return HttpResponse.json({code: 400, msg: '逐根算法使用统一Python实现', data: null}, {status: 400});
+        return {filename: `algorithm-${candidate.id}.py`, code: '# LOCAL · 计算步骤展示样例；完整独立实现由后端导出。\n' + algorithmCode(program), manifestJson: JSON.stringify({local_demo: true, inputs: candidate.data.inputs, parameters: candidate.data.parameters}, null, 2)};
+    }
+    if (containsAlgorithmProgram(candidate.data.expression) && target !== 'python') return HttpResponse.json({code: 400, msg: '包含逐根算法的组合请导出 Python 实现', data: null}, {status: 400});
     const domains = candidate.data.parameters.filter(row => row.domain);
     try {
         checkParameterDomains(candidate.data.parameters, Object.fromEntries(candidate.data.parameters.map(row => [row.name, JSON.parse(row.defaultValue)])));

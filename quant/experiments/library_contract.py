@@ -14,6 +14,8 @@ EXTRA_LIMIT = 4
 
 
 def option(identity, data):
+    if (data.get('expression') or {}).get('op') == 'python':
+        raise ValidationError('此算法提供Python计算实现；请导出或通过Python运行环境调用')
     if data['role'] not in ('factor', 'signal', 'filter'):
         raise ValidationError('非研究信号模块')
     parameters = {row['name']: json.loads(row['default_value']) for row in data['parameters']}

@@ -8,7 +8,7 @@ STAGES = {'identify', 'parameters', 'research', 'extract', 'repair', 'review', '
 
 
 def request(stage, payload, requirements, outputs, version, plan, vocabulary):
-    if version != 28 or stage not in STAGES:
+    if version not in (28, 30, 32, 34, 36, 38, 40, 42) or stage not in STAGES:
         return None, None, None
     from .prompts import prompt
     try:
@@ -25,7 +25,7 @@ def request(stage, payload, requirements, outputs, version, plan, vocabulary):
 
 
 def compatible(old, current):
-    return (old.get('version') == current.get('version') == 28 and old.get('stage') == current.get('stage') in STAGES
+    return (old.get('version') == current.get('version') and current.get('version') in (28, 30, 32, 34, 36, 38, 40, 42) and old.get('stage') == current.get('stage') in STAGES
         and old.get('model') == current.get('model')
         and current.get('model_input', {}).get('status') == 'ready'
         and old.get('model_input') == current['model_input'])

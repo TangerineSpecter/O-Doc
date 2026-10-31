@@ -6,14 +6,26 @@ def source_data(source):
             'payload': presentation(source.payload), 'created_at': source.created_at}
 
 
-def report_data(report, *, include_history=True):
+def factor_names(report) -> dict[str, str]:
+    from quant.factors.curation import curation_data_many
+    from quant.models import FactorCandidate
+    factors = FactorCandidate.objects.filter(pk__in=report.factor_bindings.values()) if report.factor_bindings else report.factor_candidates.filter(formula_version_id='', derived_checkpoint_id='')
+    rows = list(factors.select_related('report').prefetch_related('revisions'))
+    curations = curation_data_many(rows)
+    names = {row.pk: curations[row.pk]['curation']['name'] for row in rows}
+    return {index: names.get(identity, '') for index, identity in report.factor_bindings.items()} if report.factor_bindings else {
+        str(row.ordinal): names[row.pk] for row in rows}
+
+
+def report_data(report, *, include_history=True, factor_report=None, plan_report=None):
     from quant.feedback.execution import analysis_presentation
     from quant.experiments.proposals import presentation
     from quant.models import ExperimentProposal
-    proposal = ExperimentProposal.objects.filter(run_id=report.run_id).first()
+    proposal = ExperimentProposal.objects.filter(run_id=(plan_report or report).run_id).first()
     revisions = list(report.revisions.all()) if include_history else list(report.revisions.filter(pk=report.current_revision_id))
     selected = next((item for item in revisions if item.pk == report.current_revision_id), None)
     return {'id': report.pk, 'source_id': report.source_id, 'run_id': report.run_id,
+            'factor_names': factor_names(factor_report or report),
             'research_memory_json':json.dumps(report.data['research_memory'],ensure_ascii=False) if 'research_memory' in report.data else None,
             'schema_version': report.schema_version, 'proposal': presentation(proposal) if proposal else None, 'data': analysis_presentation({key:value for key,value in report.data.items() if key!='research_memory'}), **({'original_markdown': report.markdown} if include_history else {}),
             'markdown': selected.markdown if selected else report.markdown,

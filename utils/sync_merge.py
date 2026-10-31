@@ -55,7 +55,7 @@ def revision_key(model_label, identity):
 
 
 def item_identity(item):
-    """跨设备主键可能不同的内置模型使用业务稳定键。"""
+    """跨设备独立创建的同一业务记录使用稳定键。"""
     return sync_entity_identity(item.get('model'), item['pk'], item.get('fields') or {})
 
 
@@ -65,6 +65,22 @@ def item_map(data_list):
         for item in data_list
         if item.get('model') and item.get('pk') is not None
     }
+
+
+def document_revisions(data_list: list[dict], revisions: dict[str, dict]) -> dict[str, dict]:
+    """Read pre-stable document manifests by entry without dropping their revisions."""
+    result = dict(revisions)
+    for item in data_list:
+        if item.get('model') != 'quant.researchdocument':
+            continue
+        old = revision_key(item['model'], str(item['pk']))
+        current = revision_key(item['model'], item_identity(item))
+        if old != current and old in result:
+            revision = result.pop(old)
+            # A current business-key revision takes precedence over an obsolete
+            # primary-key state retained on this device.
+            result.setdefault(current, revision)
+    return result
 
 
 def revision_changed(base, candidate):
@@ -95,10 +111,15 @@ def revision_winner(local_revision, remote_revision):
 def merge_records(base, local_data, local_revisions, remote, *, resolutions=None, resolution_default=''):
     """Merge rows and cumulative facts; no ORM writes, media I/O or domain healing."""
     base_data = item_map((base or {}).get('data') or [])
-    base_revisions = (base or {}).get('revisions') or {}
+    # A deleted legacy document is absent from that side's data. Its original
+    # entry identity is still available in the base or the other device's rows.
+    documents = [row for snapshot in ((base or {}).get('data') or [], local_data, remote.get('data') or [])
+                 for row in snapshot if row.get('model') == 'quant.researchdocument']
+    base_revisions = document_revisions(documents, (base or {}).get('revisions') or {})
+    local_revisions = document_revisions(documents, local_revisions)
     local_map = item_map(local_data)
     remote_map = item_map(remote.get('data') or [])
-    remote_revisions = remote.get('revisions') or {}
+    remote_revisions = document_revisions(documents, remote.get('revisions') or {})
     chosen, choice_default = choice_map(resolutions, resolution_default)
     result, result_revisions = [], {}
     summary = {

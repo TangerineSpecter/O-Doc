@@ -137,12 +137,6 @@ def append_feedback(collection, center, nodes, edges):
 
 
 def append(collection, center, available, selected, nodes, edges):
-    limited = append_proposals(collection, center, available, selected, nodes, edges)
-    report = center.report
-    if (not center.derived_checkpoint_id and not center.data.get('formula_version')
-            and report.run.kind == 'analyze' and report.data.get('usage')):
-        payload = contract.scenario(center.pk, center.data, report.data, _origin('report', report))
-        emit(nodes, edges, center, f'scenario:{report.pk}:{center.pk}', 'scenario', '来源用途与条件（AI假设）',
-            'scenario_hypothesis', payload, report=report)
-    limited = append_combinations(collection, center, nodes, edges) or limited
-    return append_feedback(collection, center, nodes, edges) or limited
+    # Hypotheses remain in their original reports. The algorithm graph projects
+    # properties and actual calculation records, rather than prose as a node.
+    return append_combinations(collection, center, nodes, edges)

@@ -99,8 +99,8 @@ export const quantApi = {
         request.get<never, {total: number; items: QuantFactorCandidate[]}>(`${base(collection)}factors/`, {params: query, signal}),
     factor: (collection: string, id: string, signal?: AbortSignal) =>
         request.get<never, QuantFactorCandidate>(`${base(collection)}factors/${encodeURIComponent(id)}/`, {signal}),
-    reviseFactor: (collection: string, id: string, data: QuantFactorCuration, expectedRevisionId: string) =>
-        request.patch<never, QuantFactorCandidate>(`${base(collection)}factors/${encodeURIComponent(id)}/`, {data, expectedRevisionId}),
+    reviseFactor: (collection: string, id: string, data: QuantFactorCuration, expectedRevisionId: string, expectedCurationRevisionId: string) =>
+        request.patch<never, QuantFactorCandidate>(`${base(collection)}factors/${encodeURIComponent(id)}/`, {data, expectedRevisionId, expectedCurationRevisionId}),
     formulaHistory: (collection: string, id: string, offset: number, signal?: AbortSignal) =>
         request.get<never, import('../types/api/quantFormulaVersion').QuantFormulaHistory>(`${base(collection)}factors/${encodeURIComponent(id)}/formula-versions/`, {params: {offset, limit: 20}, signal}),
     editFormula: (collection: string, id: string, data: import('../types/api/quantFormulaVersion').QuantFormulaEditInput) =>
@@ -111,8 +111,8 @@ export const quantApi = {
         request.get<never, {total: number; items: QuantFactorCandidate[]}>(`${base(collection)}factors/${encodeURIComponent(id)}/occurrences/`, {params: {groupBy, offset, limit: 20}, signal}),
     collect: (collection: string, data: QuantIntakeInput) =>
         request.post<never, { entry: QuantEntryOverview; notice: string }>(`${base(collection)}intake/`, data),
-    reviseReport: (collection: string, id: string, report: string, markdown: string, expectedRevisionId: string) =>
-        request.patch<never, QuantReportReading>(`${entry(collection, id)}reports/${encodeURIComponent(report)}/`, { markdown, expectedRevisionId }),
+    reviseReport: (collection: string, id: string, report: string, markdown: string, expectedRevisionId: string, expectedDocumentRevision?: number) =>
+        request.patch<never, QuantReportReading>(`${entry(collection, id)}reports/${encodeURIComponent(report)}/`, { markdown, expectedRevisionId, expectedDocumentRevision }),
     create: (collection: string, data: QuantEntryInput) =>
         request.post<never, QuantEntry>(`${base(collection)}entries/`, data),
     update: (collection: string, id: string, data: QuantEntryInput) =>

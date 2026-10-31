@@ -1,3 +1,4 @@
+import {initDocument,offerDocument} from './documents';
 import {parameterLabel} from '../../utils/quantParameterSource';
 import {mockMemoryMarkdown} from './researchMemory';
 import {mockSourceChangeMarkdown} from './sourceChangeReview';
@@ -12,11 +13,12 @@ import { quantId, quantState } from './state';
 import {presentMockProposal} from './experimentProposals';
 import {describeParameterDomain} from '../../utils/quantParameterDomain';
 import {captureMockVersion, ensureMockSourcePointers, setMockMaterialCurrent} from './sourceSnapshots';
+import {preserveMockReading} from './reportContinuity';
 
 export const analysisSample: QuantAnalysis = {
-    title: '动量计算 · 本地演示报告', kind: 'factor', summary: '本地样例用于演示收集、分析与修订，不是对输入代码的真实分析。',
-    principle: '示例比较当前与历史收盘价；真实研究需检查价格数据口径及当时可得性。',
-    formula: '$$M_t=P_t/P_{t-N}-1$$', usage: '用于观察区间变化，适用条件待数据验证。',
+    title: '动量计算 · 本地演示报告', kind: 'factor', summary: '比较当前收盘价与历史收盘价，计算区间涨跌幅，帮助观察价格动量。这是本地演示样例。',
+    principle: '### 1. 输入价格\n\n使用按时间排列的收盘价和回看窗口。\n\n### 2. 比较历史价格\n\n当前收盘价除以窗口前的收盘价，再减去1，得到这段区间的价格变化比例。\n\n### 3. 理解输出\n\n- 大于0：相对窗口起点上涨。\n- 小于0：相对窗口起点下跌。',
+    formula: '$$M_t=P_t/P_{t-N}-1$$', usage: '## 输出怎么看\n\n用正负判断区间涨跌，用绝对值比较变化幅度。\n\n## 主要参数\n\n回看窗口默认20根K线；调大比较更长区间，调小更关注近期变化。\n\n## 怎么使用\n\n随输入K线周期计算，20表示20根K线。计算开始处需先积累足够历史价格。',
     risks: '尚未检查真实材料；不包含回测或收益结论。', validationPlan: '检查输入数据、窗口边界和不同参数邻域，再使用独立样本验证。',
     sourceFacts: ['示例使用历史价格窗口。'], assumptions: ['假定数据口径一致；这是本地演示。'], unknowns: ['真实市场与交易周期', '实际运行参数'],
     tags: ['动量', '演示'], parameters: [{ name: 'lookback', type: 'int', defaultValue: '20', category: 'signal', meaning: '历史窗口，单位为 bar', constraints: '正整数；示例值', effect: '窗口改变比较的时间跨度', suggestion: '在固定数据上比较邻近窗口，尚无推荐最优值', evidence: '本地 momentum 示例函数' }],
@@ -68,11 +70,13 @@ export function publishMockReport(entry: QuantEntryDetail) {
             report.proposal = presentMockProposal(record?.proposals?.[run.id], entry.collId);
         }
         if (run.kind !== 'analyze' || run.status !== 'completed' || entry.reports!.some(row => row.runId === run.id)) continue;
+        initDocument(entry);
         const data = structuredClone(run.result.analysis || analysisSample);
         if (data.factors?.[0]?.parameters.some(row => row.domain)) data.parameters = structuredClone(data.factors[0].parameters);
         const cell = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
         const parameterRows = data.parameters.map(row => `| ${cell(parameterLabel(row))} | ${cell(row.defaultValue || '未知')} | ${cell(row.meaning)} | ${cell(row.suggestion)} |`).join('\n');
-        const markdown = `# ${data.title}\n\n${data.summary}\n\n## 计算原理\n\n${data.principle}\n\n${data.formula}\n\n## 参数分析\n\n| 参数 | 默认值 | 含义 | 建议 |\n| --- | --- | --- | --- |\n${parameterRows}\n\n## 限制与验证\n\n${data.risks}\n\n${data.validationPlan}`;
+        const subject = {indicator: '指标', strategy: '策略', factor: '因子'}[data.kind];
+        const markdown = `# ${data.title}\n\n${data.summary}\n\n## 这个${subject}做什么\n\n${data.summary}\n\n## 它是怎么计算的\n\n${data.principle}\n\n## 关键公式与解读\n\n${data.formula}\n\n${data.usage}\n\n## 参数分析\n\n| 参数 | 默认值 | 含义 | 建议 |\n| --- | --- | --- | --- |\n${parameterRows}\n\n## 限制与验证\n\n${data.risks}\n\n${data.validationPlan}`;
         const report: QuantReport = { id: quantId('report'), sourceId: run.resolvedSourceId || run.sourceId || '', runId: run.id, schemaVersion: data.extractionVersion === 1 ? 3 : 2,
             data, originalMarkdown: markdown+mockFindingsMarkdown(data)+mockMemoryMarkdown(run)+mockSourceChangeMarkdown(data), markdown:markdown+mockFindingsMarkdown(data)+mockMemoryMarkdown(run)+mockSourceChangeMarkdown(data), currentRevisionId: '', createdAt: new Date().toISOString(), revisions: [] };
         entry.reports!.unshift(report);
@@ -80,11 +84,17 @@ export function publishMockReport(entry: QuantEntryDetail) {
             report.markdown += `\n\n本机实验将检查：${describeParameterDomain(parameter.name, parameter.domain)}\n\n本地约束展示样例，未调用模型。原文：\n\n${parameter.domain.evidence.map(row => row.quote).join('\n\n')}`;
         }
         if (data.parameterBindingVersion) report.markdown += '\n\n参数身份为人工 local 展示，文件与参数表来自预制语料，与本次粘贴源码不保证对应；没有运行真实解析器或模型。未定位参数不进入可执行候选。';
-        publishMockRepairs(entry, report);
+
         if (report.data.factorRepair?.selected.length) report.markdown += '\n\n## AI 定义修订\n\n原始候选保留，修订是独立假设，不继承评分或实验结果。\n\n' + report.data.factorRepair.items.map(row => row.summary + (row.definition ? '\n\n修订公式：' + row.definition.formula : '') + '\n\n仍待核对：' + row.remainingUnknowns.join('、')).join('\n\n');
-        mockInitialPlan(entry, report);
+        if(!initDocument(entry).sections.reading)publishMockRepairs(entry,report);
+        if (run.workflow?.stages.some(row => row.stage === 'plan' && row.status === 'partial')) {
+            report.data.initialPlanningNote = '本地模拟：实验规划未生成，算法已保留。';
+        } else mockInitialPlan(entry, report);
         report.markdown += `\n\n## 首轮实验规划\n\n${report.data.initialPlanningNote}`;
         report.originalMarkdown = report.markdown;
+        preserveMockReading(entry, run, report);
+        offerDocument(entry,report);
+        if(report.publicationMode==='adopted')publishMockRepairs(entry,report);
         if (entry.title === '待分析资料') { entry.title = data.title; entry.tags = data.tags; entry.kind = data.kind; }
     }
 }

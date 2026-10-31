@@ -14,3 +14,10 @@ test('original source report shows explanation sections without audit boilerplat
     assert.equal(logicReportBody('用户自定义报告', false), '用户自定义报告');
     assert.equal(logicReportBody('摘要\n\n## 计算原理\n说明\n\n## 问题清单与严重度\n问题', false), '## 计算原理\n说明');
 });
+
+test('完整导读按作用、计算、公式、输出、参数、使用保留，修订不丢节', () => {
+    const sections = ['这个指标做什么', '它是怎么计算的', '关键公式与解读', '输出怎么看', '主要参数', '怎么使用'];
+    const reading = sections.map(title => `## ${title}\n\n${title}的说明`).join('\n\n');
+    assert.equal(logicReportBody(`## 研究质量评价\n\n评分\n\n${reading}\n\n## 来源事实\n\n依据`, false), reading);
+    assert.equal(logicReportBody(reading, true), reading);
+});

@@ -110,11 +110,10 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
     },[entryId,tab,loadTab,setReadError,controller.detailLoading]);
 
     const feedbackCount = entry?.counts.feedback || 0;
-    const reportCount = entry?.counts.reports || 0;
     const hasRunningTask = entry?.runs.some((run) => ['pending', 'running'].includes(run.status)) || false;
 
     const tabs = [
-        { id: 'report', label: 'AI 研究报告', icon: FlaskConical, count: reportCount, pulse: hasRunningTask },
+        { id: 'report', label: 'AI 研究报告', icon: FlaskConical, count: 0, pulse: hasRunningTask },
         { id: 'notes', label: '补充笔记', icon: BookOpen, count: entry?.hasNotes ? 1 : 0 },
         { id: 'code', label: '代码实现', icon: Code2, count: entry?.counts.implementations || 0 },
         { id: 'backtests', label: '回测记录', icon: BarChart3, count: entry?.counts.backtests || 0 },
@@ -267,7 +266,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                         }
                     >
                         <FlaskConical size={13} />
-                        <span>因子候选库</span>
+                        <span>因子算法库</span>
                     </QuantButton>
                     <QuantButton
                         size="sm"
@@ -607,7 +606,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                                 }}
                                             >
                                                 <Sparkles size={15} />
-                                                浏览因子候选库
+                                                浏览因子算法库
                                             </QuantButton>
                                         </div>
                                     )}

@@ -3,7 +3,9 @@
  */
 export function logicReportBody(markdown: string, edited: boolean): string {
     if (edited) return markdown;
-    const wanted = new Set(['原理与计算逻辑', '计算原理', '原理', '计算逻辑', '公式', '用途与条件']);
+    const wanted = new Set(['原理与计算逻辑', '计算原理', '原理', '计算逻辑', '公式', '用途与条件',
+        '这个指标做什么', '这个策略做什么', '这个因子做什么', '它是怎么计算的', '关键公式与解读',
+        '输出怎么看', '两个量表怎么看', '主要参数', '怎么使用']);
     const lines = markdown.split(/\r?\n/);
     const sections: string[][] = [];
     let current: string[] | null = null;

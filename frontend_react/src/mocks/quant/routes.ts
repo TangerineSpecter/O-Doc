@@ -1,3 +1,4 @@
+import {initDocument,resolveDocument} from './documents';
 import {mockImplementationReceipt,mockRunSummary,mockDirectory,mockOverview,mockReportBody,mockStatus,resolveReading} from './reading';
 import {seedDemoEntry} from './demoSeed';
 import {resolveStudyRoute} from './studies';
@@ -128,6 +129,7 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     }
     const entry = state.entries.find(row => row.collId === collId && row.id === entryId && row.isValid);
     if (!entry) return fail(404, '研究条目不存在或已删除');
+    if (section === 'document'){const result=resolveDocument(request,entry,body);persistQuantState();return result;}
     if (section === 'source-impact') return mockSourceImpact(request, entry);
     if(section==='reading')return resolveReading(request,presentMockEntry(entry),route.slice(4));
     if(section==='status'&&request.method==='GET'){advanceEntry(entry);return mockStatus(presentMockEntry(entry));}
@@ -153,9 +155,14 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
         const report = entry.reports?.find(row => row.id === id);
         if (!report) return fail(404, '报告不存在');
         if (typeof body.markdown !== 'string' || body.markdown.length > 200000) return fail(400, '报告正文无效');
-        if (body.expectedRevisionId !== report.currentRevisionId) return fail(409, '报告已有新的修订，请刷新');
+        const document=initDocument(entry);
+        if(body.expectedDocumentRevision!==undefined){
+            if(body.expectedDocumentRevision!==document.revision||document.sections.reading?.reportId!==report.id||document.sections.reading?.revisionId!==body.expectedRevisionId)return fail(409,'当前研究已更新，请刷新后保存');
+        }else if(body.expectedRevisionId!==report.currentRevisionId)return fail(409,'报告已有新的修订，请刷新');
+        if(document.sections.reading?.reportId===report.id)document.history=[{id:quantId('history'),createdAt:new Date().toISOString(),label:'正文编辑前',sections:structuredClone(document.sections) as import('../../types/api/quantDocument').DocumentHistory['sections']},...document.history].slice(0,5);
         const revision = {id: quantId('revision'), markdown: body.markdown, createdAt: new Date().toISOString()};
         report.revisions.push(revision); report.markdown = revision.markdown; report.currentRevisionId = revision.id;
+        if(document.sections.reading?.reportId===report.id){document.sections.reading.revisionId=revision.id;document.revision++;}
         touch(entry); return mockReportBody(report);
     }
     if (section === 'implementations') {

@@ -3,12 +3,14 @@ from quant.models import SourceMaterial, SourceRevision, ResearchReport, ReportR
 from .contracts import digest, legacy_markdown
 from .analysis import validate_analysis, validate_source_evidence, analysis_markdown
 
-LABELS = {'quant.sourcematerial', 'quant.sourcerevision', 'quant.researchreport', 'quant.reportrevision', 'quant.factorcandidate', 'quant.factorrevision', 'quant.factorformulaversion', 'quant.factorformulaselection'}
+LABELS = {'quant.researchdocument', 'quant.sourcematerial', 'quant.sourcerevision', 'quant.researchreport', 'quant.reportrevision', 'quant.factorcandidate', 'quant.factorrevision', 'quant.factorformulaversion', 'quant.factorformulaselection'}
 from quant.graph.sync import LABELS as GRAPH_LABELS
 LABELS |= GRAPH_LABELS
 
 
 def validate_research(rows: dict, fail) -> None:
+    from quant.documents.sync import validate_documents
+    validate_documents(rows, fail)
     entries = rows.get('quant.entry', {})
     materials = rows.get('quant.sourcematerial', {})
     sources = rows.get('quant.sourcerevision', {})
@@ -95,13 +97,13 @@ def validate_research(rows: dict, fail) -> None:
                 fail('结构化报告任务类型不一致')
             from quant.experiments.initial_planning import validate_strategy_admission
             validate_strategy_admission(run.get('result', {}), run.get('workflow_version', 0))
-            if 'factor_repair' in run.get('result', {}) and run.get('workflow_version') not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28):
+            if 'factor_repair' in run.get('result', {}) and run.get('workflow_version') not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42):
                 fail('AI 修订成果缺少支持的阶段工作流')
             expected = validate_analysis(run['result'])
             if (fields['schema_version'] == 3) != (expected.get('extraction_version') == 1):
                 fail('报告与提取版本不一致')
             validate_source_evidence(expected, source['payload'])
-            expected_markdown = analysis_markdown(expected)
+            expected_markdown = analysis_markdown(expected, guided_reading=run.get('workflow_version') in (39, 40, 41, 42))
         elif fields['schema_version'] == 5:
             if run.get('kind') != 'feedback_review':
                 fail('反馈报告任务类型不一致')

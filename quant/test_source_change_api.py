@@ -146,6 +146,10 @@ class SourceChangeAPITests(TestCase):
         old_factor.refresh_from_db()
         self.assertEqual(old_factor.report_id, report.pk)
         self.assertEqual(entry.reports.count(), 2)
+        from quant.documents.services import initialize, change
+        document=initialize(entry)
+        self.assertFalse(FactorCandidate.objects.filter(report__run=fresh).exists())
+        change(entry, document.revision, 'adopt', fresh.report.pk, ['factors'])
         self.assertEqual(FactorCandidate.objects.get(report__run=fresh).data['parameters'][0]['default_value'], '25')
 
     def test_experiment_and_feedback_reports_cannot_supply_static_baseline(self):

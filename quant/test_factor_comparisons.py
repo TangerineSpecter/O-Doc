@@ -271,7 +271,7 @@ class FactorComparisonIntegrationTests(TestCase):
         right = self.publish('comparison_history_right', '右侧动量', input_name='Price', parameter_name='Length')
         for factor, alias in [(left, '左侧别名'), (right, '右侧别名')]:
             saved = self.client.patch(f'/api/quant/{self.collection.pk}/factors/{factor.pk}/', {
-                'expected_revision_id': '', 'data': {'name': factor.data['name'], 'family': 'momentum',
+                'expected_revision_id': '', 'expected_curation_revision_id': '', 'data': {'name': factor.data['name'], 'family': 'momentum',
                     'tags': ['动量'], 'aliases': [alias], 'note': '保留来源'}}, format='json')
             self.assertEqual(saved.status_code, 200, saved.data)
         data = self.dataset()
@@ -343,7 +343,8 @@ class FactorComparisonIntegrationTests(TestCase):
         graph_fixtures.GraphTests.run_job(self, queue_index(self.collection))
         self.assertTrue(FactorRelation.objects.exists())
         graph = self.client.get(f'/api/quant/{self.collection.pk}/graph/', {'candidateId': left.pk}).json()['data']
-        self.assertTrue(any(edge['kind'] == 'semantic_similar' for edge in graph['edges']))
+        self.assertTrue(any(edge['kind'] == 'attribute_similar' for edge in graph['edges']))
+        self.assertFalse(any(edge['kind'] == 'semantic_similar' for edge in graph['edges']))
         self.assertFalse(any(edge['kind'] in ('sample_equivalent', 'merged_group') for edge in graph['edges']))
         self.assertEqual(self.listing()['total'], 3)
         self.assertFalse(FactorComparison.objects.exists())

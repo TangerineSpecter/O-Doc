@@ -95,11 +95,11 @@ class SingleParameterIdentityTests(TestCase):
                 self.assertEqual(run.result['parameters'][0]['source_binding']['status'], 'resolved')
                 self.assertEqual(run.result['parameters'][0]['default_value'], default)
 
-    def test_plain_entry_rejects_model_default_that_contradicts_source(self):
+    def test_plain_entry_uses_source_default_instead_of_model_transcription(self):
         entry = self.collect(); run = AIRun.objects.get(entry=entry)
         response = fixtures.result(); response['parameters'][0]['default_value'] = '99'
         with patch('quant.worker.complete', return_value=json.dumps(response)): execute(run.pk)
-        run.refresh_from_db(); self.assertEqual(run.status, 'failed')
-        self.assertEqual(run.workflow_steps.last().stage, 'parameters')
-        self.assertFalse(ResearchReport.objects.filter(run=run).exists())
+        run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)
+        self.assertEqual(run.result['parameters'][0]['default_value'], '20')
+        self.assertTrue(ResearchReport.objects.filter(run=run).exists())
         self.collect(); self.assertEqual(AIRun.objects.count(), 1)

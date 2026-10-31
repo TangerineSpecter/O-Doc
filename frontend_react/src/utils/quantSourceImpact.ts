@@ -25,8 +25,9 @@ export function selectedAnalysisSource(entry: {sources?:QuantSource[]}, report?:
     if (baseline && report && [1, 2, 3].includes(report.schemaVersion)) return sources.find(source => source.id === baseline.materialCurrentSourceId && source.materialId === baseline.materialId) || baseline;
     return baseline || sources[0];
 }
-export function sourceAnalysisRuns<T extends Pick<QuantAIRun,'kind'|'sourceId'|'resolvedSourceId'>>(entry: {runs:T[]}, sourceId?: string) {
-    return entry.runs.filter(run => run.kind === 'analyze' && !!sourceId && [run.sourceId, run.resolvedSourceId].includes(sourceId));
+export function sourceAnalysisRuns<T extends Pick<QuantAIRun,'kind'|'sourceId'|'resolvedSourceId'|'createdAt'|'id'>>(entry: {runs:T[]}, sourceId?: string) {
+    return entry.runs.filter(run => run.kind === 'analyze' && !!sourceId && [run.sourceId, run.resolvedSourceId].includes(sourceId))
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id.localeCompare(a.id));
 }
 
 export function readSourceImpact(json: string, expected?: {sourceId: string; reportId: string; baselineSourceId: string}): QuantSourceImpactPreview {

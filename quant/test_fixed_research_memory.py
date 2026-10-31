@@ -105,6 +105,10 @@ class FixedMemoryTests(TestCase):
         self.assertEqual(ai.workflow_version,25);self.assertEqual(ai.result['source_memory_version'],1)
         memory=ai.result['research_memory'];self.assertTrue(any(r['kind']=='fixed_validation' for r in memory['items']))
         self.assertIn('历史研究依据',ai.report.markdown)
+        from quant.documents.services import initialize, change
+        document=initialize(entry)
+        self.assertFalse(ExperimentProposal.objects.filter(run=ai).exists())
+        change(entry, document.revision, 'adopt', ai.report.pk, ['factors','plan'])
         proposal=ExperimentProposal.objects.get(run=ai)
         self.assertTrue(any(ref.startswith('memory:fixed_validation:') for ref in proposal.data['evidence_refs']))
         prompts=[c.args[1] for c in model.call_args_list]

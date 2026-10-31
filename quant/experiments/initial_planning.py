@@ -9,7 +9,7 @@ from .proposal_contract import validate_proposal, proposal_data
 KEYS = {'initial_planning_version', 'initial_planning_note', 'initial_proposal'}
 
 
-def context(result: dict, report_id: str = '') -> tuple[dict, dict]:
+def context(result: dict, report_id: str = '', bindings=None) -> tuple[dict, dict]:
     value = result['initial_proposal']
     if not isinstance(value, dict) or set(value) != {'name', 'hypothesis', 'falsification', 'data_requirement', 'evidence_refs', 'seeds', 'config'}:
         raise ValidationError('首轮实验方案结构无效')
@@ -25,6 +25,8 @@ def context(result: dict, report_id: str = '') -> tuple[dict, dict]:
             raise ValidationError('首轮父代不在本次提取候选中')
         from quant.repairs.contracts import selected_factor
         identity, candidate = selected_factor(result, index, report_id)
+        if bindings and candidate is result['factors'][index]:
+            identity = bindings.get(str(index), identity)
         if candidate['role'] not in ('factor', 'signal', 'filter'):
             raise ValidationError('首轮实验只选择因子、信号或过滤条件')
         defaults = []
@@ -73,9 +75,9 @@ def validate_initial(result: dict) -> dict:
     return {key: copy.deepcopy(result[key]) for key in KEYS}
 
 
-def initial_data(result: dict, report_id: str) -> dict:
+def initial_data(result: dict, report_id: str, bindings=None) -> dict:
     validate_initial(result)
-    proposal, evidence = context(result, report_id)
+    proposal, evidence = context(result, report_id, bindings)
     uses_repair = any(row['factor_index'] in {item['factor_index'] for item in result.get('factor_repair', {}).get('items', []) if item['status'] == 'revised'} for row in result['initial_proposal']['seeds'])
     return {**proposal_data({'proposal': proposal}, evidence), 'origin': 'source_analysis',
         'baseline_status': 'ai_revised_definition_defaults_not_native_or_live_settings' if uses_repair else 'source_declared_defaults_not_actual_live_settings'}
@@ -83,7 +85,7 @@ def initial_data(result: dict, report_id: str) -> dict:
 
 def validate_strategy_admission(result: dict, version: int) -> None:
     proposal = result.get('initial_proposal')
-    if isinstance(proposal, dict) and 'strategy' in proposal.get('config', {}) and version not in (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28):
+    if isinstance(proposal, dict) and 'strategy' in proposal.get('config', {}) and version not in (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42):
         raise ValidationError('旧版来源分析不得夹带新版策略执行假设')
 
 

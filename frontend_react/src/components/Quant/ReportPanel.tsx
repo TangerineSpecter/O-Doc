@@ -1,4 +1,4 @@
-import type {QuantReportReading} from '../../types/api/quantReading';
+import {useQuantDocument} from '../../hooks/useQuantDocument';
 import type {QuantWorkspace} from '../../types/api/quantReading';
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -7,7 +7,6 @@ import {
     Cpu,
     FileCode2,
     Compass,
-    FileSpreadsheet,
     Settings2,
 } from 'lucide-react';
 import { ResearchWorkflow } from './workflows/ResearchWorkflow';
@@ -15,7 +14,6 @@ import type { ResearchStage } from '../../types/api/quantWorkflow';
 import { quantApi } from '../../api/quant';
 import { createRequestKey } from '../../utils/requestKey';
 import { quantDate } from '../../utils/quant';
-import { Select } from '../common/Select';
 import { type QuantRegisterDraft } from '../../hooks/useQuantNavigation';
 import type { QuantController } from '../../hooks/useQuant';
 import type { QuantSource } from '../../types/api/quant';
@@ -25,20 +23,9 @@ import { sourceAnalysisRuns } from '../../utils/quantSourceImpact';
 import {ReportExecutionEvidence} from './reports/ReportExecutionEvidence';
 import { ExecutionAssessment } from './feedback/evidence/ExecutionAssessment';
 import { ReportEditor } from './reports/ReportEditor';
+import { ReportUpdates } from './reports/ReportUpdates';
 import { SourceSupplement } from './sources/SourceSupplement';
 import { ResearchDetails, type ResearchDetailsTab } from './ResearchDetails';
-
-function reportTypeMeta(row: Pick<QuantReportReading,'schemaVersion'> & Partial<Pick<QuantReportReading,'data'>>) {
-    if (row.schemaVersion === 5) {
-        return row.data?.nativeReview
-            ? { label: 'Python 对照', tone: 'blue' as const }
-            : { label: '反馈解读', tone: 'amber' as const };
-    }
-    if (row.schemaVersion === 4) {
-        return { label: '实验复盘', tone: 'emerald' as const };
-    }
-    return { label: '静态研究', tone: 'orange' as const };
-}
 
 export function ReportPanel({
     entry,
@@ -78,8 +65,9 @@ export function ReportPanel({
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
 
-    const targetId=selectedId||entry.defaultReportId||'';
-    const report=reports.find(row=>row.id===targetId);
+    const documentState=useQuantDocument(collection,entry.id,`${entry.updatedAt}:${entry.reportHeaders.map(row=>row.id+row.currentRevisionId).join(',')}`,controller.refresh);
+    const targetId=selectedId||documentState.document?.report?.id||entry.defaultReportId||'';
+    const report=(!selectedId?documentState.document?.report:null)||reports.find(row=>row.id===targetId);
     const ensureReport=controller.ensureReport;
     const setReadError=controller.setReadingError;
     useEffect(()=>{
@@ -103,6 +91,16 @@ export function ReportPanel({
     const sourceRuns = sourceAnalysisRuns(entry, targetSourceId);
     const active = sourceRuns.find((run) => ['pending', 'running'].includes(run.status));
     const lastRun = sourceRuns[0];
+    const ensureRun=controller.ensureRun;
+    const latestRunId=lastRun?.id;
+    const workflowLoaded=!!lastRun?.workflow;
+    useEffect(()=>{
+        if(!detailsOpen||!latestRunId||workflowLoaded)return;
+        const abort=new AbortController();
+        void ensureRun(latestRunId,abort.signal).catch(error=>{if(!abort.signal.aborted)setReadError(error instanceof Error?error.message:'研究进度读取失败');});
+        return()=>abort.abort();
+    },[detailsOpen,latestRunId,workflowLoaded,ensureRun,setReadError]);
+
     const entryActive = entry.runs.find((run) => ['pending', 'running'].includes(run.status));
     const otherActive = entry.runs.filter(
         (run) => ['pending', 'running'].includes(run.status) && !sourceRuns.some((row) => row.id === run.id),
@@ -133,6 +131,7 @@ export function ReportPanel({
         });
     const resume = (restartStage?: ResearchStage) => {
         if(lastRun)request(()=>void controller.safe(async()=>{
+            setSelectedId(''); controller.pinReportId('');
             const original=await controller.ensureRun(lastRun.id);
             await quantApi.run(collection,entry.id,{kind:'analyze',sourceId:original.sourceId,
                 modelId:original.modelId,requirements:original.requirements,resumeRunId:original.id,
@@ -149,89 +148,14 @@ export function ReportPanel({
         setDetailsOpen(true);
     }), [request, setInitialInspectorTab, setDetailsOpen]);
     const pinReportId=controller.pinReportId;
-    const pinReport=useCallback((id:string)=>{pinReportId(id);setSelectedId(id);},[pinReportId,setSelectedId]);
+    const pinReport=useCallback((id:string)=>{const pinned=id===documentState.document?.report?.id?'':id;pinReportId(pinned);setSelectedId(pinned);},[pinReportId,documentState.document?.report?.id]);
     const guardedOpenFactors = useCallback(() => request(openFactors), [request, openFactors]);
     return (
         <div className="space-y-3">
             {/* 报告切换与研究操作 */}
             <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 shadow-2xs">
-                {entry.counts.reports > 1 ? (
-                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-extrabold text-slate-700">
-                            <FileSpreadsheet size={13} className="text-orange-500" />
-                            报告 ({entry.counts.reports})：
-                        </span>
-                        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide">
-                            {headers.map((row) => {
-                                const activeReport = row.id === targetId;
-                                const meta = reportTypeMeta(row);
-                                return (
-                                    <button
-                                        key={row.id}
-                                        type="button"
-                                        onClick={() =>
-                                            request(() => {
-                                                setSelectedId(row.id);controller.pinReportId(row.id);
-                                                setSourceId('');
-                                            })
-                                        }
-                                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-left text-xs transition-all ${
-                                            activeReport
-                                                ? 'border-slate-900 bg-slate-900 font-bold text-white shadow-2xs'
-                                                : 'border-slate-200/80 bg-slate-50 text-slate-600 hover:border-orange-200 hover:bg-white'
-                                        }`}
-                                    >
-                                        <span
-                                            className={`rounded px-1.5 py-0.2 text-[10px] font-semibold ${
-                                                activeReport
-                                                    ? 'bg-orange-500 text-white'
-                                                    : 'bg-slate-200/80 text-slate-600'
-                                            }`}
-                                        >
-                                            {meta.label}
-                                        </span>
-                                        <span className="max-w-[150px] truncate">{row.title || '历史报告'}</span>
-                                        {row.totalScore !== undefined && row.totalScore !== null && (
-                                            <span
-                                                className={`font-mono text-[10px] ${
-                                                    activeReport ? 'text-orange-300' : 'text-orange-600'
-                                                }`}
-                                            >
-                                                {row.totalScore}分
-                                            </span>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        <label className="ml-1 hidden items-center gap-1.5 text-xs text-slate-500 2xl:flex">
-                            <span className="sr-only">阅读报告</span>
-                            <div className="w-48">
-                                <Select
-                                    value={targetId}
-                                    onChange={(id) =>
-                                        request(() => {
-                                            setSelectedId(id);controller.pinReportId(id);
-                                            setSourceId('');
-                                        })
-                                    }
-                                    options={headers.map((row) => ({
-                                        value: row.id,
-                                        label: `${row.title || '历史报告'} · ${quantDate(row.createdAt)}`,
-                                    }))}
-                                    buttonClassName="!h-7 !min-h-7 !py-0.5 !text-[11px]"
-                                />
-                            </div>
-                        </label>
-                    </div>
-                ) : (
-                    <div className="flex min-w-0 flex-1 items-center gap-2 text-xs text-slate-600">
-                        <FileSpreadsheet size={13} className="text-orange-500" />
-                        <span className="truncate font-bold text-slate-800">
-                            {report ? report.data.title || '当前研究报告' : '等待生成研究报告'}
-                        </span>
-                    </div>
-                )}
+                <ReportUpdates entry={entry} targetId={targetId} state={documentState} collection={collection} request={request}
+                    select={id => {const pinned = id === entry.defaultReportId ? '' : id; setSelectedId(pinned); controller.pinReportId(pinned); setSourceId('');}}/>
 
                 <div className="hidden min-w-0 items-center gap-1.5 text-[11px] text-slate-600 2xl:flex">
                     {source && <span className="inline-flex max-w-40 items-center gap-1 rounded-md bg-slate-100 px-2 py-1">
@@ -258,7 +182,6 @@ export function ReportPanel({
                 </div>
             </div>
 
-            {controller.pages.reports?.hasMore && <button type="button" className="text-xs text-orange-600" onClick={()=>void controller.safe(()=>controller.loadPage('reports',true),false)}>更多历史报告</button>}
             {settingsOpen && createPortal(
                 <QuantModal title="来源与分析设置" wide close={() => setSettingsOpen(false)}>
                     <ReportAnalysisSettings source={source} report={report} lastRun={lastRun}

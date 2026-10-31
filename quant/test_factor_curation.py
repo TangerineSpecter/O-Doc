@@ -61,13 +61,15 @@ class CurationTests(TestCase):
         candidate = self.publish('factor_edit_00000001')
         url = f'/api/quant/{self.collection.pk}/factors/{candidate.pk}/'
         data = dict(name='我的动量', family='momentum', tags=[' ＲＳＩ ', 'RSI', '动量'], aliases=['区间涨幅'], note='需要检查费用敏感度')
-        saved = self.client.patch(url, {'data': data, 'expected_revision_id': ''}, format='json')
+        saved = self.client.patch(url, {'data': data, 'expected_revision_id': '', 'expected_curation_revision_id': ''}, format='json')
         self.assertEqual(saved.status_code, 200, saved.data)
         body = saved.json()['data']
         self.assertEqual(body['curation']['tags'], ['RSI', '动量'])
         self.assertEqual(body['data']['name'], '动量')
         self.assertEqual(len(body['revisions']), 1)
-        self.assertEqual(self.client.patch(url, {'data': data, 'expected_revision_id': ''}, format='json').status_code, 409)
+        self.assertEqual(body['curationRevisionId'], body['currentRevisionId'])
+        self.assertFalse(body['curationInherited'])
+        self.assertEqual(self.client.patch(url, {'data': data, 'expected_revision_id': '', 'expected_curation_revision_id': ''}, format='json').status_code, 409)
         self.assertEqual(self.client.get(f'/api/quant/{self.collection.pk}/factors/?q=区间涨幅').data['data']['total'], 1)
         self.assertEqual(self.client.patch(url + 'occurrences/', {}, format='json').status_code, 405)
         snapshot = SyncManager().build_snapshot_data()

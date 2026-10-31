@@ -11,6 +11,8 @@ from quant.verification.structure import qualification
 def plan(factors: list[dict]) -> dict:
     targets = []
     for index, factor in enumerate(factors):
+        if (factor.get('expression') or {}).get('op') == 'python':
+            continue  # A Python implementation does not need conversion to our DSL.
         checked = qualification(factor)
         if checked['reuse_status'] != 'reusable' or checked['configuration']['status'] != 'declared_defaults_valid':
             targets.append(index)

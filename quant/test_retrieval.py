@@ -42,7 +42,7 @@ class RetrievalTests(TestCase):
         score, fields = lexical('close', {'curation': {'name':'x','tags':[],'aliases':[],'note':''}, 'data': {'name':'x','summary':'x','formula':'close / lag(close, N)', 'expression':None}, 'entry_title':'x'})
         self.assertGreater(score, 0); self.assertEqual(fields, ['公式或表达式'])
         data = {'name': '另名', 'family': first.data['family'], 'tags': [], 'aliases': ['收缩突破'], 'note': ''}
-        revise_candidate(first, data, '')
+        revise_candidate(first, data, '', '')
         self.assertIn('标签或别名', self.search().json()['data']['items'][0]['searchMatch']['keywordFields'])
 
     def test_semantic_only_recall_fusion_and_no_business_side_effects(self):
@@ -86,7 +86,7 @@ class RetrievalTests(TestCase):
             self.assertEqual(self.search().data['data']['total'], 0)
         row.report.entry.is_valid = True; row.report.entry.save(update_fields=['is_valid'])
         def edit(*args, **kwargs):
-            revise_candidate(row, {'name': '新名称', 'family': row.data['family'], 'tags': [], 'aliases': [], 'note': ''}, '')
+            revise_candidate(row, {'name': '新名称', 'family': row.data['family'], 'tags': [], 'aliases': [], 'note': ''}, '', '')
             return [[1, 0]]
         with patch('quant.retrieval.service.embed_texts', side_effect=edit):
             result = self.search().json()['data']

@@ -29,6 +29,11 @@ def result():
 
 class AnalysisTests(TestCase):
     def setUp(self):
+        # These fixtures describe frozen v25/v28 outputs and legacy restores.
+        # New algorithm workflows have their own end-to-end source tests.
+        self.workflow_defaults = patch.multiple('quant.workflows.contracts', VERSION=25, INCREMENTAL_VERSION=28)
+        self.workflow_defaults.start()
+        self.addCleanup(self.workflow_defaults.stop)
         self.user = get_user_model().objects.create_user('research-owner')
         self.client = APIClient()
         self.client.force_authenticate(self.user)

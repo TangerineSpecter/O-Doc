@@ -8,6 +8,7 @@ import {SourceStructure} from './SourceStructure';
 import {LocalReading} from './LocalReading';
 import {StageInputScope} from './StageInputScope';
 import {QuantBadge, QuantButton, cardClass} from '../ui';
+import {quantStagePurpose} from '../../../utils/quantWorkflowStages';
 
 const labels: Record<ResearchStageState['status'], string> = {
     waiting: '待开始',
@@ -16,6 +17,7 @@ const labels: Record<ResearchStageState['status'], string> = {
     reused: '沿用已完成结果',
     failed: '失败',
     interrupted: '已中断',
+    partial: '未完成 · 成果已保留',
 };
 
 function Evidence({collection, entryId, runId, stage}: {collection: string; entryId: string; runId: string; stage: ResearchStageState}) {
@@ -107,6 +109,7 @@ export function ResearchWorkflow({
     if (!workflow) return null;
     const finished = workflow.stages.filter((row) => ['completed', 'reused'].includes(row.status)).length;
     const progressPct = workflow.stages.length ? Math.round((finished / workflow.stages.length) * 100) : 0;
+    const incomplete = workflow.stages.find((row) => row.status === 'partial');
     const canResume = ['failed', 'cancelled', 'interrupted'].includes(run.status);
     const canRestart = canResume || run.status === 'completed';
     const stage = workflow.stages.find((row) => row.stage === selected && row.stepId);
@@ -137,6 +140,15 @@ export function ResearchWorkflow({
                 )}
             </div>
 
+            {incomplete && (
+                <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900">
+                    <span>算法与报告已保存，{workflow.stages.filter(row => row.status === 'partial').map(row => row.name).join('、')}尚未完成。</span>
+                    <QuantButton size="sm" disabled={busy} onClick={() => resume(incomplete.stage)}>
+                        <RotateCcw size={13} />从{incomplete.name}继续
+                    </QuantButton>
+                </div>
+            )}
+
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
                     className="h-full rounded-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all duration-300"
@@ -144,7 +156,9 @@ export function ResearchWorkflow({
                 />
             </div>
 
-            <div className="mt-3 space-y-1.5 rounded-xl bg-slate-50/80 p-3 text-xs leading-relaxed text-slate-500">
+            <p className="mt-3 text-xs leading-6 text-slate-600">完成的步骤会保留。输出格式错误会自动修正；仍未完成时，可直接从对应步骤继续。</p>
+            <details className="mt-2 space-y-1.5 rounded-xl bg-slate-50/80 p-3 text-xs leading-relaxed text-slate-500">
+                <summary className="cursor-pointer font-medium text-slate-600">执行设置与沿用记录</summary>
                 <p>
                     每次最多 {workflow.maxModelCalls} 次模型调用，执行最长 {workflow.maxSeconds / 60} 分钟。成功阶段保留；继续时核对来源、模型和依赖后复用。
                 </p>
@@ -171,19 +185,19 @@ export function ResearchWorkflow({
                 {[3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28].includes(workflow.version) && (
                     <p className="text-slate-600">
                         {workflow.localReading
-                            ? `${[27, 28].includes(workflow.version) ? '组件依赖' : '局部解读'}计划：${workflow.localReading.selected} 个${[27, 28].includes(workflow.version) ? '组件' : '不同片段'}，${workflow.localReading.reused} 个符合沿用条件，${workflow.localReading.omitted} 个超出片段预算。`
+                            ? `${[27, 28, 30, 32].includes(workflow.version) ? '组件依赖' : '局部解读'}计划：${workflow.localReading.selected} 个${[27, 28, 30, 32].includes(workflow.version) ? '组件' : '不同片段'}，${workflow.localReading.reused} 个符合沿用条件，${workflow.localReading.omitted} 个超出片段预算。`
                             : '片段解读计划将在来源整理完成后生成。'}{' '}
-                        {[27, 28].includes(workflow.version) ? '依赖或未知范围改变时重新分析对应组件；' : ''}参数、全局结论、评分与实验设计仍重新核对。点击“片段静态解读”查看新源码行号和原解读出处。
+                        {[27, 28, 30, 32].includes(workflow.version) ? '依赖或未知范围改变时重新分析对应组件；' : ''}参数、全局结论、评分与实验设计仍重新核对。点击“片段静态解读”查看新源码行号和原解读出处。
                     </p>
                 )}
-            </div>
+            </details>
 
             <ol className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 {workflow.stages.map((row, idx) => {
                     const isSelected = selected === row.stage;
                     const isDone = row.status === 'completed' || row.status === 'reused';
                     const isRunning = row.status === 'running';
-                    const isFailed = row.status === 'failed' || row.status === 'interrupted';
+                    const isFailed = row.status === 'failed' || row.status === 'interrupted' || row.status === 'partial';
                     return (
                         <li key={row.stage} className="flex flex-col">
                             <button
@@ -206,7 +220,10 @@ export function ResearchWorkflow({
                                     <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 font-mono text-[10px] text-slate-500">
                                         {idx + 1}
                                     </span>
-                                    <span className="truncate">{row.name}</span>
+                                    <span className="min-w-0">
+                                        <span className="block truncate">{row.name}</span>
+                                        <span className="mt-1 block text-[11px] font-normal leading-4 text-slate-500">{quantStagePurpose[row.stage]}</span>
+                                    </span>
                                 </span>
                                 <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium">
                                     {isDone ? (
@@ -222,6 +239,11 @@ export function ResearchWorkflow({
                                 </span>
                             </button>
                             {row.error && <p className="px-3 pt-1.5 text-xs leading-5 text-red-700">{row.error}</p>}
+                            {isFailed && canRestart && <div className="px-3 pt-2">
+                                <QuantButton size="sm" disabled={busy} onClick={() => resume(row.stage)}>
+                                    <RotateCcw size={12} />从这一步继续
+                                </QuantButton>
+                            </div>}
                         </li>
                     );
                 })}

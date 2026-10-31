@@ -22,7 +22,7 @@ export function FactorAdmission({collection,candidate,initial,changed}:{collecti
     return <section className="space-y-3 border-t border-slate-100 pt-4" aria-label="因子研究分层"><h4 className="text-sm font-semibold">研究分层与准入</h4>
         <p className="text-sm font-medium text-slate-800">{summary?researchStageLabels[summary.stage]:'尚未读取研究分层'}</p>
         <p className="text-xs leading-6 text-slate-600">依据固定公式及直接计算自动归集。每条限定参数、市场、数据与成本；父代和旧版本的记录保留在各自版本。达标范围不代表跨市场有效或独立认证。</p>
-        {summary&&<p className="text-xs leading-6 text-slate-600">{summary.recordCount}条准入与观察记录 · {summary.reviewCount}条需复核；登记标准满足{summary.criteriaMetCount}条、未满足{summary.criteriaNotMetCount}条。</p>}
+        {summary&&<p className="text-xs leading-6 text-slate-600">{summary.recordCount}条准入与观察记录 · {summary.reviewCount}条需复核。{summary.criteriaMetCount + summary.criteriaNotMetCount > 0 ? `登记标准满足 ${summary.criteriaMetCount} 条、未满足 ${summary.criteriaNotMetCount} 条。` : '尚无登记标准判定。'}</p>}
         <QuantButton onClick={()=>setExpanded(x=>!x)}>{expanded?'收起分层依据':'查看分层依据'}</QuantButton>
         {expanded&&<div className="space-y-4">
             <div className="flex flex-wrap gap-2"><QuantButton disabled={state.busy} onClick={()=>void state.index()}>归集已有分层记录</QuantButton>{state.busy?<QuantButton onClick={state.stop}>停止归集</QuantButton>:<QuantButton onClick={state.reload}>刷新分层</QuantButton>}</div>

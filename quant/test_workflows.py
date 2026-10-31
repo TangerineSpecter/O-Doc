@@ -101,13 +101,12 @@ class WorkflowTests(TestCase):
         resumed = self.retry(run)
         self.assertEqual(self.finish(resumed).call_count, 3)
 
-    def test_validation_failure_reason_does_not_expose_model_content(self):
+    def test_validation_failure_reason_keeps_actionable_fields_and_redacts_credentials(self):
         from rest_framework.exceptions import ValidationError
         from quant.workflows.runner import validation_reason
         self.assertEqual(validation_reason(ValidationError('参数binding_id不属于本次固定来源目录')),
-            '模型给出的参数编号无法对应源码声明')
-        self.assertEqual(validation_reason(ValidationError('private model output')),
-            '模型结果格式或源码依据未通过检查')
+            '参数binding_id不属于本次固定来源目录')
+        self.assertNotIn('secret-value', validation_reason(ValidationError('api_key=secret-value')))
 
     def test_extraction_limits_are_provider_specific_and_preserve_v28_contract(self):
         from quant.workflows.runner import completion_limits
@@ -115,7 +114,7 @@ class WorkflowTests(TestCase):
         self.assertEqual(completion_limits('extract', 25, config), (65536, 480))
         self.assertEqual(completion_limits('extract', 28, config), (32000, 300))
         self.assertEqual(completion_limits('extract', 25, {'provider_type': 'OpenAi'}), (32000, 300))
-        self.assertEqual(completion_limits('review', 25, config), (32000, 120))
+        self.assertEqual(completion_limits('review', 25, config), (32000, 180))
 
     def test_v1_rerun_preserves_original_contract_and_idempotence(self):
         from quant.services import _run_input

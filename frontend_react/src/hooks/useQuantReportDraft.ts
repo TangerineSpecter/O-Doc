@@ -15,9 +15,9 @@ export function useQuantReportDraft(report:QuantReportReading,collection:string,
         changeEditing(value);
     };
     const save=useCallback(async()=>safe(async()=>{
-        const saved=await quantApi.reviseReport(collection,entryId,report.id,draft,revisionId);
+        const saved=await quantApi.reviseReport(collection,entryId,report.id,draft,revisionId,report.documentRevision);
         setBaseline(saved.markdown);setRevisionId(saved.currentRevisionId);changeEditing(false);
-    }),[collection,entryId,report.id,draft,revisionId,safe]);
+    }),[collection,entryId,report.id,report.documentRevision,draft,revisionId,safe]);
     useQuantDraftRegistration('research-report',draft!==baseline,save,register,()=>setDraft(baseline));
     return {draft:dirty||editing?draft:report.markdown,setDraft,revisionId:dirty||editing?revisionId:report.currentRevisionId,editing,setEditing,dirty,save};
 }

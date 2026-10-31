@@ -90,6 +90,8 @@ def validate_versions(rows: dict, fail) -> None:
                 fail('实验公式版本与已验证的实验父代不一致')
     from quant.repairs.contracts import identifiers as repair_identifiers
     for report_id, report in reports.items():
+        if report.get('publication_mode') == 'pending' or (report.get('publication_mode') == 'adopted' and not report.get('factor_bindings')):
+            continue
         for item in report.get('data', {}).get('factor_repair', {}).get('items', []):
             if item['status'] == 'revised':
                 root, version, child = repair_identifiers(report_id, item['factor_index'])

@@ -1,3 +1,4 @@
+import {factorName} from '../../utils/quantFactorName';
 import {StudyLibrary} from './studies/StudyLibrary';
 import {ConnectorPanel} from './connectors/ConnectorPanel';
 import {researchStageLabels} from '../../utils/quantAdmission';
@@ -34,7 +35,7 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
     const [taxonomyTerm, setTaxonomyTerm] = useState('');
     const [admissionOverrides,setAdmissionOverrides]=useState<Record<string,{base:QuantFactorCandidate;summary:AdmissionSummary}>>({});
     const [admissionStage,setAdmissionStage]=useState<ResearchStage|''>('');
-    const [reuseStatus, setReuseStatus] = useState<ReuseStatus | ''>('');
+    const [reuseStatus, setReuseStatus] = useState<ReuseStatus | ''>('reusable');
     const vocabulary = useQuantVocabulary(collection);
     const [experiments, setExperiments] = useState(initialExperiment !== undefined);
     const [experimentId, setExperimentId] = useState(initialExperiment || '');
@@ -81,10 +82,10 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
                         </div>
                         <div>
                             <div className="flex flex-wrap items-center gap-2">
-                                <h2 className="text-lg font-extrabold text-slate-900">因子候选库</h2>
+                                <h2 className="text-lg font-extrabold text-slate-900">因子算法库</h2>
                                 <QuantBadge tone="orange">{controller.total} 项归档</QuantBadge>
                             </div>
-                            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">AI 分析提取因子，实验继续积累参数变体和组合公式。每项保留来源、父代和参数，可用于后续研究。</p>
+                            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">从指标、策略和 EA 源码抽离计算算法，统一保存输入、参数、计算逻辑与 Python 实现。</p>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -115,7 +116,7 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
 
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <Select aria-label="统一分类筛选" value={taxonomyTerm} onChange={value => {setTaxonomyTerm(value); setOffset(0);}} options={[{value: '', label: vocabulary.loading ? '正在加载统一分类…' : '全部统一分类'}, ...(vocabulary.data?.catalog.terms || []).filter(term => term.active || term.id === taxonomyTerm).map(term => ({value: term.id, label: `${vocabularyDimensions[term.dimension]} · ${term.label}`}))]}/>
-                    <Select aria-label="结构可复用状态" value={reuseStatus} onChange={value => {setReuseStatus(value as ReuseStatus | ''); setOffset(0);}} options={[{value: '', label: '全部结构检查状态'}, ...Object.entries(reuseLabels).map(([value, label]) => ({value, label}))]}/>
+                    <Select aria-label="结构可复用状态" value={reuseStatus} onChange={value => {setReuseStatus(value as ReuseStatus | ''); setOffset(0);}} options={[{value: '', label: '全部记录（含旧片段）'}, ...Object.entries(reuseLabels).map(([value, label]) => ({value, label: value === 'reusable' ? '已提取的计算算法' : label}))]}/>
                     <Select value={groupBy} onChange={value => {hybrid.cancel(); setGroupBy(value); setOffset(0);}} options={[{value: 'lineage', label: '稳定因子 · 当前研究版'}, {value: 'expression', label: '相同表达式'}, {value: 'raw', label: '相同原文'}, {value: 'merged', label: '主动逻辑合并组'}, {value: 'none', label: '全部候选记录'}]} />
                     <Select value={admissionStage} onChange={value=>{setAdmissionStage(value as ResearchStage|'');setOffset(0);setInspection(null);}} options={[{value:'',label:'全部研究分层'},...Object.entries(researchStageLabels).map(([value,label])=>({value,label}))]}/>
                 </div>
@@ -135,8 +136,8 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
                     <p>按当前展示版本的最高已记录层筛选，旧版本的达标记录不转移到当前研究版。</p>
                 </div>
             </section>
-            {controller.loading ? <div role="status" className={`${cardClass} text-sm text-slate-500`}>{hybrid.loading ? '正在结合文字与语义检索…' : '正在加载候选库…'}</div> : controller.error ? <div role="alert" className={`${cardClass} space-y-3 text-sm text-red-600`}><p>{controller.error}</p><QuantButton onClick={controller.reload}>重试</QuantButton></div> : !controller.items.length ? <QuantEmpty title={q || role || family || taxonomyTerm || reuseStatus || admissionStage ? '没有匹配的候选' : '候选会随着研究自动积累'} description="收集资料并生成新版 AI 报告后，可分离的计算、信号与过滤条件会自动入库。旧报告可重新分析以提取候选。" /> : <>
-                <div className="flex items-center justify-between gap-4 px-1 text-xs font-medium text-slate-500"><span>{controller.total} {groupBy === 'none' ? '条候选记录' : '组候选'} · 结构与实证分开展示</span><span>{offset + 1}–{offset + controller.items.length}</span></div>
+            {controller.loading ? <div role="status" className={`${cardClass} text-sm text-slate-500`}>{hybrid.loading ? '正在结合文字与语义检索…' : '正在加载候选库…'}</div> : controller.error ? <div role="alert" className={`${cardClass} space-y-3 text-sm text-red-600`}><p>{controller.error}</p><QuantButton onClick={controller.reload}>重试</QuantButton></div> : !controller.items.length ? <QuantEmpty title={q || role || family || taxonomyTerm || reuseStatus || admissionStage ? '没有匹配的算法' : '算法会随源码分析自动入库'} description="上传源码或重新分析已有来源，提取完整计算算法并入库。未完成转换的模块保留在来源报告中；筛选可查看旧片段记录。" /> : <>
+                <div className="flex items-center justify-between gap-4 px-1 text-xs font-medium text-slate-500"><span>{controller.total} {groupBy === 'none' ? '条候选记录' : '组候选'} · 输入、计算与用途分开展示</span><span>{offset + 1}–{offset + controller.items.length}</span></div>
                 <div className="grid items-start gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
                     <div className="max-h-[45dvh] space-y-2.5 overflow-auto pr-0.5 scrollbar-hide lg:max-h-[75dvh]" aria-label="候选列表">
                         {controller.items.map(item => {
@@ -157,11 +158,12 @@ export function FactorLibrary({initialExperiment, initialComparison, collection,
                                         <QuantBadge tone={isActive ? 'orange' : 'slate'}>{factorRoles[item.data.role]}</QuantBadge>
                                         <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{factorFamilies[item.curation.family]}</span>
                                     </div>
-                                    <h3 className="break-words text-sm font-bold text-slate-900">{item.curation.name}</h3>
+                                    <h3 className="break-words text-sm font-bold text-slate-900">{factorName(item.curation.name, item.data.name).title}</h3>
+                                    {factorName(item.curation.name, item.data.name).identifier && <p className="mt-1 break-all font-mono text-xs text-slate-500">{factorName(item.curation.name, item.data.name).identifier}</p>}
                                     <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{item.data.summary}</p>
                                     {item.searchMatch && <p className="mt-2 rounded-lg bg-orange-50/80 px-2 py-1 text-[11px] text-orange-800">命中：{[...item.searchMatch.keywordFields, ...(item.searchMatch.semanticSimilarity !== null ? ['语义相关'] : [])].join('、')}</p>}
                                     <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[11px]">
-                                        <span className="font-semibold text-slate-700">{item.admission ? researchStageLabels[item.admission.stage] : '分层待归集'}{item.admission?.reviewCount ? ` · ${item.admission.reviewCount}条需复核` : ''}</span>
+                                        <span className="font-semibold text-slate-700">{['program', 'python'].includes(String(item.data.expression?.op)) ? 'Python算法' : item.data.expression ? '公式算法' : '旧来源片段'} · {item.data.inputs.length} 项输入 · {item.data.parameters.length} 项参数</span>
                                     </div>
                                     <p className="mt-1 truncate text-[11px] text-slate-400">{item.formulaLineage ? `研究版 · ${item.formulaLineage.versionsTotal} 个版本 · ` : item.data.formulaVersion ? '公式修订 · ' : item.data.derivation ? '实验衍生 · ' : '来源 · '}{item.entryTitle}{item.occurrenceCount > 1 ? ` · 共 ${item.occurrenceCount} 条记录` : ''}</p>
                                 </button>

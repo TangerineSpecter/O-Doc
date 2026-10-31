@@ -73,6 +73,9 @@ def _joined(left: dict, right: dict) -> tuple[dict, dict, dict]:
     def branch(value, prefix):
         def visit(node):
             node = copy.deepcopy(node)
+            if node['op'] == 'program':
+                from quant.algorithms.renaming import rename_program
+                return rename_program(node, {name: prefix + name for name in {*value['bindings'], *value['parameters']}})
             if node['op'] in ('input', 'parameter'):
                 node['name'] = prefix + node['name']
             if 'args' in node:

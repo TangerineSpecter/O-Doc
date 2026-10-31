@@ -24,6 +24,12 @@ def parameter_value(value) -> bool:
 
 
 def validate_expression(node: dict, inputs: set[str], parameters: set[str]) -> dict:
+    if isinstance(node, dict) and node.get('op') == 'python':
+        from quant.algorithms.python_definition import validate_python
+        return validate_python(node)
+    if isinstance(node, dict) and node.get('op') == 'program':
+        from quant.algorithms.contract import validate_program
+        return validate_program(node, inputs, parameters)
     budget = [0]
 
     def visit(value, depth=0):
@@ -31,6 +37,10 @@ def validate_expression(node: dict, inputs: set[str], parameters: set[str]) -> d
         if depth > 12 or budget[0] > 128 or not isinstance(value, dict):
             raise ValidationError('因子表达式过深、过大或不是对象')
         op = value.get('op')
+        if op == 'program':
+            from quant.algorithms.contract import validate_program
+            validate_program(value, inputs, parameters)
+            return
         if not isinstance(op, str):
             raise ValidationError('表达式算子必须为字符串')
         if op == 'input' and set(value) == {'op', 'name'} and isinstance(value['name'], str) and value['name'] in inputs:

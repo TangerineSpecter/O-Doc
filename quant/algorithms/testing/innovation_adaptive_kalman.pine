@@ -1,0 +1,203 @@
+// Numerical excerpts for regression; plotting and UI omitted. Original attribution retained.
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jdehorty
+
+//@version=6
+indicator("Innovation Adaptive Kalman Filter Oscillator", shorttitle = "IAKF Oscillator", overlay = false, behind_chart = false, explicit_plot_zorder = true, max_labels_count = 500, max_polylines_count = 100)
+sourcePrice = input.source(close, "Source", group = "Kalman Filter", tooltip = "The price the filter tracks. Close is the usual choice. HL2 or OHLC4 average the whole bar, so a close that lands at one extreme of the bar counts for less.")
+smoothingPeriod = input.int(20, "Trend Smoothness", group = "Kalman Filter", minval = 2, tooltip = "How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.")
+noiseLookback = input.int(20, "Noise Lookback", group = "Surprise (Innovation)", minval = 2, tooltip = "How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.")
+useTrendCentering = input.bool(true, "Trend Centering", group = "Surprise (Innovation)", display = display.none, tooltip = "Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.")
+anomalyMultiple = input.float(2.05, "Unusual-Move Threshold", group = "Damping", minval = 1.0, step = 0.05, tooltip = "Decides which bars count as unusual moves, and so how often the Damping meter dips.\n\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\n\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\n\nHow hard each dotted bar is damped is set by Damping Strength.")
+outlierRejection = input.float(0.05, "Damping Strength", group = "Damping", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = "Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\n\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\n\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\n0.05: 15 to 25, fading in about 10 bars\n0.1: 25 to 40, fading in about 20 bars\n0.3: 50 to 70, fading in about 40 bars\n\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\n\nWhich bars get dots is set by the Unusual-Move Threshold.")
+colorHold = input.float(0.25, "Line Color Hold", group = "Display", minval = 0.0, step = 0.05, display = display.none, tooltip = "How far the filter line has to come back off its latest high or low before it changes color, measured in typical bar moves. This only changes the color, not the line.\n\nAt 0 the line changes color on every small wiggle, which in a sideways market can mean a color change every few bars. At 0.25 it changes about a third as often. Higher holds the color through bigger pullbacks, but a real turn shows up a bar or two later.")
+float NOISE_DECAY = 0.9
+// Meter levels that bound a volatility shift (see States)
+float SHIFT_START = 30.0
+float SHIFT_HOLD = 20.0
+float NEAR_ZERO = 10.0
+float anomalyThreshold = math.pow(anomalyMultiple, 2)
+
+
+// ======================
+// ==== Filter State ====
+// ======================
+
+// The filter carries seven values from bar to bar. They are seeded on the first bar from the first price
+// move, so the filter starts with a usable noise estimate rather than zero. One of them, calmNoise, never
+// feeds the line: it is the noise the filter would carry with the gate switched off, the "normal" that
+// both meters are measured against.
+
+var float estimate = na // the filtered price -- this is the plotted line
+var float estimateVariance = 1.0 // how uncertain that estimate currently is
+var float measurementNoise = 0.0 // adaptive R: rises when outliers appear
+var float calmNoise = 0.0 // R with the gate switched off: the filter's normal expectation
+var float meanSurprise = 0.0 // running average prediction error
+var float surpriseVariance = 0.0 // running spread of prediction error (S)
+var float processNoise = 0.0 // how much drift the model allows per bar
+
+// Derived from Filter Settings
+float processNoiseRatio = math.pow(2.0 / (smoothingPeriod + 1), 2)
+
+if na(estimate)
+    estimate := sourcePrice
+    float firstMove = math.pow(sourcePrice - sourcePrice[1], 2)
+    surpriseVariance := firstMove > 0 ? firstMove : 0.0001
+    meanSurprise := 0.0
+    measurementNoise := surpriseVariance
+    calmNoise := surpriseVariance
+    estimateVariance := surpriseVariance
+    processNoise := surpriseVariance * processNoiseRatio
+
+
+// =======================
+// ==== Kalman Update ====
+// =======================
+
+// Every bar runs the same six steps:
+
+// 1. Predict. The model is a random walk, so the prediction is simply the last estimate, with its
+//    uncertainty grown by one bar of process noise.
+// 2. Surprise. The innovation is how far the actual price landed from that prediction. Centering
+//    subtracts the running mean first, so a persistent trend reads as bias rather than noise and does
+//    not keep tripping the anomaly test below.
+// 3. Test. The surprise is compared against the PRIOR variance, before this bar updates it. Order
+//    matters here: test after the update instead, and a large outlier inflates its own denominator,
+//    hiding itself from the very test meant to catch it.
+// 4. Learn. The bar is folded into the running surprise statistics with an EMA weight.
+// 5. Adapt. An anomalous bar inflates measurement noise in proportion to how surprising it was, which
+//    shrinks the gain in step 6 and makes the filter distrust that bar. A calm bar decays the noise
+//    back toward baseline instead. The gate-free calmNoise takes the calm-bar update on every bar.
+// 6. Correct. The gain decides how much of the surprise to believe. High measurement noise means a low
+//    gain, so the line barely moves.
+
+// Predict
+float predictedEstimate = estimate
+float predictedVariance = estimateVariance + processNoise
+
+// Surprise
+float surprise = sourcePrice - predictedEstimate
+float centeredSurprise = useTrendCentering ? surprise - meanSurprise : surprise
+
+// Test
+float testStatistic = math.pow(centeredSurprise, 2) / surpriseVariance
+bool isAnomaly = testStatistic > anomalyThreshold
+
+// Learn
+float statAlpha = 2.0 / (noiseLookback + 1)
+meanSurprise := (1.0 - statAlpha) * meanSurprise + statAlpha * surprise
+surpriseVariance := (1.0 - statAlpha) * surpriseVariance + statAlpha * math.pow(centeredSurprise, 2)
+
+// Adapt
+float updatedNoise = measurementNoise
+if isAnomaly
+    updatedNoise := outlierRejection * math.pow(centeredSurprise, 2) + measurementNoise
+else
+    updatedNoise := (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise
+measurementNoise := updatedNoise
+calmNoise := (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise
+
+// Correct
+float kalmanGain = predictedVariance / (predictedVariance + updatedNoise)
+estimate := predictedEstimate + kalmanGain * surprise
+estimateVariance := (1.0 - kalmanGain) * predictedVariance
+
+processNoise := surpriseVariance * processNoiseRatio
+
+
+// ================
+// ==== Meters ====
+// ================
+
+// Surprise is the share of recent surprise energy (S) above the filter's normal expectation,
+// 1 - normal / S, so twice normal reads 50 and four times reads 75. Damping is how much less the line
+// reacts this bar than it would without the gate's inflation, 1 - gain / gain without the gate, so it
+// stays at zero until the gate fires. Both are ratios, so price units cancel on every symbol.
+
+float surpriseRatio = surpriseVariance / math.max(calmNoise, 1e-12)
+float surpriseMeter = 100.0 * math.max(1.0 - 1.0 / surpriseRatio, 0.0)
+float calmGain = predictedVariance / (predictedVariance + calmNoise)
+float dampingMeter = 100.0 * math.max(1.0 - kalmanGain / calmGain, 0.0)
+
+bool isUpsideAnomaly = isAnomaly and centeredSurprise > 0
+bool isDownsideAnomaly = isAnomaly and centeredSurprise < 0
+
+
+// ================
+// ==== States ====
+// ================
+
+// The readout names the pattern the two meters are showing, and the price chart marks where each volatility
+// shift starts and ends. A shift needs both meters up at once, so it follows the smaller of the two:
+
+//   Volatility shift      Both meters have reached 30. That usually takes a cluster of unusual moves; a
+//                         single one rarely lifts both meters that high. It stays a shift while both hold
+//                         at 20 or more.
+//   Settling              Still inside a shift, but one meter has dropped below 20. The gap between 30 and 20
+//                         keeps a fading shift from flickering back and forth.
+//   Settled               Both meters are back under 10, which ends the shift.
+
+// Outside a shift, Damping is checked first, because a damped line is what changes how to read it:
+
+//   Outlier damped        Damping is up: the filter discounted a recent unusual move as a one-off.
+//   Noisier than normal   Only Surprise is up: recent moves are bigger than normal, but Damping is near zero.
+//   Normal                Both meters are under 10.
+
+float shiftMeter = math.min(surpriseMeter, dampingMeter)
+
+var bool inShift = false
+bool shiftStarts = not inShift and shiftMeter >= SHIFT_START
+bool shiftSettles = inShift and math.max(surpriseMeter, dampingMeter) < NEAR_ZERO
+if shiftStarts
+    inShift := true
+else if shiftSettles
+    inShift := false
+
+string stateName = inShift ? (shiftMeter >= SHIFT_HOLD ? "Volatility shift" : "Settling") :
+     dampingMeter >= NEAR_ZERO ? "Outlier damped" : surpriseMeter >= NEAR_ZERO ? "Noisier than normal" : "Normal"
+
+
+// ====================
+// ==== Hover Text ====
+// ====================
+
+// Every mark of an unusual move (pane dot, price-chart dot, halo) and the readout's last-move row show the
+// same hover text. TradingView tooltips are plain text, so the layout comes from line breaks alone, read
+// top to bottom from what happened to what it means:
+
+//   Heading   Direction and size, the two things a glance should catch.
+//   Numbers   Where price landed, where the filter expected it, and what the filter did about it.
+//   Meaning   How many unusual moves are nearby, and one plain sentence on how to read the line now.
+
+int recentMoves = int(math.sum(isAnomaly ? 1 : 0, noiseLookback))
+
+formatPrice(float value) =>
+    str.tostring(value, format.mintick)
+
+string moveTip = na
+if isAnomaly
+    float moveSize = math.sqrt(testStatistic)
+// Color Hold: the line keeps its color until it comes back off its latest extreme by more than
+// colorHold typical bar moves. At 0 this is the old rule, a color change on every turn of the line.
+float typicalMove = ta.rma(math.abs(nz(sourcePrice - sourcePrice[1])), 20)
+var int lineDirection = 1
+var float lineExtreme = na
+lineExtreme := na(lineExtreme) ? estimate : lineDirection == 1 ? math.max(lineExtreme, estimate) : math.min(lineExtreme, estimate)
+if lineDirection == 1 and estimate < lineExtreme - colorHold * typicalMove
+    lineDirection := -1
+    lineExtreme := estimate
+else if lineDirection == -1 and estimate > lineExtreme + colorHold * typicalMove
+    lineDirection := 1
+    lineExtreme := estimate
+color priceLineColor = lineDirection == 1 ? RISING_COLOR : FALLING_COLOR
+
+
+int CLUSTER_COUNT = 3
+
+bool lineTurnsUp = lineDirection == 1 and lineDirection[1] == -1
+bool lineTurnsDown = lineDirection == -1 and lineDirection[1] == 1
+bool priceCrossesUp = ta.crossover(sourcePrice, estimate)
+bool priceCrossesDown = ta.crossunder(sourcePrice, estimate)
+bool isMajorMove = isAnomaly and math.sqrt(testStatistic) >= 2 * anomalyMultiple
+bool movesCluster = not inShift and recentMoves >= CLUSTER_COUNT and recentMoves[1] < CLUSTER_COUNT
+bool dampingReleased = not inShift and dampingMeter < NEAR_ZERO and dampingMeter[1] >= NEAR_ZERO

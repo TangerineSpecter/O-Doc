@@ -7,7 +7,7 @@ from quant.research.contracts import digest
 from .inventory import build, encode, MAX_CHARS, VERSIONS
 from .source_values import configured, scalar
 
-WORKFLOWS = (21, 22, 23, 24, 25, 26, 27, 28)
+WORKFLOWS = (21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42)
 KEYS = {'parameter_binding_version', 'parameter_inventory_json'}
 FACT_KEYS = ('id', 'file', 'scope', 'source_name', 'kind', 'ordinal', 'type', 'default_raw', 'literal', 'line', 'end_line', 'quote', 'conditional')
 
@@ -143,7 +143,9 @@ def propagate(factors: list[dict], raw_factors: list[dict], parameters: list[dic
         for row in raw['parameters']:
             if not isinstance(row, dict): raise ValidationError('候选参数须为完整对象')
             parent = ids.get(row.get('binding_id')) if row.get('binding_id') else names.get(row.get('name'))
-            if parent is None: raise ValidationError('候选参数须引用本报告明确的内部符号或binding_id')
+            if parent is None:
+                raise ValidationError(f"因子 {raw.get('name', '')} 的参数 {row.get('name', '')} 未对应源码参数。"
+                    f"可用参数名：{', '.join(names)}。保留这些原名作为 parameters 的键；运行时计算的中间量应在算法内计算，或声明为输入，不作为源码默认参数。")
             if row.get('name') not in (parent['name'], parent['source_binding']['source_name']):
                 raise ValidationError('候选参数名称与所选声明不一致')
             if set(row) != {'name'}:
@@ -151,7 +153,7 @@ def propagate(factors: list[dict], raw_factors: list[dict], parameters: list[dic
                     if row.get(key) != parent.get(key): raise ValidationError('原始候选参数类型、默认、用途及约束须与参数阶段一致')
             if row.get('source_binding') is not None and encode(row['source_binding']) != encode(parent['source_binding']):
                 raise ValidationError('候选不能改写参数来源')
-            if factor.get('expression') is not None and parent['source_binding']['status'] == 'unresolved':
+            if factor.get('expression') is not None and factor['expression'].get('op') != 'python' and parent['source_binding']['status'] == 'unresolved':
                 raise ValidationError('未定位源码参数的原始候选不能冒充可执行表达式')
             selected.append(copy.deepcopy(parent))
         factor['parameters'] = selected
@@ -239,13 +241,13 @@ def validate_admission(value: dict, version: int) -> None:
     if value and bool(KEYS.intersection(value)) != (version in WORKFLOWS):
         raise ValidationError('参数身份须绑定支持的参数身份工作流，历史报告不能追加')
     if value and version in WORKFLOWS: extension(value)
-    if value and version in WORKFLOWS and value.get('parameter_binding_version') != (2 if version in (25, 26, 27, 28) else 1):
+    if value and version in WORKFLOWS and value.get('parameter_binding_version') != (2 if version in (25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42) else 1):
         raise ValidationError('参数目录版本与工作流不一致')
     elif value and version not in WORKFLOWS and any('source_binding' in parameter for parameter in [*value.get('parameters', []),
             *(row for factor in value.get('factors', []) for row in factor['parameters']),
             *(row for item in value.get('factor_repair', {}).get('items', []) for row in (item.get('definition') or {}).get('parameters', []))]):
         raise ValidationError('旧源码报告不能追加未冻结的参数身份')
-    if value and version not in (25, 26, 27, 28) and any(parameter.get('domain', {}).get('version') == 5 for parameter in [
+    if value and version not in (25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42) and any(parameter.get('domain', {}).get('version') == 5 for parameter in [
             *value.get('parameters', []), *(row for factor in value.get('factors', []) for row in factor['parameters']),
             *(row for item in value.get('factor_repair', {}).get('items', []) for row in (item.get('definition') or {}).get('parameters', []))]):
         raise ValidationError('参数表范围v5须绑定工作流25/26/27，旧报告不追加新合同')

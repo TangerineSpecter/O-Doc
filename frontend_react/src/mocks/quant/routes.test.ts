@@ -5,7 +5,7 @@ import {decodeFeedbackFile} from '../../utils/quantFeedbackFile.ts';
 import {clearQuantMockData, quantState, resetQuantStateForTests} from './state.ts';
 import type {QuantAIRun, QuantEntryDetail, QuantImplementation, QuantAttachment, QuantEntry, QuantCodeVersion} from '../../types/api/quant.ts';
 import type {Anthology} from '../../types/api/anthology.ts';
-import type {QuantModels} from '../../types/api/quant.ts';
+import type {QuantModels, QuantFactorCandidate} from '../../types/api/quant.ts';
 import type {QuantBatch, QuantBatchInput} from '../../types/api/quantIntake.ts';
 import {decodeSourceFile, emptyMaterial, validateMaterials} from '../../utils/quantIntake.ts';
 import {compareReportRecords, compareReportText} from '../../utils/quantReportDiff.ts';
@@ -22,6 +22,35 @@ const invoke = async <T>(path: string, method = 'GET', body?: unknown, authorize
     return await resolveQuantRoute(request) as T;
 };
 
+test('源码算法local样例使用新流程和纠正预算，已有历史样例不升级', async () => {
+    const {entry} = await invoke<{entry: QuantEntryDetail}>(base + 'intake/', 'POST', {
+        requestKey: 'source_algorithm_workflow_33', language: 'pine', code: '// LOCAL_SOURCE_ALGORITHMS\nplot(close)',
+    });
+    assert.equal(entry.runs[0].workflow?.version, 41);
+    assert.equal(entry.runs[0].workflow?.maxModelCalls, 8);
+    entry.runs[0].createdAt = '2020-01-01T00:00:00Z';
+    const ready = await invoke<QuantEntryDetail>(base + `entries/${entry.id}/`);
+    assert.equal(ready.runs[0].status, 'completed');
+    assert.ok(ready.reports![0].data.factors!.length > 0);
+    assert.ok(ready.reports![0].data.factors!.every(row => row.expression?.op === 'program'));
+});
+
+test('普通Python算法可入库和原样导出，无需转换为程序算子', async () => {
+    const {entry} = await invoke<{entry: QuantEntryDetail}>(base + 'intake/', 'POST', {
+        requestKey: 'python_algorithm_workflow_33', language: 'python', code: '# LOCAL_PYTHON_ALGORITHMS',
+    });
+    assert.equal(entry.runs[0].workflow?.version, 41);
+    entry.runs[0].createdAt = '2020-01-01T00:00:00Z';
+    const ready = await invoke<QuantEntryDetail>(base + `entries/${entry.id}/`);
+    assert.equal(ready.runs[0].status, 'completed');
+    const {items} = await invoke<{items: import('../../types/api/quant').QuantFactorCandidate[]}>(base + `factors/?entryId=${entry.id}`);
+    assert.equal(items[0].data.expression?.op, 'python');
+    const {mockFactorExport} = await import('./exports');
+    const exported = mockFactorExport(items[0], 'python');
+    assert.ok(!(exported instanceof Response));
+    assert.equal(exported.code, items[0].data.expression?.code);
+});
+
 test('研究列表投影默认报告评分，未生成报告时保持未知', async () => {
     const detail = await invoke<QuantEntryDetail>(entryBase);
     const list = await invoke<QuantEntry[]>(base + 'entries/');
@@ -33,7 +62,7 @@ test('研究列表投影默认报告评分，未生成报告时保持未知', as
     assert.equal(after.find(row => row.id === entry.id)?.researchScore, null);
 });
 
-test('研究图谱保持来源假设、正反反馈引文与实际参数，恢复不改变主张', async () => {
+test('算法图谱不再投影AI用途假设与反馈主张，来源事实和恢复保持', async () => {
     const {readGraphResearch} = await import('../../utils/quantGraphResearch.ts');
     type Graph = import('../../types/api/quantGraph.ts').QuantGraph;
     const {entry} = await invoke<{entry: QuantEntryDetail}>(base+'intake/', 'POST', {
@@ -50,12 +79,8 @@ test('研究图谱保持来源假设、正反反馈引文与实际参数，恢�
     const graphPath = base+`graph/?candidateId=${candidate.id}`;
     const graph = await invoke<Graph>(graphPath);
     const claims = graph.edges.filter(row => row.researchJson).map(row => readGraphResearch(row.researchJson!, candidate.id));
-    assert.ok(claims.some(row => row.kind === 'scenario_hypothesis' && row.condition_availability === 'not_established'));
-    const feedback = claims.filter(row => row.kind === 'feedback_assessment');
-    assert.deepEqual(feedback.map(row => row.status), ['reported_counterexample', 'reported_support']);
-    assert.deepEqual(feedback.map(row => row.quote), ['net=-2%', 'trades=2']);
-    assert.equal(feedback[0].reported_parameters[0].value, '10');
-    assert.ok(feedback.every(row => row.independent_evidence === false && row.platform_authenticated === false));
+    assert.deepEqual(claims, []);
+    assert.ok(!graph.nodes.some(row => row.kind === 'scenario' || row.kind === 'hypothesis'));
     assert.equal(quantState().experiments.length, 0);
     resetQuantStateForTests();
     assert.deepEqual((await invoke<Graph>(graphPath)).edges.filter(row => row.researchJson), graph.edges.filter(row => row.researchJson));
@@ -421,7 +446,7 @@ test('显式人工对照冻结实际参数与完整证据，重复请求可刷�
     assert.equal((await invoke<Comparison>(`${base}comparisons/`, 'POST', input)).id, first.id);
     assert.equal((await invoke<Response>(`${base}comparisons/`, 'POST', {...input, name: '不同内容'})).status, 409);
     const original = JSON.stringify([left.data, right.data]);
-    await invoke(`${base}factors/${left.id}/`, 'PATCH', {expectedRevisionId: left.currentRevisionId, data: {...left.curation, name: '新整理名称', aliases: ['旧别名']}});
+    await invoke(`${base}factors/${left.id}/`, 'PATCH', {expectedRevisionId: left.currentRevisionId, expectedCurationRevisionId: left.curationRevisionId, data: {...left.curation, name: '新整理名称', aliases: ['旧别名']}});
     assert.equal((await invoke<Comparison>(`${base}comparisons/${first.id}/`)).planJson, first.planJson);
     assert.equal(JSON.stringify([(await invoke<Candidate>(`${base}factors/${left.id}/`)).data, (await invoke<Candidate>(`${base}factors/${right.id}/`)).data]), original);
     const listed = await invoke<{total: number; items: Comparison[]}>(`${base}comparisons/?factorId=${right.id}`);
@@ -459,7 +484,7 @@ test('合并仅接受直接通过对照，桥接撤销拆组且保留原候选�
     const make = (comparisonId: string, requestKey: string) => ({requestKey, comparisonId, name: '可撤销组', reason: '人工确认固定样本证据'});
     assert.equal((await invoke<Response>(`${base}factor-merges/`, 'POST', make(ad.id, 'merge_failed_evidence_01'))).status, 400);
     assert.equal((await invoke<Response>(`${base}factor-merges/`, 'POST', make(ae.id, 'merge_missing_evidence_01'))).status, 400);
-    await invoke(`${base}factors/${b.id}/`, 'PATCH', {expectedRevisionId: b.currentRevisionId, data: {...b.curation, name: '冻结旧名', aliases: ['冻结别名']}});
+    await invoke(`${base}factors/${b.id}/`, 'PATCH', {expectedRevisionId: b.currentRevisionId, expectedCurationRevisionId: b.curationRevisionId, data: {...b.curation, name: '冻结旧名', aliases: ['冻结别名']}});
     const originalA = await invoke<Candidate>(`${base}factors/${a.id}/`), originalC = await invoke<Candidate>(`${base}factors/${c.id}/`);
     const edge1 = await invoke<Merge>(`${base}factor-merges/`, 'POST', make(ab.id, 'merge_direct_AB_01'));
     const edge2 = await invoke<Merge>(`${base}factor-merges/`, 'POST', make(bc.id, 'merge_direct_BC_01'));
@@ -467,7 +492,7 @@ test('合并仅接受直接通过对照，桥接撤销拆组且保留原候选�
     assert.equal((await invoke<Response>(`${base}factor-merges/`, 'POST', {...make(ab.id, 'merge_direct_AB_01'), name: '冲突'})).status, 409);
     assert.equal((await invoke<Response>(`${base}factor-merges/`, 'POST', make(ab.id, 'merge_duplicate_edge_01'))).status, 409);
     const bNow = await invoke<Candidate>(`${base}factors/${b.id}/`);
-    await invoke(`${base}factors/${b.id}/`, 'PATCH', {expectedRevisionId: bNow.currentRevisionId, data: {...bNow.curation, name: '当前名', aliases: ['当前别名'], family: 'trend'}});
+    await invoke(`${base}factors/${b.id}/`, 'PATCH', {expectedRevisionId: bNow.currentRevisionId, expectedCurationRevisionId: bNow.curationRevisionId, data: {...bNow.curation, name: '当前名', aliases: ['当前别名'], family: 'trend'}});
     const group = (await invoke<Group>(`${base}factor-merges/?factorId=${a.id}`)).group!;
     assert.deepEqual(group.memberIds, [a.id, b.id, c.id].sort()); assert.equal(group.id, `merged:${group.memberIds[0]}`);
     assert.ok(group.names.includes('冻结旧名') && group.names.includes('当前名')); assert.deepEqual(group.aliases, ['冻结别名', '当前别名'].sort());
@@ -637,6 +662,41 @@ test('跨来源历史记忆冻结实验失败和反馈声明，模型判断引�
     setScenario('sample'); assert.equal((await invoke<Response>(`${base}experiments/${started.id}/`, 'GET', undefined, false)).status, 403);
 });
 
+test('辅助评分未完成保留算法，定点重跑恢复评分且不复用空结果', async () => {
+    const collected = await invoke<{entry: QuantEntryDetail}>(`${base}intake/`, 'POST', {requestKey: 'auxiliary_incomplete_01', code: '# LOCAL_AUXILIARY_INCOMPLETE\nN=20', language: 'python'});
+    const entry = collected.entry, path = `${base}entries/${entry.id}/runs/`, old = entry.runs[0];
+    old.createdAt = '2020-01-01T00:00:00Z';
+    await invoke(`${path}${old.id}/`);
+    assert.equal(old.status, 'completed');
+    assert.equal(old.result.analysis?.totalScore, null);
+    assert.deepEqual(old.workflow?.stages.filter(row => row.status === 'partial').map(row => row.stage), ['review', 'plan']);
+    assert.ok(old.result.analysis?.factors?.length);
+    await invoke(`${base}entries/${entry.id}/`);
+    const original = entry.reports!.find(row => row.runId === old.id)!;
+    const beforeFactors = await invoke<{items: QuantFactorCandidate[]}>(`${base}factors/?entryId=${entry.id}&groupBy=lineage`);
+    const originalFactor = beforeFactors.items[0];
+    await invoke(`${base}factors/${originalFactor.id}/`, 'PATCH', {data: {...originalFactor.curation, name: '已确认中文算法名'}, expectedRevisionId: '', expectedCurationRevisionId: originalFactor.curationRevisionId});
+    const accepted = '## 这个指标做什么\n\n用户确认的说明\n\n## 它是怎么计算的\n\n逐根计算';
+    await invoke(`${base}entries/${entry.id}/reports/${original.id}/`, 'PATCH', {markdown: accepted, expectedRevisionId: ''});
+    const next = await invoke<QuantAIRun>(path, 'POST', {kind: 'analyze', sourceId: old.sourceId, resumeRunId: old.id, restartStage: 'review', modelId: old.modelId, requestKey: 'auxiliary_resume_01'});
+    next.createdAt = '2020-01-01T00:00:00Z';
+    await invoke(`${path}${next.id}/`);
+    assert.equal(next.result.analysis?.totalScore, 60);
+    assert.equal(next.workflow?.stages.find(row => row.stage === 'review')?.reusedFrom, '');
+    assert.equal(next.workflow?.stages.find(row => row.stage === 'extract')?.status, 'reused');
+    await invoke(`${base}entries/${entry.id}/`);
+    const latest = entry.reports!.find(row => row.runId === next.id)!;
+    assert.equal(latest.markdown, accepted);
+    assert.equal(latest.data.totalScore, 60);
+    assert.notEqual(latest.originalMarkdown, accepted);
+    assert.notEqual(latest.currentRevisionId, original.currentRevisionId);
+    const afterFactors = await invoke<{total: number; items: QuantFactorCandidate[]}>(`${base}factors/?entryId=${entry.id}&groupBy=lineage`);
+    assert.equal(afterFactors.total, beforeFactors.items.length);
+    assert.equal(afterFactors.items[0].id, originalFactor.id);
+    assert.equal(afterFactors.items[0].curation.name, '已确认中文算法名');
+    assert.equal(afterFactors.items[0].formulaLineage?.versionsTotal, 1);
+});
+
 test('阶段失败后继续复用成功结果，证据接口与刷新保留状态', async () => {
     const collected = await invoke<{entry: QuantEntryDetail}>(`${base}intake/`, 'POST', {requestKey: 'workflow_sample_collect', code: '// LOCAL_WORKFLOW_FAIL_RESEARCH\nN=20', language: 'python'});
     const entry = collected.entry, path = `${base}entries/${entry.id}/runs/`;
@@ -776,6 +836,8 @@ test('参数约束 local 流程覆盖读取、准备拒绝和失败尝试，状�
     await invoke(`${entryBase}runs/`, 'POST', {kind: 'analyze', sourceId: entry.sources![0].id, requestKey: 'parameter_domain_local001'});
     entry.runs.find(row => row.kind === 'analyze')!.createdAt = '2020-01-01T00:00:00Z';
     await invoke(entryBase);
+    const doc = await invoke<import('../../types/api/quantDocument').QuantDocument>(`${entryBase}document/`);
+    if(doc.pending.length)await invoke(`${entryBase}document/`,'POST',{expectedRevision:doc.revision,action:'adopt',identity:doc.pending[0].id,sections:['factors','plan']});
     const factors = await invoke<{items: import('../../types/api/quant.ts').QuantFactorCandidate[]}>(`${base}factors/`);
     const candidate = factors.items.find(row => row.entryId === entry.id && row.data.parameters[0]?.domain)!;
     assert.equal(candidate.data.parameters[0].domain!.maximum, 30);
@@ -808,6 +870,8 @@ test('条件约束 local 流程拒绝违规组合、导出重命名并保留恢�
     await invoke(`${entryBase}runs/`, 'POST', {kind: 'analyze', sourceId: entry.sources![0].id, requestKey: 'parameter_domain_local001'});
     entry.runs.find(row => row.kind === 'analyze')!.createdAt = '2020-01-01T00:00:00Z';
     await invoke(entryBase);
+    const doc = await invoke<import('../../types/api/quantDocument').QuantDocument>(`${entryBase}document/`);
+    if(doc.pending.length)await invoke(`${entryBase}document/`,'POST',{expectedRevision:doc.revision,action:'adopt',identity:doc.pending[0].id,sections:['factors','plan']});
     const factors = await invoke<{items: import('../../types/api/quant.ts').QuantFactorCandidate[]}>(`${base}factors/`);
     const candidate = factors.items.find(row => row.entryId === entry.id && row.data.parameters[0]?.domain)!;
     assert.equal(candidate.data.parameters[0].domain!.version, 2);
@@ -901,7 +965,7 @@ test('外部反馈自动分析、原文与人工修订保留，重放不会新�
 });
 
 test('自动报告、人工修订、幂等与刷新持久化', async () => {
-    const input = {requestKey: 'research_request_0001', code: 'def factor(close): return close.pct_change(20)', description: '作者说明'};
+    const input = {requestKey: 'research_request_0001', code: 'def factor(close): return close.pct_change(20)', description: '## 作者说明\n\n观察**区间动量**。\n\n- 输入收盘价\n- 默认20根K线\n\n| 参数 | 默认值 |\n| --- | --- |\n| lookback | 20 |\n\n> 使用收盘数据。'};
     const first = await invoke<{entry: QuantEntryDetail}>(`${base}intake/`, 'POST', input);
     const duplicate = await invoke<{entry: QuantEntryDetail}>(`${base}intake/`, 'POST', input);
     assert.equal(duplicate.entry.id, first.entry.id);
@@ -921,7 +985,7 @@ test('自动报告、人工修订、幂等与刷新持久化', async () => {
     assert.equal(restored.reports?.length, 1);
     assert.equal(restored.reports![0].originalMarkdown, report.originalMarkdown);
     assert.equal(restored.reports![0].markdown, '人工补充');
-    assert.equal(restored.sources![0].payload.description, '作者说明');
+    assert.equal(restored.sources![0].payload.description, input.description);
     assert.equal((await invoke<Response>(`${entryBase}runs/`, 'POST', {kind: 'analyze', sourceId: entry.sources![0].id, requestKey: 'cross_entry_000001'})).status, 404);
 });
 
@@ -1252,16 +1316,55 @@ test('候选去重展示与可追溯人工修订', async () => {
     const candidate = list.items[0], path = `${base}factors/${candidate.id}/`;
     assert.equal((await invoke<Listing>(path + 'occurrences/?groupBy=expression&limit=1')).total, 2);
     const data = {...candidate.curation, name: '我的研究候选', tags: ['动量', '动量', ' ＲＳＩ '], aliases: ['区间涨幅'], note: '检查费用敏感度'};
-    const edited = await invoke<Candidate>(path, 'PATCH', {data, expectedRevisionId: ''});
+    const edited = await invoke<Candidate>(path, 'PATCH', {data, expectedRevisionId: '', expectedCurationRevisionId: candidate.curationRevisionId});
     assert.deepEqual(edited.curation.tags, ['动量', 'RSI']);
     assert.equal(edited.data.name, candidate.data.name);
     assert.equal(edited.revisions.length, 1);
-    assert.equal((await invoke<Response>(path, 'PATCH', {data, expectedRevisionId: ''})).status, 409);
+    assert.equal((await invoke<Response>(path, 'PATCH', {data, expectedRevisionId: '', expectedCurationRevisionId: candidate.curationRevisionId})).status, 409);
     assert.equal((await invoke<Listing>(`${base}factors/?q=区间涨幅`)).total, 1);
     resetQuantStateForTests();
     assert.equal((await invoke<Candidate>(path)).curation.note, data.note);
     assert.equal((await invoke<Listing>(`${base}factors/?groupBy=expression`)).total, 1);
     assert.equal((await invoke<Listing>(`${base}factors/?groupBy=none`)).total, 2);
+});
+
+test('继承整理同时校验展示版本和本记录指针，冲突后刷新重试保留各自历史', async () => {
+    const {entry} = await invoke<{entry: QuantEntryDetail}>(`${base}intake/`, 'POST', {
+        requestKey: 'shared_curation_conflict', code: 'N=20\nclose/close.shift(N)-1', language: 'python',
+    });
+    entry.runs[0].createdAt = '2020-01-01T00:00:00Z';
+    const ready = await invoke<QuantEntryDetail>(`${base}entries/${entry.id}/`);
+    const original = ready.reports![0], duplicate = structuredClone(original);
+    duplicate.id = 'shared-curation-duplicate'; duplicate.publicationMode = 'legacy';
+    quantState().entries.find(row => row.id === entry.id)!.reports!.push(duplicate);
+    const {items} = await invoke<{items: QuantFactorCandidate[]}>(`${base}factors/?entryId=${entry.id}&groupBy=none`);
+    const a = items.find(row => row.reportId === original.id)!, b = items.find(row => row.reportId === duplicate.id)!;
+    const path = (id: string) => `${base}factors/${id}/`;
+    const first = await invoke<QuantFactorCandidate>(path(a.id), 'PATCH', {data: {...a.curation, name: '初始整理名', tags: ['原标签']}, expectedRevisionId: '', expectedCurationRevisionId: ''});
+    const loaded = await invoke<QuantFactorCandidate>(path(b.id));
+    assert.equal(loaded.currentRevisionId, '');
+    assert.equal(loaded.curationRevisionId, first.currentRevisionId);
+    assert.equal(loaded.curationInherited, true);
+    assert.deepEqual(loaded.revisions, []);
+    const updated = await invoke<QuantFactorCandidate>(path(a.id), 'PATCH', {data: {...first.curation, name: '最新整理名', tags: ['新标签']}, expectedRevisionId: first.currentRevisionId, expectedCurationRevisionId: first.curationRevisionId});
+    const stale = {...loaded.curation, note: '只修改备注'};
+    assert.equal((await invoke<Response>(path(b.id), 'PATCH', {data: stale, expectedRevisionId: ''})).status, 400);
+    assert.equal((await invoke<Response>(path(b.id), 'PATCH', {data: stale, expectedRevisionId: '', expectedCurationRevisionId: loaded.curationRevisionId})).status, 409);
+    assert.equal(quantState().factorRevisions[b.id]?.length || 0, 0);
+    const fresh = await invoke<QuantFactorCandidate>(path(b.id));
+    const saved = await invoke<QuantFactorCandidate>(path(b.id), 'PATCH', {data: {...fresh.curation, note: '核对后修改备注'}, expectedRevisionId: fresh.currentRevisionId, expectedCurationRevisionId: fresh.curationRevisionId});
+    assert.deepEqual(saved.curation.tags, ['新标签']);
+    assert.equal(saved.curationInherited, false);
+    assert.equal(saved.revisions.length, 1);
+    assert.equal(saved.revisions[0].parentId, '');
+    const other = await invoke<QuantFactorCandidate>(path(a.id));
+    assert.equal(other.currentRevisionId, updated.currentRevisionId);
+    assert.equal(other.curationRevisionId, saved.currentRevisionId);
+    assert.equal(other.curationInherited, true);
+    assert.equal(other.revisions.length, 2);
+    assert.equal((await invoke<Response>(path(b.id), 'PATCH', {data: saved.curation, expectedRevisionId: '', expectedCurationRevisionId: saved.curationRevisionId})).status, 409);
+    resetQuantStateForTests();
+    assert.equal((await invoke<QuantFactorCandidate>(path(a.id))).curation.name, '最新整理名');
 });
 
 test('图谱来源、自动索引、取消与只读访问保持本地闭环', async () => {
@@ -1631,6 +1734,8 @@ test('字符串枚举 local 从报告到实验保留文字值，导出提供模�
     await invoke(`${entryBase}runs/`, 'POST', {kind: 'analyze', sourceId: entry.sources![0].id, requestKey: 'string_parameter_local001'});
     entry.runs.find(row => row.kind === 'analyze')!.createdAt = '2020-01-01T00:00:00Z';
     await invoke(entryBase);
+    const doc = await invoke<import('../../types/api/quantDocument').QuantDocument>(`${entryBase}document/`);
+    if(doc.pending.length)await invoke(`${entryBase}document/`,'POST',{expectedRevision:doc.revision,action:'adopt',identity:doc.pending[0].id,sections:['factors','plan']});
     const factors = await invoke<{items: import('../../types/api/quant.ts').QuantFactorCandidate[]}>(`${base}factors/`);
     const candidate = factors.items.find(row => row.entryId === entry.id && row.data.parameters.some(p => p.name === 'mode'))!;
     assert.equal(candidate.data.parameters[1].domain?.version, 3);

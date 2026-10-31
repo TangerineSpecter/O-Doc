@@ -2,7 +2,7 @@ export type ResearchStage = 'normalize' | 'snippets' | 'identify' | 'parameters'
 export interface ResearchStageState {
     stage: ResearchStage;
     name: string;
-    status: 'waiting' | 'running' | 'completed' | 'reused' | 'failed' | 'interrupted';
+    status: 'waiting' | 'running' | 'completed' | 'reused' | 'failed' | 'interrupted' | 'partial';
     stepId: string;
     inputHash: string;
     outcomeId: string;

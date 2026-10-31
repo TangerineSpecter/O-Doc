@@ -19,6 +19,10 @@ def reports(entry):
 
 
 def default_report_id(entry):
+    from quant.models import ResearchDocument
+    document = ResearchDocument.objects.filter(entry=entry).first()
+    if document and document.sections:
+        return document.sections['reading']['report_id']
     return reports(entry).annotate(priority=Case(When(schema_version__in=(4, 5), then=Value(1)),
         default=Value(0), output_field=IntegerField())).order_by('priority', '-created_at', '-id').values_list('id', flat=True).first()
 
@@ -53,8 +57,10 @@ def source_header(row):
 
 def overview(entry):
     from quant.models import Entry
-    row = Entry.objects.filter(pk=entry.pk).annotate(note_length=Length('content')).values(
-        'id', 'anthology_id', 'title', 'kind', 'source_url', 'tags', 'is_valid', 'created_at', 'updated_at', 'note_length').get()
+    from quant.research.list_scores import with_default_report_score, normalized_score
+    row = with_default_report_score(Entry.objects.filter(pk=entry.pk)).annotate(note_length=Length('content')).values(
+        'id', 'anthology_id', 'title', 'kind', 'source_url', 'tags', 'is_valid', 'created_at', 'updated_at', 'note_length', 'default_report_score').get()
+    row['research_score'] = normalized_score(row.pop('default_report_score'))
     row['coll_id'] = row.pop('anthology_id')
     row['has_notes'] = bool(row.pop('note_length'))
     row['default_report_id'] = default_report_id(entry)

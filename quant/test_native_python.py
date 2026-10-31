@@ -75,6 +75,8 @@ class NativePythonTests(TestCase):
     def test_old_complete_snapshot_prunes_new_native_facts_and_execution_authority(self):
         candidate,_,_,_,record=self.prepare()
         old=[row for row in SyncManager().build_snapshot_data() if row['model'] not in ('quant.nativepythonrequest','quant.nativepythonresult')]
+        from quant.testing_documents import without_documents
+        old = without_documents(old)
         meta=metadata(old);meta['quant_schema_version']=49
         self.compute(record);self.assertTrue(NativePythonResult.objects.exists())
         with patch('quant.native_python.runtime.run',side_effect=AssertionError('restore executed source')):

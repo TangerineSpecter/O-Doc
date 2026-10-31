@@ -20,6 +20,7 @@ export function InitialExperimentPlan({report, collection, register, request, op
     const proposal = report.proposal;
     const title = followup ? 'AI 后续实验规划' : feedback ? 'AI 反馈实验规划' : 'AI 首轮实验规划';
     const note = followup ? report.data.planningNote : feedback ? report.data.feedbackPlanningNote : report.data.initialPlanningNote;
+    const hasExplanation=!!note?.trim()&&!note.startsWith('算法已提取并保留。实验规划本次未生成');
     return (
         <section
             id={`quant-report-plan-${report.id}`}
@@ -35,11 +36,11 @@ export function InitialExperimentPlan({report, collection, register, request, op
                         <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-bold text-slate-900">{title}</h3>
                             <QuantBadge tone={proposal ? 'orange' : 'slate'}>
-                                {proposal ? '已生成方案' : '未生成方案'}
+                                {proposal ? '已生成方案' : hasExplanation ? '已整理实验说明' : '未生成方案'}
                             </QuantBadge>
                         </div>
                         <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                            {proposal ? '已整理后续实验方案，可以在下方查看和准备。' : '研究报告已保存，这次没有生成可直接准备的实验方案。'}
+                            {proposal ? '已整理后续实验方案，可以在下方查看和准备。' : hasExplanation ? '下方说明数据准备、计算检查和参数比较；当前没有一键执行方案。' : '实验规划尚未完成，可从设计实验步骤继续。'}
                         </p>
                     </div>
                 </div>

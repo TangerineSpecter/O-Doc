@@ -3,7 +3,7 @@ from rest_framework import serializers
 from quant.factors.contracts import Evidence
 from .analysis import DIMENSIONS
 
-VERSIONS = (14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28)
+VERSIONS = (14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42)
 SEVERITIES = ("critical", "high", "medium", "low", "info")
 LABELS = dict(zip(SEVERITIES, ("严重", "高", "中", "低", "提示")))
 CATEGORIES = ("temporal_leakage", "repainting", "dependency", "implementation", "execution", "risk", "parameter", "unsupported_claim", "other")

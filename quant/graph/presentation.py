@@ -1,23 +1,32 @@
 """Bounded graph projection from owned immutable facts and semantic suggestions."""
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from quant.models import FactorComparison, FactorMerge, FactorRelation
-from quant.factors.curation import curation_data
+from quant.algorithms.presentation import profile
+from quant.models import FactorComparison, FactorMerge
+from quant.factors.curation import curation_data, curation_data_many
 from quant.factors.grouping import fingerprints
 from .indexing import candidates, index_status
-from .projection import projection
 
 
 def graph_data(collection, focus_id: str = '') -> dict:
     available = candidates(collection)
     center = get_object_or_404(available, pk=focus_id) if focus_id else available.first()
-    status = index_status(collection)
+    rows = list(available)
+    curations = curation_data_many(rows)
+    status = index_status(collection, rows=rows, curations=curations)
     if not center:
         return {'focus_id': '', 'nodes': [], 'edges': [], 'index': status, 'limited': False}
+    from quant.factors.identity import canonical_roots
+    aliases = canonical_roots(rows)
+    canonical = set(aliases.values())
+    canonical.discard(aliases[center.pk])
+    canonical.add(center.pk)
+    available = available.filter(pk__in=canonical)
     selected = {center.pk: center}
     edges = []
     central = fingerprints(center)
-    limited = False
+    from .attributes import append as append_attributes
+    limited = append_attributes(center, available, selected, edges, curations=curations)
     for candidate in available.exclude(pk=center.pk):
         local = candidate.data.get('formula_version')
         if local and center.pk in local['parent_candidate_ids']:
@@ -46,32 +55,6 @@ def graph_data(collection, focus_id: str = '') -> dict:
             edges.append({'id': f'{kind}:{candidate.pk}', 'from': f'factor:{center.pk}', 'to': f'factor:{candidate.pk}',
                 'kind': kind, 'label': '相同表达式与契约' if kind == 'same_expression' else '相同原文与契约',
                 'historical': False, 'similarity': None, 'detail': '结构或原文一致，未验证实际输出等价'})
-    relationships = list(FactorRelation.objects.filter(Q(left=center) | Q(right=center), kind='semantic_similar').order_by('-created_at', 'id')[:100])
-    related_ids = {rel.right_id if rel.left_id == center.pk else rel.left_id for rel in relationships}
-    neighbors = {candidate.pk: candidate for candidate in available.filter(pk__in=related_ids)}
-    seen = set()
-    for relation in relationships:
-        other_id = relation.right_id if relation.left_id == center.pk else relation.left_id
-        if other_id in seen or other_id not in neighbors:
-            continue
-        seen.add(other_id)
-        other = neighbors[other_id]
-        if len(selected) >= 21 and other_id not in selected:
-            limited = True
-            continue
-        selected[other_id] = other
-        proof = relation.evidence
-        current = {center.pk: center, other.pk: other}
-        try:
-            unchanged = all(projection(current[getattr(relation, side + '_id')])[1] == proof[side + '_projection_hash'] for side in ('left', 'right'))
-        except ValueError:
-            unchanged = False
-        historical = not unchanged or status['model_signature'] != proof['model_signature']
-        edges.append({'id': relation.pk, 'from': f'factor:{center.pk}', 'to': f'factor:{other.pk}',
-            'kind': 'semantic_similar', 'label': '语义相近（历史）' if historical else '语义相近', 'historical': historical,
-            'similarity': proof['similarity'], 'detail': f"{proof['model_name']} · 余弦相似度；不代表相关性、等价或收益。"})
-    # Direct fixed-sample evidence stays separate from embedding relations and
-    # from human grouping. A-B plus B-C never synthesizes an A-C proof edge.
     comparisons = list(FactorComparison.objects.filter(anthology=collection,
         result__status='pass', result__evaluation_status='completed').filter(Q(left=center) | Q(right=center)).order_by('-created_at', 'id')[:101])
     merges = list(FactorMerge.objects.filter(anthology=collection, withdrawal__isnull=True).filter(
@@ -125,15 +108,17 @@ def graph_data(collection, focus_id: str = '') -> dict:
     emitted = set()
     for candidate in selected.values():
         report = candidate.report
-        label = curation_data(candidate)['curation']['name']
+        curated = curation_data(candidate, curations=curations)['curation']
+        algorithm = profile({**candidate.data, 'family': curated['family']})
         for identity, kind, text, entry_id, report_id in [
-            (f'factor:{candidate.pk}', 'factor', label, report.entry_id, report.pk),
+            (f'factor:{candidate.pk}', 'factor', curated['name'], report.entry_id, report.pk),
             (f'report:{report.pk}', 'report', report.entry.title, report.entry_id, report.pk),
             (f'source:{report.source_id}', 'source', report.source.payload.get('title') or report.source.payload.get('language') or '来源材料', report.entry_id, report.pk),
         ]:
             if identity not in emitted:
                 emitted.add(identity)
-                nodes.append({'id': identity, 'kind': kind, 'label': text, 'entry_id': entry_id, 'report_id': report_id})
+                nodes.append({'id': identity, 'kind': kind, 'label': text, 'entry_id': entry_id, 'report_id': report_id,
+                    **({'original_name': candidate.data['name'], 'algorithm_profile': algorithm} if kind == 'factor' else {})})
         edges.extend([
             {'id': f'from-report:{candidate.pk}', 'from': f'report:{report.pk}', 'to': f'factor:{candidate.pk}',
                 'kind': 'origin_context' if candidate.derived_checkpoint_id or candidate.data.get('formula_version') else 'extracted_from',

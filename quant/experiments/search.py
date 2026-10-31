@@ -68,8 +68,11 @@ def nodes(expression):
 def recipe(candidate: dict, bindings: dict, parameters: dict) -> dict:
     if candidate.get('expression') is None or candidate.get('output_type') not in ('numeric_series', 'boolean_series'):
         raise ValidationError('候选尚无可运行的数值/布尔表达式')
+    if candidate['expression'].get('op') == 'python':
+        raise ValidationError('此算法使用 Python compute 运行；当前行情实验执行器只运行表达式算法。请保留 Python 实验步骤，不创建本机表达式执行方案')
     if not isinstance(bindings, dict) or any(not isinstance(value, str) for value in bindings.values()) or set(bindings) != {row['name'] for row in candidate['inputs']} or not set(bindings.values()) <= FIELDS:
-        raise ValidationError('每个输入必须明确绑定一列行情')
+        names = ', '.join(row['name'] for row in candidate['inputs'])
+        raise ValidationError(f'行情映射不完整：此算法需要输入 [{names}]，每项分别绑定 open/high/low/close/volume 中的一列')
     if not isinstance(parameters, dict) or set(parameters) != {row['name'] for row in candidate['parameters']}:
         raise ValidationError('必须明确填写全部实际实验参数，不能用源码默认值猜测实盘配置')
     if any(not parameter_value(value) for value in parameters.values()):
@@ -86,6 +89,9 @@ def recipe(candidate: dict, bindings: dict, parameters: dict) -> dict:
         'parameter': {name: f'p{index}' for index, name in enumerate(sorted(parameters))}}
     def rename(node):
         node = copy.deepcopy(node)
+        if node['op'] == 'program':
+            from quant.algorithms.renaming import rename_program
+            return rename_program(node, {**mapping['input'], **mapping['parameter']})
         if node['op'] in mapping:
             node['name'] = mapping[node['op']][node['name']]
         if 'args' in node:
@@ -102,6 +108,9 @@ def variant_recipe(seed, values):
         raise ValidationError('候选参数必须为对象')
     allowed = {row['name'] for row in seed['candidate']['parameters'] if row['category'] == 'signal'}
     def parameters(node):
+        if node['op'] == 'program':
+            from quant.algorithms.contract import expressions, references
+            return set().union(*(references(text) for text in [*expressions(node['steps']), node['output']])) & set(seed['parameters'])
         return ({node['name']} if node['op'] == 'parameter' else set()) | set().union(*(parameters(child) for child in node.get('args', [])))
     allowed &= parameters(seed['candidate']['expression']) if seed['candidate'].get('expression') else set()
     changed = {name for name in values if values[name] != seed['parameters'].get(name)}
@@ -120,6 +129,9 @@ def combine(a: dict, b: dict, operation: str) -> dict:
     def child(value, prefix):
         def rename(node):
             node = copy.deepcopy(node)
+            if node['op'] == 'program':
+                from quant.algorithms.renaming import rename_program
+                return rename_program(node, {name: prefix + name for name in {*value['bindings'], *value['parameters']}})
             if node['op'] in ('input', 'parameter'):
                 node['name'] = prefix + node['name']
             if 'args' in node:

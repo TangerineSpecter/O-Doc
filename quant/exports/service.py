@@ -17,6 +17,24 @@ TARGETS = {'python': ('py', 'Python 3.11+ / standard library'), 'pine': ('pine',
 def bundle(candidate, target: str) -> dict:
     if target not in TARGETS:
         raise ValidationError('请选择 Python、Pine、MQL4 或通达信')
+    has_program = any(node.get('op') == 'program' for node, _ in flatten(candidate.data.get('expression') or {}))
+    if has_program and target != 'python':
+        raise ValidationError('包含逐根算法的组合请导出 Python 实现')
+    if (candidate.data.get('expression') or {}).get('op') in ('program', 'python'):
+        if target != 'python':
+            raise ValidationError('逐根算法请导出统一 Python 实现')
+        from quant.algorithms.presentation import python_export
+        data = candidate.data
+        from quant.factors.expression import validate_expression
+        validate_expression(data['expression'], {row['name'] for row in data['inputs']}, {row['name'] for row in data['parameters']})
+        code = python_export(data)
+        manifest = {'version': 1, 'exporter_version': 'source-algorithm-python-1', 'target': 'python',
+            'candidate_id': candidate.pk, 'candidate_hash': digest(data), 'source_id': candidate.report.source_id,
+            'report_id': candidate.report_id, 'code_hash': digest(code), 'inputs': data['inputs'], 'parameters': data['parameters'],
+            'output_type': data['output_type'], 'units': data['units'], 'dependencies': data['dependencies'],
+            'formula': data['formula'], 'summary': data['summary'], 'timeframe': data['timeframe'],
+            'calculation': 'python_implementation' if data['expression']['op'] == 'python' else 'closed_bar_source_order_with_persistent_state'}
+        return {'filename': f'algorithm-{candidate.pk}.py', 'code': code, 'manifest_json': json.dumps(manifest, ensure_ascii=False, indent=2)}
     try:
         seed = option(candidate.pk, candidate.data)
         spec = recipe(candidate.data, seed['bindings'], seed['parameters'])
@@ -34,6 +52,9 @@ def bundle(candidate, target: str) -> dict:
             raise ValidationError('默认整数超出目标平台输入参数范围，需先修正候选参数')
     if target == 'python':
         runtime = Path(__file__).with_name('python_runtime.py').read_text(encoding='utf-8')
+        if has_program:
+            from quant.algorithms import runtime as algorithm_runtime
+            runtime = Path(algorithm_runtime.__file__).read_text(encoding='utf-8') + '\n\n' + runtime
         code = '# O-Doc candidate. Supply chronological CLOSED bars. No order execution.\nimport json\nSPEC = json.loads(' + repr(json.dumps(spec, ensure_ascii=True, allow_nan=False)) + ')\n' + runtime
     elif target == 'mql4': code = emit_mql(spec)
     else:

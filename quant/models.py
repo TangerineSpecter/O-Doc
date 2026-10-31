@@ -280,9 +280,20 @@ class ResearchReport(ImmutableRecord):
     content_hash = models.CharField(max_length=64)
     current_revision_id = models.CharField(max_length=40, blank=True)
 
+    publication_mode = models.CharField(max_length=12, default='legacy')
+    factor_bindings = models.JSONField(default=dict)
+
     class Meta:
         indexes = [models.Index(fields=['entry', '-created_at', '-id'], name='quant_report_read_idx')]
         ordering = ['-created_at', '-id']
+
+
+class ResearchDocument(Record):
+    entry = models.OneToOneField(Entry, on_delete=models.CASCADE, related_name='research_document')
+    revision = models.PositiveIntegerField(default=1)
+    sections = models.JSONField(default=dict)
+    pending = models.JSONField(default=list)
+    history = models.JSONField(default=list)
 
 
 class ReportRevision(ImmutableRecord):

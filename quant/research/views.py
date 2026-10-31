@@ -20,6 +20,7 @@ class ReportView(QuantView):
         class Edit(serializers.Serializer):
             markdown = serializers.CharField(max_length=200000, allow_blank=True, trim_whitespace=False)
             expected_revision_id = serializers.CharField(max_length=40, allow_blank=True)
+            expected_document_revision = serializers.IntegerField(min_value=1, required=False)
         serializer = Edit(data=request.data)
         serializer.is_valid(raise_exception=True)
         report = get_object_or_404(ResearchReport, pk=report_id, entry=self.entry)

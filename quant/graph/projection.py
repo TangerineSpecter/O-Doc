@@ -9,8 +9,8 @@ PROJECTION_VERSION = 1
 MAX_CHARS = 16000
 
 
-def projection(candidate: FactorCandidate) -> tuple[str, str]:
-    curated = curation_data(candidate)['curation']
+def projection(candidate: FactorCandidate, *, curations: dict[str, dict] | None = None) -> tuple[str, str]:
+    curated = curation_data(candidate, curations=curations)['curation']
     return projection_data(candidate.data, curated)
 
 

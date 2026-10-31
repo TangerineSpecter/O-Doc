@@ -92,7 +92,7 @@ def canonical_hash(value):
 
 
 def sync_entity_identity(model_label, object_pk, fields=None):
-    """为跨设备自增主键模型生成与序列化快照一致的稳定身份。"""
+    """为跨设备独立创建的记录生成与序列化快照一致的业务身份。"""
     fields = fields or {}
     if model_label == 'auth.user' and fields.get('username'):
         return f"username:{fields['username']}"
@@ -100,6 +100,8 @@ def sync_entity_identity(model_label, object_pk, fields=None):
         return f"name:{fields['name']}"
     if model_label == 'user.userprofile' and fields.get('userid'):
         return f"userid:{fields['userid']}"
+    if model_label == 'quant.researchdocument' and fields.get('entry'):
+        return f"entry:{fields['entry']}"
     if model_label == 'system_settings.skill' and (fields.get('skill_key') or fields.get('source') == 'built_in'):
         return f"skill:{fields.get('skill_key') or fields.get('name', '')}"
     return str(object_pk)

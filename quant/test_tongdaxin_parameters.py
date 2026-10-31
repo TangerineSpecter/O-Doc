@@ -103,7 +103,7 @@ class TongdaxinReportTests(TestCase):
             value = copy.deepcopy(response)
             context = json.loads(text.split('材料：', 1)[1])
             if 'parameters' in context['previous']:
-                value['factors'][0]['parameters'] = context['previous']['parameters']['parameters']
+                value['factors'][0]['parameters'] = [{'name': row['name']} for row in context['previous']['parameters']['parameters']]
             return json.dumps(value)
         with patch('quant.worker.complete', side_effect=answer) as provider: execute(run.pk)
         run.refresh_from_db(); self.assertEqual(run.status, 'completed', run.error)

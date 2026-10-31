@@ -1,3 +1,4 @@
+import {readAlgorithmProgram, readPythonAlgorithm} from '../../utils/quantAlgorithm';
 /** Local declaration checks only. No uploaded code or market data is executed. */
 import type {QuantFactorCandidate} from '../../types/api/quant';
 import type {PortableQualification, QuantVerificationSummary} from '../../types/api/quantVerification';
@@ -7,6 +8,15 @@ import {isParameterText} from '../../utils/quantParameterValues';
 const kinds = new Map(Object.entries({int: 'int', integer: 'int', float: 'number', double: 'number', number: 'number', bool: 'bool', boolean: 'bool', string: 'string', str: 'string'}));
 export function mockQualification(candidate: QuantFactorCandidate): PortableQualification {
     const data = candidate.data, parameters = data.parameters;
+    if (readPythonAlgorithm(data.expression)) return {
+        version:1,candidate_hash:candidate.contentHash,scope:'portable_expression_declared_contract_only',reuse_status:'reusable',
+        checks:[{code:'python_definition',status:'passed',message:'Python实现已保存，可查看和导出。'}],blockers:[],nodes:[],
+        configuration:mockQualification({...candidate,data:{...data,expression:null}}).configuration,automatic_ohlcv_mapping:false,inputs_requiring_mapping:[],automatic_experiment_ready:false,
+        inputs:data.inputs.map(row=>({name:row.name,used:true,availability:row.availability,missing_policy:row.missingPolicy})),
+        parameters:parameters.map(row=>({name:row.name,used:true,kind:kinds.get(row.type)||'unknown'})),
+        external_dependencies:data.dependencies.map(name=>({name,status:'declared_unverified_original_context'})),
+        platform_equivalence:'unverified',economic_effectiveness:'unassessed',
+    };
     const checks: PortableQualification['checks'] = [], nodes: PortableQualification['nodes'] = [];
     const placeholders = Object.create(null) as Record<string, number | boolean | string>;
     let configuration: PortableQualification['configuration'] = {status: 'needs_values', missing: parameters.filter(row => !row.defaultValue.trim()).map(row => row.name)};
@@ -21,6 +31,7 @@ export function mockQualification(candidate: QuantFactorCandidate): PortableQual
         const visit = (node: Record<string, unknown>, path = 'root'): string => {
             const children = ((node.args || []) as Record<string, unknown>[]).map((child, index) => visit(child, path + '.' + index));
             const op = String(node.op), name = String(node.name || '');
+            if (op === 'program') {const program = readAlgorithmProgram(node)!; const kind = program.outputType === 'boolean_series' ? 'boolean' : 'number'; nodes.push({id: path, op, name: program.output, kind, dependencies: []}); return kind;}
             if (op === 'parameter') {
                 const parameter = parameters.find(row => row.name === name)!;
                 const category = kinds.get(parameter.type.trim().toLowerCase());
@@ -54,8 +65,8 @@ export function mockQualification(candidate: QuantFactorCandidate): PortableQual
     return {version: 1, candidate_hash: candidate.contentHash, scope: 'portable_expression_declared_contract_only', reuse_status: blockers.length ? 'candidate' : 'reusable',
         checks, blockers, nodes, configuration, automatic_ohlcv_mapping: !unbound.length, inputs_requiring_mapping: unbound,
         automatic_experiment_ready: !blockers.length && !unbound.length && configuration.status === 'declared_defaults_valid' && ['factor', 'signal', 'filter'].includes(data.role),
-        inputs: data.inputs.map(row => ({name: row.name, used: nodes.some(node => node.op === 'input' && node.name === row.name), availability: row.availability, missing_policy: row.missingPolicy})),
-        parameters: parameters.map(row => ({name: row.name, used: nodes.some(node => node.op === 'parameter' && node.name === row.name), kind: kinds.get(row.type.trim().toLowerCase()) || 'unknown'})),
+        inputs: data.inputs.map(row => ({name: row.name, used: data.expression?.op === 'program' || nodes.some(node => node.op === 'input' && node.name === row.name), availability: row.availability, missing_policy: row.missingPolicy})),
+        parameters: parameters.map(row => ({name: row.name, used: data.expression?.op === 'program' || nodes.some(node => node.op === 'parameter' && node.name === row.name), kind: kinds.get(row.type.trim().toLowerCase()) || 'unknown'})),
         external_dependencies: data.dependencies.map(name => ({name, status: 'declared_unverified_original_context'})), platform_equivalence: 'unverified', economic_effectiveness: 'unassessed'};
 }
 export function mockQualificationSummary(candidate: QuantFactorCandidate, unchecked = false): QuantVerificationSummary {

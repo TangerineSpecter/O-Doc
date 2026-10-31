@@ -73,6 +73,7 @@ export function QuantField({
     rows = 4,
     type = 'text',
     required = false,
+    disabled = false,
     hint,
 }: {
     label: string;
@@ -83,6 +84,7 @@ export function QuantField({
     rows?: number;
     type?: string;
     required?: boolean;
+    disabled?: boolean;
     hint?: string;
 }) {
     return (
@@ -96,6 +98,7 @@ export function QuantField({
             </span>
             {multiline ? (
                 <textarea
+                    disabled={disabled}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     rows={rows}
@@ -104,6 +107,7 @@ export function QuantField({
                 />
             ) : (
                 <input
+                    disabled={disabled}
                     type={type}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}

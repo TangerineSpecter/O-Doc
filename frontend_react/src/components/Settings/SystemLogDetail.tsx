@@ -57,6 +57,8 @@ export function SystemLogDetail({
     const firstSeen = Number(detail.firstSeen ?? detail.created);
     const lastSeen = Number(detail.lastSeen ?? detail.created);
     const occurrenceCount = Number(detail.occurrenceCount ?? 1);
+    const researchPath = detail.module === 'quant' && typeof detail.path === 'string'
+        && /^\/quant\/[A-Za-z0-9_-]+\/entries\/[A-Za-z0-9_-]+$/.test(detail.path) ? detail.path : null;
 
     return (
         <div data-modal-scroll-lock
@@ -102,7 +104,10 @@ export function SystemLogDetail({
                 </div>
 
                 {/* Body */}
-                <div className="space-y-5 overflow-y-auto p-6">
+                <div className="space-y-5 overflow-y-auto p-6 scrollbar-hide">
+                    {researchPath && <a href={researchPath} className="block rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
+                        打开对应研究，查看失败步骤并继续分析 →
+                    </a>}
                     {/* 键值元信息 */}
                     <div>
                         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">

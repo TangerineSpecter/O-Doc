@@ -199,7 +199,7 @@ class VocabularyWorkflowTests(TestCase):
         with patch('quant.worker.complete', return_value=json.dumps(value)) as model: execute(run.pk)
         run.refresh_from_db()
         self.assertEqual(run.status, 'failed')
-        self.assertEqual(model.call_count, 1)
+        self.assertEqual(model.call_count, 2)
         self.assertEqual(run.workflow_steps.get(stage='identify').outcome.data['status'], 'failed')
         snapshot = SyncManager().build_snapshot_data(); validate(snapshot, metadata(snapshot))
 

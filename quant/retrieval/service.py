@@ -2,7 +2,7 @@
 from django.db import transaction
 from quant.locking import collection_lock
 from quant.models import FactorVector
-from quant.factors.curation import curation_data
+from quant.factors.curation import curation_data, curation_data_many
 from quant.factors.services import candidate_data
 from quant.graph.indexing import candidates, embedding_model
 from quant.graph.projection import projection, cosine
@@ -21,20 +21,22 @@ def snapshot(collection, query: dict, signature: str) -> list[dict]:
     from quant.taxonomy.services import current
     vocabulary = current(collection.pk)
     rows = []
-    for candidate in candidates(collection):
+    available = list(candidates(collection))
+    curations = curation_data_many(available)
+    for candidate in available:
         if query.get('entry_id') and query['entry_id'] != candidate.report.entry_id:
             continue
         if query.get('role') and query['role'] != candidate.data['role']:
             continue
-        if query.get('family') and query['family'] != curation_data(candidate)['curation']['family']:
+        if query.get('family') and query['family'] != curation_data(candidate, curations=curations)['curation']['family']:
             continue
         try:
-            fingerprint = projection(candidate)[1]
+            fingerprint = projection(candidate, curations=curations)[1]
         except ValueError:
             fingerprint = ''
         cached = vectors.get(candidate.pk)
         vector = cached.vector if fingerprint and cached and cached.projection_hash == fingerprint and cosine(cached.vector, cached.vector) is not None else None
-        item = candidate_data(candidate, vocabulary)
+        item = candidate_data(candidate, vocabulary, curations=curations)
         if query.get('admission_stage') and query['admission_stage']!=item['admission']['stage']:
             continue
         if query.get('reuse_status') and query['reuse_status'] != item['verification']['reuse_status']:

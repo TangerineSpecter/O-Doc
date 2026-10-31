@@ -5,7 +5,7 @@ import re
 from rest_framework.exceptions import ValidationError
 from quant.research.contracts import digest
 
-WORKFLOWS = (18, 20, 22, 24, 26, 27, 28)
+WORKFLOWS = (18, 20, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 42)
 KEYS = {'source_change_review_version', 'source_change_facts_json', 'source_change_assessment'}
 COUNTS = ('added', 'removed', 'changed', 'moved', 'identical', 'direct', 'potential', 'unknown')
 MAX_NODES = 24
@@ -160,7 +160,7 @@ def validate_admission(value, version):
         raise ValidationError('源码变化复核须绑定支持的工作流，旧报告不能补写此复核')
     if value and version in WORKFLOWS:
         extension(value)
-        if value['source_change_review_version'] != (2 if version in (20, 22, 24, 26, 27, 28) else 1):
+        if value['source_change_review_version'] != (2 if version in (20, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 42) else 1):
             raise ValidationError('源码变化报告版本须与冻结工作流一致，不可降级')
 
 

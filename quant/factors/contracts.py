@@ -50,6 +50,11 @@ class Candidate(serializers.Serializer):
         if value['expression'] is not None:
             validate_expression(value['expression'], {v['name'] for v in value['inputs']}, {v['name'] for v in value['parameters']})
             unresolved = {row['name'] for row in value['parameters'] if row.get('source_binding', {}).get('status') == 'unresolved'}
+            if value['expression'].get('op') == 'program':
+                from quant.algorithms.contract import expressions, references
+                used = set().union(*(references(text) for text in [*expressions(value['expression']['steps']), value['expression']['output']]))
+                if used & unresolved:
+                    raise serializers.ValidationError('算法参数须对应真实源码声明')
             pending = [value['expression']]
             while pending:
                 node = pending.pop()
@@ -71,16 +76,16 @@ def validate_extraction(value: dict) -> dict:
 
 
 def validate_evidence(factors: list[dict], source: dict) -> None:
-    for factor in factors:
-        for evidence in factor['evidence']:
+    for index, factor in enumerate(factors):
+        for position, evidence in enumerate(factor['evidence']):
             if not evidence['quote'].strip() or evidence['quote'] not in source.get(evidence['field'], ''):
-                raise serializers.ValidationError('因子出处引文必须逐字存在于对应来源快照')
+                raise serializers.ValidationError(f'factors[{index}].evidence[{position}]：因子出处引文必须逐字存在于对应来源快照，请引用对应计算式的原文')
 
 
-def extraction_prompt(*, parameters_references_only: bool = False) -> str:
+def extraction_prompt(*, parameters_references_only: bool = False, algorithms: bool = False, python_algorithms: bool = False) -> str:
     parameter_shape = ('parameters（只列相关参数引用，格式为[{"name":"参数内部符号"}]，不要输出其他参数字段）'
         if parameters_references_only else 'parameters(与报告parameters完全相同的字段结构，只列该候选相关参数)')
-    return '''\n同时提取值得独立研究的候选，新增 extraction_version:1、extraction_note:提取范围与边界、factors:数组（最多20项）。
+    fields = '''\n同时提取值得独立研究的候选，新增 extraction_version:1、extraction_note:提取范围与边界、factors:数组（最多20项）。
 没有可靠可分离模块时 factors=[] 并解释原因，不为凑数编造因子。优先提取独立计算、条件、过滤模块，区分 role=factor/signal/filter/risk/execution/display，不能都称为收益因子。
 role 按模块实际用途判断，不按输出是否画在图上判断。可独立复用的数值变换（例如均线偏离、平滑后的特征）可为 factor，即使同时作为指标曲线输出；factor 只表示待研究特征，不保证预测或收益。display 用于纯显示开关、样式或显示门控，不把所有指标曲线都排除在可研究特征之外；无需为同一变换重复建立显示候选。
 每项字段：name, role, family(momentum/trend/volatility/mean_reversion/volume/price_structure/fundamental/other), summary, formula,
@@ -90,7 +95,14 @@ output_type(numeric_series/boolean_series/scalar/platform_specific), units, time
 ''' + parameter_shape + ''', dependencies:字符串数组,
 limitations, tags:字符串数组, evidence:[{field:code/description/web_markdown,quote:来自该字段的逐字原文，不能用行号代替}], expression。
 文字字段除参数 default_value 外不能为空，不适用时明确说明原因。name≤200、summary/limitations≤3000、formula≤6000、units≤300、timeframe≤1000字符；输入的 name≤80且是英文标识符，其余输入文字≤1000字符。parameters≤30项；dependencies≤20项且各≤1000字符；tags≤20项且各≤50字符；evidence 为1–10段且每段 quote≤6000字符。
-expression 仅在明确能描述时提供声明式JSON，否则 null 并在 limitations 解释平台依赖或缺失语义。
+'''
+    if python_algorithms:
+        from quant.algorithms.python_definition import INSTRUCTION
+        return fields + INSTRUCTION
+    if algorithms:
+        from quant.algorithms.program_prompt import PROGRAM_INSTRUCTION
+        return fields + PROGRAM_INSTRUCTION
+    return fields + '''expression 仅在明确能描述时提供声明式JSON，否则 null 并在 limitations 解释平台依赖或缺失语义。
 逐项检查 expression 的全部叶子：每个 input.name 都须出现在本项 inputs，每个 parameter.name 都须出现在本项 parameters。
 展开中间变量时须同时展开它的原始输入：例如表达式内联 sma(close,N) 就必须声明 close，不能只声明 b；若只声明 b，表达式只能引用 input b，并说明 b 的来源依赖。无法确认依赖时保留候选，expression=null，不编造可执行定义。
 表达式节点仅支持 {op:"input",name}, {op:"parameter",name}, {op:"constant",value:有限数值或最多200字符的字符串}, 或 {op,args:节点数组}。

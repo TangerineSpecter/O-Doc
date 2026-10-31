@@ -27,7 +27,7 @@ export function publishMockRepairs(entry: QuantEntryDetail, report: QuantReport)
         state.formulaRoots[id] = parent;
         state.derivedFactors.push({id, reportId: report.id, sourceId: report.sourceId, entryId: entry.id, entryTitle: entry.title === '待分析资料' ? report.data.title || entry.title : entry.title,
             data, contentHash: 'local-ai-repair-' + id, expressionHash: 'local-ai-expression-' + id, fingerprints: {raw: '', expression: 'local-ai-expression-' + id},
-            occurrenceCount: 1, currentRevisionId: '', revisions: [], curation: {name: data.name, family: data.family, tags: data.tags, aliases: [], note: ''},
+            occurrenceCount: 1, currentRevisionId: '', curationRevisionId: '', curationInherited: false, revisions: [], curation: {name: data.name, family: data.family, tags: data.tags, aliases: [], note: ''},
             modelName: 'AI 定义修订 · 本地人工样例', evidenceStatus: 'ai_revised_unverified', createdAt: report.createdAt});
     }
 }

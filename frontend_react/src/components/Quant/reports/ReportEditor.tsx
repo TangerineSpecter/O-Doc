@@ -447,7 +447,7 @@ export const ReportEditor = memo(function ReportEditor({
                 </div>
             )}
 
-            <ReportHistory report={report} collection={collection} entryId={entryId} controller={controller}/>
+            {!report.documentRevision&&<ReportHistory report={report} collection={collection} entryId={entryId} controller={controller}/>}
 
         </section>
     );

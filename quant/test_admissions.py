@@ -166,6 +166,8 @@ class AdmissionIntegrationTests(TestCase):
         snapshot=SyncManager().build_snapshot_data()
         for row in snapshot:
             if row['model'] in ('quant.factorcandidate','quant.factorevidencelink'):row['fields'].pop('admission_version')
+        from quant.testing_documents import without_documents
+        snapshot = without_documents(snapshot)
         meta=metadata(snapshot);meta['quant_schema_version']=52
         response=self.client.post(self.layer_url(candidate),{'offset':0,'limit':20},format='json')
         self.assertEqual(response.status_code,200,response.data);self.assertTrue(FactorAdmission.objects.exists())

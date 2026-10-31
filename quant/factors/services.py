@@ -5,22 +5,35 @@ from .expression import expression_hash
 
 
 def publish_candidates(report: ResearchReport) -> None:
+    revised = {item['factor_index'] for item in report.data.get('factor_repair', {}).get('items', []) if item['status'] == 'revised'}
     for ordinal, data in enumerate(report.data.get('factors', [])):
+        if report.publication_mode != 'legacy' and ordinal not in revised:
+            existing = FactorCandidate.objects.filter(report__entry_id=report.entry_id,
+                report__source_id=report.source_id, content_hash=digest(data),
+                formula_version_id='', derived_checkpoint_id='').order_by('created_at', 'id').first()
+            if existing:
+                report.factor_bindings[str(ordinal)] = existing.pk
+                continue
         candidate, _ = FactorCandidate.objects.get_or_create(report=report, ordinal=ordinal, defaults={
             'id': digest(['factor-occurrence-v1', report.pk, ordinal])[:40],
             'data': data, 'content_hash': digest(data), 'expression_hash': expression_hash(data), 'qualification_version': 1, 'admission_version':1})
         from quant.verification.services import qualify
         qualify(candidate)
+        if report.publication_mode != 'legacy':
+            report.factor_bindings[str(ordinal)] = candidate.pk
+    if report.publication_mode != 'legacy':
+        report.save(update_fields=['factor_bindings', 'updated_at'])
 
 
-def candidate_data(candidate: FactorCandidate, vocabulary=None) -> dict:
+def candidate_data(candidate: FactorCandidate, vocabulary=None, *, curations: dict[str, dict] | None = None) -> dict:
     from .curation import curation_data
     from .grouping import fingerprints
     from quant.verification.services import projection as verification_projection
     from quant.admissions.services import summary as admission_summary
+    from quant.algorithms.presentation import profile
     report = candidate.report
     ai_revision = candidate.data.get('formula_version', {}).get('origin') in ('ai_repair', 'ai_study')
-    curation = curation_data(candidate)
+    curation = curation_data(candidate, curations=curations)
     if vocabulary is None:
         from quant.taxonomy.services import current
         vocabulary = current(report.entry.anthology_id)
@@ -32,4 +45,4 @@ def candidate_data(candidate: FactorCandidate, vocabulary=None) -> dict:
         'created_at': candidate.created_at.isoformat(), 'model_name': 'AI 自动研究' if candidate.data.get('formula_version', {}).get('origin') == 'ai_study' else 'AI 定义修订 · ' + report.run.model_name if ai_revision else '人工公式修订' if candidate.data.get('formula_version') else '本机受限表达式实验' if candidate.derived_checkpoint_id else report.run.model_name,
         'evidence_status': 'ai_revised_unverified' if ai_revision else 'authored_unverified' if candidate.data.get('formula_version') else 'local_simulation_unverified_platform' if candidate.derived_checkpoint_id else 'static_unverified', **curation, 'classification': classification,
         'fingerprints': fingerprints(candidate), 'occurrence_count': 1,
-        'verification': verification_projection(candidate), 'admission':admission_summary(candidate)}
+        'algorithm_profile': profile({**candidate.data, 'family': curation['curation']['family'], 'tags': curation['curation']['tags']}), 'verification': verification_projection(candidate), 'admission':admission_summary(candidate)}

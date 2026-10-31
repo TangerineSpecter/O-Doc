@@ -97,6 +97,8 @@ class DerivationTests(TestCase):
         for row in snapshot:
             if row['model'] == 'quant.factorcandidate':
                 row['fields'].pop('derived_checkpoint_id')
+        from quant.testing_documents import without_documents
+        snapshot = without_documents(snapshot)
         meta = metadata(snapshot) | {'quant_schema_version': 10}
         validate(snapshot, meta)
         SyncManager().apply_snapshot_data(snapshot, remote_meta=meta)

@@ -169,6 +169,8 @@ class VerificationIntegrationTests(TestCase):
         snapshot = SyncManager().build_snapshot_data()
         for row in snapshot:
             if row['model'] == 'quant.factorcandidate': row['fields'].pop('qualification_version'); row['fields'].pop('admission_version')
+        from quant.testing_documents import without_documents
+        snapshot = without_documents(snapshot)
         meta = metadata(snapshot); meta['quant_schema_version'] = 39
         indexed = self.client.post(self.verification_url(candidate), {'kind': 'experiment'}, format='json')
         self.assertEqual(indexed.status_code, 200, indexed.data)

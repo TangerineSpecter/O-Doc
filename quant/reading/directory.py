@@ -1,11 +1,10 @@
 """SQL filtering/pagination without materializing note or report bodies."""
 import re
-from math import isfinite
 from django.db.models import BooleanField, Count, Exists, OuterRef, Q
 from django.db.models.functions import Substr
 from rest_framework import serializers
 from quant.models import Entry, Implementation, SourceRevision
-from quant.research.list_scores import with_default_report_score
+from quant.research.list_scores import with_default_report_score, normalized_score
 
 
 class PageQuery(serializers.Serializer):
@@ -66,12 +65,7 @@ def directory(collection, params):
     fields = ('id', 'title', 'kind', 'created_at', 'updated_at', 'default_report_score', 'note_preview')
     items = []
     for row in rows.values(*fields)[start:start + limit]:
-        score = row.pop('default_report_score')
-        if isinstance(score, str):
-            import json
-            try: score = json.loads(score)
-            except ValueError: score = None
-        if isinstance(score,bool) or not isinstance(score,(int,float)) or not isfinite(score) or not 0<=score<=100: score=None
+        score = normalized_score(row.pop('default_report_score'))
         note_preview = preview(row.pop('note_preview'))
         items.append({**row, 'preview': note_preview, 'research_score': score})
     return {'items': items, 'total': total, 'kind_counts': counts, 'has_more': start + limit < total}

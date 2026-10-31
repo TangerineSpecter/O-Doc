@@ -22,6 +22,8 @@ class Value:
 
 
 def calculate(expression: dict, inputs: dict, parameters: dict, *, expected='numeric_series', check=None, deadline=None) -> list:
+    if expression.get('op') == 'python':
+        raise ValidationError('Python实现请通过Python运行环境调用，不由表达式计算器执行')
     if not isinstance(inputs, dict) or not inputs or len(inputs) > 20 or not isinstance(parameters, dict) or len(parameters) > 30:
         raise ValidationError('输入/参数合同无效')
     validate_expression(expression, set(inputs), set(parameters))
@@ -32,6 +34,13 @@ def calculate(expression: dict, inputs: dict, parameters: dict, *, expected='num
         raise ValidationError('输入序列长度不一致或超出计算上限')
     if expected not in ('numeric_series', 'boolean_series'):
         raise ValidationError('只支持数值或布尔序列输出')
+    if expression.get('op') == 'program':
+        from quant.algorithms.contract import validate_windows
+        from quant.algorithms.runtime import calculate_program
+        validate_windows(expression, parameters)
+        if expression['output_type'] != expected:
+            raise ValidationError('算法输出与声明类型不一致')
+        return calculate_program(expression, inputs, parameters, check=check, deadline=deadline)
     deadline = deadline if deadline is not None else time.monotonic() + 15
     def guard():
         if check:
@@ -54,6 +63,12 @@ def calculate(expression: dict, inputs: dict, parameters: dict, *, expected='num
     def visit(node):
         guard()
         op = node['op']
+        if op == 'program':
+            from quant.algorithms.contract import validate_windows
+            from quant.algorithms.runtime import calculate_program
+            validate_windows(node, parameters)
+            output = calculate_program(node, inputs, parameters, check=guard, deadline=deadline)
+            return Value('boolean' if node['output_type'] == 'boolean_series' else 'number', pd.Series(output, dtype='float64'))
         if op == 'input':
             return Value('number', series[node['name']])
         if op in ('constant', 'parameter'):

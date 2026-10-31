@@ -23,6 +23,9 @@ def calculate(rows, parameters=None):
             raise ValueError('Undeclared string choice: ' + name)
     def visit(node):
         op = node['op']
+        if op == 'program':
+            inputs = {name: [row[column] for row in rows] for name, column in SPEC['bindings'].items()}
+            return calculate_program(node, inputs, params)
         if op == 'input':
             column = SPEC['bindings'][node['name']]
             values = [row[column] for row in rows]

@@ -10,10 +10,14 @@ export function useQuant(collection:string,entryId:string,reportId='') {
     const directory=useQuantDirectory(collection);
     const workspace=useQuantWorkspace(collection,entryId,reportId);
     const [title,setTitle]=useState(''),[models,setModels]=useState<QuantModels>({models:[],defaultModelId:''});
-    const header=workspace.detail?.reportHeaders.find(row=>row.id===workspace.detail?.defaultReportId);
-    const score=typeof header?.totalScore==='number'&&Number.isFinite(header.totalScore)&&header.totalScore>=0&&header.totalScore<=100?header.totalScore:null;
+    // Reading and review may come from different adopted reports. Never copy
+    // a historical reading header's score over the current directory score.
+    const overviewId=workspace.detail?.id;
+    const score=workspace.detail?.researchScore;
     const patchEntry=directory.patchEntry;
-    useEffect(()=>{if(entryId&&header)patchEntry({id:entryId,researchScore:score});},[entryId,header,score,patchEntry]);
+    useEffect(()=>{
+        if(entryId===overviewId&&score!==undefined)patchEntry({id:entryId,researchScore:score});
+    },[entryId,overviewId,score,patchEntry]);
     const [error,setError]=useState(''),[busy,setBusy]=useState(false);
     const busyRef=useRef(false);
     useEffect(()=>{

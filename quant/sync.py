@@ -11,7 +11,7 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 82
+SCHEMA_VERSION = 90
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
@@ -45,6 +45,9 @@ def complete_legacy_fields(data: list) -> None:
             row['fields'].setdefault('feedback_workflow_version',0)
             row['fields'].setdefault('audit_report_id','')
             row['fields'].setdefault('native_resume_run_id','')
+        if row.get('model') == 'quant.researchreport':
+            row['fields'].setdefault('publication_mode', 'legacy')
+            row['fields'].setdefault('factor_bindings', {})
         if row.get('model') == 'quant.codeversion':
             row['fields'].setdefault('strategy_artifact_id', '')
         if row.get('model') == 'quant.factorcandidate':
@@ -102,6 +105,10 @@ def validate(data: list, meta=None) -> None:
             if identity in rows.setdefault(label, {}):
                 fail('量化快照包含重复记录，拒绝恢复')
             rows[label][identity] = row['fields']
+    if 'quant_schema_version' in meta and schema_version < 90 and any(r.get('workflow_version') in (41, 42) for r in rows.get('quant.airun', {}).values()):
+        fail('严格源码计算目录需要量化同步格式90，请升级其他设备')
+    if 'quant_schema_version' in meta and schema_version < 89 and (rows.get('quant.researchdocument') or any(r.get('publication_mode', 'legacy') != 'legacy' for r in rows.get('quant.researchreport', {}).values())):
+        fail('当前研究与分区采用状态需要同步格式89，请升级其他设备')
     if 'quant_schema_version' in meta and schema_version < 72 and any(row.get('kind') == 'sample_correlation' for row in rows.get('quant.factorrelation', {}).values()):
         fail('固定样本统计关系需要量化同步版本72或更高，拒绝降级解释')
     if 'quant_schema_version' in meta and schema_version < 73 and any(row.get('review_version') == 16 for row in rows.get('quant.airun', {}).values()):
@@ -122,6 +129,22 @@ def validate(data: list, meta=None) -> None:
         fail('回测文集需要量化同步版本76或更高')
     if 'quant_schema_version' in meta and schema_version < 77 and rows.get('quant.mt4expert'):
         fail('结构化 EA 要求需要量化同步版本77或更高')
+    def has_program(value, operators=('program', 'python')):
+        if isinstance(value, dict): return value.get('op') in operators or any(has_program(item, operators) for item in value.values())
+        if isinstance(value, list): return any(has_program(item, operators) for item in value)
+        return False
+    if 'quant_schema_version' in meta and schema_version < 83 and (any(row.get('workflow_version') in (29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42) for row in rows.get('quant.airun', {}).values()) or has_program(rows.get('quant.factorcandidate', {}))):
+        fail('统一算法提取需量化同步格式83')
+    if 'quant_schema_version' in meta and schema_version < 84 and any(row.get('workflow_version') in (31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42) for row in rows.get('quant.airun', {}).values()):
+        fail('源码输出目录与自动纠正需量化同步格式84')
+    if 'quant_schema_version' in meta and schema_version < 85 and (any(row.get('workflow_version') in (33, 34, 35, 36, 37, 38, 39, 40, 41, 42) for row in rows.get('quant.airun', {}).values()) or has_program(rows, ('python',))):
+        fail('Python算法资产需量化同步格式85')
+    if 'quant_schema_version' in meta and schema_version < 86 and any(row.get('workflow_version') in (35, 36, 37, 38, 39, 40, 41, 42) for row in rows.get('quant.airun', {}).values()):
+        fail('中英文算法命名流程需量化同步格式86')
+    if 'quant_schema_version' in meta and schema_version < 87 and any(row.get('workflow_version') in (37, 38, 39, 40, 41, 42) for row in rows.get('quant.airun', {}).values()):
+        fail('分节阅读报告流程需量化同步格式87')
+    if 'quant_schema_version' in meta and schema_version < 88 and any(row.get('workflow_version') in (39, 40, 41, 42) for row in rows.get('quant.airun', {}).values()):
+        fail('完整导读报告流程需量化同步格式88')
     if 'quant_schema_version' in meta:
         for attachment in rows.get('quant.mt4attachment', {}).values():
             if schema_version >= 78 and 'note' not in attachment:
@@ -238,7 +261,7 @@ def validate(data: list, meta=None) -> None:
                     fail('网页快照与原始分析来源不一致')
         elif version_entry(fields.get('source_version')) != eid or fields.get('source') or fields.get('resolved_source'):
             fail('代码任务来源无效')
-        if fields.get('kind')=='analyze' and fields.get('result',{}).get('source_memory_version') and fields.get('workflow_version') not in (12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28):
+        if fields.get('kind')=='analyze' and fields.get('result',{}).get('source_memory_version') and fields.get('workflow_version') not in (12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40, 41, 42):
             fail('历史源码分析不能追加未冻结的研究记忆')
         if fields.get('kind') == 'analyze':
             from .research.findings import validate_admission

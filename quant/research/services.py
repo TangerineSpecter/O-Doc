@@ -47,17 +47,25 @@ def publish_legacy_report(run) -> ResearchReport | None:
 
 
 @transaction.atomic
-def revise_report(report, markdown: str, expected_revision_id: str) -> ReportRevision:
+def revise_report(report, markdown: str, expected_revision_id: str, expected_document_revision=None) -> ReportRevision:
     """Optimistic concurrency protects edits made in another tab/device."""
     if not isinstance(markdown, str) or len(markdown) > 200000:
         raise ValidationError('报告正文最多 200000 字符')
     report = ResearchReport.objects.select_for_update().get(pk=report.pk)
+    if expected_document_revision is not None:
+        from quant.models import ResearchDocument
+        document = ResearchDocument.objects.select_for_update().filter(entry=report.entry).first()
+        if not document or document.revision != expected_document_revision or document.sections.get('reading') != {'report_id': report.pk, 'revision_id': expected_revision_id}:
+            raise Conflict('当前研究已更新，请刷新后再保存正文')
+        expected_revision_id = report.current_revision_id
     if report.current_revision_id != expected_revision_id:
         raise Conflict('报告已有新的修订，请刷新后合并修改')
     revision = ReportRevision.objects.create(report=report, parent_id=expected_revision_id,
         markdown=markdown, content_hash=digest(markdown))
     report.current_revision_id = revision.pk
     report.save(update_fields=['current_revision_id', 'updated_at'])
+    from quant.documents.services import edited
+    edited(report, expected_revision_id)
     return revision
 
 
@@ -95,27 +103,23 @@ def publish_report(run) -> ResearchReport | None:
     validate_strategy_admission(run.result, run.workflow_version)
     from .findings import validate_admission
     validate_admission(run.result, run.workflow_version)
-    if 'source_memory_version' in run.result and run.workflow_version not in (12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28):
+    if 'source_memory_version' in run.result and run.workflow_version not in (12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40, 41, 42):
         raise ValidationError('历史源码报告不能追加未冻结的研究记忆')
-    if 'factor_repair' in run.result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28):
+    if 'factor_repair' in run.result and run.workflow_version not in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42):
         raise ValidationError('AI 定义修订须绑定支持的阶段工作流')
     existing = ResearchReport.objects.filter(run=run).first()
     if existing:
         return existing
-    markdown = analysis_markdown(run.result)
+    markdown = analysis_markdown(run.result, guided_reading=run.workflow_version in (39, 40, 41, 42))
     schema = 3 if run.result.get('extraction_version') == 1 else 2
     report = ResearchReport.objects.create(entry=run.entry, source=run.resolved_source or run.source, run=run, schema_version=schema,
-        data=run.result, markdown=markdown,
+        data=run.result, markdown=markdown, publication_mode='pending',
         content_hash=digest({'schema_version': schema, 'data': run.result, 'markdown': markdown}))
-    from quant.factors.services import publish_candidates
-    publish_candidates(report)
-    from quant.repairs.services import publish as publish_repairs
-    publish_repairs(report)
-    from quant.experiments.proposals import publish
-    publish(run)
-    if run.result.get('factors'):
-        from quant.graph.indexing import auto_index
-        transaction.on_commit(lambda: auto_index(report.pk))
+    from .continuity import preserve_reading
+    preserve_reading(report)
+    report.refresh_from_db(fields=['current_revision_id'])
+    from quant.documents.services import offer
+    offer(report)
     run.entry.refresh_from_db()
     if run.entry.title == '待分析资料':
         run.entry.title = run.result['title']

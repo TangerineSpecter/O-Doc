@@ -5,6 +5,7 @@ import { quantApi } from '../../api/quant';
 import { Select } from '../common/Select';
 import { CodeEditor } from './CodeEditor';
 import { SourceCodeEditor } from './SourceCodeEditor';
+import { SourceDescription } from './SourceDescription';
 import { collectedCodeSources } from '../../utils/quantSourceCode';
 import { QuantButton, QuantEmpty, QuantField, QuantModal, cardClass } from './ui';
 import { quantLanguageOptions as languageOptions } from '../../utils/quant';
@@ -88,6 +89,7 @@ export function CodePanel({
                     </div>
                 </div>
             </section>
+            {source && <SourceDescription key={source.id} source={source} />}
             {source ? (
                 <SourceCodeEditor key={source.id} source={source} entry={entry} collection={collection}
                     controller={controller} register={register} saved={id=>{setSelected(id);void controller.safe(()=>controller.ensureImplementation(id),false);}}/>

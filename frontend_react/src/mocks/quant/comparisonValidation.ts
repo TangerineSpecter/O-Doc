@@ -1,3 +1,4 @@
+import {readAlgorithmProgram} from '../../utils/quantAlgorithm';
 /** Checks the engine vocabulary and scalar types only; does not calculate an output. */
 import type {QuantFactorData} from '../../types/api/quant';
 import {isParameterText} from '../../utils/quantParameterValues';
@@ -12,6 +13,7 @@ export function validateMockComparisonExpression(data: QuantFactorData, paramete
     const visit = (value: unknown, depth = 0): Kind => {
         if (++nodes > 128 || depth > 12 || !object(value)) throw new Error('受控表达式过深、过大或不是对象');
         const op = value.op;
+        if (op === 'program') {const program = readAlgorithmProgram(value); if (!program) throw new Error('算法样例格式无效'); return program.outputType === 'boolean_series' ? 'boolean' : 'number';}
         if (op === 'input' && exact(value, ['op', 'name']) && data.inputs.some(row => row.name === value.name)) return 'number';
         if (op === 'parameter' && exact(value, ['op', 'name']) && typeof value.name === 'string' && Object.prototype.hasOwnProperty.call(parameters, value.name)) return typeof parameters[value.name] as Kind;
         if (op === 'constant' && exact(value, ['op', 'value']) && (typeof value.value === 'number' && Number.isFinite(value.value) || isParameterText(value.value))) return typeof value.value as Kind;

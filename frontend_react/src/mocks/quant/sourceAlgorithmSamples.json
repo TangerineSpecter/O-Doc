@@ -1,0 +1,2238 @@
+[
+  {
+    "name": "创新自适应卡尔曼趋势估计",
+    "role": "factor",
+    "family": "trend",
+    "summary": "依据前一根估计和协方差预测当前价格；异常创新会提高测量噪声，降低当前价格的校正权重。",
+    "formula": "```python\nsourcePrice = close\nNOISE_DECAY = 0.9\nanomalyThreshold = pow(anomalyMultiple, 2)\n# 仅在首根初始化，随后跨 K 线保留\nestimate = na\n# 仅在首根初始化，随后跨 K 线保留\nestimateVariance = 1.0\n# 仅在首根初始化，随后跨 K 线保留\nmeasurementNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nmeanSurprise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nsurpriseVariance = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nprocessNoise = 0.0\nprocessNoiseRatio = pow(2.0 / (smoothingPeriod + 1), 2)\nif is_na(estimate):\n    estimate = sourcePrice\n    firstMove = pow(sourcePrice - history('sourcePrice', 1), 2)\n    surpriseVariance = firstMove if firstMove > 0 else 0.0001\n    meanSurprise = 0.0\n    measurementNoise = surpriseVariance\n    estimateVariance = surpriseVariance\n    processNoise = surpriseVariance * processNoiseRatio\npredictedEstimate = estimate\npredictedVariance = estimateVariance + processNoise\nsurprise = sourcePrice - predictedEstimate\ncenteredSurprise = surprise - meanSurprise if useTrendCentering else surprise\ntestStatistic = pow(centeredSurprise, 2) / surpriseVariance\nisAnomaly = testStatistic > anomalyThreshold\nstatAlpha = 2.0 / (noiseLookback + 1)\nmeanSurprise = (1.0 - statAlpha) * meanSurprise + statAlpha * surprise\nsurpriseVariance = (1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)\nupdatedNoise = measurementNoise\nif isAnomaly:\n    updatedNoise = outlierRejection * pow(centeredSurprise, 2) + measurementNoise\nelse:\n    updatedNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise\nmeasurementNoise = updatedNoise\nkalmanGain = predictedVariance / (predictedVariance + updatedNoise)\nestimate = predictedEstimate + kalmanGain * surprise\nestimateVariance = (1.0 - kalmanGain) * predictedVariance\nprocessNoise = surpriseVariance * processNoiseRatio\nreturn estimate\n```",
+    "inputs": [
+      {
+        "name": "close",
+        "meaning": "K线收盘价",
+        "availability": "当前K线收盘后",
+        "missingPolicy": "按源码na/nz及初始化规则传播或替代缺失值"
+      }
+    ],
+    "parameters": [
+      {
+        "name": "smoothingPeriod",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "趋势平滑周期",
+        "constraints": "按源码输入声明",
+        "effect": "趋势平滑周期影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "smoothingPeriod = input.int(20, \"Trend Smoothness\", group = \"Kalman Filter\", minval = 2, tooltip = \"How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.\")"
+      },
+      {
+        "name": "noiseLookback",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "创新统计与异常计数窗口",
+        "constraints": "按源码输入声明",
+        "effect": "创新统计与异常计数窗口影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "noiseLookback = input.int(20, \"Noise Lookback\", group = \"Surprise (Innovation)\", minval = 2, tooltip = \"How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.\")"
+      },
+      {
+        "name": "useTrendCentering",
+        "type": "bool",
+        "defaultValue": "true",
+        "category": "signal",
+        "meaning": "是否减去平均创新",
+        "constraints": "按源码输入声明",
+        "effect": "是否减去平均创新影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "useTrendCentering = input.bool(true, \"Trend Centering\", group = \"Surprise (Innovation)\", display = display.none, tooltip = \"Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.\")"
+      },
+      {
+        "name": "anomalyMultiple",
+        "type": "float",
+        "defaultValue": "2.05",
+        "category": "signal",
+        "meaning": "异常幅度倍数阈值",
+        "constraints": "按源码输入声明",
+        "effect": "异常幅度倍数阈值影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "anomalyMultiple = input.float(2.05, \"Unusual-Move Threshold\", group = \"Damping\", minval = 1.0, step = 0.05, tooltip = \"Decides which bars count as unusual moves, and so how often the Damping meter dips.\\n\\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\\n\\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\\n\\nHow hard each dotted bar is damped is set by Damping Strength.\")"
+      },
+      {
+        "name": "outlierRejection",
+        "type": "float",
+        "defaultValue": "0.05",
+        "category": "signal",
+        "meaning": "异常测量噪声膨胀强度",
+        "constraints": "按源码输入声明",
+        "effect": "异常测量噪声膨胀强度影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "outlierRejection = input.float(0.05, \"Damping Strength\", group = \"Damping\", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = \"Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\\n\\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\\n\\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\\n0.05: 15 to 25, fading in about 10 bars\\n0.1: 25 to 40, fading in about 20 bars\\n0.3: 50 to 70, fading in about 40 bars\\n\\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\\n\\nWhich bars get dots is set by the Unusual-Move Threshold.\")"
+      }
+    ],
+    "expression": {
+      "op": "program",
+      "version": 1,
+      "steps": [
+        {
+          "kind": "assign",
+          "name": "sourcePrice",
+          "value": "close"
+        },
+        {
+          "kind": "assign",
+          "name": "NOISE_DECAY",
+          "value": "0.9"
+        },
+        {
+          "kind": "assign",
+          "name": "anomalyThreshold",
+          "value": "pow(anomalyMultiple, 2)"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimate",
+          "value": "na"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimateVariance",
+          "value": "1.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "measurementNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "meanSurprise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "surpriseVariance",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "processNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoiseRatio",
+          "value": "pow(2.0 / (smoothingPeriod + 1), 2)"
+        },
+        {
+          "kind": "if",
+          "test": "is_na(estimate)",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "estimate",
+              "value": "sourcePrice"
+            },
+            {
+              "kind": "assign",
+              "name": "firstMove",
+              "value": "pow(sourcePrice - history('sourcePrice', 1), 2)"
+            },
+            {
+              "kind": "assign",
+              "name": "surpriseVariance",
+              "value": "firstMove if firstMove > 0 else 0.0001"
+            },
+            {
+              "kind": "assign",
+              "name": "meanSurprise",
+              "value": "0.0"
+            },
+            {
+              "kind": "assign",
+              "name": "measurementNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "estimateVariance",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "processNoise",
+              "value": "surpriseVariance * processNoiseRatio"
+            }
+          ],
+          "else": []
+        },
+        {
+          "kind": "assign",
+          "name": "predictedEstimate",
+          "value": "estimate"
+        },
+        {
+          "kind": "assign",
+          "name": "predictedVariance",
+          "value": "estimateVariance + processNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "surprise",
+          "value": "sourcePrice - predictedEstimate"
+        },
+        {
+          "kind": "assign",
+          "name": "centeredSurprise",
+          "value": "surprise - meanSurprise if useTrendCentering else surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "testStatistic",
+          "value": "pow(centeredSurprise, 2) / surpriseVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "isAnomaly",
+          "value": "testStatistic > anomalyThreshold"
+        },
+        {
+          "kind": "assign",
+          "name": "statAlpha",
+          "value": "2.0 / (noiseLookback + 1)"
+        },
+        {
+          "kind": "assign",
+          "name": "meanSurprise",
+          "value": "(1.0 - statAlpha) * meanSurprise + statAlpha * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseVariance",
+          "value": "(1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)"
+        },
+        {
+          "kind": "assign",
+          "name": "updatedNoise",
+          "value": "measurementNoise"
+        },
+        {
+          "kind": "if",
+          "test": "isAnomaly",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "outlierRejection * pow(centeredSurprise, 2) + measurementNoise"
+            }
+          ],
+          "else": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise"
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "measurementNoise",
+          "value": "updatedNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "kalmanGain",
+          "value": "predictedVariance / (predictedVariance + updatedNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "estimate",
+          "value": "predictedEstimate + kalmanGain * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "estimateVariance",
+          "value": "(1.0 - kalmanGain) * predictedVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoise",
+          "value": "surpriseVariance * processNoiseRatio"
+        }
+      ],
+      "output": "estimate",
+      "outputType": "numeric_series"
+    },
+    "outputType": "numeric_series",
+    "units": "价格",
+    "timeframe": "按输入K线周期逐根计算；平滑和统计窗口由源码参数指定，未绑定特定分钟数",
+    "dependencies": [
+      "统一逐根算法标准函数；内部状态随计算步骤保存"
+    ],
+    "limitations": "计算口径为按时间升序的已收盘K线。",
+    "tags": [
+      "趋势",
+      "卡尔曼",
+      "源码算法"
+    ],
+    "evidence": [
+      {
+        "field": "code",
+        "quote": "var float estimate = na // the filtered price -- this is the plotted line"
+      }
+    ]
+  },
+  {
+    "name": "标准化创新强度",
+    "role": "factor",
+    "family": "volatility",
+    "summary": "用去除趋势偏差后的价格创新平方除以前一根创新方差，衡量当前偏离程度；先检验，再更新方差。",
+    "formula": "```python\nsourcePrice = close\nNOISE_DECAY = 0.9\nanomalyThreshold = pow(anomalyMultiple, 2)\n# 仅在首根初始化，随后跨 K 线保留\nestimate = na\n# 仅在首根初始化，随后跨 K 线保留\nestimateVariance = 1.0\n# 仅在首根初始化，随后跨 K 线保留\nmeasurementNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nmeanSurprise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nsurpriseVariance = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nprocessNoise = 0.0\nprocessNoiseRatio = pow(2.0 / (smoothingPeriod + 1), 2)\nif is_na(estimate):\n    estimate = sourcePrice\n    firstMove = pow(sourcePrice - history('sourcePrice', 1), 2)\n    surpriseVariance = firstMove if firstMove > 0 else 0.0001\n    meanSurprise = 0.0\n    measurementNoise = surpriseVariance\n    estimateVariance = surpriseVariance\n    processNoise = surpriseVariance * processNoiseRatio\npredictedEstimate = estimate\npredictedVariance = estimateVariance + processNoise\nsurprise = sourcePrice - predictedEstimate\ncenteredSurprise = surprise - meanSurprise if useTrendCentering else surprise\ntestStatistic = pow(centeredSurprise, 2) / surpriseVariance\nisAnomaly = testStatistic > anomalyThreshold\nstatAlpha = 2.0 / (noiseLookback + 1)\nmeanSurprise = (1.0 - statAlpha) * meanSurprise + statAlpha * surprise\nsurpriseVariance = (1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)\nupdatedNoise = measurementNoise\nif isAnomaly:\n    updatedNoise = outlierRejection * pow(centeredSurprise, 2) + measurementNoise\nelse:\n    updatedNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise\nmeasurementNoise = updatedNoise\nkalmanGain = predictedVariance / (predictedVariance + updatedNoise)\nestimate = predictedEstimate + kalmanGain * surprise\nestimateVariance = (1.0 - kalmanGain) * predictedVariance\nprocessNoise = surpriseVariance * processNoiseRatio\nreturn testStatistic\n```",
+    "inputs": [
+      {
+        "name": "close",
+        "meaning": "K线收盘价",
+        "availability": "当前K线收盘后",
+        "missingPolicy": "按源码na/nz及初始化规则传播或替代缺失值"
+      }
+    ],
+    "parameters": [
+      {
+        "name": "smoothingPeriod",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "趋势平滑周期",
+        "constraints": "按源码输入声明",
+        "effect": "趋势平滑周期影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "smoothingPeriod = input.int(20, \"Trend Smoothness\", group = \"Kalman Filter\", minval = 2, tooltip = \"How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.\")"
+      },
+      {
+        "name": "noiseLookback",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "创新统计与异常计数窗口",
+        "constraints": "按源码输入声明",
+        "effect": "创新统计与异常计数窗口影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "noiseLookback = input.int(20, \"Noise Lookback\", group = \"Surprise (Innovation)\", minval = 2, tooltip = \"How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.\")"
+      },
+      {
+        "name": "useTrendCentering",
+        "type": "bool",
+        "defaultValue": "true",
+        "category": "signal",
+        "meaning": "是否减去平均创新",
+        "constraints": "按源码输入声明",
+        "effect": "是否减去平均创新影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "useTrendCentering = input.bool(true, \"Trend Centering\", group = \"Surprise (Innovation)\", display = display.none, tooltip = \"Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.\")"
+      },
+      {
+        "name": "anomalyMultiple",
+        "type": "float",
+        "defaultValue": "2.05",
+        "category": "signal",
+        "meaning": "异常幅度倍数阈值",
+        "constraints": "按源码输入声明",
+        "effect": "异常幅度倍数阈值影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "anomalyMultiple = input.float(2.05, \"Unusual-Move Threshold\", group = \"Damping\", minval = 1.0, step = 0.05, tooltip = \"Decides which bars count as unusual moves, and so how often the Damping meter dips.\\n\\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\\n\\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\\n\\nHow hard each dotted bar is damped is set by Damping Strength.\")"
+      },
+      {
+        "name": "outlierRejection",
+        "type": "float",
+        "defaultValue": "0.05",
+        "category": "signal",
+        "meaning": "异常测量噪声膨胀强度",
+        "constraints": "按源码输入声明",
+        "effect": "异常测量噪声膨胀强度影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "outlierRejection = input.float(0.05, \"Damping Strength\", group = \"Damping\", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = \"Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\\n\\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\\n\\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\\n0.05: 15 to 25, fading in about 10 bars\\n0.1: 25 to 40, fading in about 20 bars\\n0.3: 50 to 70, fading in about 40 bars\\n\\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\\n\\nWhich bars get dots is set by the Unusual-Move Threshold.\")"
+      }
+    ],
+    "expression": {
+      "op": "program",
+      "version": 1,
+      "steps": [
+        {
+          "kind": "assign",
+          "name": "sourcePrice",
+          "value": "close"
+        },
+        {
+          "kind": "assign",
+          "name": "NOISE_DECAY",
+          "value": "0.9"
+        },
+        {
+          "kind": "assign",
+          "name": "anomalyThreshold",
+          "value": "pow(anomalyMultiple, 2)"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimate",
+          "value": "na"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimateVariance",
+          "value": "1.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "measurementNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "meanSurprise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "surpriseVariance",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "processNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoiseRatio",
+          "value": "pow(2.0 / (smoothingPeriod + 1), 2)"
+        },
+        {
+          "kind": "if",
+          "test": "is_na(estimate)",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "estimate",
+              "value": "sourcePrice"
+            },
+            {
+              "kind": "assign",
+              "name": "firstMove",
+              "value": "pow(sourcePrice - history('sourcePrice', 1), 2)"
+            },
+            {
+              "kind": "assign",
+              "name": "surpriseVariance",
+              "value": "firstMove if firstMove > 0 else 0.0001"
+            },
+            {
+              "kind": "assign",
+              "name": "meanSurprise",
+              "value": "0.0"
+            },
+            {
+              "kind": "assign",
+              "name": "measurementNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "estimateVariance",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "processNoise",
+              "value": "surpriseVariance * processNoiseRatio"
+            }
+          ],
+          "else": []
+        },
+        {
+          "kind": "assign",
+          "name": "predictedEstimate",
+          "value": "estimate"
+        },
+        {
+          "kind": "assign",
+          "name": "predictedVariance",
+          "value": "estimateVariance + processNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "surprise",
+          "value": "sourcePrice - predictedEstimate"
+        },
+        {
+          "kind": "assign",
+          "name": "centeredSurprise",
+          "value": "surprise - meanSurprise if useTrendCentering else surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "testStatistic",
+          "value": "pow(centeredSurprise, 2) / surpriseVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "isAnomaly",
+          "value": "testStatistic > anomalyThreshold"
+        },
+        {
+          "kind": "assign",
+          "name": "statAlpha",
+          "value": "2.0 / (noiseLookback + 1)"
+        },
+        {
+          "kind": "assign",
+          "name": "meanSurprise",
+          "value": "(1.0 - statAlpha) * meanSurprise + statAlpha * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseVariance",
+          "value": "(1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)"
+        },
+        {
+          "kind": "assign",
+          "name": "updatedNoise",
+          "value": "measurementNoise"
+        },
+        {
+          "kind": "if",
+          "test": "isAnomaly",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "outlierRejection * pow(centeredSurprise, 2) + measurementNoise"
+            }
+          ],
+          "else": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise"
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "measurementNoise",
+          "value": "updatedNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "kalmanGain",
+          "value": "predictedVariance / (predictedVariance + updatedNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "estimate",
+          "value": "predictedEstimate + kalmanGain * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "estimateVariance",
+          "value": "(1.0 - kalmanGain) * predictedVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoise",
+          "value": "surpriseVariance * processNoiseRatio"
+        }
+      ],
+      "output": "testStatistic",
+      "outputType": "numeric_series"
+    },
+    "outputType": "numeric_series",
+    "units": "方差比",
+    "timeframe": "按输入K线周期逐根计算；平滑和统计窗口由源码参数指定，未绑定特定分钟数",
+    "dependencies": [
+      "统一逐根算法标准函数；内部状态随计算步骤保存"
+    ],
+    "limitations": "计算口径为按时间升序的已收盘K线。",
+    "tags": [
+      "波动率",
+      "卡尔曼",
+      "源码算法"
+    ],
+    "evidence": [
+      {
+        "field": "code",
+        "quote": "float testStatistic = math.pow(centeredSurprise, 2) / surpriseVariance"
+      }
+    ]
+  },
+  {
+    "name": "创新能量仪表",
+    "role": "factor",
+    "family": "volatility",
+    "summary": "比较近期创新方差和未启用异常门控时的基准噪声，把高于基准的能量占比映射到0–100。",
+    "formula": "```python\nsourcePrice = close\nNOISE_DECAY = 0.9\nanomalyThreshold = pow(anomalyMultiple, 2)\n# 仅在首根初始化，随后跨 K 线保留\nestimate = na\n# 仅在首根初始化，随后跨 K 线保留\nestimateVariance = 1.0\n# 仅在首根初始化，随后跨 K 线保留\nmeasurementNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\ncalmNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nmeanSurprise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nsurpriseVariance = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nprocessNoise = 0.0\nprocessNoiseRatio = pow(2.0 / (smoothingPeriod + 1), 2)\nif is_na(estimate):\n    estimate = sourcePrice\n    firstMove = pow(sourcePrice - history('sourcePrice', 1), 2)\n    surpriseVariance = firstMove if firstMove > 0 else 0.0001\n    meanSurprise = 0.0\n    measurementNoise = surpriseVariance\n    calmNoise = surpriseVariance\n    estimateVariance = surpriseVariance\n    processNoise = surpriseVariance * processNoiseRatio\npredictedEstimate = estimate\npredictedVariance = estimateVariance + processNoise\nsurprise = sourcePrice - predictedEstimate\ncenteredSurprise = surprise - meanSurprise if useTrendCentering else surprise\ntestStatistic = pow(centeredSurprise, 2) / surpriseVariance\nisAnomaly = testStatistic > anomalyThreshold\nstatAlpha = 2.0 / (noiseLookback + 1)\nmeanSurprise = (1.0 - statAlpha) * meanSurprise + statAlpha * surprise\nsurpriseVariance = (1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)\nupdatedNoise = measurementNoise\nif isAnomaly:\n    updatedNoise = outlierRejection * pow(centeredSurprise, 2) + measurementNoise\nelse:\n    updatedNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise\nmeasurementNoise = updatedNoise\ncalmNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise\nkalmanGain = predictedVariance / (predictedVariance + updatedNoise)\nestimate = predictedEstimate + kalmanGain * surprise\nestimateVariance = (1.0 - kalmanGain) * predictedVariance\nprocessNoise = surpriseVariance * processNoiseRatio\nsurpriseRatio = surpriseVariance / max(calmNoise, 1e-12)\nsurpriseMeter = 100.0 * max(1.0 - 1.0 / surpriseRatio, 0.0)\nreturn surpriseMeter\n```",
+    "inputs": [
+      {
+        "name": "close",
+        "meaning": "K线收盘价",
+        "availability": "当前K线收盘后",
+        "missingPolicy": "按源码na/nz及初始化规则传播或替代缺失值"
+      }
+    ],
+    "parameters": [
+      {
+        "name": "smoothingPeriod",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "趋势平滑周期",
+        "constraints": "按源码输入声明",
+        "effect": "趋势平滑周期影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "smoothingPeriod = input.int(20, \"Trend Smoothness\", group = \"Kalman Filter\", minval = 2, tooltip = \"How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.\")"
+      },
+      {
+        "name": "noiseLookback",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "创新统计与异常计数窗口",
+        "constraints": "按源码输入声明",
+        "effect": "创新统计与异常计数窗口影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "noiseLookback = input.int(20, \"Noise Lookback\", group = \"Surprise (Innovation)\", minval = 2, tooltip = \"How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.\")"
+      },
+      {
+        "name": "useTrendCentering",
+        "type": "bool",
+        "defaultValue": "true",
+        "category": "signal",
+        "meaning": "是否减去平均创新",
+        "constraints": "按源码输入声明",
+        "effect": "是否减去平均创新影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "useTrendCentering = input.bool(true, \"Trend Centering\", group = \"Surprise (Innovation)\", display = display.none, tooltip = \"Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.\")"
+      },
+      {
+        "name": "anomalyMultiple",
+        "type": "float",
+        "defaultValue": "2.05",
+        "category": "signal",
+        "meaning": "异常幅度倍数阈值",
+        "constraints": "按源码输入声明",
+        "effect": "异常幅度倍数阈值影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "anomalyMultiple = input.float(2.05, \"Unusual-Move Threshold\", group = \"Damping\", minval = 1.0, step = 0.05, tooltip = \"Decides which bars count as unusual moves, and so how often the Damping meter dips.\\n\\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\\n\\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\\n\\nHow hard each dotted bar is damped is set by Damping Strength.\")"
+      },
+      {
+        "name": "outlierRejection",
+        "type": "float",
+        "defaultValue": "0.05",
+        "category": "signal",
+        "meaning": "异常测量噪声膨胀强度",
+        "constraints": "按源码输入声明",
+        "effect": "异常测量噪声膨胀强度影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "outlierRejection = input.float(0.05, \"Damping Strength\", group = \"Damping\", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = \"Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\\n\\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\\n\\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\\n0.05: 15 to 25, fading in about 10 bars\\n0.1: 25 to 40, fading in about 20 bars\\n0.3: 50 to 70, fading in about 40 bars\\n\\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\\n\\nWhich bars get dots is set by the Unusual-Move Threshold.\")"
+      }
+    ],
+    "expression": {
+      "op": "program",
+      "version": 1,
+      "steps": [
+        {
+          "kind": "assign",
+          "name": "sourcePrice",
+          "value": "close"
+        },
+        {
+          "kind": "assign",
+          "name": "NOISE_DECAY",
+          "value": "0.9"
+        },
+        {
+          "kind": "assign",
+          "name": "anomalyThreshold",
+          "value": "pow(anomalyMultiple, 2)"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimate",
+          "value": "na"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimateVariance",
+          "value": "1.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "measurementNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "calmNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "meanSurprise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "surpriseVariance",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "processNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoiseRatio",
+          "value": "pow(2.0 / (smoothingPeriod + 1), 2)"
+        },
+        {
+          "kind": "if",
+          "test": "is_na(estimate)",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "estimate",
+              "value": "sourcePrice"
+            },
+            {
+              "kind": "assign",
+              "name": "firstMove",
+              "value": "pow(sourcePrice - history('sourcePrice', 1), 2)"
+            },
+            {
+              "kind": "assign",
+              "name": "surpriseVariance",
+              "value": "firstMove if firstMove > 0 else 0.0001"
+            },
+            {
+              "kind": "assign",
+              "name": "meanSurprise",
+              "value": "0.0"
+            },
+            {
+              "kind": "assign",
+              "name": "measurementNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "calmNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "estimateVariance",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "processNoise",
+              "value": "surpriseVariance * processNoiseRatio"
+            }
+          ],
+          "else": []
+        },
+        {
+          "kind": "assign",
+          "name": "predictedEstimate",
+          "value": "estimate"
+        },
+        {
+          "kind": "assign",
+          "name": "predictedVariance",
+          "value": "estimateVariance + processNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "surprise",
+          "value": "sourcePrice - predictedEstimate"
+        },
+        {
+          "kind": "assign",
+          "name": "centeredSurprise",
+          "value": "surprise - meanSurprise if useTrendCentering else surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "testStatistic",
+          "value": "pow(centeredSurprise, 2) / surpriseVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "isAnomaly",
+          "value": "testStatistic > anomalyThreshold"
+        },
+        {
+          "kind": "assign",
+          "name": "statAlpha",
+          "value": "2.0 / (noiseLookback + 1)"
+        },
+        {
+          "kind": "assign",
+          "name": "meanSurprise",
+          "value": "(1.0 - statAlpha) * meanSurprise + statAlpha * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseVariance",
+          "value": "(1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)"
+        },
+        {
+          "kind": "assign",
+          "name": "updatedNoise",
+          "value": "measurementNoise"
+        },
+        {
+          "kind": "if",
+          "test": "isAnomaly",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "outlierRejection * pow(centeredSurprise, 2) + measurementNoise"
+            }
+          ],
+          "else": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise"
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "measurementNoise",
+          "value": "updatedNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "calmNoise",
+          "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "kalmanGain",
+          "value": "predictedVariance / (predictedVariance + updatedNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "estimate",
+          "value": "predictedEstimate + kalmanGain * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "estimateVariance",
+          "value": "(1.0 - kalmanGain) * predictedVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoise",
+          "value": "surpriseVariance * processNoiseRatio"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseRatio",
+          "value": "surpriseVariance / max(calmNoise, 1e-12)"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseMeter",
+          "value": "100.0 * max(1.0 - 1.0 / surpriseRatio, 0.0)"
+        }
+      ],
+      "output": "surpriseMeter",
+      "outputType": "numeric_series"
+    },
+    "outputType": "numeric_series",
+    "units": "0–100",
+    "timeframe": "按输入K线周期逐根计算；平滑和统计窗口由源码参数指定，未绑定特定分钟数",
+    "dependencies": [
+      "统一逐根算法标准函数；内部状态随计算步骤保存"
+    ],
+    "limitations": "计算口径为按时间升序的已收盘K线。",
+    "tags": [
+      "波动率",
+      "卡尔曼",
+      "源码算法"
+    ],
+    "evidence": [
+      {
+        "field": "code",
+        "quote": "float surpriseMeter = 100.0 * math.max(1.0 - 1.0 / surpriseRatio, 0.0)"
+      }
+    ]
+  },
+  {
+    "name": "异常阻尼仪表",
+    "role": "factor",
+    "family": "volatility",
+    "summary": "比较实际卡尔曼增益和无异常门控时的增益，计算滤波器因异常冲击而减少的反应幅度。",
+    "formula": "```python\nsourcePrice = close\nNOISE_DECAY = 0.9\nanomalyThreshold = pow(anomalyMultiple, 2)\n# 仅在首根初始化，随后跨 K 线保留\nestimate = na\n# 仅在首根初始化，随后跨 K 线保留\nestimateVariance = 1.0\n# 仅在首根初始化，随后跨 K 线保留\nmeasurementNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\ncalmNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nmeanSurprise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nsurpriseVariance = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nprocessNoise = 0.0\nprocessNoiseRatio = pow(2.0 / (smoothingPeriod + 1), 2)\nif is_na(estimate):\n    estimate = sourcePrice\n    firstMove = pow(sourcePrice - history('sourcePrice', 1), 2)\n    surpriseVariance = firstMove if firstMove > 0 else 0.0001\n    meanSurprise = 0.0\n    measurementNoise = surpriseVariance\n    calmNoise = surpriseVariance\n    estimateVariance = surpriseVariance\n    processNoise = surpriseVariance * processNoiseRatio\npredictedEstimate = estimate\npredictedVariance = estimateVariance + processNoise\nsurprise = sourcePrice - predictedEstimate\ncenteredSurprise = surprise - meanSurprise if useTrendCentering else surprise\ntestStatistic = pow(centeredSurprise, 2) / surpriseVariance\nisAnomaly = testStatistic > anomalyThreshold\nstatAlpha = 2.0 / (noiseLookback + 1)\nmeanSurprise = (1.0 - statAlpha) * meanSurprise + statAlpha * surprise\nsurpriseVariance = (1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)\nupdatedNoise = measurementNoise\nif isAnomaly:\n    updatedNoise = outlierRejection * pow(centeredSurprise, 2) + measurementNoise\nelse:\n    updatedNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise\nmeasurementNoise = updatedNoise\ncalmNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise\nkalmanGain = predictedVariance / (predictedVariance + updatedNoise)\nestimate = predictedEstimate + kalmanGain * surprise\nestimateVariance = (1.0 - kalmanGain) * predictedVariance\nprocessNoise = surpriseVariance * processNoiseRatio\ncalmGain = predictedVariance / (predictedVariance + calmNoise)\ndampingMeter = 100.0 * max(1.0 - kalmanGain / calmGain, 0.0)\nreturn dampingMeter\n```",
+    "inputs": [
+      {
+        "name": "close",
+        "meaning": "K线收盘价",
+        "availability": "当前K线收盘后",
+        "missingPolicy": "按源码na/nz及初始化规则传播或替代缺失值"
+      }
+    ],
+    "parameters": [
+      {
+        "name": "smoothingPeriod",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "趋势平滑周期",
+        "constraints": "按源码输入声明",
+        "effect": "趋势平滑周期影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "smoothingPeriod = input.int(20, \"Trend Smoothness\", group = \"Kalman Filter\", minval = 2, tooltip = \"How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.\")"
+      },
+      {
+        "name": "noiseLookback",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "创新统计与异常计数窗口",
+        "constraints": "按源码输入声明",
+        "effect": "创新统计与异常计数窗口影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "noiseLookback = input.int(20, \"Noise Lookback\", group = \"Surprise (Innovation)\", minval = 2, tooltip = \"How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.\")"
+      },
+      {
+        "name": "useTrendCentering",
+        "type": "bool",
+        "defaultValue": "true",
+        "category": "signal",
+        "meaning": "是否减去平均创新",
+        "constraints": "按源码输入声明",
+        "effect": "是否减去平均创新影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "useTrendCentering = input.bool(true, \"Trend Centering\", group = \"Surprise (Innovation)\", display = display.none, tooltip = \"Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.\")"
+      },
+      {
+        "name": "anomalyMultiple",
+        "type": "float",
+        "defaultValue": "2.05",
+        "category": "signal",
+        "meaning": "异常幅度倍数阈值",
+        "constraints": "按源码输入声明",
+        "effect": "异常幅度倍数阈值影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "anomalyMultiple = input.float(2.05, \"Unusual-Move Threshold\", group = \"Damping\", minval = 1.0, step = 0.05, tooltip = \"Decides which bars count as unusual moves, and so how often the Damping meter dips.\\n\\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\\n\\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\\n\\nHow hard each dotted bar is damped is set by Damping Strength.\")"
+      },
+      {
+        "name": "outlierRejection",
+        "type": "float",
+        "defaultValue": "0.05",
+        "category": "signal",
+        "meaning": "异常测量噪声膨胀强度",
+        "constraints": "按源码输入声明",
+        "effect": "异常测量噪声膨胀强度影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "outlierRejection = input.float(0.05, \"Damping Strength\", group = \"Damping\", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = \"Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\\n\\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\\n\\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\\n0.05: 15 to 25, fading in about 10 bars\\n0.1: 25 to 40, fading in about 20 bars\\n0.3: 50 to 70, fading in about 40 bars\\n\\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\\n\\nWhich bars get dots is set by the Unusual-Move Threshold.\")"
+      }
+    ],
+    "expression": {
+      "op": "program",
+      "version": 1,
+      "steps": [
+        {
+          "kind": "assign",
+          "name": "sourcePrice",
+          "value": "close"
+        },
+        {
+          "kind": "assign",
+          "name": "NOISE_DECAY",
+          "value": "0.9"
+        },
+        {
+          "kind": "assign",
+          "name": "anomalyThreshold",
+          "value": "pow(anomalyMultiple, 2)"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimate",
+          "value": "na"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimateVariance",
+          "value": "1.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "measurementNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "calmNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "meanSurprise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "surpriseVariance",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "processNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoiseRatio",
+          "value": "pow(2.0 / (smoothingPeriod + 1), 2)"
+        },
+        {
+          "kind": "if",
+          "test": "is_na(estimate)",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "estimate",
+              "value": "sourcePrice"
+            },
+            {
+              "kind": "assign",
+              "name": "firstMove",
+              "value": "pow(sourcePrice - history('sourcePrice', 1), 2)"
+            },
+            {
+              "kind": "assign",
+              "name": "surpriseVariance",
+              "value": "firstMove if firstMove > 0 else 0.0001"
+            },
+            {
+              "kind": "assign",
+              "name": "meanSurprise",
+              "value": "0.0"
+            },
+            {
+              "kind": "assign",
+              "name": "measurementNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "calmNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "estimateVariance",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "processNoise",
+              "value": "surpriseVariance * processNoiseRatio"
+            }
+          ],
+          "else": []
+        },
+        {
+          "kind": "assign",
+          "name": "predictedEstimate",
+          "value": "estimate"
+        },
+        {
+          "kind": "assign",
+          "name": "predictedVariance",
+          "value": "estimateVariance + processNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "surprise",
+          "value": "sourcePrice - predictedEstimate"
+        },
+        {
+          "kind": "assign",
+          "name": "centeredSurprise",
+          "value": "surprise - meanSurprise if useTrendCentering else surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "testStatistic",
+          "value": "pow(centeredSurprise, 2) / surpriseVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "isAnomaly",
+          "value": "testStatistic > anomalyThreshold"
+        },
+        {
+          "kind": "assign",
+          "name": "statAlpha",
+          "value": "2.0 / (noiseLookback + 1)"
+        },
+        {
+          "kind": "assign",
+          "name": "meanSurprise",
+          "value": "(1.0 - statAlpha) * meanSurprise + statAlpha * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseVariance",
+          "value": "(1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)"
+        },
+        {
+          "kind": "assign",
+          "name": "updatedNoise",
+          "value": "measurementNoise"
+        },
+        {
+          "kind": "if",
+          "test": "isAnomaly",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "outlierRejection * pow(centeredSurprise, 2) + measurementNoise"
+            }
+          ],
+          "else": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise"
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "measurementNoise",
+          "value": "updatedNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "calmNoise",
+          "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "kalmanGain",
+          "value": "predictedVariance / (predictedVariance + updatedNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "estimate",
+          "value": "predictedEstimate + kalmanGain * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "estimateVariance",
+          "value": "(1.0 - kalmanGain) * predictedVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoise",
+          "value": "surpriseVariance * processNoiseRatio"
+        },
+        {
+          "kind": "assign",
+          "name": "calmGain",
+          "value": "predictedVariance / (predictedVariance + calmNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "dampingMeter",
+          "value": "100.0 * max(1.0 - kalmanGain / calmGain, 0.0)"
+        }
+      ],
+      "output": "dampingMeter",
+      "outputType": "numeric_series"
+    },
+    "outputType": "numeric_series",
+    "units": "0–100",
+    "timeframe": "按输入K线周期逐根计算；平滑和统计窗口由源码参数指定，未绑定特定分钟数",
+    "dependencies": [
+      "统一逐根算法标准函数；内部状态随计算步骤保存"
+    ],
+    "limitations": "计算口径为按时间升序的已收盘K线。",
+    "tags": [
+      "波动率",
+      "卡尔曼",
+      "源码算法"
+    ],
+    "evidence": [
+      {
+        "field": "code",
+        "quote": "float dampingMeter = 100.0 * math.max(1.0 - kalmanGain / calmGain, 0.0)"
+      }
+    ]
+  },
+  {
+    "name": "重大异常创新判定",
+    "role": "signal",
+    "family": "volatility",
+    "summary": "先满足异常条件，再要求标准化创新幅度至少达到异常倍数阈值的两倍。",
+    "formula": "```python\nsourcePrice = close\nNOISE_DECAY = 0.9\nanomalyThreshold = pow(anomalyMultiple, 2)\n# 仅在首根初始化，随后跨 K 线保留\nestimate = na\n# 仅在首根初始化，随后跨 K 线保留\nestimateVariance = 1.0\n# 仅在首根初始化，随后跨 K 线保留\nmeasurementNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nmeanSurprise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nsurpriseVariance = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nprocessNoise = 0.0\nprocessNoiseRatio = pow(2.0 / (smoothingPeriod + 1), 2)\nif is_na(estimate):\n    estimate = sourcePrice\n    firstMove = pow(sourcePrice - history('sourcePrice', 1), 2)\n    surpriseVariance = firstMove if firstMove > 0 else 0.0001\n    meanSurprise = 0.0\n    measurementNoise = surpriseVariance\n    estimateVariance = surpriseVariance\n    processNoise = surpriseVariance * processNoiseRatio\npredictedEstimate = estimate\npredictedVariance = estimateVariance + processNoise\nsurprise = sourcePrice - predictedEstimate\ncenteredSurprise = surprise - meanSurprise if useTrendCentering else surprise\ntestStatistic = pow(centeredSurprise, 2) / surpriseVariance\nisAnomaly = testStatistic > anomalyThreshold\nstatAlpha = 2.0 / (noiseLookback + 1)\nmeanSurprise = (1.0 - statAlpha) * meanSurprise + statAlpha * surprise\nsurpriseVariance = (1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)\nupdatedNoise = measurementNoise\nif isAnomaly:\n    updatedNoise = outlierRejection * pow(centeredSurprise, 2) + measurementNoise\nelse:\n    updatedNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise\nmeasurementNoise = updatedNoise\nkalmanGain = predictedVariance / (predictedVariance + updatedNoise)\nestimate = predictedEstimate + kalmanGain * surprise\nestimateVariance = (1.0 - kalmanGain) * predictedVariance\nprocessNoise = surpriseVariance * processNoiseRatio\nisMajorMove = isAnomaly and sqrt(testStatistic) >= 2 * anomalyMultiple\nreturn isMajorMove\n```",
+    "inputs": [
+      {
+        "name": "close",
+        "meaning": "K线收盘价",
+        "availability": "当前K线收盘后",
+        "missingPolicy": "按源码na/nz及初始化规则传播或替代缺失值"
+      }
+    ],
+    "parameters": [
+      {
+        "name": "smoothingPeriod",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "趋势平滑周期",
+        "constraints": "按源码输入声明",
+        "effect": "趋势平滑周期影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "smoothingPeriod = input.int(20, \"Trend Smoothness\", group = \"Kalman Filter\", minval = 2, tooltip = \"How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.\")"
+      },
+      {
+        "name": "noiseLookback",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "创新统计与异常计数窗口",
+        "constraints": "按源码输入声明",
+        "effect": "创新统计与异常计数窗口影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "noiseLookback = input.int(20, \"Noise Lookback\", group = \"Surprise (Innovation)\", minval = 2, tooltip = \"How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.\")"
+      },
+      {
+        "name": "useTrendCentering",
+        "type": "bool",
+        "defaultValue": "true",
+        "category": "signal",
+        "meaning": "是否减去平均创新",
+        "constraints": "按源码输入声明",
+        "effect": "是否减去平均创新影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "useTrendCentering = input.bool(true, \"Trend Centering\", group = \"Surprise (Innovation)\", display = display.none, tooltip = \"Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.\")"
+      },
+      {
+        "name": "anomalyMultiple",
+        "type": "float",
+        "defaultValue": "2.05",
+        "category": "signal",
+        "meaning": "异常幅度倍数阈值",
+        "constraints": "按源码输入声明",
+        "effect": "异常幅度倍数阈值影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "anomalyMultiple = input.float(2.05, \"Unusual-Move Threshold\", group = \"Damping\", minval = 1.0, step = 0.05, tooltip = \"Decides which bars count as unusual moves, and so how often the Damping meter dips.\\n\\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\\n\\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\\n\\nHow hard each dotted bar is damped is set by Damping Strength.\")"
+      },
+      {
+        "name": "outlierRejection",
+        "type": "float",
+        "defaultValue": "0.05",
+        "category": "signal",
+        "meaning": "异常测量噪声膨胀强度",
+        "constraints": "按源码输入声明",
+        "effect": "异常测量噪声膨胀强度影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "outlierRejection = input.float(0.05, \"Damping Strength\", group = \"Damping\", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = \"Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\\n\\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\\n\\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\\n0.05: 15 to 25, fading in about 10 bars\\n0.1: 25 to 40, fading in about 20 bars\\n0.3: 50 to 70, fading in about 40 bars\\n\\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\\n\\nWhich bars get dots is set by the Unusual-Move Threshold.\")"
+      }
+    ],
+    "expression": {
+      "op": "program",
+      "version": 1,
+      "steps": [
+        {
+          "kind": "assign",
+          "name": "sourcePrice",
+          "value": "close"
+        },
+        {
+          "kind": "assign",
+          "name": "NOISE_DECAY",
+          "value": "0.9"
+        },
+        {
+          "kind": "assign",
+          "name": "anomalyThreshold",
+          "value": "pow(anomalyMultiple, 2)"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimate",
+          "value": "na"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimateVariance",
+          "value": "1.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "measurementNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "meanSurprise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "surpriseVariance",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "processNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoiseRatio",
+          "value": "pow(2.0 / (smoothingPeriod + 1), 2)"
+        },
+        {
+          "kind": "if",
+          "test": "is_na(estimate)",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "estimate",
+              "value": "sourcePrice"
+            },
+            {
+              "kind": "assign",
+              "name": "firstMove",
+              "value": "pow(sourcePrice - history('sourcePrice', 1), 2)"
+            },
+            {
+              "kind": "assign",
+              "name": "surpriseVariance",
+              "value": "firstMove if firstMove > 0 else 0.0001"
+            },
+            {
+              "kind": "assign",
+              "name": "meanSurprise",
+              "value": "0.0"
+            },
+            {
+              "kind": "assign",
+              "name": "measurementNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "estimateVariance",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "processNoise",
+              "value": "surpriseVariance * processNoiseRatio"
+            }
+          ],
+          "else": []
+        },
+        {
+          "kind": "assign",
+          "name": "predictedEstimate",
+          "value": "estimate"
+        },
+        {
+          "kind": "assign",
+          "name": "predictedVariance",
+          "value": "estimateVariance + processNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "surprise",
+          "value": "sourcePrice - predictedEstimate"
+        },
+        {
+          "kind": "assign",
+          "name": "centeredSurprise",
+          "value": "surprise - meanSurprise if useTrendCentering else surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "testStatistic",
+          "value": "pow(centeredSurprise, 2) / surpriseVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "isAnomaly",
+          "value": "testStatistic > anomalyThreshold"
+        },
+        {
+          "kind": "assign",
+          "name": "statAlpha",
+          "value": "2.0 / (noiseLookback + 1)"
+        },
+        {
+          "kind": "assign",
+          "name": "meanSurprise",
+          "value": "(1.0 - statAlpha) * meanSurprise + statAlpha * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseVariance",
+          "value": "(1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)"
+        },
+        {
+          "kind": "assign",
+          "name": "updatedNoise",
+          "value": "measurementNoise"
+        },
+        {
+          "kind": "if",
+          "test": "isAnomaly",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "outlierRejection * pow(centeredSurprise, 2) + measurementNoise"
+            }
+          ],
+          "else": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise"
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "measurementNoise",
+          "value": "updatedNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "kalmanGain",
+          "value": "predictedVariance / (predictedVariance + updatedNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "estimate",
+          "value": "predictedEstimate + kalmanGain * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "estimateVariance",
+          "value": "(1.0 - kalmanGain) * predictedVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoise",
+          "value": "surpriseVariance * processNoiseRatio"
+        },
+        {
+          "kind": "assign",
+          "name": "isMajorMove",
+          "value": "isAnomaly and sqrt(testStatistic) >= 2 * anomalyMultiple"
+        }
+      ],
+      "output": "isMajorMove",
+      "outputType": "boolean_series"
+    },
+    "outputType": "boolean_series",
+    "units": "布尔",
+    "timeframe": "按输入K线周期逐根计算；平滑和统计窗口由源码参数指定，未绑定特定分钟数",
+    "dependencies": [
+      "统一逐根算法标准函数；内部状态随计算步骤保存"
+    ],
+    "limitations": "计算口径为按时间升序的已收盘K线。",
+    "tags": [
+      "波动率",
+      "卡尔曼",
+      "源码算法"
+    ],
+    "evidence": [
+      {
+        "field": "code",
+        "quote": "bool isMajorMove = isAnomaly and math.sqrt(testStatistic) >= 2 * anomalyMultiple"
+      }
+    ]
+  },
+  {
+    "name": "异常聚集触发",
+    "role": "signal",
+    "family": "volatility",
+    "summary": "尚未进入波动率切换状态，窗口异常次数从3次以下跨到至少3次时触发。",
+    "formula": "```python\nsourcePrice = close\nNOISE_DECAY = 0.9\nSHIFT_START = 30.0\nNEAR_ZERO = 10.0\nanomalyThreshold = pow(anomalyMultiple, 2)\n# 仅在首根初始化，随后跨 K 线保留\nestimate = na\n# 仅在首根初始化，随后跨 K 线保留\nestimateVariance = 1.0\n# 仅在首根初始化，随后跨 K 线保留\nmeasurementNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\ncalmNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nmeanSurprise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nsurpriseVariance = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nprocessNoise = 0.0\nprocessNoiseRatio = pow(2.0 / (smoothingPeriod + 1), 2)\nif is_na(estimate):\n    estimate = sourcePrice\n    firstMove = pow(sourcePrice - history('sourcePrice', 1), 2)\n    surpriseVariance = firstMove if firstMove > 0 else 0.0001\n    meanSurprise = 0.0\n    measurementNoise = surpriseVariance\n    calmNoise = surpriseVariance\n    estimateVariance = surpriseVariance\n    processNoise = surpriseVariance * processNoiseRatio\npredictedEstimate = estimate\npredictedVariance = estimateVariance + processNoise\nsurprise = sourcePrice - predictedEstimate\ncenteredSurprise = surprise - meanSurprise if useTrendCentering else surprise\ntestStatistic = pow(centeredSurprise, 2) / surpriseVariance\nisAnomaly = testStatistic > anomalyThreshold\nstatAlpha = 2.0 / (noiseLookback + 1)\nmeanSurprise = (1.0 - statAlpha) * meanSurprise + statAlpha * surprise\nsurpriseVariance = (1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)\nupdatedNoise = measurementNoise\nif isAnomaly:\n    updatedNoise = outlierRejection * pow(centeredSurprise, 2) + measurementNoise\nelse:\n    updatedNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise\nmeasurementNoise = updatedNoise\ncalmNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise\nkalmanGain = predictedVariance / (predictedVariance + updatedNoise)\nestimate = predictedEstimate + kalmanGain * surprise\nestimateVariance = (1.0 - kalmanGain) * predictedVariance\nprocessNoise = surpriseVariance * processNoiseRatio\nsurpriseRatio = surpriseVariance / max(calmNoise, 1e-12)\nsurpriseMeter = 100.0 * max(1.0 - 1.0 / surpriseRatio, 0.0)\ncalmGain = predictedVariance / (predictedVariance + calmNoise)\ndampingMeter = 100.0 * max(1.0 - kalmanGain / calmGain, 0.0)\nshiftMeter = min(surpriseMeter, dampingMeter)\n# 仅在首根初始化，随后跨 K 线保留\ninShift = False\nshiftStarts = not inShift and shiftMeter >= SHIFT_START\nshiftSettles = inShift and max(surpriseMeter, dampingMeter) < NEAR_ZERO\nif shiftStarts:\n    inShift = True\nelse:\n    if shiftSettles:\n        inShift = False\nrecentMoves = int(rolling_sum(1 if isAnomaly else 0, noiseLookback))\nCLUSTER_COUNT = 3\nmovesCluster = (not inShift and recentMoves >= CLUSTER_COUNT) and history('recentMoves', 1) < CLUSTER_COUNT\nreturn movesCluster\n```",
+    "inputs": [
+      {
+        "name": "close",
+        "meaning": "K线收盘价",
+        "availability": "当前K线收盘后",
+        "missingPolicy": "按源码na/nz及初始化规则传播或替代缺失值"
+      }
+    ],
+    "parameters": [
+      {
+        "name": "smoothingPeriod",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "趋势平滑周期",
+        "constraints": "按源码输入声明",
+        "effect": "趋势平滑周期影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "smoothingPeriod = input.int(20, \"Trend Smoothness\", group = \"Kalman Filter\", minval = 2, tooltip = \"How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.\")"
+      },
+      {
+        "name": "noiseLookback",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "创新统计与异常计数窗口",
+        "constraints": "按源码输入声明",
+        "effect": "创新统计与异常计数窗口影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "noiseLookback = input.int(20, \"Noise Lookback\", group = \"Surprise (Innovation)\", minval = 2, tooltip = \"How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.\")"
+      },
+      {
+        "name": "useTrendCentering",
+        "type": "bool",
+        "defaultValue": "true",
+        "category": "signal",
+        "meaning": "是否减去平均创新",
+        "constraints": "按源码输入声明",
+        "effect": "是否减去平均创新影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "useTrendCentering = input.bool(true, \"Trend Centering\", group = \"Surprise (Innovation)\", display = display.none, tooltip = \"Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.\")"
+      },
+      {
+        "name": "anomalyMultiple",
+        "type": "float",
+        "defaultValue": "2.05",
+        "category": "signal",
+        "meaning": "异常幅度倍数阈值",
+        "constraints": "按源码输入声明",
+        "effect": "异常幅度倍数阈值影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "anomalyMultiple = input.float(2.05, \"Unusual-Move Threshold\", group = \"Damping\", minval = 1.0, step = 0.05, tooltip = \"Decides which bars count as unusual moves, and so how often the Damping meter dips.\\n\\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\\n\\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\\n\\nHow hard each dotted bar is damped is set by Damping Strength.\")"
+      },
+      {
+        "name": "outlierRejection",
+        "type": "float",
+        "defaultValue": "0.05",
+        "category": "signal",
+        "meaning": "异常测量噪声膨胀强度",
+        "constraints": "按源码输入声明",
+        "effect": "异常测量噪声膨胀强度影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "outlierRejection = input.float(0.05, \"Damping Strength\", group = \"Damping\", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = \"Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\\n\\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\\n\\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\\n0.05: 15 to 25, fading in about 10 bars\\n0.1: 25 to 40, fading in about 20 bars\\n0.3: 50 to 70, fading in about 40 bars\\n\\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\\n\\nWhich bars get dots is set by the Unusual-Move Threshold.\")"
+      }
+    ],
+    "expression": {
+      "op": "program",
+      "version": 1,
+      "steps": [
+        {
+          "kind": "assign",
+          "name": "sourcePrice",
+          "value": "close"
+        },
+        {
+          "kind": "assign",
+          "name": "NOISE_DECAY",
+          "value": "0.9"
+        },
+        {
+          "kind": "assign",
+          "name": "SHIFT_START",
+          "value": "30.0"
+        },
+        {
+          "kind": "assign",
+          "name": "NEAR_ZERO",
+          "value": "10.0"
+        },
+        {
+          "kind": "assign",
+          "name": "anomalyThreshold",
+          "value": "pow(anomalyMultiple, 2)"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimate",
+          "value": "na"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimateVariance",
+          "value": "1.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "measurementNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "calmNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "meanSurprise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "surpriseVariance",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "processNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoiseRatio",
+          "value": "pow(2.0 / (smoothingPeriod + 1), 2)"
+        },
+        {
+          "kind": "if",
+          "test": "is_na(estimate)",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "estimate",
+              "value": "sourcePrice"
+            },
+            {
+              "kind": "assign",
+              "name": "firstMove",
+              "value": "pow(sourcePrice - history('sourcePrice', 1), 2)"
+            },
+            {
+              "kind": "assign",
+              "name": "surpriseVariance",
+              "value": "firstMove if firstMove > 0 else 0.0001"
+            },
+            {
+              "kind": "assign",
+              "name": "meanSurprise",
+              "value": "0.0"
+            },
+            {
+              "kind": "assign",
+              "name": "measurementNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "calmNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "estimateVariance",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "processNoise",
+              "value": "surpriseVariance * processNoiseRatio"
+            }
+          ],
+          "else": []
+        },
+        {
+          "kind": "assign",
+          "name": "predictedEstimate",
+          "value": "estimate"
+        },
+        {
+          "kind": "assign",
+          "name": "predictedVariance",
+          "value": "estimateVariance + processNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "surprise",
+          "value": "sourcePrice - predictedEstimate"
+        },
+        {
+          "kind": "assign",
+          "name": "centeredSurprise",
+          "value": "surprise - meanSurprise if useTrendCentering else surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "testStatistic",
+          "value": "pow(centeredSurprise, 2) / surpriseVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "isAnomaly",
+          "value": "testStatistic > anomalyThreshold"
+        },
+        {
+          "kind": "assign",
+          "name": "statAlpha",
+          "value": "2.0 / (noiseLookback + 1)"
+        },
+        {
+          "kind": "assign",
+          "name": "meanSurprise",
+          "value": "(1.0 - statAlpha) * meanSurprise + statAlpha * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseVariance",
+          "value": "(1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)"
+        },
+        {
+          "kind": "assign",
+          "name": "updatedNoise",
+          "value": "measurementNoise"
+        },
+        {
+          "kind": "if",
+          "test": "isAnomaly",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "outlierRejection * pow(centeredSurprise, 2) + measurementNoise"
+            }
+          ],
+          "else": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise"
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "measurementNoise",
+          "value": "updatedNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "calmNoise",
+          "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "kalmanGain",
+          "value": "predictedVariance / (predictedVariance + updatedNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "estimate",
+          "value": "predictedEstimate + kalmanGain * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "estimateVariance",
+          "value": "(1.0 - kalmanGain) * predictedVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoise",
+          "value": "surpriseVariance * processNoiseRatio"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseRatio",
+          "value": "surpriseVariance / max(calmNoise, 1e-12)"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseMeter",
+          "value": "100.0 * max(1.0 - 1.0 / surpriseRatio, 0.0)"
+        },
+        {
+          "kind": "assign",
+          "name": "calmGain",
+          "value": "predictedVariance / (predictedVariance + calmNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "dampingMeter",
+          "value": "100.0 * max(1.0 - kalmanGain / calmGain, 0.0)"
+        },
+        {
+          "kind": "assign",
+          "name": "shiftMeter",
+          "value": "min(surpriseMeter, dampingMeter)"
+        },
+        {
+          "kind": "initialize",
+          "name": "inShift",
+          "value": "False"
+        },
+        {
+          "kind": "assign",
+          "name": "shiftStarts",
+          "value": "not inShift and shiftMeter >= SHIFT_START"
+        },
+        {
+          "kind": "assign",
+          "name": "shiftSettles",
+          "value": "inShift and max(surpriseMeter, dampingMeter) < NEAR_ZERO"
+        },
+        {
+          "kind": "if",
+          "test": "shiftStarts",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "inShift",
+              "value": "True"
+            }
+          ],
+          "else": [
+            {
+              "kind": "if",
+              "test": "shiftSettles",
+              "then": [
+                {
+                  "kind": "assign",
+                  "name": "inShift",
+                  "value": "False"
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "recentMoves",
+          "value": "int(rolling_sum(1 if isAnomaly else 0, noiseLookback))"
+        },
+        {
+          "kind": "assign",
+          "name": "CLUSTER_COUNT",
+          "value": "3"
+        },
+        {
+          "kind": "assign",
+          "name": "movesCluster",
+          "value": "(not inShift and recentMoves >= CLUSTER_COUNT) and history('recentMoves', 1) < CLUSTER_COUNT"
+        }
+      ],
+      "output": "movesCluster",
+      "outputType": "boolean_series"
+    },
+    "outputType": "boolean_series",
+    "units": "布尔",
+    "timeframe": "按输入K线周期逐根计算；平滑和统计窗口由源码参数指定，未绑定特定分钟数",
+    "dependencies": [
+      "统一逐根算法标准函数；内部状态随计算步骤保存"
+    ],
+    "limitations": "计算口径为按时间升序的已收盘K线。",
+    "tags": [
+      "波动率",
+      "卡尔曼",
+      "源码算法"
+    ],
+    "evidence": [
+      {
+        "field": "code",
+        "quote": "bool movesCluster = not inShift and recentMoves >= CLUSTER_COUNT and recentMoves[1] < CLUSTER_COUNT"
+      }
+    ]
+  },
+  {
+    "name": "异常阻尼释放",
+    "role": "signal",
+    "family": "volatility",
+    "summary": "尚未处于波动率切换状态，阻尼仪表从10及以上降到10以下时触发。",
+    "formula": "```python\nsourcePrice = close\nNOISE_DECAY = 0.9\nSHIFT_START = 30.0\nNEAR_ZERO = 10.0\nanomalyThreshold = pow(anomalyMultiple, 2)\n# 仅在首根初始化，随后跨 K 线保留\nestimate = na\n# 仅在首根初始化，随后跨 K 线保留\nestimateVariance = 1.0\n# 仅在首根初始化，随后跨 K 线保留\nmeasurementNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\ncalmNoise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nmeanSurprise = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nsurpriseVariance = 0.0\n# 仅在首根初始化，随后跨 K 线保留\nprocessNoise = 0.0\nprocessNoiseRatio = pow(2.0 / (smoothingPeriod + 1), 2)\nif is_na(estimate):\n    estimate = sourcePrice\n    firstMove = pow(sourcePrice - history('sourcePrice', 1), 2)\n    surpriseVariance = firstMove if firstMove > 0 else 0.0001\n    meanSurprise = 0.0\n    measurementNoise = surpriseVariance\n    calmNoise = surpriseVariance\n    estimateVariance = surpriseVariance\n    processNoise = surpriseVariance * processNoiseRatio\npredictedEstimate = estimate\npredictedVariance = estimateVariance + processNoise\nsurprise = sourcePrice - predictedEstimate\ncenteredSurprise = surprise - meanSurprise if useTrendCentering else surprise\ntestStatistic = pow(centeredSurprise, 2) / surpriseVariance\nisAnomaly = testStatistic > anomalyThreshold\nstatAlpha = 2.0 / (noiseLookback + 1)\nmeanSurprise = (1.0 - statAlpha) * meanSurprise + statAlpha * surprise\nsurpriseVariance = (1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)\nupdatedNoise = measurementNoise\nif isAnomaly:\n    updatedNoise = outlierRejection * pow(centeredSurprise, 2) + measurementNoise\nelse:\n    updatedNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise\nmeasurementNoise = updatedNoise\ncalmNoise = (1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise\nkalmanGain = predictedVariance / (predictedVariance + updatedNoise)\nestimate = predictedEstimate + kalmanGain * surprise\nestimateVariance = (1.0 - kalmanGain) * predictedVariance\nprocessNoise = surpriseVariance * processNoiseRatio\nsurpriseRatio = surpriseVariance / max(calmNoise, 1e-12)\nsurpriseMeter = 100.0 * max(1.0 - 1.0 / surpriseRatio, 0.0)\ncalmGain = predictedVariance / (predictedVariance + calmNoise)\ndampingMeter = 100.0 * max(1.0 - kalmanGain / calmGain, 0.0)\nshiftMeter = min(surpriseMeter, dampingMeter)\n# 仅在首根初始化，随后跨 K 线保留\ninShift = False\nshiftStarts = not inShift and shiftMeter >= SHIFT_START\nshiftSettles = inShift and max(surpriseMeter, dampingMeter) < NEAR_ZERO\nif shiftStarts:\n    inShift = True\nelse:\n    if shiftSettles:\n        inShift = False\ndampingReleased = (not inShift and dampingMeter < NEAR_ZERO) and history('dampingMeter', 1) >= NEAR_ZERO\nreturn dampingReleased\n```",
+    "inputs": [
+      {
+        "name": "close",
+        "meaning": "K线收盘价",
+        "availability": "当前K线收盘后",
+        "missingPolicy": "按源码na/nz及初始化规则传播或替代缺失值"
+      }
+    ],
+    "parameters": [
+      {
+        "name": "smoothingPeriod",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "趋势平滑周期",
+        "constraints": "按源码输入声明",
+        "effect": "趋势平滑周期影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "smoothingPeriod = input.int(20, \"Trend Smoothness\", group = \"Kalman Filter\", minval = 2, tooltip = \"How smooth the filter line is, read like a moving-average period. Higher gives a smoother line that lags price more. Lower keeps the line closer to price but lets more noise through.\")"
+      },
+      {
+        "name": "noiseLookback",
+        "type": "int",
+        "defaultValue": "20",
+        "category": "signal",
+        "meaning": "创新统计与异常计数窗口",
+        "constraints": "按源码输入声明",
+        "effect": "创新统计与异常计数窗口影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "noiseLookback = input.int(20, \"Noise Lookback\", group = \"Surprise (Innovation)\", minval = 2, tooltip = \"How many bars the filter uses to learn what a normal surprise looks like. Shorter adapts to new volatility faster, so the Surprise meter reacts quicker and fades sooner. Longer gives a steadier idea of normal, so a real change in volatility stands out for longer.\")"
+      },
+      {
+        "name": "useTrendCentering",
+        "type": "bool",
+        "defaultValue": "true",
+        "category": "signal",
+        "meaning": "是否减去平均创新",
+        "constraints": "按源码输入声明",
+        "effect": "是否减去平均创新影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "useTrendCentering = input.bool(true, \"Trend Centering\", group = \"Surprise (Innovation)\", display = display.none, tooltip = \"Subtracts the average surprise before testing each bar, so a steady trend is not mistaken for noise. Turned off, the line's normal lag in a strong trend counts as surprise, which means more dots and a higher Surprise meter. Most people should leave this on.\")"
+      },
+      {
+        "name": "anomalyMultiple",
+        "type": "float",
+        "defaultValue": "2.05",
+        "category": "signal",
+        "meaning": "异常幅度倍数阈值",
+        "constraints": "按源码输入声明",
+        "effect": "异常幅度倍数阈值影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "anomalyMultiple = input.float(2.05, \"Unusual-Move Threshold\", group = \"Damping\", minval = 1.0, step = 0.05, tooltip = \"Decides which bars count as unusual moves, and so how often the Damping meter dips.\\n\\nEvery bar, the filter checks how far price landed from its prediction and compares that with a typical surprise. If it is more than this many times a typical surprise, the bar is an unusual move. It gets a dot, and it gets damped. At 2, price has to land twice as far from the prediction as usual.\\n\\nLower gives more dots, so the meter dips more often. Higher keeps only the biggest shocks. As a rough guide, at 1.5 about 1 bar in 7 gets a dot, at 2 about 1 in 20, and at 3 about 1 in 60 to 100.\\n\\nHow hard each dotted bar is damped is set by Damping Strength.\")"
+      },
+      {
+        "name": "outlierRejection",
+        "type": "float",
+        "defaultValue": "0.05",
+        "category": "signal",
+        "meaning": "异常测量噪声膨胀强度",
+        "constraints": "按源码输入声明",
+        "effect": "异常测量噪声膨胀强度影响相应计算阶段",
+        "suggestion": "源码默认值用于复现，调整时传入新的参数值",
+        "evidence": "outlierRejection = input.float(0.05, \"Damping Strength\", group = \"Damping\", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = \"Decides how hard each unusual move is damped, which sets how deep each dip in the Damping meter goes and how long it takes to fade.\\n\\nHigher holds the filter line back harder when a shock hits, so the line ignores more of it. The trade-off is that when the move turns out to be real, the line takes longer to catch up.\\n\\nThis is not a percentage. At the same setting, a bigger miss is damped harder. As a rough guide, one dot makes the meter dip to about:\\n0.05: 15 to 25, fading in about 10 bars\\n0.1: 25 to 40, fading in about 20 bars\\n0.3: 50 to 70, fading in about 40 bars\\n\\nAt 0 nothing is damped. The dots still show, but the meter stays near zero and no volatility shifts are marked.\\n\\nWhich bars get dots is set by the Unusual-Move Threshold.\")"
+      }
+    ],
+    "expression": {
+      "op": "program",
+      "version": 1,
+      "steps": [
+        {
+          "kind": "assign",
+          "name": "sourcePrice",
+          "value": "close"
+        },
+        {
+          "kind": "assign",
+          "name": "NOISE_DECAY",
+          "value": "0.9"
+        },
+        {
+          "kind": "assign",
+          "name": "SHIFT_START",
+          "value": "30.0"
+        },
+        {
+          "kind": "assign",
+          "name": "NEAR_ZERO",
+          "value": "10.0"
+        },
+        {
+          "kind": "assign",
+          "name": "anomalyThreshold",
+          "value": "pow(anomalyMultiple, 2)"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimate",
+          "value": "na"
+        },
+        {
+          "kind": "initialize",
+          "name": "estimateVariance",
+          "value": "1.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "measurementNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "calmNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "meanSurprise",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "surpriseVariance",
+          "value": "0.0"
+        },
+        {
+          "kind": "initialize",
+          "name": "processNoise",
+          "value": "0.0"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoiseRatio",
+          "value": "pow(2.0 / (smoothingPeriod + 1), 2)"
+        },
+        {
+          "kind": "if",
+          "test": "is_na(estimate)",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "estimate",
+              "value": "sourcePrice"
+            },
+            {
+              "kind": "assign",
+              "name": "firstMove",
+              "value": "pow(sourcePrice - history('sourcePrice', 1), 2)"
+            },
+            {
+              "kind": "assign",
+              "name": "surpriseVariance",
+              "value": "firstMove if firstMove > 0 else 0.0001"
+            },
+            {
+              "kind": "assign",
+              "name": "meanSurprise",
+              "value": "0.0"
+            },
+            {
+              "kind": "assign",
+              "name": "measurementNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "calmNoise",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "estimateVariance",
+              "value": "surpriseVariance"
+            },
+            {
+              "kind": "assign",
+              "name": "processNoise",
+              "value": "surpriseVariance * processNoiseRatio"
+            }
+          ],
+          "else": []
+        },
+        {
+          "kind": "assign",
+          "name": "predictedEstimate",
+          "value": "estimate"
+        },
+        {
+          "kind": "assign",
+          "name": "predictedVariance",
+          "value": "estimateVariance + processNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "surprise",
+          "value": "sourcePrice - predictedEstimate"
+        },
+        {
+          "kind": "assign",
+          "name": "centeredSurprise",
+          "value": "surprise - meanSurprise if useTrendCentering else surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "testStatistic",
+          "value": "pow(centeredSurprise, 2) / surpriseVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "isAnomaly",
+          "value": "testStatistic > anomalyThreshold"
+        },
+        {
+          "kind": "assign",
+          "name": "statAlpha",
+          "value": "2.0 / (noiseLookback + 1)"
+        },
+        {
+          "kind": "assign",
+          "name": "meanSurprise",
+          "value": "(1.0 - statAlpha) * meanSurprise + statAlpha * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseVariance",
+          "value": "(1.0 - statAlpha) * surpriseVariance + statAlpha * pow(centeredSurprise, 2)"
+        },
+        {
+          "kind": "assign",
+          "name": "updatedNoise",
+          "value": "measurementNoise"
+        },
+        {
+          "kind": "if",
+          "test": "isAnomaly",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "outlierRejection * pow(centeredSurprise, 2) + measurementNoise"
+            }
+          ],
+          "else": [
+            {
+              "kind": "assign",
+              "name": "updatedNoise",
+              "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * measurementNoise"
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "measurementNoise",
+          "value": "updatedNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "calmNoise",
+          "value": "(1.0 - NOISE_DECAY) * surpriseVariance + NOISE_DECAY * calmNoise"
+        },
+        {
+          "kind": "assign",
+          "name": "kalmanGain",
+          "value": "predictedVariance / (predictedVariance + updatedNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "estimate",
+          "value": "predictedEstimate + kalmanGain * surprise"
+        },
+        {
+          "kind": "assign",
+          "name": "estimateVariance",
+          "value": "(1.0 - kalmanGain) * predictedVariance"
+        },
+        {
+          "kind": "assign",
+          "name": "processNoise",
+          "value": "surpriseVariance * processNoiseRatio"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseRatio",
+          "value": "surpriseVariance / max(calmNoise, 1e-12)"
+        },
+        {
+          "kind": "assign",
+          "name": "surpriseMeter",
+          "value": "100.0 * max(1.0 - 1.0 / surpriseRatio, 0.0)"
+        },
+        {
+          "kind": "assign",
+          "name": "calmGain",
+          "value": "predictedVariance / (predictedVariance + calmNoise)"
+        },
+        {
+          "kind": "assign",
+          "name": "dampingMeter",
+          "value": "100.0 * max(1.0 - kalmanGain / calmGain, 0.0)"
+        },
+        {
+          "kind": "assign",
+          "name": "shiftMeter",
+          "value": "min(surpriseMeter, dampingMeter)"
+        },
+        {
+          "kind": "initialize",
+          "name": "inShift",
+          "value": "False"
+        },
+        {
+          "kind": "assign",
+          "name": "shiftStarts",
+          "value": "not inShift and shiftMeter >= SHIFT_START"
+        },
+        {
+          "kind": "assign",
+          "name": "shiftSettles",
+          "value": "inShift and max(surpriseMeter, dampingMeter) < NEAR_ZERO"
+        },
+        {
+          "kind": "if",
+          "test": "shiftStarts",
+          "then": [
+            {
+              "kind": "assign",
+              "name": "inShift",
+              "value": "True"
+            }
+          ],
+          "else": [
+            {
+              "kind": "if",
+              "test": "shiftSettles",
+              "then": [
+                {
+                  "kind": "assign",
+                  "name": "inShift",
+                  "value": "False"
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "dampingReleased",
+          "value": "(not inShift and dampingMeter < NEAR_ZERO) and history('dampingMeter', 1) >= NEAR_ZERO"
+        }
+      ],
+      "output": "dampingReleased",
+      "outputType": "boolean_series"
+    },
+    "outputType": "boolean_series",
+    "units": "布尔",
+    "timeframe": "按输入K线周期逐根计算；平滑和统计窗口由源码参数指定，未绑定特定分钟数",
+    "dependencies": [
+      "统一逐根算法标准函数；内部状态随计算步骤保存"
+    ],
+    "limitations": "计算口径为按时间升序的已收盘K线。",
+    "tags": [
+      "波动率",
+      "卡尔曼",
+      "源码算法"
+    ],
+    "evidence": [
+      {
+        "field": "code",
+        "quote": "bool dampingReleased = not inShift and dampingMeter < NEAR_ZERO and dampingMeter[1] >= NEAR_ZERO"
+      }
+    ]
+  }
+]

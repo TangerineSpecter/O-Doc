@@ -80,11 +80,20 @@ test('分析默认仅跟随基准报告材料的权威当前指针，legacy缺�
 test('明确基准包含legacy静态报告而不接收实验反馈，进度匹配提交或获取快照', () => {
     const reports = [1, 2, 3, 4, 5].map(schemaVersion => ({id: `r${schemaVersion}`, schemaVersion, sourceId: 'submitted'})) as QuantReport[];
     const entry = {sources: [{id: 'submitted', payload: {}}, {id: 'feedback', payload: {provenance: 'external_feedback'}}], reports: [...reports, {id: 'missing', schemaVersion: 3, sourceId: 'missing'}, {id: 'feedback', schemaVersion: 3, sourceId: 'feedback'}],
-        runs: [{id: 'original', kind: 'analyze', sourceId: 'submitted', resolvedSourceId: 'fetched'}, {id: 'snapshot', kind: 'analyze', sourceId: 'fetched'},
+        runs: [{id: 'original', createdAt: '2026-10-31T02:00:00Z', kind: 'analyze', sourceId: 'submitted', resolvedSourceId: 'fetched'}, {id: 'snapshot', createdAt: '2026-10-31T01:00:00Z', kind: 'analyze', sourceId: 'fetched'},
             {id: 'other', kind: 'analyze', sourceId: 'other'}, {id: 'experiment', kind: 'explain', sourceId: 'fetched'}]} as unknown as QuantEntryDetail;
     assert.deepEqual(staticSourceReports(entry).map(row => row.id), ['r1', 'r2', 'r3']);
     assert.deepEqual(sourceAnalysisRuns(entry, 'fetched').map(row => row.id), ['original', 'snapshot']);
     assert.deepEqual(sourceAnalysisRuns(entry, 'submitted').map(row => row.id), ['original']);
     assert.deepEqual(sourceAnalysisRuns(entry, 'new-unanalysed'), []);
     assert.deepEqual(sourceAnalysisRuns(entry), []);
+});
+
+test('任务增量合并顺序不影响最近研究和续跑起点', () => {
+    const runs = [
+        {id: 'old', kind: 'analyze', sourceId: 's', resolvedSourceId: null, createdAt: '2026-10-31T02:00:00Z'},
+        {id: 'new', kind: 'analyze', sourceId: 's', resolvedSourceId: null, createdAt: '2026-10-31T02:30:00Z'},
+    ] as QuantEntryDetail['runs'];
+    assert.deepEqual(sourceAnalysisRuns({runs}, 's').map(row => row.id), ['new', 'old']);
+    assert.deepEqual(runs.map(row => row.id), ['old', 'new']);
 });

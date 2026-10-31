@@ -11,15 +11,16 @@ const emptyUsage = () => ({requestCount: 0, eventIds: [], inputTokens: null, out
 export function workflowSample(run: QuantAIRun, entry: QuantEntryDetail, input: QuantRunInput): QuantWorkflow {
     const old = entry.runs.find(row => row.id === input.resumeRunId);
     const crossSource = !!old && old.sourceId !== run.sourceId;
-    const version = crossSource ? 28 : old?.workflow?.version || 25;
-    const baseOrder: [ResearchStage, string][] = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(version) ? [...stages.slice(0, 5), ['repair', '修订候选定义'], ...stages.slice(5)] : stages;
-    const order: [ResearchStage, string][] = [3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28].includes(version) ? [baseOrder[0], ['snippets', '片段静态解读'], ...baseOrder.slice(1)] : baseOrder;
+    const algorithmSample = entry.sources?.find(row => row.id === run.sourceId)?.payload.code?.match(/LOCAL_(?:SOURCE|PYTHON)_ALGORITHMS/);
+    const version = crossSource ? algorithmSample ? 42 : 28 : old?.workflow?.version || (algorithmSample ? 41 : 25);
+    const baseOrder: [ResearchStage, string][] = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(version) ? [...stages.slice(0, 5), ['repair', '修订候选定义'], ...stages.slice(5)] : stages;
+    const order: [ResearchStage, string][] = [3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 42].includes(version) ? [baseOrder[0], ['snippets', '片段静态解读'], ...baseOrder.slice(1)] : baseOrder;
     const reusable = old?.sourceId === run.sourceId && old?.modelId === run.modelId && old?.requirements === run.requirements;
     const restartIndex = input.restartStage ? order.findIndex(([stage]) => stage === input.restartStage) : order.length;
-    const readingJson = [3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28].includes(version) ? !crossSource && reusable && old?.workflow?.localReadingEvidenceJson && restartIndex > 1 ? old.workflow.localReadingEvidenceJson : localReadingSample(run, entry, old, restartIndex > 1,version) : '';
+    const readingJson = [3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 42].includes(version) ? !crossSource && reusable && old?.workflow?.localReadingEvidenceJson && restartIndex > 1 ? old.workflow.localReadingEvidenceJson : localReadingSample(run, entry, old, restartIndex > 1,version) : '';
     const reading = readingJson ? readLocalReading(readingJson) : undefined;
-    const vocabularyReference = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(version) ? !crossSource && input.restartStage !== 'normalize' && old?.workflow?.vocabularyReference || mockVocabulary(entry.collId).reference : undefined;
-    return {version, ...(vocabularyReference && {vocabularyReference}), resumeRunId: input.resumeRunId || '', restartStage: input.restartStage || '', maxModelCalls: ([3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28].includes(version) ? 7 : 6) + ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(version) ? 1 : 0), maxSeconds: ([3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28].includes(version) ? 840 : 720) + ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(version) ? 120 : 0),
+    const vocabularyReference = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(version) ? !crossSource && input.restartStage !== 'normalize' && old?.workflow?.vocabularyReference || mockVocabulary(entry.collId).reference : undefined;
+    return {version, ...(vocabularyReference && {vocabularyReference}), resumeRunId: input.resumeRunId || '', restartStage: input.restartStage || '', maxModelCalls: ([31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(version) ? 1 : 0) + ([3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 42].includes(version) ? 7 : 6) + ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(version) ? 1 : 0), maxSeconds: ([3, 5, 7, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 42].includes(version) ? 840 : 720) + ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(version) ? 120 : 0),
         ...(reading && {localReadingEvidenceJson: readingJson, localReading: {selected: reading.units.length, reused: reading.units.filter(unit => unit.reused_from.outcome_id).length, omitted: reading.omitted, baselineRunId: reading.baseline.run_id || ''}}),
         stages: order.map(([stage, name], index) => {
             const previous = old?.workflow?.stages.find(row => row.stage === stage);
@@ -42,6 +43,10 @@ export function advanceWorkflow(run: QuantAIRun, elapsed: number, source?: Quant
         row.stepId = `local-stage-${run.id}-${row.stage}`;
         row.inputHash = `local-input-${run.sourceId}-${row.stage}`;
         row.status = index < stop ? row.reusedFrom ? 'reused' : 'completed' : fail && elapsed >= 3200 ? 'failed' : 'running';
+        if (row.status === 'completed' && !workflow.resumeRunId && source?.payload.code?.includes('LOCAL_AUXILIARY_INCOMPLETE') && ['review', 'plan'].includes(row.stage)) {
+            row.status = 'partial';
+            row.error = '本地模拟：辅助阶段输入超出容量，算法与报告已保留。';
+        }
         if (row.status !== 'running') {
             row.outcomeId = `local-outcome-${run.id}-${row.stage}`;
             row.elapsedMs = 0; row.usage = emptyUsage();
@@ -59,16 +64,16 @@ export function workflowEvidence(run: QuantAIRun, stage: string, source?: QuantS
     const row = run.workflow?.stages.find(item => item.stage === stage && item.stepId);
     if (!row) return null;
     const structure = stage === 'normalize' && (run.workflow?.version || 0) >= 2 && row.outcomeId && ['completed', 'reused'].includes(row.status)
-        ? [19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(run.workflow?.version || 0) && source?.payload.language === 'python' && source.payload.files?.length
+        ? [19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(run.workflow?.version || 0) && source?.payload.language === 'python' && source.payload.files?.length
             ? fileStructureSample(source.payload.code || '', 'python', source.payload.files)
             : structureSample(source?.payload.code || '', source?.payload.language || 'text') : null;
     return {stage: row.stage, name: row.name, inputHash: row.inputHash, outcomeHash: row.outcomeId,
-        ...((run.workflow?.version===28&&['identify','parameters','research','extract','repair','review','plan'].includes(stage))&&{modelInputJson:JSON.stringify({version:1,status:'ready',prompt_hash:'1'.repeat(64),max_tokens:32000,json_output:true,...(stage==='repair'?{material_scope:{mode:'complete_source',notice:'人工 local 展示样例，不解析真实依赖或判断复用条件。'}}:{})})}),
+        ...(([28, 30, 32, 34, 36, 38, 40, 42].includes(run.workflow?.version || 0)&&['identify','parameters','research','extract','repair','review','plan'].includes(stage))&&{modelInputJson:JSON.stringify({version:1,status:'ready',prompt_hash:'1'.repeat(64),max_tokens:32000,json_output:true,...(stage==='repair'?{material_scope:{mode:'complete_source',notice:'人工 local 展示样例，不解析真实依赖或判断复用条件。'}}:{})})}),
         structure, sourceCode: structure ? source?.payload.code || '' : '',
         ...(stage === 'snippets' && row.outcomeId && {localReadingJson: run.workflow?.localReadingEvidenceJson}),
         inputJson: JSON.stringify({notice: '人工 local 样例，不代表真实模型记录', source_id: run.resolvedSourceId || run.sourceId,
             source_excerpt: source?.payload.code?.slice(0, 200) || source?.payload.description || '', stage: row.stage, requirements: run.requirements,
-            ...(stage === 'plan' && [16,17,18,19,20,21,22,23,24,25,26,27,28].includes(run.workflow?.version || 0) ? {planning_capabilities: mockPlanningCapabilities()} : {}),
+            ...(stage === 'plan' && [16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34].includes(run.workflow?.version || 0) ? {planning_capabilities: mockPlanningCapabilities()} : {}),
             ...(stage === 'normalize' && run.workflow?.vocabularyReference && {vocabulary_ref: run.workflow.vocabularyReference})}, null, 2),
         outcomeJson: row.outcomeId ? JSON.stringify({notice: '人工 local 样例', status: row.status, error: row.error,
             reused_from: row.reusedFrom, usage: row.usage, output: row.status === 'failed' ? {} : stage === 'repair' ? run.result.analysis?.factorRepair || {version: 1, selected: [], omitted: [], items: []} : {summary: `${row.name}阶段示例成果`}}, null, 2) : ''};

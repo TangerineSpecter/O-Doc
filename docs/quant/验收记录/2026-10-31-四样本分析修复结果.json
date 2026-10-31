@@ -1,0 +1,385 @@
+{
+  "date": "2026-10-31",
+  "environment": "local real backend",
+  "model": "MiniMax-M3",
+  "samples": [
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "title": "IAKF 创新自适应卡尔曼滤波器振荡指标",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "score": 72,
+      "factors": 17,
+      "reading_unchanged": true,
+      "pending_sections": [],
+      "history_count": 5
+    },
+    {
+      "entry": "7cf6181a502614862998925a435a27f071a96466",
+      "title": "Adaptive SuperSmoother 自适应超平滑指标",
+      "run": "a0fcbf21c3ad4cff9bba9d7e023be8f4",
+      "score": 76,
+      "factors": 4,
+      "reading_unchanged": true,
+      "pending_sections": [],
+      "history_count": 1
+    },
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "title": "DERYA 动态效率市场状态指标",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "score": 64,
+      "factors": 7,
+      "reading_unchanged": true,
+      "pending_sections": [],
+      "history_count": 1
+    },
+    {
+      "entry": "49603e1b292839ecfde304450bc9d98498d6a057",
+      "title": "Liquidity Magnet v1.6.4 流动性磁铁指标",
+      "run": "2e740bff2487408db89af2060f736329",
+      "score": 72,
+      "factors": 5,
+      "reading_unchanged": true,
+      "pending_sections": [],
+      "history_count": 1
+    }
+  ],
+  "runtime_checks": [
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "index": 0,
+      "name": "单根K线收盘推进效率（Intrabar_Efficiency）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 319
+    },
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "index": 1,
+      "name": "平滑效率指标（Smoothed_Efficiency_Metric）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 319
+    },
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "index": 2,
+      "name": "动态效率状态值（DERYA_State）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 120
+    },
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "index": 3,
+      "name": "高效率状态过滤（High_Efficiency_Filter）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "index": 4,
+      "name": "结构崩塌状态过滤（Structural_Collapse_Filter）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "index": 5,
+      "name": "严重低效率K线标记（Severe_Inefficiency_Bar_Filter）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "5cab998070d58291635e7a2b9ecb1135873f8b72",
+      "run": "08269abb86664f7cab871ce634370aab",
+      "index": 6,
+      "name": "极端崩塌状态过滤（Extreme_Collapse_Filter）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "7cf6181a502614862998925a435a27f071a96466",
+      "run": "a0fcbf21c3ad4cff9bba9d7e023be8f4",
+      "index": 0,
+      "name": "固定周期超平滑器（Fixed_Period_SuperSmoother）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "7cf6181a502614862998925a435a27f071a96466",
+      "run": "a0fcbf21c3ad4cff9bba9d7e023be8f4",
+      "index": 1,
+      "name": "滚动均方根（Rolling_RMS）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "7cf6181a502614862998925a435a27f071a96466",
+      "run": "a0fcbf21c3ad4cff9bba9d7e023be8f4",
+      "index": 2,
+      "name": "自适应超平滑器（Adaptive_SuperSmoother）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "7cf6181a502614862998925a435a27f071a96466",
+      "run": "a0fcbf21c3ad4cff9bba9d7e023be8f4",
+      "index": 3,
+      "name": "自适应与固定超平滑差值（Adaptive_SS_Oscillator）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 0,
+      "name": "IAKF_Adaptive_Kalman_Price_Estimate",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 1,
+      "name": "IAKF_Surprise_Innovation",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 2,
+      "name": "IAKF_Centered_Surprise_Innovation",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 3,
+      "name": "IAKF_Surprise_Test_Statistic",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 4,
+      "name": "IAKF_Unusual_Move_Filter",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 5,
+      "name": "IAKF_Adaptive_Measurement_Noise",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 6,
+      "name": "IAKF_Kalman_Gain",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 7,
+      "name": "IAKF_Surprise_Meter",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 8,
+      "name": "IAKF_Damping_Meter",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 9,
+      "name": "IAKF_Combined_Volatility_Shift_Strength",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 10,
+      "name": "IAKF_Volatility_Shift_State",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 11,
+      "name": "IAKF_Recent_Unusual_Move_Count",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 301
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 12,
+      "name": "IAKF_Unusual_Move_Direction",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 13,
+      "name": "IAKF_Major_Unusual_Move",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 14,
+      "name": "IAKF_Unusual_Move_Cluster",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 15,
+      "name": "IAKF_Price_Crosses_Filter_Line",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "3c92673a93bf9ea46355bbef52dcf8fd97fd7088",
+      "run": "152159b20f814b0395dc03756d3973e6",
+      "index": 16,
+      "name": "IAKF_Damping_Released",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "49603e1b292839ecfde304450bc9d98498d6a057",
+      "run": "2e740bff2487408db89af2060f736329",
+      "index": 0,
+      "name": "收盘价双 EMA 动量（EMA_Momentum_Spread）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "49603e1b292839ecfde304450bc9d98498d6a057",
+      "run": "2e740bff2487408db89af2060f736329",
+      "index": 1,
+      "name": "成交量简单移动平均（Volume_SMA_50）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "49603e1b292839ecfde304450bc9d98498d6a057",
+      "run": "2e740bff2487408db89af2060f736329",
+      "index": 2,
+      "name": "对数距离接近度（Log_Distance_Proximity）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "49603e1b292839ecfde304450bc9d98498d6a057",
+      "run": "2e740bff2487408db89af2060f736329",
+      "index": 3,
+      "name": "流动性池年龄成熟度（Pool_Age_Score）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    },
+    {
+      "entry": "49603e1b292839ecfde304450bc9d98498d6a057",
+      "run": "2e740bff2487408db89af2060f736329",
+      "index": 4,
+      "name": "动量方向对齐评分（Momentum_Direction_Alignment）",
+      "status": "completed",
+      "reason": "",
+      "count": 320,
+      "finite": 320
+    }
+  ],
+  "runtime_scope": "320 synthetic bars, flat data, prefix consistency, scalar output shape; isolated Docker without network/host mounts",
+  "not_verified": [
+    "native Pine pointwise equivalence",
+    "live WebDAV two-device roundtrip",
+    "remote deployment"
+  ]
+}

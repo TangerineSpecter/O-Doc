@@ -152,7 +152,7 @@ def analysis_prompt(source: dict, requirements: str) -> str:
         + json.dumps({'source': context, 'requirements': requirements}, ensure_ascii=False))
 
 
-def analysis_markdown(result: dict) -> str:
+def analysis_markdown(result: dict, *, guided_reading: bool = False) -> str:
     from .findings import markdown as findings_markdown
     parts = [f"# {result['title']}", result['summary'], *findings_markdown(result), '## 研究质量评价',
              ('总分：未评估（部分维度证据不足）' if result['total_score'] is None else f"研究质量分：{result['total_score']} / 100"),
@@ -160,8 +160,13 @@ def analysis_markdown(result: dict) -> str:
     for item in result['scores']:
         score = '未评估' if item['score'] is None else f"{item['score']} / 5"
         parts += [f"### {item['dimension']} · {score}", item['reason'], f"依据：{item['evidence']}"]
-    for key, title in [('principle', '原理与计算逻辑'), ('formula', '公式'), ('usage', '用途与条件')]:
-        parts += [f'## {title}', result[key]]
+    if guided_reading:
+        subject = {'indicator': '指标', 'strategy': '策略', 'factor': '因子'}[result['kind']]
+        parts += [f'## 这个{subject}做什么', result['summary'], '## 它是怎么计算的', result['principle'],
+                  '## 关键公式与解读', result['formula'], result['usage']]
+    else:
+        for key, title in [('principle', '原理与计算逻辑'), ('formula', '公式'), ('usage', '用途与条件')]:
+            parts += [f'## {title}', result[key]]
     parts += ['## 输入参数与建议']
     if not result['parameters']:
         parts += ['未识别到可列出的参数，参见缺失信息与验证计划。']

@@ -62,6 +62,10 @@ def validate_values(candidate: dict, parameters: dict) -> None:
     """Domains are checked in recipe; also enforce legacy types and rolling bounds."""
     from .expression import MAX_WINDOW
     def visit(node):
+        if node['op'] == 'program':
+            from quant.algorithms.contract import validate_windows
+            validate_windows(node, parameters)
+            return
         if node['op'] in ('lag', 'sma', 'sum', 'std', 'highest', 'lowest', 'ts_rank'):
             window = node['args'][1]
             value = window['value'] if window['op'] == 'constant' else parameters[window['name']]
@@ -69,7 +73,11 @@ def validate_values(candidate: dict, parameters: dict) -> None:
                 raise serializers.ValidationError('AI 窗口参数必须为 1–2000 的整数')
         for child in node.get('args', []):
             visit(child)
-    visit(candidate['expression'])
+    if candidate['expression'].get('op') == 'program':
+        from quant.algorithms.contract import validate_windows
+        validate_windows(candidate['expression'], parameters)
+    else:
+        visit(candidate['expression'])
     for row in candidate['parameters']:
         kind, value = row['type'].strip().lower(), parameters[row['name']]
         if ((kind in ('int', 'integer') and type(value) is not int)

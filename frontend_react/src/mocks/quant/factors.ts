@@ -1,3 +1,6 @@
+import sourceAlgorithmSamples from './sourceAlgorithmSamples.json' with {type: 'json'};
+import {algorithmProfile} from '../../utils/quantAlgorithm';
+import {mockInternalStateFactors} from './factorReadiness';
 import {mockAdmissionSummary,flushMockAdmissions} from './admissions';
 import {mockQualificationSummary} from './qualification';
 import {mockVocabulary} from './vocabulary';
@@ -5,9 +8,16 @@ import {mockClassification} from './vocabularyClassification';
 import type {QuantFactorCandidate, QuantFactorData, QuantEntryDetail, QuantSource} from '../../types/api/quant';
 import {mockArithmeticParameters, mockConditionalParameters} from './parameterConditions';
 import {quantState} from './state';
+import {shareCuration} from './factorIdentity';
 
 export function mockFactors(source?: QuantSource): QuantFactorData[] {
     if (!source?.payload.code?.trim()) return [];
+    if (source.payload.code.includes('LOCAL_PYTHON_ALGORITHMS')) {
+        const base = structuredClone(sourceAlgorithmSamples[0]) as QuantFactorData;
+        return [{...base,name:'价格平方根变换',summary:'普通Python函数、循环和标准库导入的人工样例。',parameters:[],formula:'y[t] = sqrt(abs(close[t]))',
+            expression:{op:'python',version:1,code:'import math\n\ndef compute(inputs, parameters=None):\n    result = []\n    for price in inputs["close"]:\n        result.append(math.sqrt(abs(price)))\n    return result\n'},dependencies:['Python标准库math']}];
+    }
+    if (source.payload.code.includes('LOCAL_SOURCE_ALGORITHMS')) return (structuredClone(sourceAlgorithmSamples) as QuantFactorData[]).map(row => ({...row, name: `${row.name}（IAKF_${row.expression?.output}）`}));
     const conditional = source.payload.code.includes('LOCAL_PARAMETER_CONDITION');
     const arithmetic = source.payload.code.includes('LOCAL_ARITHMETIC_PARAMETERS');
     const constrained = source.payload.code.includes('LOCAL_PARAMETER_DOMAIN');
@@ -17,6 +27,7 @@ export function mockFactors(source?: QuantSource): QuantFactorData[] {
         parameters: arithmetic ? mockArithmeticParameters(source.payload.code) : conditional ? mockConditionalParameters(source.payload.code) : [{name: 'lookback', type: 'int', defaultValue: short ? '10' : '20', category: 'signal', meaning: '历史窗口', constraints: '正整数', effect: '改变比较跨度', suggestion: '比较相邻窗口的稳定性，尚无经验证的最佳值', evidence: '本地模拟参数，不是对原代码的识别', ...(constrained ? {domain: {version: 1 as const, minimum: 5, maximum: 30, step: 5, stepOrigin: 0, choices: [], relations: [], evidence: [{field: 'code' as const, quote: source.payload.code.slice(0, 500)}]}} : {})}], dependencies: ['价格序列与一致的复权口径'], limitations: '未调用真实模型，未回测或验证平台等价性。', tags: ['动量', '演示'],
         expression: {op: 'sub', args: [{op: 'div', args: [{op: 'input', name: 'close'}, {op: 'lag', args: [{op: 'input', name: 'close'}, {op: 'parameter', name: 'lookback'}]}]}, {op: 'constant', value: 1}]},
         evidence: [{field: 'code', quote: source.payload.code.slice(0, 500)}]}];
+    if (source.payload.code.includes('LOCAL_INTERNAL_STATE_FACTORS')) return mockInternalStateFactors(result[0]);
     if (source.payload.language === 'tongdaxin' && source.payload.code.includes('LOCAL_TDX_PARAMETER_TABLE')) {
         const candidate = result[0];
         candidate.name = '参数表 · 通达信人工流程样例';
@@ -65,7 +76,7 @@ function stable(value: unknown): string {
     return JSON.stringify(value);
 }
 export function collectMockFactors(entries: QuantEntryDetail[]): QuantFactorCandidate[] {
-    const extracted: QuantFactorCandidate[] = entries.filter(entry => entry.isValid).flatMap(entry => (entry.reports || []).flatMap(report => (report.data.factors || []).map((data, index) => {
+    const extracted: QuantFactorCandidate[] = entries.filter(entry => entry.isValid).flatMap(entry => (entry.reports || []).filter(report=>report.publicationMode!=='pending').flatMap(report => (report.data.factors || []).map((data, index) => {
         const id = `candidate-${report.id}-${index}`;
         const revisions = quantState().factorRevisions[id] || [];
         const current = revisions[revisions.length - 1];
@@ -75,13 +86,14 @@ export function collectMockFactors(entries: QuantEntryDetail[]): QuantFactorCand
         return {id, reportId: report.id, sourceId: report.sourceId, entryId: entry.id, entryTitle: entry.title,
             data, expressionHash: data.expression ? 'local-demo-structural-fingerprint' : '', contentHash: 'local-demo-content-fingerprint',
             fingerprints: {raw: source?.code ? stable({code: source.code, formula: data.formula, contract}) : '', expression: data.expression ? stable({expression: data.expression, contract}) : ''}, occurrenceCount: 1,
-            curation: current?.data || {name: data.name, family: data.family, tags: data.tags, aliases: [], note: ''}, currentRevisionId: current?.id || '', revisions,
+            curation: current?.data || {name: data.name, family: data.family, tags: data.tags, aliases: [], note: ''}, currentRevisionId: current?.id || '', curationRevisionId: current?.id || '', curationInherited: false, revisions,
             modelName: entry.runs.find(run => run.id === report.runId)?.modelName || '本地模拟', evidenceStatus: 'static_unverified' as const, createdAt: report.createdAt};
     })));
     const derived = quantState().derivedFactors.filter(row => entries.some(entry => entry.isValid && entry.id === row.entryId)).map(row => {
         const revisions = quantState().factorRevisions[row.id] || [], current = revisions[revisions.length - 1];
-        return {...row, entryTitle: entries.find(entry => entry.id === row.entryId)?.title || row.entryTitle, data: {...row.data, derivation: row.data.derivation ? {...row.data.derivation, localDemo: true} : undefined}, curation: current?.data || row.curation, currentRevisionId: current?.id || '', revisions};
+        return {...row, entryTitle: entries.find(entry => entry.id === row.entryId)?.title || row.entryTitle, data: {...row.data, derivation: row.data.derivation ? {...row.data.derivation, localDemo: true} : undefined}, curation: current?.data || row.curation, currentRevisionId: current?.id || '', curationRevisionId: current?.id || '', curationInherited: false, revisions};
     });
+    shareCuration([...derived, ...extracted]);
     const vocabularies = new Map(entries.map(entry => [entry.collId, mockVocabulary(entry.collId)]));
     const result=[...derived, ...extracted].map(candidate => {
         const entry = entries.find(row => row.id === candidate.entryId);
@@ -89,7 +101,7 @@ export function collectMockFactors(entries: QuantEntryDetail[]): QuantFactorCand
         const source = entry?.sources?.find(row => row.id === candidate.sourceId);
         const unchecked = !!source?.payload.code?.includes('LOCAL_VERIFICATION_UNCHECKED') && !quantState().verificationIndexed[candidate.id];
         const verification = mockQualificationSummary(candidate, unchecked);
-        return vocabulary ? {...candidate, verification, admission:mockAdmissionSummary(candidate,entry!.collId), classification: mockClassification(candidate, vocabulary, !candidate.data.formulaVersion && !candidate.data.derivation ? source?.payload.platform : '')} : candidate;
+        return vocabulary ? {...candidate, algorithmProfile: algorithmProfile({...candidate.data, family: candidate.curation.family, tags: candidate.curation.tags}), verification, admission:mockAdmissionSummary(candidate,entry!.collId), classification: mockClassification(candidate, vocabulary, !candidate.data.formulaVersion && !candidate.data.derivation ? source?.payload.platform : '')} : candidate;
     });
     flushMockAdmissions();return result;
 }

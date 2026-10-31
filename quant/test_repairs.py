@@ -231,7 +231,15 @@ class AutomaticRepairTests(TestCase):
             response = self.client.post(f'/api/quant/{self.collection.pk}/entries/{entry.pk}/runs/', request, format='json')
             self.assertEqual(response.status_code, 200, response.data)
             self.assertEqual(response.json()['data']['id'], run.pk)
-        snapshot = SyncManager().build_snapshot_data(); meta = metadata(snapshot); meta['quant_schema_version'] = 40
+        snapshot = SyncManager().build_snapshot_data()
+        validate(snapshot, metadata(snapshot))
+        # Original workflow contracts still restore in old snapshots without document state.
+        snapshot = [row for row in snapshot if row['model'] != 'quant.researchdocument']
+        for row in snapshot:
+            if row['model'] == 'quant.researchreport':
+                row['fields']['publication_mode'] = 'legacy'
+                row['fields']['factor_bindings'] = {}
+        meta = metadata(snapshot); meta['quant_schema_version'] = 40
         validate(snapshot, meta)
 
     def test_legacy_single_call_cannot_inject_unrequested_repair_artifacts(self):

@@ -10,6 +10,23 @@ def validate_factors(rows, fail):
     revisions = rows.get('quant.factorrevision', {})
     expected = {(report_id, ordinal): data for report_id, fields in reports.items()
         for ordinal, data in enumerate(fields.get('data', {}).get('factors', []))}
+    required = {key for key in expected if reports[key[0]].get('publication_mode', 'legacy') == 'legacy'}
+    for report_id, report in reports.items():
+        mode, bindings = report.get('publication_mode', 'legacy'), report.get('factor_bindings', {})
+        if mode not in ('legacy', 'pending', 'factors', 'adopted') or not isinstance(bindings, dict):
+            fail('研究因子发布状态无效')
+        if mode == 'legacy' and bindings or mode == 'pending' and bindings:
+            fail('未采用分析不能发布因子关联')
+        if bindings and set(bindings) != {str(i) for i in range(len(report.get('data', {}).get('factors', [])))}:
+            fail('研究因子关联不完整')
+        for ordinal, identity in bindings.items():
+            candidate = candidates.get(identity, {})
+            origin = reports.get(candidate.get('report'), {})
+            if (origin.get('entry') != report.get('entry') or origin.get('source') != report.get('source')
+                    or candidate.get('data') != expected.get((report_id, int(ordinal)))
+                    or candidate.get('formula_version_id') or candidate.get('derived_checkpoint_id')):
+                fail('研究因子关联跨来源或计算定义不一致')
+            required.add((candidate.get('report'), candidate.get('ordinal')))
     seen = set()
     for identity, fields in candidates.items():
         from quant.experiments.derivation_sync import validate_derived
@@ -35,7 +52,7 @@ def validate_factors(rows, fail):
         pointer = fields.get('current_revision_id', '')
         if not isinstance(pointer, str) or (pointer and revisions.get(pointer, {}).get('candidate') != identity):
             fail('因子当前修订跨记录引用或缺失')
-    if seen != set(expected):
+    if seen != required:
         fail('研究报告的因子候选记录不完整')
     from quant.experiments.derivation_sync import validate_ancestry
     validate_ancestry(rows, fail)

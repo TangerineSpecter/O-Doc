@@ -15,7 +15,7 @@ def publish(run) -> ExperimentProposal | None:
         data = feedback_data(run.result, feedback_context(run))
     elif run.kind == 'analyze' and run.result.get('initial_proposal'):
         from .initial_planning import initial_data
-        data = initial_data(run.result, run.report.pk)
+        data = initial_data(run.result, run.report.pk, run.report.factor_bindings)
     elif run.kind == 'experiment_review' and run.review_version in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) and run.result.get('proposal'):
         data = proposal_data(run.result, for_run(run))
     else:

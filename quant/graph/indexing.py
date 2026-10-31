@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from quant.locking import collection_lock
+from quant.factors.curation import curation_data_many
 from quant.models import FactorCandidate, FactorIndexJob, FactorVector, ResearchReport
 from quant.services import Conflict
 from quant import queue_liveness
@@ -52,9 +53,11 @@ def queue_index(collection, *, candidate_ids: list[str] | None = None, automatic
         cached = {row.candidate_id: row for row in FactorVector.objects.filter(candidate__report__entry__anthology=collection, model_signature=signature).only('candidate_id', 'projection_hash')}
         reserved = {identity for job in active if job.status in ('pending', 'running') and job.model_signature == signature for identity in job.candidate_ids}
         selected = []
+        pending = list(pending)
+        curations = curation_data_many(pending)
         for candidate in pending:
             try:
-                _, content_hash = projection(candidate)
+                _, content_hash = projection(candidate, curations=curations)
             except ValueError:
                 continue
             previous = cached.get(candidate.pk)
@@ -94,15 +97,18 @@ def job_data(job: FactorIndexJob) -> dict:
         'model_name': job.model_name, 'error': job.error, 'created_at': job.created_at.isoformat()}
 
 
-def index_status(collection) -> dict:
+def index_status(collection, *, rows: list[FactorCandidate] | None = None,
+                 curations: dict[str, dict] | None = None) -> dict:
     model = embedding_model()
     signature = RagClient.embedding_model_signature(model) if model else ''
     cached = {row.candidate_id: row for row in FactorVector.objects.filter(candidate__report__entry__anthology=collection, model_signature=signature).only('candidate_id', 'projection_hash')}
     ready, total, oversized = 0, 0, 0
-    for candidate in candidates(collection):
+    rows = list(candidates(collection)) if rows is None else rows
+    curations = curation_data_many(rows) if curations is None else curations
+    for candidate in rows:
         total += 1
         try:
-            _, fingerprint = projection(candidate)
+            _, fingerprint = projection(candidate, curations=curations)
         except ValueError:
             oversized += 1
             continue

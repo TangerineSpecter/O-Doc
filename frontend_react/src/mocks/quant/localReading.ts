@@ -5,7 +5,7 @@ import {structureSample} from './sourceStructure';
 
 function pieces(source: QuantSource | undefined, run: QuantAIRun) {
     const code = source?.payload.code || '', lines = code.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g)?.filter(Boolean) || [];
-    const components=[27,28].includes(run.workflow?.version||0);
+    const components=[27,28,30,32,34,36,38,40, 42].includes(run.workflow?.version||0);
     const context = [components?code:undefined,components,source?.payload.language, source?.payload.platform, source?.payload.languageVersion, source?.payload.dependencies, source?.payload.parameters, run.modelId, run.requirements];
     return structureSample(code, source?.payload.language || 'text').slices.map(location => {
         const text = lines.slice(location.startLine - 1, location.endLine).join('');
@@ -29,7 +29,7 @@ export function localReadingSample(run: QuantAIRun, entry: QuantEntryDetail, old
         const existing = selected.get(piece.key);
         if (existing) {existing.locations.push(piece.location); continue;}
         if (units.length >= 48 || used + piece.text.length > 40000) {omitted++; continue;}
-        const components=[27,28].includes(version||0);
+        const components=[27,28,30,32,34,36,38,40, 42].includes(version||0);
         const oldUnit = allowReuse ? prior.get(piece.key) : undefined;
         const relativeLines = piece.text.split(/\r\n|\n|\r/), firstLine = relativeLines.findIndex(line => line.trim());
         const unit: LocalReadingUnit = {input_hash: artificialKey(piece.key), locations: [piece.location],
@@ -41,7 +41,7 @@ export function localReadingSample(run: QuantAIRun, entry: QuantEntryDetail, old
             context_line_count:piece.location.end_line-piece.location.start_line+2,uncertainties:['人工 local 不解析真实依赖；任意源码改变均重算样例。']};
         units.push(unit); selected.set(piece.key, unit); used += piece.text.length;
     }
-    const value: LocalReading = {scope: [27,28].includes(version||0)?'declared_dependency_components_not_runtime_semantics':'local_text_only_not_runtime_semantics', notice: '人工 local 展示样例，未调用真实模型；局部解读须结合本次完整原文重新核对，评分和实验设计不继承。',
+    const value: LocalReading = {scope: [27,28,30,32,34,36,38,40, 42].includes(version||0)?'declared_dependency_components_not_runtime_semantics':'local_text_only_not_runtime_semantics', notice: '人工 local 展示样例，未调用真实模型；局部解读须结合本次完整原文重新核对，评分和实验设计不继承。',
         omitted, baseline: old ? {run_id: old.id, source_id: old.sourceId || '', source_hash: 'local-artificial-source'} : {}, units};
     return JSON.stringify(value);
 }

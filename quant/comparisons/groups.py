@@ -29,11 +29,11 @@ def components(candidates: list, merges=None) -> tuple[list[list], list]:
     return list(grouped.values()), links
 
 
-def group_data(members: list, links: list) -> dict:
+def group_data(members: list, links: list, *, curations=None) -> dict:
     identities = {row.pk for row in members}
     names, aliases = [], []
     for member in members:
-        data = curation_data(member)['curation']
+        data = curation_data(member, curations=curations)['curation']
         names += [data['name'], member.data['name']]
         aliases += data['aliases']
     related = [row for row in links if row.comparison.left_id in identities and row.comparison.right_id in identities]
