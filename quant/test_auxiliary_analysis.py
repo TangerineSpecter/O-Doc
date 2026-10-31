@@ -69,3 +69,39 @@ class AuxiliaryAnalysisTests(SimpleTestCase):
         self.assertEqual(value['source'], context['source'])
         self.assertEqual(value['previous']['extract']['factors'][0]['implementation']['output'], 'gain')
         self.assertEqual(value['previous']['extract']['factors'][0]['parameters'][0]['default_value'], '20')
+
+    def test_current_review_explains_deductions_without_penalizing_tools(self):
+        from quant.test_stage_reuse import StageInputTests
+        from quant.test_research_analysis import result
+        from quant.workflows.prompts import prompt
+        source, outputs, plan, vocabulary = StageInputTests().inputs()
+        data = result()
+        outputs.update(identify={key: data[key] for key in ('title', 'kind', 'tags', 'source_facts')},
+            compare={'research_memory': {'items': []}}, repair={'items': []},
+            parameters={'parameters': [], 'risks': '', 'unknowns': []},
+            research={key: data[key] for key in ('summary', 'principle', 'formula', 'usage', 'assumptions', 'validation_plan')})
+        with patch('quant.source_changes.review.facts', return_value={'nodes': []}):
+            text = prompt('review', source, '', outputs, 41, plan, vocabulary)
+        self.assertIn('扣分必须对应原源码中的具体事实', text)
+        self.assertIn('没有具体问题不得为了保守而扣分', text)
+        for label in ('优点：', '问题与影响：', '扣分说明：', '源码依据：', '验证情况：'):
+            self.assertIn(label, text)
+        self.assertIn('本系统验证状态，不能给原源码扣分', text)
+
+    def test_review_context_keeps_source_but_excludes_pipeline_limitations(self):
+        from quant.research.score_guidance import context
+        original = {'source': {'code': 'complete source'}, 'source_structure': {'status': 'partial'},
+            'portable_qualification': {'automatic_experiment_ready': False},
+            'research_memory': {'items': ['frozen evidence']},
+            'previous': {'parameters': {'parameters': [], 'risks': 'not compiled'},
+                'research': {'formula': 'x + y', 'validation_plan': 'run later'},
+                'extract': {'factors': [{'name': 'x', 'dependencies': ['external file'], 'limitations': 'not tested'}]}}}
+        before = copy.deepcopy(original)
+        value = context(original)
+        self.assertEqual(value['source'], original['source'])
+        self.assertEqual(value['research_memory'], original['research_memory'])
+        self.assertEqual(value['previous']['extract']['factors'][0]['dependencies'], ['external file'])
+        self.assertNotIn('limitations', value['previous']['extract']['factors'][0])
+        self.assertNotIn('source_structure', value)
+        self.assertNotIn('portable_qualification', value)
+        self.assertEqual(original, before)

@@ -59,6 +59,7 @@ export function EntryList({
     current,
     loading,
     busy,
+    detailLoading = false,
     select,
     create,
     language,
@@ -71,6 +72,7 @@ export function EntryList({
     current: string;
     loading: boolean;
     busy: boolean;
+    detailLoading?: boolean;
     select: (id: string) => void;
     create: () => void;
 }) {
@@ -230,12 +232,19 @@ export function EntryList({
                                         <Award size={12} aria-hidden="true" />
                                         {entry.researchScore == null ? '待评分' : `${entry.researchScore} / 100`}
                                     </span>
-                                    <ArrowUpRight
-                                        size={12}
-                                        className={`shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
-                                            isSelected ? 'text-orange-400' : 'text-slate-300 group-hover:text-orange-500'
-                                        }`}
-                                    />
+                                    {isSelected && detailLoading ? (
+                                        <span className="relative flex h-3 w-3 shrink-0 items-center justify-center" title="正在同步研究数据…">
+                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+                                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-400" />
+                                        </span>
+                                    ) : (
+                                        <ArrowUpRight
+                                            size={12}
+                                            className={`shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
+                                                isSelected ? 'text-orange-400' : 'text-slate-300 group-hover:text-orange-500'
+                                            }`}
+                                        />
+                                    )}
                                 </div>
                                 <h3
                                     className={`line-clamp-2 h-10 break-words text-sm font-bold leading-5 transition-colors ${

@@ -147,9 +147,26 @@ export function useQuantWorkspace(collection:string,entryId:string,preferredRepo
         offsets.current[key]=start+page.items.length;
         if(!signal.aborted)setPages(old=>({...old,[key]:{total:page.total,hasMore:page.hasMore,offset:offsets.current[key]}}));
     },[collection,entryId,apply]);
+    const initialize=useCallback(async(signal:AbortSignal)=>{
+        const overview=await api.overview(collection,entryId,signal);
+        if(signal.aborted)return;
+        setDetail({...overview,notes:null,runBodies:[],sources:[],reports:[],runs:[],implementations:[],backtests:[],attachments:[],
+            reportHeaders:[],sourceHeaders:[],runHeaders:[],implementationHeaders:[],versionHeaders:{}});
+        const pages=await Promise.all(['reports','sources','runs'].map(key=>loadPage(key as 'reports'|'sources'|'runs',false,signal)));
+        if(preferredReportId||overview.defaultReportId)await ensureReport(preferredReportId||overview.defaultReportId!,signal);
+        else if(pages[2]?.items[0])await ensureRun(pages[2].items[0].id,signal);
+    },[collection,entryId,preferredReportId,loadPage,ensureReport,ensureRun]);
     const refresh=useCallback(async(force=true)=>{
-        if(!entryId||current.current?.id!==entryId)return;
+        if(!entryId)return;
         const signal=lifetime.current.signal;
+        setError('');
+        // An overview failure leaves no workspace to refresh; retry its initial reads.
+        if(current.current?.id!==entryId){
+            setLoading(true);
+            try{await initialize(signal);}
+            finally{if(!signal.aborted)setLoading(false);}
+            return;
+        }
         const overview=await api.overview(collection,entryId,signal);
         apply(old=>({...old,...overview}),signal);
         await Promise.all(['reports','sources','runs'].map(key=>loadPage(key as 'reports'|'sources'|'runs',false,signal)));
@@ -159,24 +176,18 @@ export function useQuantWorkspace(collection:string,entryId:string,preferredRepo
         if(force)await Promise.all((['implementations','backtests','attachments','feedbackSources'] as const).filter(key=>key in offsets.current).map(key=>loadPage(key,false,signal)));
         if(force&&current.current?.implementations[0])await ensureImplementation(current.current.implementations[0].id,signal);
         if(current.current?.notes){const notes=await api.notes(collection,entryId,signal);apply(old=>({...old,notes}),signal);}
-    },[collection,entryId,apply,loadPage,ensureReport,ensureImplementation]);
+    },[collection,entryId,apply,loadPage,ensureReport,ensureImplementation,initialize]);
     useEffect(()=>{
         lifetime.current.abort();const abort=new AbortController();lifetime.current=abort;
         selected.current=preferredReportId;reportVersions.current.clear();marker.current='';offsets.current={};cache.current.clear();
         // External target changes reset only the state owned by its requests.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetail(null);setPending(0);setPages({});setError('');setLoading(!!entryId);
-        if(entryId)void (async()=>{
-            const overview=await api.overview(collection,entryId,abort.signal);
-            if(abort.signal.aborted)return;
-            setDetail({...overview,notes:null,runBodies:[],sources:[],reports:[],runs:[],implementations:[],backtests:[],attachments:[],
-                reportHeaders:[],sourceHeaders:[],runHeaders:[],implementationHeaders:[],versionHeaders:{}});
-            const pages=await Promise.all(['reports','sources','runs'].map(key=>loadPage(key as 'reports'|'sources'|'runs',false,abort.signal)));
-            if(preferredReportId||overview.defaultReportId)await ensureReport(preferredReportId||overview.defaultReportId!,abort.signal);
-            else if(pages[2]?.items[0])await ensureRun(pages[2].items[0].id,abort.signal);
-        })().catch(cause=>{if(!abort.signal.aborted)setError(quantError(cause));}).finally(()=>{if(!abort.signal.aborted)setLoading(false);});
+        if(entryId)void initialize(abort.signal)
+            .catch(cause=>{if(!abort.signal.aborted)setError(quantError(cause));})
+            .finally(()=>{if(!abort.signal.aborted)setLoading(false);});
         return()=>abort.abort();
-    },[collection,entryId,preferredReportId,loadPage,ensureReport,ensureRun]);
+    },[collection,entryId,preferredReportId,initialize]);
     const running=!!detail?.activeRunIds.length;
     useEffect(()=>{
         if(!entryId||!running)return;

@@ -1,8 +1,9 @@
 import type {QuantReportReading} from '../../../types/api/quantReading';
 import { useState } from 'react';
-import { Award, ChevronDown, ChevronUp, FileCheck2, HelpCircle, MessageSquareText } from 'lucide-react';
+import { Award, ChevronDown, ChevronUp } from 'lucide-react';
 import { QuantModal } from '../ui';
 import { scoreColor } from './scoreColors';
+import { ScoreExplanation } from './ScoreExplanation';
 
 export function ReportScoreDetails({ report, selected, close }: { report: QuantReportReading; selected: number | 'all'; close: () => void }) {
     const data = report.data;
@@ -84,7 +85,7 @@ export function ReportScoreDetails({ report, selected, close }: { report: QuantR
                                 <span className="inline-flex items-center gap-1.5 text-sm font-bold text-white">
                                     <Award size={14} className="shrink-0 text-orange-400" />
                                     <span className="truncate">
-                                        {report.schemaVersion === 4 ? 'AI 实验研究评价' : 'AI 原稿研究质量分'}
+                                        {report.schemaVersion === 4 ? 'AI 实验研究评价' : '源码质量评价'}
                                     </span>
                                 </span>
                                 <span className="shrink-0 rounded-md border border-orange-500/30 bg-orange-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-orange-300">
@@ -92,7 +93,7 @@ export function ReportScoreDetails({ report, selected, close }: { report: QuantR
                                 </span>
                             </div>
                             <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-400">
-                                按五维等权汇总；缺少证据时不计算总分。不代表盈利能力，人工编辑正文不改变原稿评分。
+                                {report.schemaVersion === 4 ? '按实验记录评价，五维等权汇总。' : '评价计算逻辑、实现、时序、参数与复用；运行验证单列说明。'} 分数不代表盈利能力。
                             </p>
                         </div>
                     </div>
@@ -103,7 +104,7 @@ export function ReportScoreDetails({ report, selected, close }: { report: QuantR
                         className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-700 hover:text-white"
                     >
                         {allOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                        {allOpen ? '收起全部依据' : '展开全部依据'}
+                        {allOpen ? '收起全部说明' : '展开全部说明'}
                     </button>
                 </div>
 
@@ -153,30 +154,7 @@ export function ReportScoreDetails({ report, selected, close }: { report: QuantR
                                         />
                                     </div>
                                 </summary>
-                                <div className="mt-2.5 grid gap-2 border-t border-slate-700/70 pt-2.5 text-xs leading-5 text-slate-300 sm:grid-cols-2">
-                                    <div className="rounded-lg bg-slate-900/70 p-2.5">
-                                        <div className="mb-1 flex items-center gap-1 font-semibold text-slate-200">
-                                            <MessageSquareText size={12} className="text-orange-400" />
-                                            <span>评分理由</span>
-                                        </div>
-                                        <p className="whitespace-pre-wrap break-words text-slate-300">
-                                            {item.reason || '暂无评分理由'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-lg bg-slate-900/70 p-2.5">
-                                        <div className="mb-1 flex items-center gap-1 font-semibold text-slate-200">
-                                            {item.score === null ? (
-                                                <HelpCircle size={12} className="text-slate-400" />
-                                            ) : (
-                                                <FileCheck2 size={12} className="text-orange-400" />
-                                            )}
-                                            <span>依据与未知项</span>
-                                        </div>
-                                        <p className="whitespace-pre-wrap break-words text-slate-300">
-                                            {item.evidence || '暂无依据'}
-                                        </p>
-                                    </div>
-                                </div>
+                                <ScoreExplanation reason={item.reason} evidence={item.evidence} />
                             </details>
                         );
                     })}

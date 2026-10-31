@@ -31,6 +31,7 @@ import { quantApi } from '../api/quant';
 import { quantDate } from '../utils/quant';
 import { EntryList } from '../components/Quant/EntryList';
 import { ReportPanel } from '../components/Quant/ReportPanel';
+import { QuantWorkbenchSkeleton } from '../components/Quant/QuantWorkbenchSkeleton';
 import { FactorGraph } from '../components/Quant/FactorGraph';
 import { FactorLibrary } from '../components/Quant/FactorLibrary';
 import { EntryEditor } from '../components/Quant/EntryEditor';
@@ -100,6 +101,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
         });
     const startAI = (version: QuantCodeVersion, kind: 'explain' | 'convert') => setAIRequest({ version, kind });
     const entry = controller.detail;
+    const activeSummary = entry || controller.entries.find((row) => row.id === entryId) || null;
     const loadTab=controller.loadTab;
     const setReadError=controller.setReadingError;
     useEffect(()=>{
@@ -121,7 +123,8 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
         { id: 'attachments', label: '附件', icon: Paperclip, count: entry?.counts.attachments || 0 },
     ];
 
-    const kindInfo = entry ? kindBadgeConfig[entry.kind] || kindBadgeConfig.factor : null;
+    const activeKind = activeSummary?.kind;
+    const kindInfo = activeKind ? kindBadgeConfig[activeKind] || kindBadgeConfig.factor : null;
 
     return (
         <div
@@ -166,7 +169,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                         </span>
                     </div>
 
-                    {entry && !library && graph === null && (
+                    {activeSummary && !library && graph === null && (
                         <div className="hidden min-w-0 items-center gap-2 lg:flex">
                             <span className="text-slate-300">/</span>
                             {kindInfo && (
@@ -175,9 +178,15 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                 </QuantBadge>
                             )}
                             <h2 className="max-w-[200px] truncate text-sm font-extrabold text-slate-900 xl:max-w-[280px]">
-                                {entry.title}
+                                {activeSummary.title}
                             </h2>
-                            {entry.sourceUrl && (
+                            {controller.detailLoading && (
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-600">
+                                    <Sparkles size={10} className="animate-spin text-orange-500" />
+                                    加载中
+                                </span>
+                            )}
+                            {entry?.sourceUrl && (
                                 <a
                                     href={entry.sourceUrl}
                                     target="_blank"
@@ -201,7 +210,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                 </div>
 
                 {/* 中部：当打开具体条目时，页签直接嵌入单行顶栏中央（桌面端零额外高度占用） */}
-                {entry && !library && graph === null && (
+                {activeSummary && !library && graph === null && (
                     <nav
                         aria-label="研究详情页签"
                         className="order-3 flex w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-slate-200/80 bg-slate-100/80 p-0.5 scrollbar-hide xl:order-2 xl:w-auto"
@@ -297,7 +306,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                     >
                         <RefreshCw size={13} className={controller.loading ? 'animate-spin' : ''} />
                     </QuantButton>
-                    {entry && !library && graph === null && (
+                    {activeSummary && !library && graph === null && (
                         <>
                             <button
                                 type="button"
@@ -313,7 +322,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                 danger
                                 aria-label="删除研究"
                                 title="删除这条研究"
-                                disabled={controller.busy}
+                                disabled={controller.busy || controller.detailLoading}
                                 onClick={() => guard.request(() => setDeleting(true))}
                             >
                                 <Trash2 size={13} />
@@ -322,6 +331,17 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                     )}
                 </div>
             </header>
+
+            {/* 顶栏下方极简平滑流动进度指示条 */}
+            {(controller.detailLoading || controller.readingPending) && (
+                <div
+                    role="progressbar"
+                    aria-label="正在加载研究详情"
+                    className="relative z-40 h-0.5 w-full overflow-hidden bg-orange-100/60"
+                >
+                    <div className="absolute inset-y-0 h-full w-1/3 rounded-full bg-gradient-to-r from-orange-500 via-amber-400 to-orange-500 shadow-2xs animate-quant-progress" />
+                </div>
+            )}
 
             {controller.error && !library && graph === null && (
                 <div
@@ -365,6 +385,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                         current={entryId}
                         loading={controller.loading}
                         busy={controller.busy}
+                        detailLoading={controller.detailLoading}
                         select={selectEntry}
                         create={() => guard.request(() => setCreating(true))}
                         language={controller.languageFilter}
@@ -378,7 +399,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                         entryId || library || graph !== null ? 'flex' : 'hidden'
                     } min-h-0 min-w-0 flex-1 flex-col md:flex`}
                 >
-                    {!library && graph === null && entryId && (
+                    {!library && graph === null && activeSummary && (
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white px-3 py-2 lg:hidden">
                             <div className="flex min-w-0 items-center gap-2">
                                 <QuantButton
@@ -395,12 +416,12 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                     </QuantBadge>
                                 )}
                                 <span className="min-w-0 truncate text-xs font-bold text-slate-900">
-                                    {entry?.title || '研究详情'}
+                                    {activeSummary.title || '研究详情'}
                                 </span>
                             </div>
                             <span className="shrink-0 font-mono text-[10px] text-slate-400">
                                 <Clock3 size={10} className="mr-0.5 inline" />
-                                {quantDate(entry?.updatedAt)}
+                                {quantDate(activeSummary.updatedAt)}
                             </span>
                         </div>
                     )}
@@ -463,15 +484,16 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                             }}
                         />
                     ) : controller.detailLoading ? (
-                        <div className="m-4 space-y-4" aria-label="研究加载中">
-                            <div className="h-16 animate-pulse rounded-2xl bg-slate-200/70" />
-                            <div className="h-96 animate-pulse rounded-2xl bg-white" />
-                        </div>
+                        <QuantWorkbenchSkeleton
+                            tab={tab}
+                            wideMode={wideMode}
+                            entrySummary={activeSummary}
+                        />
                     ) : entry ? (
-                        <div className="min-h-0 flex-1 overflow-auto p-3 scrollbar-hide sm:p-5">
+                        <div className="min-h-0 flex-1 overflow-auto p-3 scrollbar-hide sm:p-5 animate-in fade-in duration-300">
                             <div
                                 key={`${entry.id}:${guard.resetEpoch}`}
-                                className={`mx-auto transition-all duration-200 ${
+                                className={`mx-auto transition-all duration-300 ${
                                     wideMode ? 'max-w-[1680px]' : tab === 'report' ? 'max-w-[1480px]' : 'max-w-5xl'
                                 }`}
                             >

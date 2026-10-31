@@ -17,7 +17,34 @@ export function mockInitialPlan(entry: QuantEntryDetail, report: QuantReport) {
         return;
     }
     const seed = buildSeed(candidate, initialSeed(candidate), true);
-    report.data.initialPlanningNote = `本地流程样例：使用示例默认参数 ${seed.parameters.map(row => `${row.name}=${row.value}`).join('、')}，比较邻近窗口；费用与滑点各 5 bps、阈值 0、隔离 2 根为演示假设。`;
+    report.data.initialPlanningNote = `## 实验目的
+
+比较默认参数与邻近窗口的输出。这是本地排版样例，没有执行行情计算。
+
+## 参数怎么比较
+
+| 参数 | 示例默认值 | 比较目的 |
+| --- | --- | --- |
+${seed.parameters.map(row => `| ${row.name} | ${row.value} | 观察邻近窗口的方向一致性 |`).join('\n')}
+
+## 需要什么数据
+
+按时间排列的同口径价格序列，长度须覆盖计算窗口。
+
+## 怎么执行
+
+1. **准备数据**：确认时间顺序、价格口径和缺失值。
+2. **计算基线**：使用示例默认参数计算输出。
+3. **比较结果**：记录邻近窗口的变化，不按一次最高值选择参数。
+
+## 结果怎么看
+
+- 比较方向是否一致、变化是否平稳。
+- 费用与滑点各5 bps、阈值0、隔离2根均为演示假设。
+
+## 技术依据
+
+本地预制样例，不代表源码分析或真实实验结论。`;
     const data = {version: 1, local_demo: true, origin: 'source_analysis', name: 'AI 首轮样例 · 窗口比较',
         hypothesis: '人工样例：比较默认窗口和邻近窗口的方向一致性。', falsification: '邻域方向反复变化，或成本后优势消失。',
         data_requirement: '至少 60 根且足够覆盖窗口的同口径 OHLC 历史行情；本地模式不计算真实表现。', evidence_refs: candidate.data.formulaVersion?.origin === 'ai_repair' ? ['factor:0', 'repair:0'] : ['factor:0'],

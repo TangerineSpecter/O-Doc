@@ -5,6 +5,8 @@ const titles: Record<string, string> = {
     后续建议: '下一步', 下一步: '下一步', 源码事实: '来源与计算',
     参数默认值方面: '参数说明', 参数默认值: '参数说明',
     平台语义未知: '平台待核对', 平台语义: '平台待核对', 时点方面: '信号时点',
+    源码可核验事实: '计算方法', 实验假设是: '实验目的', 参数候选依据: '参数比较',
+    最低数据长度: '数据准备', '采用 walk_forward': '执行步骤',
 };
 
 /** Only remove source locations from the reading copy. Original evidence remains available verbatim. */
@@ -42,7 +44,7 @@ export function planningNoteReading(note: string) {
         const title = titles[section.title] || section.title;
         // Preamble is not a topic. For an unstructured note preserve its useful content as a fallback.
         if (section.title === '说明与边界' && sections.length > 1) continue;
-        if (/^(综合|结论|待补充内容|后续建议|下一步)$/.test(section.title)) {
+        if (/^(综合|结论|待补充内容|后续建议|下一步|源码可核验事实|实验假设是|实验目的|参数候选依据|参数比较|最低数据长度|数据准备|采用 walk_forward|执行步骤|结果怎么看|选择算法)$/.test(section.title)) {
             // Internal execution-control instructions belong in original evidence, not the reading summary.
             const text = planningReadingText(section.text.split(/initial_proposal\s*(?:置|为|=)/)[0]).replace(/[；;，,]\s*$/, '');
             if (text && title === '需要补齐') {

@@ -26,6 +26,7 @@ import { ReportEditor } from './reports/ReportEditor';
 import { ReportUpdates } from './reports/ReportUpdates';
 import { SourceSupplement } from './sources/SourceSupplement';
 import { ResearchDetails, type ResearchDetailsTab } from './ResearchDetails';
+import { ReportSkeleton } from './QuantWorkbenchSkeleton';
 
 export function ReportPanel({
     entry,
@@ -270,9 +271,21 @@ export function ReportPanel({
                             reportTwoColumn={true}
                             revealPlan={revealPlan}
                         />
+                    ) : targetId ? (
+                        <ReportSkeleton
+                            entrySummary={{
+                                id: entry.id,
+                                title: entry.title,
+                                kind: entry.kind,
+                                createdAt: entry.createdAt,
+                                updatedAt: entry.updatedAt,
+                                preview: '',
+                                researchScore: entry.researchScore,
+                            }}
+                        />
                     ) : (
                         <QuantEmpty
-                            title={targetId ? '正在读取所选报告' : active ? '报告正在生成' : '让 AI 完成第一份研究报告'}
+                            title={active ? '报告正在生成' : '让 AI 完成第一份研究报告'}
                             description="报告会自动保存在这里，你可以阅读、修改和删减，并保留原稿。"
                         />
                     )}

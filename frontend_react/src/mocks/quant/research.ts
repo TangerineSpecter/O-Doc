@@ -22,7 +22,7 @@ export const analysisSample: QuantAnalysis = {
     risks: '尚未检查真实材料；不包含回测或收益结论。', validationPlan: '检查输入数据、窗口边界和不同参数邻域，再使用独立样本验证。',
     sourceFacts: ['示例使用历史价格窗口。'], assumptions: ['假定数据口径一致；这是本地演示。'], unknowns: ['真实市场与交易周期', '实际运行参数'],
     tags: ['动量', '演示'], parameters: [{ name: 'lookback', type: 'int', defaultValue: '20', category: 'signal', meaning: '历史窗口，单位为 bar', constraints: '正整数；示例值', effect: '窗口改变比较的时间跨度', suggestion: '在固定数据上比较邻近窗口，尚无推荐最优值', evidence: '本地 momentum 示例函数' }],
-    scores: ['逻辑清晰度', '实现质量', '数据与时序可靠性', '参数可解释性', '复现与复用价值'].map(dimension => ({ dimension, score: 3, reason: '本地演示分值，仅用于界面校验。', evidence: '本地模拟样例，无真实评价含义。' })),
+    scores: ['逻辑清晰度', '实现质量', '数据与时序可靠性', '参数可解释性', '复现与复用价值'].map(dimension => ({ dimension, score: 3, reason: '优点：演示输入和计算关系的说明。\n问题与影响：这里演示具体局限及其影响。\n扣分说明：3分为本地界面测试分值，不是真实源码评价。', evidence: '源码依据：本地 momentum 示例函数。\n验证情况：预制界面样例，没有调用模型或执行行情验证。' })),
     totalScore: 60, evidenceStatus: 'static_unverified', rubricVersion: 'research-quality-v1',
 };
 export function ensureSources(entry: QuantEntryDetail) {

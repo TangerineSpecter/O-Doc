@@ -87,6 +87,13 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
     elif stage == 'plan':
         instructions += initial_prompt(strategy=version in (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42), nested=version in (16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42))
         if version >= 31:
+            instructions += ('initial_planning_note面向使用者，以Markdown排版，最多3000字。'
+                '依次使用二级标题“实验目的”“选择哪些算法”“参数怎么比较”“需要什么数据”“怎么执行”“结果怎么看”；'
+                '每节只写相关内容，短段落一两句话；执行过程用有序列表并加粗步骤名称，参数比较用“参数｜源码默认值｜候选值｜比较目的”的表格。'
+                '有必要的公式单独成行用$$包围LaTeX并解释符号；JSON中的换行和反斜杠正确转义。'
+                '算法用中文名，英文标识放行内代码；不要以factor:序号代替阅读名称。'
+                '技术引文与平台执行说明集中放末尾“技术依据”小节，不把任务历史、内部字段、反复免责声明混进实验步骤。'
+                '没有一键方案时仍给出适用的计算检查与参数比较步骤，只简短说明实际执行方式；不虚构数据、候选参数或已完成结果。')
             instructions += ('每个算法的experiment_execution明确给出执行环境和required_inputs。'
                 'local_engine_supported=false的Python算法仍是完整算法资产；在initial_planning_note中给出数据准备、'
                 '调用compute的方法、比较参数和检查输出的具体方案，initial_proposal只用于当前本机引擎可执行的项。'
@@ -102,7 +109,8 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
             shape = SHAPE
         instructions += '\n输出结构：' + json.dumps(shape, ensure_ascii=False)
     if stage == 'review':
-        instructions += ('只评静态研究质量，指标不因没有下单函数扣分。五维必须完整，0=明确严重不足，3=基本可理解但有局限，5=证据充分。'
+        instructions += ('只评静态研究质量，指标不因没有下单函数扣分。五维必须完整'
+            + ('，0=明确严重不足，3=基本可理解但有局限，5=证据充分。' if version < 31 else '。') +
             '未知分数用null。无代码时实现质量、数据与时序可靠性必须null。不能把检索相似、前序AI分析或审查本身当实证。')
         if version >= 31:
             instructions += ('评分对象是材料中完整的原始源码。实现质量评价原源码的计算结构、状态维护和边界处理；'
@@ -157,8 +165,9 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
         context['planning_capabilities'] = contract()
     if version in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42) and stage in ('review', 'plan'):
         from quant.verification.prompts import context as qualification_context, INSTRUCTION as QUALIFICATION_INSTRUCTION
-        context['portable_qualification'] = qualification_context(outputs['extract']['factors'])
-        instructions += QUALIFICATION_INSTRUCTION
+        if stage != 'review' or version < 31:
+            context['portable_qualification'] = qualification_context(outputs['extract']['factors'])
+            instructions += QUALIFICATION_INSTRUCTION
     from .memory import uses_history
     if uses_history(version) and stage in ('review','plan'):
         memory=outputs['compare']['research_memory']
@@ -231,6 +240,11 @@ def prompt(stage: str, payload: dict, requirements: str, outputs: dict, version:
     if version in (31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42) and stage in ('review', 'plan'):
         from .algorithm_context import compact
         context = compact(context)
+    if stage == 'review' and version >= 31:
+        from quant.research.score_guidance import INSTRUCTION as SCORE_INSTRUCTION, context as score_context
+        # Tool support and translation readiness are planning facts, not source defects.
+        context = score_context(context)
+        instructions += SCORE_INSTRUCTION
     text = instructions + '\n材料：' + json.dumps(context, ensure_ascii=False)
     if len(text) > 300000:
         from rest_framework.exceptions import ValidationError

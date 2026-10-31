@@ -118,6 +118,7 @@ def validate_source_evidence(result: dict, source: dict) -> None:
 
 def analysis_prompt(source: dict, requirements: str) -> str:
     from quant.factors.contracts import extraction_prompt
+    from .score_guidance import INSTRUCTION as SCORE_INSTRUCTION
     from quant.experiments.initial_planning import initial_prompt
     context = {key: source[key] for key in ('title', 'code', 'description', 'url', 'language', 'platform',
         'language_version', 'dependencies', 'parameters', 'note', 'provenance', 'fetch_status', 'fetch_error',
@@ -148,7 +149,7 @@ def analysis_prompt(source: dict, requirements: str) -> str:
         '没有足够材料必须 null；这些分数只代表静态研究质量，不能评估盈利能力。指标不因没有下单或止损扣分。'
         '无代码时实现质量、数据与时序可靠性必须 null；仅有未抓取网址时所有评分必须 null。不给整体总分，服务端按固定规则计算。'
         '每个数值评分都须有可追溯依据。不把参数建议写成经过优化的结论。\n输出结构：'
-        + json.dumps(shape, ensure_ascii=False) + domains.prompt() + extraction_prompt() + initial_prompt() + '\n材料：'
+        + json.dumps(shape, ensure_ascii=False) + SCORE_INSTRUCTION + domains.prompt() + extraction_prompt() + initial_prompt() + '\n材料：'
         + json.dumps({'source': context, 'requirements': requirements}, ensure_ascii=False))
 
 

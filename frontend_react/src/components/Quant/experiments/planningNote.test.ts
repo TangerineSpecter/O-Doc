@@ -30,6 +30,22 @@ test('markdown tables and lists retain line structure', () => {
     assert.deepEqual(planningNoteParagraphs(table), [table]);
 });
 
+test('existing experiment prose exposes its explicit calculation, parameter and data topics', async () => {
+    const {planningNoteReading} = await import('./planningNoteReading.ts');
+    const text = '本阶段仅设计实验。源码可核验事实：E=abs(close-close[1])/(high-low+1e-9)。选择因子2，是因为输出为0–100。实验假设是：短窗口更敏感。参数候选依据默认14/200建立：span={7,14,30}、lookback={50,100,200}。采用 walk_forward v2，3个外折。最低数据长度按公式计算：max(60,114)=114根。';
+    const result = planningNoteReading(text);
+    assert.deepEqual(result.primary.map(row => row.title), ['计算方法', '选择算法', '实验目的', '参数比较', '执行步骤', '数据准备']);
+    assert.match(result.primary[3].text, /span=\{7,14,30\}/);
+    assert.match(result.primary[5].text, /max\(60,114\)=114/);
+    assert.match(text, /本阶段仅设计实验/);
+});
+
+test('formatted plan keeps tables, ordered steps, formula and code fences intact', async () => {
+    const {planningNoteReading} = await import('./planningNoteReading.ts');
+    const text = '## 实验目的\n\n比较窗口。\n\n## 参数怎么比较\n\n|参数|默认值|\n|---|---|\n|span|14|\n\n## 怎么执行\n\n1. **准备**：保留时间顺序。\n2. **计算**：调用算法。\n\n$$E_t=1$$\n\n```python\n# 源码事实：保留代码\nvalue = 14\n```';
+    assert.equal(planningNoteReading(text).primary[0].text, text);
+});
+
 test('reading view drops preamble navigation and separates conclusions from technical evidence', async () => {
     const {planningNoteReading} = await import('./planningNoteReading.ts');
     const result = planningNoteReading(blockedPlanningNoteSample);
