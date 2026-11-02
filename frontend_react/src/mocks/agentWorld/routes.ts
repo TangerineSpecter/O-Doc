@@ -14,7 +14,7 @@ import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentRepor
 import {resolveItemIconRoute} from './itemIcons';
 import {resolveCookingRoute} from './cooking';
 import {resolveAlchemyRoute} from './alchemy';
-import {fishingAnalyticsMock} from './fishingAnalytics';
+import {fishingAnalyticsMock, fishingAnalyticsSourceError} from './fishingAnalytics';
 import {lotteryAnalyticsMock} from './lotteryAnalytics';
 import {lifeScheduleResponse, projectLifeStatusReason} from './lifeSchedule';
 import {localCombatPreparation} from './combatPreparation';
@@ -238,6 +238,8 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (path.endsWith('/detail/')) return {position: positions.find(p => p.code === url.searchParams.get('code')) || positions[0], analysis: null, analysisError: '本地样例行情'};
     }
     if (path === `${base}/analytics/`) {
+        if (new URLSearchParams(location.search).get('mockState') === 'fishing-invalid')
+            return Response.json(fishingAnalyticsSourceError, {status: 409});
         const combat=combatAnalyticsMock(url,emptyScenario());
         return {...analytics, startDate: url.searchParams.get('start_date') || analytics.startDate, endDate: url.searchParams.get('end_date') || day, actorId: actor(url), lotteryStatistics: lotteryAnalyticsMock(url, emptyScenario()), fishingComparison: fishingAnalyticsMock(url, emptyScenario()),
             combatComparison:combat.combatComparison,outcomes:{...analytics.outcomes,explorations:combat.explorations,wins:combat.wins},

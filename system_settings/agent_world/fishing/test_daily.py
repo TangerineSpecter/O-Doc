@@ -82,6 +82,30 @@ class FishingDailyTests(TestCase):
         with self.assertRaisesMessage(SyncError, '缺少来源覆盖'):
             validate_source(missing, info)
 
+    def test_malformed_sync_sources_raise_domain_errors(self):
+        from utils.sync_manager import SyncManager
+        from .daily_sync import validate_source as validate_daily
+
+        trip = self.finished_trip()
+        with patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            backfill('admin', trip.pk)
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            manager = SyncManager()
+            source = manager.build_snapshot_data()
+            info = manager.build_snapshot_meta(data_list=source)
+        bad_event = copy.deepcopy(source)
+        next(row for row in bad_event if row['model'] == 'system_settings.fishingevent')['fields']['data'] = None
+        with self.assertRaisesMessage(SyncError, '钓鱼事件内容无效'):
+            validate_source(bad_event, info, check_digest=False)
+        bad_item = copy.deepcopy(source)
+        next(row for row in bad_item if row['model'] == 'system_settings.agentinventoryitem')['fields']['source'] = []
+        with self.assertRaisesMessage(SyncError, '快照格式或数值不合法'):
+            validate_source(bad_item, info, check_digest=False)
+        bad_slice = copy.deepcopy(source)
+        next(row for row in bad_slice if row['model'] == 'system_settings.fishingevent')['fields'] = None
+        with self.assertRaisesMessage(SyncError, '钓鱼每日贡献无法由完整来源核对'):
+            validate_daily(bad_slice, info)
+
     def test_daily_statistics_mix_covered_and_uncovered_trips_once(self):
         from ..analytics.fishing_daily import load_daily_fishing
         first_trip = self.finished_trip()

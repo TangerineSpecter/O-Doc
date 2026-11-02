@@ -1,5 +1,14 @@
 """Read-only fishing activity, using each fact's occurrence time within the window."""
+from ..fishing.daily import statistics_values
 from ..fishing.models import FishingTrip, FishingEvent
+
+
+class InvalidFishingStatisticsSource(ValueError):
+    """A retained event cannot safely contribute to fishing statistics."""
+
+    def __init__(self, trip_id, event_id, reason):
+        self.trip_id, self.event_id, self.reason = trip_id, event_id, reason
+        super().__init__(f'出钓 {trip_id}、事件 {event_id}：{reason}')
 
 
 def load_fishing_statistics(owner, start, end, residents, *, include_daily=False):
@@ -20,15 +29,17 @@ def load_fishing_statistics(owner, start, end, residents, *, include_daily=False
     # Event facts are counted even if their trip departed before the selected dates.
     events = FishingEvent.objects.filter(trip__owner_id=owner, trip__actor_id__in=rows,
         created_at__gte=start, created_at__lt=end, kind__in=['cast', 'duel_end']).exclude(trip_id__in=covered)
-    for actor, kind, data in events.values_list('trip__actor_id', 'kind', 'data'):
+    for actor, kind, data, trip_id, event_id in events.values_list('trip__actor_id', 'kind', 'data', 'trip_id', 'pk'):
+        try:
+            experience, outcome, caught = statistics_values(kind, data)
+        except ValueError as exc:
+            raise InvalidFishingStatisticsSource(trip_id, event_id, str(exc)) from exc
         row = rows[actor]
-        row['experience'] += data.get('experience', 0)
+        row['experience'] += experience
         if kind == 'cast':
             row['casts'] += 1
-            outcome = data.get('outcome', {}).get('kind')
             if outcome in ('escaped', 'empty', 'junk'):
                 row[outcome] += 1
-        caught = data.get('catch')
         if caught:
             row['catches'] += 1
             row['kings'] += int(bool(caught.get('king')))

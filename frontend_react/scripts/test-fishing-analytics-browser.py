@@ -50,12 +50,17 @@ def run(browser, base, filename, width, domain='fishing'):
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.on('response', lambda response: responses.append((response.status, response.from_service_worker)) if response.url.startswith(base + '/api/') else None)
     try:
-        for state in ['populated', 'empty', 'slow', 'error']:
+        states = ['populated', 'empty', 'slow', 'error']
+        if domain == 'fishing':
+            states.append('fishing-invalid')
+        for state in states:
             page.goto(f'{base}/{filename}?mockState={state}')
             if state == 'slow':
                 expect(page.locator('[aria-busy=true]')).to_be_visible()
-            if state == 'error':
+            if state in ('error', 'fishing-invalid'):
                 expect(page.get_by_role('alert')).to_be_visible()
+                if state == 'fishing-invalid':
+                    expect(page.get_by_role('alert')).to_contain_text('钓鱼记录存在异常，无法计算完整统计')
             else:
                 heading = page.get_by_role('heading', name=heading_text, exact=True)
                 heading.scroll_into_view_if_needed()
@@ -80,7 +85,8 @@ def run(browser, base, filename, width, domain='fishing'):
         expect(heading.locator('xpath=ancestor::section[1]').locator('table[aria-label="大乐透居民统计"] tbody tr' if domain == 'lottery' else 'table tbody tr')).to_have_count(1)
         assert not errors, errors
         assert responses and all(worker and status != 501 for status, worker in responses), responses
-        print(f'{width}px: populated, empty, slow, error, resident filter and local-only requests passed')
+        source_check = ', source error' if domain == 'fishing' else ''
+        print(f'{width}px: populated, empty, slow, error{source_check}, resident filter and local-only requests passed')
     finally:
         context.close()
 

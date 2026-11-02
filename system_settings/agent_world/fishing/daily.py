@@ -11,6 +11,25 @@ EVENT = 'system_settings.fishingevent'
 COUNTERS = ('casts', 'catches', 'kings', 'escaped', 'empty', 'junk', 'experience', 'ordinaryCatches')
 
 
+def statistics_values(kind, data):
+    """Read only well-formed source values for both raw and daily statistics."""
+    if not isinstance(data, dict):
+        raise ValueError('钓鱼事件内容无效')
+    experience = data.get('experience', 0)
+    if type(experience) is not int or experience < 0:
+        raise ValueError('钓鱼经验来源无效')
+    outcome = None
+    if kind == 'cast':
+        outcome_data = data.get('outcome', {})
+        if not isinstance(outcome_data, dict):
+            raise ValueError('钓鱼事件结果无效')
+        outcome = outcome_data.get('kind')
+    caught = data.get('catch')
+    if caught is not None and not isinstance(caught, dict):
+        raise ValueError('钓鱼事件捕获内容无效')
+    return experience, outcome, caught
+
+
 def project_trip(data, identity):
     rows = {}
     for row in data:
@@ -49,23 +68,13 @@ def project_trip(data, identity):
         row['last_sequence'] = event['sequence']
         if event['kind'] not in ('cast', 'duel_end'):
             continue
-        data_value = event['data']
-        experience = data_value.get('experience', 0)
-        if type(experience) is not int or experience < 0:
-            raise ValueError('钓鱼经验来源无效')
+        experience, outcome, caught = statistics_values(event['kind'], event['data'])
         counters = row['counters']
         counters['experience'] += experience
         if event['kind'] == 'cast':
             counters['casts'] += 1
-            outcome_data = data_value.get('outcome', {})
-            if not isinstance(outcome_data, dict):
-                raise ValueError('钓鱼事件结果无效')
-            outcome = outcome_data.get('kind')
             if outcome in ('escaped', 'empty', 'junk'):
                 counters[outcome] += 1
-        caught = data_value.get('catch')
-        if caught is not None and not isinstance(caught, dict):
-            raise ValueError('钓鱼事件捕获内容无效')
         if caught:
             counters['catches'] += 1
             counters['kings'] += int(bool(caught.get('king')))

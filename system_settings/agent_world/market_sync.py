@@ -1,6 +1,7 @@
 """同步校验市场完整资产状态，不以独立合并的钱包或背包补造交易。"""
 import hashlib
 import json
+from contextlib import closing
 from django.core.serializers.json import DjangoJSONEncoder
 from utils.sync_datetime import SyncJSONEncoder
 from django.db.models.signals import post_save, post_delete
@@ -59,6 +60,33 @@ def register_market_signals():
         for signal in (post_save, post_delete):
             signal.connect(update_checkpoint, sender=model, weak=False,
                            dispatch_uid=f'market-checkpoint:{model.__name__}:{signal}')
+
+
+def _check_inventory_transfer_batch(items):
+    transfer_ids = {str(item.source['market_trade_id']) for item in items}
+    transfers = set(MarketTransaction.objects.filter(pk__in=transfer_ids).values_list('pk', 'owner_id', 'actor_id'))
+    missing = [item for item in items
+               if (str(item.source['market_trade_id']), item.owner_id, item.actor_id) not in transfers]
+    if missing:
+        from .fishing.return_provenance import validate_legacy_returns
+        validate_legacy_returns(missing)
+
+
+def _validate_inventory_transfers(*, batch_size=500):
+    # Keep only one bounded page of referenced items and close the PostgreSQL
+    # cursor before a caller rolls back after a failed provenance check.
+    query = AgentInventoryItem.objects.order_by('pk').only('id', 'owner_id', 'actor_id', 'source')
+    with closing(query.iterator(chunk_size=batch_size)) as items:
+        batch = []
+        for item in items:
+            if not item.source.get('market_trade_id'):
+                continue
+            batch.append(item)
+            if len(batch) == batch_size:
+                _check_inventory_transfer_batch(batch)
+                batch = []
+        if batch:
+            _check_inventory_transfer_batch(batch)
 
 
 def reconcile_market() -> None:
@@ -135,17 +163,7 @@ def reconcile_market() -> None:
     for batch in MarketBatch.objects.all():
         if any(not MarketTransaction.objects.filter(pk=k,owner_id=batch.owner_id).exists() for k in batch.purchase_keys):
             raise SyncError('商店库存缺失关联成交')
-    items = list(AgentInventoryItem.objects.all())
-    transfer_ids = sorted({str(item.source.get('market_trade_id')) for item in items if item.source.get('market_trade_id')})
-    transfers = set()
-    for offset in range(0, len(transfer_ids), 500):
-        transfers.update(MarketTransaction.objects.filter(pk__in=transfer_ids[offset:offset + 500]).values_list(
-            'pk', 'owner_id', 'actor_id'))
-    missing = [item for item in items if item.source.get('market_trade_id') and
-               (str(item.source['market_trade_id']), item.owner_id, item.actor_id) not in transfers]
-    if missing:
-        from .fishing.return_provenance import validate_legacy_returns
-        validate_legacy_returns(missing)
+    _validate_inventory_transfers()
     for farm in AgentFarm.objects.all():
         for animal in farm.state.get('animals',[]):
             trade_id = animal.get('market_trade_id')

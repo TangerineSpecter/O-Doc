@@ -33,5 +33,11 @@ test('empty, loading and error requests stay in local handlers', async () => {
     assert.ok(performance.now() - start >= 1700);
     location.search = '?mockState=error';
     assert.equal((await get()).status, 503);
+    location.search = '?mockState=fishing-invalid';
+    const invalid = await get();
+    assert.equal(invalid.status, 409);
+    assert.equal(invalid.data.reason, 'invalid_fishing_statistics_source');
+    assert.match(invalid.msg, /钓鱼记录存在异常/);
     location.search = '?mockState=populated';
+    assert.equal((await get()).status, 200);
 });

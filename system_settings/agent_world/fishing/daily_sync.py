@@ -44,6 +44,13 @@ def source_slices(data, trip_ids):
 
 
 def validate_source(data, meta=None):
+    try:
+        _validate_source(data, meta)
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:
+        raise SyncError('钓鱼每日贡献无法由完整来源核对') from exc
+
+
+def _validate_source(data, meta):
     stored = {}
     for row in data:
         if row['model'] not in (COVERAGE, DAY):
@@ -61,12 +68,9 @@ def validate_source(data, meta=None):
         raise SyncError('钓鱼每日贡献缺少来源覆盖')
     slices = source_slices(data, trip_ids)
     expected = {}
-    try:
-        for identity in sorted(trip_ids):
-            for row in records(project_trip(slices[identity], identity)):
-                expected[(row['model'], str(row['pk']))] = row
-    except (KeyError, TypeError, ValueError) as exc:
-        raise SyncError('钓鱼每日贡献无法由完整来源核对') from exc
+    for identity in sorted(trip_ids):
+        for row in records(project_trip(slices[identity], identity)):
+            expected[(row['model'], str(row['pk']))] = row
     if stored != expected:
         raise SyncError('钓鱼每日贡献与原始来源、日期或覆盖范围不一致')
 

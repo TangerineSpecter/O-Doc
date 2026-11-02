@@ -76,3 +76,31 @@ class WebDavConditionalTests(SimpleTestCase):
         for directory in ('', '/', '/backup/../other', 'relative'):
             with self.subTest(directory=directory), self.assertRaises(SyncError):
                 WebDavConditional(FakeConditionalWebDav()).probe(directory)
+
+    def test_probe_reports_both_original_failure_and_cleanup_path(self):
+        adapter = FakeConditionalWebDav(ignore_match=True, fail_delete=True)
+        with self.assertRaises(SyncError) as raised:
+            WebDavConditional(adapter).probe('/backup/sync-v2')
+        self.assertIn('没有正确执行条件写入', str(raised.exception))
+        self.assertIn('未能清理', str(raised.exception))
+        self.assertIn('/backup/sync-v2/.odoc-cas-probe-', str(raised.exception))
+        self.assertIsInstance(raised.exception.__cause__, SyncError)
+        self.assertIn('没有正确执行条件写入', str(raised.exception.__cause__))
+        self.assertEqual(len(adapter.objects), 1)
+
+    def test_unexpected_cleanup_error_still_identifies_temporary_file(self):
+        adapter = FakeConditionalWebDav()
+        with patch.object(adapter, 'delete_path', side_effect=OSError('private detail')):
+            with self.assertRaises(SyncError) as raised:
+                WebDavConditional(adapter).probe('/backup/sync-v2')
+        self.assertIn('清理或确认失败', str(raised.exception))
+        self.assertIn('/backup/sync-v2/.odoc-cas-probe-', str(raised.exception))
+        self.assertNotIn('private detail', str(raised.exception))
+
+    def test_interrupt_keeps_its_type_and_cleanup_path(self):
+        adapter = FakeConditionalWebDav(fail_delete=True)
+        probe = WebDavConditional(adapter)
+        with patch.object(probe, 'read', side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt) as raised:
+                probe.probe('/backup/sync-v2')
+        self.assertIn('/backup/sync-v2/.odoc-cas-probe-', ' '.join(raised.exception.__notes__))

@@ -7,6 +7,9 @@ export interface AnalyticsResident {
     professionName?: string | null;
 }
 export interface AnalyticsFilters {start_date: string; end_date: string; actor_id?: string}
+export interface ResidentAnalyticsSourceError {
+    code: number; msg: string; data: {reason: 'invalid_fishing_statistics_source'};
+}
 export interface AnalyticsOverview {
     activeResidents: number; activeDays: number; publications: number; interactions: number;
     received: number; income: string; expense: string; net: string;

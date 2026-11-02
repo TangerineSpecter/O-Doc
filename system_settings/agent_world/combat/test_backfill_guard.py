@@ -12,7 +12,8 @@ from django.test import SimpleTestCase, TestCase
 
 from utils.sync_policy import SyncError
 from .archive import archive_owners, archive_profile, compact, merged_markers, require_reconciled_sources
-from .migration_guard import CombatBackfillProtected, LegacyCombatArchiveDisabled, PROTECTION_ENV, is_protected
+from .migration_guard import (CombatBackfillProtected, LegacyCombatArchiveDisabled, PROTECTION_ENV,
+                              is_protected, require_sync_unprotected)
 
 
 class CombatBackfillGuardTests(SimpleTestCase):
@@ -105,6 +106,16 @@ class CombatBackfillGuardTests(SimpleTestCase):
         for value in ('', '0', 'false', 'off'):
             with self.subTest(value=value), patch.dict(os.environ, {PROTECTION_ENV: value}):
                 self.assertFalse(is_protected())
+
+    def test_unknown_protection_value_reports_configuration_and_remains_safe(self):
+        with patch.dict(os.environ, {PROTECTION_ENV: '0ff'}), self.assertLogs(
+                'system_settings.agent_world.combat.migration_guard', level='WARNING') as logged:
+            self.assertTrue(is_protected())
+            with self.assertRaisesMessage(SyncError, '配置值无法识别'):
+                require_sync_unprotected()
+            with self.assertRaisesMessage(CombatBackfillProtected, '配置值无法识别'):
+                archive_profile(object(), datetime(2026, 1, 1), apply=True)
+        self.assertEqual(len(logged.output), 1)
 
     def test_legacy_compaction_is_unchanged_when_protection_is_off(self):
         data = [{'model': 'system_settings.combatfact', 'pk': 'old',

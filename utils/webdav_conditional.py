@@ -81,6 +81,7 @@ class WebDavConditional:
             raise SyncError('WebDAV 条件写入测试需要明确的非根目录')
         path = posixpath.join(directory.rstrip('/'), '.odoc-cas-probe-' + uuid.uuid4().hex)
         created = False
+        failure = None
         try:
             try:
                 created_now = self.create(path, b'first')
@@ -107,9 +108,26 @@ class WebDavConditional:
             if self.replace(path, b'unexpected', first[1]) or self.read(path) != second:
                 raise SyncError('WebDAV 接受了过期 ETag，不能用于安全归档')
             return True
+        except BaseException as exc:
+            failure = exc
+            raise
         finally:
             if created:
-                if not self.adapter.delete_path(path):
-                    raise SyncError(f'WebDAV 条件写入测试文件未能清理：{path}')
-                if self.read(path) is not None:
-                    raise SyncError(f'WebDAV 条件写入测试文件删除后仍存在：{path}')
+                try:
+                    if not self.adapter.delete_path(path):
+                        raise SyncError(f'WebDAV 条件写入测试文件未能清理：{path}')
+                    if self.read(path) is not None:
+                        raise SyncError(f'WebDAV 条件写入测试文件删除后仍存在：{path}')
+                except Exception as cleanup_error:
+                    detail = (str(cleanup_error) if isinstance(cleanup_error, SyncError) and path in str(cleanup_error)
+                              else f'WebDAV 条件写入测试文件清理或确认失败：{path}')
+                    if failure is not None:
+                        if isinstance(failure, Exception):
+                            original = str(failure) if isinstance(failure, SyncError) else 'WebDAV 条件写入测试失败'
+                            raise SyncError(f'{original}；同时{detail}') from failure
+                        # Preserve interrupts and attach the manual cleanup path.
+                        failure.add_note(detail)
+                    elif detail == str(cleanup_error) and isinstance(cleanup_error, SyncError):
+                        raise
+                    else:
+                        raise SyncError(detail) from cleanup_error

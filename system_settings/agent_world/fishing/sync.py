@@ -72,7 +72,7 @@ def digest(data, owner):
 def validate_source(data, meta=None, *, check_digest=True):
     try:
         _validate(data, meta, check_digest)
-    except (ValueError, TypeError, KeyError, ArithmeticError, IndexError) as exc:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError, IndexError) as exc:
         fail('快照格式或数值不合法：' + str(exc))
 
 
@@ -131,6 +131,8 @@ def _validate(data, meta, check_digest):
             if returned:
                 fail('返程后出现新增事实')
             kind, value = event['kind'], event['data']
+            if not isinstance(value, dict):
+                fail('钓鱼事件内容无效')
             xp[(owner, actor)] += value.get('experience', 0)
             if kind not in ('cast','duel_end') and value.get('experience',0): fail('非收获步骤不能增加经验')
             if kind == 'choice':

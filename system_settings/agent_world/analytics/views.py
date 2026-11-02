@@ -1,9 +1,11 @@
+import logging
 from datetime import date, datetime, time, timedelta
 from django.db.models import Q
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from system_logs.capture import capture
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
 from ..life_time import SHANGHAI, storage_time
@@ -13,9 +15,11 @@ from ..serializers import LedgerSerializer
 from .queries import load_facts, visible_resident_ids
 from .service import aggregate
 from .combat_statistics import load_combat_statistics
-from .fishing_statistics import load_fishing_statistics
+from .fishing_statistics import InvalidFishingStatisticsSource, load_fishing_statistics
 from .lottery_statistics import load_lottery_statistics
 from .consistency import analytics_snapshot
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsParams(serializers.Serializer):
@@ -47,11 +51,19 @@ class AnalyticsView(APIView):
             if actor and actor not in facts.residents:
                 raise PermissionDenied('无法查看该居民的数据。')
             residents = {key: value for key, value in facts.residents.items() if not actor or key == actor}
+            try:
+                fishing = load_fishing_statistics(owner, start, end, residents, include_daily=include_daily)
+            except InvalidFishingStatisticsSource as exc:
+                logger.warning('钓鱼统计来源无效 owner=%s：%s', owner, exc)
+                capture('钓鱼统计来源无效', module='agent_world', error_type='invalid_fishing_statistics_source',
+                        user_id=owner, resource_id=exc.trip_id, fishing_trip_id=exc.trip_id,
+                        fishing_event_id=exc.event_id, reason=f'{exc.reason}；事件 ID：{exc.event_id}')
+                return valid_result('钓鱼记录存在异常，无法计算完整统计，请查看系统日志。',
+                                    {'reason': 'invalid_fishing_statistics_source'}, status=409)
             return success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
                                    **aggregate(facts, first, last, actor),
                                    'lotteryStatistics': load_lottery_statistics(owner, start, end, residents),
-                                   'fishingComparison': load_fishing_statistics(owner, start, end, residents,
-                                                                                include_daily=include_daily),
+                                   'fishingComparison': fishing,
                                    'combatComparison': load_combat_statistics(owner, start, end, residents,
                                                                             include_daily=include_daily)})
 

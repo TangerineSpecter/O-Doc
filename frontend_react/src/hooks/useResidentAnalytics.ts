@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
+import axios from 'axios';
 import {getResidentAnalytics} from '../api/residentAnalytics';
-import type {AnalyticsFilters, ResidentAnalytics} from '../types/api/residentAnalytics';
+import type {AnalyticsFilters, ResidentAnalytics, ResidentAnalyticsSourceError} from '../types/api/residentAnalytics';
 
 export function useResidentAnalytics(filters: AnalyticsFilters, refresh: number, valid: boolean) {
     const {start_date, end_date, actor_id} = filters;
@@ -11,8 +12,11 @@ export function useResidentAnalytics(filters: AnalyticsFilters, refresh: number,
         if (valid) {
             getResidentAnalytics({start_date, end_date, actor_id}, controller.signal).then(data => {
                 if (!controller.signal.aborted) setResult({key, data, error: ''});
-            }).catch(() => {
-                if (!controller.signal.aborted) setResult({key, data: null, error: '居民数据加载失败，请刷新重试'});
+            }).catch((error: unknown) => {
+                const response = axios.isAxiosError<ResidentAnalyticsSourceError>(error) ? error.response : undefined;
+                const message = response?.status === 409 && response.data?.data?.reason === 'invalid_fishing_statistics_source'
+                    ? response.data.msg : '居民数据加载失败，请刷新重试';
+                if (!controller.signal.aborted) setResult({key, data: null, error: message});
             });
         }
         return () => controller.abort();

@@ -634,6 +634,37 @@ class FishingAnalyticsTests(TestCase):
     setUp = AnalyticsTests.setUp
     fetch = AnalyticsTests.fetch
 
+    def test_malformed_raw_fishing_event_returns_diagnostic_without_partial_statistics(self):
+        from ..fishing.models import FishingEvent, FishingTrip
+
+        trip = FishingTrip.objects.create(id='invalid-trip', life_item_id='invalid-trip', owner_id='admin',
+            actor_id=self.a.pk, actor_name=self.a.name, departed_at=self.at, ended_at=self.at)
+        event = FishingEvent.objects.create(id='invalid-trip:1', trip=trip, sequence=1, kind='cast',
+                                            data={'outcome': {'kind': 'empty'}}, created_at=self.at)
+        for data in ([], {'outcome': None}, {'outcome': {}, 'catch': []},
+                     {'outcome': {}, 'experience': -1}):
+            with self.subTest(data=data):
+                FishingEvent.objects.filter(pk=event.pk).update(data=data)
+                with patch('system_settings.agent_world.analytics.views.capture') as captured, self.assertLogs(
+                        'system_settings.agent_world.analytics.views', level='WARNING') as logged:
+                    response = self.client.get('/api/settings/agent-world/analytics/', {
+                        'start_date': '2026-10-01', 'end_date': '2026-10-02', 'actor_id': self.a.pk})
+                self.assertEqual(response.status_code, 409)
+                self.assertEqual(response.data['data']['reason'], 'invalid_fishing_statistics_source')
+                self.assertIn('钓鱼记录存在异常', response.data['msg'])
+                self.assertNotIn(event.pk, str(response.data))
+                self.assertIn(event.pk, '\n'.join(logged.output))
+                self.assertEqual(captured.call_args.kwargs['fishing_trip_id'], trip.pk)
+                self.assertEqual(captured.call_args.kwargs['fishing_event_id'], event.pk)
+                self.assertEqual(captured.call_args.kwargs['resource_id'], trip.pk)
+                self.assertIn(event.pk, captured.call_args.kwargs['reason'])
+        FishingEvent.objects.filter(pk=event.pk).update(data={'outcome': {'kind': 'empty'}})
+        foreign = FishingTrip.objects.create(id='foreign-invalid-trip', life_item_id='foreign-invalid-trip',
+            owner_id='other', actor_id=self.a.pk, actor_name=self.a.name, departed_at=self.at, ended_at=self.at)
+        FishingEvent.objects.create(id='foreign-invalid:1', trip=foreign, sequence=1, kind='cast',
+                                    data={'outcome': None}, created_at=self.at)
+        self.assertEqual(self.fetch(self.a.pk)['fishingComparison'][0]['empty'], 1)
+
     def test_fishing_event_window_owner_filter_and_denominator(self):
         from ..fishing.models import FishingTrip, FishingEvent
         before = self.at - timedelta(days=2)

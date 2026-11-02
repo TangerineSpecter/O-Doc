@@ -1,5 +1,12 @@
 import {analytics} from './social';
 import {day} from './residents';
+import type {ResidentAnalyticsSourceError} from '../../types/api/residentAnalytics';
+
+export const fishingAnalyticsSourceError: ResidentAnalyticsSourceError = {
+    code: 400,
+    msg: '钓鱼记录存在异常，无法计算完整统计，请查看系统日志。',
+    data: {reason: 'invalid_fishing_statistics_source'},
+};
 
 export function fishingAnalyticsMock(url: URL, empty: boolean) {
     if (empty) return [];
