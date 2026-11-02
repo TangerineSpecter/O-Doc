@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {observationRequests, observationRoute} from '../mocks/agentWorld/tokenUsage.ts';
-import {observedActivities, knownTokens, changedBlocks, dayOf, shiftDay, inputClues} from './tokenObservatory.ts';
+import {activityFilterOptions, matchesActivityFilter, observedActivities, knownTokens, changedBlocks, dayOf, shiftDay, periodForRange, inputClues} from './tokenObservatory.ts';
+import {readObservationFacts} from './observationFacts.ts';
 import {inputBlocksFromRequest, outputFromResponse} from './executionFlow.ts';
-import type {DailyFeedEvent} from '../types/api/dailyFeed.ts';
+import type {DailyFeedEvent, DailyFeedResult} from '../types/api/dailyFeed.ts';
 import type {TokenRequests} from '../types/api/tokenUsage.ts';
 
 test('只有明确执行与居民身份才合并；无 ID 请求独立且按时间正序', () => {
@@ -29,6 +30,50 @@ test('未知、真实零和已知消耗分别保留', () => {
 test('上海跨日归属与前后一天独立于浏览器时区', () => {
     assert.equal(dayOf('2026-10-21T16:00:00Z'), '2026-10-22');
     assert.equal(shiftDay('2026-03-01', -1), '2026-02-28');
+    assert.equal(periodForRange({start: '2026-10-27', end: '2026-11-02'}, '2026-11-02'), '7');
+    assert.equal(periodForRange({start: '2026-10-20', end: '2026-10-26'}, '2026-11-02'), 'custom');
+});
+
+test('活动筛选按真实标题或独立事实分类，关联事实留在原活动中', () => {
+    const base = observationRequests[0];
+    const request = {...base, id: 'farm-1', recordKey: 'farm-run', taskName: '农场经营'};
+    const fact: DailyFeedEvent = {id: 'fact-1', actorId: base.agentKey, actorName: base.agentName, occurredAt: base.startedAt,
+        category: 'farm', source: 'run', title: '完成收获', detail: '', status: 'success', amount: null,
+        target: {kind: 'run', id: request.recordKey}};
+    const activities = observedActivities([request, {...request, id: 'farm-2', recordKey: 'another-run'}],
+        [fact, {...fact, id: 'standalone', title: '农场经营', target: null}]);
+    const options = activityFilterOptions(activities);
+    assert.equal(options.find(option => option.value === 'activity:农场经营')?.count, 3);
+    assert.equal(options.find(option => option.value === 'fact:farm')?.label, '未关联事实 · 农场');
+    assert.equal(activities.filter(item => matchesActivityFilter(item, 'activity:农场经营')).flatMap(item => item.facts).length, 2);
+    assert.equal(activities.filter(item => matchesActivityFilter(item, 'fact:farm')).length, 1);
+});
+
+test('跨日事实读取包含起止日并在越过起始日后停止', async () => {
+    const base: DailyFeedEvent = {id: '', actorId: 'actor', actorName: '居民', category: 'farm', source: 'farm',
+        occurredAt: '', title: '农场', detail: '', status: 'success', amount: null, target: null};
+    const event = (id: string, occurredAt: string) => ({...base, id, occurredAt});
+    const page = (items: DailyFeedEvent[], nextCursor: string | null, hasMore: boolean): DailyFeedResult =>
+        ({date: '2026-10-10', items, nextCursor, hasMore, total: items.length, allTotal: items.length, counts: {}, actorCounts: {}});
+    const pages = [
+        page([event('end', '2026-10-10T23:59:00+08:00')], 'second', true),
+        page([event('start', '2026-10-08T00:00:00+08:00'), event('older', '2026-10-07T23:59:00+08:00')], 'third', true),
+    ];
+    const queries: {date?: string; cursor?: string}[] = [];
+    const rows = await readObservationFacts(async query => {queries.push(query); return pages[queries.length - 1];},
+        'actor', '2026-10-08', '2026-10-10', new AbortController().signal);
+    assert.deepEqual(rows.map(row => row.id), ['end', 'start']);
+    assert.equal(queries[0].cursor, '2026-10-11T00:00:00+08:00|!');
+    assert.equal(queries[0].date, undefined);
+    assert.equal(queries.length, 2);
+
+    const single: {date?: string; cursor?: string}[] = [];
+    await readObservationFacts(async query => {single.push(query); return page([], null, false);},
+        'actor', '2026-10-08', '2026-10-08', new AbortController().signal);
+    assert.equal(single[0].date, '2026-10-08');
+    assert.equal(single[0].cursor, undefined);
+    await assert.rejects(() => readObservationFacts(async () => page([], 'same', true),
+        'actor', '2026-10-08', '2026-10-10', new AbortController().signal), /游标无效/);
 });
 
 test('工具 Schema、调用参数与 tool_call_id 不再被流程解析丢弃', () => {

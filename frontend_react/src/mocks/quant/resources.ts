@@ -1,3 +1,4 @@
+import {diaryMockResources} from '../diary';
 import {HttpResponse} from 'msw';
 import type {ResourceUploadResponse, ResourceItem, ResourceListResponse} from '../../types/api/resources';
 import {mockScenario, persistQuantState, quantId, quantState} from './state';
@@ -22,6 +23,7 @@ export async function resolveQuantResources(request: Request): Promise<unknown> 
             const entry = state.entries.find(row => row.attachments.some(ref => ref.assetId === asset.id));
             return {id: asset.id, name: asset.name, type: asset.type, size: asset.size, date: entry?.updatedAt || new Date().toISOString(), linked: Boolean(entry), fileExists: true, sourceArticle: null, sourceType: 'quant', sourceQuant: entry ? {id: entry.id, title: entry.title, collId: entry.collId} : null};
         });
+        allRows.unshift(...diaryMockResources(mockScenario() === 'empty'));
         const rows = allRows.filter(row => (!url.searchParams.get('type') || url.searchParams.get('type') === 'all' || row.type === url.searchParams.get('type')) && (!url.searchParams.get('searchQuery') || row.name.toLowerCase().includes(url.searchParams.get('searchQuery')!.toLowerCase())) && (!url.searchParams.has('linked') || row.linked === (url.searchParams.get('linked') === 'true')) && url.searchParams.get('missing') !== 'true');
         const page = Math.max(1, Number(url.searchParams.get('page')) || 1), pageSize = Math.max(1, Number(url.searchParams.get('pageSize')) || 24);
         const totalSize = rows.reduce((size, row) => size + row.size, 0);

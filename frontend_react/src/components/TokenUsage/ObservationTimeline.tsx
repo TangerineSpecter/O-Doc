@@ -1,11 +1,11 @@
 import {requestPhaseName} from '../../utils/tokenUsageLabels';
 import {Check, Cpu, FileText, Sparkles} from 'lucide-react';
 import type {ObservedActivity} from '../../utils/tokenObservatory';
-import {clockTime, knownTokens} from '../../utils/tokenObservatory';
+import {knownTokens, observationTime} from '../../utils/tokenObservatory';
 import {tokenNumber} from '../../utils/tokenUsage';
 
-export default function ObservationTimeline({activities, selected, onSelect}: {
-    activities: ObservedActivity[]; selected?: string; onSelect: (id: string) => void;
+export default function ObservationTimeline({activities, selected, onSelect, showDate}: {
+    activities: ObservedActivity[]; selected?: string; onSelect: (id: string) => void; showDate: boolean;
 }) {
     const totalRequests = activities.reduce((sum, item) => sum + item.requests.length, 0);
     const factOnlyCount = activities.filter(item => item.requests.length === 0).length;
@@ -13,7 +13,7 @@ export default function ObservationTimeline({activities, selected, onSelect}: {
     return (
         <aside
             className="flex min-h-0 flex-col rounded-2xl border border-slate-200/90 bg-white shadow-2xs"
-            aria-label="当天时间轴"
+            aria-label="活动时间轴"
         >
             {/* 时间轴标题与简报 */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -84,7 +84,7 @@ export default function ObservationTimeline({activities, selected, onSelect}: {
                                                 isSelected ? 'text-orange-600' : 'text-slate-500'
                                             }`}
                                         >
-                                            {clockTime(item.startedAt)}
+                                            {observationTime(item.startedAt, showDate)}
                                         </time>
                                         {!hasRequests ? (
                                             <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">

@@ -411,7 +411,7 @@ def is_asset_referenced(asset):
     return (asset.is_linked or is_asset_used_by_image(asset.pk)
             or is_asset_used_by_article(asset.pk) or is_asset_used_by_agent(asset.pk)
             or is_asset_used_by_prompt(asset.pk)
-            or is_asset_used_by_quant(asset.pk)
+            or is_asset_used_by_quant(asset.pk) or is_asset_used_by_diary(asset.pk)
             or Book.objects.filter(Q(asset=asset) | Q(cover_asset=asset), is_valid=True).exists())
 
 
@@ -441,4 +441,25 @@ def get_quant_resource_usage(resource_ids=None, *, owner=None):
     for ref in mt4_refs.order_by('created_at', 'pk'):
         usage.setdefault(ref.asset_id, {'id': ref.expert_id, 'title': ref.expert.name,
                                        'collId': ref.expert.anthology_id})
+    return usage
+
+
+def is_asset_used_by_diary(resource_id, *, include_deleted=False):
+    from django.db.models import Q
+    from memos.diary_models import DiaryEntry
+    entries = DiaryEntry.objects.filter(Q(cover_asset_id=resource_id) | Q(image_asset_ids__contains=[resource_id]))
+    return entries.exists() if include_deleted else entries.filter(is_valid=True).exists()
+
+
+def get_diary_resource_usage(resource_ids=None, *, owner=None):
+    from memos.diary_models import DiaryEntry
+    entries = DiaryEntry.objects.filter(is_valid=True)
+    if owner is not None:
+        entries = entries.filter(user_id=owner)
+    wanted = set(resource_ids) if resource_ids is not None else None
+    usage = {}
+    for entry in entries.only('diary_id', 'title', 'cover_asset_id', 'image_asset_ids'):
+        for asset_id in entry.image_asset_ids or ([entry.cover_asset_id] if entry.cover_asset_id else []):
+            if wanted is None or asset_id in wanted:
+                usage.setdefault(asset_id, {'id': entry.diary_id, 'title': entry.title})
     return usage

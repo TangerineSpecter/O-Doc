@@ -3,6 +3,7 @@ import {getDailyFeed} from '../api/agentWorld';
 import {getTokenRequests} from '../api/tokenUsage';
 import type {TokenFilters, TokenRequest} from '../types/api/tokenUsage';
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
+import {readObservationFacts} from '../utils/observationFacts';
 
 async function allRequests(filters: TokenFilters, signal: AbortSignal): Promise<TokenRequest[]> {
     const rows = new Map<string, TokenRequest>();
@@ -19,32 +20,17 @@ async function allRequests(filters: TokenFilters, signal: AbortSignal): Promise<
     return [];
 }
 
-async function allFacts(agentId: string, date: string, signal: AbortSignal): Promise<DailyFeedEvent[]> {
-    const rows = new Map<string, DailyFeedEvent>();
-    const cursors = new Set<string>();
-    let cursor: string | undefined;
-    while (!signal.aborted) {
-        const page = await getDailyFeed({category: 'all', actor_id: agentId, date, cursor, page_size: 30}, signal);
-        page.items.forEach(row => rows.set(row.id, row));
-        if (!page.hasMore) return [...rows.values()];
-        if (!page.nextCursor || cursors.has(page.nextCursor)) throw new Error('活动分页游标无效');
-        cursor = page.nextCursor;
-        cursors.add(cursor);
-    }
-    return [];
-}
-
 interface State {key: string; requests: TokenRequest[]; facts: DailyFeedEvent[]; errors: string[]}
-export function useTokenObservatory(agentId: string, date: string, recordId?: string, refresh = 0) {
-    const key = JSON.stringify([agentId, date, recordId, refresh]);
+export function useTokenObservatory(agentId: string, start: string, end: string, recordId?: string, refresh = 0) {
+    const key = JSON.stringify([agentId, start, end, recordId, refresh]);
     const [state, setState] = useState<State>({key: '', requests: [], facts: [], errors: []});
     useEffect(() => {
         const controller = new AbortController();
-        const [actor, day, record] = JSON.parse(key) as [string, string, string | undefined];
-        const filters: TokenFilters = record ? {all: '1', record_id: record} : {agent_id: actor, start_date: day, end_date: day};
+        const [actor, firstDay, lastDay, record] = JSON.parse(key) as [string, string, string, string | undefined];
+        const filters: TokenFilters = record ? {all: '1', record_id: record} : {agent_id: actor, start_date: firstDay, end_date: lastDay};
         void Promise.allSettled([
             allRequests(filters, controller.signal),
-            !record && actor ? allFacts(actor, day, controller.signal) : Promise.resolve([] as DailyFeedEvent[]),
+            !record && actor ? readObservationFacts(getDailyFeed, actor, firstDay, lastDay, controller.signal) : Promise.resolve([] as DailyFeedEvent[]),
         ]).then(([requests, facts]) => {
             if (controller.signal.aborted) return;
             setState({key, requests: requests.status === 'fulfilled' ? requests.value : [], facts: facts.status === 'fulfilled' ? facts.value : [],

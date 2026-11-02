@@ -200,7 +200,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
     const [page, setPage] = useState(1);
     const [refresh, setRefresh] = useState(0);
     const [focus, setFocus] = useState<{name: string; filters: TokenFilters} | null>(null);
-    const [observing, setObserving] = useState<{agentId: string; name: string; date: string} | null>(null);
+    const [observing, setObserving] = useState<{agentId: string; name: string; start: string; end: string} | null>(null);
 
     // 加载 Agent 配置（获取 avatar 头像）与任务配置（获取 taskKind 及对应 SVG 图标）
     const [agentMap, setAgentMap] = useState<Record<string, {avatar?: string; name: string}>>({});
@@ -255,7 +255,8 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
 
     const inspect = (row: TokenGroup) => {
         if (group === 'agent') {
-            setObserving({agentId: row.key, name: row.name || '系统规划', date: filters.end_date || shanghaiDay()});
+            const end = filters.end_date || shanghaiDay();
+            setObserving({agentId: row.key, name: row.name || '系统规划', start: filters.start_date || end, end});
             return;
         }
         setFocus({
@@ -687,7 +688,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
 
                                         return (
                                             <button type="button"
-                                                aria-label={`${group === 'agent' ? '查看当天执行观测' : '查看用量详情'}：${title}`}
+                                                aria-label={`${group === 'agent' ? '查看人物执行观测' : '查看用量详情'}：${title}`}
                                                 key={row.key}
                                                 onClick={() => inspect(row)}
                                                 className="group relative flex w-full text-left flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/40 p-3.5 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-xs transition-all duration-150 cursor-pointer"
@@ -812,7 +813,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                     </section>
                 )}
             </div>
-            {observing && <ExecutionObservatoryDialog agentId={observing.agentId} agentName={observing.name} avatar={agentMap[observing.agentId]?.avatar} initialDate={observing.date} onClose={() => setObserving(null)}/>}
+            {observing && <ExecutionObservatoryDialog agentId={observing.agentId} agentName={observing.name} avatar={agentMap[observing.agentId]?.avatar} initialStartDate={observing.start} initialDate={observing.end} onClose={() => setObserving(null)}/>}
         </WorldDialog>
     );
 }

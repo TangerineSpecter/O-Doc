@@ -1,9 +1,6 @@
 import {requestPhaseName} from '../../utils/tokenUsageLabels';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {
-    ArrowLeft,
-    ArrowRight,
-    Calendar,
     CalendarClock,
     CheckCircle2,
     ChevronDown,
@@ -17,11 +14,14 @@ import {
 import WorldDialog from '../AgentWorld/WorldDialog';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import {useTokenObservatory} from '../../hooks/useTokenObservatory';
-import {clockTime, dayOf, knownTokens, observedActivities, requestOrder, shiftDay} from '../../utils/tokenObservatory';
+import {activityFilterOptions, dayOf, knownTokens, matchesActivityFilter, observationTime, observedActivities, periodForRange, requestOrder} from '../../utils/tokenObservatory';
 import {requestStatus, shanghaiDay, tokenNumber} from '../../utils/tokenUsage';
+import {Select} from '../common/Select';
 import ObservationOverview from './ObservationOverview';
 import ObservationTimeline from './ObservationTimeline';
 import ObservationInspector from './ObservationInspector';
+import ObservationPeriod from './ObservationPeriod';
+import type {ObservationPeriodMode, ObservationRange} from './ObservationPeriod';
 
 export interface ObservatoryProps {
     recordId?: string | null;
@@ -31,6 +31,7 @@ export interface ObservatoryProps {
     taskName?: string;
     startedAt?: string;
     initialDate?: string;
+    initialStartDate?: string;
     onClose: () => void;
 }
 
@@ -42,32 +43,45 @@ export default function ExecutionObservatoryDialog({
     taskName,
     startedAt,
     initialDate,
+    initialStartDate,
     onClose,
 }: ObservatoryProps) {
     const today = shanghaiDay();
-    const [date, setDate] = useState(() => initialDate || (startedAt ? dayOf(startedAt) : today));
+    const [range, setRange] = useState<ObservationRange>(() => {
+        const end = initialDate || (startedAt ? dayOf(startedAt) : today);
+        return {start: initialStartDate && initialStartDate <= end ? initialStartDate : end, end};
+    });
+    const [period, setPeriod] = useState<ObservationPeriodMode>(() => periodForRange(range, today));
     const [actor, setActor] = useState(agentId);
     const [daily, setDaily] = useState(!recordId);
     const [refresh, setRefresh] = useState(0);
     const [activityId, setActivityId] = useState('');
     const [requestId, setRequestId] = useState('');
+    const [activityFilter, setActivityFilter] = useState({value: '', label: '全部活动'});
     const [factsExpanded, setFactsExpanded] = useState(false);
     const stepsContainerRef = useRef<HTMLDivElement>(null);
 
     const {requests, facts, errors, loading} = useTokenObservatory(
         actor,
-        date,
+        range.start,
+        range.end,
         daily ? undefined : recordId || undefined,
         refresh
     );
-    const ordered = useMemo(() => [...requests].sort(requestOrder), [requests]);
     const activities = useMemo(() => observedActivities(requests, facts), [requests, facts]);
-    const activity = activities.find(a => a.id === activityId) || activities[0];
+    const filterOptions = useMemo(() => activityFilterOptions(activities), [activities]);
+    const visibleActivities = useMemo(() => daily && activityFilter.value
+        ? activities.filter(item => matchesActivityFilter(item, activityFilter.value)) : activities,
+    [activities, activityFilter.value, daily]);
+    const ordered = useMemo(() => visibleActivities.flatMap(item => item.requests).sort(requestOrder), [visibleActivities]);
+    const hasUnlinkedFacts = visibleActivities.some(item => item.requests.length === 0);
+    const activity = visibleActivities.find(a => a.id === activityId) || visibleActivities[0];
     const current = activity?.requests.find(r => r.id === requestId) || activity?.requests[0];
     const previous = current && activity ? activity.requests[activity.requests.indexOf(current) - 1] : undefined;
     const name = daily
         ? requests.find(r => r.agentKey === actor)?.agentName || agentName || (actor ? '居民' : '系统规划')
         : taskName || '任务执行';
+    const showDate = !daily || range.start !== range.end;
 
     // 仅在横向列表内部微调水平 scrollLeft，绝不触发全局或垂直祖先容器的 scrollIntoView
     useEffect(() => {
@@ -88,17 +102,15 @@ export default function ExecutionObservatoryDialog({
     const buttonClass =
         'inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-95 transition-all';
 
-    const isToday = date === today;
-
     return (
         <WorldDialog
             title="执行观测"
-            description={daily ? '北京时间 · 当天全部已采集调用与业务事实' : '本次执行 · 包含跨日请求'}
+            description={daily ? '北京时间 · 所选周期内的已采集调用与业务事实' : '本次执行 · 包含跨日请求'}
             size="extra-wide"
             zIndex={140}
             onClose={onClose}
         >
-            <div className="flex min-h-0 flex-1 flex-col gap-2.5 rounded-xl bg-slate-50 p-2.5 sm:p-3">
+            <div className="flex min-h-max flex-1 flex-col gap-2.5 rounded-xl bg-slate-50 p-2.5 sm:p-3 lg:min-h-0">
                 {/* 顶部身份与日期工具栏 */}
                 <header className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/90 bg-white p-2.5 sm:px-3 sm:py-2 shadow-2xs">
                     {/* 左侧：居民身份 / 执行标识 */}
@@ -109,18 +121,18 @@ export default function ExecutionObservatoryDialog({
                                 className={`absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold text-white shadow-2xs ${
                                     daily ? 'bg-orange-500' : 'bg-blue-500'
                                 }`}
-                                title={daily ? '居民全天观测' : '单次执行分析'}
+                                title={daily ? '居民活动观测' : '单次执行分析'}
                             >
-                                {daily ? '日' : '次'}
+                                {daily ? '观' : '次'}
                             </span>
                         </div>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
                                 <h2 className="truncate text-sm sm:text-base font-bold text-slate-900">
-                                    {name}{daily ? '的一天' : ''}
+                                    {name}{daily ? '的活动观测' : ''}
                                 </h2>
                                 <span className="rounded-full bg-slate-100 px-1.5 py-0.2 text-[9px] font-medium text-slate-500">
-                                    {daily ? '全天观测' : '任务执行'}
+                                    {daily ? '人物观测' : '任务执行'}
                                 </span>
                             </div>
                             <p className="truncate text-[11px] text-slate-400">
@@ -132,57 +144,19 @@ export default function ExecutionObservatoryDialog({
                     {/* 右侧：日期切换与操作控制 */}
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         {daily ? (
-                            <div className="flex items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-50 p-1">
-                                <button
-                                    type="button"
-                                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:shadow-2xs active:scale-95 transition-all"
-                                    aria-label="前一天"
-                                    title="前一天"
-                                    onClick={() => setDate(day => shiftDay(day, -1))}
-                                >
-                                    <ArrowLeft className="h-3.5 w-3.5" />
-                                </button>
-
-                                <div className="relative flex items-center gap-1.5 px-1.5">
-                                    <Calendar className="h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                                    <input
-                                        type="date"
-                                        aria-label="观测日期"
-                                        value={date}
-                                        onChange={e => {
-                                            if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setDate(e.target.value);
-                                        }}
-                                        className="w-28 bg-transparent font-mono text-xs font-semibold text-slate-700 outline-none focus:ring-0 cursor-pointer"
-                                    />
-                                </div>
-
-                                <button
-                                    type="button"
-                                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:shadow-2xs active:scale-95 transition-all"
-                                    aria-label="后一天"
-                                    title="后一天"
-                                    onClick={() => setDate(day => shiftDay(day, 1))}
-                                >
-                                    <ArrowRight className="h-3.5 w-3.5" />
-                                </button>
-
-                                {!isToday && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setDate(today)}
-                                        className="ml-1 rounded-md bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-600 hover:bg-orange-100 transition-colors"
-                                    >
-                                        今天
-                                    </button>
-                                )}
-                            </div>
+                            <ObservationPeriod range={range} mode={period} today={today} onChange={(next, mode) => {
+                                setRange(next);
+                                setPeriod(mode);
+                            }}/>
                         ) : current?.agentKey ? (
                             <button
                                 type="button"
                                 className={buttonClass}
                                 onClick={() => {
                                     setActor(current.agentKey);
-                                    setDate(dayOf(current.startedAt));
+                                    const day = dayOf(current.startedAt);
+                                    setRange({start: day, end: day});
+                                    setPeriod('day');
                                     setDaily(true);
                                 }}
                             >
@@ -241,13 +215,38 @@ export default function ExecutionObservatoryDialog({
                     </div>
                 ) : (
                     <>
+                        {daily && (
+                            <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2">
+                                <span className="text-xs font-semibold text-slate-700">活动筛选</span>
+                                <div className="w-52 max-w-full">
+                                    <Select ariaLabel="活动筛选" value={activityFilter.value} menuPortal menuClassName="scrollbar-hide"
+                                        buttonClassName="!min-h-8 !py-1 !px-2 !text-xs !shadow-none"
+                                        options={[
+                                            {value: '', label: '全部活动'},
+                                            ...filterOptions.map(option => ({value: option.value, label: `${option.label}（${option.count}）`})),
+                                            ...(activityFilter.value && !filterOptions.some(option => option.value === activityFilter.value)
+                                                ? [{value: activityFilter.value, label: activityFilter.label}] : []),
+                                        ]}
+                                        onChange={value => {
+                                            const selected = filterOptions.find(option => option.value === value);
+                                            setActivityFilter({value, label: selected?.label || '全部活动'});
+                                            setActivityId('');
+                                            setRequestId('');
+                                        }}/>
+                                </div>
+                                <span className="text-[11px] text-slate-400">{visibleActivities.length} / {activities.length} 项 · 概览按筛选结果统计{hasUnlinkedFacts ? ' · 含未关联请求的业务事实' : ''}</span>
+                            </div>
+                        )}
+
                         {/* 顶部四联指标概览 */}
                         <ObservationOverview
                             requests={ordered}
                             selected={current?.id}
+                            showDate={showDate}
+                            hasUnlinkedFacts={hasUnlinkedFacts}
                             unavailable={errors.some(e => e.startsWith('模型请求'))}
                             onSelect={row => {
-                                const match = activities.find(a => a.requests.some(r => r.id === row.id));
+                                const match = visibleActivities.find(a => a.requests.some(r => r.id === row.id));
                                 if (match) setActivityId(match.id);
                                 setRequestId(row.id);
                             }}
@@ -257,14 +256,15 @@ export default function ExecutionObservatoryDialog({
                         {!activity ? (
                             <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-xs text-slate-400">
                                 <CalendarClock className="h-7 w-7 text-slate-300" />
-                                <p>{errors.length ? '数据读取不完整，请重试' : '此观测范围暂无已采集请求或业务活动'}</p>
+                                <p>{errors.length ? '数据读取不完整，请重试' : activityFilter.value && daily ? '所选活动在此周期暂无记录，可切换活动或日期' : '此观测范围暂无已采集请求或业务活动'}</p>
                             </div>
                         ) : (
-                            <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,2fr)] gap-3.5 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1">
+                            <div className="grid min-h-[440px] flex-1 grid-rows-[minmax(180px,1fr)_minmax(260px,2fr)] gap-3.5 overflow-hidden lg:min-h-0 lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1">
                                 {/* 左侧时序时间轴 */}
                                 <ObservationTimeline
-                                    activities={activities}
+                                    activities={visibleActivities}
                                     selected={activity.id}
+                                    showDate={showDate}
                                     onSelect={id => {
                                         setActivityId(id);
                                         setRequestId('');
@@ -282,7 +282,7 @@ export default function ExecutionObservatoryDialog({
                                             <div className="min-w-0">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span className="font-mono text-xs font-bold text-orange-600">
-                                                        {clockTime(activity.startedAt)}
+                                                        {observationTime(activity.startedAt, showDate)}
                                                     </span>
                                                     <h3 className="text-sm sm:text-base font-bold text-slate-900">
                                                         {activity.title}
@@ -345,7 +345,7 @@ export default function ExecutionObservatoryDialog({
                                                             data-request-id={row.id}
                                                             aria-pressed={isSelected}
                                                             onClick={() => setRequestId(row.id)}
-                                                            className={`group relative flex shrink-0 flex-col justify-between w-48 sm:w-52 h-[52px] rounded-xl border p-2 text-left transition-all ${
+                                                            className={`group relative flex h-[52px] shrink-0 flex-col justify-between rounded-xl border p-2 text-left transition-all ${showDate ? 'w-60 sm:w-64' : 'w-48 sm:w-52'} ${
                                                                 isSelected
                                                                     ? 'border-orange-400 bg-orange-50/70 shadow-xs ring-1 ring-orange-300'
                                                                     : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50 shadow-2xs'
@@ -382,9 +382,9 @@ export default function ExecutionObservatoryDialog({
                                                                 </span>
                                                             </div>
 
-                                                            <div className="flex items-center justify-between text-[10px] text-slate-400 leading-none">
+                                                            <div className="flex items-center justify-between gap-2 whitespace-nowrap text-[10px] text-slate-400 leading-none">
                                                                 <span className="flex items-center gap-1 font-mono">
-                                                                    <span>{clockTime(row.startedAt)}</span>
+                                                                    <span>{observationTime(row.startedAt, showDate)}</span>
                                                                     <span
                                                                         className={`font-medium ${
                                                                             isFail
@@ -444,7 +444,7 @@ export default function ExecutionObservatoryDialog({
                                                                     <div className="flex items-center justify-between text-xs">
                                                                         <span className="font-bold text-slate-800">{fact.title}</span>
                                                                         <span className="font-mono text-[11px] text-slate-400">
-                                                                            {clockTime(fact.occurredAt)} · {requestStatus[fact.status] || fact.status}
+                                                                            {observationTime(fact.occurredAt, showDate)} · {requestStatus[fact.status] || fact.status}
                                                                         </span>
                                                                     </div>
                                                                     <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600">
@@ -490,7 +490,7 @@ export default function ExecutionObservatoryDialog({
                                                                     </h5>
                                                                     <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                                                                         <CheckCircle2 className="h-3 w-3" />
-                                                                        {clockTime(fact.occurredAt)} · {requestStatus[fact.status] || fact.status}
+                                                                        {observationTime(fact.occurredAt, showDate)} · {requestStatus[fact.status] || fact.status}
                                                                     </span>
                                                                 </div>
 

@@ -1,3 +1,5 @@
+import type {PendingArticleIllustration} from '../types/api/prompt';
+import {resolveDiaryRoute} from './diary';
 import {delay, http, HttpResponse} from 'msw';
 import {resolveLocalRoute} from './agentWorld/routes';
 import {resolveQuantRoute} from './quant/routes';
@@ -7,13 +9,17 @@ import {analyticsTiming} from './agentWorld/analyticsTiming';
 import packageJson from '../../package.json' with {type: 'json'};
 
 export const localHandlers = [
+    http.get('/api/prompt/article-illustration/pending', () => HttpResponse.json({code: 200, msg: '本地样例', data: [] satisfies PendingArticleIllustration[]})),
     http.get('https://api.github.com/repos/TangerineSpecter/O-Doc/tags', () => HttpResponse.json([{name: `v${packageJson.version}`, commit: {sha: '0'.repeat(40)}}])),
     http.all('/api/*', async ({request}) => {
         const state = new URLSearchParams(location.search).get('mockState');
         if (state === 'slow') await delay(1800);
-        if (state === 'error' && (new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/') || new URL(request.url).pathname.startsWith('/api/novel/') || new URL(request.url).pathname.startsWith('/api/article/image/') || new URL(request.url).pathname === '/api/settings/locations/' || new URL(request.url).pathname === '/api/article/list')) {
+        if (state === 'error' && (new URL(request.url).pathname.startsWith('/api/diary/') || (new URL(request.url).pathname.startsWith('/api/resource/') && new URL(request.url).pathname !== '/api/resource/list') || new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/') || new URL(request.url).pathname.startsWith('/api/novel/') || new URL(request.url).pathname.startsWith('/api/article/image/') || new URL(request.url).pathname === '/api/settings/locations/' || new URL(request.url).pathname === '/api/article/list')) {
             return HttpResponse.json({code: 503, msg: '本地模拟接口失败，可切回样例状态重试', data: null}, {status: 503});
         }
+        const diaryData = await resolveDiaryRoute(request.clone(), state === 'empty');
+        if (diaryData instanceof Response) return diaryData;
+        if (diaryData !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: diaryData});
         const quantData = await resolveQuantRoute(request.clone());
         const imageData = quantData === undefined ? await resolveImageGalleryRoute(request.clone(), state === 'empty') : undefined;
         const novelData = quantData === undefined && imageData === undefined ? await resolveNovelReaderRoute(request.clone(), state === 'empty') : undefined;

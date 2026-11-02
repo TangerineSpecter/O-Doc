@@ -24,10 +24,19 @@ export function dayOf(value: string): string {
 export function clockTime(value: string): string {
     return new Date(value).toLocaleTimeString('zh-CN', {timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false});
 }
+export function observationTime(value: string, showDate: boolean): string {
+    return showDate ? `${dayOf(value)} ${clockTime(value)}` : clockTime(value);
+}
 export function shiftDay(day: string, offset: number): string {
     const date = new Date(`${day}T12:00:00+08:00`);
     date.setUTCDate(date.getUTCDate() + offset);
     return dayOf(date.toISOString());
+}
+export function periodForRange(range: {start: string; end: string}, today: string): 'day' | '7' | '30' | 'custom' {
+    if (range.start === range.end) return 'day';
+    if (range.end === today && range.start === shiftDay(today, -6)) return '7';
+    if (range.end === today && range.start === shiftDay(today, -29)) return '30';
+    return 'custom';
 }
 
 /** 只按稳定执行身份连接业务事实；无执行 ID 的请求独立保留，不按时间猜测因果。 */
@@ -48,6 +57,34 @@ export function observedActivities(requests: TokenRequest[], facts: DailyFeedEve
         else groups.set(`fact:${fact.id}`, {id: `fact:${fact.id}`, title: fact.title, startedAt: fact.occurredAt, requests: [], facts: [fact]});
     }
     return [...groups.values()].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt) || a.id.localeCompare(b.id));
+}
+
+const factCategories: Record<DailyFeedEvent['category'], string> = {
+    fishing: '钓鱼', publication: '作品', interaction: '互动', travel: '旅行', exploration: '探索',
+    farm: '农场', cooking: '烹饪', alchemy: '炼金', blacksmith: '打造', market: '市场',
+    trade: '交易', investment: '投资', finance: '收支', record: '记录', decision: '决策',
+};
+
+/** 同名活动可一起查看；独立事实仍可按已有分类查看，不因此改变事实关联。 */
+export function matchesActivityFilter(activity: ObservedActivity, value: string): boolean {
+    return value === `activity:${activity.title}` || (!activity.requests.length && value === `fact:${activity.facts[0].category}`);
+}
+
+export function activityFilterOptions(activities: ObservedActivity[]) {
+    const options = new Map<string, {value: string; label: string; count: number}>();
+    const titleCounts = new Map<string, number>();
+    for (const activity of activities) titleCounts.set(activity.title, (titleCounts.get(activity.title) || 0) + 1);
+    for (const activity of activities) {
+        const value = activity.requests.length ? `activity:${activity.title}` : `fact:${activity.facts[0].category}`;
+        const option = options.get(value);
+        if (option && !activity.requests.length) option.count += 1;
+        else options.set(value, {
+            value,
+            label: activity.requests.length ? activity.title : `未关联事实 · ${factCategories[activity.facts[0].category]}`,
+            count: activity.requests.length ? titleCounts.get(activity.title)! : 1,
+        });
+    }
+    return [...options.values()].sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
 }
 
 export function knownTokens(rows: TokenRequest[], field: 'inputTokens' | 'outputTokens' | 'totalTokens'): number | null {

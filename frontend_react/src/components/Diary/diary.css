@@ -1,0 +1,10 @@
+.diary-page button:focus-visible { outline: 2px solid #f97316; outline-offset: 3px; }
+.diary-page input:focus, .diary-page textarea:focus { outline: 2px solid #fed7aa; }
+.diary-timeline { position: relative; padding-left: 28px; }
+.diary-timeline::before { content: ''; position: absolute; left: 5px; top: 10px; bottom: 0; width: 2px; background: #e2e8f0; }
+.diary-timeline-item { position: relative; }
+.diary-timeline-item::before { content: ''; position: absolute; left: -28px; top: 5px; height: 12px; width: 12px; border-radius: 50%; background: #cbd5e1; border: 3px solid #f8fafc; }
+.diary-timeline-item:first-child::before { background: #f97316; }
+@media (prefers-reduced-motion: reduce) { .diary-page *, .diary-edge { transition: none !important; animation: none !important; } }
+
+.diary-page time, .diary-page aside { font-variant-numeric: tabular-nums; }

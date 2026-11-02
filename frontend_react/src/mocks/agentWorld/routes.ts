@@ -158,11 +158,16 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         const allRows = [...feed, ...observationFacts, ...blacksmithFacts];
         const withDecisions = url.searchParams.get('include_decisions') === '1' && !!actor(url);
         const rows = list([...allRows, ...(withDecisions ? residentDecisions : [])]).filter(r => !url.searchParams.get('date') || new Date(r.occurredAt).toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'}) === url.searchParams.get('date'))
-            .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt) || right.id.localeCompare(left.id)), category = url.searchParams.get('category') || 'all';
+            .sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt) || (left.id < right.id ? 1 : left.id > right.id ? -1 : 0)), category = url.searchParams.get('category') || 'all';
         const selected = forActor(rows, url).filter(r => category === 'all' || r.category === category);
-        const offset = Number(url.searchParams.get('cursor')) || 0, size = Number(url.searchParams.get('page_size')) || 20;
-        return {date: url.searchParams.get('date') || day, items: selected.slice(offset, offset + size), total: selected.length, allTotal: allRows.length,
-            hasMore: offset + size < selected.length, nextCursor: offset + size < selected.length ? String(offset + size) : null,
+        const cursor = url.searchParams.get('cursor') || '', separator = cursor.lastIndexOf('|');
+        const cursorAt = separator >= 0 ? Date.parse(cursor.slice(0, separator)) : null, cursorId = cursor.slice(separator + 1);
+        const filtered = cursorAt !== null && Number.isFinite(cursorAt)
+            ? selected.filter(row => Date.parse(row.occurredAt) < cursorAt || (Date.parse(row.occurredAt) === cursorAt && row.id < cursorId)) : selected;
+        const size = Number(url.searchParams.get('page_size')) || 20, items = filtered.slice(0, size);
+        const hasMore = filtered.length > size, last = items[items.length - 1];
+        return {date: url.searchParams.get('date') || day, items, total: selected.length, allTotal: allRows.length,
+            hasMore, nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null,
             counts: Object.fromEntries([...new Set(rows.map(r => r.category))].map(c => [c, rows.filter(r => r.category === c).length])),
             actorCounts: Object.fromEntries([...new Set([...residents.map(r => r.id), ...rows.map(f => f.actorId)])].map(id => [id, rows.filter(f => f.actorId === id).length]))};
     }

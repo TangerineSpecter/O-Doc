@@ -21,6 +21,7 @@ const StatisticsPage = lazy(() => import('./views/StatisticsPage'));
 const CategoriesPage = lazy(() => import('./views/CategoriesPage'));
 const TagsPage = lazy(() => import('./views/TagsPage'));
 const SettingsPage = lazy(() => import('./views/SettingsPage'));
+const DiaryPage = lazy(() => import('./views/DiaryPage'));
 const MemosPage = lazy(() => import('./views/MemosPage'));
 const WhiteboardPage = lazy(() => import('./views/WhiteboardPage'));
 const WhiteboardManagePage = lazy(() => import('./views/WhiteboardManagePage'));
@@ -337,6 +338,7 @@ function AppWithRouter() {
                     </Suspense></Layout>
                 </RequireAuth>
             }/>
+            <Route path="/diary" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}><DiaryPage/></Suspense></Layout></RequireAuth>}/>
             <Route path="/memos" element={
                 <RequireAuth>
                     <Layout onNavigate={handleNavigate}><Suspense fallback={<RouteLoading />}>

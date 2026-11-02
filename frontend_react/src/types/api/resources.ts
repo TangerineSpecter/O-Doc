@@ -49,6 +49,7 @@ export interface ResourceItem {
     sourceAgent?: AgentSource | null;
     sourceBook?: BookSource | null;
     sourceQuant?: QuantSource | null;
+    sourceDiary?: {id: string; title: string} | null;
     duplicate?: boolean; // 标记是否为重复文件
     sourceType?: string; // 资源来源类型：attachment(附件)、content(内容)、image(图片文集)、item_icon(物品图标)
 }

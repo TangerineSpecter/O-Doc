@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
 import { PeekingBotButton } from '../components/AIChatWindow/PeekingBotButton';
+import DiaryEdgeButton from '../components/Diary/DiaryEdgeButton';
 import AgentWorldEdgeButton from '../components/AgentWorld/AgentWorldEdgeButton';
 import AgentContactPanel from '../components/AgentContactPanel';
 import { getUserInfo } from '../api/user';
@@ -181,8 +182,11 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                         zIndexClass="z-[80]"
                     />
                     <AgentWorldEdgeButton />
+
                 </div>
             )}
+
+            {!isChatOpen && !isAgentPanelOpen && isAuthenticated && <DiaryEdgeButton />}
 
             <SearchModal
                 isOpen={isSearchOpen}

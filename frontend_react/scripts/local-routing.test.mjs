@@ -4,7 +4,9 @@ import {setupServer} from 'msw/node';
 import {localHandlers, unhandledLocalApi} from '../src/mocks/local.ts';
 import {handlers} from '../src/mocks/handlers.ts';
 import {journey, exploration} from '../src/mocks/agentWorld/adventure.ts';
-import {observationRequests} from '../src/mocks/agentWorld/tokenUsage.ts';
+import {observationFacts, observationRequests} from '../src/mocks/agentWorld/tokenUsage.ts';
+import {readObservationFacts} from '../src/utils/observationFacts.ts';
+import {dayOf, shiftDay} from '../src/utils/tokenObservatory.ts';
 import {resetImageGalleryMock} from '../src/mocks/imageGallery/groupRoutes.ts';
 
 const location = new URL('http://localhost/?mockState=populated');
@@ -33,6 +35,32 @@ async function request(path, method = 'GET', body) {
         ...(body ? {headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {})});
     return {response, payload: await response.json()};
 }
+
+test('人物观测跨日游标在 local 中读取完整范围，且空场景不访问后端', async () => {
+    const actor = observationRequests[0].agentKey;
+    const end = dayOf(observationRequests[0].startedAt), start = shiftDay(end, -6);
+    for (const state of ['populated', 'empty']) {
+        location.search = `?mockState=${state}`;
+        const readPage = async query => {
+            const params = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined));
+            const result = await request(`/daily-feed/?${params}`);
+            assert.equal(result.response.status, 200);
+            return result.payload.data;
+        };
+        const facts = await readObservationFacts(readPage, actor, start, end, new AbortController().signal);
+        if (state === 'empty') assert.deepEqual(facts, []);
+        else {
+            const expected = observationFacts.filter(fact => fact.actorId === actor && dayOf(fact.occurredAt) >= start && dayOf(fact.occurredAt) <= end);
+            for (const fact of expected) assert.ok(facts.some(item => item.id === fact.id), fact.id);
+            assert.ok(facts.every(fact => dayOf(fact.occurredAt) >= start && dayOf(fact.occurredAt) <= end));
+            assert.ok(!facts.some(fact => fact.id.includes('-31')));
+        }
+        const tokenResult = await request(`/token-usage/requests/?agent_id=${actor}&start_date=${start}&end_date=${end}`);
+        assert.equal(tokenResult.response.status, 200);
+        if (state === 'empty') assert.equal(tokenResult.payload.data.items.length, 0);
+        else assert.ok(tokenResult.payload.data.items.every(row => dayOf(row.startedAt) >= start && dayOf(row.startedAt) <= end));
+    }
+});
 
 test('combat prepare returns a readable local preparation for solo and join instead of a four-person battle',async()=>{
     location.search='?mockState=populated';

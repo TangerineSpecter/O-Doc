@@ -25,6 +25,7 @@ class Asset(models.Model):
         ('item_icon', '物品图标'),
         ('agent_art', 'Agent 战斗形象'),
         ('quant', '量化研究'),
+        ('diary', '日记配图'),
         ('other', '其他'),
     ]
 

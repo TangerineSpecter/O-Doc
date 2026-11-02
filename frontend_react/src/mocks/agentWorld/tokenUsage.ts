@@ -2,7 +2,7 @@ import type {BlacksmithActivity} from '../../types/api/blacksmith';
 import {blacksmithActivities, blacksmithOverview} from './blacksmith';
 import type {TokenMetrics, TokenRequest, TokenRequestContent, TokenSummary} from '../../types/api/tokenUsage';
 import type {DailyFeedEvent} from '../../types/api/dailyFeed';
-import {dayOf} from '../../utils/tokenObservatory';
+import {dayOf, shiftDay} from '../../utils/tokenObservatory';
 import {shanghaiDay} from '../../utils/tokenUsage';
 import {residents} from './residents';
 
@@ -35,6 +35,29 @@ export const observationRequests: TokenRequest[] = residents.flatMap((actor, a) 
     });
     return row;
 }));
+
+// 覆盖跨日范围、范围边界、关联事实和独立事实；正文仍只在选中请求时读取。
+const historicalFacts: DailyFeedEvent[] = [];
+for (const actor of residents) {
+    const base = observationRequests.find(row => row.agentKey === actor.id && row.taskName === '农场经营')!;
+    for (const offset of [-1, -6, -31]) {
+        const date = shiftDay(day, offset);
+        const startedAt = new Date(`${date}T09:15:00+08:00`).toISOString();
+        const recordKey = `local-farm-history-${actor.id}-${offset}`;
+        const row: TokenRequest = {...base, id: `${recordKey}-request`, recordKey, startedAt,
+            endedAt: new Date(Date.parse(startedAt) + 60_000).toISOString()};
+        observationRequests.push(row);
+        bodies.set(row.id, bodies.get(base.id)!);
+        historicalFacts.push({id: `${recordKey}-fact`, actorId: actor.id, actorName: actor.name, category: 'farm', source: 'run',
+            occurredAt: new Date(Date.parse(startedAt) + 60_000).toISOString(), title: '农场经营已完成',
+            detail: '本地跨日样例：完成收获并检查种植队列。', status: 'success', amount: null,
+            target: {kind: 'run', id: recordKey}});
+    }
+    const yesterday = shiftDay(day, -1);
+    historicalFacts.push({id: `local-farm-history-only-${actor.id}`, actorId: actor.id, actorName: actor.name,
+        category: 'farm', source: 'farm', occurredAt: new Date(`${yesterday}T11:00:00+08:00`).toISOString(),
+        title: '农场收获', detail: '本地跨日样例：收获成熟作物。', status: 'success', amount: null, target: null});
+}
 
 // 兼容真实历史中的英文阶段；凌晨样例完整保留输入输出，不能按时间误判为过期。
 for (const actor of residents) {
@@ -83,13 +106,13 @@ export function addBlacksmithObservation(activity: BlacksmithActivity) {
 
 for (const activity of blacksmithActivities) addBlacksmithObservation(activity);
 
-export const observationFacts: DailyFeedEvent[] = residents.map((actor, i) => ({
+export const observationFacts: DailyFeedEvent[] = [...historicalFacts, ...residents.map<DailyFeedEvent>((actor, i) => ({
     id: `local-investment-fact-${i}`, actorId: actor.id, actorName: actor.name, category: 'investment', source: 'run',
     occurredAt: at(10, 5), title: '投资决策已结束', detail: '数量格式校验失败后重试，最终选择观望。未发生成交，旅行预留仍保留。',
     status: 'success', amount: null, target: {kind: 'run', id: `local-investment-${i}`},
     steps: [{id: 'invalid', title: '方案校验未通过', detail: 'quantity 必须是合法数字；没有提交交易。', occurredAt: at(10, 3), amount: null},
         {id: 'hold', title: '重试后选择观望', detail: '本次执行结束，未成交。', occurredAt: at(10, 5), amount: null}],
-}));
+}))];
 
 export function observationMetrics(rows: TokenRequest[]): TokenMetrics {
     const sum = (field: 'inputTokens' | 'outputTokens' | 'totalTokens') => rows.reduce((n, row) => n + (row[field] ?? 0), 0);
@@ -118,7 +141,7 @@ export function observationRoute(url: URL, empty: boolean): unknown {
                 started_at: r.startedAt, ended_at: r.endedAt, input_tokens: r.inputTokens, output_tokens: r.outputTokens, total_tokens: r.totalTokens, usage_complete: r.usageComplete,
                 ...(include ? {content: bodies.get(r.id)} : {})})), by_task: [], by_purpose: [], by_phase: [], by_model_provider: []};
     }
-    if (url.pathname.endsWith('/summary/')) return {...observationMetrics(rows), days: rows.length ? [{...observationMetrics(rows), day}] : [], agents: residents.map(r => ({agentKey: r.id, name: r.name})), tasks: [{taskKey: 'local-task-blacksmith', name: '铁匠铺打造'}, {taskKey: 'local-task-farm', name: '农场经营'}, {taskKey: 'local-task-investment', name: '投资决策'}, {taskKey: 'local-task-market', name: '市场采购'}]} satisfies TokenSummary;
+    if (url.pathname.endsWith('/summary/')) return {...observationMetrics(rows), days: [...new Set(rows.map(row => dayOf(row.startedAt)))].sort().map(date => ({...observationMetrics(rows.filter(row => dayOf(row.startedAt) === date)), day: date})), agents: residents.map(r => ({agentKey: r.id, name: r.name})), tasks: [{taskKey: 'local-task-blacksmith', name: '铁匠铺打造'}, {taskKey: 'local-task-farm', name: '农场经营'}, {taskKey: 'local-task-investment', name: '投资决策'}, {taskKey: 'local-task-market', name: '市场采购'}]} satisfies TokenSummary;
     if (url.pathname.endsWith('/requests/')) {
         const ordered = [...rows].sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id));
         const offset = Number(p.get('cursor')) || 0;

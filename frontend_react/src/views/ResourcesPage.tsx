@@ -552,7 +552,9 @@ export default function ResourcesPage() {
                                 </div>
                                 <div className="col-span-2 flex items-center gap-1.5 pt-1 border-t border-slate-100/80 mt-1">
                                     <span className="text-slate-400">关联：</span>
-                                    {previewFile.sourceArticle ? (
+                                    {previewFile.sourceDiary ? (
+                                        <button className="flex items-center gap-1 truncate text-orange-600 hover:underline" onClick={() => {setPreviewFile(null); navigate(`/diary?entry=${previewFile.sourceDiary!.id}`);}}><BookOpen className="h-3 w-3 shrink-0"/><span className="truncate">日记 · {previewFile.sourceDiary.title}</span></button>
+                                    ) : previewFile.sourceArticle ? (
                                         <button
                                             onClick={() => {
                                                 setPreviewFile(null);
@@ -877,7 +879,9 @@ export default function ResourcesPage() {
                                                 <span className="truncate max-w-[80px]">{file.date}</span>
                                             </div>
                                         </div>
-                                        {file.sourceArticle ? (
+                                        {file.sourceDiary ? (
+                                            <button className="mt-1.5 flex items-center gap-1 truncate pt-1.5 text-xs text-orange-600 hover:underline" onClick={event => {event.stopPropagation(); navigate(`/diary?entry=${file.sourceDiary!.id}`);}}><BookOpen className="h-3 w-3 shrink-0"/><span className="truncate" title={file.sourceDiary.title}>日记 · {file.sourceDiary.title}</span></button>
+                                        ) : file.sourceArticle ? (
                                             <div
                                                 className="mt-1.5 pt-1.5 border-t border-slate-50 flex items-center gap-1 text-[10px] text-slate-400 group/source"
                                                 onClick={(e) => {

@@ -1,16 +1,17 @@
 import {requestPhaseName} from '../../utils/tokenUsageLabels';
 import {Activity, CheckCircle2, Cpu, Zap} from 'lucide-react';
 import type {TokenRequest} from '../../types/api/tokenUsage';
-import {knownTokens, clockTime} from '../../utils/tokenObservatory';
+import {knownTokens, observationTime} from '../../utils/tokenObservatory';
 import {tokenNumber} from '../../utils/tokenUsage';
 
-export default function ObservationOverview({requests, selected, onSelect, unavailable}: {
-    requests: TokenRequest[]; selected?: string; onSelect: (request: TokenRequest) => void; unavailable: boolean;
+export default function ObservationOverview({requests, selected, onSelect, unavailable, showDate, hasUnlinkedFacts}: {
+    requests: TokenRequest[]; selected?: string; onSelect: (request: TokenRequest) => void; unavailable: boolean; showDate: boolean; hasUnlinkedFacts: boolean;
 }) {
     const tail = requests.slice(-24);
     const maximum = Math.max(1, ...tail.flatMap(r => [r.inputTokens || 0, r.outputTokens || 0]));
     const count = requests.length;
-    const total = (field: 'inputTokens' | 'outputTokens' | 'totalTokens') => unavailable ? null : count ? knownTokens(requests, field) : 0;
+    const total = (field: 'inputTokens' | 'outputTokens' | 'totalTokens') =>
+        unavailable || (!count && hasUnlinkedFacts) ? null : count ? knownTokens(requests, field) : 0;
 
     const failedCount = requests.filter(r => r.status === 'failed' || r.status === 'interrupted').length;
     const retryCount = requests.filter(r => r.attempt > 1).length;
@@ -52,7 +53,11 @@ export default function ObservationOverview({requests, selected, onSelect, unava
                             {unavailable ? '未知' : count} <span className="text-[10px] font-normal text-slate-400">次</span>
                         </div>
                         <div className="truncate text-[10px]">
-                            {failedCount > 0 ? (
+                            {unavailable ? (
+                                <span className="text-slate-400">请求数据暂不可用</span>
+                            ) : count === 0 ? (
+                                <span className="text-slate-400">没有匹配的模型请求</span>
+                            ) : failedCount > 0 ? (
                                 <span className="font-medium text-red-600">{failedCount} 失败/中断</span>
                             ) : retryCount > 0 ? (
                                 <span className="font-medium text-amber-600">{retryCount} 次重试</span>
@@ -109,9 +114,9 @@ export default function ObservationOverview({requests, selected, onSelect, unava
                                     <button
                                         type="button"
                                         key={row.id}
-                                        aria-label={`${requestPhaseName(row)}，输入 ${tokenNumber(row.inputTokens)}，输出 ${tokenNumber(row.outputTokens)}`}
+                                        aria-label={`${observationTime(row.startedAt, showDate)}，${requestPhaseName(row)}，输入 ${tokenNumber(row.inputTokens)}，输出 ${tokenNumber(row.outputTokens)}`}
                                         aria-pressed={isSelected}
-                                        title={`#${idx + 1} ${requestPhaseName(row)} (${clockTime(row.startedAt)})\n入: ${tokenNumber(row.inputTokens)} / 出: ${tokenNumber(row.outputTokens)}`}
+                                        title={`#${idx + 1} ${requestPhaseName(row)} (${observationTime(row.startedAt, showDate)})\n入: ${tokenNumber(row.inputTokens)} / 出: ${tokenNumber(row.outputTokens)}`}
                                         onClick={() => onSelect(row)}
                                         className={`group relative flex h-full min-w-0 flex-1 items-end justify-center gap-px rounded-xs transition-all ${
                                             isSelected

@@ -25,6 +25,7 @@ interface SelectProps<T extends string> {
     menuPlacement?: 'auto' | 'top' | 'bottom';
     menuPortal?: boolean;
     disabled?: boolean;
+    ariaLabel?: string;
 }
 
 export function Select<T extends string>({
@@ -40,6 +41,7 @@ export function Select<T extends string>({
     menuPlacement = 'auto',
     menuPortal = false,
     disabled = false,
+    ariaLabel,
 }: SelectProps<T>) {
     const [open, setOpen] = useState(false);
     const [portalStyle, setPortalStyle] = useState<CSSProperties>({});
@@ -108,6 +110,7 @@ export function Select<T extends string>({
             <button
                 disabled={disabled}
                 type="button"
+                aria-label={ariaLabel}
                 aria-haspopup="listbox"
                 aria-expanded={open && !disabled}
                 aria-controls={listboxId}

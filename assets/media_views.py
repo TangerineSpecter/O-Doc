@@ -8,7 +8,8 @@ from django.views.static import serve
 from rest_framework.decorators import api_view
 
 from assets.models import Asset
-from assets.views import can_read_asset
+from utils.resource_assets import is_asset_used_by_diary, is_asset_used_by_image
+from assets.views import can_read_asset, can_read_asset_via_article
 
 
 @api_view(['GET'])
@@ -26,6 +27,12 @@ def serve_legacy_media(request, path):
         raise Http404
     # Private research files always go through the authenticated resource API.
     if Asset.objects.filter(file_path=path).filter(Q(source_type='quant') | Q(quant_references__isnull=False) | Q(mt4_references__isnull=False)).exists():
+        raise Http404
+    diary_assets = [asset for asset in Asset.objects.filter(file_path=path) if (
+        asset.source_type == 'diary'
+        or (is_asset_used_by_diary(asset.pk, include_deleted=True) and not is_asset_used_by_image(asset.pk))
+    )]
+    if diary_assets and not any(asset.is_valid and can_read_asset_via_article(request, asset) for asset in diary_assets):
         raise Http404
     related = Asset.objects.filter(file_path=path).filter(
         Q(article_references__article__content_format='html')

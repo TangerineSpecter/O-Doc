@@ -23,6 +23,8 @@ from utils.resource_assets import (
     get_image_resource_usage,
     get_prompt_resource_usage,
     get_quant_resource_usage,
+    get_diary_resource_usage,
+    is_asset_used_by_diary,
     is_asset_used_by_agent,
     is_asset_used_by_visible_author,
     is_asset_used_by_article,
@@ -48,12 +50,31 @@ def get_visible_anthology_ids(request):
     return queryset.values_list('coll_id', flat=True)
 
 
+def can_read_asset_via_article(request, asset, visible_articles=None):
+    """A diary reference must not revoke the resource's existing article grants."""
+    if visible_articles is None:
+        visible_articles = get_visible_article_queryset(request)
+    if asset.article_references.filter(article__in=visible_articles).exists():
+        return True
+    if asset.linked_article_id and visible_articles.filter(pk=asset.linked_article_id).exists():
+        return True
+    asset_id = str(asset.pk)
+    return visible_articles.filter(
+        Q(content__contains=f'/api/resource/view/{asset_id}') |
+        Q(content__contains=f'/api/resource/download/{asset_id}')
+    ).exists()
+
+
 def can_read_asset(request, asset):
     # Research attachments stay private even if another domain references them.
     # Historical quant references also protect files from deleted research.
     if asset.source_type == 'quant' or asset.quant_references.exists() or asset.mt4_references.exists():
         return bool(request.user and request.user.is_authenticated
                     and asset.uploader == get_current_user_identifier(request))
+    if asset.source_type == 'diary' or (is_asset_used_by_diary(asset.pk, include_deleted=True) and not is_asset_used_by_image(asset.pk)):
+        if request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request):
+            return True
+        return can_read_asset_via_article(request, asset)
     if request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request):
         return True
     if request.user and request.user.is_authenticated:
@@ -64,16 +85,7 @@ def can_read_asset(request, asset):
             return True
     visible_coll_ids = get_visible_anthology_ids(request)
     visible_articles = get_visible_article_queryset(request)
-    if asset.article_references.filter(article__in=visible_articles).exists():
-        return True
-    if asset.linked_article_id and visible_articles.filter(pk=asset.linked_article_id).exists():
-        return True
-
-    asset_id = str(asset.id)
-    if visible_articles.filter(
-        Q(content__contains=f'/api/resource/view/{asset_id}') |
-        Q(content__contains=f'/api/resource/download/{asset_id}')
-    ).exists():
+    if can_read_asset_via_article(request, asset, visible_articles):
         return True
 
     if is_asset_used_by_image(asset.id):
@@ -125,6 +137,8 @@ class ResourceListView(APIView):
             current_user_id = get_current_user_identifier(request)
 
             queryset = Asset.objects.filter(is_valid=True, uploader=current_user_id)
+            if not request.user.is_authenticated:
+                queryset = queryset.exclude(Q(source_type='diary') | Q(id__in=get_diary_resource_usage(owner=current_user_id)))
             quant_usage = get_quant_resource_usage(owner=current_user_id) if linked else None
             # 引用关系只在按关联状态筛选时参与过滤，避免每次翻页都做全库扫描。
             article_usage = None
@@ -134,7 +148,7 @@ class ResourceListView(APIView):
                 referenced_resource_ids = (
                     set(article_usage) | set(get_image_resource_usage()) |
                     set(get_prompt_resource_usage()) | set(get_agent_resource_usage()) |
-                    set(quant_usage)
+                    set(quant_usage) | set(get_diary_resource_usage(owner=current_user_id))
                 )
                 for asset_id, cover_asset_id in Book.objects.filter(is_valid=True).values_list('asset_id', 'cover_asset_id'):
                     referenced_resource_ids.add(asset_id)
@@ -183,6 +197,7 @@ class ResourceListView(APIView):
             )
             if quant_usage is None:
                 quant_usage = get_quant_resource_usage(page_resource_ids, owner=current_user_id)
+            page_diary_usage = get_diary_resource_usage(page_resource_ids, owner=current_user_id)
             page_image_usage = get_image_resource_usage(page_resource_ids)
             page_prompt_usage = get_prompt_resource_usage(page_resource_ids)
             page_agent_usage = get_agent_resource_usage(page_resource_ids)
@@ -208,13 +223,14 @@ class ResourceListView(APIView):
                 source_agent = page_agent_usage.get(asset['id'])
                 source_book = page_book_usage.get(asset['id'])
                 source_quant = quant_usage.get(asset['id'])
+                source_diary = page_diary_usage.get(asset['id'])
                 resource_data = {
                     'id': asset['id'],
                     'name': asset['name'],
                     'type': asset['file_type'],
                     'size': asset['file_size'],
                     'date': asset['upload_time'],
-                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_prompt) or bool(source_agent) or bool(source_book) or bool(source_quant),
+                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_prompt) or bool(source_agent) or bool(source_book) or bool(source_quant) or bool(source_diary),
                     'fileExists': os.path.isfile(os.path.join(settings.MEDIA_ROOT, page_file_paths[asset['id']])),
                     'sourceArticle': source_article,
                     'sourceImage': source_image,
@@ -222,6 +238,7 @@ class ResourceListView(APIView):
                     'sourceAgent': source_agent,
                     'sourceBook': source_book,
                     'sourceQuant': source_quant,
+                    'sourceDiary': source_diary,
                     'sourceType': asset['source_type']
                 }
                 resources.append(resource_data)
@@ -307,6 +324,9 @@ class ResourceUpdateView(APIView):
             except Asset.DoesNotExist:
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
+            if (asset.source_type == 'diary' or is_asset_used_by_diary(asset.pk, include_deleted=True)) and not request.user.is_authenticated:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
+
             # 使用序列化器验证和更新数据
             data = request.data
             if isinstance(data, str):
@@ -362,6 +382,9 @@ class ResourceDeleteView(APIView):
             except Asset.DoesNotExist:
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
+            if (asset.source_type == 'diary' or is_asset_used_by_diary(asset.pk, include_deleted=True)) and not request.user.is_authenticated:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
+
             # 检查是否已关联文章
             if asset.is_linked:
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
@@ -377,6 +400,9 @@ class ResourceDeleteView(APIView):
 
             if is_asset_used_by_prompt(asset.id):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
+            if is_asset_used_by_diary(asset.id):
+                return error_result(ErrorCode.RESOURCE_IS_LINKED, status=409)
+
             if is_asset_used_by_quant(asset.id):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
@@ -451,8 +477,15 @@ class ResourceUploadView(APIView):
                 return error_result(ErrorCode.UPLOAD_RESOURCE_NOT_FOUND)
 
             uploaded_file = request.FILES['file']
-            if uploaded_file.size > 50 * 1024 * 1024:
+            if uploaded_file.size > 50 * 1024 * 1024 and request.data.get('source_type') != 'diary':
                 return error_result(ErrorCode.UPLOAD_RESOURCE_MORE_THAN_MAX_SIZE)
+            if request.data.get('source_type') == 'diary':
+                from .diary_images import validate_diary_image
+                if not request.user.is_authenticated:
+                    return valid_result('请登录后上传日记图片', status=401)
+                problem = validate_diary_image(uploaded_file)
+                if problem:
+                    return valid_result(problem, status=400)
             if request.data.get('source_type') == 'quant':
                 if not request.user.is_authenticated:
                     return valid_result('请登录后上传量化研究附件', status=401)
