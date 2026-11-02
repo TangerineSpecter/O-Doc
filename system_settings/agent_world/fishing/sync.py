@@ -33,7 +33,13 @@ def normalize(value):
 
 def metadata(data=None):
     owners = list(FishingConfig.objects.values_list('pk', flat=True)) if data is None else [str(r['pk']) for r in data if r['model'] == PREFIX+'fishingconfig']
-    return {'fishing_schema_version': 1, 'fishing_owners': sorted(owners)}
+    from .daily_sync import COVERAGE, DAY
+    if data is None:
+        from .analytics_models import FishingTripCoverage, FishingTripDay
+        has_daily = FishingTripCoverage.objects.exists() or FishingTripDay.objects.exists()
+    else:
+        has_daily = any(row['model'] in (COVERAGE, DAY) for row in data)
+    return {'fishing_schema_version': 2 if has_daily else 1, 'fishing_owners': sorted(owners)}
 
 
 def selected(data, owner):
@@ -72,7 +78,7 @@ def validate_source(data, meta=None, *, check_digest=True):
 
 def _validate(data, meta, check_digest):
     version = (meta or {}).get('fishing_schema_version', 0)
-    if type(version) is not int or not 0 <= version <= 1:
+    if type(version) is not int or not 0 <= version <= 2:
         fail('快照版本过新，请升级所有设备')
     tables = defaultdict(dict)
     for row in data:
@@ -284,6 +290,8 @@ def _validate(data, meta, check_digest):
         if set(checks) != set(configs): fail('缺少完整性检查点')
         for owner in configs:
             if checks[owner]['digest'] != digest(data,owner): fail('目录、成长、物资或执行事实残缺')
+    from .daily_sync import validate_source as validate_daily
+    validate_daily(data, meta)
 
 
 def database_data():
@@ -318,6 +326,8 @@ def validate_conflicts(local,remote):
     for row in remote:
         key = (row['model'],str(row['pk']))
         if key in left and left[key] != normalize(row['fields']): fail('两端同一钓鱼事实或目录内容不同')
+    from .daily_sync import validate_conflicts as validate_daily_conflicts
+    validate_daily_conflicts(local, remote)
 
 
 def refresh_merged(data,revisions):

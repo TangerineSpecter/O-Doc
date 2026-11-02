@@ -1,4 +1,5 @@
 """Original elixir prices survive departure, partial use, failure and settlement retries."""
+import copy
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -52,6 +53,27 @@ class ElixirLifecycleTests(TestCase):
             *explorations.Exploration.objects.all(), *CombatFact.objects.all(),
         ]))
         elixir_sync.validate_source(data, elixir_sync.metadata(data), require_manifest=True)
+
+    def test_elixir_sync_rejects_missing_or_duplicate_departure(self):
+        from utils.sync_manager import SyncError
+        self.stock('20')
+        self.stock('40')
+        run = self.depart()
+        data = json.loads(serializers.serialize('json', [
+            *explorations.Exploration.objects.all(), *CombatFact.objects.all(),
+        ]))
+        for mutation in ('missing', 'duplicate'):
+            broken = copy.deepcopy(data)
+            departure = next(row for row in broken if row['model'] == elixir_sync.FACT
+                             and row['fields']['exploration_id'] == run.pk and row['fields']['kind'] == 'depart')
+            if mutation == 'missing':
+                broken.remove(departure)
+            else:
+                duplicate = copy.deepcopy(departure)
+                duplicate['pk'] = 'duplicate-departure'
+                broken.append(duplicate)
+            with self.subTest(mutation=mutation), self.assertRaises(SyncError):
+                elixir_sync.validate_source(broken)
 
     def test_recall_returns_original_lots_and_stars_only_once(self):
         self.stock('20')

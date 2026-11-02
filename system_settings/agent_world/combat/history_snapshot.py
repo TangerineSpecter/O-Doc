@@ -1,5 +1,5 @@
 """Seal verified legacy aggregates once; historical catalogs become provenance labels."""
-from collections import Counter
+from collections import Counter, defaultdict
 from copy import deepcopy
 
 from .store import digest
@@ -15,28 +15,41 @@ def indexed(data: list[dict]) -> dict:
     return {(row['model'], str(row['pk'])): {'id': str(row['pk']), **row['fields']} for row in data}
 
 
-def aggregate_frame(rows: dict, actor: str, *, frozen: bool) -> dict:
+def frame_index(rows: dict) -> dict:
+    """Group and order only frame-bearing rows once for all residents."""
+    grouped = defaultdict(lambda: defaultdict(list))
+    for (model, identity), row in rows.items():
+        if model in (GEAR, RUN, ENCOUNTER):
+            grouped[row['actor_id']][model].append((identity, row))
+    return {actor: {model: [row for _, row in sorted(items, key=lambda item: item[0])]
+                    for model, items in categories.items()} for actor, categories in grouped.items()}
+
+
+def aggregate_frame(rows: dict, actor: str, *, frozen: bool, index=None) -> dict:
     def select(row, keys):
         return {key: row[key] for key in keys.split()}
+    grouped = (index if index is not None else frame_index(rows)).get(actor, {})
     return {
         'profile': select(rows[(PROFILE, actor)], 'id owner_id catalog_id progression loadout hp mp loot_progress'),
         'equipment': [{**select(row, 'id catalog_id template_id snapshot value bound locked sold' + (' rules' if frozen else '')),
                        **({'retained_for_adventure': True} if row.get('retained_for_adventure') is True else {})}
-            for (model, _), row in sorted(rows.items()) if model == GEAR and row['actor_id'] == actor],
+            for row in grouped.get(GEAR, ())],
         'runs': [select(row, 'id catalog_id status phase elapsed_seconds revision snapshot state result')
-            for (model, _), row in sorted(rows.items()) if model == RUN and row['actor_id'] == actor],
+            for row in grouped.get(RUN, ())],
         'encounters': [select(row, 'id exploration_id number monster result')
-            for (model, _), row in sorted(rows.items()) if model == ENCOUNTER and row['actor_id'] == actor],
+            for row in grouped.get(ENCOUNTER, ())],
     }
 
 
-def verify_chain(ordered: list[dict], chain: dict, actor: str, owner: str) -> None:
+def verify_chain(ordered, chain: dict, actor: str, owner: str) -> None:
     base = int(chain.get('archive_sequence') or 0)
     previous = chain.get('archive_digest') or ''
-    if base and (not previous or not ordered or ordered[0].get('kind') != 'checkpoint' or
-                 ordered[0].get('sequence') != base + 1):
-        raise ValueError('战斗事实归档边界无效，不能固化')
+    count = 0
     for offset, row in enumerate(ordered, 1):
+        count = offset
+        if base and offset == 1 and (not previous or row.get('kind') != 'checkpoint' or
+                                     row.get('sequence') != base + 1):
+            raise ValueError('战斗事实归档边界无效，不能固化')
         sequence = base + offset
         content = {key: row[key] for key in ('id', 'actor_id', 'owner_id', 'sequence', 'kind',
                    'exploration_id', 'elapsed_seconds', 'payload', 'previous_hash')}
@@ -44,7 +57,9 @@ def verify_chain(ordered: list[dict], chain: dict, actor: str, owner: str) -> No
                 row['previous_hash'] != previous or digest(content) != row['digest']):
             raise ValueError('历史事实链缺失或发生分叉，不能固化')
         previous = row['digest']
-    if (not ordered or chain['head'] != base + len(ordered) or chain['digest'] != previous
+    if base and not count:
+        raise ValueError('战斗事实归档边界无效，不能固化')
+    if (not count or chain['head'] != base + count or chain['digest'] != previous
             or chain['owner_id'] != owner):
         raise ValueError('历史事实链终点不一致，不能固化')
 
@@ -84,6 +99,7 @@ def normalize_source(data: list[dict]) -> list[dict]:
             catalogs[version] = Catalog(source['tables'], version)
         return catalogs[version]
     try:
+        frames = frame_index(rows)
         for (model, actor), profile in list(rows.items()):
             if model != PROFILE:
                 continue
@@ -93,7 +109,7 @@ def normalize_source(data: list[dict]) -> list[dict]:
                 continue
             chain = rows[(CHAIN, actor)]
             verify_chain(ordered, chain, actor, profile['owner_id'])
-            if digest(aggregate_frame(rows, actor, frozen=False)) != chain['frame']:
+            if digest(aggregate_frame(rows, actor, frozen=False, index=frames)) != chain['frame']:
                 raise ValueError('历史状态指纹不一致，不能固化')
             stock = expected_stock(rows, actor, profile['owner_id'], ordered)
             actual = inventory_balance(rows, actor, profile['owner_id'])
@@ -121,7 +137,7 @@ def normalize_source(data: list[dict]) -> list[dict]:
                 'kind': 'checkpoint', 'exploration_id': '', 'elapsed_seconds': 0, 'payload': payload, 'previous_hash': chain['digest']}
             sealed = {**content, 'digest': digest(content), 'created_at': ordered[-1]['created_at']}
             rows[(FACT, identity)] = sealed
-            chain.update(head=sealed['sequence'], digest=sealed['digest'], frame=digest(aggregate_frame(rows, actor, frozen=True)))
+            chain.update(head=sealed['sequence'], digest=sealed['digest'], frame=digest(aggregate_frame(rows, actor, frozen=True, index=frames)))
         original = {(row['model'], str(row['pk'])): row for row in result}
         for key, fields in rows.items():
             if key in original:

@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from django.contrib.auth.models import User
+from django.db import connection
 from django.test import TestCase, SimpleTestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from anthology.models import Anthology
 from article.models import Article, ArticlePostComment, ArticleAnnotation, ArticleAnnotationComment
@@ -48,6 +51,22 @@ class AnalyticsTests(TestCase):
     def activity(self, **values):
         return AgentActivity.objects.create(event_key=values.pop('event_key', 'event'), agent=self.a,
             title='活动', occurred_at=self.at, artifact_coll_id=self.coll.pk, **values)
+
+    def test_postgresql_kill_receipt_query_can_use_partial_index(self):
+        if connection.vendor != 'postgresql':
+            self.skipTest('击杀回执部分索引仅在 PostgreSQL 创建')
+        CombatFact.objects.bulk_create([CombatFact(
+            pk=f'index-fact-{number}', owner_id='admin', actor_id=self.a.pk,
+            sequence=number+1, kind='round', digest='fixture',
+            payload={'shared_event_id': f'event-{number}',
+                     'events': [{'kind': 'kill'}] if number == 0 else []}) for number in range(300)])
+        query = CombatFact.objects.filter(owner_id='admin', kind='round',
+            payload__contains={'events': [{'kind': 'kill'}]}).order_by().values_list('pk', flat=True)
+        with connection.cursor() as cursor:
+            cursor.execute('ANALYZE system_settings_combatfact')
+            cursor.execute('SET LOCAL enable_seqscan = off')
+        self.assertIn('odoc_combat_kill_owner_event', query.explain())
+        self.assertEqual(list(query), ['index-fact-0'])
 
     def test_ledger_endpoint_returns_visible_resident_entries(self):
         WorldLedger.objects.create(pk='ledger-detail', agent_id=self.a.pk, kind='income',
@@ -100,6 +119,45 @@ class AnalyticsTests(TestCase):
         self.assertEqual(sum(Decimal(row['income']) for row in result['daily']), Decimal('0.30'))
         self.assertEqual(sum(Decimal(row['income']) for row in result['comparison']), Decimal('0.30'))
         self.assertEqual(self.fetch(self.b.pk)['overview']['expense'], '0.10')
+
+    def test_resident_filter_limits_business_sources_but_keeps_inbound_social(self):
+        from rest_framework.test import APIRequestFactory
+        from .queries import load_facts
+
+        for agent in (self.a, self.b):
+            farm = AgentFarm.objects.create(pk=agent.pk, owner_id='admin', actor_name=agent.name)
+            FarmOperation.objects.create(pk='farm-'+agent.pk, farm=farm, opportunity_id='opp-'+agent.pk,
+                operation={'kind': 'harvest'}, result={}, created_at=self.at)
+            WorldLedger.objects.create(pk='ledger-'+agent.pk, agent_id=agent.pk, kind='farm',
+                                       amount=Decimal('1'), created_at=self.at)
+        moment = Moment.objects.create(pk='selected-moment', owner_id='admin', actor_id='agent-id:'+self.a.pk,
+                                       identity={'name': self.a.name}, content='动态', created_at=self.at)
+        MomentComment.objects.create(pk='inbound-comment', moment=moment, actor_id='agent-id:'+self.b.pk,
+                                     identity={'name': self.b.name}, content='回复', created_at=self.at)
+        request = APIRequestFactory().get('/')
+        request.user = self.user
+        facts = load_facts(request, 'admin', self.at-timedelta(minutes=1), self.at+timedelta(minutes=1),
+                           actor=self.a.pk)
+        self.assertEqual({event.actor for event in facts.events if event.category == 'farm'}, {self.a.pk})
+        self.assertEqual({entry.agent_id for entry in facts.ledger}, {self.a.pk})
+        self.assertTrue(any(event.actor == self.b.pk and event.peer == self.a.pk and event.category == 'social'
+                            for event in facts.events))
+        self.assertEqual(self.fetch(self.a.pk)['overview']['received'], 1)
+
+    def test_world_and_selected_resident_count_their_own_ended_fights(self):
+        for agent in (self.a, self.b):
+            run = Exploration.objects.create(pk='run-'+agent.pk, actor_id=agent.pk, actor_name=agent.name,
+                owner_id='admin', catalog_id='test', status='completed', created_at=self.at, ended_at=self.at)
+            CombatFact.objects.create(pk='depart-'+agent.pk, actor_id=agent.pk, owner_id='admin',
+                exploration_id=run.pk, sequence=1, kind='depart', digest='test', created_at=self.at)
+            CombatEncounter.objects.create(pk='encounter-'+agent.pk, owner_id='admin', actor_id=agent.pk,
+                exploration_id=run.pk, number=1, monster={'id': 'slime'}, result={'killed': True},
+                ended_at=self.at)
+        self.assertEqual(self.fetch()['outcomes']['explorations'], 2)
+        self.assertEqual(self.fetch()['outcomes']['wins'], 2)
+        self.assertEqual(self.fetch(self.a.pk)['outcomes']['explorations'], 1)
+        self.assertEqual(self.fetch(self.a.pk)['outcomes']['wins'], 1)
+        self.assertEqual(self.fetch(self.b.pk)['outcomes']['wins'], 1)
 
     def investment(self, key, side, amount, profit='0', trade_actor=None):
         ledger_actor, trade_actor = self.a, trade_actor or self.a
@@ -157,6 +215,56 @@ class AnalyticsTests(TestCase):
         self.assertEqual(counts['farm'], 2)
         self.assertEqual(counts['travel'], 0)
         self.assertEqual(counts['exploration'], 0)
+
+    def test_farm_operations_do_not_fetch_repeated_full_farm_state(self):
+        farm = AgentFarm.objects.create(pk=self.a.pk, owner_id='admin', actor_name=self.a.name,
+                                        state={'large': 'x' * 10000})
+        FarmOperation.objects.create(pk='harvest-projection', farm=farm, opportunity_id='harvest-projection',
+                                     operation={'kind': 'harvest'}, result={}, created_at=self.at)
+        with CaptureQueriesContext(connection) as captured:
+            result = self.fetch()
+        self.assertEqual(result['outcomes']['harvests'], 1)
+        queries = [query['sql'] for query in captured.captured_queries
+                   if 'system_settings_farmoperation' in query['sql'].lower()
+                   and 'join' in query['sql'].lower()]
+        self.assertTrue(queries)
+        self.assertFalse(any('"system_settings_agentfarm"."state"' in query.lower() for query in queries))
+
+    def test_combat_comparison_does_not_fetch_unused_run_state(self):
+        run = Exploration.objects.create(pk='projection-run', actor_id=self.a.pk, actor_name=self.a.name,
+            owner_id='admin', catalog_id='test', status='completed', state={'large': 'x' * 10000},
+            created_at=self.at, ended_at=self.at)
+        CombatFact.objects.create(pk='projection-depart', actor_id=self.a.pk, owner_id='admin',
+            exploration_id=run.pk, sequence=1, kind='depart', digest='test', created_at=self.at)
+        with CaptureQueriesContext(connection) as captured:
+            result = self.fetch(self.a.pk)
+        self.assertEqual(result['combatComparison'][0]['explorations'], 1)
+        queries = [query['sql'].lower() for query in captured.captured_queries
+                   if '"system_settings_exploration"."snapshot"' in query['sql'].lower()
+                   and '"system_settings_exploration"."result"' in query['sql'].lower()]
+        self.assertTrue(queries)
+        self.assertFalse(any('"system_settings_exploration"."state"' in query for query in queries))
+
+    def test_article_interactions_do_not_fetch_repeated_article_content(self):
+        Article.objects.filter(pk=self.post.pk).update(content='正文' * 10000)
+        for number in range(3):
+            row = ArticlePostComment.objects.create(article=self.post, content='回复',
+                creator_id='agent-id:'+self.b.pk, actor_agent_id=self.b.pk)
+            ArticlePostComment.objects.filter(pk=row.pk).update(created_at=self.at)
+        with CaptureQueriesContext(connection) as captured:
+            result = self.fetch(self.a.pk)
+        self.assertEqual(result['overview']['received'], 3)
+        queries = [query['sql'].lower() for query in captured.captured_queries
+                   if 'article_post_comments' in query['sql'].lower() and ' join ' in query['sql'].lower()]
+        self.assertTrue(queries)
+        self.assertFalse(any('"articles"."content"' in query for query in queries))
+        self.assertFalse(any('"article_post_comments"."content"' in query for query in queries))
+
+    def test_single_resident_only_loads_their_kill_receipts(self):
+        from .combat_kills import load_combat_kills
+        with patch('system_settings.agent_world.analytics.queries.load_combat_kills', wraps=load_combat_kills) as load:
+            self.fetch(self.a.pk)
+        self.assertEqual(load.call_args.kwargs['actor_ids'], {self.a.pk})
 
     def test_deleted_resident_and_same_name_are_distinct(self):
         original_id = self.a.pk
@@ -308,14 +416,34 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertEqual(result['combatComparison'],self.fetch()['combatComparison'])
         self.assertEqual([row['id'] for row in self.fetch(self.b.pk)['combatComparison']],[self.b.pk])
 
-    def test_archived_runs_still_count_after_depart_fact_is_deleted(self):
-        # 归档删除 depart 事实后，统计仍需按仍保留的探索行计入已结算记录。
+    def test_missing_departure_is_reported_instead_of_inventing_a_date(self):
+        # 归档删除出发事实后，创建时间不能证明实际出发日期。
         archived = self.exploration('archived-run', self.a, departed=False)
         Exploration.objects.filter(pk=archived.pk).update(created_at=self.at)
         never_started = self.exploration('never-started', self.a, status='failed', departed=False, kills=0)
         Exploration.objects.filter(pk=never_started.pk).update(created_at=self.at)
-        row = next(row for row in self.fetch()['combatComparison'] if row['id']==self.a.pk)
-        self.assertEqual((row['explorations'],row['settled'],row['completed']), (1,1,1))
+        result = self.fetch()
+        row = next(row for row in result['combatComparison'] if row['id']==self.a.pk)
+        self.assertEqual((row['explorations'],row['settled'],row['completed']), (0,0,0))
+        self.assertTrue(any('缺少真实出发时间' in note for note in result['notes']))
+
+    def test_missing_departure_is_reported_for_a_run_created_before_the_window(self):
+        run = self.exploration('missing-cross-window', self.a, departed=False)
+        Exploration.objects.filter(pk=run.pk).update(created_at=self.at-timedelta(days=3), ended_at=self.at)
+        result = self.fetch(self.a.pk)
+        self.assertTrue(any('缺少真实出发时间' in note for note in result['notes']))
+        self.assertEqual(result['combatComparison'][0]['explorations'], 0)
+
+    def test_departure_is_not_attributed_to_the_earlier_creation_date(self):
+        run = self.exploration('delayed-departure', self.a, at=self.at+timedelta(days=1))
+        Exploration.objects.filter(pk=run.pk).update(created_at=self.at)
+        first = self.fetch(start_date='2026-10-01', end_date='2026-10-01')
+        second = self.fetch(start_date='2026-10-02', end_date='2026-10-02')
+        first_row = next(row for row in first['combatComparison'] if row['id'] == self.a.pk)
+        second_row = next(row for row in second['combatComparison'] if row['id'] == self.a.pk)
+        self.assertEqual((first_row['explorations'], second_row['explorations']), (0, 1))
+        self.assertEqual(next(row['count'] for row in first['categories'] if row['key'] == 'exploration'), 0)
+        self.assertEqual(next(row['count'] for row in second['categories'] if row['key'] == 'exploration'), 1)
 
     def test_empty_ongoing_and_foreign_owner_records(self):
         self.exploration('foreign', self.a, owner='other', kills=99)
@@ -454,6 +582,25 @@ class CombatAnalyticsTests(AnalyticsTests):
                 self.assertEqual({kill.identity for kill in kills}, {'party:valid-unit', 'solo:solo-kill'})
                 self.assertTrue(all(kill.actor_id == self.a.pk for kill in kills))
                 self.assertEqual(list(load_combat_kills('admin', actor_ids=[self.b.pk], **kwargs)), [])
+
+    def test_kill_lookup_ignores_rounds_without_kills_in_both_query_modes(self):
+        from .combat_kills import load_combat_kills
+        run = self.exploration('mixed-party', self.a)
+        kill = self.party_kill(run, 'unit-with-kill')
+        for number, events in enumerate(([], [{'kind': 'damage', 'monster': {'unit_id': 'unit-without-kill'}}])):
+            CombatFact.objects.create(pk=f'non-kill-{number}', owner_id='admin', actor_id=self.a.pk,
+                exploration_id=run.pk, sequence=100+number, kind='round', digest='test',
+                payload={'shared_event_id': kill.payload['shared_event_id'], 'events': events}, created_at=self.at)
+        for kwargs in ({'start': self.at-timedelta(hours=1), 'end': self.at+timedelta(hours=1)},
+                       {'exploration_ids': [run.pk]}):
+            with self.subTest(kwargs=kwargs):
+                with CaptureQueriesContext(connection) as captured:
+                    kills = list(load_combat_kills('admin', actor_ids=[self.a.pk], **kwargs))
+                self.assertEqual([item.identity for item in kills], ['party:unit-with-kill'])
+                if connection.vendor == 'postgresql':
+                    fact_sql = [query['sql'] for query in captured.captured_queries
+                                if 'system_settings_combatfact' in query['sql'].lower()]
+                    self.assertTrue(any('@>' in sql for sql in fact_sql))
 
     def test_party_kills_across_shanghai_midnight_and_empty_new_day(self):
         self.at = storage_time(datetime(2026, 10, 24, 23, 59, 59, tzinfo=SHANGHAI))

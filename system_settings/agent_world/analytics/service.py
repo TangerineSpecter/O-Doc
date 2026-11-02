@@ -72,6 +72,7 @@ def aggregate(facts, first, last, actor=''):
     daily = [{**day, 'activeResidents': len(day['activeResidents']), 'income': money(day['income']),
               'expense': money(day['expense'])} for day in days.values()]
     destinations = {row.destination_id for row in facts.journeys if row.actor_id in selected and row.destination_id}
+    wins = {row.identity: row.count for row in facts.wins if row.actor_id in selected}
     return {
         'residents': sorted(facts.residents.values(), key=lambda row: (row['departed'], row['name'], row['id'])),
         'overview': {'activeResidents': sum(row['activeDays'] > 0 for row in rows),
@@ -92,6 +93,6 @@ def aggregate(facts, first, last, actor=''):
                      'journeys': sum(row.actor_id in selected for row in facts.journeys),
                      'destinations': len(destinations),
                      'explorations': sum(row.actor_id in selected for row in facts.explorations),
-                     'wins': len({row.identity for row in facts.wins if row.actor_id in selected})},
+                     'wins': sum(wins.values())},
         'comparison': rows, 'notes': sorted(facts.unknown),
     }

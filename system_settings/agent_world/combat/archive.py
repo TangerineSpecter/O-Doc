@@ -11,6 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..farm_gate import guarded
+from .migration_guard import is_protected, reject_legacy_archive, require_sync_unprotected
 
 PREFIX = 'system_settings.'
 FACT = PREFIX + 'combatfact'
@@ -102,12 +103,42 @@ def markers(data: list[dict]) -> dict[str, tuple[int, str]]:
 
 def merged_markers(datasets) -> dict[str, tuple[int, str]]:
     """取各端最大归档边界，避免未归档设备的旧事实重新进入合并结果。"""
+    from utils.sync_policy import SyncError
     found = {}
+    evidence = {}
     for dataset in datasets:
-        for actor, (sequence, digest_value) in markers(dataset or []).items():
+        for row in dataset or []:
+            if row.get('model') != CHAIN:
+                continue
+            fields = row.get('fields') or {}
+            actor = str(row['pk'])
+            sequence = int(fields.get('archive_sequence') or 0)
+            digest_value = fields.get('archive_digest') or ''
+            if not sequence:
+                continue
+            key = (actor, sequence)
+            fingerprint = (digest_value, fields.get('archive_stock') or {}, fields.get('owner_id'))
+            if key in evidence and evidence[key] != fingerprint:
+                raise SyncError('不同设备的战斗归档边界或库存基线存在分叉，请先核对来源')
+            evidence[key] = fingerprint
             if sequence > found.get(actor, (0, ''))[0]:
                 found[actor] = (sequence, digest_value)
     return found
+
+
+def require_reconciled_sources(datasets, marker_map) -> None:
+    """Do not discard any still-available pre-boundary source during migration."""
+    from utils.sync_policy import SyncError
+    for data in datasets:
+        for row in data or []:
+            if row.get('model') != FACT:
+                continue
+            fields = row.get('fields') or {}
+            actor = str(fields.get('actor_id') or '')
+            boundary = marker_map.get(actor)
+            sequence = int(fields.get('sequence') or 0)
+            if boundary and sequence <= boundary[0]:
+                raise SyncError('旧归档边界会裁掉仍存在的战斗来源，请先分别备份并核对各设备后再迁移')
 
 
 def compact(data: list[dict], revisions: dict | None = None, marker_map: dict | None = None):
@@ -125,6 +156,8 @@ def compact(data: list[dict], revisions: dict | None = None, marker_map: dict | 
                 removed.add(f"{FACT}:{row['pk']}")
                 continue
         kept.append(row)
+    if removed and is_protected():
+        require_sync_unprotected()
     if revisions is None:
         return kept, {}
     if removed:
@@ -152,6 +185,8 @@ def prune_states() -> int:
 
 def archive_profile(profile, cutoff, *, apply: bool = True) -> dict:
     """删除 cutoff 之前、且已被检查点覆盖的事实。返回统计，不写墓碑。"""
+    if apply:
+        reject_legacy_archive()
     from system_settings.sync_state import suspend_tracking
     from .history_snapshot import OPEN, verify_chain
     from .models import CombatFact, CombatIntegrity, Exploration
@@ -218,6 +253,8 @@ def archive_profile(profile, cutoff, *, apply: bool = True) -> dict:
 
 @guarded
 def archive_owners(owner: str | None, days: int, *, apply: bool = True) -> list[dict]:
+    if apply:
+        reject_legacy_archive()
     from .models import CombatProfile
     cutoff = timezone.now() - timedelta(days=days)
     profiles = CombatProfile.objects.order_by('pk')

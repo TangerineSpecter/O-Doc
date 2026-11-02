@@ -21,6 +21,7 @@ from novel.locking import snapshot_guard as novel_sync_guard
 from quant.locking import snapshot_guard as quant_sync_guard
 from novel.chapters import enforce_revision_retention as enforce_novel_revision_retention
 from system_settings.agent_world import travel_sync
+from system_settings.agent_world.combat.migration_guard import require_sync_unprotected
 from .sync_merge import item_map, revision_key, merge_records
 from .sync_policy import SyncError, OverwriteConfirmationRequired, SyncChoicesRequired, schema_guard, ensure_not_aborted
 from .sync_repository import SnapshotRepository
@@ -86,6 +87,7 @@ class SyncManager:
     @learning_sync_guard
     @quant_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None, integrity='strict'):
+        require_sync_unprotected()
         self._integrity_warnings = []
         return self.restorer.apply_snapshot_data(
             data_list, remote_meta, full_overwrite=full_overwrite,
@@ -211,8 +213,8 @@ class SyncManager:
             raise SyncError('量化快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>17:raise SyncError('战斗快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>18:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('fishing_schema_version',0)>2:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 2:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
             raise SyncError('炼金快照版本高于本机，请升级后恢复。')
@@ -285,8 +287,8 @@ class SyncManager:
         from quant.sync import SCHEMA_VERSION as quant_schema_version
         if remote_meta and remote_meta.get('quant_schema_version', 0) > quant_schema_version:
             raise SyncError('量化快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>17:raise SyncError('战斗快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('fishing_schema_version',0)>1:raise SyncError('钓鱼快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>18:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('fishing_schema_version',0)>2:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 2:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
             raise SyncError('炼金快照版本高于本机，请升级后恢复。')
@@ -379,6 +381,7 @@ class SyncManager:
     @learning_sync_guard
     @quant_sync_guard
     def import_local_backup_zip(self, zip_path, should_abort=None):
+        require_sync_unprotected()
         extract_dir = tempfile.mkdtemp(prefix='odoc-backup-')
         try:
             ensure_not_aborted(should_abort)
@@ -662,6 +665,8 @@ class SyncManager:
         validate_food_import(remote.get('data') or [], remote.get('meta'))
         validate_combat(local_data, allow_exploration_review_mismatch=relax_integrity)
         validate_combat(remote.get('data') or [], remote.get('meta'), allow_exploration_review_mismatch=relax_integrity)
+        from system_settings.agent_world.combat.party_daily_sync import validate_conflicts as daily_conflicts
+        daily_conflicts(local_data, remote.get('data') or [])
         guard('战斗目录', lambda: validate_catalog_conflicts(local_data, remote.get('data') or []))
         # 老全量快照中的原始默认城市只代表共享种子，不代表用户编辑或删除。
         if travel_sync.enabled() or (remote.get('meta') or {}).get(travel_sync.META_KEY):
@@ -676,6 +681,8 @@ class SyncManager:
             [local_data, remote.get('data') or [], (base or {}).get('data') or []]
         )
         if archive_markers:
+            combat_archive.require_reconciled_sources(
+                [local_data, remote.get('data') or [], (base or {}).get('data') or []], archive_markers)
             local_data, local_revisions = combat_archive.compact(local_data, local_revisions, archive_markers)
             remote_data, remote_revisions = combat_archive.compact(
                 remote.get('data') or [], remote.get('revisions') or {}, archive_markers)
@@ -725,6 +732,7 @@ class SyncManager:
 
 
     def publish_v2_snapshot(self, *, source, runner_id='', base_snapshot_id='', previous_media=None, data_list=None, revisions=None, report=None):
+        require_sync_unprotected()
         if self.remote.client is None:
             raise SyncError('v2 远端快照需要已配置备份服务')
         snapshot_id = uuid.uuid4().hex
@@ -734,7 +742,19 @@ class SyncManager:
         if sparse_cities:
             data_list, revisions = travel_sync.compact(data_list, revisions)
         from system_settings.agent_world.combat import archive as combat_archive
+        combat_archive.require_reconciled_sources([data_list], combat_archive.markers(data_list))
         data_list, revisions = combat_archive.compact(data_list, revisions)
+        from system_settings.agent_world.combat.party_daily_sync import COVERAGE, DAY
+        if any(row.get('model') in (COVERAGE, DAY) for row in data_list):
+            # The legacy boundary pass above can remove sources after export.
+            # Never publish a daily contribution without revalidating the full
+            # combat chains and the surviving party facts.
+            from system_settings.agent_world.combat.sync import metadata as combat_metadata, validate_source as validate_combat
+            validate_combat(data_list, combat_metadata(data_list))
+        from system_settings.agent_world.fishing.daily_sync import COVERAGE as FISHING_COVERAGE, DAY as FISHING_DAY
+        if any(row.get('model') in (FISHING_COVERAGE, FISHING_DAY) for row in data_list):
+            from system_settings.agent_world.fishing.sync import metadata as fishing_metadata, validate_source as validate_fishing
+            validate_fishing(data_list, fishing_metadata(data_list))
         media = self.media.build_v2_media_manifest(previous_media)
         if callable(report):
             report(
@@ -1166,6 +1186,7 @@ class SyncManager:
                     from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
                     from system_settings.agent_world.memory.sync import metadata as memory_metadata
                     from system_settings.agent_world.combat.sync import metadata as combat_metadata
+                    from system_settings.agent_world.fishing.sync import metadata as fishing_metadata
                     from system_settings.agent_world.blacksmith_sync import metadata as blacksmith_metadata
                     from novel.sync import metadata as novel_metadata
                     from quant.sync import metadata as quant_metadata
@@ -1173,6 +1194,7 @@ class SyncManager:
                         **cooking_metadata(merged_data),
                         **memory_metadata(merged_data),
                         **combat_metadata(merged_data),
+                        **fishing_metadata(merged_data),
                         **blacksmith_metadata(merged_data),
                         **novel_metadata(merged_data),
                         **quant_metadata(merged_data),
@@ -1249,6 +1271,7 @@ class SyncManager:
         合并不再因农场窗口、生活摘要或居民记忆来源中断。
         review_conflicts 时先把两端都改过的记录交回用户选择。
         """
+        require_sync_unprotected()
         def report(message, progress=None):
             if callable(on_progress):
                 on_progress(message, progress)
@@ -1318,6 +1341,7 @@ class SyncManager:
         self, *, runner_id, report, should_abort, recover_owned_remote_lock,
         require_confirmation=False,
     ):
+        require_sync_unprotected()
         from article.version_service import enforce_article_version_retention
 
         if require_confirmation:
@@ -1398,6 +1422,7 @@ class SyncManager:
         self, *, runner_id='', on_progress=None, should_abort=None, recover_owned_remote_lock=False,
     ):
         """用远端当前快照覆盖本机。领域完整性不拦截恢复，写入后尽力整理。"""
+        require_sync_unprotected()
 
         def report(message, progress=None):
             if callable(on_progress):
@@ -1456,6 +1481,7 @@ class SyncManager:
     @learning_sync_guard
     @quant_sync_guard
     def restore_v2_snapshot(self, snapshot_id, *, runner_id=''):
+        require_sync_unprotected()
         from article.version_service import enforce_article_version_retention
 
         safety_backup = self.create_local_safety_backup('before-restore')

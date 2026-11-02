@@ -11,7 +11,12 @@ from .settlement import recover_months
 
 _last_attempt = 0.0
 _combat_maintenance_day = None
-_combat_attempt_at = 0.0
+_combat_backfill_retry_at = 0.0
+_combat_backfill_cursor = ''
+_combat_backfill_failed_in_cycle = False
+_fishing_backfill_retry_at = 0.0
+_fishing_backfill_cursor = ''
+_fishing_backfill_failed_in_cycle = False
 _lock = threading.Lock()
 _thread = None
 _stop = threading.Event()
@@ -45,6 +50,8 @@ def advance_world_months() -> None:
         for owner in MarketConfig.objects.values_list('pk', flat=True):
             current_batch(owner)
         maintain_combat_history()
+        maintain_combat_daily_backfill()
+        maintain_fishing_daily_backfill()
     except (OperationalError, ProgrammingError):
         logger.debug('Agent 世界表暂不可用，将重试', exc_info=True)
     except Exception:
@@ -54,44 +61,75 @@ def advance_world_months() -> None:
 
 
 def maintain_combat_history() -> None:
-    """每天追加检查点并按保留期归档；容器重启后自动补做，不需要人工进入执行。"""
-    global _combat_maintenance_day, _combat_attempt_at
+    """The legacy deletion path is retired even when an old setting remains."""
+    global _combat_maintenance_day
+    from .combat.migration_guard import is_protected
+    if is_protected():
+        return
     try:
-        retention = int(os.getenv('ODOC_COMBAT_ARCHIVE_DAYS', '7'))
+        retention = int(os.getenv('ODOC_COMBAT_ARCHIVE_DAYS', '0'))
     except ValueError:
-        retention = 7
+        retention = 0
     if retention <= 0:
         return
     from .life_time import local_time
     today = local_time().date()
     if _combat_maintenance_day == today:
         return
-    # 失败每 30 分钟重试一次，避免每分钟刷日志。
-    if time.monotonic() - _combat_attempt_at < 1800:
-        return
-    _combat_attempt_at = time.monotonic()
-    from .combat.archive import archive_owners, checkpoint_all
-    try:
-        created, skipped = checkpoint_all()
-        for item in skipped:
-            logger.warning('战斗检查点跳过 actor=%s：%s', item['actor'], item['reason'])
-        results = archive_owners(None, retention, apply=True)
-        archived = sum(item.get('archived', 0) for item in results)
-        blocked = [item for item in results if item.get('blocked_by')]
-        failed = [item for item in results if str(item.get('reason', '')).startswith('归档失败')]
-        # 来源事实仍在待删区间时归档不会推进；这里按天汇总，避免被误判为保留期已生效。
-        if blocked:
-            logger.warning('战斗事实归档受阻 %s 位居民（来源事实在待删区间，首个 actor=%s sequence=%s）',
-                           len(blocked), blocked[0]['actor'], blocked[0]['blocked_by'])
-        if failed:
-            logger.warning('战斗事实归档失败 %s 位居民（首个 actor=%s：%s）',
-                           len(failed), failed[0]['actor'], failed[0].get('reason'))
-        if created or archived:
-            logger.info('战斗事实维护完成：新增 %s 个检查点，归档 %s 条，保留 %s 天', created, archived, retention)
-    except Exception:
-        logger.exception('战斗事实归档失败，稍后重试')
-        return
+    logger.warning('旧战斗归档已停用，ODOC_COMBAT_ARCHIVE_DAYS=%s 不会删除事实；新的七天回合清理尚未就绪', retention)
     _combat_maintenance_day = today
+
+
+def maintain_combat_daily_backfill() -> None:
+    """Optionally process a small party page while the migration gate is active."""
+    global _combat_backfill_retry_at, _combat_backfill_cursor, _combat_backfill_failed_in_cycle
+    if os.getenv('ODOC_COMBAT_DAILY_BACKFILL', '').strip().lower() not in ('1', 'true', 'yes', 'on'):
+        return
+    from .combat.migration_guard import is_protected
+    if not is_protected() or time.monotonic() < _combat_backfill_retry_at:
+        return
+    from .combat.party_daily_backfill import backfill_batch
+    try:
+        result = backfill_batch(after=_combat_backfill_cursor, limit=3, max_seconds=10)
+        _combat_backfill_failed_in_cycle |= bool(result['failures'])
+        _combat_backfill_cursor = result['next_after'] if result['has_more'] else ''
+        delay = 1800 if not result['has_more'] and _combat_backfill_failed_in_cycle else 60
+        _combat_backfill_retry_at = time.monotonic() + delay
+        if not result['has_more']:
+            _combat_backfill_failed_in_cycle = False
+        if result['created']:
+            logger.info('已回填 %s 场组队冒险每日贡献，原始回合未删除', result['created'])
+        for item in result['failures']:
+            logger.warning('组队每日贡献回填受阻 party=%s：%s', item['party_id'], item['reason'])
+    except Exception:
+        _combat_backfill_retry_at = time.monotonic() + 1800
+        logger.exception('组队每日贡献回填失败，将自动重试')
+
+
+def maintain_fishing_daily_backfill() -> None:
+    """Optionally process a small fishing page while migration is protected."""
+    global _fishing_backfill_retry_at, _fishing_backfill_cursor, _fishing_backfill_failed_in_cycle
+    if os.getenv('ODOC_FISHING_DAILY_BACKFILL', '').strip().lower() not in ('1', 'true', 'yes', 'on'):
+        return
+    from .combat.migration_guard import is_protected
+    if not is_protected() or time.monotonic() < _fishing_backfill_retry_at:
+        return
+    from .fishing.daily_backfill import backfill_batch
+    try:
+        result = backfill_batch(after=_fishing_backfill_cursor, limit=5, max_seconds=10)
+        _fishing_backfill_failed_in_cycle |= bool(result['failures'])
+        _fishing_backfill_cursor = result['next_after'] if result['has_more'] else ''
+        delay = 1800 if not result['has_more'] and _fishing_backfill_failed_in_cycle else 60
+        _fishing_backfill_retry_at = time.monotonic() + delay
+        if not result['has_more']:
+            _fishing_backfill_failed_in_cycle = False
+        if result['created']:
+            logger.info('已回填 %s 场出钓每日贡献，原始事件未删除', result['created'])
+        for item in result['failures']:
+            logger.warning('钓鱼每日贡献回填受阻 trip=%s：%s', item['trip_id'], item['reason'])
+    except Exception:
+        _fishing_backfill_retry_at = time.monotonic() + 1800
+        logger.exception('钓鱼每日贡献回填失败，将自动重试')
 
 
 def _loop() -> None:

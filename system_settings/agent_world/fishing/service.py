@@ -245,7 +245,7 @@ def finish(identity: str, reason: str, *, cancelled: bool = False) -> FishingTri
         raise ValueError('居民已删除，无法返还鱼饵')
     for payload in carried:
         if payload['quantity']:
-            deliver(trip.owner_id, agent, payload, f'fishing-return:{trip.pk}')
+            deliver(trip.owner_id, agent, payload, f'fishing-return:{trip.pk}', preserve_source=True)
     append(trip, 'return', {'reason': reason, 'remaining': carried,
         'duel_abandoned': copy.deepcopy(trip.state.get('duel'))})
     trip.state.update(carried=[], reason=reason)

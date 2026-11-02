@@ -1,5 +1,6 @@
 """Load bounded business facts and account-visible stable resident identities."""
 from dataclasses import dataclass, field
+from django.db.models import Exists, OuterRef, Q
 from article.access import get_visible_anthology_queryset
 from article.models import Article
 from system_settings.models import Agent, AgentActivity, AgentRunRecord
@@ -11,7 +12,7 @@ from ..travel_models import TravelJourney
 from ..market_models import MarketTransaction
 from ..investment_models import InvestmentTrade, InvestmentAccount
 from ..social_models import Moment, MomentComment, MomentLike
-from ..combat.models import CombatFact, Exploration, CombatProfile
+from ..combat.models import CombatFact, CombatIntegrity, Exploration, CombatProfile
 from .combat_kills import load_combat_kills
 from ..models import WorldLedger
 from ..fishing.models import FishingProfile, FishingTrip
@@ -47,7 +48,8 @@ class Facts:
     unknown: set = field(default_factory=set)
 
 
-def load_facts(request, owner, start, end):
+def load_facts(request, owner, start, end, actor='', *, include_daily=False):
+    selected_actor = actor  # Identity-discovery loops below also use the name ``actor``.
     facts = Facts()
     actors = _actor_scope(owner)
     # Unassigned global residents remain visible, as in the residents sidebar; assets owned by another account do not.
@@ -71,7 +73,7 @@ def load_facts(request, owner, start, end):
     for model, key, name in ((AgentFarm, 'id', 'actor_name'), (CookingSkill, 'id', 'actor_name'),
                              (TravelJourney, 'actor_id', None), (Exploration, 'actor_id', 'actor_name'),
                              (FishingTrip, 'actor_id', 'actor_name'), (LotteryTicket, 'actor_id', 'actor_name')):
-        fields = [key, name] if name else [key, 'snapshot']
+        fields = [key, name] if name else [key, 'snapshot__agent_name']
         candidates = model.objects.filter(owner_id=owner)
         if model is Exploration:
             # Many explorations share the same resident and name; identity discovery
@@ -80,7 +82,7 @@ def load_facts(request, owner, start, end):
         else:
             candidates = candidates.values_list(*fields)
         for actor, value in candidates:
-            remember(actor, value if name else value.get('agent_name', ''))
+            remember(actor, value or '')
     for actor, identity in Moment.objects.filter(owner_id=owner).values_list('actor_id', 'identity'):
         remember(resident_id(actor), identity.get('name', ''), identity.get('avatar', ''))
     owned_activities = AgentActivity.objects.filter(metadata__owner_id=owner)
@@ -116,8 +118,11 @@ def load_facts(request, owner, start, end):
     for model in (CookingOperation, MarketTransaction, InvestmentTrade):
         for actor, name in model.objects.filter(owner_id=owner).values_list('actor_id', 'actor_name').distinct():
             remember(actor, name)
+    relevant_actors = ({selected_actor} & actors) if selected_actor else actors
     activities = list(window(AgentActivity.objects.filter(status='success', artifact_coll_id__in=visible)
-                        .exclude(action__startswith='social_').exclude(activity_type='work'), 'occurred_at').order_by('occurred_at', 'id'))
+                        .exclude(action__startswith='social_').exclude(activity_type='work'), 'occurred_at').only(
+        'id', 'event_key', 'activity_type', 'agent_id', 'metadata', 'artifact_id', 'artifact_article_id',
+        'occurred_at', 'counterpart_id', 'counterpart_type', 'counterpart_name').order_by('occurred_at', 'id'))
     from .articles import article_events
     article_events(visible, actors, start, end, activities, add)
     for row in activities:
@@ -133,61 +138,80 @@ def load_facts(request, owner, start, end):
         if row.counterpart_type == 'agent' and row.counterpart_id.startswith('agent:'):
             facts.unknown.add('部分旧文章互动使用名称身份，无法确定接收居民；未按同名居民补算。')
 
-    for row in window(Moment.objects.filter(owner_id=owner, is_valid=True)):
+    for row in window(Moment.objects.filter(owner_id=owner, is_valid=True)).only('id', 'actor_id', 'created_at'):
         actor = resident_id(row.actor_id)
         if actor:
             add('moment:'+row.pk, actor, row.created_at, 'publication')
-    comments = window(MomentComment.objects.filter(moment__owner_id=owner, is_valid=True)).select_related('moment')
+    comments = window(MomentComment.objects.filter(moment__owner_id=owner, is_valid=True)).select_related('moment').only(
+        'id', 'actor_id', 'created_at', 'reply_to_actor_id', 'moment_id', 'moment__actor_id', 'moment__identity')
     for row in comments:
         peer = row.reply_to_actor_id or row.moment.actor_id
         add('moment-comment:'+row.pk, resident_id(row.actor_id) or row.actor_id, row.created_at, 'social',
             peer=resident_id(peer) or peer, peer_name=row.moment.identity.get('name', '') if not row.reply_to_actor_id else '')
     # Likes store their latest state/time, rather than an immutable first-like timestamp.
-    for row in window(MomentLike.objects.filter(moment__owner_id=owner, is_valid=True), 'updated_at').select_related('moment'):
+    for row in window(MomentLike.objects.filter(moment__owner_id=owner, is_valid=True), 'updated_at').select_related('moment').only(
+            'id', 'actor_id', 'updated_at', 'moment_id', 'moment__actor_id', 'moment__identity'):
         add('moment-like:'+row.pk, resident_id(row.actor_id) or row.actor_id, row.updated_at, 'social',
             peer=resident_id(row.moment.actor_id) or row.moment.actor_id, peer_name=row.moment.identity.get('name', ''))
     facts.unknown.add('朋友圈点赞按保留的有效状态及更新时间统计，已撤销的点赞不计入。')
     facts.unknown.add('评分按现存评分记录计一次，不还原每次改分；未保存稳定任务类型的旧工作不补算。')
 
     # Dedicated world tasks already have business facts. Only custom work is counted here.
-    runs = window(AgentRunRecord.objects.filter(task__task_kind='custom').exclude(status='failed'), 'started_at')
+    runs = window(AgentRunRecord.objects.filter(task__task_kind='custom').exclude(status='failed'), 'started_at').only(
+        'id', 'agent_id', 'agent_runs', 'agent_name', 'started_at')
     for row in runs:
         ids = {row.agent_id} if row.agent_id in actors else set()
         ids.update(run.get('agent') for run in (row.agent_runs or []) if isinstance(run, dict) and run.get('agent') in actors)
         for actor in ids:
             add('work:'+row.pk+':'+actor, actor, row.started_at, 'work', row.agent_name)
 
-    for row in window(FarmOperation.objects.filter(farm__owner_id=owner)).select_related('farm'):
+    # A farm's state can be large and is shared by all of its operations; the
+    # report only needs the name, not another copy of that JSON on every row.
+    farm_operations = window(FarmOperation.objects.filter(farm__owner_id=owner, farm_id__in=relevant_actors)).select_related('farm').only(
+        'id', 'farm_id', 'created_at', 'operation', 'result', 'farm__id', 'farm__actor_name')
+    for row in farm_operations:
         if row.result.get('success') is False or row.result.get('error'):
             continue
         add('farm:'+row.pk, row.farm_id, row.created_at, 'farm', row.farm.actor_name)
         if row.operation.get('kind') == 'harvest': facts.harvests.append(row.farm_id)
         if row.operation.get('kind') == 'collect': facts.collections.append(row.farm_id)
     for model, category in ((CookingOperation, 'cooking'), (MarketTransaction, 'market'), (InvestmentTrade, 'investment')):
-        for row in window(model.objects.filter(owner_id=owner)):
+        for row in window(model.objects.filter(owner_id=owner, actor_id__in=relevant_actors)).only(
+                'id', 'actor_id', 'actor_name', 'created_at', 'result'):
             if row.result.get('success') is False or row.result.get('error'):
                 continue
             add(category+':'+row.pk, row.actor_id, row.created_at, category, row.actor_name)
-    for row in window(TravelJourney.objects.filter(owner_id=owner), 'departed_at'):
+    for row in window(TravelJourney.objects.filter(owner_id=owner, actor_id__in=relevant_actors), 'departed_at').only(
+            'id', 'actor_id', 'departed_at'):
         add('travel:'+row.pk, row.actor_id, row.departed_at, 'travel')
-    for row in window(FishingTrip.objects.filter(owner_id=owner), 'departed_at').only('id', 'actor_id', 'departed_at'):
+    for row in window(FishingTrip.objects.filter(owner_id=owner, actor_id__in=relevant_actors), 'departed_at').only('id', 'actor_id', 'departed_at'):
         add('fishing:'+row.pk, row.actor_id, row.departed_at, 'fishing')
-    for row in window(LotteryTicket.objects.filter(owner_id=owner, round__owner_id=owner)):
+    for row in window(LotteryTicket.objects.filter(owner_id=owner, round__owner_id=owner,
+                                                    actor_id__in=relevant_actors)).only('purchase_key', 'actor_id', 'created_at'):
         add('lottery:'+row.purchase_key+':'+row.actor_id, row.actor_id, row.created_at, 'lottery')
-    facts.journeys = list(window(TravelJourney.objects.filter(owner_id=owner, status='completed'), 'returned_at'))
-    if TravelJourney.objects.filter(owner_id=owner, status='completed', returned_at__isnull=True).exists():
+    facts.journeys = list(window(TravelJourney.objects.filter(owner_id=owner, actor_id__in=relevant_actors,
+                                                            status='completed'), 'returned_at').only('id', 'actor_id', 'destination_id'))
+    if TravelJourney.objects.filter(owner_id=owner, actor_id__in=relevant_actors, status='completed', returned_at__isnull=True).exists():
         facts.unknown.add('部分旧旅行未记录返程时间，未计入区间完成成果。')
-    # The immutable departure fact is the actual start, not preparing/created_at or mutable updated_at.
-    # 归档会删除保留期之前的 depart 事实，已归档探索改由仍保留的 Exploration 行提供时间与归属。
-    departures = {str(row.exploration_id): row for row in window(CombatFact.objects.filter(owner_id=owner, kind='depart')).only('exploration_id', 'actor_id', 'created_at')}
-    for row in window(Exploration.objects.filter(owner_id=owner)).exclude(status__in=('preparing', 'failed')).only('id', 'actor_id', 'created_at'):
-        departed = departures.pop(row.pk, None)
-        add('exploration:'+row.pk, row.actor_id, departed.created_at if departed else row.created_at, 'exploration')
+    # Only a retained departure fact establishes the actual departure date.
+    departures = {str(row.exploration_id): row for row in window(CombatFact.objects.filter(
+        owner_id=owner, actor_id__in=relevant_actors, kind='depart')).only('exploration_id', 'actor_id', 'created_at')}
     for row in departures.values():
         add('exploration:'+row.exploration_id, row.actor_id, row.created_at, 'exploration')
-    facts.explorations = list(window(Exploration.objects.filter(owner_id=owner), 'ended_at').only('id', 'actor_id'))
-    facts.wins = list(load_combat_kills(owner, actor_ids=actors, start=start, end=end))
-    facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)))
+    departure_for_run = CombatFact.objects.filter(owner_id=owner, kind='depart', actor_id=OuterRef('actor_id'),
+                                                   exploration_id=OuterRef('pk'))
+    unknown_departure = (Exploration.objects.filter(owner_id=owner, actor_id__in=relevant_actors, created_at__lt=end)
+        .filter(Q(ended_at__gte=start) | Q(ended_at__isnull=True))
+        .exclude(status__in=('preparing', 'failed')).alias(has_departure=Exists(departure_for_run))
+        .filter(has_departure=False).exists())
+    archived_history = CombatIntegrity.objects.filter(owner_id=owner, pk__in=relevant_actors, archive_sequence__gt=0).exists()
+    if unknown_departure or archived_history:
+        facts.unknown.add('部分历史冒险可能缺少真实出发时间；缺失出发事实的探索未计入出发批次。')
+    facts.explorations = list(window(Exploration.objects.filter(owner_id=owner, actor_id__in=relevant_actors),
+                                     'ended_at').only('id', 'actor_id'))
+    facts.wins = list(load_combat_kills(owner, actor_ids=relevant_actors, start=start, end=end,
+                                        include_daily=include_daily))
+    facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=relevant_actors).exclude(kind='opening').exclude(amount=0)))
     from ..market_finance import classify_market_ledger_entries
     classify_market_ledger_entries(facts.ledger, owner)
     from ..investment_finance import settle_investment_entries

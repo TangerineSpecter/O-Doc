@@ -1,23 +1,78 @@
 """Append-only provenance; one chain serializes all changes for a resident."""
+import hashlib
+import json
+from contextlib import ExitStack
+from itertools import islice
+
 from .models import CombatFact, CombatIntegrity, CombatProfile, EquipmentInstance, Exploration, CombatEncounter
 from .store import digest
 
 
-def frame(actor):
+def _frame_parts(actor):
     profile = CombatProfile.objects.filter(pk=actor).values('id','owner_id','catalog_id','progression','loadout','hp','mp','loot_progress').first()
     fields = ['id','catalog_id','template_id','snapshot','value','bound','locked','sold']
     if CombatFact.objects.filter(actor_id=actor, kind='checkpoint').exists():
         fields.append('rules')
-    equipment = list(EquipmentInstance.objects.filter(actor_id=actor).order_by('id').values(*fields, 'retained_for_adventure'))
-    # Decimal converted once, identically to snapshot serialization.
-    for row in equipment:
-        row['value'] = str(row['value'])
-        # Omitting false preserves hashes made before the field existed.
-        if not row['retained_for_adventure']:
-            row.pop('retained_for_adventure')
-    runs = list(Exploration.objects.filter(actor_id=actor).order_by('id').values('id','catalog_id','status','phase','elapsed_seconds','revision','snapshot','state','result'))
-    encounters=list(CombatEncounter.objects.filter(actor_id=actor).order_by('id').values('id','exploration_id','number','monster','result'))
-    return {'profile': profile, 'equipment': equipment, 'runs': runs,'encounters':encounters}
+    def equipment():
+        rows = EquipmentInstance.objects.filter(actor_id=actor).order_by('id').values(*fields, 'retained_for_adventure')
+        for row in rows.iterator(chunk_size=500):
+            # Decimal converted once, identically to snapshot serialization.
+            row['value'] = str(row['value'])
+            # Omitting false preserves hashes made before the field existed.
+            if not row['retained_for_adventure']:
+                row.pop('retained_for_adventure')
+            yield row
+    runs = Exploration.objects.filter(actor_id=actor).order_by('id').values(
+        'id','catalog_id','status','phase','elapsed_seconds','revision','snapshot','state','result')
+    encounters = CombatEncounter.objects.filter(actor_id=actor).order_by('id').values(
+        'id','exploration_id','number','monster','result')
+    return profile, equipment(), runs.iterator(chunk_size=500), encounters.iterator(chunk_size=500)
+
+
+def frame(actor):
+    profile, equipment, runs, encounters = _frame_parts(actor)
+    return {'profile': profile, 'equipment': list(equipment), 'runs': list(runs), 'encounters': list(encounters)}
+
+
+def frame_digest(actor):
+    """Hash the exact legacy frame encoding without retaining all history in memory."""
+    profile, equipment, runs, encounters = _frame_parts(actor)
+    with ExitStack() as stack:
+        for rows in (equipment, runs, encounters):
+            stack.callback(rows.close)
+        return _digest_frame_parts(profile, equipment, runs, encounters)
+
+
+def _digest_frame_parts(profile, equipment, runs, encounters):
+    encoder = json.JSONEncoder(sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+    result = hashlib.sha256()
+
+    def write(value):
+        result.update(encoder.encode(value).encode())
+
+    # This order matches json.dumps(sort_keys=True) used by store.digest.
+    result.update(b'{')
+    for index, (key, value) in enumerate((('encounters', encounters), ('equipment', equipment),
+                                          ('profile', profile), ('runs', runs))):
+        if index:
+            result.update(b',')
+        write(key)
+        result.update(b':')
+        if key == 'profile':
+            write(value)
+            continue
+        result.update(b'[')
+        first = True
+        while batch := list(islice(value, 500)):
+            if not first:
+                result.update(b',')
+            # Encoding a bounded array uses the fast JSON encoder without
+            # assembling the entire historical frame in memory.
+            result.update(encoder.encode(batch)[1:-1].encode())
+            first = False
+        result.update(b']')
+    result.update(b'}')
+    return result.hexdigest()
 
 
 def append(profile, key, kind, payload, run=None):
@@ -45,7 +100,7 @@ def append(profile, key, kind, payload, run=None):
                'kind':kind, 'exploration_id':run.pk if run else '', 'elapsed_seconds':run.elapsed_seconds if run else 0,
                'payload':payload, 'previous_hash':chain.digest}
     row = CombatFact.objects.create(**content, digest=digest(content))
-    chain.head, chain.digest, chain.frame = row.sequence, row.digest, digest(frame(profile.pk))
+    chain.head, chain.digest, chain.frame = row.sequence, row.digest, frame_digest(profile.pk)
     chain.save()
     return row
 

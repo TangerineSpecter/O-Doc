@@ -194,7 +194,8 @@ def _actor_scope(owner):
     ids.update(LifeProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
     for model, field in ((AgentFarm, 'id'), (InvestmentAccount, 'id'),
                          (MarketSession, 'actor_id'), (TravelJourney, 'actor_id')):
-        ids.update(model.objects.filter(owner_id=owner).values_list(field, flat=True))
+        # Identity discovery only needs each historical resident once.
+        ids.update(model.objects.filter(owner_id=owner).order_by().values_list(field, flat=True).distinct())
     for task in AgentTask.objects.exclude(task_kind='custom'):
         if task_owner(task) == owner:
             ids.update(task.agent_ids or [task.agent_id])

@@ -274,6 +274,7 @@ class FoodExplorationTests(TestCase):
         food_sync.validate_source(data, meta, require_manifest=True)
         from ..cooking_quality_sync import validate_source as validate_cooking, metadata as cooking_metadata
         validate_cooking(data, cooking_metadata(data))
+        food_sync.validate_import(data, {**meta, **cooking_metadata(data), 'combat_schema_version': 18})
         self.assertEqual(stock_quantity(self.agent.pk, 'admin', 'dish.baked_potato'), 3)
         from utils.sync_manager import SyncError
         for mutation in ('missing', 'effects', 'quantity', 'stars', 'owner', 'lots'):
@@ -299,6 +300,24 @@ class FoodExplorationTests(TestCase):
         data = self.exported()
         validate_source(data)
         self.assertNotIn('food_version', run.snapshot)
+
+    def test_food_sync_rejects_missing_or_duplicate_departure(self):
+        from utils.sync_manager import SyncError
+        self.stock()
+        run = self.trip()
+        data = self.exported()
+        for mutation in ('missing', 'duplicate'):
+            broken = copy.deepcopy(data)
+            departure = next(row for row in broken if row['model'] == food_sync.FACT
+                             and row['fields']['exploration_id'] == run.pk and row['fields']['kind'] == 'depart')
+            if mutation == 'missing':
+                broken.remove(departure)
+            else:
+                duplicate = copy.deepcopy(departure)
+                duplicate['pk'] = 'duplicate-departure'
+                broken.append(duplicate)
+            with self.subTest(mutation=mutation), self.assertRaises(SyncError):
+                food_sync.validate_source(broken)
 
     def test_level_up_rebuilds_bonus_once(self):
         self.stock()

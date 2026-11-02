@@ -311,6 +311,35 @@ class PartyServiceTests(TestCase):
         next(r for r in broken if r['model']=='system_settings.adventureparty')['fields']['state']['wave']=100
         with self.assertRaises(Exception):validate_party(broken)
 
+    def test_party_sync_rejects_missing_duplicate_or_changed_personal_receipts(self):
+        from .party_sync import EVENT, validate_source
+        from utils.sync_manager import SyncError
+        _, party = self.start()
+        tick(party.pk, now=self.now+timedelta(seconds=15))
+        source = self.data()
+        event = next(row for row in source if row['model'] == EVENT and row['fields']['kind'] == 'round')
+        actor = next(iter(event['fields']['payload']['personal']))
+        receipt = next(row for row in source if row['model'] == 'system_settings.combatfact'
+                       and row['fields']['actor_id'] == actor
+                       and row['fields']['payload'].get('shared_event_id') == event['pk'])
+        self.assertTrue(validate_source(source))
+        for kind in ('missing', 'duplicate', 'changed', 'dangling'):
+            with self.subTest(kind=kind):
+                broken = copy.deepcopy(source)
+                row = next(item for item in broken if item['model'] == receipt['model'] and item['pk'] == receipt['pk'])
+                if kind == 'missing':
+                    broken.remove(row)
+                elif kind == 'duplicate':
+                    other = copy.deepcopy(row)
+                    other['pk'] = 'duplicate-personal-receipt'
+                    broken.append(other)
+                elif kind == 'changed':
+                    row['fields']['payload']['events'].append({'kind': 'unexpected'})
+                else:
+                    row['fields']['payload']['shared_event_id'] = 'missing-shared-event'
+                with self.assertRaises(SyncError):
+                    validate_source(broken)
+
     def data(self):
         from django.apps import apps
         from system_settings.sync_state import LOCAL_ONLY_MODEL_LABELS
@@ -666,7 +695,7 @@ class PartyServiceTests(TestCase):
         with self.assertRaisesMessage(SyncError,'需要战斗同步14'):
             validate_source(source,{**meta,'combat_schema_version':13})
         with self.assertRaisesMessage(SyncError,'版本过新'):
-            validate_source(source,{**meta,'combat_schema_version':18})
+            validate_source(source,{**meta,'combat_schema_version':19})
 
     def test_completed_legacy_party_restores_without_converting_history(self):
         from utils.sync_manager import SyncManager

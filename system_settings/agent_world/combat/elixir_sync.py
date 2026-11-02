@@ -1,5 +1,6 @@
 """Validate frozen elixir carry facts; never replays consumption."""
 from decimal import Decimal
+from collections import defaultdict
 
 from ..alchemy_catalog import DEFAULT_RULES
 from ..alchemy_limits import CARRY_CAP
@@ -31,7 +32,10 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
     # 已归档探索不再携带出发事实，只保留携带与结算快照。
     archived = {str(row['pk']) for row in data if row['model'] == 'system_settings.combatintegrity'
                 and int(row['fields'].get('archive_sequence') or 0)}
-    retained = {str(fact.get('exploration_id')) for fact in facts}
+    departures_by_run = defaultdict(list)
+    for fact in facts:
+        departures_by_run[str(fact.get('exploration_id'))].append(fact)
+    retained = set(departures_by_run)
     try:
         for identity, run in runs.items():
             snapshot = run.get('snapshot') or {}
@@ -95,7 +99,7 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
                     raise ValueError('炼金结算携带清单不一致')
             if run['actor_id'] in archived and identity not in retained:
                 continue
-            departures = [fact for fact in facts if str(fact.get('exploration_id')) == identity]
+            departures = departures_by_run[identity]
             if len(departures) != 1:
                 raise ValueError('炼金出发缺少唯一事实')
             payload = departures[0].get('payload') or {}

@@ -1,6 +1,7 @@
 """Cross-domain validation of immutable food departure facts; never replays consumption."""
 from decimal import Decimal
 from copy import deepcopy
+from collections import defaultdict
 
 from . import food_effects
 from .cooking_catalog import DEFAULT_RULES
@@ -14,7 +15,7 @@ def validate_import(data: list[dict], meta: dict | None) -> None:
     from utils.sync_manager import SyncError
     has_food = any(row['model'] == RUN and ('food_version' in row['fields'].get('snapshot', {}) or
                    (row['fields'].get('snapshot', {}).get('prepared_plan') or {}).get('food')) for row in data)
-    if has_food and (not meta or meta.get('combat_schema_version', 0) not in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) or
+    if has_food and (not meta or meta.get('combat_schema_version', 0) not in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18) or
                      meta.get('cooking_schema_version', 0) != 4):
         raise SyncError('美食冒险快照缺少新版战斗或烹饪同步协议')
     validate_source(data, meta, require_manifest=has_food)
@@ -42,9 +43,11 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
     if require_manifest and (not meta or any(meta.get(key) != value for key, value in expected.items())):
         raise SyncError('美食冒险清单或效果规则缺失或不一致')
     try:
+        departures_by_run = defaultdict(list)
         for fact in facts:
             if fact['kind'] != 'depart':
                 continue
+            departures_by_run[fact['exploration_id']].append(fact)
             snapshot = runs.get(fact['exploration_id'], {}).get('snapshot') or {}
             if ('food_version' in fact['payload']) != ('food_version' in snapshot):
                 raise ValueError('出发美食版本缺失')
@@ -61,7 +64,7 @@ def validate_source(data: list[dict], meta: dict | None = None, *, require_manif
                 raise ValueError('美食效果版本无效')
             if run['actor_id'] in archived and identity not in retained:
                 continue
-            departures = [fact for fact in facts if fact['exploration_id'] == identity and fact['kind'] == 'depart']
+            departures = departures_by_run[identity]
             if len(departures) != 1:
                 raise ValueError('美食出发缺少唯一事实')
             departure = departures[0]

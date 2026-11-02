@@ -29,7 +29,8 @@ def job_level(progression):
 
 
 def aggregate_combat(residents, runs, kills):
-    profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys())}
+    profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys()).only(
+        'id', 'catalog_id', 'progression')}
     catalog_ids = {p.catalog_id for p in profiles.values()} | {run.catalog_id for run in runs}
     catalogs = {}
     for catalog in CombatCatalog.objects.filter(pk__in=catalog_ids):
@@ -99,9 +100,9 @@ def aggregate_combat(residents, runs, kills):
         monster = kill.monster
         key = monster.get('id') or 'unknown'
         detail = row['monsters'].setdefault(key, {'id': key, 'name': monster.get('name') or '未记录魔物', 'kills': 0, 'highestLevel': 0})
-        detail['kills'] += 1
+        detail['kills'] += kill.count
         detail['highestLevel'] = max(detail['highestLevel'], count(monster.get('level')))
-        row['bossKills'] += monster.get('rank') == 'boss'
+        row['bossKills'] += kill.count if monster.get('rank') == 'boss' else 0
     for row in rows.values():
         row['successRate'] = round(100 * row['completed'] / row['settled'], 1) if row['settled'] else None
         row['averageSeconds'] = round(row['elapsedSeconds'] / row['explorations']) if row['explorations'] else 0
@@ -112,14 +113,12 @@ def aggregate_combat(residents, runs, kills):
     return sorted(rows.values(), key=lambda row: (-row['kills'], -row['bossKills'], -row['experience'], row['id']))
 
 
-def load_combat_statistics(owner, start, end, residents):
-    # 归档会删除保留期之前的 depart 事实，因此用仍保留的探索行补齐已结算记录；
-    # depart 事实用于精确覆盖未归档区间，准备失败（failed）与尚未出发不计数。
+def load_combat_statistics(owner, start, end, residents, *, include_daily=False):
+    # Missing departure dates are unknown; creation time is not a substitute.
     ids = set(CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
         created_at__gte=start, created_at__lt=end).values_list('exploration_id', flat=True))
-    ids.update(Exploration.objects.filter(owner_id=owner, actor_id__in=residents,
-        created_at__gte=start, created_at__lt=end).exclude(status__in=('preparing', 'failed'))
-        .values_list('pk', flat=True))
-    runs = list(Exploration.objects.filter(owner_id=owner, actor_id__in=residents, pk__in=ids))
-    kills = load_combat_kills(owner, exploration_ids=[run.pk for run in runs], actor_ids=residents)
+    runs = list(Exploration.objects.filter(owner_id=owner, actor_id__in=residents, pk__in=ids).only(
+        'id', 'actor_id', 'catalog_id', 'status', 'snapshot', 'result', 'elapsed_seconds'))
+    kills = load_combat_kills(owner, exploration_ids=[run.pk for run in runs], actor_ids=residents,
+                              include_daily=include_daily)
     return aggregate_combat(residents, runs, kills)

@@ -1,7 +1,9 @@
 """Legacy sealing, self-contained history, and catalog-independent sync regressions."""
 import copy
 import json
+import os
 from datetime import timedelta
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.core import serializers
@@ -34,6 +36,11 @@ class FrozenHistoryTests(TestCase):
         old = copy.deepcopy(source)
         old['pk'] = 'historical-rules'
         old['fields']['created_at'] = '2020-01-01T00:00:00'
+        # The current bundled catalog uses a newer material price formula;
+        # the historical fixture must satisfy the historical catalog rules.
+        for material in old['fields']['tables']['materials']:
+            material['sale_price'] = str(Decimal('1') + Decimal('.04') * int(material['level']))
+        old['fields']['digest'] = digest(old['fields']['tables'])
         data.append(old)
         for row in data:
             fields = row['fields']
@@ -119,7 +126,10 @@ class FrozenHistoryTests(TestCase):
             created_at=timezone.now() - timedelta(days=10),
         )
 
-        results = archive_owners(None, 7, apply=True)
+        # Exercise historical-format compatibility without reopening the retired
+        # production deletion entry point.
+        with patch('system_settings.agent_world.combat.archive.reject_legacy_archive'):
+            results = archive_owners(None, 7, apply=True)
         archived = next(item for item in results if item.get('actor') == self.agent.pk)
         self.assertGreater(archived.get('archived', 0), 0)
 
@@ -160,19 +170,19 @@ class FrozenHistoryTests(TestCase):
         self.assertEqual(set(kept_revisions),
                          {'system_settings.combatfact:f2', 'system_settings.combatfact:g1'})
 
-    def test_daily_maintenance_appends_checkpoint_once(self):
+    def test_daily_maintenance_ignores_old_positive_archive_configuration(self):
         from .. import worker
 
         worker._combat_maintenance_day = None
-        worker._combat_attempt_at = 0.0
         run = self.trip()
         explorations.finish(run.pk, now=self.now + timedelta(seconds=15))
-
-        worker.maintain_combat_history()
-        first = CombatFact.objects.filter(kind='checkpoint').count()
-        self.assertGreaterEqual(first, CombatProfile.objects.count())
-        worker.maintain_combat_history()
-        self.assertEqual(CombatFact.objects.filter(kind='checkpoint').count(), first)
+        before = list(CombatFact.objects.values_list('pk', flat=True))
+        with patch.dict(os.environ, {'ODOC_COMBAT_ARCHIVE_DAYS': '7'}):
+            with self.assertLogs('system_settings.agent_world.worker', level='WARNING') as logs:
+                worker.maintain_combat_history()
+            worker.maintain_combat_history()
+        self.assertIn('旧战斗归档已停用', logs.output[0])
+        self.assertEqual(list(CombatFact.objects.values_list('pk', flat=True)), before)
 
     def test_archived_snapshot_rejects_tampered_archive_digest(self):
         from django.utils import timezone
@@ -185,7 +195,8 @@ class FrozenHistoryTests(TestCase):
         CombatFact.objects.filter(pk=checkpoint.pk).update(
             created_at=timezone.now() - timedelta(days=10),
         )
-        archive_owners(None, 7, apply=True)
+        with patch('system_settings.agent_world.combat.archive.reject_legacy_archive'):
+            archive_owners(None, 7, apply=True)
         data = compact_source(self.exported())
         chain_row = next(row for row in data if row['model'] == CHAIN)
         chain_row['fields']['archive_digest'] = '0' * 64

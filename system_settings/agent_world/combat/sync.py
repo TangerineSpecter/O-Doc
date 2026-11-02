@@ -21,13 +21,13 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>17:
+    if meta and meta.get('combat_schema_version',0)>18:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     if meta is not None and meta.get('combat_schema_version', 0) < 15 and any(row['model'] in (LABEL+'adventureplanningday', LABEL+'adventurereservation') for row in data):
         raise SyncError('组队探索预约需要战斗同步15')
     from .reservation_sync import validate_snapshot as validate_reservations
     validate_reservations(data)
-    from .history_snapshot import normalize_source, compact_source, aggregate_frame, verify_chain
+    from .history_snapshot import normalize_source, compact_source, aggregate_frame, frame_index, verify_chain
     if meta is None or meta.get('combat_schema_version', 0) < 8:
         data = compact_source(normalize_source(data))
     from ..food_sync import validate_source as validate_food
@@ -38,6 +38,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from .elixir_sync import validate_source as validate_elixirs
     validate_elixirs(data, meta, require_manifest=bool(meta and meta.get('combat_schema_version', 0) >= 9))
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
+    frames = frame_index(rows)
     for (model, _), row in rows.items():
         if model != GEAR:
             continue
@@ -50,8 +51,14 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     if meta and meta.get('combat_actors') is not None and set(meta['combat_actors'])!=set(profiles):raise SyncError('战斗快照缺少居民业务数据')
     chains={pk:r for (model,pk),r in rows.items() if model==CHAIN}
     facts=defaultdict(list)
+    facts_by_run, encounters_by_run = defaultdict(list), defaultdict(list)
     for (model,pk),r in rows.items():
-        if model==FACT and r['actor_id']:facts[r['actor_id']].append(r)
+        if model==FACT and r['actor_id']:
+            facts[r['actor_id']].append(r)
+            if r['exploration_id']:
+                facts_by_run[(r['actor_id'], r['exploration_id'])].append(r)
+        elif model==ENCOUNTER:
+            encounters_by_run[r['exploration_id']].append(r)
     for (model,pk),row in rows.items():
         if model==CATALOG:
             if digest(row['tables'])!=row['digest']:raise SyncError('战斗目录内容与不可变指纹不一致')
@@ -281,7 +288,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
         from .stock_validation import expected_stock
         stock = expected_stock(rows, actor, profile['owner_id'], ordered, chain.get('archive_stock'))
         if {k:v for k,v in stock.items() if v}!={k:v for k,v in actual.items() if v}:raise SyncError('战斗库存与消费、掉落事实不一致')
-        frame = aggregate_frame(rows, actor, frozen=True)
+        frame = aggregate_frame(rows, actor, frozen=True, index=frames)
         if digest(frame)!=chain['frame']:raise SyncError('战斗快照包含独立合并的装备、成长或探索状态')
         worn=profile['loadout'].values()
         if len(set(worn))!=len(worn) or any(identity not in expected_gear or rows[(GEAR,identity)]['sold'] for identity in worn):raise SyncError('穿戴装备关联无效')
@@ -291,18 +298,19 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             if (CATALOG,run['catalog_id']) not in rows:raise SyncError('未结束探索的运行目录缺失')
         elif run['snapshot'].get('history_frozen') != 1:
             raise SyncError('历史探索尚未固化')
-        encounters=[r for (m,_),r in rows.items() if m==ENCOUNTER and r['exploration_id']==pk]
+        encounters=encounters_by_run[pk]
         if sorted(r['number'] for r in encounters)!=list(range(1,run['state'].get('encounter',0)+1)):raise SyncError('探索遭遇记录缺失或重复')
         if run['record_id'] and (LABEL+'agentrunrecord',run['record_id']) not in rows:raise SyncError('探索回顾记录缺失')
         from .explorations import TERMINAL
         if run['status'] in TERMINAL:
             record=rows.get((LABEL+'agentrunrecord',run['record_id']))
-            retained=any(f['exploration_id']==pk for f in facts[run['actor_id']])
+            run_facts = facts_by_run[(run['actor_id'], pk)]
+            retained=bool(run_facts)
             if run['actor_id'] in archived_actors and not retained:
                 # 已归档的旧探索只保留结算行与回顾记录，逐回合事实不再参与校验。
                 if not record:raise SyncError('已归档探索缺少结算回顾记录')
                 continue
-            terminal=[r for r in facts[run['actor_id']] if r['kind']=='terminal' and r['exploration_id']==pk]
+            terminal=[r for r in run_facts if r['kind']=='terminal']
             if len(terminal)!=1 or not record:raise SyncError('探索终态缺少唯一结算和回顾来源')
             payload=terminal[0]['payload']
             if payload['status']!=run['status'] or payload['record_id']!=run['record_id'] or payload['report']!=run['result'].get('report') or payload['returned']!=run['result'].get('returned_potions'):
@@ -318,6 +326,8 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                 raise SyncError('探索回顾记录与固定结算摘要不一致')
     from .party_sync import validate_source as validate_parties
     validate_parties(data, meta)
+    from .party_daily_sync import validate_source as validate_daily
+    validate_daily(data, meta)
     return True
 
 
@@ -423,5 +433,11 @@ def metadata(data=None):
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
     # 12: forge receipts establish equipment provenance and consume maze materials.
-    return {'combat_schema_version':17,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+    from .party_daily_sync import COVERAGE, DAY
+    if data is None:
+        from .analytics_models import CombatPartyCoverage, CombatPartyDay
+        has_daily = CombatPartyCoverage.objects.exists() or CombatPartyDay.objects.exists()
+    else:
+        has_daily = any(row['model'] in (COVERAGE, DAY) for row in data)
+    return {'combat_schema_version':18 if has_daily else 17,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}

@@ -9,14 +9,17 @@ def article_events(visible, actors, start, end, activities, add):
                for row in activities if row.activity_type == 'publication'}
     activity_actors = {row.event_key: row.agent_id or row.metadata.get('agentSnapshot', {}).get('id', '') for row in activities}
     posts = Article.objects.filter(coll_id__in=visible, is_valid=True)
-    for row in posts.filter(created_at__gte=start, created_at__lt=end):
+    for row in posts.filter(created_at__gte=start, created_at__lt=end).only('article_id', 'agent_post_author_id', 'created_at'):
         actor = row.agent_post_author_id or authors.get(row.pk, '')
         if actor in actors:
             add('publication:'+row.pk, actor, row.created_at, 'publication')
     for model, prefix, identity, name in ((ArticlePostComment, 'comment:', 'creator_id', 'creator_name'),
                                          (ArticlePostRating, 'rating:', 'rater_id', 'rater_name')):
         rows = model.objects.filter(article__coll_id__in=visible, article__is_valid=True, is_valid=True,
-                                    created_at__gte=start, created_at__lt=end).select_related('article')
+                                    created_at__gte=start, created_at__lt=end).select_related('article').only(
+            'article_id', 'actor_agent_id', identity, name, 'created_at',
+            'article__agent_post_author_id', 'article__agent_post_creator_name',
+            *(['reply_to_actor_id'] if model is ArticlePostComment else []))
         for row in rows:
             key = prefix+row.pk
             sender = row.actor_agent_id or activity_actors.get(key, '')
@@ -34,7 +37,9 @@ def article_events(visible, actors, start, end, activities, add):
         return activity_actors.get(key) or (raw[9:] if raw.startswith('agent-id:') else raw)
 
     annotations = ArticleAnnotation.objects.filter(article__coll_id__in=visible, article__is_valid=True,
-        is_valid=True, created_at__gte=start, created_at__lt=end).select_related('article')
+        is_valid=True, created_at__gte=start, created_at__lt=end).select_related('article').only(
+        'article_id', 'creator_id', 'creator_name', 'created_at', 'article__agent_post_author_id',
+        'article__agent_post_creator_name', 'article__author')
     for row in annotations:
         key = 'annotation:'+row.pk
         sender = sender_id(row.creator_id, key)
@@ -44,7 +49,10 @@ def article_events(visible, actors, start, end, activities, add):
     first_comment = ArticleAnnotationComment.objects.filter(annotation_id=OuterRef('annotation_id')).order_by('created_at', 'pk').values('pk')[:1]
     comments = ArticleAnnotationComment.objects.filter(annotation__article__coll_id__in=visible,
         annotation__article__is_valid=True, annotation__is_valid=True, is_valid=True,
-        created_at__gte=start, created_at__lt=end).select_related('annotation__article').annotate(first_comment=Subquery(first_comment))
+        created_at__gte=start, created_at__lt=end).select_related('annotation__article').only(
+        'annotation_id', 'creator_id', 'creator_name', 'created_at', 'annotation__creator_id',
+        'annotation__article_id', 'annotation__article__agent_post_author_id',
+        'annotation__article__agent_post_creator_name', 'annotation__article__author').annotate(first_comment=Subquery(first_comment))
     for row in comments:
         # Creating an annotation also creates its first comment in the same transaction; that is one behavior.
         if row.pk == row.first_comment and row.creator_id == row.annotation.creator_id and 'annotation-comment:'+row.pk not in activity_actors:

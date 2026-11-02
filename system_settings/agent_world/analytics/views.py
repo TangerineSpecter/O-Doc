@@ -15,6 +15,7 @@ from .service import aggregate
 from .combat_statistics import load_combat_statistics
 from .fishing_statistics import load_fishing_statistics
 from .lottery_statistics import load_lottery_statistics
+from .consistency import analytics_snapshot
 
 
 class AnalyticsParams(serializers.Serializer):
@@ -40,15 +41,19 @@ class AnalyticsView(APIView):
         first, last, actor = values['start_date'], values['end_date'], values['actor_id']
         start = storage_time(datetime.combine(first, time.min, SHANGHAI))
         end = storage_time(datetime.combine(last+timedelta(days=1), time.min, SHANGHAI))
-        facts = load_facts(request, get_current_user_identifier(request), start, end)
-        if actor and actor not in facts.residents:
-            raise PermissionDenied('无法查看该居民的数据。')
-        residents = {key: value for key, value in facts.residents.items() if not actor or key == actor}
-        return success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
-                               **aggregate(facts, first, last, actor),
-                               'lotteryStatistics': load_lottery_statistics(get_current_user_identifier(request), start, end, residents),
-                               'fishingComparison': load_fishing_statistics(get_current_user_identifier(request), start, end, residents),
-                               'combatComparison': load_combat_statistics(get_current_user_identifier(request), start, end, residents)})
+        owner = get_current_user_identifier(request)
+        with analytics_snapshot() as include_daily:
+            facts = load_facts(request, owner, start, end, actor=actor, include_daily=include_daily)
+            if actor and actor not in facts.residents:
+                raise PermissionDenied('无法查看该居民的数据。')
+            residents = {key: value for key, value in facts.residents.items() if not actor or key == actor}
+            return success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
+                                   **aggregate(facts, first, last, actor),
+                                   'lotteryStatistics': load_lottery_statistics(owner, start, end, residents),
+                                   'fishingComparison': load_fishing_statistics(owner, start, end, residents,
+                                                                                include_daily=include_daily),
+                                   'combatComparison': load_combat_statistics(owner, start, end, residents,
+                                                                            include_daily=include_daily)})
 
 
 class AnalyticsLedgerParams(serializers.Serializer):

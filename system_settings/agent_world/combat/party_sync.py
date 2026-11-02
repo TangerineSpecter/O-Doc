@@ -1,4 +1,6 @@
 """Validate a complete shared session and its linked personal receipts; never merge reward branches."""
+from collections import defaultdict
+
 from .store import digest
 from .party_integrity import canonical, aggregate_frame, wave_digest
 
@@ -10,20 +12,32 @@ def validate_source(data, meta=None):
     from utils.sync_manager import SyncError
     rows = {(r['model'], str(r['pk'])): {'id':str(r['pk']), **r['fields']} for r in data}
     parties = {key:row for (model,key),row in rows.items() if model==PARTY}
+    members_by_party, waves_by_party, events_by_party = defaultdict(list), defaultdict(list), defaultdict(list)
+    member_explorations = set()
     for (model, key), row in rows.items():
         if model in (MEMBER,WAVE,EVENT):
             party = parties.get(row['party_id'])
             if not party or party['owner_id']!=row['owner_id']:
                 raise SyncError('组队事实缺少所属会话')
+            if model == MEMBER:
+                members_by_party[row['party_id']].append(row)
+                member_explorations.add(row['exploration_id'])
+            elif model == WAVE:
+                waves_by_party[row['party_id']].append(row)
+            else:
+                events_by_party[row['party_id']].append(row)
     facts = [row for (model,_),row in rows.items() if model==PREFIX+'combatfact']
     for (model,key),row in rows.items():
         if model==PREFIX+'exploration' and row['snapshot'].get('party_id'):
-            if row['snapshot']['party_id'] not in parties or not any(m==MEMBER and v['exploration_id']==key for (m,_),v in rows.items()):
+            if row['snapshot']['party_id'] not in parties or key not in member_explorations:
                 raise SyncError('个人探索缺少完整组队会话与成员记录')
+    receipts_by_event_actor = defaultdict(list)
     for fact in facts:
         ref=fact['payload'].get('shared_event_id')
         if ref and ((EVENT,ref) not in rows or rows[(EVENT,ref)]['owner_id']!=fact['owner_id']):
             raise SyncError('个人结算引用的共同战斗事实缺失')
+        if ref:
+            receipts_by_event_actor[(ref, fact['actor_id'])].append(fact)
     for identity, party in parties.items():
         from .bard_state import validate_unit
         try:
@@ -34,8 +48,8 @@ def validate_source(data, meta=None):
         version = party.get('frame_version', 1)
         if version == 2 and meta is not None and meta.get('combat_schema_version', 0) < 14:
             raise SyncError('波次内容指纹需要战斗同步14')
-        members = sorted([r for (m,_),r in rows.items() if m==MEMBER and r['party_id']==identity], key=lambda r:r['id'])
-        waves = sorted([r for (m,_),r in rows.items() if m==WAVE and r['party_id']==identity], key=lambda r:r['number'])
+        members = sorted(members_by_party[identity], key=lambda r:r['id'])
+        waves = sorted(waves_by_party[identity], key=lambda r:r['number'])
         active = [r for r in members if r['active']]
         if len(active)>4 or set(party['state']['players'])!={r['actor_id'] for r in active}:
             raise SyncError('组队成员与战斗状态不一致')
@@ -58,7 +72,7 @@ def validate_source(data, meta=None):
         frame = aggregate_frame(party, members, waves)
         if digest(canonical(frame))!=party['frame']:
             raise SyncError('组队快照包含独立合并的成员、波次或战斗状态')
-        stream = sorted([r for (m,_),r in rows.items() if m==EVENT and r['party_id']==identity], key=lambda r:r['sequence'])
+        stream = sorted(events_by_party[identity], key=lambda r:r['sequence'])
         previous = ''
         for index, event in enumerate(stream,1):
             content = {k:event[k] for k in ('party_id','owner_id','sequence','kind','payload','previous_hash')}
@@ -87,7 +101,7 @@ def validate_source(data, meta=None):
                 if set(rolled)!=set(expected):
                     raise SyncError('共同奖励缺少完整分配记录')
                 for actor, events in event['payload'].get('personal',{}).items():
-                    receipts = [r for r in facts if r['actor_id']==actor and r['payload'].get('shared_event_id')==event['id']]
+                    receipts = receipts_by_event_actor[(event['id'], actor)]
                     if len(receipts)!=1 or receipts[0]['payload'].get('events')!=events:
                         raise SyncError('组队奖励缺少唯一的个人结算事实')
         if len(stream)!=party['head'] or previous!=party['digest']:

@@ -488,7 +488,7 @@ class FishingTests(TestCase):
         trip=self.prepared();checkpoint_all();data=database_data();other=copy.deepcopy(data)
         row=next(r for r in other if r['model']=='system_settings.fishingevent');row['fields']['data']={'key':'spot','value':'river'}
         with self.assertRaises(SyncError):validate_conflicts(data,other)
-        with self.assertRaises(SyncError):validate_source(data,{'fishing_schema_version':2})
+        with self.assertRaises(SyncError):validate_source(data,{'fishing_schema_version':3})
         refresh_merged(data,{})
 
     def test_overview_permissions_owner_isolation_and_pagination(self):

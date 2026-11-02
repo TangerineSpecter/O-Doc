@@ -2,7 +2,7 @@
 from ..fishing.models import FishingTrip, FishingEvent
 
 
-def load_fishing_statistics(owner, start, end, residents):
+def load_fishing_statistics(owner, start, end, residents, *, include_daily=False):
     rows = {actor: {**resident, 'trips': 0, 'casts': 0, 'catches': 0, 'kings': 0,
                    'escaped': 0, 'empty': 0, 'junk': 0, 'experience': 0,
                    'ordinaryCatches': 0, 'ordinaryCatchRate': None}
@@ -10,9 +10,16 @@ def load_fishing_statistics(owner, start, end, residents):
     trips = FishingTrip.objects.filter(owner_id=owner, actor_id__in=rows)
     for actor in trips.filter(departed_at__gte=start, departed_at__lt=end).values_list('actor_id', flat=True):
         rows[actor]['trips'] += 1
+    covered = set()
+    if include_daily:
+        from .fishing_daily import load_daily_fishing
+        covered, totals = load_daily_fishing(owner, rows, start, end)
+        for actor, counters in totals.items():
+            for key, value in counters.items():
+                rows[actor][key] += value
     # Event facts are counted even if their trip departed before the selected dates.
     events = FishingEvent.objects.filter(trip__owner_id=owner, trip__actor_id__in=rows,
-        created_at__gte=start, created_at__lt=end, kind__in=['cast', 'duel_end'])
+        created_at__gte=start, created_at__lt=end, kind__in=['cast', 'duel_end']).exclude(trip_id__in=covered)
     for actor, kind, data in events.values_list('trip__actor_id', 'kind', 'data'):
         row = rows[actor]
         row['experience'] += data.get('experience', 0)

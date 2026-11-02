@@ -135,10 +135,17 @@ def reconcile_market() -> None:
     for batch in MarketBatch.objects.all():
         if any(not MarketTransaction.objects.filter(pk=k,owner_id=batch.owner_id).exists() for k in batch.purchase_keys):
             raise SyncError('商店库存缺失关联成交')
-    for item in AgentInventoryItem.objects.all():
-        trade_id = item.source.get('market_trade_id')
-        if trade_id and not MarketTransaction.objects.filter(pk=trade_id,owner_id=item.owner_id,actor_id=item.actor_id).exists():
-            raise SyncError('背包物品缺失市场转移依据')
+    items = list(AgentInventoryItem.objects.all())
+    transfer_ids = sorted({str(item.source.get('market_trade_id')) for item in items if item.source.get('market_trade_id')})
+    transfers = set()
+    for offset in range(0, len(transfer_ids), 500):
+        transfers.update(MarketTransaction.objects.filter(pk__in=transfer_ids[offset:offset + 500]).values_list(
+            'pk', 'owner_id', 'actor_id'))
+    missing = [item for item in items if item.source.get('market_trade_id') and
+               (str(item.source['market_trade_id']), item.owner_id, item.actor_id) not in transfers]
+    if missing:
+        from .fishing.return_provenance import validate_legacy_returns
+        validate_legacy_returns(missing)
     for farm in AgentFarm.objects.all():
         for animal in farm.state.get('animals',[]):
             trade_id = animal.get('market_trade_id')

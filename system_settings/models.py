@@ -1051,10 +1051,12 @@ from .agent_world.combat.models import (CombatCatalog, CombatConfig, CombatProfi
 from .agent_world.lottery_models import LotteryConfig, LotteryRound, LotteryTicket, LotteryIntegrity  # noqa: E402,F401
 
 from .agent_world.fishing.models import FishingCatalog, FishingConfig, FishingProfile, FishingTrip, FishingEvent, FishingIntegrity, FishingRuntime  # noqa: E402,F401
+from .agent_world.fishing.analytics_models import FishingTripCoverage, FishingTripDay  # noqa: E402,F401
 
 from .agent_world.tournament_models import Tournament, TournamentRound, TournamentMatch, TournamentReward, TournamentRuntime, TournamentIntegrity, TournamentIllustration  # noqa: E402,F401
 
 from .agent_world.life_models import LifeInterleavingState
 
 from .agent_world.combat.party_models import AdventureParty, AdventureMember, AdventureWave, AdventureEvent  # noqa: E402,F401
+from .agent_world.combat.analytics_models import CombatPartyCoverage, CombatPartyDay  # noqa: E402,F401
 from .agent_world.combat.reservation_models import AdventurePlanningDay, AdventureReservation  # noqa: E402,F401
