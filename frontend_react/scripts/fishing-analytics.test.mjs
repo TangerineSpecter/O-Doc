@@ -12,11 +12,12 @@ server.listen({onUnhandledRequest: 'error'});
 after(() => {server.close(); if (previous) Object.defineProperty(globalThis, 'location', previous); else Reflect.deleteProperty(globalThis, 'location');});
 const get = async (query = '') => {
     const response = await fetch(`http://localhost/api/settings/agent-world/analytics/?start_date=${day}&end_date=${day}&${query}`);
-    return {status: response.status, ...(await response.json())};
+    return {status: response.status, serverTiming: response.headers.get('Server-Timing'), ...(await response.json())};
 };
 test('fishing analytics filters residents and dates', async () => {
     const all = await get();
     assert.equal(all.status, 200);
+    assert.match(all.serverTiming, /combat_world;dur=/);
     assert.equal(all.data.fishingComparison.length, analytics.residents.length);
     const result = await get(`actor_id=${analytics.residents[1].id}`);
     assert.equal(result.data.fishingComparison.length, 1);
@@ -36,6 +37,7 @@ test('empty, loading and error requests stay in local handlers', async () => {
     location.search = '?mockState=fishing-invalid';
     const invalid = await get();
     assert.equal(invalid.status, 409);
+    assert.match(invalid.serverTiming, /fishing;dur=/);
     assert.equal(invalid.data.reason, 'invalid_fishing_statistics_source');
     assert.match(invalid.msg, /钓鱼记录存在异常/);
     location.search = '?mockState=populated';

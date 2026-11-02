@@ -3,6 +3,7 @@ import {resolveLocalRoute} from './agentWorld/routes';
 import {resolveQuantRoute} from './quant/routes';
 import {resolveImageGalleryRoute} from './imageGallery/groupRoutes';
 import {resolveNovelReaderRoute} from './novel/readerRoutes';
+import {analyticsTiming} from './agentWorld/analyticsTiming';
 import packageJson from '../../package.json' with {type: 'json'};
 
 export const localHandlers = [
@@ -21,6 +22,9 @@ export const localHandlers = [
         if (data === undefined) return;
         if (new URL(request.url).pathname === '/api/settings/agent-world/token-usage/export/') {
             return HttpResponse.json(data, {headers: {'Content-Disposition': 'attachment; filename="local-token-report.json"', 'Cache-Control': 'no-store'}});
+        }
+        if (new URL(request.url).pathname === '/api/settings/agent-world/analytics/') {
+            return HttpResponse.json({code: 200, msg: '本地样例', data}, {headers: {'Server-Timing': analyticsTiming}});
         }
         return HttpResponse.json({code: 200, msg: '本地样例', data});
     }),

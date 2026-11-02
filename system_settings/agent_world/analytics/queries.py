@@ -45,10 +45,11 @@ class Facts:
     journeys: list = field(default_factory=list)
     explorations: list = field(default_factory=list)
     wins: list = field(default_factory=list)
+    departure_ids: set = field(default_factory=set)
     unknown: set = field(default_factory=set)
 
 
-def load_facts(request, owner, start, end, actor='', *, include_daily=False):
+def load_facts(request, owner, start, end, actor='', *, include_daily=False, timing=None):
     selected_actor = actor  # Identity-discovery loops below also use the name ``actor``.
     facts = Facts()
     actors = _actor_scope(owner)
@@ -119,6 +120,8 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False):
         for actor, name in model.objects.filter(owner_id=owner).values_list('actor_id', 'actor_name').distinct():
             remember(actor, name)
     relevant_actors = ({selected_actor} & actors) if selected_actor else actors
+    if timing is not None:
+        timing.mark('residents')
     activities = list(window(AgentActivity.objects.filter(status='success', artifact_coll_id__in=visible)
                         .exclude(action__startswith='social_').exclude(activity_type='work'), 'occurred_at').only(
         'id', 'event_key', 'activity_type', 'agent_id', 'metadata', 'artifact_id', 'artifact_article_id',
@@ -155,6 +158,8 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False):
             peer=resident_id(row.moment.actor_id) or row.moment.actor_id, peer_name=row.moment.identity.get('name', ''))
     facts.unknown.add('朋友圈点赞按保留的有效状态及更新时间统计，已撤销的点赞不计入。')
     facts.unknown.add('评分按现存评分记录计一次，不还原每次改分；未保存稳定任务类型的旧工作不补算。')
+    if timing is not None:
+        timing.mark('social')
 
     # Dedicated world tasks already have business facts. Only custom work is counted here.
     runs = window(AgentRunRecord.objects.filter(task__task_kind='custom').exclude(status='failed'), 'started_at').only(
@@ -193,9 +198,16 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False):
                                                             status='completed'), 'returned_at').only('id', 'actor_id', 'destination_id'))
     if TravelJourney.objects.filter(owner_id=owner, actor_id__in=relevant_actors, status='completed', returned_at__isnull=True).exists():
         facts.unknown.add('部分旧旅行未记录返程时间，未计入区间完成成果。')
+    if timing is not None:
+        timing.mark('life')
     # Only a retained departure fact establishes the actual departure date.
-    departures = {str(row.exploration_id): row for row in window(CombatFact.objects.filter(
-        owner_id=owner, actor_id__in=relevant_actors, kind='depart')).only('exploration_id', 'actor_id', 'created_at')}
+    departures = {}
+    departure_facts = window(CombatFact.objects.filter(owner_id=owner, actor_id__in=relevant_actors, kind='depart'))
+    for row in departure_facts.only('exploration_id', 'actor_id', 'created_at').iterator():
+        identity = str(row.exploration_id)
+        departures[identity] = row
+        if row.actor_id in facts.residents:
+            facts.departure_ids.add(identity)
     for row in departures.values():
         add('exploration:'+row.exploration_id, row.actor_id, row.created_at, 'exploration')
     departure_for_run = CombatFact.objects.filter(owner_id=owner, kind='depart', actor_id=OuterRef('actor_id'),
@@ -211,11 +223,15 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False):
                                      'ended_at').only('id', 'actor_id'))
     facts.wins = list(load_combat_kills(owner, actor_ids=relevant_actors, start=start, end=end,
                                         include_daily=include_daily))
+    if timing is not None:
+        timing.mark('combat_world')
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=relevant_actors).exclude(kind='opening').exclude(amount=0)))
     from ..market_finance import classify_market_ledger_entries
     classify_market_ledger_entries(facts.ledger, owner)
     from ..investment_finance import settle_investment_entries
     facts.ledger = settle_investment_entries(facts.ledger, owner, facts.unknown)
+    if timing is not None:
+        timing.mark('ledger')
     return facts
 
 

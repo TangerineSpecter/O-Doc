@@ -113,10 +113,11 @@ def aggregate_combat(residents, runs, kills):
     return sorted(rows.values(), key=lambda row: (-row['kills'], -row['bossKills'], -row['experience'], row['id']))
 
 
-def load_combat_statistics(owner, start, end, residents, *, include_daily=False):
+def load_combat_statistics(owner, start, end, residents, *, include_daily=False, departure_ids=None):
     # Missing departure dates are unknown; creation time is not a substitute.
-    ids = set(CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
+    ids = (set(CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
         created_at__gte=start, created_at__lt=end).values_list('exploration_id', flat=True))
+        if departure_ids is None else set(departure_ids))
     runs = list(Exploration.objects.filter(owner_id=owner, actor_id__in=residents, pk__in=ids).only(
         'id', 'actor_id', 'catalog_id', 'status', 'snapshot', 'result', 'elapsed_seconds'))
     kills = load_combat_kills(owner, exploration_ids=[run.pk for run in runs], actor_ids=residents,

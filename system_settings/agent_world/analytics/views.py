@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import date, datetime, time, timedelta
 from django.db.models import Q
 from rest_framework import serializers
@@ -18,8 +19,10 @@ from .combat_statistics import load_combat_statistics
 from .fishing_statistics import InvalidFishingStatisticsSource, load_fishing_statistics
 from .lottery_statistics import load_lottery_statistics
 from .consistency import analytics_snapshot
+from .timing import AnalyticsTiming
 
 logger = logging.getLogger(__name__)
+SLOW_ANALYTICS_MS = 3000
 
 
 class AnalyticsParams(serializers.Serializer):
@@ -38,6 +41,7 @@ class AnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        timing = AnalyticsTiming()
         params = AnalyticsParams(data=request.query_params)
         if not params.is_valid():
             return valid_result('统计筛选无效', params.errors, status=400)
@@ -47,7 +51,8 @@ class AnalyticsView(APIView):
         end = storage_time(datetime.combine(last+timedelta(days=1), time.min, SHANGHAI))
         owner = get_current_user_identifier(request)
         with analytics_snapshot() as include_daily:
-            facts = load_facts(request, owner, start, end, actor=actor, include_daily=include_daily)
+            timing.mark('setup')
+            facts = load_facts(request, owner, start, end, actor=actor, include_daily=include_daily, timing=timing)
             if actor and actor not in facts.residents:
                 raise PermissionDenied('无法查看该居民的数据。')
             residents = {key: value for key, value in facts.residents.items() if not actor or key == actor}
@@ -58,14 +63,30 @@ class AnalyticsView(APIView):
                 capture('钓鱼统计来源无效', module='agent_world', error_type='invalid_fishing_statistics_source',
                         user_id=owner, resource_id=exc.trip_id, fishing_trip_id=exc.trip_id,
                         fishing_event_id=exc.event_id, reason=f'{exc.reason}；事件 ID：{exc.event_id}')
-                return valid_result('钓鱼记录存在异常，无法计算完整统计，请查看系统日志。',
-                                    {'reason': 'invalid_fishing_statistics_source'}, status=409)
-            return success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
-                                   **aggregate(facts, first, last, actor),
-                                   'lotteryStatistics': load_lottery_statistics(owner, start, end, residents),
-                                   'fishingComparison': fishing,
-                                   'combatComparison': load_combat_statistics(owner, start, end, residents,
-                                                                            include_daily=include_daily)})
+                timing.mark('fishing')
+                response = valid_result('钓鱼记录存在异常，无法计算完整统计，请查看系统日志。',
+                                        {'reason': 'invalid_fishing_statistics_source'}, status=409)
+            else:
+                timing.mark('fishing')
+                summary = aggregate(facts, first, last, actor)
+                timing.mark('aggregate')
+                lottery = load_lottery_statistics(owner, start, end, residents)
+                timing.mark('lottery')
+                combat = load_combat_statistics(owner, start, end, residents, include_daily=include_daily,
+                                                departure_ids=facts.departure_ids)
+                timing.mark('combat_comparison')
+                response = success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
+                                           **summary, 'lotteryStatistics': lottery, 'fishingComparison': fishing,
+                                           'combatComparison': combat})
+        timing.mark('finish')
+        durations = timing.header()
+        response['Server-Timing'] = durations
+        if timing.elapsed_ms() >= SLOW_ANALYTICS_MS:
+            request_id = request.headers.get('X-Request-ID', '')
+            if not re.fullmatch(r'[0-9a-f]{32}', request_id):
+                request_id = 'unknown'
+            logger.warning('resident analytics slow request_id=%s stages=%s', request_id, durations)
+        return response
 
 
 class AnalyticsLedgerParams(serializers.Serializer):

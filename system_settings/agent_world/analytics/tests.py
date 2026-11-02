@@ -3,7 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 from django.contrib.auth.models import User
 from django.db import connection
-from django.test import TestCase, SimpleTestCase
+from django.test import TestCase, SimpleTestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from anthology.models import Anthology
@@ -51,6 +51,23 @@ class AnalyticsTests(TestCase):
     def activity(self, **values):
         return AgentActivity.objects.create(event_key=values.pop('event_key', 'event'), agent=self.a,
             title='活动', occurred_at=self.at, artifact_coll_id=self.coll.pk, **values)
+
+    def test_server_timing_and_slow_log_contain_only_stage_durations(self):
+        request_id = 'a' * 32
+        with patch('system_settings.agent_world.analytics.views.SLOW_ANALYTICS_MS', 0), self.assertLogs(
+                'system_settings.agent_world.analytics.views', level='WARNING') as logged:
+            response = self.client.get('/api/settings/agent-world/analytics/', {
+                'start_date': '2026-10-01', 'end_date': '2026-10-02', 'actor_id': self.a.pk,
+            }, HTTP_X_REQUEST_ID=request_id)
+        self.assertEqual(response.status_code, 200)
+        header = response.headers['Server-Timing']
+        for stage in ('setup', 'residents', 'social', 'life', 'combat_world', 'ledger',
+                      'fishing', 'aggregate', 'lottery', 'combat_comparison', 'finish', 'total'):
+            self.assertRegex(header, rf'(?:^|, ){stage};dur=\d+\.\d{{2}}(?:,|$)')
+        self.assertNotIn(str(self.a.pk), header)
+        self.assertIn(f'request_id={request_id}', logged.output[0])
+        self.assertIn(header, logged.output[0])
+        self.assertNotIn(str(self.a.pk), logged.output[0])
 
     def test_postgresql_kill_receipt_query_can_use_partial_index(self):
         if connection.vendor != 'postgresql':
@@ -382,6 +399,27 @@ class AnalyticsTests(TestCase):
         self.assertIn(self.client.get('/api/settings/agent-world/analytics/').status_code, (401, 403))
 
 
+class AnalyticsSnapshotTests(TransactionTestCase):
+    setUp = AnalyticsTests.setUp
+
+    def test_postgresql_snapshot_reuses_departures_and_returns_timing(self):
+        if connection.vendor != 'postgresql':
+            self.skipTest('一致性快照使用 PostgreSQL')
+        from .queries import load_facts
+
+        run = Exploration.objects.create(pk='snapshot-run', owner_id='admin', actor_id=self.a.pk,
+            actor_name=self.a.name, catalog_id='test', status='completed', ended_at=self.at)
+        CombatFact.objects.create(pk='snapshot-depart', owner_id='admin', actor_id=self.a.pk,
+            exploration_id=run.pk, kind='depart', sequence=1, digest='test', created_at=self.at)
+        with patch('system_settings.agent_world.analytics.views.load_facts', wraps=load_facts) as loaded:
+            response = self.client.get('/api/settings/agent-world/analytics/', {
+                'start_date': '2026-10-01', 'end_date': '2026-10-02', 'actor_id': self.a.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(loaded.call_args.kwargs['include_daily'])
+        self.assertEqual(response.data['data']['combatComparison'][0]['explorations'], 1)
+        self.assertIn('total;dur=', response.headers['Server-Timing'])
+
+
 class CombatAnalyticsTests(AnalyticsTests):
     def exploration(self, key, actor, status='completed', owner='admin', departed=True, at=None, **values):
         run = Exploration.objects.create(pk=key, owner_id=owner, actor_id=actor.pk, actor_name=actor.name,
@@ -394,6 +432,28 @@ class CombatAnalyticsTests(AnalyticsTests):
                 kind='depart', sequence=CombatFact.objects.filter(actor_id=actor.pk).count()+1,
                 digest='test', created_at=at or self.at)
         return run
+
+    def test_departures_are_reused_without_admitting_blank_actor_facts(self):
+        run = self.exploration('blank-departure', self.a, departed=False)
+        CombatFact.objects.create(pk='blank-departure-1', owner_id='admin', actor_id='', exploration_id=run.pk,
+            kind='depart', sequence=1, digest='test', created_at=self.at)
+        row = next(row for row in self.fetch()['combatComparison'] if row['id'] == self.a.pk)
+        self.assertEqual(row['explorations'], 0)
+
+        CombatFact.objects.create(pk='valid-departure', owner_id='admin', actor_id=self.a.pk,
+            exploration_id=run.pk, kind='depart', sequence=1, digest='test', created_at=self.at)
+        CombatFact.objects.create(pk='blank-departure-2', owner_id='admin', actor_id='', exploration_id=run.pk,
+            kind='depart', sequence=2, digest='test', created_at=self.at)
+        with CaptureQueriesContext(connection) as captured:
+            result = self.fetch()
+        captured_queries = list(captured.captured_queries)
+        row = next(row for row in result['combatComparison'] if row['id'] == self.a.pk)
+        self.assertEqual(row['explorations'], 1)
+        self.assertEqual(self.fetch(self.a.pk)['combatComparison'][0]['explorations'], 1)
+        departure_queries = [query['sql'] for query in captured_queries
+            if 'FROM "system_settings_combatfact"' in query['sql']
+            and '"system_settings_combatfact"."kind" = \'depart\'' in query['sql']]
+        self.assertEqual(len(departure_queries), 1, departure_queries)
 
     def test_departure_cohort_outcomes_dedup_and_actor_filter(self):
         run = self.exploration('complete', self.a)
@@ -650,6 +710,9 @@ class FishingAnalyticsTests(TestCase):
                     response = self.client.get('/api/settings/agent-world/analytics/', {
                         'start_date': '2026-10-01', 'end_date': '2026-10-02', 'actor_id': self.a.pk})
                 self.assertEqual(response.status_code, 409)
+                self.assertIn('fishing;dur=', response.headers['Server-Timing'])
+                self.assertIn('total;dur=', response.headers['Server-Timing'])
+                self.assertNotIn(event.pk, response.headers['Server-Timing'])
                 self.assertEqual(response.data['data']['reason'], 'invalid_fishing_statistics_source')
                 self.assertIn('钓鱼记录存在异常', response.data['msg'])
                 self.assertNotIn(event.pk, str(response.data))
