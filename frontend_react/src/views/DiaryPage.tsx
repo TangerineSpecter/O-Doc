@@ -236,10 +236,10 @@ export default function DiaryPage() {
                 <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
                     <section aria-label="日记列表" className="min-w-0">
                         {loading ? (
-                            <div role="status" className="grid gap-6 sm:grid-cols-2">
+                            <div role="status" className="grid gap-4 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3">
                                 <span className="sr-only">正在加载日记</span>
-                                {[1, 2, 3, 4].map(n => (
-                                    <div key={n} className="h-72 animate-pulse rounded-2xl bg-white/60 border border-zinc-200/50 shadow-xs"/>
+                                {[1, 2, 3, 4, 5, 6].map(n => (
+                                    <div key={n} className="h-64 animate-pulse rounded-2xl bg-white/60 border border-zinc-200/50 shadow-xs"/>
                                 ))}
                             </div>
                         ) : error ? (
@@ -288,7 +288,7 @@ export default function DiaryPage() {
                             </div>
                         ) : view === 'cards' ? (
                             /* 视图 1：现代错落流式画报排版 (Masonry Editorial Flow) */
-                            <div className="columns-1 sm:columns-2 gap-6 [column-fill:_balance]">
+                            <div className="columns-1 sm:columns-2 xl:columns-3 gap-4 sm:gap-5 [column-fill:_balance]">
                                 {filtered.map(entry => (
                                     <DiaryCard
                                         key={entry.diaryId}
