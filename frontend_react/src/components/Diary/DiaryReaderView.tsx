@@ -47,13 +47,13 @@ const PAPER_CLASSES: Record<PaperTheme, string> = {
 };
 
 const SIZE_CLASSES: Record<ReaderSize, string> = {
-    sm: 'text-[16px] leading-[1.8]',
-    base: 'text-[17.5px] sm:text-[18px] leading-[1.85]',
-    lg: 'text-[19.5px] sm:text-[20.5px] leading-[1.9]',
+    sm: 'text-[16px]',
+    base: 'text-[17px] sm:text-[18px]',
+    lg: 'text-[19px] sm:text-[21px]',
 };
 
 const WIDTH_CLASSES: Record<ReaderWidth, string> = {
-    normal: 'max-w-[680px]', // 黄金阅读宽度：每行约 38~42 字，眼球扫读最舒适
+    normal: 'max-w-[680px]', // 阅读版心：每行约 36~38 字
     wide: 'max-w-[780px]',
 };
 
@@ -272,12 +272,12 @@ export default function DiaryReaderView({
 
             {/* 沉浸封面大片 (Full Hero Cover) */}
             {hasHeroCover && (
-                <div className={`relative mx-auto ${WIDTH_CLASSES[readerWidth]} px-6 pt-8 sm:px-8`}>
+                <div className="relative mx-auto max-w-[1040px] px-6 pt-6 sm:px-10 sm:pt-10">
                     <button
                         type="button"
                         onClick={() => setLightboxIdx(0)}
                         title="点击全屏查看封面大图"
-                        className="diary-photo-frame group relative block w-full overflow-hidden rounded-2xl shadow-sm bg-zinc-100 cursor-zoom-in text-left"
+                        className="diary-photo-frame group relative block w-full overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-100 cursor-zoom-in text-left"
                     >
                         <DiaryPhoto
                             assetId={coverId}
@@ -292,115 +292,132 @@ export default function DiaryReaderView({
                 </div>
             )}
 
-            <div className={`mx-auto ${WIDTH_CLASSES[readerWidth]} px-6 py-10 sm:px-8 sm:py-14`}>
-                {/* 顶部日期、时光与心情印模 */}
-                <div
-                    className={`flex flex-wrap items-center justify-between gap-6 border-b pb-6 ${
-                        isDark ? 'border-zinc-800' : 'border-black/[0.06]'
-                    }`}
+            <div className="mx-auto max-w-[1040px] px-6 pb-16 pt-10 sm:px-10 sm:pb-24 sm:pt-14 lg:grid lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-16">
+                {/* 左侧信息栏（桌面端吸顶）：日期与元信息，把正文让给右侧 */}
+                <aside
+                    className={`hidden text-left lg:block ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}
                 >
-                    <div className="flex items-center gap-4">
-                        {/* 现代日历印模 */}
-                        <div
-                            className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl border shadow-2xs ${
-                                isDark
-                                    ? 'border-zinc-800 bg-zinc-900 text-white'
-                                    : 'diary-date-tile text-zinc-900'
-                            }`}
-                        >
-                            <span className="diary-display-num text-2xl font-black leading-none">
+                    <div className="sticky top-24 space-y-6 text-[13px]">
+                        <div>
+                            <p className={`diary-display-num text-[64px] font-bold leading-none ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>
                                 {dateInfo.dayPadded}
-                            </span>
-                            <span className="mt-0.5 text-[10px] font-bold tracking-wider leading-none opacity-60">
-                                {dateInfo.month}月
-                            </span>
+                            </p>
+                            <p className="diary-num mt-3 tracking-[0.12em]">
+                                {dateInfo.year}.{String(dateInfo.month).padStart(2, '0')}
+                            </p>
+                            <p className="mt-1">
+                                {dateInfo.weekdayLong}
+                                {timeStr && <span className="diary-num"> · {timeStr}</span>}
+                            </p>
                         </div>
 
-                        <div>
-                            <div className="flex items-center gap-2 text-xs font-bold text-zinc-400">
-                                <span className={isDark ? 'text-zinc-200' : 'text-zinc-800'}>
-                                    {dateInfo.fullCn}
-                                </span>
-                                <span>·</span>
-                                <span>{dateInfo.weekdayLong}</span>
-                                {timeStr && (
-                                    <>
-                                        <span>·</span>
-                                        <span className="diary-num">{timeStr}</span>
-                                    </>
+                        {(entry.mood || entry.weather) && (
+                            <div className="space-y-2">
+                                {entry.mood && (
+                                    <p className="flex items-center gap-2">
+                                        <DiaryMoodIcon mood={entry.mood} size={16}/>
+                                        {moodLabel}
+                                    </p>
+                                )}
+                                {entry.weather && (
+                                    <p className="flex items-center gap-2">
+                                        <WeatherIcon weather={entry.weather} size={14}/>
+                                        {weatherLabel}
+                                    </p>
                                 )}
                             </div>
-                            <div className="mt-1 flex items-center gap-3 text-xs text-zinc-400 font-medium">
-                                <span className="inline-flex items-center gap-1">
-                                    <BookOpen size={11}/>
-                                    共 {wordCount} 字
-                                </span>
-                                <span>·</span>
-                                <span>{images.length} 张影像</span>
-                                <span>·</span>
-                                <span className="inline-flex items-center gap-1">
-                                    <Clock size={11}/>
-                                    预计阅读 {readMins} 分钟
-                                </span>
-                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <p className="flex items-center gap-2">
+                                <BookOpen size={12}/>
+                                <span><span className="diary-num">{wordCount}</span> 字</span>
+                            </p>
+                            <p className="flex items-center gap-2">
+                                <Clock size={12}/>
+                                <span>约 <span className="diary-num">{readMins}</span> 分钟</span>
+                            </p>
                         </div>
+
+                        {entry.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                {entry.tags.map(tag => (
+                                    <span key={tag} className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>
+                                        #{tag}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </aside>
+
+                <div className={`min-w-0 ${WIDTH_CLASSES[readerWidth]}`}>
+
+
+                <header className="text-left">
+                    <p
+                        className={`diary-num flex lg:hidden flex-wrap items-center gap-x-2 text-[13px] font-medium tracking-[0.08em] ${
+                            isDark ? 'text-zinc-400' : 'text-zinc-500'
+                        }`}
+                    >
+                        <span>{dateInfo.fullCn}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{dateInfo.weekdayLong}</span>
+                        {timeStr && (
+                            <>
+                                <span aria-hidden="true">·</span>
+                                <span>{timeStr}</span>
+                            </>
+                        )}
+                    </p>
+
+                    <h1 className="diary-title mt-4 lg:mt-0 break-words text-left diary-wenkai">{entry.title}</h1>
+
+                    <div
+                        className={`mt-5 flex lg:hidden flex-wrap items-center gap-x-4 gap-y-2 text-[13px] ${
+                            isDark ? 'text-zinc-400' : 'text-zinc-500'
+                        }`}
+                    >
+                        {entry.mood && (
+                            <span className="inline-flex items-center gap-1.5">
+                                <DiaryMoodIcon mood={entry.mood} size={16}/>
+                                {moodLabel}
+                            </span>
+                        )}
+                        {entry.weather && (
+                            <span className="inline-flex items-center gap-1.5">
+                                <WeatherIcon weather={entry.weather} size={14}/>
+                                {weatherLabel}
+                            </span>
+                        )}
+                        <span className="inline-flex items-center gap-1.5">
+                            <BookOpen size={12}/>
+                            <span className="diary-num">{wordCount}</span> 字
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                            <Clock size={12}/>
+                            约 <span className="diary-num">{readMins}</span> 分钟读完
+                        </span>
                     </div>
 
-                    {(moodLabel || weatherLabel) && (
-                        <div
-                            className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 shadow-2xs backdrop-blur-sm ${
-                                isDark ? 'border-zinc-800 bg-zinc-900/90' : 'border-zinc-200/70 bg-white/90'
-                            }`}
-                        >
-                            {entry.mood && (
-                                <span className="flex items-center gap-1.5">
-                                    <DiaryMoodIcon mood={entry.mood} size={16}/>
-                                    <span className="text-xs font-semibold">{moodLabel}</span>
+                    {entry.tags.length > 0 && (
+                        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] lg:hidden">
+                            {entry.tags.map(tag => (
+                                <span key={tag} className={isDark ? 'text-zinc-500' : 'text-zinc-400'}>
+                                    #{tag}
                                 </span>
-                            )}
-                            {entry.mood && entry.weather && (
-                                <span className="text-zinc-300">/</span>
-                            )}
-                            {entry.weather && (
-                                <span className="flex items-center gap-1.5">
-                                    <WeatherIcon weather={entry.weather} size={14}/>
-                                    <span className="text-xs font-semibold">{weatherLabel}</span>
-                                </span>
-                            )}
+                            ))}
                         </div>
                     )}
-                </div>
+                </header>
 
-                {/* 标题 */}
-                <h1
-                    className="mt-8 break-words text-2xl sm:text-[34px] font-black tracking-tight leading-snug diary-wenkai text-left"
-                >
-                    {entry.title}
-                </h1>
+                <div className="diary-ornament" aria-hidden="true"/>
 
-                {/* 标签胶囊 */}
-                {entry.tags.length > 0 && (
-                    <div className="mt-4 flex flex-wrap items-center gap-2 text-left">
-                        {entry.tags.map(tag => (
-                            <span
-                                key={tag}
-                                className={`rounded-lg px-2.5 py-1 text-xs font-semibold shadow-2xs ${
-                                    isDark
-                                        ? 'bg-zinc-800/80 text-zinc-300'
-                                        : 'bg-zinc-100 text-zinc-600'
-                                }`}
-                            >
-                                #{tag}
-                            </span>
-                        ))}
-                    </div>
-                )}
-
-                {/* 结构化深度正文阅读区 (方案 A：文楷两端对齐 + 随文智能穿插配图) */}
+                {/* 正文阅读区：文楷、左对齐、宽松行距，随文穿插配图 */}
                 <div
                     className={`${SIZE_CLASSES[readerSize]} ${
                         ruled ? 'diary-ruled-lines py-2' : ''
-                    } ${indent ? 'diary-indent-p' : ''} mt-9 break-words diary-wenkai text-left`}
+                    } ${indent ? 'diary-indent-p' : ''} break-words diary-wenkai text-left`}
                 >
                     <DiaryInlinePhotos groups={photoSchedule.get(-1)} onSelect={setLightboxIdx}/>
                     {blocks.map((block, idx) => {
@@ -425,7 +442,7 @@ export default function DiaryReaderView({
                                 <p
                                     key={`p-${idx}`}
                                     data-has-indent={hasIndent}
-                                    className={`text-left text-justify ${idx === 0 && blocks.length > 1 ? 'diary-lead-p' : ''}`}
+                                    className={`text-left ${idx === 0 && blocks.length > 1 ? 'diary-lead-p' : ''}`}
                                 >
                                     {block.text}
                                 </p>
@@ -450,15 +467,11 @@ export default function DiaryReaderView({
                 )}
 
                 {/* 页尾上下篇导航（彻底移除底部的附件式大网格，保留典雅落款） */}
-                <footer
-                    className={`mt-16 border-t pt-8 ${
-                        isDark ? 'border-zinc-800' : 'border-black/[0.06]'
-                    }`}
-                >
-                    <div className="flex items-center justify-between text-xs text-zinc-400 font-medium">
-                        <span>记录于 {entry.entryDate}</span>
-                        <span>全文完 · 感谢阅读</span>
-                    </div>
+                <footer className="mt-20">
+                    <div className="diary-ornament" aria-hidden="true"/>
+                    <p className={`text-left text-[13px] ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                        写于 <span className="diary-num">{entry.entryDate}</span> · 全文完
+                    </p>
 
                     {onSelectEntry && (prevEntry || nextEntry) && (
                         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -516,6 +529,7 @@ export default function DiaryReaderView({
                         </div>
                     )}
                 </footer>
+                </div>
             </div>
 
             {/* 全屏高品质沉浸式相册灯箱 (Editorial Lightbox) */}

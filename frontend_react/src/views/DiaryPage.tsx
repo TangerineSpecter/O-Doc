@@ -8,8 +8,7 @@ import {
     Maximize2,
     PenLine,
     Search,
-    Sparkles,
-    X,
+        X,
 } from 'lucide-react';
 import {useDiary} from '../hooks/useDiary';
 import {diaryMoods, type DiaryEntry, type DiaryMood} from '../types/api/diary';
@@ -103,106 +102,63 @@ export default function DiaryPage() {
     return (
         <div className="diary-ambient-bg min-h-[calc(100dvh-64px)] text-zinc-900 selection:bg-zinc-950 selection:text-white pb-16">
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-                {/* 现代杂志生活刊头 (Editorial Masthead) */}
-                <header className="relative pb-8 pt-2">
-                    <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-                        <div className="max-w-2xl">
-                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                                <span className="diary-num font-bold text-zinc-700">{todayInfo.fullCn}</span>
-                                <span>·</span>
-                                <span>{todayInfo.weekdayLong}</span>
-                                <span>·</span>
-                                <span className="inline-flex items-center gap-1 text-zinc-500">
-                                    <Sparkles size={11} className="text-amber-500"/>
-                                    每日纪事
-                                </span>
-                            </div>
-                            <h1 className="mt-2 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl lg:text-[40px] leading-tight">
-                                日记回顾
-                            </h1>
-                            <p className="mt-2 text-sm text-zinc-500 leading-relaxed sm:text-[15px]">
-                                给时光一份温柔的留白。那些被悉心记录下的平淡日常，是岁月中不可复现的珍品。
-                            </p>
-                        </div>
+                {/* 刊头：左侧标题与统计一行带过，右侧只留心情速记与写日记 */}
+                <header className="flex flex-col gap-6 pb-8 pt-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <p className="diary-num text-[13px] font-medium tracking-[0.08em] text-zinc-500">
+                            {todayInfo.fullCn} · {todayInfo.weekdayLong}
+                        </p>
+                        <h1 className="mt-2 text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl">日记</h1>
+                        <p className="mt-3 text-sm text-zinc-500">
+                            <span className="diary-num font-semibold text-zinc-800">{entries.length}</span> 篇
+                            <span className="mx-2 text-zinc-300">/</span>
+                            <span className="diary-num font-semibold text-zinc-800">{stats.totalWords.toLocaleString()}</span> 字
+                            <span className="mx-2 text-zinc-300">/</span>
+                            <span className="diary-num font-semibold text-zinc-800">{stats.uniqueDays}</span> 天
+                        </p>
+                    </div>
 
-                        {/* 现代微立体数据牌 & 快捷操作栏 */}
-                        <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-3 rounded-2xl border border-black/[0.06] bg-white/85 px-4 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] backdrop-blur-md">
-                                <div className="text-left">
-                                    <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                                        典藏篇目
-                                    </span>
-                                    <span className="diary-display-num text-lg font-black text-zinc-900">
-                                        {entries.length}{' '}
-                                        <span className="text-xs font-normal text-zinc-400">篇</span>
-                                    </span>
-                                </div>
-                                <div className="h-7 w-px bg-zinc-200/80"/>
-                                <div className="text-left">
-                                    <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                                        累计书写
-                                    </span>
-                                    <span className="diary-display-num text-lg font-black text-zinc-900">
-                                        {stats.totalWords.toLocaleString()}{' '}
-                                        <span className="text-xs font-normal text-zinc-400">字</span>
-                                    </span>
-                                </div>
-                                <div className="h-7 w-px bg-zinc-200/80"/>
-                                <div className="text-left">
-                                    <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                                        记录天数
-                                    </span>
-                                    <span className="diary-display-num text-lg font-black text-zinc-900">
-                                        {stats.uniqueDays}{' '}
-                                        <span className="text-xs font-normal text-zinc-400">天</span>
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* 触感操作区 */}
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1 rounded-full border border-black/[0.06] bg-white/90 px-3 py-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] backdrop-blur-md">
-                                    <span className="text-xs text-zinc-400 pl-0.5">速记：</span>
-                                    {diaryMoods.map(m => (
-                                        <button
-                                            type="button"
-                                            key={m.value}
-                                            title={`以「${m.label}」心情写日记`}
-                                            disabled={loading}
-                                            onClick={() => {
-                                                setInitialMood(m.value);
-                                                setEditor('new');
-                                            }}
-                                            className="rounded-full p-1 transition-transform hover:scale-120 hover:bg-zinc-100 disabled:opacity-40"
-                                        >
-                                            <DiaryMoodIcon mood={m.value} size={17}/>
-                                        </button>
-                                    ))}
-                                </div>
-
+                    <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-0.5">
+                            <span className="mr-2 text-xs text-zinc-400">今天心情</span>
+                            {diaryMoods.map(m => (
                                 <button
                                     type="button"
+                                    key={m.value}
+                                    title={`以「${m.label}」心情写日记`}
                                     disabled={loading}
                                     onClick={() => {
-                                        setInitialMood('');
+                                        setInitialMood(m.value);
                                         setEditor('new');
                                     }}
-                                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-zinc-950 px-5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,0,0,0.18)] transition-all hover:bg-black hover:shadow-[0_6px_20px_rgba(0,0,0,0.25)] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-wait disabled:opacity-50"
+                                    className="rounded-full p-1.5 transition-all hover:scale-110 hover:bg-zinc-100 disabled:opacity-40"
                                 >
-                                    <PenLine size={15} strokeWidth={2.2}/>
-                                    写日记
+                                    <DiaryMoodIcon mood={m.value} size={18}/>
                                 </button>
-                            </div>
+                            ))}
                         </div>
+
+                        <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => {
+                                setInitialMood('');
+                                setEditor('new');
+                            }}
+                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-zinc-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-wait disabled:opacity-50"
+                        >
+                            <PenLine size={15} strokeWidth={2.2}/>
+                            写日记
+                        </button>
                     </div>
                 </header>
 
-                {/* 玻璃浮动控制坞 (Glassmorphic Control Dock) */}
-                <div className="diary-glass-dock rounded-2xl p-3 my-6 flex flex-col items-start gap-4 lg:flex-row lg:items-center lg:justify-between">
+                {/* 工具栏：去掉外层卡片，仅保留一条分隔线 */}
+                <div className="mb-8 flex flex-col items-start gap-4 border-y border-zinc-200/70 py-3 lg:flex-row lg:items-center lg:justify-between">
                     <DiaryBrowseFilters entries={entries} selection={browse} onChange={setBrowse}/>
 
                     <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200/80 bg-white/95 px-3.5 py-1.5 shadow-2xs transition-colors focus-within:border-zinc-950 sm:w-56">
+                        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 transition-colors focus-within:border-zinc-900 sm:w-64">
                             <Search size={14} className="shrink-0 text-zinc-400"/>
                             <input
                                 aria-label="搜索日记"
@@ -223,7 +179,7 @@ export default function DiaryPage() {
                             )}
                         </label>
 
-                        <div className="inline-flex rounded-full border border-zinc-200/80 bg-zinc-100/70 p-1 shadow-2xs">
+                        <div className="inline-flex rounded-full bg-zinc-100 p-1">
                             {(
                                 [
                                     {id: 'cards', label: '卡片画报', text: '画报', icon: LayoutGrid},
@@ -332,7 +288,7 @@ export default function DiaryPage() {
                             </div>
                         ) : view === 'cards' ? (
                             /* 视图 1：现代错落流式画报排版 (Masonry Editorial Flow) */
-                            <div className="columns-1 sm:columns-2 xl:columns-3 gap-6 [column-fill:_balance]">
+                            <div className="columns-1 sm:columns-2 gap-6 [column-fill:_balance]">
                                 {filtered.map(entry => (
                                     <DiaryCard
                                         key={entry.diaryId}

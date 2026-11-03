@@ -42,16 +42,14 @@
 
 /* ==========================================================================
    现代长文正文排印引擎 (Editorial Prose Engine)
-   严格遵循中文书籍出版规范：两端对齐、左侧视线平直对齐、末行居左，彻底杜绝居中对齐大忌！
+   左对齐 + 宽松行距：避免两端对齐在中英混排时产生字距忽大忽小。
    ========================================================================== */
 .diary-prose {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     word-break: break-word;
-    text-align: justify !important;
-    text-justify: inter-ideograph !important;
-    text-align-last: left !important;
+    text-align: left !important;
 }
 
 /* 标题、元数据等元素左对齐，建立稳定坚实的垂直视线锚点 */
@@ -64,53 +62,80 @@
     text-align-last: left !important;
 }
 
-/* 段落韵律与排版规范：
-   1. 两端对齐 + 中文表意字符对齐（text-justify: inter-ideograph）
-   2. 末行坚决靠左（text-align-last: left），杜绝孤字浮在正中间
-   3. 行高 1.85，字距 0.02em
-   4. 深墨色 #111b36，柔和自然，避免纯黑刺眼
-   5. 段间距 1.35em，层次清晰 */
+/* 段落韵律：行高 2.0、字距 0.03em、段间距 1.5em；正文用柔和深灰，避免纯黑刺眼 */
 .diary-prose p {
     margin-top: 0;
-    margin-bottom: 1.35em;
-    line-height: 1.85;
-    letter-spacing: 0.02em;
-    color: #111b36;
-    text-align: justify !important;
-    text-justify: inter-ideograph !important;
-    text-align-last: left !important;
+    margin-bottom: 1.5em;
+    line-height: 2;
+    letter-spacing: 0.03em;
+    color: #27272a;
+    text-align: left !important;
     white-space: pre-wrap;
     word-break: break-word;
+    text-wrap: pretty;
 }
 
 .diary-prose p:last-child {
     margin-bottom: 0;
 }
 
-/* 卷首引导段落 (Lead Paragraph) */
+/* 首段略大，作为进入正文的引导 */
 .diary-prose p.diary-lead-p {
-    font-size: 1.06em;
-    line-height: 1.9;
-    letter-spacing: 0.02em;
-    opacity: 0.98;
+    font-size: 1.04em;
+}
+
+/* 日记标题 */
+.diary-title {
+    font-size: 2rem;
+    line-height: 1.35;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #18181b;
+}
+@media (min-width: 640px) {
+    .diary-title {
+        font-size: 2.5rem;
+    }
+}
+.diary-reader-dark .diary-title {
+    color: #f4f4f5;
+}
+
+/* 题头与正文之间的小装饰：三点 */
+.diary-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    margin: 2.25rem 0;
+    height: 0.25rem;
+}
+.diary-ornament::before {
+    content: "";
+    width: 3rem;
+    height: 1px;
+    background: currentColor;
+    color: rgba(0, 0, 0, 0.12);
+}
+.diary-reader-dark .diary-ornament::before {
+    color: rgba(255, 255, 255, 0.18);
 }
 
 /* 诗意引用块 (Editorial Blockquote) */
 .diary-blockquote {
     position: relative;
-    margin: 1.75em 0;
-    padding: 0.85em 1.25em 0.85em 1.5em;
-    border-left: 2.5px solid rgba(0, 0, 0, 0.15);
-    background: rgba(0, 0, 0, 0.015);
-    border-radius: 0 0.75rem 0.75rem 0;
-    font-style: italic;
+    margin: 2em 0;
+    padding: 0.25em 0 0.25em 1.25em;
+    border-left: 3px solid rgba(249, 115, 22, 0.45);
+    font-style: normal;
+    color: #52525b;
     text-align: left !important;
-    text-align-last: left !important;
 }
 
 .diary-reader-dark .diary-blockquote {
-    border-left-color: rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.03);
+    border-left-color: rgba(251, 146, 60, 0.55);
+    color: #a1a1aa;
 }
 
 /* 文学分隔标记 (Editorial Separator) */
@@ -206,11 +231,11 @@
 /* 1. 纯白日光 (Pure White / High Contrast) */
 .diary-reader-light {
     background-color: #FFFFFF;
-    color: #111b36;
+    color: #27272a;
 }
 .diary-reader-light.diary-prose p,
 .diary-reader-light .diary-prose p {
-    color: #111b36;
+    color: #27272a;
 }
 
 /* 2. 燕麦温润护眼 (Warm Oat Parchment / Eye Care) - 柔光浅燕麦白，绝非黄绿发暗的做旧色 */
@@ -276,13 +301,25 @@
 
 /* 正文书写画布：对齐、字距、行高所见即所得 */
 .diary-canvas-textarea {
-    text-align: justify !important;
-    text-justify: inter-ideograph !important;
-    text-align-last: left !important;
-    letter-spacing: 0.02em;
-    line-height: 1.85 !important;
-    color: #111b36;
+    text-align: left !important;
+    letter-spacing: 0.03em;
+    line-height: 2 !important;
+    color: #27272a;
     word-break: break-word;
+    caret-color: #f97316;
+}
+
+/* 编辑器标题输入：与阅读器标题同字号，所见即所得 */
+.diary-title-input {
+    font-size: 2rem;
+    line-height: 1.35;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+@media (min-width: 640px) {
+    .diary-title-input {
+        font-size: 2.5rem;
+    }
 }
 
 /* 阅读器首行缩进排版模式：智能识别，已有全角空格则不重复叠加 */
