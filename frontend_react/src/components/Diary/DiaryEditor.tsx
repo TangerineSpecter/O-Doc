@@ -1,8 +1,9 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {
     AlignJustify,
     ArrowLeft,
     Calendar,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     Loader2,
@@ -17,6 +18,8 @@ import ConfirmationModal from '../common/ConfirmationModal';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {uploadDiaryImage} from '../../api/diary';
 import DiaryDetailsFields from './DiaryDetailsFields';
+import DiaryMoodIcon from './DiaryMoodIcon';
+import {WeatherIcon} from './DiaryMetadata';
 import DiaryReaderView, {type PaperTheme} from './DiaryReaderView';
 import {diaryImagePatch, MAX_DIARY_IMAGES} from './diaryImages';
 import {countDiaryWords, localDay, parseDiaryDate} from './diaryDate';
@@ -31,6 +34,11 @@ const WRITING_PROMPTS = [
     '今天读到的一句话，或脑海里闪过的一个念头。',
     '给未来的自己留下一句简短的备忘。',
 ] as const;
+
+function fitTextarea(textarea: HTMLTextAreaElement) {
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.max(320, textarea.scrollHeight)}px`;
+}
 
 interface Props {
     entry?: DiaryEntry;
@@ -84,21 +92,43 @@ export default function DiaryEditor({
     const [paper, setPaper] = useState<PaperTheme>('light');
     const [promptIdx, setPromptIdx] = useState(0);
     const [formattedToast, setFormattedToast] = useState(false);
+    const [detailsOpen, setDetailsOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const uploadInProgress = useRef(false);
     const [uploading, setUploading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const [uploadError, setUploadError] = useState('');
     const [confirm, setConfirm] = useState<'delete' | 'discard' | null>(null);
 
-    // 正文输入自适应高度流动画布：告别局促的固定滚动框
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = `${Math.max(320, textareaRef.current.scrollHeight)}px`;
-        }
+    useLayoutEffect(() => {
+        if (textareaRef.current) fitTextarea(textareaRef.current);
     }, [draft.content, editing]);
+
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (!editing || !textarea) return;
+        let active = true;
+        let width = textarea.getBoundingClientRect().width;
+        const fit = () => fitTextarea(textarea);
+        const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(entries => {
+            const nextWidth = entries[0]?.contentRect.width;
+            if (nextWidth !== undefined && nextWidth !== width) {
+                width = nextWidth;
+                fit();
+            }
+        });
+        if (observer) observer.observe(textarea);
+        else window.addEventListener('resize', fit);
+        void document.fonts?.ready.then(() => { if (active) fit(); });
+        return () => {
+            active = false;
+            observer?.disconnect();
+            window.removeEventListener('resize', fit);
+        };
+    }, [editing]);
 
     const handleFormatProse = () => {
         if (!draft.content.trim()) return;
@@ -169,12 +199,13 @@ export default function DiaryEditor({
     const upload = async (files: File[]) => {
         if (uploadInProgress.current || !files.length) return;
         if (draft.imageAssetIds.length + files.length > MAX_DIARY_IMAGES) {
-            setError(`每篇日记最多添加 ${MAX_DIARY_IMAGES} 张图片，请减少后重试`);
+            setUploadError(`每篇日记最多添加 ${MAX_DIARY_IMAGES} 张图片，请减少后重试`);
             return;
         }
         uploadInProgress.current = true;
         setUploading(true);
         setError('');
+        setUploadError('');
         const failures: string[] = [];
         try {
             for (const file of files) {
@@ -189,7 +220,7 @@ export default function DiaryEditor({
                     failures.push(`${file.name}：${problem instanceof Error ? problem.message : '上传失败'}`);
                 }
             }
-            if (failures.length) setError(`部分图片上传失败，成功图片已保留。${failures.join('；')}`);
+            if (failures.length) setUploadError(`部分图片上传失败，成功图片已保留。${failures.join('；')}`);
         } finally {
             uploadInProgress.current = false;
             setUploading(false);
@@ -215,49 +246,49 @@ export default function DiaryEditor({
             >
                 {/* 全屏沉浸式顶部玻璃导航栏 */}
                 <header
-                    className={`sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b px-4 sm:px-8 ${
+                    className={`sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4 md:gap-3 md:px-8 ${
                         isDark
                             ? 'border-zinc-800 bg-zinc-950/85 text-zinc-100'
                             : 'border-zinc-100 bg-white/85 text-zinc-950'
                     } backdrop-blur-xl`}
                 >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
                         <button
                             type="button"
                             aria-label="关闭"
                             disabled={busy || uploading}
                             onClick={close}
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-semibold transition-colors sm:h-auto sm:px-3.5 sm:py-1.5 ${
                                 isDark
                                     ? 'border-zinc-800 bg-zinc-900 text-zinc-200 hover:border-zinc-600'
                                     : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-950 hover:text-zinc-950'
                             }`}
                         >
-                            <ArrowLeft size={14}/>
-                            <span>返回</span>
+                            <ArrowLeft size={14} className="shrink-0"/>
+                            <span className="hidden sm:inline">返回</span>
                         </button>
 
-                        <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800"/>
+                        <div className="hidden h-4 w-px bg-zinc-200 sm:block dark:bg-zinc-800"/>
 
-                        <h2 className="text-sm font-bold tracking-tight sm:text-base">
+                        <h2 className="shrink-0 whitespace-nowrap text-sm font-bold tracking-tight sm:text-base">
                             {editing ? (entry ? '编辑日记' : '写日记') : '日记详情'}
                         </h2>
 
                         {editing && (
-                            <span className="diary-num rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500">
+                            <span className="diary-num hidden shrink-0 whitespace-nowrap rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500 sm:inline-flex">
                                 {wordCount} 字
                             </span>
                         )}
 
                         {!editing && onSelectEntry && (prevEntry || nextEntry) && (
-                            <div className="ml-1 flex items-center gap-1">
+                            <div className="flex shrink-0 items-center gap-0 sm:ml-1 sm:gap-1">
                                 <button
                                     type="button"
                                     disabled={!prevEntry}
                                     title="上一篇"
                                     aria-label="上一篇日记"
                                     onClick={() => prevEntry && onSelectEntry(prevEntry)}
-                                    className="rounded-full p-1.5 opacity-70 transition-opacity hover:bg-zinc-100 hover:opacity-100 disabled:opacity-25"
+                                    className="shrink-0 whitespace-nowrap rounded-full p-1.5 opacity-70 transition-opacity hover:bg-zinc-100 hover:opacity-100 disabled:opacity-25"
                                 >
                                     <ChevronLeft size={17}/>
                                 </button>
@@ -267,7 +298,7 @@ export default function DiaryEditor({
                                     title="下一篇"
                                     aria-label="下一篇日记"
                                     onClick={() => nextEntry && onSelectEntry(nextEntry)}
-                                    className="rounded-full p-1.5 opacity-70 transition-opacity hover:bg-zinc-100 hover:opacity-100 disabled:opacity-25"
+                                    className="shrink-0 whitespace-nowrap rounded-full p-1.5 opacity-70 transition-opacity hover:bg-zinc-100 hover:opacity-100 disabled:opacity-25"
                                 >
                                     <ChevronRight size={17}/>
                                 </button>
@@ -275,7 +306,7 @@ export default function DiaryEditor({
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                         {/* 阅读模式排版切换（默认统一文楷，仅保留底色与网格线） */}
                         {!editing && (
                             <div className="hidden items-center gap-2 sm:flex">
@@ -295,7 +326,7 @@ export default function DiaryEditor({
                                             type="button"
                                             key={p.id}
                                             onClick={() => setPaper(p.id)}
-                                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                                            className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                                                 paper === p.id
                                                     ? isDark
                                                         ? 'bg-white text-zinc-950'
@@ -316,10 +347,11 @@ export default function DiaryEditor({
 
                         <button
                             type="button"
+                            aria-label="切换网格横线"
                             aria-pressed={ruled}
                             onClick={() => setRuled(r => !r)}
                             title="切换网格横线"
-                            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border text-xs font-semibold transition-colors sm:h-auto sm:w-auto sm:px-3 sm:py-1.5 ${
                                 ruled
                                     ? isDark
                                         ? 'border-white bg-white text-zinc-950'
@@ -329,7 +361,7 @@ export default function DiaryEditor({
                                       : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-950'
                             }`}
                         >
-                            <AlignJustify size={13}/>
+                            <AlignJustify size={13} className="shrink-0"/>
                             <span className="hidden md:inline">网格线</span>
                         </button>
 
@@ -339,16 +371,16 @@ export default function DiaryEditor({
                                     type="button"
                                     aria-label="编辑日记"
                                     onClick={() => setEditing(true)}
-                                    className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-zinc-800"
+                                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-950 text-xs font-semibold text-white transition-colors hover:bg-zinc-800 sm:h-auto sm:w-auto sm:px-4 sm:py-1.5"
                                 >
-                                    <Pencil size={13}/>
-                                    <span>编辑</span>
+                                    <Pencil size={13} className="shrink-0"/>
+                                    <span className="hidden sm:inline">编辑</span>
                                 </button>
                                 <button
                                     type="button"
                                     aria-label="删除日记"
                                     onClick={() => setConfirm('delete')}
-                                    className="rounded-full border border-zinc-200 bg-white p-2 text-red-500 transition-colors hover:border-red-200 hover:bg-red-50"
+                                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 bg-white text-red-500 transition-colors hover:border-red-200 hover:bg-red-50 sm:h-auto sm:w-auto sm:p-2"
                                 >
                                     <Trash2 size={15}/>
                                 </button>
@@ -361,7 +393,7 @@ export default function DiaryEditor({
                                     type="button"
                                     disabled={busy || uploading}
                                     onClick={close}
-                                    className="rounded-full border border-zinc-200 bg-white px-4 py-1.5 text-xs font-semibold text-zinc-600 transition-colors hover:border-zinc-950 hover:text-zinc-950"
+                                    className="inline-flex h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 bg-white px-2.5 text-xs font-semibold text-zinc-600 transition-colors hover:border-zinc-950 hover:text-zinc-950 sm:h-auto sm:px-4 sm:py-1.5"
                                 >
                                     取消
                                 </button>
@@ -369,9 +401,9 @@ export default function DiaryEditor({
                                     type="button"
                                     disabled={busy || uploading}
                                     onClick={() => void submit()}
-                                    className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
+                                    className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-950 px-2.5 text-xs font-bold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 sm:h-auto sm:px-5 sm:py-1.5"
                                 >
-                                    {busy && <Loader2 size={14} className="animate-spin"/>}
+                                    {busy && <Loader2 size={14} className="shrink-0 animate-spin"/>}
                                     保存日记
                                 </button>
                             </>
@@ -383,7 +415,7 @@ export default function DiaryEditor({
                             tabIndex={-1}
                             disabled={busy || uploading}
                             onClick={close}
-                            className="hidden rounded-full p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-950 sm:inline-flex"
+                            className="hidden shrink-0 whitespace-nowrap rounded-full p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-950 md:inline-flex"
                         >
                             <X size={18}/>
                         </button>
@@ -392,6 +424,7 @@ export default function DiaryEditor({
 
                 {/* 主体区域：高级现代悬浮创作画布 vs 沉浸式杂志阅读器 */}
                 <div
+                    ref={scrollContainerRef}
                     className={`flex-1 overflow-y-auto scrollbar-hide ${
                         editing ? 'bg-white' : ''
                     }`}
@@ -405,108 +438,188 @@ export default function DiaryEditor({
                                     void submit();
                                 }
                             }}
-                            className="diary-editor-canvas mx-auto w-full max-w-[680px] px-6 pb-8 pt-10 sm:px-8 sm:pt-16"
+                            className="diary-editor-canvas mx-auto w-full max-w-[1440px] px-3 pb-24 pt-6 sm:px-6 sm:pt-10"
                         >
                             <fieldset disabled={busy || uploading} className="min-w-0">
-                                {/* 日期眼眉：与阅读页题头一致，点击即可改日期 */}
-                                <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-medium tracking-[0.08em] text-zinc-500">
-                                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 -ml-1.5 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
-                                        <Calendar size={13} className="text-zinc-400"/>
-                                        <span className="sr-only">日期</span>
-                                        <input
-                                            type="date"
-                                            required
-                                            value={draft.entryDate}
-                                            onChange={e => update('entryDate', e.target.value)}
-                                            className="diary-num cursor-pointer bg-transparent outline-none"
+                                <div className="diary-triptych-grid items-start">
+                                    {/* 左侧翼栏（桌面端 ≥1280px）：这一天的印记（心情、天气、标签） */}
+                                    <aside className="diary-wing-sidebar w-full shrink-0 space-y-3 scrollbar-hide">
+                                        <div className="px-1">
+                                            <h3 className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                                                这一天的印记
+                                            </h3>
+                                        </div>
+                                        <DiaryDetailsFields
+                                            draft={draft}
+                                            onChange={patch => setDraft(d => ({...d, ...patch}))}
+                                            onUpload={upload}
+                                            uploading={uploading}
+                                            tagInput={tagInput}
+                                            onTagInputChange={setTagInput}
+                                            onlyMetadata
+                                            layout="sidebar"
                                         />
-                                    </label>
-                                    <span aria-hidden="true">·</span>
-                                    <span>{dateInfo.weekdayLong}</span>
+                                    </aside>
+
+                                    {/* 中间主书写画布：严格 680px，数学与视觉上 100% 绝对居中于视口 */}
+                                    <div className="w-full max-w-[680px] mx-auto min-w-0">
+                                        {/* 日期眼眉：与阅读页题头一致，点击即可改日期 */}
+                                        <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-medium tracking-[0.08em] text-zinc-500">
+                                            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 -ml-1.5 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
+                                                <Calendar size={13} className="text-zinc-400"/>
+                                                <span className="sr-only">日期</span>
+                                                <input
+                                                    type="date"
+                                                    required
+                                                    value={draft.entryDate}
+                                                    onChange={e => update('entryDate', e.target.value)}
+                                                    className="diary-num cursor-pointer bg-transparent outline-none"
+                                                />
+                                            </label>
+                                            <span aria-hidden="true">·</span>
+                                            <span>{dateInfo.weekdayLong}</span>
+                                        </div>
+
+                                        {/* 标题：与阅读页同字号 */}
+                                        <label className="mt-4 block text-left">
+                                            <span className="sr-only">标题</span>
+                                            <input
+                                                autoFocus
+                                                required
+                                                maxLength={150}
+                                                value={draft.title}
+                                                onChange={e => update('title', e.target.value)}
+                                                placeholder="给今天起个名字"
+                                                className="diary-wenkai diary-canvas-input diary-title-input w-full border-none bg-transparent text-left text-zinc-900 placeholder:font-normal placeholder:text-zinc-300 outline-none ring-0"
+                                            />
+                                        </label>
+
+                                        {!draft.title && (
+                                            <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[13px] text-zinc-400">
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <Sparkles size={12} className="shrink-0"/>
+                                                    {WRITING_PROMPTS[promptIdx]}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPromptIdx(i => (i + 1) % WRITING_PROMPTS.length)}
+                                                    className="hover:text-zinc-700"
+                                                >
+                                                    换一条
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        update('title', WRITING_PROMPTS[promptIdx].replace(/[？。]/g, ''))
+                                                    }
+                                                    className="font-medium text-orange-500 hover:text-orange-600"
+                                                >
+                                                    用作标题
+                                                </button>
+                                            </p>
+                                        )}
+
+                                        {/* 中窄屏（<1280px）将印记和配图收纳在正文上方 */}
+                                        <div className="mt-4 mb-2 block min-[1280px]:hidden">
+                                            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-3 sm:p-4 transition-all">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDetailsOpen(prev => !prev)}
+                                                    className="flex w-full items-center justify-between text-left"
+                                                    aria-expanded={detailsOpen}
+                                                >
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-xs font-bold tracking-wider text-zinc-700 uppercase">
+                                                            这一天的印记与配图
+                                                        </span>
+                                                        {(draft.mood || draft.weather || draft.tags.length > 0 || draft.imageAssetIds.length > 0) && (
+                                                            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                                                                {draft.mood && <DiaryMoodIcon mood={draft.mood} size={15}/>}
+                                                                {draft.weather && <WeatherIcon weather={draft.weather} size={13}/>}
+                                                                {draft.tags.length > 0 && (
+                                                                    <span className="diary-num rounded bg-zinc-200/70 px-1.5 py-0.2 text-[10px] text-zinc-600">
+                                                                        {draft.tags.length} 标签
+                                                                    </span>
+                                                                )}
+                                                                {draft.imageAssetIds.length > 0 && (
+                                                                    <span className="diary-num rounded bg-zinc-200/70 px-1.5 py-0.2 text-[10px] text-zinc-600">
+                                                                        {draft.imageAssetIds.length} 图
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <span className="inline-flex items-center gap-1 text-xs text-zinc-400 shrink-0 ml-2">
+                                                        <span>{detailsOpen ? '收起' : '展开'}</span>
+                                                        <ChevronDown
+                                                            size={14}
+                                                            className={`transition-transform duration-200 ${
+                                                                detailsOpen ? 'rotate-180' : ''
+                                                            }`}
+                                                        />
+                                                    </span>
+                                                </button>
+
+                                                {detailsOpen && (
+                                                    <div className="mt-3.5 space-y-3.5 pt-3.5 border-t border-zinc-200/60">
+                                                        <DiaryDetailsFields
+                                                            draft={draft}
+                                                            onChange={patch => setDraft(d => ({...d, ...patch}))}
+                                                            onUpload={upload}
+                                                            uploading={uploading}
+                                                            tagInput={tagInput}
+                                                            onTagInputChange={setTagInput}
+                                                            onlyMetadata
+                                                        />
+                                                        <DiaryDetailsFields
+                                                            draft={draft}
+                                                            onChange={patch => setDraft(d => ({...d, ...patch}))}
+                                                            onUpload={upload}
+                                                            uploading={uploading}
+                                                            uploadError={uploadError}
+                                                            tagInput={tagInput}
+                                                            onTagInputChange={setTagInput}
+                                                            onlyGallery
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="diary-ornament" aria-hidden="true"/>
+
+                                        {/* 正文：纯白居中无边框、自适应高度，字号行距与阅读页完全一致 */}
+                                        <label className="block text-left">
+                                            <span className="sr-only">正文</span>
+                                            <textarea
+                                                ref={textareaRef}
+                                                required
+                                                maxLength={50000}
+                                                value={draft.content}
+                                                onChange={e => update('content', e.target.value)}
+                                                placeholder="今天发生了什么？从一个小小的瞬间开始写起吧…"
+                                                className={`${
+                                                    ruled ? 'diary-ruled-lines' : ''
+                                                } diary-canvas-textarea min-h-[360px] w-full resize-none overflow-hidden border-none bg-transparent p-0 text-left text-[17px] sm:text-[18px] placeholder:text-zinc-300 outline-none ring-0 diary-prose diary-wenkai`}
+                                            />
+                                        </label>
+                                    </div>
+
+                                    {/* 右侧翼栏（桌面端 ≥1280px）：日记配图 · 相册画廊 */}
+                                    <aside className="diary-wing-sidebar w-full shrink-0 space-y-3 scrollbar-hide">
+                                        <DiaryDetailsFields
+                                            draft={draft}
+                                            onChange={patch => setDraft(d => ({...d, ...patch}))}
+                                            onUpload={upload}
+                                            uploading={uploading}
+                                            uploadError={uploadError}
+                                            tagInput={tagInput}
+                                            onTagInputChange={setTagInput}
+                                            onlyGallery
+                                            layout="sidebar"
+                                        />
+                                    </aside>
                                 </div>
-
-                                {/* 标题：与阅读页同字号 */}
-                                <label className="mt-4 block text-left">
-                                    <span className="sr-only">标题</span>
-                                    <input
-                                        autoFocus
-                                        required
-                                        maxLength={150}
-                                        value={draft.title}
-                                        onChange={e => update('title', e.target.value)}
-                                        placeholder="给今天起个名字"
-                                        className="diary-wenkai diary-canvas-input diary-title-input w-full border-none bg-transparent text-left text-zinc-900 placeholder:font-normal placeholder:text-zinc-300 outline-none ring-0"
-                                    />
-                                </label>
-
-                                {!draft.title && (
-                                    <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[13px] text-zinc-400">
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <Sparkles size={12} className="shrink-0"/>
-                                            {WRITING_PROMPTS[promptIdx]}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPromptIdx(i => (i + 1) % WRITING_PROMPTS.length)}
-                                            className="hover:text-zinc-700"
-                                        >
-                                            换一条
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                update('title', WRITING_PROMPTS[promptIdx].replace(/[？。]/g, ''))
-                                            }
-                                            className="font-medium text-orange-500 hover:text-orange-600"
-                                        >
-                                            用作标题
-                                        </button>
-                                    </p>
-                                )}
-
-                                <div className="diary-ornament" aria-hidden="true"/>
-
-                                {/* 正文：无边框、自适应高度，字号行距与阅读页完全一致 */}
-                                <label className="block text-left">
-                                    <span className="sr-only">正文</span>
-                                    <textarea
-                                        ref={textareaRef}
-                                        required
-                                        maxLength={50000}
-                                        value={draft.content}
-                                        onChange={e => update('content', e.target.value)}
-                                        placeholder="今天发生了什么？从一个小小的瞬间开始写起吧…"
-                                        className={`${
-                                            ruled ? 'diary-ruled-lines' : ''
-                                        } diary-canvas-textarea min-h-[320px] w-full resize-none overflow-hidden border-none bg-transparent p-0 text-left text-[17px] sm:text-[18px] placeholder:text-zinc-300 outline-none ring-0 diary-prose diary-wenkai`}
-                                    />
-                                </label>
-
-                                {/* 这一天的印记：写完再补，不打断书写 */}
-                                <section className="mt-14 border-t border-zinc-100 pt-8">
-                                    <h3 className="mb-4 text-[13px] font-semibold tracking-wide text-zinc-400">这一天的印记</h3>
-                                    <DiaryDetailsFields
-                                        draft={draft}
-                                        onChange={patch => setDraft(d => ({...d, ...patch}))}
-                                        onUpload={upload}
-                                        uploading={uploading}
-                                        tagInput={tagInput}
-                                        onTagInputChange={setTagInput}
-                                        onlyMetadata
-                                    />
-                                </section>
-
-                                <section className="mt-8">
-                                    <DiaryDetailsFields
-                                        draft={draft}
-                                        onChange={patch => setDraft(d => ({...d, ...patch}))}
-                                        onUpload={upload}
-                                        uploading={uploading}
-                                        tagInput={tagInput}
-                                        onTagInputChange={setTagInput}
-                                        onlyGallery
-                                    />
-                                </section>
                             </fieldset>
 
                             {error && (
@@ -515,10 +628,29 @@ export default function DiaryEditor({
                                 </p>
                             )}
 
-                            {/* 底部悬浮状态条：字数、一键排版、快捷键；保存/取消只保留顶栏一处 */}
+                            {/* 底部悬浮状态条：字数、印记快捷入口（移动端）、一键排版、快捷键；保存/取消只保留顶栏一处 */}
                             <div className="pointer-events-none sticky bottom-4 z-10 mt-10 flex justify-center">
                                 <div className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-zinc-200 bg-white/90 px-4 py-1.5 text-xs text-zinc-500 shadow-lg shadow-zinc-900/5 backdrop-blur-md">
                                     <span className="diary-num">{wordCount} 字</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDetailsOpen(true);
+                                            scrollContainerRef.current?.scrollTo({top: 0, behavior: 'smooth'});
+                                        }}
+                                        title="定位并编辑心情、天气、标签与配图"
+                                        className="inline-flex min-[1280px]:hidden items-center gap-1 font-medium text-zinc-700 transition-colors hover:text-orange-600"
+                                    >
+                                        <span className="h-3 w-px bg-zinc-200 -ml-1 mr-1" aria-hidden="true"/>
+                                        {draft.mood ? (
+                                            <DiaryMoodIcon mood={draft.mood} size={14}/>
+                                        ) : draft.weather ? (
+                                            <WeatherIcon weather={draft.weather} size={13}/>
+                                        ) : (
+                                            <Sparkles size={12}/>
+                                        )}
+                                        <span>印记与配图</span>
+                                    </button>
                                     <span className="h-3 w-px bg-zinc-200" aria-hidden="true"/>
                                     {formattedToast ? (
                                         <span className="font-medium text-emerald-600">✓ 已整理排版</span>

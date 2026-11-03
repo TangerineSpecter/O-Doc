@@ -9,10 +9,12 @@ interface Props {
     onChange: (patch: Partial<DiaryDraft>) => void;
     onUpload: (files: File[]) => void;
     uploading: boolean;
+    uploadError?: string;
     tagInput: string;
     onTagInputChange: (value: string) => void;
     onlyMetadata?: boolean;
     onlyGallery?: boolean;
+    layout?: 'default' | 'sidebar';
 }
 
 export default function DiaryDetailsFields({
@@ -20,22 +22,45 @@ export default function DiaryDetailsFields({
     onChange,
     onUpload,
     uploading,
+    uploadError = '',
     tagInput,
     onTagInputChange,
     onlyMetadata = false,
     onlyGallery = false,
+    layout = 'default',
 }: Props) {
     if (onlyGallery) {
-        return <DiaryImageUpload draft={draft} onChange={onChange} onUpload={onUpload} uploading={uploading}/>;
+        return (
+            <DiaryImageUpload
+                draft={draft}
+                onChange={onChange}
+                onUpload={onUpload}
+                uploading={uploading}
+                error={uploadError}
+                layout={layout}
+            />
+        );
     }
+
+    const isSidebar = layout === 'sidebar';
 
     return (
         <div className="space-y-2">
             {/* 现代微立体属性栏 */}
-            <div className="divide-y divide-zinc-150/60 rounded-2xl border border-black/[0.05] bg-gradient-to-b from-zinc-50/80 to-white/90 px-4 py-2 shadow-2xs">
+            <div
+                className={`divide-y divide-zinc-150/60 rounded-2xl border border-black/[0.05] bg-gradient-to-b from-zinc-50/80 to-white/90 shadow-2xs ${
+                    isSidebar ? 'p-3.5 sm:p-4' : 'px-4 py-2'
+                }`}
+            >
                 <fieldset className="py-2.5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <legend className="w-24 shrink-0 text-xs font-semibold tracking-wider text-zinc-400 uppercase">
+                    <div className={isSidebar ? 'space-y-1.5' : 'flex flex-col gap-2 sm:flex-row sm:items-center'}>
+                        <legend
+                            className={
+                                isSidebar
+                                    ? 'block text-xs font-semibold tracking-wider text-zinc-400 uppercase'
+                                    : 'w-24 shrink-0 text-xs font-semibold tracking-wider text-zinc-400 uppercase'
+                            }
+                        >
                             今天的心情
                         </legend>
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -64,8 +89,14 @@ export default function DiaryDetailsFields({
                 </fieldset>
 
                 <fieldset className="py-2.5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <legend className="w-24 shrink-0 text-xs font-semibold tracking-wider text-zinc-400 uppercase">
+                    <div className={isSidebar ? 'space-y-1.5' : 'flex flex-col gap-2 sm:flex-row sm:items-center'}>
+                        <legend
+                            className={
+                                isSidebar
+                                    ? 'block text-xs font-semibold tracking-wider text-zinc-400 uppercase'
+                                    : 'w-24 shrink-0 text-xs font-semibold tracking-wider text-zinc-400 uppercase'
+                            }
+                        >
                             天气
                         </legend>
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -93,11 +124,24 @@ export default function DiaryDetailsFields({
                     </div>
                 </fieldset>
 
-                <DiaryTagsInput tags={draft.tags} onChange={tags => onChange({tags})} input={tagInput} onInputChange={onTagInputChange}/>
+                <DiaryTagsInput
+                    tags={draft.tags}
+                    onChange={tags => onChange({tags})}
+                    input={tagInput}
+                    onInputChange={onTagInputChange}
+                    layout={layout}
+                />
             </div>
 
             {!onlyMetadata && (
-                <DiaryImageUpload draft={draft} onChange={onChange} onUpload={onUpload} uploading={uploading}/>
+                <DiaryImageUpload
+                    draft={draft}
+                    onChange={onChange}
+                    onUpload={onUpload}
+                    uploading={uploading}
+                    error={uploadError}
+                    layout={layout}
+                />
             )}
         </div>
     );

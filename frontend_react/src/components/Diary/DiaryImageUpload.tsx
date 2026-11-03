@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 import {ArrowUpLeft, ImagePlus, Images, Loader2, X} from 'lucide-react';
 import type {DiaryDraft} from '../../types/api/diary';
 import {collectDroppedFiles} from '../../utils/imageUpload';
@@ -11,21 +11,32 @@ interface Props {
     onChange: (patch: Partial<DiaryDraft>) => void;
     onUpload: (files: File[]) => void;
     uploading: boolean;
+    error?: string;
+    layout?: 'default' | 'sidebar';
 }
 
-export default function DiaryImageUpload({draft, onChange, onUpload, uploading}: Props) {
+export default function DiaryImageUpload({draft, onChange, onUpload, uploading, error = '', layout = 'default'}: Props) {
     const [libraryOpen, setLibraryOpen] = useState(false);
     const [dragging, setDragging] = useState(false);
     const dragDepth = useRef(0);
     const input = useRef<HTMLInputElement>(null);
+    const errorRef = useRef<HTMLParagraphElement>(null);
+    const errorId = useId();
     const full = draft.imageAssetIds.length >= MAX_DIARY_IMAGES;
+    const isSidebar = layout === 'sidebar';
+
+    useEffect(() => {
+        if (error && errorRef.current?.getClientRects().length) {
+            errorRef.current.scrollIntoView({block: 'nearest'});
+        }
+    }, [error]);
 
     return (
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50/50 p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
+        <div className={`rounded-2xl border border-zinc-200 bg-zinc-50/50 ${isSidebar ? 'p-3.5 sm:p-4' : 'p-5'}`}>
+            <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                     <p className="text-xs font-bold tracking-wider text-zinc-900 uppercase">日记配图 · GALLERY</p>
-                    <span className="diary-num rounded-full border border-zinc-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-zinc-600">
+                    <span className="diary-num rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-zinc-600">
                         {draft.imageAssetIds.length} / {MAX_DIARY_IMAGES}
                     </span>
                 </div>
@@ -34,15 +45,15 @@ export default function DiaryImageUpload({draft, onChange, onUpload, uploading}:
                     type="button"
                     disabled={uploading || full}
                     onClick={() => setLibraryOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-800 transition-colors hover:border-zinc-950 hover:text-zinc-950 disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-800 transition-colors hover:border-zinc-950 hover:text-zinc-950 disabled:opacity-40"
                 >
-                    <Images size={14}/>
+                    <Images size={13}/>
                     从图片文集选择
                 </button>
             </div>
 
             {!!draft.imageAssetIds.length && (
-                <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                <div className={`mb-3 grid ${isSidebar ? 'grid-cols-3 gap-2' : 'grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5'}`}>
                     {draft.imageAssetIds.map((id, index) => (
                         <div
                             key={id}
@@ -89,7 +100,7 @@ export default function DiaryImageUpload({draft, onChange, onUpload, uploading}:
             )}
 
             {!draft.imageAssetIds.length && draft.coverUrl && (
-                <div className="relative mb-4 max-w-sm overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                <div className={`relative mb-3 ${isSidebar ? 'w-full' : 'max-w-sm'} overflow-hidden rounded-xl border border-zinc-200 bg-white`}>
                     <DiaryPhoto assetId={null} url={draft.coverUrl} className="aspect-[4/3] w-full object-cover"/>
                     <button
                         type="button"
@@ -138,27 +149,31 @@ export default function DiaryImageUpload({draft, onChange, onUpload, uploading}:
                 <button
                     type="button"
                     disabled={uploading || full}
+                    aria-describedby={error ? errorId : undefined}
                     onClick={() => input.current?.click()}
-                    className="flex w-full items-center justify-center gap-3 px-4 py-4 text-xs text-zinc-600"
+                    className={`flex w-full items-center justify-center gap-2 text-xs text-zinc-600 ${isSidebar ? 'px-3 py-3' : 'px-4 py-4'}`}
                 >
                     {uploading ? (
-                        <Loader2 size={18} className="animate-spin text-zinc-900"/>
+                        <Loader2 size={isSidebar ? 16 : 18} className="animate-spin text-zinc-900"/>
                     ) : (
-                        <ImagePlus size={18} className="text-zinc-500"/>
+                        <ImagePlus size={isSidebar ? 16 : 18} className="text-zinc-500"/>
                     )}
-                    <span className="font-semibold text-zinc-800">
+                    <span className="font-semibold text-zinc-800 text-center">
                         {uploading
                             ? '正在上传影像…'
                             : full
                               ? '已达到 15 张图片上限'
                               : dragging
                                 ? '松开即可添入影像'
-                                : '点击上传或将照片拖拽至此（支持多选，最多 15 张）'}
+                                : isSidebar
+                                  ? '点击上传或将照片拖拽至此'
+                                  : '点击上传或将照片拖拽至此（支持多选，最多 15 张）'}
                     </span>
                 </button>
                 <input
                     ref={input}
                     aria-label="上传日记图片"
+                    aria-describedby={error ? errorId : undefined}
                     type="file"
                     multiple
                     accept="image/png,image/jpeg,image/gif,image/webp"
@@ -171,6 +186,8 @@ export default function DiaryImageUpload({draft, onChange, onUpload, uploading}:
                     }}
                 />
             </div>
+
+            {error && <p ref={errorRef} id={errorId} role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs leading-5 text-red-600">{error}</p>}
 
             {libraryOpen && (
                 <DiaryLibraryPicker

@@ -3,7 +3,8 @@ import copy
 from datetime import datetime, timedelta
 from decimal import Decimal
 from itertools import combinations
-from unittest.mock import patch
+from random import Random
+from unittest.mock import Mock, patch
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIClient
@@ -257,11 +258,82 @@ class LotteryTests(TestCase):
         self.assertEqual([len(c.args[4]) for c in choose.call_args_list], [10, 9, 8] * 2)
         for call in choose.call_args_list:
             self.assertFalse(call.kwargs['include_role'])
+            self.assertTrue(call.kwargs['weighted_random'])
+            self.assertIn('最后一组是当前票已选数字', call.kwargs['instructions'])
+            self.assertIn('前面的组是本次尚未出票的其他票', call.kwargs['instructions'])
             self.assertNotIn('外貌', str(call.args[3]))
             self.assertNotIn('goals', call.args[3])
             self.assertEqual(call.args[3]['sold_ticket_count'], 0)
             self.assertEqual(call.args[3]['number_bet_counts'], {str(n): 0 for n in range(1, 11)})
             self.assertNotIn('recent_draws', call.args[3])
+
+    def _configure_number_connection(self):
+        from system_settings.decision.config import save_connection
+        saved = save_connection('admin', {
+            'name': '选号测试', 'protocol': 'systemone',
+            'base_url': 'https://lottery.invalid/v1', 'model_id': 'test-decision',
+        })
+        identity = saved['connections'][0]['id']
+        config = LifeConfig.objects.get(pk='admin')
+        config.settings = {**config.settings, 'decision_connection_id': identity,
+                           'decision_connection_ids': [identity]}
+        config.save(update_fields=['settings'])
+
+    def test_number_draw_uses_model_distribution_and_resumes_without_reroll(self):
+        self._configure_number_connection()
+        item = self.item(quantity=2)
+        payloads = []
+
+        def respond(_url, **kwargs):
+            payload = kwargs['json']
+            payloads.append(copy.deepcopy(payload))
+            criteria = payload['questions']['lottery_number']['criteria']
+            first = next(iter(criteria))
+            answer = {'type': 'choice', 'choice': first, 'confidence': .28,
+                      'probabilities': {key: .28 if key == first else .72 / (len(criteria) - 1)
+                                        for key in criteria}}
+            response = Mock(status_code=200, text='{}')
+            response.json.return_value = {'model': 'test-decision', 'answers': {'lottery_number': answer}}
+            return response
+
+        with patch('system_settings.decision.jev.requests.post', side_effect=respond) as post, \
+             patch('system_settings.decision.jev.random.choices', wraps=Random(2).choices) as roll:
+            selected = pick_numbers(item, self.agent)
+            self.assertEqual(selected, [[1, 9, 10], [1, 7, 9]])
+            item.refresh_from_db()
+            self.assertEqual(item.context['lottery_numbers'], [[10, 9, 1], [1, 9, 7]])
+            self.assertEqual(pick_numbers(item, self.agent), selected)
+        self.assertEqual(post.call_count, 6)
+        self.assertEqual(roll.call_count, 6)
+        self.assertEqual([len(p['questions']['lottery_number']['criteria']) for p in payloads], [10, 9, 8] * 2)
+        self.assertEqual([p['state']['selected_numbers'] for p in payloads], [
+            [[]], [[10]], [[10, 9]], [[10, 9, 1], []], [[10, 9, 1], [1]], [[10, 9, 1], [1, 9]],
+        ])
+        self.assertEqual([ticket.numbers for ticket in purchase(item.pk, selected)], selected)
+        self.assertEqual([ticket.numbers for ticket in purchase(item.pk, selected)], selected)
+        self.assertEqual(WorldLedger.objects.filter(kind='lottery').count(), 1)
+
+    def test_invalid_number_distribution_does_not_sample_or_erase_progress(self):
+        self._configure_number_connection()
+        item = self.item(selected=[[1, 2]])
+
+        def respond(_url, **kwargs):
+            criteria = kwargs['json']['questions']['lottery_number']['criteria']
+            probabilities = {key: 1 / len(criteria) for key in criteria}
+            probabilities['3'] = -0.1
+            response = Mock(status_code=200, text='{}')
+            response.json.return_value = {'model': 'test-decision', 'answers': {'lottery_number': {
+                'type': 'choice', 'choice': '3', 'confidence': .5, 'probabilities': probabilities,
+            }}}
+            return response
+
+        with patch('system_settings.decision.jev.requests.post', side_effect=respond), \
+             patch('system_settings.decision.jev.random.choices') as roll:
+            with self.assertRaises(LotteryDecisionUnavailable):
+                pick_numbers(item, self.agent)
+            roll.assert_not_called()
+        item.refresh_from_db()
+        self.assertEqual(item.context['lottery_numbers'], [[1, 2]])
 
     def test_number_context_counts_issued_tickets_including_self_only_this_round(self):
         item = self.item(selected=[[8, 9]])
@@ -329,6 +401,7 @@ class LotteryTests(TestCase):
              patch('system_settings.agent_world.lottery_decision.choose_scene', return_value='3') as choose:
             self.assertEqual(prepare(item, self.agent)['quantity'], 3)
         self.assertEqual(set(choose.call_args.args[4]), {'1', '2', '3'})
+        self.assertFalse(choose.call_args.kwargs['weighted_random'])
         for field in ('sold_ticket_count', 'number_bet_counts', 'recent_draws'):
             self.assertNotIn(field, choose.call_args.args[3])
 

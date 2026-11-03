@@ -119,12 +119,14 @@ def choose(item, agent, scene, context, candidates):
     instructions = '结合人物性格和已有号码，从本题合法选项中选择一个；不预测中奖号码。'
     if scene == 'lottery_number':
         instructions += (
+            'held_numbers为本人本期已出票号码；selected_numbers最后一组是当前票已选数字，'
+            '前面的组是本次尚未出票的其他票，可参考但不要机械照搬，既可重复也可选不同号码。'
             'sold_ticket_count为本期全体居民（含自己）已出票张数，'
             'number_bet_counts为这些票中各数字出现次数，不含本次尚未出票的selected_numbers；'
-            'recent_draws若存在为最近最多三期开奖号码，按期次由近到远排列。')
+            'recent_draws若存在为最近最多三期开奖号码，按期次由近到远排列，仅作背景。')
     value = choose_scene(item.owner_id, agent, scene, context, candidates,
         deadline=time.monotonic() + 60, include_role=False,
-        instructions=instructions)
+        instructions=instructions, weighted_random=scene == 'lottery_number')
     if value not in candidates:
         raise LotteryDecisionUnavailable('大乐透决策连接暂不可用或选择无效，不调用普通模型')
     check_item_authorization(LifeItem.objects.get(pk=item.pk))

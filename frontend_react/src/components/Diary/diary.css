@@ -333,3 +333,40 @@
 .diary-indent-p .diary-blockquote p {
     text-indent: 0;
 }
+
+/* ==========================================================================
+   DIARY EDITORIAL TRIPTYCH LAYOUT · 日记居中三栏画卷布局
+   保证中间 100% 绝对居中，两侧严格等宽对称翼栏
+   ========================================================================== */
+.diary-wing-sidebar {
+    display: none;
+}
+
+@media (min-width: 1280px) {
+    .diary-triptych-grid {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 680px) 240px;
+        gap: 1.5rem;
+        justify-content: center;
+        align-items: start;
+        width: 100%;
+        max-width: 1400px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .diary-wing-sidebar {
+        display: block;
+        position: sticky;
+        top: 1.5rem;
+        align-self: flex-start;
+        max-height: calc(100dvh - 5rem);
+        overflow-y: auto;
+    }
+}
+
+@media (min-width: 1440px) {
+    .diary-triptych-grid {
+        grid-template-columns: 280px minmax(0, 680px) 280px;
+        gap: 2.5rem;
+    }
+}

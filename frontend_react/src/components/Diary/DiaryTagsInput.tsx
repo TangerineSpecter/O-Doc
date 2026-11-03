@@ -1,13 +1,25 @@
-import {useState} from 'react';
+import {useId, useState} from 'react';
 import {Hash, Plus, X} from 'lucide-react';
 import {mergeDiaryTags} from './diaryTags';
 
 const SUGGESTED_TAGS = ['日常', '阅读', '散步', '思考', '美食', '旅行', '夜读', '灵感'] as const;
 
-export default function DiaryTagsInput({tags, onChange, input, onInputChange}: {
-    tags: string[]; onChange: (tags: string[]) => void; input: string; onInputChange: (value: string) => void;
+export default function DiaryTagsInput({
+    tags,
+    onChange,
+    input,
+    onInputChange,
+    layout = 'default',
+}: {
+    tags: string[];
+    onChange: (tags: string[]) => void;
+    input: string;
+    onInputChange: (value: string) => void;
+    layout?: 'default' | 'sidebar';
 }) {
     const [error, setError] = useState('');
+    const inputId = useId();
+    const isSidebar = layout === 'sidebar';
 
     const addValues = (rawValues: string[]) => {
         const result = mergeDiaryTags(tags, [...rawValues, input].join(','));
@@ -26,10 +38,14 @@ export default function DiaryTagsInput({tags, onChange, input, onInputChange}: {
 
     return (
         <div className="py-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className={isSidebar ? 'space-y-1.5' : 'flex flex-col gap-2 sm:flex-row sm:items-center'}>
                 <label
-                    htmlFor="diary-tags"
-                    className="w-24 shrink-0 text-xs font-semibold tracking-wider text-zinc-400 uppercase"
+                    htmlFor={inputId}
+                    className={
+                        isSidebar
+                            ? 'block text-xs font-semibold tracking-wider text-zinc-400 uppercase'
+                            : 'w-24 shrink-0 text-xs font-semibold tracking-wider text-zinc-400 uppercase'
+                    }
                 >
                     标签 TAGS
                 </label>
@@ -53,7 +69,7 @@ export default function DiaryTagsInput({tags, onChange, input, onInputChange}: {
                         </span>
                     ))}
                     <input
-                        id="diary-tags"
+                        id={inputId}
                         value={input}
                         onChange={e => onInputChange(e.target.value)}
                         onBlur={add}
@@ -64,14 +80,22 @@ export default function DiaryTagsInput({tags, onChange, input, onInputChange}: {
                                 add();
                             }
                         }}
-                        placeholder={tags.length ? '继续输入标签…' : '输入标签，按回车添加（最多 10 个）'}
-                        className="min-w-[140px] flex-1 bg-transparent text-xs text-zinc-900 placeholder:text-zinc-400 outline-none"
+                        placeholder={
+                            tags.length
+                                ? isSidebar
+                                    ? '继续输入…'
+                                    : '继续输入标签…'
+                                : isSidebar
+                                  ? '输入标签，按回车添加'
+                                  : '输入标签，按回车添加（最多 10 个）'
+                        }
+                        className="min-w-[120px] flex-1 bg-transparent text-xs text-zinc-900 placeholder:text-zinc-400 outline-none"
                     />
                 </div>
             </div>
 
             {availableSuggestions.length > 0 && tags.length < 10 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:pl-24">
+                <div className={`mt-2 flex flex-wrap items-center gap-1.5 ${isSidebar ? '' : 'sm:pl-24'}`}>
                     <span className="text-[11px] text-zinc-400">快速添加：</span>
                     {availableSuggestions.slice(0, 6).map(item => (
                         <button
@@ -88,7 +112,7 @@ export default function DiaryTagsInput({tags, onChange, input, onInputChange}: {
             )}
 
             {error && (
-                <p role="alert" className="mt-1.5 text-xs text-red-600 sm:pl-24">
+                <p role="alert" className={`mt-1.5 text-xs text-red-600 ${isSidebar ? '' : 'sm:pl-24'}`}>
                     {error}
                 </p>
             )}

@@ -210,8 +210,8 @@ def choose_connections(owner, state, choices, *, deadline, instructions=None, qu
 
 
 def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=None,
-                 instructions=None, include_role=True, max_probability=False, return_confidence=False,
-                 task=None):
+                 instructions=None, include_role=True, max_probability=False, weighted_random=False,
+                 return_confidence=False, task=None):
     """None means use the normal model. Empty/sole choices never call a provider."""
     if not choices:
         return None
@@ -234,7 +234,8 @@ def choose_scene(owner, agent, scene, state, choices, *, deadline, question_id=N
         with usage_scope(owner_id=owner, agent=agent, task=task, purpose=purpose, phase=SCENES[scene]):
             result, confidence = choose_connections(
                 owner, decision_state, choices, deadline=deadline, instructions=instructions,
-                question_id=question_id or scene, max_probability=max_probability, scene=scene)
+                question_id=question_id or scene, max_probability=max_probability,
+                weighted_random=weighted_random, scene=scene)
     except DecisionUnavailable:
         return None
     except TimeoutError as exc:
