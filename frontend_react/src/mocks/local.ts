@@ -26,7 +26,7 @@ export const localHandlers = [
         const data = quantData !== undefined ? quantData : imageData !== undefined ? imageData : novelData !== undefined ? novelData : await resolveLocalRoute(request);
         if (data instanceof Response) return data;
         if (data === undefined) return;
-        if (new URL(request.url).pathname === '/api/settings/agent-world/token-usage/export/') {
+        if (['/api/settings/agent-world/token-usage/export/', '/api/settings/agent-world/token-usage/observation-export/'].includes(new URL(request.url).pathname)) {
             return HttpResponse.json(data, {headers: {'Content-Disposition': 'attachment; filename="local-token-report.json"', 'Cache-Control': 'no-store'}});
         }
         if (new URL(request.url).pathname === '/api/settings/agent-world/analytics/') {

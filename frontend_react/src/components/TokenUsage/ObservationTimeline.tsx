@@ -1,11 +1,12 @@
 import {requestPhaseName} from '../../utils/tokenUsageLabels';
-import {Check, Cpu, FileText, Sparkles} from 'lucide-react';
+import {Check, Cpu, Download, FileText, Loader2, Sparkles} from 'lucide-react';
 import type {ObservedActivity} from '../../utils/tokenObservatory';
 import {knownTokens, observationTime} from '../../utils/tokenObservatory';
 import {tokenNumber} from '../../utils/tokenUsage';
 
-export default function ObservationTimeline({activities, selected, onSelect, showDate}: {
+export default function ObservationTimeline({activities, selected, onSelect, showDate, onExport, exporting, exportDisabled, exportError}: {
     activities: ObservedActivity[]; selected?: string; onSelect: (id: string) => void; showDate: boolean;
+    onExport?: () => void; exporting?: boolean; exportDisabled?: boolean; exportError?: string;
 }) {
     const totalRequests = activities.reduce((sum, item) => sum + item.requests.length, 0);
     const factOnlyCount = activities.filter(item => item.requests.length === 0).length;
@@ -22,12 +23,19 @@ export default function ObservationTimeline({activities, selected, onSelect, sho
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
                         {activities.length} 项
                     </span>
+                    {onExport && <button type="button" onClick={onExport} disabled={exportDisabled || exporting}
+                        aria-label={exporting ? '正在导出筛选活动的输入输出' : '导出筛选活动的输入输出'}
+                        title={exportDisabled ? '观测数据尚未完整加载，请刷新后重试' : exporting ? '正在导出' : '导出筛选活动的输入输出'}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50 disabled:cursor-not-allowed disabled:opacity-50">
+                        {exporting ? <Loader2 className="h-4 w-4 animate-spin"/> : <Download className="h-4 w-4"/>}
+                    </button>}
                 </div>
                 <div className="text-[10px] text-slate-400">
                     {totalRequests > 0 && <span>{totalRequests} 请求</span>}
-                    {factOnlyCount > 0 && <span> · {factOnlyCount} 事实</span>}
+                    {factOnlyCount > 0 && <span>{totalRequests > 0 ? ' · ' : ''}{factOnlyCount} 事实</span>}
                 </div>
             </div>
+            {exportError && <p role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-[11px] text-red-700">{exportError}</p>}
 
             {/* 滚动时间轴列表 */}
             <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto p-3">

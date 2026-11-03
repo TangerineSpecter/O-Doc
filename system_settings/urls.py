@@ -53,6 +53,7 @@ from .agent_world.alchemy_views import AlchemyRecipesView, AlchemyRecipeView, Al
 from .agent_world.blacksmith_views import BlacksmithRecipesView, BlacksmithRecipeView, BlacksmithHistoryView
 
 from .token_usage.views import TokenUsageView
+from .token_usage.observation_export import ObservationExportView
 from .decision.views import (DecisionConfigView, DecisionTestView,
                              DecisionConnectionCollectionView, DecisionConnectionDetailView)
 
@@ -86,6 +87,7 @@ urlpatterns = [
     path('agent-world/combat/explorations/<str:identity>/', CombatView.as_view(kind='snapshot')),
     path('agent-world/combat/explorations/<str:identity>/encounters/', CombatView.as_view(kind='encounters')),
     path('agent-world/token-usage/export/', TokenUsageView.as_view(kind='export')),
+    path('agent-world/token-usage/observation-export/', ObservationExportView.as_view()),
     path('agent-world/token-usage/summary/', TokenUsageView.as_view(kind='summary')),
     path('agent-world/token-usage/breakdown/', TokenUsageView.as_view(kind='breakdown')),
     path('agent-world/token-usage/requests/', TokenUsageView.as_view(kind='requests')),

@@ -24,6 +24,10 @@ GROUP_FIELDS = {
 }
 
 
+class ObservationSelectionChanged(ValueError):
+    """The selected request set changed while its report was being built."""
+
+
 def new_metrics() -> dict:
     return dict(input_tokens=0, output_tokens=0, total_tokens=0, request_count=0,
                 incomplete_count=0, failed_count=0, running_count=0, records=set())
@@ -61,12 +65,12 @@ def effective_filters(request: Request, now) -> dict:
     return result
 
 
-def export_report(rows: QuerySet, request: Request) -> FileResponse:
-    content_option = request.query_params.get('include_content', '0')
+def export_report(rows: QuerySet, request: Request, *, observation: dict | None = None) -> FileResponse:
+    content_option = '1' if observation is not None else request.query_params.get('include_content', '0')
     if content_option not in ('0', '1'):
         raise ValueError('正文导出参数无效')
     include_content = content_option == '1'
-    if include_content and not request.query_params.get('record_id'):
+    if include_content and observation is None and not request.query_params.get('record_id'):
         raise ValueError('正文导出必须指定单次执行')
     now = local_time()
     stats = new_metrics()
@@ -93,7 +97,11 @@ def export_report(rows: QuerySet, request: Request) -> FileResponse:
         if include_content:
             metadata.update(include_content=True, order='started_at,id',
                             scope='指定单次执行且符合筛选条件的全部已采集模型请求，按开始时间及请求 ID 排序；不受分页影响')
+        if observation is not None:
+            metadata.update(scope='执行观测中选中活动的请求快照，按开始时间及请求 ID 排序；不受分页影响',
+                            activity_filter=observation['activity_filter'], activity_label=observation['activity_label'])
         content_count = 0
+        input_count = output_count = 0
         local_device = current_device_id() if include_content else ''
         report_file.write(b'{"metadata":')
         write(metadata)
@@ -113,16 +121,28 @@ def export_report(rows: QuerySet, request: Request) -> FileResponse:
                 row['content'] = request_content(row['id'], start, row['status'], end,
                                                  device_id=row['device_id'], local_device_id=local_device)
                 content_count += int(row['content']['available'])
+                if observation is not None:
+                    content = row['content']
+                    content['request_present'] = content.get('request') is not None
+                    content['response_present'] = content.get('response') is not None
+                    input_count += int(content['request_present'])
+                    output_count += int(content['response_present'])
             row.pop('device_id')
             row['elapsed_seconds'] = (end - start).total_seconds() if end and end >= start else None
             row['started_at'] = local_time(start).isoformat()
             row['ended_at'] = local_time(end).isoformat() if end else None
             write(row)
+        if observation is not None and stats['request_count'] != observation['expected_request_count']:
+            raise ObservationSelectionChanged('观测请求在导出期间发生变化')
         report_file.write(b'],"summary":')
         totals = finish(stats)
         if include_content:
             totals.update(content_available_count=content_count,
                           content_unavailable_count=stats['request_count'] - content_count)
+        if observation is not None:
+            totals.update(request_present_count=input_count, response_present_count=output_count,
+                          request_missing_count=stats['request_count'] - input_count,
+                          response_missing_count=stats['request_count'] - output_count)
         write(totals)
         for name, fields in GROUP_FIELDS.items():
             report_file.write((',' + json.dumps(name) + ':').encode('utf-8'))

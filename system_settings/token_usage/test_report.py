@@ -20,6 +20,11 @@ SHANGHAI = ZoneInfo('Asia/Shanghai')
 
 class TokenReportTests(TestCase):
     def setUp(self):
+        # FileResponse.close still closes the temporary file, but its request
+        # signal must not close PostgreSQL's surrounding TestCase transaction.
+        signal = patch('django.http.response.signals.request_finished.send')
+        signal.start()
+        self.addCleanup(signal.stop)
         temporary = TemporaryDirectory(prefix='token-report-tests-')
         self.addCleanup(temporary.cleanup)
         self.detail_dir = Path(temporary.name) / 'details'

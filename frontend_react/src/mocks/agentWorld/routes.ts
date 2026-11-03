@@ -252,7 +252,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
             ...(emptyScenario() ? {daily: [], categories: [], peers: [], comparison: [], residents: []} : {})};
     }
     if (path === `${base}/analytics/ledger/`) {const result = page(forActor(analyticsLedger, url), url); return {...result, nextPage: result.hasMore ? result.page + 1 : null};}
-    if (path.startsWith(`${base}/token-usage/`)) return observationRoute(url, emptyScenario());
+    if (path.startsWith(`${base}/token-usage/`)) return observationRoute(url, emptyScenario(), body);
     if (path === `${base}/bounties/options/`) return {collections: [{id: 'local-world', title: '居民生活手记'}], categories, residents, searchReady: true, inviteDelayMinutes: 5, claimHours: 24};
     if (path === `${base}/bounties/`) {if (writing) {const row = {...bounties[0], ...body, id: `local-bounty-${Date.now()}`, status: 'open' as const}; bounties.unshift(row); return {id: row.id, status: row.status, inviteAt: at(12)};}
         return page(bounties.filter(b => !url.searchParams.get('status') || url.searchParams.get('status')!.split(',').includes(b.status)), url);}

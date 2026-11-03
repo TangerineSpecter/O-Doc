@@ -48,6 +48,31 @@ class DiaryTests(TestCase):
         self.client.force_authenticate(None)
         self.assertIn(self.client.get('/api/diary/').status_code, (401, 403))
 
+    def test_content_indentation_roundtrips_and_whitespace_only_is_rejected(self):
+        content = '\u3000\u3000首段正文\n\u3000\u3000第二段正文'
+        created = self.client.post('/api/diary/', {**self.draft, 'content': content}, format='json')
+        self.assertEqual(created.status_code, 200)
+        entry = created.json()['data']
+        self.assertEqual(entry['content'], content)
+        key = entry['diaryId']
+        self.assertEqual(self.client.get(f'/api/diary/{key}').json()['data']['content'], content)
+
+        changed = '\u3000\u3000修改后的正文'
+        updated = self.client.put(f'/api/diary/{key}', {**self.draft, 'content': changed}, format='json')
+        self.assertEqual(updated.json()['data']['content'], changed)
+        from django.core import serializers
+        snapshot = serializers.serialize('python', DiaryEntry.objects.filter(pk=key))[0]
+        self.assertEqual(snapshot['fields']['content'], changed)
+        payload = serializers.serialize('json', DiaryEntry.objects.filter(pk=key))
+        from system_settings.sync_state import suspend_tracking
+        with suspend_tracking():
+            for record in serializers.deserialize('json', payload):
+                record.save()
+        self.assertEqual(DiaryEntry.objects.get(pk=key).content, changed)
+        for blank in ('', '   ', '\u3000\u3000\n\t'):
+            self.assertEqual(self.client.put(f'/api/diary/{key}', {**self.draft, 'content': blank}, format='json').status_code, 400)
+        self.assertEqual(DiaryEntry.objects.get(pk=key).content, changed)
+
     def test_sync_selection_and_soft_delete_revision(self):
         from system_settings.models import SyncEntityState
         from django.core import serializers

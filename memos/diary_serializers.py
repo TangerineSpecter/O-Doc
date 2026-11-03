@@ -6,7 +6,7 @@ from .diary_models import DiaryEntry
 
 
 class DiarySerializer(serializers.ModelSerializer):
-    content = serializers.CharField(max_length=50000, allow_blank=False, trim_whitespace=True)
+    content = serializers.CharField(max_length=50000, allow_blank=False, trim_whitespace=False)
     cover_url = serializers.SerializerMethodField()
     cover_asset_id = serializers.PrimaryKeyRelatedField(source='cover_asset', queryset=Asset.objects.filter(is_valid=True, file_type='image'), allow_null=True, required=False)
     image_asset_ids = serializers.ListField(child=serializers.CharField(max_length=32, allow_blank=False), max_length=15, required=False)
@@ -27,6 +27,11 @@ class DiarySerializer(serializers.ModelSerializer):
     def get_cover_url(self, obj):
         first = obj.image_asset_ids[0] if obj.image_asset_ids else obj.cover_asset_id
         return f'/api/resource/view/{first}' if first else obj.cover_url
+
+    def validate_content(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('正文不能为空')
+        return value
 
     def validate_image_asset_ids(self, value):
         if len(value) != len(set(value)):

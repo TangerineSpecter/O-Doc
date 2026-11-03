@@ -14,6 +14,7 @@ import {
 import WorldDialog from '../AgentWorld/WorldDialog';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import {useTokenObservatory} from '../../hooks/useTokenObservatory';
+import {useObservationExport} from '../../hooks/useObservationExport';
 import {activityFilterOptions, dayOf, knownTokens, matchesActivityFilter, observationTime, observedActivities, periodForRange, requestOrder} from '../../utils/tokenObservatory';
 import {requestStatus, shanghaiDay, tokenNumber} from '../../utils/tokenUsage';
 import {Select} from '../common/Select';
@@ -60,6 +61,7 @@ export default function ExecutionObservatoryDialog({
     const [activityFilter, setActivityFilter] = useState({value: '', label: '全部活动'});
     const [factsExpanded, setFactsExpanded] = useState(false);
     const stepsContainerRef = useRef<HTMLDivElement>(null);
+    const {download: downloadObservation, exporting, error: exportError, clearError: clearExportError} = useObservationExport();
 
     const {requests, facts, errors, loading} = useTokenObservatory(
         actor,
@@ -144,10 +146,30 @@ export default function ExecutionObservatoryDialog({
                     {/* 右侧：日期切换与操作控制 */}
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         {daily ? (
-                            <ObservationPeriod range={range} mode={period} today={today} onChange={(next, mode) => {
-                                setRange(next);
-                                setPeriod(mode);
-                            }}/>
+                            <>
+                                <div className="w-52 max-w-full">
+                                    <Select ariaLabel="活动筛选" value={activityFilter.value} menuPortal menuClassName="scrollbar-hide"
+                                        buttonClassName="!min-h-8 !py-1 !px-2 !text-xs !shadow-none"
+                                        options={[
+                                            {value: '', label: '全部活动'},
+                                            ...filterOptions.map(option => ({value: option.value, label: `${option.label}（${option.count}）`})),
+                                            ...(activityFilter.value && !filterOptions.some(option => option.value === activityFilter.value)
+                                                ? [{value: activityFilter.value, label: activityFilter.label}] : []),
+                                        ]}
+                                        onChange={value => {
+                                            const selected = filterOptions.find(option => option.value === value);
+                                            setActivityFilter({value, label: selected?.label || '全部活动'});
+                                            setActivityId('');
+                                            setRequestId('');
+                                            clearExportError();
+                                        }}/>
+                                </div>
+                                <ObservationPeriod range={range} mode={period} today={today} onChange={(next, mode) => {
+                                    setRange(next);
+                                    setPeriod(mode);
+                                    clearExportError();
+                                }}/>
+                            </>
                         ) : current?.agentKey ? (
                             <button
                                 type="button"
@@ -179,7 +201,7 @@ export default function ExecutionObservatoryDialog({
                             className={buttonClass}
                             aria-label="刷新执行观测"
                             title="刷新数据"
-                            onClick={() => setRefresh(v => v + 1)}
+                            onClick={() => {clearExportError(); setRefresh(v => v + 1);}}
                         >
                             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-orange-500' : ''}`} />
                             <span className="hidden sm:inline">刷新</span>
@@ -215,29 +237,6 @@ export default function ExecutionObservatoryDialog({
                     </div>
                 ) : (
                     <>
-                        {daily && (
-                            <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2">
-                                <span className="text-xs font-semibold text-slate-700">活动筛选</span>
-                                <div className="w-52 max-w-full">
-                                    <Select ariaLabel="活动筛选" value={activityFilter.value} menuPortal menuClassName="scrollbar-hide"
-                                        buttonClassName="!min-h-8 !py-1 !px-2 !text-xs !shadow-none"
-                                        options={[
-                                            {value: '', label: '全部活动'},
-                                            ...filterOptions.map(option => ({value: option.value, label: `${option.label}（${option.count}）`})),
-                                            ...(activityFilter.value && !filterOptions.some(option => option.value === activityFilter.value)
-                                                ? [{value: activityFilter.value, label: activityFilter.label}] : []),
-                                        ]}
-                                        onChange={value => {
-                                            const selected = filterOptions.find(option => option.value === value);
-                                            setActivityFilter({value, label: selected?.label || '全部活动'});
-                                            setActivityId('');
-                                            setRequestId('');
-                                        }}/>
-                                </div>
-                                <span className="text-[11px] text-slate-400">{visibleActivities.length} / {activities.length} 项 · 概览按筛选结果统计{hasUnlinkedFacts ? ' · 含未关联请求的业务事实' : ''}</span>
-                            </div>
-                        )}
-
                         {/* 顶部四联指标概览 */}
                         <ObservationOverview
                             requests={ordered}
@@ -253,18 +252,20 @@ export default function ExecutionObservatoryDialog({
                         />
 
                         {/* 下部左右分栏布局 */}
-                        {!activity ? (
-                            <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-xs text-slate-400">
-                                <CalendarClock className="h-7 w-7 text-slate-300" />
-                                <p>{errors.length ? '数据读取不完整，请重试' : activityFilter.value && daily ? '所选活动在此周期暂无记录，可切换活动或日期' : '此观测范围暂无已采集请求或业务活动'}</p>
-                            </div>
-                        ) : (
-                            <div className="grid min-h-[440px] flex-1 grid-rows-[minmax(180px,1fr)_minmax(260px,2fr)] gap-3.5 overflow-hidden lg:min-h-0 lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1">
+                        <div className="grid min-h-[440px] flex-1 grid-rows-[minmax(180px,1fr)_minmax(260px,2fr)] gap-3.5 overflow-hidden lg:min-h-0 lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1">
                                 {/* 左侧时序时间轴 */}
                                 <ObservationTimeline
                                     activities={visibleActivities}
-                                    selected={activity.id}
+                                    selected={activity?.id}
                                     showDate={showDate}
+                                    onExport={daily && activityFilter.value ? () => void downloadObservation({
+                                        agentId: actor, startDate: range.start, endDate: range.end,
+                                        activityFilter: activityFilter.value, activityLabel: activityFilter.label,
+                                        requestIds: ordered.map(row => row.id),
+                                    }) : undefined}
+                                    exporting={exporting}
+                                    exportDisabled={errors.length > 0}
+                                    exportError={daily && activityFilter.value ? exportError : ''}
                                     onSelect={id => {
                                         setActivityId(id);
                                         setRequestId('');
@@ -272,7 +273,12 @@ export default function ExecutionObservatoryDialog({
                                 />
 
                                 {/* 右侧活动执行与请求详情面板 */}
-                                <main
+                                {!activity ? (
+                                    <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-xs text-slate-400">
+                                        <CalendarClock className="h-7 w-7 text-slate-300" />
+                                        <p>{errors.length ? '数据读取不完整，请重试' : activityFilter.value && daily ? '所选活动在此周期暂无记录，可切换活动或日期' : '此观测范围暂无已采集请求或业务活动'}</p>
+                                    </div>
+                                ) : <main
                                     className="scrollbar-hide flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl border border-slate-200/90 bg-white shadow-2xs"
                                     aria-label="活动执行详情"
                                 >
@@ -545,9 +551,8 @@ export default function ExecutionObservatoryDialog({
                                             refresh={refresh}
                                         />
                                     ) : null}
-                                </main>
-                            </div>
-                        )}
+                                </main>}
+                        </div>
                     </>
                 )}
             </div>
