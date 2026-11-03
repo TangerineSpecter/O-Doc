@@ -1,10 +1,11 @@
 """Read personal shared kill receipts; keep frozen solo encounters as the legacy source."""
 from dataclasses import dataclass
 from django.db import connection
-from django.db.models import BooleanField, Case, Exists, OuterRef, Value, When
+from django.db.models import BooleanField, Case, Exists, F, OuterRef, Value, When
 from django.db.models.fields.json import KeyTextTransform
 from ..combat.models import CombatFact, CombatEncounter, Exploration
 from ..combat.party_models import AdventureEvent
+from .combat_receipt_projection import CombatReceiptProjection
 
 
 @dataclass(frozen=True)
@@ -78,27 +79,32 @@ def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None
         facts = CombatFact.objects.filter(owner_id=owner, kind='round', exploration_id__in=raw_party_runs)
         encounters = CombatEncounter.objects.filter(owner_id=owner, exploration_id__in=solo_runs,
                                                      result__killed=True)
-    # Most rounds have no kill receipt. PostgreSQL can reject those in the
-    # database, avoiding transfer and Python decoding of their JSON payloads.
-    # Keep the Python predicate below as the authoritative validation.
+    # PostgreSQL filters non-kill rounds and projects away rewards and
+    # consumption; the Python predicate remains the authoritative validation.
     if connection.vendor == 'postgresql':
-        facts = facts.filter(payload__contains={'events': [{'kind': 'kill'}]})
+        facts = facts.filter(payload__contains={'events': [{'kind': 'kill'}]}).annotate(
+            receipt_for_analytics=CombatReceiptProjection(F('payload')))
+        receipt_field = 'receipt_for_analytics'
+    else:
+        receipt_field = 'payload'
+    rows = facts.order_by('actor_id', 'sequence', 'pk').values_list(
+        'actor_id', 'exploration_id', 'sequence', 'pk', receipt_field).iterator()
     seen = set()
     pending = list(daily) if covered else None
-    for fact in facts.only('actor_id', 'exploration_id', 'sequence', 'payload').order_by('actor_id', 'sequence', 'pk').iterator():
-        if (actors is not None and actors.get(fact.exploration_id) != fact.actor_id) or not fact.payload.get('shared_event_id'):
+    for actor_id, exploration_id, sequence, fact_id, receipt in rows:
+        if (actors is not None and actors.get(exploration_id) != actor_id) or not receipt.get('shared_event_id'):
             continue
-        for index, event in enumerate(fact.payload.get('events', [])):
+        for index, event in enumerate(receipt.get('events', [])):
             monster = event.get('monster') or {}
             unit = monster.get('unit_id')
             if event.get('kind') != 'kill' or not isinstance(unit, str) or not unit:
                 continue
             identity = 'party:' + unit
-            key = (fact.actor_id, fact.exploration_id, identity)
+            key = (actor_id, exploration_id, identity)
             if key not in seen:
                 seen.add(key)
-                kill = CombatKill(fact.actor_id, fact.exploration_id, identity, monster if include_monster else {}, 1,
-                                  (0, fact.actor_id, fact.sequence, fact.pk, index))
+                kill = CombatKill(actor_id, exploration_id, identity, monster if include_monster else {}, 1,
+                                  (0, actor_id, sequence, fact_id, index))
                 if pending is None:
                     yield kill
                 else:

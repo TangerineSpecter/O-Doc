@@ -677,6 +677,55 @@ class CombatAnalyticsTests(AnalyticsTests):
                                 if 'system_settings_combatfact' in query['sql'].lower()]
                     self.assertTrue(any('@>' in sql for sql in fact_sql))
 
+    def test_postgresql_kill_projection_preserves_order_and_omits_unneeded_receipt_details(self):
+        if connection.vendor != 'postgresql':
+            self.skipTest('战斗回执投影仅用于 PostgreSQL')
+        import json
+        from django.db.models import F
+        from .combat_kills import load_combat_kills
+        from .combat_receipt_projection import CombatReceiptProjection
+
+        run = self.exploration('projected-party', self.a)
+        fact = self.party_kill(run, 'first-unit')
+        first = fact.payload['events'][0]['monster']
+        second = {**first, 'unit_id': 'second-unit', 'id': 'monster.other', 'rank': 'boss'}
+        fact.payload = {
+            'shared_event_id': fact.payload['shared_event_id'],
+            'consumption': [{'details': 'x' * 10000}],
+            'events': [
+                {'kind': 'damage', 'monster': {}, 'details': 'x' * 10000},
+                {'kind': 'kill', 'monster': first, 'rewards': [{'details': 'x' * 10000}]},
+                {'kind': 'kill', 'monster': first, 'experience': 99},
+                {'kind': 'kill', 'monster': second, 'rewards': [{'details': 'x' * 10000}]},
+            ],
+        }
+        fact.save(update_fields=['payload'])
+        receipt = CombatFact.objects.annotate(
+            projected=CombatReceiptProjection(F('payload'))).values_list('projected', flat=True).get(pk=fact.pk)
+        self.assertEqual(receipt, {'shared_event_id': fact.payload['shared_event_id'], 'events': [
+            {'kind': 'damage', 'monster': {}},
+            {'kind': 'kill', 'monster': first},
+            {'kind': 'kill', 'monster': first},
+            {'kind': 'kill', 'monster': second},
+        ]})
+        self.assertLess(len(json.dumps(receipt)), len(json.dumps(fact.payload)) // 10)
+        for kwargs in ({'start': self.at-timedelta(hours=1), 'end': self.at+timedelta(hours=1)},
+                       {'exploration_ids': [run.pk]}):
+            with self.subTest(kwargs=kwargs):
+                kills = list(load_combat_kills('admin', actor_ids=[self.a.pk], **kwargs))
+                self.assertEqual([kill.identity for kill in kills], ['party:first-unit', 'party:second-unit'])
+                self.assertEqual([kill.monster for kill in kills], [first, second])
+                self.assertEqual([kill.sort_key[-1] for kill in kills], [1, 3])
+
+        # Corrupt non-object events are not silently converted into valid records.
+        fact.payload['events'].insert(0, None)
+        fact.save(update_fields=['payload'])
+        receipt = CombatFact.objects.annotate(
+            projected=CombatReceiptProjection(F('payload'))).values_list('projected', flat=True).get(pk=fact.pk)
+        self.assertIsNone(receipt['events'][0])
+        with self.assertRaises(AttributeError):
+            list(load_combat_kills('admin', actor_ids=[self.a.pk], exploration_ids=[run.pk]))
+
     def test_party_kills_across_shanghai_midnight_and_empty_new_day(self):
         self.at = storage_time(datetime(2026, 10, 24, 23, 59, 59, tzinfo=SHANGHAI))
         run = self.exploration('midnight-party', self.a, kills=3)
