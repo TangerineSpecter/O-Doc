@@ -10,7 +10,7 @@ async function allRequests(filters: TokenFilters, signal: AbortSignal): Promise<
     const cursors = new Set<string>();
     let cursor: string | undefined;
     while (!signal.aborted) {
-        const page = await getTokenRequests({...filters, cursor}, signal);
+        const page = await getTokenRequests({...filters, cursor, page_size: 500}, signal);
         page.items.forEach(row => rows.set(row.id, row));
         if (!page.hasMore) return [...rows.values()];
         if (!page.nextCursor || cursors.has(page.nextCursor)) throw new Error('请求分页游标无效，无法确认完整范围');

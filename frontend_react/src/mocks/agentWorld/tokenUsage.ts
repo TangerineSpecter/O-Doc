@@ -124,28 +124,47 @@ export function observationMetrics(rows: TokenRequest[]): TokenMetrics {
         averageTokens: executionCount ? Math.round(sum('totalTokens') / executionCount) : null, collected: rows.length > 0};
 }
 
-export function observationRoute(url: URL, empty: boolean): unknown {
+export function observationRoute(url: URL, empty: boolean, body: Record<string, unknown> = {}): unknown {
     const p = url.searchParams;
     const pick = (snake: string, camel: string) => p.has(snake) ? p.get(snake) : p.get(camel);
     const actor = pick('agent_id', 'agentId'), task = pick('task_id', 'taskId'), record = pick('record_id', 'recordId');
     let rows = empty ? [] : observationRequests.filter(r => (actor === null || r.agentKey === actor) && (task === null || r.taskKey === task) && (record === null || r.recordKey === record) && (!p.get('purpose') || r.purpose === p.get('purpose')) && (p.get('other') !== '1' || !r.taskKey));
     if (p.get('all') !== '1') rows = rows.filter(r => dayOf(r.startedAt) >= (pick('start_date', 'startDate') || day) && dayOf(r.startedAt) <= (pick('end_date', 'endDate') || day));
-    if (url.pathname.endsWith('/export/')) {
-        const include = pick('include_content', 'includeContent') === '1';
+    const observationExport = url.pathname.endsWith('/observation-export/');
+    if (observationExport) {
+        const ids = body.request_ids;
+        const filter = body.activity_filter;
+        if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length ||
+            typeof filter !== 'string' || !/^(activity|fact):.+/.test(filter) ||
+            (filter.startsWith('fact:') && ids.length)) {
+            return Response.json({code: 400, msg: '日期或导出筛选条件无效', data: null}, {status: 400});
+        }
+        rows = rows.filter(row => ids.includes(row.id));
+        if (rows.length !== ids.length) return Response.json({code: 409, msg: '观测范围已变化，请刷新后重试', data: null}, {status: 409});
+    }
+    if (url.pathname.endsWith('/export/') || observationExport) {
+        const include = observationExport || pick('include_content', 'includeContent') === '1';
         const metrics = observationMetrics(rows);
-        return {metadata: {format_version: include ? 2 : 1, generated_at: new Date().toISOString(), timezone: 'Asia/Shanghai', filters: Object.fromEntries(p)},
+        const hasRequest = (row: TokenRequest) => bodies.get(row.id)?.available && bodies.get(row.id)?.request != null;
+        const hasResponse = (row: TokenRequest) => bodies.get(row.id)?.available && bodies.get(row.id)?.response != null;
+        return {metadata: {format_version: include ? 2 : 1, generated_at: new Date().toISOString(), timezone: 'Asia/Shanghai', filters: Object.fromEntries(p),
+                ...(observationExport ? {activity_filter: body.activity_filter, activity_label: body.activity_label} : {})},
             summary: {request_count: rows.length, input_tokens: metrics.inputTokens, output_tokens: metrics.outputTokens, total_tokens: metrics.totalTokens,
-                ...(include ? {content_available_count: rows.filter(r => bodies.get(r.id)?.available).length, content_unavailable_count: rows.filter(r => !bodies.get(r.id)?.available).length} : {})},
+                ...(include ? {content_available_count: rows.filter(r => bodies.get(r.id)?.available).length, content_unavailable_count: rows.filter(r => !bodies.get(r.id)?.available).length} : {}),
+                ...(observationExport ? {request_present_count: rows.filter(hasRequest).length, response_present_count: rows.filter(hasResponse).length,
+                    request_missing_count: rows.filter(r => !hasRequest(r)).length, response_missing_count: rows.filter(r => !hasResponse(r)).length} : {})},
             requests: [...rows].sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.id.localeCompare(b.id)).map((r, i) => ({id: r.id, sequence: i + 1, agent_key: r.agentKey, agent_name: r.agentName, record_key: r.recordKey,
                 task_key: r.taskKey, task_name: r.taskName, purpose: r.purpose, phase: r.phase, model_name: r.modelName, provider_name: r.providerName, attempt: r.attempt, status: r.status,
                 started_at: r.startedAt, ended_at: r.endedAt, input_tokens: r.inputTokens, output_tokens: r.outputTokens, total_tokens: r.totalTokens, usage_complete: r.usageComplete,
-                ...(include ? {content: bodies.get(r.id)} : {})})), by_task: [], by_purpose: [], by_phase: [], by_model_provider: []};
+                ...(include ? {content: {...bodies.get(r.id), ...(observationExport ? {request_present: !!hasRequest(r), response_present: !!hasResponse(r)} : {})}} : {})})), by_task: [], by_purpose: [], by_phase: [], by_model_provider: []};
     }
     if (url.pathname.endsWith('/summary/')) return {...observationMetrics(rows), days: [...new Set(rows.map(row => dayOf(row.startedAt)))].sort().map(date => ({...observationMetrics(rows.filter(row => dayOf(row.startedAt) === date)), day: date})), agents: residents.map(r => ({agentKey: r.id, name: r.name})), tasks: [{taskKey: 'local-task-blacksmith', name: '铁匠铺打造'}, {taskKey: 'local-task-farm', name: '农场经营'}, {taskKey: 'local-task-investment', name: '投资决策'}, {taskKey: 'local-task-market', name: '市场采购'}]} satisfies TokenSummary;
     if (url.pathname.endsWith('/requests/')) {
         const ordered = [...rows].sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id));
         const offset = Number(p.get('cursor')) || 0;
-        return {items: ordered.slice(offset, offset + 5), hasMore: offset + 5 < rows.length, nextCursor: offset + 5 < rows.length ? String(offset + 5) : null};
+        const size = Number(pick('page_size', 'pageSize') ?? 50);
+        if (!Number.isInteger(size) || size < 1 || size > 500) throw new Error('分页条数无效');
+        return {items: ordered.slice(offset, offset + size), hasMore: offset + size < rows.length, nextCursor: offset + size < rows.length ? String(offset + size) : null};
     }
     if (url.pathname.endsWith('/content/')) return empty ? {available: false, message: '空数据样例'} : bodies.get(decodeURIComponent(url.pathname.split('/').slice(-3)[0])) || {available: false, message: '未采集'};
     if (url.pathname.endsWith('/breakdown/')) {

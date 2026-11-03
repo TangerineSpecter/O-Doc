@@ -546,6 +546,8 @@ class PartyDailyProjectionTests(TestCase):
             self.assertEqual(client.files, {})
 
     def test_daily_and_raw_combat_statistics_agree_with_mixed_sources_and_filters(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
         from ..analytics.combat_kills import load_combat_kills
         from ..analytics.combat_statistics import load_combat_statistics
         from ..life_time import SHANGHAI, storage_time
@@ -588,12 +590,52 @@ class PartyDailyProjectionTests(TestCase):
             self.assertEqual(load_combat_statistics('admin', start, end, selected),
                              load_combat_statistics('admin', start, end, selected, include_daily=True))
 
+        with CaptureQueriesContext(connection) as captured:
+            mixed = list(load_combat_kills('admin', actor_ids=list(residents), start=start, end=end, include_daily=True))
+        self.assertEqual(counts(mixed), counts(list(load_combat_kills('admin', actor_ids=list(residents),
+                                                                     start=start, end=end))))
+        fact_sql = [query['sql'].lower() for query in captured.captured_queries
+                    if 'system_settings_combatfact' in query['sql'].lower()]
+        self.assertEqual(len(fact_sql), 1)
+        self.assertEqual(fact_sql[0].count('from "system_settings_adventureevent"'), 1)
+
         # An incomplete or altered contribution is never used in place of facts.
         CombatPartyDay.objects.filter(party_id=party.pk).update(groups=[])
         raw = list(load_combat_kills('admin', actor_ids=list(residents), start=start, end=end))
         fallback = list(load_combat_kills('admin', actor_ids=list(residents), start=start, end=end, include_daily=True))
         self.assertEqual(counts(fallback), counts(raw))
         self.assertFalse(any(kill.identity.startswith('daily:') for kill in fallback))
+
+    def test_covered_cohort_does_not_read_original_kills(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from ..analytics.combat_kills import load_combat_kills
+        from .migration_guard import PROTECTION_ENV
+        from .party_daily_backfill import backfill
+        from .party_models import AdventureMember
+
+        party, _ = self.finished_party()
+        with patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            backfill('admin', party.pk)
+        runs = list(AdventureMember.objects.filter(party_id=party.pk).values_list('exploration_id', flat=True))
+        raw = list(load_combat_kills('admin', exploration_ids=runs))
+        with CaptureQueriesContext(connection) as captured:
+            daily = list(load_combat_kills('admin', exploration_ids=runs, include_daily=True))
+        self.assertTrue(daily)
+        self.assertEqual(sum(kill.count for kill in daily), len(raw))
+        self.assertEqual(Counter((kill.actor_id, kill.monster['id']) for kill in raw),
+                         sum((Counter({(kill.actor_id, kill.monster['id']): kill.count}) for kill in daily), Counter()))
+        queries = ' '.join(query['sql'].lower() for query in captured.captured_queries)
+        self.assertNotIn('system_settings_combatfact', queries)
+        self.assertNotIn('system_settings_combatencounter', queries)
+
+        from ..life_time import SHANGHAI, storage_time
+        start = storage_time(datetime.combine(self.now.date(), time.min, SHANGHAI))
+        with CaptureQueriesContext(connection) as captured:
+            world = list(load_combat_kills('admin', start=start, end=start+timedelta(days=1), include_daily=True))
+        self.assertTrue(world)
+        self.assertFalse(any('system_settings_combatfact' in query['sql'].lower()
+                             for query in captured.captured_queries))
 
 
 class AnalyticsSnapshotTests(TransactionTestCase):

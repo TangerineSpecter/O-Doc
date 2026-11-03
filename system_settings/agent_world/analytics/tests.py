@@ -643,6 +643,21 @@ class CombatAnalyticsTests(AnalyticsTests):
                 self.assertTrue(all(kill.actor_id == self.a.pk for kill in kills))
                 self.assertEqual(list(load_combat_kills('admin', actor_ids=[self.b.pk], **kwargs)), [])
 
+    def test_world_kill_count_does_not_fetch_solo_monster_details(self):
+        from .combat_kills import load_combat_kills
+        solo = self.exploration('world-solo-projection', self.a)
+        CombatEncounter.objects.create(pk='world-solo-kill', owner_id='admin', actor_id=self.a.pk,
+            exploration_id=solo.pk, number=1, monster={'id': 'slime', 'state': 'x' * 10000},
+            result={'killed': True}, ended_at=self.at)
+        with CaptureQueriesContext(connection) as captured:
+            kills = list(load_combat_kills('admin', actor_ids=[self.a.pk],
+                start=self.at-timedelta(hours=1), end=self.at+timedelta(hours=1), include_monster=False))
+        self.assertEqual([(kill.identity, kill.monster) for kill in kills], [('solo:world-solo-kill', {})])
+        queries = [query['sql'].lower() for query in captured.captured_queries
+                   if 'system_settings_combatencounter' in query['sql'].lower()]
+        self.assertTrue(queries)
+        self.assertFalse(any('"system_settings_combatencounter"."monster"' in query for query in queries))
+
     def test_kill_lookup_ignores_rounds_without_kills_in_both_query_modes(self):
         from .combat_kills import load_combat_kills
         run = self.exploration('mixed-party', self.a)

@@ -51,6 +51,9 @@ class TokenUsageView(APIView):
                 if page < 1:
                     raise ValueError('页码无效')
                 return success_result(breakdown(rows, request.query_params.get('group', 'agent'), page))
+            page_size = int(request.query_params.get('page_size', '50'))
+            if not 1 <= page_size <= 500:
+                raise ValueError('分页条数无效')
             cursor = request.query_params.get('cursor')
             if cursor:
                 moment, separator, key = cursor.rpartition('|')
@@ -65,12 +68,12 @@ class TokenUsageView(APIView):
                     default=Value('large_model'),
                     output_field=CharField(),
                 )
-            ).order_by('-started_at', '-id').values(*REQUEST_FIELDS)[:51])
+            ).order_by('-started_at', '-id').values(*REQUEST_FIELDS)[:page_size + 1])
             for item in items:
                 item['started_at'] = local_time(item['started_at']).isoformat()
                 item['ended_at'] = local_time(item['ended_at']).isoformat() if item['ended_at'] else None
-            more = len(items) > 50
-            items = items[:50]
+            more = len(items) > page_size
+            items = items[:page_size]
             return success_result({'items': items, 'has_more': more,
                 'next_cursor': f"{items[-1]['started_at']}|{items[-1]['id']}" if more else None})
         except (ValueError, TypeError, OverflowError):

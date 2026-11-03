@@ -6,6 +6,7 @@ from contextlib import ExitStack
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from system_settings.models import Agent, AgentExecutionLease, WorldActionRuntime
@@ -363,14 +364,14 @@ def _available_residents(config, event, now):
 def _defer_or_skip(event, now, reason):
     bounds = _window_for(event, now)
     retry = now + timedelta(minutes=BUSY_RETRY_MINUTES)
-    if bounds and retry < bounds[1] and event.business_date == now.date():
+    if event.snapshot.get('resume') or (bounds and retry < bounds[1] and event.business_date == now.date()):
         SocialTheatreEvent.objects.filter(pk=event.pk, status='scheduled').update(
             scheduled_at=storage_time(retry), error=reason[:1000], updated_at=timezone.now())
     else:
         _set_skipped(event.pk, reason)
 
 
-def _turn_check(owner, actor_tokens, day, now):
+def _turn_check(owner, actor_tokens, day, now, *, resumed=False):
     if not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
         raise ValueError('世界运行已关闭')
     config = SocialConfig.objects.filter(pk=owner).first()
@@ -381,7 +382,7 @@ def _turn_check(owner, actor_tokens, day, now):
         raise ValueError('生活配置已停用')
     left, right = window(effective_settings(life, now), day)
     current = local_time()
-    if current.date() != day or not left <= current < right:
+    if not resumed and (current.date() != day or not left <= current < right):
         raise ValueError('已离开今日活动时间')
     for actor, token in actor_tokens.items():
         if (actor not in config.settings.get('agent_ids', []) or actor in life.paused_agents
@@ -397,7 +398,7 @@ def _complete_turn(agent, prompt, validate, *, owner, check):
 
     return complete_json(
         agent, prompt, validate, decision=False, owner=owner, scene=SCENE,
-        check=check, model_only=True, repair_invalid=False, attempt_seconds=180)
+        check=check, model_only=True, repair_invalid=True, attempt_seconds=180)
 
 
 def _persist_turn(event_id, turn):
@@ -486,7 +487,8 @@ def run_event(config, event, available, now):
             locked.save(update_fields=['status', 'participants', 'rounds', 'error', 'updated_at'])
         try:
             from .social_theatre_scene import execute_scene
-            check = lambda: _turn_check(config.pk, tokens, event.business_date, now)
+            check = lambda: _turn_check(config.pk, tokens, event.business_date, now,
+                                        resumed=bool(event.snapshot.get('resume')))
             if not execute_scene(event, residents, profiles, rounds, _scene_sources(event),
                                  owner=config.pk, check=check, speak=_complete_turn, persist=_persist_turn):
                 return
@@ -528,11 +530,26 @@ def _tick_theatres(config, now=None, *, manual_only=False):
         return
     with farm_gate():
         SocialTheatreEvent.objects.filter(owner_id=config.pk, business_date__lt=now.date(),
-            status__in=('scheduled', 'searching', 'running')).update(
+            status__in=('scheduled', 'searching', 'running')).filter(Q(snapshot__resume__isnull=True) | Q(snapshot__resume=False)).update(
                 status='expired', error='过去日期不补做', updated_at=timezone.now())
-        stale = SocialTheatreEvent.objects.filter(owner_id=config.pk, business_date=now.date(),
+        stale = SocialTheatreEvent.objects.filter(owner_id=config.pk,
             status__in=('searching', 'running'), updated_at__lt=timezone.now() - timedelta(minutes=30))
         stale.update(status='failed', search_state='failed', error='执行中断，保留已保存的发言', updated_at=timezone.now())
+    # Explicit recovery keeps the historical date and bypasses automatic daily slots/windows.
+    resumed = SocialTheatreEvent.objects.filter(
+        owner_id=config.pk, snapshot__resume=True, status='scheduled', scheduled_at__lte=storage_time(now)
+    ).order_by('scheduled_at', 'pk').first()
+    if resumed:
+        available, _ = _available_residents(config, resumed, now)
+        wanted = {str(person['id']) for person in resumed.participants}
+        if wanted and not wanted.issubset({str(agent.pk) for agent in available}):
+            _defer_or_skip(resumed, now, '原参与居民不可用，稍后继续')
+            return
+        if len(available) < 2:
+            _defer_or_skip(resumed, now, '参与居民不可用，稍后继续')
+            return
+        run_event(config, resumed, available, now)
+        return
     events = ensure_daily_events(config, life, now)
     if not events:
         return

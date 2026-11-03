@@ -1,7 +1,7 @@
 """Read personal shared kill receipts; keep frozen solo encounters as the legacy source."""
 from dataclasses import dataclass
 from django.db import connection
-from django.db.models import Exists, OuterRef
+from django.db.models import BooleanField, Case, Exists, OuterRef, Value, When
 from django.db.models.fields.json import KeyTextTransform
 from ..combat.models import CombatFact, CombatEncounter, Exploration
 from ..combat.party_models import AdventureEvent
@@ -17,7 +17,8 @@ class CombatKill:
     sort_key: tuple = ()
 
 
-def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None, end=None, include_daily=False):
+def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None, end=None, include_daily=False,
+                      include_monster=True):
     if exploration_ids is not None:
         exploration_ids = tuple(exploration_ids)
     if actor_ids is not None:
@@ -27,17 +28,26 @@ def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None
         runs = runs.filter(pk__in=exploration_ids)
     if actor_ids is not None:
         runs = runs.filter(actor_id__in=actor_ids)
+    by_occurrence = start is not None and end is not None
+    run_rows = None
+    if not by_occurrence:
+        # The cohort already bounds the runs. Fetch their party classification
+        # once so covered sessions never query their original personal rounds.
+        run_rows = list(runs.annotate(
+            party_id_text=KeyTextTransform('party_id', 'snapshot'),
+            is_party=Case(When(snapshot__has_key='party_id', then=Value(True)),
+                          default=Value(False), output_field=BooleanField()),
+        ).values_list('pk', 'actor_id', 'party_id_text', 'is_party'))
     covered, daily = set(), []
     if include_daily:
         from .combat_daily import load_daily_kills
-        if start is not None and end is not None:
+        if by_occurrence:
             covered, daily = load_daily_kills(owner, actor_ids=actor_ids, start=start, end=end)
         elif exploration_ids is not None:
-            parties = runs.filter(snapshot__has_key='party_id').annotate(
-                party_id_text=KeyTextTransform('party_id', 'snapshot')).values_list('party_id_text', flat=True)
+            parties = {party for _, _, party, is_party in run_rows if is_party and party}
             covered, daily = load_daily_kills(owner, party_ids=parties, actor_ids=actor_ids,
                                               exploration_ids=exploration_ids)
-    if start is not None and end is not None:
+    if by_occurrence:
         # First restrict records to the occurrence window, then verify their run
         # and actor in SQL instead of loading every historical exploration ID.
         actors = None
@@ -51,25 +61,23 @@ def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None
             encounters = encounters.filter(actor_id__in=actor_ids)
         # All members' copies of one kill belong to the same shared event time.
         events = AdventureEvent.objects.filter(owner_id=owner, kind='round', created_at__gte=start, created_at__lt=end)
+        if covered:
+            events = events.exclude(party_id__in=covered)
+            # A fully covered window has no group receipts to inspect. Avoid
+            # querying the much larger personal-round table altogether.
+            if not events.exists():
+                facts = facts.none()
         # PostgreSQL cannot compare a JSONB value directly with a varchar ID subquery.
         facts = facts.alias(shared_event_id_text=KeyTextTransform('shared_event_id', 'payload')).filter(
             shared_event_id_text__in=events.values('pk'))
-        if covered:
-            summarized_events = AdventureEvent.objects.filter(owner_id=owner, party_id__in=covered).values('pk')
-            facts = facts.exclude(shared_event_id_text__in=summarized_events)
         encounters = encounters.filter(ended_at__gte=start, ended_at__lt=end)
     else:
-        # Cohort calls have already selected their exploration IDs; retain that
-        # bounded lookup and the historical fallback behavior.
-        actors = dict(runs.values_list('pk', 'actor_id'))
-        party_ids = runs.filter(snapshot__has_key='party_id').values_list('pk', flat=True)
-        facts = CombatFact.objects.filter(owner_id=owner, kind='round', exploration_id__in=party_ids)
-        encounters = CombatEncounter.objects.filter(owner_id=owner, exploration_id__in=actors,
-            result__killed=True).exclude(exploration_id__in=party_ids)
-        if covered:
-            summarized_runs = runs.alias(party_id_text=KeyTextTransform('party_id', 'snapshot')).filter(
-                party_id_text__in=covered).values('pk')
-            facts = facts.exclude(exploration_id__in=summarized_runs)
+        actors = {run: actor for run, actor, _, _ in run_rows}
+        raw_party_runs = [run for run, _, party, is_party in run_rows if is_party and party not in covered]
+        solo_runs = [run for run, _, _, is_party in run_rows if not is_party]
+        facts = CombatFact.objects.filter(owner_id=owner, kind='round', exploration_id__in=raw_party_runs)
+        encounters = CombatEncounter.objects.filter(owner_id=owner, exploration_id__in=solo_runs,
+                                                     result__killed=True)
     # Most rounds have no kill receipt. PostgreSQL can reject those in the
     # database, avoiding transfer and Python decoding of their JSON payloads.
     # Keep the Python predicate below as the authoritative validation.
@@ -89,16 +97,17 @@ def load_combat_kills(owner, *, exploration_ids=None, actor_ids=None, start=None
             key = (fact.actor_id, fact.exploration_id, identity)
             if key not in seen:
                 seen.add(key)
-                kill = CombatKill(fact.actor_id, fact.exploration_id, identity, monster, 1,
+                kill = CombatKill(fact.actor_id, fact.exploration_id, identity, monster if include_monster else {}, 1,
                                   (0, fact.actor_id, fact.sequence, fact.pk, index))
                 if pending is None:
                     yield kill
                 else:
                     pending.append(kill)
-    for encounter in encounters.only('id', 'actor_id', 'exploration_id', 'monster').order_by('pk').iterator():
+    encounter_fields = ('id', 'actor_id', 'exploration_id') + (('monster',) if include_monster else ())
+    for encounter in encounters.only(*encounter_fields).order_by('pk').iterator():
         if actors is None or actors.get(encounter.exploration_id) == encounter.actor_id:
             kill = CombatKill(encounter.actor_id, encounter.exploration_id,
-                'solo:' + encounter.pk, encounter.monster or {}, 1, (1, encounter.pk))
+                'solo:' + encounter.pk, (encounter.monster or {}) if include_monster else {}, 1, (1, encounter.pk))
             if pending is None:
                 yield kill
             else:

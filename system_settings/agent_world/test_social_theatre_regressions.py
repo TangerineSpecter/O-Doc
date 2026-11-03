@@ -112,3 +112,75 @@ class TheatreSnapshotGateRegressionTests(TransactionTestCase):
         with patch('system_settings.agent_world.publish_search.search', side_effect=search):
             _ensure_news([event], local_time())
         self.assertTrue(acquired.is_set())
+
+class TheatreHistoricalResumeTests(TestCase):
+    def test_resume_keeps_historical_date_and_messages_outside_active_window(self):
+        from datetime import timedelta
+        from system_settings.models import WorldActionRuntime
+        from .social_models import SocialConfig
+        owner = User.objects.create_superuser(username='admin', password='test')
+        WorldActionRuntime.objects.create(pk='world', enabled=True)
+        SocialConfig.objects.create(pk=owner.username, settings={'enabled': True})
+        day = local_time().date() - timedelta(days=5)
+        event = SocialTheatreEvent.objects.create(
+            pk='historical-resume', owner_id=owner.username, business_date=day,
+            slot_index=0, scheduled_at=local_time(), status='failed',
+            transcript=[{'id': 'saved', 'content': '已保存的发言'}])
+        from rest_framework.test import APIRequestFactory, force_authenticate
+        from .social_theatre_views import SocialTheatreResumeView
+        request = APIRequestFactory().post('/')
+        force_authenticate(request, user=owner)
+        with patch('system_settings.agent_world.social_theatre_worker.start_manual_theatre_worker'):
+            response = SocialTheatreResumeView.as_view()(request, identity=event.pk)
+        self.assertEqual(response.status_code, 200)
+        event.refresh_from_db()
+        self.assertEqual(event.status, 'scheduled')
+        self.assertEqual(event.business_date, day)
+        self.assertEqual(event.transcript[0]['id'], 'saved')
+        self.assertTrue(event.snapshot['resume'])
+
+    def test_resumed_turn_still_checks_world_switch(self):
+        from datetime import timedelta
+        from system_settings.models import WorldActionRuntime
+        from .life_models import LifeConfig
+        from .social_models import SocialConfig
+        from .social_theatre_runner import _turn_check
+        owner = 'resume-check'
+        runtime = WorldActionRuntime.objects.create(pk='world', enabled=True)
+        SocialConfig.objects.create(pk=owner, settings={'enabled': True})
+        LifeConfig.objects.create(pk=owner, migrated=True,
+                                  settings={'active_start': '09:00', 'active_end': '18:00'})
+        now = local_time()
+        day = now.date() - timedelta(days=5)
+        with self.assertRaisesMessage(ValueError, '已离开今日活动时间'):
+            _turn_check(owner, {}, day, now)
+        _turn_check(owner, {}, day, now, resumed=True)
+        runtime.enabled = False
+        runtime.save()
+        with self.assertRaisesMessage(ValueError, '世界运行已关闭'):
+            _turn_check(owner, {}, day, now, resumed=True)
+
+    def test_historical_resume_is_dispatched_before_automatic_window(self):
+        from datetime import timedelta
+        from types import SimpleNamespace
+        from system_settings.models import WorldActionRuntime
+        from .life_models import LifeConfig
+        from .social_models import SocialConfig
+        from .social_theatre_runner import _tick_theatres
+        owner = 'resume-dispatch'
+        WorldActionRuntime.objects.create(pk='world', enabled=True)
+        config = SocialConfig.objects.create(pk=owner, settings={'enabled': True})
+        LifeConfig.objects.create(pk=owner, migrated=True,
+                                  settings={'active_start': '23:00', 'active_end': '23:59'})
+        now = local_time().replace(hour=1)
+        event = SocialTheatreEvent.objects.create(
+            pk='old-dispatch', owner_id=owner, business_date=now.date() - timedelta(days=5),
+            slot_index=0, scheduled_at=now, status='scheduled', snapshot={'resume': True},
+            participants=[{'id': 'a'}, {'id': 'b'}])
+        with patch('system_settings.agent_world.social_theatre_runner._available_residents',
+                   return_value=([SimpleNamespace(pk='a'), SimpleNamespace(pk='b')], 2)), \
+             patch('system_settings.agent_world.social_theatre_runner.run_event') as run:
+            _tick_theatres(config, now)
+        self.assertEqual(run.call_args.args[1].pk, event.pk)
+        event.refresh_from_db()
+        self.assertEqual(event.status, 'scheduled')

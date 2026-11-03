@@ -142,7 +142,6 @@ class SocialTheatreResumeView(APIView):
         from system_settings.models import WorldActionRuntime
         from .life_time import local_time, storage_time
         from .social_config import settings_for
-        from .social_theatre_runner import _window_for
         from .social_theatre_worker import start_manual_theatre_worker
 
         owner = get_current_user_identifier(request)
@@ -157,9 +156,6 @@ class SocialTheatreResumeView(APIView):
                 return valid_result('本场已结算关系，不能重复执行', status=409)
             if not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists() or not settings_for(config_for(owner))['enabled']:
                 return valid_result('请先开启世界运行和自动社交', status=409)
-            bounds = _window_for(row, now)
-            if row.business_date != now.date() or not bounds or not bounds[0] <= now < bounds[1]:
-                return valid_result('仅可在当天活跃时间内继续讨论', status=409)
             row.status = 'scheduled'
             row.scheduled_at = storage_time(now)
             row.error = ''

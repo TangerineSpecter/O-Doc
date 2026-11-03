@@ -97,11 +97,16 @@ test('相邻变化不把同样内容说成新增，无法比较的历史不伪�
 
 test('local 请求筛选与分页覆盖全部样例，空场景和过期正文有明确语义', () => {
     const actor = observationRequests[0].agentKey;
-    const firstUrl = new URL(`http://local/api/settings/agent-world/token-usage/requests/?all=1&agent_id=${actor}`);
+    const firstUrl = new URL(`http://local/api/settings/agent-world/token-usage/requests/?all=1&page_size=5&agent_id=${actor}`);
     const first = observationRoute(firstUrl, false) as TokenRequests;
     assert.equal(first.items.length, 5);
     assert.equal(first.hasMore, true);
     const expected = observationRequests.filter(row => row.agentKey === actor);
+    const bulkUrl = new URL(firstUrl);
+    bulkUrl.searchParams.set('page_size', '500');
+    const bulk = observationRoute(bulkUrl, false) as TokenRequests;
+    assert.equal(bulk.items.length, expected.length);
+    assert.equal(bulk.hasMore, false);
     const rows = [...first.items];
     const cursors = new Set<string>();
     let page = first;

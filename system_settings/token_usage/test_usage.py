@@ -222,6 +222,11 @@ class UsageTests(TestCase):
                 task_name='日报', record_key=self.record.pk, device_id='fake', started_at=moment, total_tokens=1, input_tokens=1, output_tokens=0, usage_complete=True)
         first = self.api('requests', {'all': '1'}).data['data']
         second = self.api('requests', {'all': '1', 'cursor': first['next_cursor']}).data['data']
+        bulk = self.api('requests', {'all': '1', 'page_size': '500'}).data['data']
+        self.assertEqual(len(bulk['items']), 53)
+        self.assertFalse(bulk['has_more'])
+        for invalid in ('0', '501', 'bad'):
+            self.assertEqual(self.api('requests', {'all': '1', 'page_size': invalid}).status_code, 400)
         self.assertEqual(len(first['items']), 50)
         self.assertEqual(len(second['items']), 3)
         self.assertFalse(set(x['id'] for x in first['items']) & set(x['id'] for x in second['items']))

@@ -1,10 +1,298 @@
-.diary-page button:focus-visible { outline: 2px solid #f97316; outline-offset: 3px; }
-.diary-page input:focus, .diary-page textarea:focus { outline: 2px solid #fed7aa; }
-.diary-timeline { position: relative; padding-left: 28px; }
-.diary-timeline::before { content: ''; position: absolute; left: 5px; top: 10px; bottom: 0; width: 2px; background: #e2e8f0; }
-.diary-timeline-item { position: relative; }
-.diary-timeline-item::before { content: ''; position: absolute; left: -28px; top: 5px; height: 12px; width: 12px; border-radius: 50%; background: #cbd5e1; border: 3px solid #f8fafc; }
-.diary-timeline-item:first-child::before { background: #f97316; }
-@media (prefers-reduced-motion: reduce) { .diary-page *, .diary-edge { transition: none !important; animation: none !important; } }
+/* ==========================================================================
+   MODERN EDITORIAL READING SYSTEM · 现代杂志与高品质阅读排印系统
+   Inspired by Medium, Substack, Craft, Bear, Readwise, and Typography Classics
+   ========================================================================== */
 
-.diary-page time, .diary-page aside { font-variant-numeric: tabular-nums; }
+/* 空间环境背景：带现代天光与微光景深 */
+.diary-ambient-bg {
+    background-color: #FAFAFB;
+    background-image:
+        radial-gradient(at 15% 15%, rgba(244, 244, 245, 0.9) 0px, transparent 50%),
+        radial-gradient(at 85% 10%, rgba(241, 245, 249, 0.8) 0px, transparent 50%),
+        radial-gradient(at 50% 90%, rgba(248, 250, 252, 0.8) 0px, transparent 60%);
+    background-attachment: fixed;
+}
+
+/* 全系统锁定文楷人文排印字体栈 (WenKai Literary Typography Stack) */
+.diary-wenkai {
+    font-family: "LXGWWenKaiGBScreen", "LXGW WenKai", "Kaiti SC", "STKaiti", "KaiTi", "BiauKai", "Source Han Serif SC", "Songti SC", Georgia, serif;
+    font-feature-settings: "kern" 1;
+}
+
+.diary-serif {
+    font-family: "Charter", "Bitstream Charter", "Sitka Text", "Cambria", "New York", "Source Serif 4", "Songti SC", "Noto Serif SC", "Source Han Serif SC", "STSong", Georgia, serif;
+    font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.diary-sans {
+    font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "kern" 1;
+}
+
+.diary-num {
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+
+.diary-display-num {
+    font-family: "Plus Jakarta Sans", "Charter", Georgia, serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.04em;
+}
+
+/* ==========================================================================
+   现代长文正文排印引擎 (Editorial Prose Engine)
+   严格遵循中文书籍出版规范：两端对齐、左侧视线平直对齐、末行居左，彻底杜绝居中对齐大忌！
+   ========================================================================== */
+.diary-prose {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    word-break: break-word;
+    text-align: justify !important;
+    text-justify: inter-ideograph !important;
+    text-align-last: left !important;
+}
+
+/* 标题、元数据等元素左对齐，建立稳定坚实的垂直视线锚点 */
+.diary-prose h1,
+.diary-prose h2,
+.diary-prose h3,
+.diary-prose header,
+.diary-prose .diary-meta {
+    text-align: left !important;
+    text-align-last: left !important;
+}
+
+/* 段落韵律与排版规范：
+   1. 两端对齐 + 中文表意字符对齐（text-justify: inter-ideograph）
+   2. 末行坚决靠左（text-align-last: left），杜绝孤字浮在正中间
+   3. 行高 1.85，字距 0.02em
+   4. 深墨色 #111b36，柔和自然，避免纯黑刺眼
+   5. 段间距 1.35em，层次清晰 */
+.diary-prose p {
+    margin-top: 0;
+    margin-bottom: 1.35em;
+    line-height: 1.85;
+    letter-spacing: 0.02em;
+    color: #111b36;
+    text-align: justify !important;
+    text-justify: inter-ideograph !important;
+    text-align-last: left !important;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.diary-prose p:last-child {
+    margin-bottom: 0;
+}
+
+/* 卷首引导段落 (Lead Paragraph) */
+.diary-prose p.diary-lead-p {
+    font-size: 1.06em;
+    line-height: 1.9;
+    letter-spacing: 0.02em;
+    opacity: 0.98;
+}
+
+/* 诗意引用块 (Editorial Blockquote) */
+.diary-blockquote {
+    position: relative;
+    margin: 1.75em 0;
+    padding: 0.85em 1.25em 0.85em 1.5em;
+    border-left: 2.5px solid rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.015);
+    border-radius: 0 0.75rem 0.75rem 0;
+    font-style: italic;
+    text-align: left !important;
+    text-align-last: left !important;
+}
+
+.diary-reader-dark .diary-blockquote {
+    border-left-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* 文学分隔标记 (Editorial Separator) */
+.diary-prose-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin: 2.5rem 0;
+    color: #A1A1AA;
+}
+
+.diary-prose-divider::before,
+.diary-prose-divider::after {
+    content: "";
+    height: 1px;
+    width: 3rem;
+    background: linear-gradient(90deg, transparent, currentColor, transparent);
+    opacity: 0.4;
+}
+
+/* 现代杂志艺术卡片：立体光影与多层微质感 */
+.diary-art-card {
+    position: relative;
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 85%, #FBFBFC 100%);
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.02),
+        0 4px 12px rgba(0, 0, 0, 0.03),
+        0 16px 32px -8px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    border-radius: 1.25rem;
+    transition:
+        transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+        box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1),
+        border-color 240ms ease;
+}
+
+.diary-art-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0, 0, 0, 0.14);
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.02),
+        0 12px 28px -6px rgba(0, 0, 0, 0.07),
+        0 28px 56px -12px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* 玻璃质感悬浮栏 (Glassmorphic Bar) */
+.diary-glass-dock {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow:
+        0 4px 20px -2px rgba(0, 0, 0, 0.04),
+        0 1px 3px rgba(0, 0, 0, 0.02),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* 现代日历印模 (Architectural Date Block) */
+.diary-date-tile {
+    background: linear-gradient(145deg, #F8FAFC 0%, #F1F5F9 100%);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.03),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 现代杂志大片相框 */
+.diary-photo-frame {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.875rem;
+    box-shadow:
+        0 2px 8px -2px rgba(0, 0, 0, 0.06),
+        0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* 极简横线稿纸模式（纯净浅灰微线） */
+.diary-ruled-lines {
+    background-image: linear-gradient(
+        to bottom,
+        transparent calc(2.25rem - 1px),
+        rgba(0, 0, 0, 0.04) calc(2.25rem - 1px)
+    );
+    background-size: 100% 2.25rem;
+    background-attachment: local;
+    line-height: 2.25rem !important;
+}
+
+/* 三大人文阅读纸张底色与色彩科学 */
+/* 1. 纯白日光 (Pure White / High Contrast) */
+.diary-reader-light {
+    background-color: #FFFFFF;
+    color: #111b36;
+}
+.diary-reader-light.diary-prose p,
+.diary-reader-light .diary-prose p {
+    color: #111b36;
+}
+
+/* 2. 燕麦温润护眼 (Warm Oat Parchment / Eye Care) - 柔光浅燕麦白，绝非黄绿发暗的做旧色 */
+.diary-reader-soft {
+    background-color: #FAF9F6;
+    color: #1c1917;
+}
+.diary-reader-soft.diary-prose p,
+.diary-reader-soft .diary-prose p {
+    color: #1c1917;
+}
+
+/* 3. 深空夜读 (Deep Space OLED / Low Light) */
+.diary-reader-dark {
+    background-color: #121214;
+    color: #E4E4E7;
+}
+.diary-reader-dark.diary-prose p,
+.diary-reader-dark .diary-prose p {
+    color: #E4E4E7;
+}
+
+/* 瀑布流防撕裂 */
+.diary-break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+}
+
+/* ==========================================================================
+   无干扰纯白书写纸面 (Zero-Distraction Writing Canvas)
+   彻底消除标题与正文输入框的任何系统聚焦黄框/蓝框，告别网页表单感
+   ========================================================================== */
+.diary-canvas-input,
+.diary-canvas-textarea,
+.diary-editor-canvas input,
+.diary-editor-canvas textarea {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.diary-canvas-input:focus,
+.diary-canvas-textarea:focus,
+.diary-canvas-input:focus-visible,
+.diary-canvas-textarea:focus-visible,
+.diary-editor-canvas input:focus,
+.diary-editor-canvas textarea:focus,
+.diary-editor-canvas input:focus-visible,
+.diary-editor-canvas textarea:focus-visible {
+    border: none !important;
+    border-color: transparent !important;
+    outline: 0 !important;
+    outline-style: none !important;
+    box-shadow: none !important;
+    -webkit-focus-ring-color: transparent !important;
+    --tw-ring-offset-shadow: none !important;
+    --tw-ring-shadow: none !important;
+    --tw-ring-color: transparent !important;
+}
+
+/* 正文书写画布：对齐、字距、行高所见即所得 */
+.diary-canvas-textarea {
+    text-align: justify !important;
+    text-justify: inter-ideograph !important;
+    text-align-last: left !important;
+    letter-spacing: 0.02em;
+    line-height: 1.85 !important;
+    color: #111b36;
+    word-break: break-word;
+}
+
+/* 阅读器首行缩进排版模式：智能识别，已有全角空格则不重复叠加 */
+.diary-indent-p p:not([data-has-indent="true"]) {
+    text-indent: 2em;
+}
+.diary-indent-p p.diary-lead-p {
+    text-indent: 0;
+}
+.diary-indent-p .diary-blockquote,
+.diary-indent-p .diary-blockquote p {
+    text-indent: 0;
+}

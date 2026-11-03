@@ -1,60 +1,622 @@
-import {useRef, useState} from 'react';
-import {Pencil, Trash2, X, Loader2} from 'lucide-react';
-import {type DiaryDraft, type DiaryEntry} from '../../types/api/diary';
+import {useEffect, useRef, useState} from 'react';
+import {
+    AlignJustify,
+    ArrowLeft,
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    Loader2,
+    Pencil,
+    Sparkles,
+    Trash2,
+    Wand2,
+    X,
+} from 'lucide-react';
+import {type DiaryDraft, type DiaryEntry, type DiaryMood} from '../../types/api/diary';
 import ConfirmationModal from '../common/ConfirmationModal';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {uploadDiaryImage} from '../../api/diary';
 import DiaryDetailsFields from './DiaryDetailsFields';
-import DiaryMetadata from './DiaryMetadata';
-import DiaryGallery from './DiaryGallery';
+import DiaryReaderView, {type PaperTheme} from './DiaryReaderView';
 import {diaryImagePatch, MAX_DIARY_IMAGES} from './diaryImages';
-import {localDay} from './diaryDate';
-interface Props {entry?: DiaryEntry; onClose: () => void; onSave: (draft: DiaryDraft, id?: string) => Promise<void>; onDelete: (id: string) => Promise<void>}
-export default function DiaryEditor({entry, onClose, onSave, onDelete}: Props) {
-    const initial: DiaryDraft = entry ? {title: entry.title, content: entry.content, entryDate: entry.entryDate, coverUrl: entry.coverUrl, coverAssetId: entry.coverAssetId, imageAssetIds: entry.imageAssetIds, mood: entry.mood, weather: entry.weather, tags: entry.tags} : {title: '', content: '', entryDate: localDay(new Date()), coverUrl: '', coverAssetId: null, imageAssetIds: [], mood: '', weather: '', tags: []};
+import {countDiaryWords, localDay, parseDiaryDate} from './diaryDate';
+import {formatDiaryProse} from './diaryProseFormat';
+import {mergeDiaryTags} from './diaryTags';
+
+const WRITING_PROMPTS = [
+    '今天最让你感到平静的一个瞬间是什么？',
+    '如果把今天定格成一张电影画面，镜头里会有什么？',
+    '记录一件今天发生、值得存留的细微美好。',
+    '此刻窗外的光线、风声与心绪是怎样的？',
+    '今天读到的一句话，或脑海里闪过的一个念头。',
+    '给未来的自己留下一句简短的备忘。',
+] as const;
+
+interface Props {
+    entry?: DiaryEntry;
+    initialMood?: DiaryMood;
+    prevEntry?: DiaryEntry | null;
+    nextEntry?: DiaryEntry | null;
+    onSelectEntry?: (entry: DiaryEntry) => void;
+    onClose: () => void;
+    onSave: (draft: DiaryDraft, id?: string) => Promise<void>;
+    onDelete: (id: string) => Promise<void>;
+}
+
+export default function DiaryEditor({
+    entry,
+    initialMood = '',
+    prevEntry,
+    nextEntry,
+    onSelectEntry,
+    onClose,
+    onSave,
+    onDelete,
+}: Props) {
+    const initial: DiaryDraft = entry
+        ? {
+              title: entry.title,
+              content: entry.content,
+              entryDate: entry.entryDate,
+              coverUrl: entry.coverUrl,
+              coverAssetId: entry.coverAssetId,
+              imageAssetIds: entry.imageAssetIds,
+              mood: entry.mood,
+              weather: entry.weather,
+              tags: entry.tags,
+          }
+        : {
+              title: '',
+              content: '',
+              entryDate: localDay(new Date()),
+              coverUrl: '',
+              coverAssetId: null,
+              imageAssetIds: [],
+              mood: initialMood,
+              weather: '',
+              tags: [],
+          };
+
     const [draft, setDraft] = useState(initial);
+    const [tagInput, setTagInput] = useState('');
     const [editing, setEditing] = useState(!entry);
+    const [ruled, setRuled] = useState(false);
+    const [paper, setPaper] = useState<PaperTheme>('light');
+    const [promptIdx, setPromptIdx] = useState(0);
+    const [formattedToast, setFormattedToast] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
     const uploadInProgress = useRef(false);
     const [uploading, setUploading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [confirm, setConfirm] = useState<'delete' | 'discard' | null>(null);
-    const close = () => {if (!busy && !uploading) {if (JSON.stringify(draft) !== JSON.stringify(initial)) setConfirm('discard'); else onClose();}};
-    useEscapeDismissal(true, close);
-    const update = <K extends keyof DiaryDraft>(key: K, value: DiaryDraft[K]) => setDraft(d => ({...d, [key]: value}));
-    const submit = async (event: React.FormEvent) => {
-        event.preventDefault();
-        if (!draft.title.trim() || !draft.content.trim()) {setError('请填写标题和正文'); return;}
-        setBusy(true); setError('');
-        try {await onSave({...draft, title: draft.title.trim(), content: draft.content.trim()}, entry?.diaryId); onClose();}
-        catch {setError('保存失败，内容已保留，请重试');} finally {setBusy(false);}
+
+    // 正文输入自适应高度流动画布：告别局促的固定滚动框
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.max(380, textareaRef.current.scrollHeight)}px`;
+        }
+    }, [draft.content, editing]);
+
+    const handleFormatProse = () => {
+        if (!draft.content.trim()) return;
+        const formatted = formatDiaryProse(draft.content);
+        setDraft(d => ({...d, content: formatted}));
+        setFormattedToast(true);
+        setTimeout(() => setFormattedToast(false), 2400);
     };
+
+    const close = () => {
+        if (!busy && !uploading) {
+            if (JSON.stringify(draft) !== JSON.stringify(initial) || tagInput.trim()) setConfirm('discard');
+            else onClose();
+        }
+    };
+
+    useEscapeDismissal(true, close);
+
+    useEffect(() => {
+        if (editing || !onSelectEntry) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            if (e.key === 'ArrowLeft' && prevEntry) {
+                e.preventDefault();
+                onSelectEntry(prevEntry);
+            } else if (e.key === 'ArrowRight' && nextEntry) {
+                e.preventDefault();
+                onSelectEntry(nextEntry);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [editing, onSelectEntry, prevEntry, nextEntry]);
+
+    const update = <K extends keyof DiaryDraft>(key: K, value: DiaryDraft[K]) =>
+        setDraft(d => ({...d, [key]: value}));
+
+    const submit = async (event?: React.FormEvent) => {
+        event?.preventDefault();
+        if (busy || uploading) return;
+        const titleTrimmed = draft.title.trim();
+        // 校验标题和正文是否有实际内容（排查全角空格等）
+        if (!titleTrimmed || !draft.content.replace(/[\s\u3000]+/g, '').length) {
+            setError('请填写标题和正文');
+            return;
+        }
+        const resolvedTags = mergeDiaryTags(draft.tags, tagInput);
+        if (resolvedTags.error) {
+            setError(resolvedTags.error);
+            return;
+        }
+        setBusy(true);
+        setError('');
+        setDraft(current => ({...current, tags: resolvedTags.tags}));
+        setTagInput('');
+        // 仅移除前导空行和末尾空白，绝对保留段首全角缩进（\u3000\u3000），避免保存后首段缩进丢失
+        const cleanContent = draft.content.replace(/^[\r\n\t ]+/, '').trimEnd();
+        try {
+            await onSave({...draft, title: titleTrimmed, content: cleanContent, tags: resolvedTags.tags}, entry?.diaryId);
+            onClose();
+        } catch {
+            setError('保存失败，内容已保留，请重试');
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const upload = async (files: File[]) => {
         if (uploadInProgress.current || !files.length) return;
-        if (draft.imageAssetIds.length + files.length > MAX_DIARY_IMAGES) {setError(`每篇日记最多添加 ${MAX_DIARY_IMAGES} 张图片，请减少后重试`); return;}
-        uploadInProgress.current = true; setUploading(true); setError('');
+        if (draft.imageAssetIds.length + files.length > MAX_DIARY_IMAGES) {
+            setError(`每篇日记最多添加 ${MAX_DIARY_IMAGES} 张图片，请减少后重试`);
+            return;
+        }
+        uploadInProgress.current = true;
+        setUploading(true);
+        setError('');
         const failures: string[] = [];
         try {
             for (const file of files) {
                 try {
                     const asset = await uploadDiaryImage(file);
-                    setDraft(d => d.imageAssetIds.includes(asset.id) ? d : ({...d, ...diaryImagePatch([...d.imageAssetIds, asset.id])}));
-                } catch (problem) {failures.push(`${file.name}：${problem instanceof Error ? problem.message : '上传失败'}`);}
+                    setDraft(d =>
+                        d.imageAssetIds.includes(asset.id)
+                            ? d
+                            : {...d, ...diaryImagePatch([...d.imageAssetIds, asset.id])}
+                    );
+                } catch (problem) {
+                    failures.push(`${file.name}：${problem instanceof Error ? problem.message : '上传失败'}`);
+                }
             }
             if (failures.length) setError(`部分图片上传失败，成功图片已保留。${failures.join('；')}`);
-        } finally {uploadInProgress.current = false; setUploading(false);}
+        } finally {
+            uploadInProgress.current = false;
+            setUploading(false);
+        }
     };
-    return <div data-modal-scroll-lock className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/35 p-4" onClick={close}>
-        <section role="dialog" aria-modal="true" aria-label={editing ? '编辑日记' : '日记详情'} className="relative max-h-[90dvh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-xl scrollbar-hide" onClick={event => event.stopPropagation()}>
-            <header className="sticky top-0 z-20 flex items-center justify-between bg-white p-6"><h2 className="text-lg font-bold">{editing ? (entry ? '编辑日记' : '写日记') : '日记详情'}</h2><div className="flex items-center gap-2">{entry && !editing && <><button aria-label="编辑日记" onClick={() => setEditing(true)} className="rounded-lg p-2 hover:bg-orange-50"><Pencil size={18}/></button><button aria-label="删除日记" onClick={() => setConfirm('delete')} className="rounded-lg p-2 text-red-500 hover:bg-red-50"><Trash2 size={18}/></button></>}<button aria-label="关闭" disabled={busy || uploading} onClick={close} className="rounded-lg p-2 hover:bg-slate-100"><X size={20}/></button></div></header>
-            {editing ? <form onSubmit={submit} className="px-6 pb-6"><fieldset disabled={busy || uploading} className="grid min-w-0 gap-7 md:grid-cols-[minmax(0,1fr)_300px]"><div className="min-w-0 space-y-5"><label className="block text-sm font-semibold">标题<input autoFocus required maxLength={150} value={draft.title} onChange={e => update('title', e.target.value)} placeholder="给今天起个名字" className="mt-2 w-full rounded-xl border border-slate-200 p-3 font-normal"/></label>
-                <label className="block text-sm font-semibold">日期<input type="date" required value={draft.entryDate} onChange={e => update('entryDate', e.target.value)} className="mt-2 block w-full min-w-0 rounded-xl border border-slate-200 p-2.5 font-normal sm:max-w-xs"/></label>
-                <label className="block text-sm font-semibold">正文<textarea required maxLength={50000} value={draft.content} onChange={e => update('content', e.target.value)} rows={12} placeholder="今天发生了什么？从一个小小的瞬间开始吧。" className="mt-2 h-64 w-full resize-none md:h-[480px] rounded-xl border border-slate-200 p-3 font-normal leading-7"/></label>
-                </div><DiaryDetailsFields draft={draft} onChange={patch => setDraft(d => ({...d, ...patch}))} onUpload={upload} uploading={uploading}/></fieldset>
-                {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-                <div className="sticky bottom-0 z-10 mt-6 flex justify-end gap-3 bg-white py-4"><button type="button" disabled={busy || uploading} onClick={close} className="rounded-full bg-slate-100 px-5 py-2.5 text-sm">取消</button><button disabled={busy || uploading} className="flex items-center gap-2 rounded-full bg-orange-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50">{busy && <Loader2 size={16} className="animate-spin"/>}保存日记</button></div>
-            </form> : <article className="px-6 pb-8"><p className="mb-3 text-xs text-slate-500">{entry?.entryDate}</p><h3 className="break-words text-xl font-bold text-slate-900">{entry?.title}</h3>{entry && <DiaryMetadata entry={entry}/>}<p className="mt-5 whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">{entry?.content}</p>{entry && <DiaryGallery ids={entry.imageAssetIds} legacyUrl={entry.coverUrl}/>}{error && <p role="alert" className="mt-4 text-sm text-red-600">{error}</p>}</article>}
-        </section>
-        <ConfirmationModal isOpen={confirm !== null} title={confirm === 'delete' ? '删除这篇日记？' : '放弃未保存的内容？'} description={confirm === 'delete' ? '删除后将不再显示这篇日记。' : '关闭后本次修改不会保存。'} confirmText={confirm === 'delete' ? '删除' : '放弃修改'} isLoading={busy} onClose={() => setConfirm(null)} onConfirm={async () => {if (confirm === 'discard') {onClose(); return;} if (!entry) return; setBusy(true); try {await onDelete(entry.diaryId); onClose();} catch {setError('删除失败，请重试'); setConfirm(null);} finally {setBusy(false);}}}/>
-    </div>;
+
+    const dateInfo = parseDiaryDate(draft.entryDate);
+    const wordCount = countDiaryWords(draft.content);
+    const isDark = !editing && paper === 'dark';
+
+    return (
+        <div
+            data-modal-scroll-lock
+            className="diary-modal-root fixed inset-0 z-[115] flex flex-col bg-white"
+        >
+            <section
+                role="dialog"
+                aria-modal="true"
+                aria-label={editing ? '编辑日记' : '日记详情'}
+                className={`relative flex h-dvh w-full flex-col overflow-hidden ${
+                    isDark ? 'diary-reader-dark' : 'bg-white text-zinc-950'
+                }`}
+            >
+                {/* 全屏沉浸式顶部玻璃导航栏 */}
+                <header
+                    className={`sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b px-4 sm:px-8 ${
+                        isDark
+                            ? 'border-zinc-800 bg-zinc-950/85 text-zinc-100'
+                            : 'border-zinc-100 bg-white/85 text-zinc-950'
+                    } backdrop-blur-xl`}
+                >
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            aria-label="关闭"
+                            disabled={busy || uploading}
+                            onClick={close}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                                isDark
+                                    ? 'border-zinc-800 bg-zinc-900 text-zinc-200 hover:border-zinc-600'
+                                    : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-950 hover:text-zinc-950'
+                            }`}
+                        >
+                            <ArrowLeft size={14}/>
+                            <span>返回</span>
+                        </button>
+
+                        <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800"/>
+
+                        <h2 className="text-sm font-bold tracking-tight sm:text-base">
+                            {editing ? (entry ? '编辑日记' : '写日记') : '日记详情'}
+                        </h2>
+
+                        {editing && (
+                            <span className="diary-num rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500">
+                                {wordCount} 字
+                            </span>
+                        )}
+
+                        {!editing && onSelectEntry && (prevEntry || nextEntry) && (
+                            <div className="ml-1 flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    disabled={!prevEntry}
+                                    title="上一篇"
+                                    aria-label="上一篇日记"
+                                    onClick={() => prevEntry && onSelectEntry(prevEntry)}
+                                    className="rounded-full p-1.5 opacity-70 transition-opacity hover:bg-zinc-100 hover:opacity-100 disabled:opacity-25"
+                                >
+                                    <ChevronLeft size={17}/>
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={!nextEntry}
+                                    title="下一篇"
+                                    aria-label="下一篇日记"
+                                    onClick={() => nextEntry && onSelectEntry(nextEntry)}
+                                    className="rounded-full p-1.5 opacity-70 transition-opacity hover:bg-zinc-100 hover:opacity-100 disabled:opacity-25"
+                                >
+                                    <ChevronRight size={17}/>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {/* 阅读模式排版切换（默认统一文楷，仅保留底色与网格线） */}
+                        {!editing && (
+                            <div className="hidden items-center gap-2 sm:flex">
+                                <div
+                                    className={`inline-flex items-center rounded-full border p-0.5 text-xs ${
+                                        isDark ? 'border-zinc-800 bg-zinc-900' : 'border-zinc-200 bg-zinc-50'
+                                    }`}
+                                >
+                                    {(
+                                        [
+                                            {id: 'light', label: '纯白', dot: '#FFFFFF'},
+                                            {id: 'soft', label: '雾白', dot: '#F1F5F9'},
+                                            {id: 'dark', label: '深空', dot: '#09090B'},
+                                        ] as const
+                                    ).map(p => (
+                                        <button
+                                            type="button"
+                                            key={p.id}
+                                            onClick={() => setPaper(p.id)}
+                                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                                                paper === p.id
+                                                    ? isDark
+                                                        ? 'bg-white text-zinc-950'
+                                                        : 'bg-zinc-950 text-white'
+                                                    : 'opacity-65 hover:opacity-100'
+                                            }`}
+                                        >
+                                            <span
+                                                className="h-2 w-2 rounded-full border border-zinc-400"
+                                                style={{backgroundColor: p.dot}}
+                                            />
+                                            {p.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            aria-pressed={ruled}
+                            onClick={() => setRuled(r => !r)}
+                            title="切换网格横线"
+                            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                ruled
+                                    ? isDark
+                                        ? 'border-white bg-white text-zinc-950'
+                                        : 'border-zinc-950 bg-zinc-950 text-white'
+                                    : isDark
+                                      ? 'border-zinc-800 text-zinc-400'
+                                      : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-950'
+                            }`}
+                        >
+                            <AlignJustify size={13}/>
+                            <span className="hidden md:inline">网格线</span>
+                        </button>
+
+                        {entry && !editing && (
+                            <>
+                                <button
+                                    type="button"
+                                    aria-label="编辑日记"
+                                    onClick={() => setEditing(true)}
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-zinc-800"
+                                >
+                                    <Pencil size={13}/>
+                                    <span>编辑</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-label="删除日记"
+                                    onClick={() => setConfirm('delete')}
+                                    className="rounded-full border border-zinc-200 bg-white p-2 text-red-500 transition-colors hover:border-red-200 hover:bg-red-50"
+                                >
+                                    <Trash2 size={15}/>
+                                </button>
+                            </>
+                        )}
+
+                        {editing && (
+                            <>
+                                <button
+                                    type="button"
+                                    disabled={busy || uploading}
+                                    onClick={close}
+                                    className="rounded-full border border-zinc-200 bg-white px-4 py-1.5 text-xs font-semibold text-zinc-600 transition-colors hover:border-zinc-950 hover:text-zinc-950"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={busy || uploading}
+                                    onClick={() => void submit()}
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
+                                >
+                                    {busy && <Loader2 size={14} className="animate-spin"/>}
+                                    保存日记
+                                </button>
+                            </>
+                        )}
+
+                        <button
+                            type="button"
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            disabled={busy || uploading}
+                            onClick={close}
+                            className="hidden rounded-full p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-950 sm:inline-flex"
+                        >
+                            <X size={18}/>
+                        </button>
+                    </div>
+                </header>
+
+                {/* 主体区域：高级现代悬浮创作画布 vs 沉浸式杂志阅读器 */}
+                <div
+                    className={`flex-1 overflow-y-auto scrollbar-hide ${
+                        editing ? 'py-8 px-4 sm:px-6' : ''
+                    }`}
+                >
+                    {editing ? (
+                        <form
+                            onSubmit={submit}
+                            onKeyDown={e => {
+                                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+                                    e.preventDefault();
+                                    void submit();
+                                }
+                            }}
+                            className="diary-editor-canvas mx-auto max-w-3xl rounded-3xl border border-black/[0.06] bg-white p-6 sm:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.04),0_1px_3px_rgba(0,0,0,0.02)] transition-all"
+                        >
+                            <fieldset disabled={busy || uploading} className="min-w-0 space-y-7">
+                                {/* 顶部杂志日期刊头 */}
+                                <div className="flex flex-wrap items-end justify-between gap-4 border-b border-zinc-100 pb-6">
+                                    <div className="flex items-end gap-4">
+                                        <span className="diary-display-num text-5xl font-bold leading-none tracking-tighter text-zinc-950 sm:text-6xl">
+                                            {dateInfo.dayPadded}
+                                        </span>
+                                        <div>
+                                            <p className="diary-num text-[11px] font-bold tracking-[0.2em] text-zinc-400 uppercase">
+                                                {dateInfo.monthEn} · {dateInfo.year}
+                                            </p>
+                                            <p className="mt-1 text-xs font-medium text-zinc-500">
+                                                {dateInfo.weekdayLong} · {dateInfo.seasonLabel}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-800 transition-colors hover:border-zinc-950 hover:bg-white">
+                                        <Calendar size={14} className="text-zinc-500"/>
+                                        <span className="sr-only">日期</span>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={draft.entryDate}
+                                            onChange={e => update('entryDate', e.target.value)}
+                                            className="diary-num cursor-pointer bg-transparent font-semibold text-zinc-900 outline-none"
+                                        />
+                                    </label>
+                                </div>
+
+                                {/* 大号无边框杂志标题输入（彻底消除任何浏览器选中黄框，靠左对齐） */}
+                                <label className="block text-left">
+                                    <span className="sr-only">标题</span>
+                                    <input
+                                        autoFocus
+                                        required
+                                        maxLength={150}
+                                        value={draft.title}
+                                        onChange={e => update('title', e.target.value)}
+                                        placeholder="给今天起个名字…"
+                                        className="diary-wenkai diary-canvas-input w-full border-none bg-transparent text-left text-3xl font-bold tracking-tight text-zinc-950 placeholder:font-normal placeholder:text-zinc-300 outline-none ring-0 focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 sm:text-4xl"
+                                    />
+                                </label>
+
+                                {/* 紧凑型 Notion 风格水平属性面板（心情 / 天气 / 标签） */}
+                                <DiaryDetailsFields
+                                    draft={draft}
+                                    onChange={patch => setDraft(d => ({...d, ...patch}))}
+                                    onUpload={upload}
+                                    uploading={uploading}
+                                    tagInput={tagInput}
+                                    onTagInputChange={setTagInput}
+                                    onlyMetadata
+                                />
+
+                                {/* 极简书写灵感提示条 */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-100 bg-zinc-50/70 px-4 py-2.5 text-xs text-zinc-500">
+                                    <span className="inline-flex items-center gap-2">
+                                        <Sparkles size={13} className="shrink-0 text-zinc-900"/>
+                                        <span>写作灵感 · {WRITING_PROMPTS[promptIdx]}</span>
+                                    </span>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPromptIdx(i => (i + 1) % WRITING_PROMPTS.length)}
+                                            className="text-[11px] font-medium text-zinc-400 hover:text-zinc-950"
+                                        >
+                                            换一条
+                                        </button>
+                                        {!draft.title && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    update('title', WRITING_PROMPTS[promptIdx].replace(/[？。]/g, ''))
+                                                }
+                                                className="text-[11px] font-bold text-zinc-950 hover:underline"
+                                            >
+                                                用作标题
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 正文工具栏：段落梳理与一键排版 */}
+                                <div className="flex items-center justify-between gap-3 border-b border-zinc-100 pb-2">
+                                    <span className="text-xs font-semibold text-zinc-400">
+                                        正文画布 · 自由书写
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        {formattedToast && (
+                                            <span className="text-xs font-medium text-emerald-600 animate-pulse">
+                                                ✓ 已优化段首缩进与标点规范
+                                            </span>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleFormatProse}
+                                            disabled={!draft.content.trim()}
+                                            title="自动每段开头空两个字，规整中西文空格与中文标点"
+                                            className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.08] bg-white px-3 py-1 text-xs font-semibold text-zinc-700 shadow-2xs transition-all hover:border-zinc-950 hover:bg-zinc-950 hover:text-white disabled:opacity-30 disabled:hover:border-black/[0.08] disabled:hover:bg-white disabled:hover:text-zinc-700"
+                                        >
+                                            <Wand2 size={12} className="text-indigo-500"/>
+                                            <span>一键排版</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 纯白无边框流动画布正文书写区（高度自适应无滚动条，无黄框，两端对齐/靠左基准） */}
+                                <label className="block text-left">
+                                    <span className="sr-only">正文</span>
+                                    <textarea
+                                        ref={textareaRef}
+                                        required
+                                        maxLength={50000}
+                                        value={draft.content}
+                                        onChange={e => update('content', e.target.value)}
+                                        placeholder="今天发生了什么？从一个小小的瞬间开始写起吧…"
+                                        className={`${
+                                            ruled ? 'diary-ruled-lines' : 'leading-[1.85]'
+                                        } diary-canvas-textarea min-h-[380px] w-full resize-none overflow-hidden border-none bg-transparent text-left text-[17.5px] text-zinc-900 placeholder:text-zinc-300 outline-none ring-0 focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 diary-prose diary-wenkai`}
+                                    />
+                                </label>
+
+                                {/* 底部画廊式配图上传面板 */}
+                                <DiaryDetailsFields
+                                    draft={draft}
+                                    onChange={patch => setDraft(d => ({...d, ...patch}))}
+                                    onUpload={upload}
+                                    uploading={uploading}
+                                    tagInput={tagInput}
+                                    onTagInputChange={setTagInput}
+                                    onlyGallery
+                                />
+                            </fieldset>
+
+                            {error && (
+                                <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                                    {error}
+                                </p>
+                            )}
+
+                            <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-100 pt-6">
+                                <span className="text-xs text-zinc-400">
+                                    支持快捷键 <kbd className="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] text-zinc-700">⌘/Ctrl + S</kbd> 快速保存
+                                </span>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        disabled={busy || uploading}
+                                        onClick={close}
+                                        className="rounded-full border border-zinc-200 bg-white px-6 py-2.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-950"
+                                    >
+                                        取消
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={busy || uploading}
+                                        className="inline-flex items-center gap-2 rounded-full bg-zinc-950 px-7 py-2.5 text-xs font-bold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
+                                    >
+                                        {busy && <Loader2 size={15} className="animate-spin"/>}
+                                        保存日记
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    ) : (
+                        entry && (
+                            <DiaryReaderView
+                                entry={entry}
+                                paper={paper}
+                                onPaperChange={setPaper}
+                                ruled={ruled}
+                                onRuledChange={setRuled}
+                                prevEntry={prevEntry}
+                                nextEntry={nextEntry}
+                                onSelectEntry={onSelectEntry}
+                                error={error}
+                            />
+                        )
+                    )}
+                </div>
+            </section>
+
+            <ConfirmationModal
+                isOpen={confirm !== null}
+                title={confirm === 'delete' ? '删除这篇日记？' : '放弃未保存的内容？'}
+                description={
+                    confirm === 'delete' ? '删除后将不再显示这篇日记。' : '关闭后本次修改不会保存。'
+                }
+                confirmText={confirm === 'delete' ? '删除' : '放弃修改'}
+                isLoading={busy}
+                onClose={() => setConfirm(null)}
+                onConfirm={async () => {
+                    if (confirm === 'discard') {
+                        onClose();
+                        return;
+                    }
+                    if (!entry) return;
+                    setBusy(true);
+                    try {
+                        await onDelete(entry.diaryId);
+                        onClose();
+                    } catch {
+                        setError('删除失败，请重试');
+                        setConfirm(null);
+                    } finally {
+                        setBusy(false);
+                    }
+                }}
+            />
+        </div>
+    );
 }

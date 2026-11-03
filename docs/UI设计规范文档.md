@@ -1,6 +1,6 @@
 # 小橘文档 UI 设计规范文档
 
-本文档用于约束后续页面与组件生成风格，确保新增 UI 与当前系统的主页、登录页、导航栏、弹窗、文集卡片保持一致。
+本文档用于约束后续页面与组件生成风格，确保新增 UI 与当前系统的主页、登录页、导航栏、弹窗、文集卡片保持一致。如用户有要求，可根据用户需求调整设计规范。
 
 ## 1. 设计定位
 
@@ -17,14 +17,14 @@
 
 ### 2.1 主色
 
-| 用途 | Tailwind 类 | 说明 |
-| --- | --- | --- |
-| 主按钮 / 品牌强调 | `orange-500` | 默认主操作色，如新建、保存、登录 |
-| 主按钮 hover | `orange-600` | 主按钮悬停态 |
-| 主按钮 active | `orange-700` | 主按钮按下态 |
-| 浅强调背景 | `orange-50` | 选中态、hover 背景、图标浅底 |
-| 强调边框 | `orange-100` / `orange-200` / `orange-500` | 轻量边框用 100/200，选中边框用 500 |
-| 焦点环 | `ring-orange-500/20` | 表单输入、可选卡片焦点态 |
+| 用途         | Tailwind 类                                 | 说明                      |
+| ---------- | ------------------------------------------ | ----------------------- |
+| 主按钮 / 品牌强调 | `orange-500`                               | 默认主操作色，如新建、保存、登录        |
+| 主按钮 hover  | `orange-600`                               | 主按钮悬停态                  |
+| 主按钮 active | `orange-700`                               | 主按钮按下态                  |
+| 浅强调背景      | `orange-50`                                | 选中态、hover 背景、图标浅底       |
+| 强调边框       | `orange-100` / `orange-200` / `orange-500` | 轻量边框用 100/200，选中边框用 500 |
+| 焦点环        | `ring-orange-500/20`                       | 表单输入、可选卡片焦点态            |
 
 常见组合：
 
@@ -36,12 +36,12 @@ className="focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
 
 ### 2.2 辅助色
 
-| 用途 | Tailwind 类 | 说明 |
-| --- | --- | --- |
-| 叶子 / 健康状态 / 版本正常 | `lime-500` / `lime-600` / `lime-50` | 橘子叶片、轻量成功感 |
-| 信息类 | `blue-50` / `blue-600` | 搜索文章结果、普通信息 |
-| 危险操作 | `red-50` / `red-600` / `red-700` | 删除、不可恢复提醒 |
-| 多入口悬浮按钮 | `emerald` / `pink` / `sky` / `rose` / `indigo` | 仅用于功能入口区分，不能盖过橘色主品牌 |
+| 用途               | Tailwind 类                                     | 说明                  |
+| ---------------- | ---------------------------------------------- | ------------------- |
+| 叶子 / 健康状态 / 版本正常 | `lime-500` / `lime-600` / `lime-50`            | 橘子叶片、轻量成功感          |
+| 信息类              | `blue-50` / `blue-600`                         | 搜索文章结果、普通信息         |
+| 危险操作             | `red-50` / `red-600` / `red-700`               | 删除、不可恢复提醒           |
+| 多入口悬浮按钮          | `emerald` / `pink` / `sky` / `rose` / `indigo` | 仅用于功能入口区分，不能盖过橘色主品牌 |
 
 ### 2.3 中性色
 
@@ -69,15 +69,15 @@ className="focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
 
 ### 3.2 字号
 
-| 场景 | 推荐类 |
-| --- | --- |
-| 页面标题 | `text-xl font-bold` 或 `text-2xl font-bold` |
-| 弹窗标题 | `text-lg font-bold` |
-| 卡片标题 | `text-base font-bold` |
-| 表单标签 | `text-sm font-semibold` |
-| 正文 / 菜单项 | `text-sm` |
-| 辅助说明 | `text-xs` |
-| 徽标 / 计数 | `text-[10px]` 或 `text-xs` |
+| 场景       | 推荐类                                        |
+| -------- | ------------------------------------------ |
+| 页面标题     | `text-xl font-bold` 或 `text-2xl font-bold` |
+| 弹窗标题     | `text-lg font-bold`                        |
+| 卡片标题     | `text-base font-bold`                      |
+| 表单标签     | `text-sm font-semibold`                    |
+| 正文 / 菜单项 | `text-sm`                                  |
+| 辅助说明     | `text-xs`                                  |
+| 徽标 / 计数  | `text-[10px]` 或 `text-xs`                  |
 
 当前系统偏紧凑，除登录页欢迎语外，不要随意使用超大字号。
 
@@ -191,7 +191,7 @@ className="p-1.5 rounded-md text-slate-400 hover:bg-slate-50 hover:text-slate-60
 - 危险操作用红色，不要用橘色表达删除。
 - 图标优先使用 `lucide-react`。
 - 按钮内图标尺寸常用 `w-4 h-4`，小按钮用 `w-3.5 h-3.5`，图标应配置 `shrink-0` 防止被挤压变形。
-- **【严禁文字换行】所有操作按钮必须显式配置 `whitespace-nowrap shrink-0`**，严禁因外层宽度不足或多语言中英文混合而在空格处产生文字折行（例如变成两行“接入外部 \n MCP”）。外层操作栏容器应配合 `flex-wrap` 或响应式布局。
+- **【严禁文字换行】所有操作按钮必须显式配置** **`whitespace-nowrap shrink-0`**，严禁因外层宽度不足或多语言中英文混合而在空格处产生文字折行（例如变成两行“接入外部 \n MCP”）。外层操作栏容器应配合 `flex-wrap` 或响应式布局。
 
 ### 5.3 表单
 
@@ -225,7 +225,6 @@ className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ou
   - 浏览器默认的 `<textarea>` 存在 `resize: both`，会在右下角渲染原生拉伸拖拽手柄，一旦用户拖动会直接破坏卡片容器、设置面板或弹窗的布局；
   - 全局已在 `frontend_react/src/index.css` 注入 `textarea { resize: none; }` 兜底；
   - 组件编写时仍应统一显式声明 `resize-none`，保持语义清晰；需要控制可视高度时，使用 `rows`、`min-h`、`max-h` 或平滑自适应滚动，严禁暴露右下角原生调节手柄。
-
 
 #### 复选框
 
@@ -271,7 +270,6 @@ className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hid
   - 内部滚动容器必须统一配置 `scrollbar-hide`（或 `no-scrollbar`），在完全保留鼠标滚轮、触控板双指滑动以及触屏拖动能力的同时，彻底隐去可见的滚动槽和滑块；
   - **【局部子容器独立滚动优先】多列看板、分栏看板（如生活日程周看板、农场地图等），必须做成局部列内或独立子卡片内部滚动，严禁让整个弹窗 body 发生整体滚动，防止顶部导航栏或筛选操作条被滚出视口**。
 
-
 ### 5.5 下拉菜单
 
 ```tsx
@@ -292,9 +290,9 @@ className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-bet
 
 ### 5.6 下拉选择器
 
-**【强制规范】全系统严禁使用 HTML 原生 `<select>` 标签。** 原生 `<select>` 在 macOS / iOS 等系统中会唤起操作系统底层的深色/灰色原生控件，彻底破坏系统的视觉一致性与体验。
+**【强制规范】全系统严禁使用 HTML 原生** **`<select>`** **标签。** 原生 `<select>` 在 macOS / iOS 等系统中会唤起操作系统底层的深色/灰色原生控件，彻底破坏系统的视觉一致性与体验。
 
-所有表单输入、筛选过滤条、操作工具栏、设置面板、模态弹窗中的单选下拉，**必须统一使用 `frontend_react/src/components/common/Select.tsx`**。
+所有表单输入、筛选过滤条、操作工具栏、设置面板、模态弹窗中的单选下拉，**必须统一使用** **`frontend_react/src/components/common/Select.tsx`**。
 
 基础表单 / 设置项用法：
 
@@ -541,3 +539,4 @@ className="bg-red-50 border border-red-100 text-[10px] font-bold text-red-600 ro
 - `frontend_react/src/components/FloatingActionMenu.tsx`
 - `frontend_react/tailwind.config.js`
 - `frontend_react/src/index.css`
+

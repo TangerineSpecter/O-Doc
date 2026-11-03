@@ -5,21 +5,180 @@ import {collectDroppedFiles} from '../../utils/imageUpload';
 import DiaryPhoto from './DiaryPhoto';
 import DiaryLibraryPicker from './DiaryLibraryPicker';
 import {diaryImagePatch, MAX_DIARY_IMAGES} from './diaryImages';
-interface Props {draft: DiaryDraft; onChange: (patch: Partial<DiaryDraft>) => void; onUpload: (files: File[]) => void; uploading: boolean}
+
+interface Props {
+    draft: DiaryDraft;
+    onChange: (patch: Partial<DiaryDraft>) => void;
+    onUpload: (files: File[]) => void;
+    uploading: boolean;
+}
+
 export default function DiaryImageUpload({draft, onChange, onUpload, uploading}: Props) {
     const [libraryOpen, setLibraryOpen] = useState(false);
     const [dragging, setDragging] = useState(false);
     const dragDepth = useRef(0);
     const input = useRef<HTMLInputElement>(null);
     const full = draft.imageAssetIds.length >= MAX_DIARY_IMAGES;
-    return <div><div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold">日记配图</p><span className="text-xs tabular-nums text-slate-500">{draft.imageAssetIds.length} / {MAX_DIARY_IMAGES}</span></div>
-        {!!draft.imageAssetIds.length && <div className="mb-3 grid grid-cols-3 gap-2">{draft.imageAssetIds.map((id, index) => <div key={id} className="group relative overflow-hidden rounded-lg border border-slate-200"><DiaryPhoto assetId={id} url="" className="aspect-square w-full object-cover"/>{index === 0 ? <span className="absolute bottom-0 left-0 bg-slate-900/70 px-2 py-1 text-[11px] text-white">封面</span> : <button type="button" disabled={uploading} title="设为封面" aria-label={`将图片 ${index + 1} 设为封面`} onClick={() => onChange(diaryImagePatch([id, ...draft.imageAssetIds.filter(item => item !== id)]))} className="absolute bottom-1 left-1 rounded bg-white/95 p-1 text-slate-600"><ArrowUpLeft size={13}/></button>}<button type="button" disabled={uploading} aria-label={`移除配图 ${index + 1}`} onClick={() => onChange(diaryImagePatch(draft.imageAssetIds.filter(item => item !== id)))} className="absolute right-1 top-1 rounded-full bg-white/95 p-1 text-slate-600"><X size={13}/></button></div>)}</div>}
-        {!draft.imageAssetIds.length && draft.coverUrl && <div className="relative mb-3"><DiaryPhoto assetId={null} url={draft.coverUrl} className="aspect-[4/3] w-full rounded-xl object-cover"/><button type="button" aria-label="移除历史配图" onClick={() => onChange(diaryImagePatch([]))} className="absolute right-2 top-2 rounded-full bg-white p-1.5 text-slate-600"><X size={15}/></button></div>}
-        <div data-diary-dropzone aria-label="拖拽上传日记图片" onDragEnter={event => {event.preventDefault(); event.stopPropagation(); if (!uploading && !full) {dragDepth.current++; setDragging(true);}}} onDragOver={event => {event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = uploading || full ? 'none' : 'copy';}} onDragLeave={event => {event.preventDefault(); event.stopPropagation(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false);}} onDrop={event => {event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragging(false); if (!uploading && !full) onUpload(collectDroppedFiles(event.dataTransfer));}} className={`rounded-xl border border-dashed transition-colors ${dragging ? 'border-orange-500 bg-orange-50' : 'border-slate-300 bg-white'} ${uploading || full ? 'opacity-60' : 'hover:border-orange-300'}`}>
-            <button type="button" disabled={uploading || full} onClick={() => input.current?.click()} className="flex w-full flex-col items-center justify-center gap-2 px-3 py-5 text-sm text-slate-600 focus-visible:outline-orange-500">{uploading ? <Loader2 size={22} className="animate-spin"/> : <ImagePlus size={22}/>}<span>{uploading ? '正在上传…' : full ? '已达到图片数量上限' : dragging ? '松开即可上传图片' : '点击选择或拖拽图片到这里'}</span>{!uploading && !full && <span className="text-xs text-slate-500">支持一次添加多张</span>}</button>
-            <input ref={input} aria-label="上传日记图片" type="file" multiple accept="image/png,image/jpeg,image/gif,image/webp" disabled={uploading || full} className="sr-only" onChange={event => {const files = Array.from(event.target.files || []); if (files.length) onUpload(files); event.target.value = '';}}/>
-        </div><button type="button" disabled={uploading || full} onClick={() => setLibraryOpen(true)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:border-orange-300 hover:bg-orange-50 disabled:opacity-40"><Images size={17}/>从图片文集选择</button>
-        {libraryOpen && <DiaryLibraryPicker existing={draft.imageAssetIds} onClose={() => setLibraryOpen(false)} onAdd={ids => onChange(diaryImagePatch([...new Set([...draft.imageAssetIds, ...ids])]))}/>}
-        <p className="mt-2 text-xs leading-5 text-slate-500">最多 {MAX_DIARY_IMAGES} 张，每张最大 10 MB。支持 JPG / PNG / GIF / WebP。上传后存入资源库，保存日记后建立关联。</p>
-    </div>;
+
+    return (
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50/50 p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                    <p className="text-xs font-bold tracking-wider text-zinc-900 uppercase">日记配图 · GALLERY</p>
+                    <span className="diary-num rounded-full border border-zinc-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-zinc-600">
+                        {draft.imageAssetIds.length} / {MAX_DIARY_IMAGES}
+                    </span>
+                </div>
+
+                <button
+                    type="button"
+                    disabled={uploading || full}
+                    onClick={() => setLibraryOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-800 transition-colors hover:border-zinc-950 hover:text-zinc-950 disabled:opacity-40"
+                >
+                    <Images size={14}/>
+                    从图片文集选择
+                </button>
+            </div>
+
+            {!!draft.imageAssetIds.length && (
+                <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                    {draft.imageAssetIds.map((id, index) => (
+                        <div
+                            key={id}
+                            className="group relative overflow-hidden rounded-xl border border-zinc-200 bg-white"
+                        >
+                            <DiaryPhoto assetId={id} url="" className="aspect-[4/3] w-full object-cover"/>
+                            {index === 0 ? (
+                                <span className="diary-num absolute bottom-2 left-2 rounded-md bg-zinc-950/85 px-2 py-0.5 text-[10px] font-medium tracking-wide text-white">
+                                    主封面
+                                </span>
+                            ) : (
+                                <button
+                                    type="button"
+                                    disabled={uploading}
+                                    title="设为封面"
+                                    aria-label={`将图片 ${index + 1} 设为封面`}
+                                    onClick={() =>
+                                        onChange(
+                                            diaryImagePatch([
+                                                id,
+                                                ...draft.imageAssetIds.filter(item => item !== id),
+                                            ])
+                                        )
+                                    }
+                                    className="absolute bottom-2 left-2 rounded-md bg-white/95 p-1 text-zinc-700 shadow-xs transition-colors hover:bg-zinc-950 hover:text-white"
+                                >
+                                    <ArrowUpLeft size={12}/>
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                disabled={uploading}
+                                aria-label={`移除配图 ${index + 1}`}
+                                onClick={() =>
+                                    onChange(diaryImagePatch(draft.imageAssetIds.filter(item => item !== id)))
+                                }
+                                className="absolute right-2 top-2 rounded-full bg-white/95 p-1 text-zinc-700 shadow-xs transition-colors hover:bg-red-600 hover:text-white"
+                            >
+                                <X size={12}/>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {!draft.imageAssetIds.length && draft.coverUrl && (
+                <div className="relative mb-4 max-w-sm overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                    <DiaryPhoto assetId={null} url={draft.coverUrl} className="aspect-[4/3] w-full object-cover"/>
+                    <button
+                        type="button"
+                        aria-label="移除历史配图"
+                        onClick={() => onChange(diaryImagePatch([]))}
+                        className="absolute right-2.5 top-2.5 rounded-full bg-white p-1.5 text-zinc-700 shadow-xs hover:text-red-600"
+                    >
+                        <X size={14}/>
+                    </button>
+                </div>
+            )}
+
+            <div
+                data-diary-dropzone
+                aria-label="拖拽上传日记图片"
+                onDragEnter={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!uploading && !full) {
+                        dragDepth.current++;
+                        setDragging(true);
+                    }
+                }}
+                onDragOver={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.dataTransfer.dropEffect = uploading || full ? 'none' : 'copy';
+                }}
+                onDragLeave={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dragDepth.current = Math.max(0, dragDepth.current - 1);
+                    if (!dragDepth.current) setDragging(false);
+                }}
+                onDrop={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dragDepth.current = 0;
+                    setDragging(false);
+                    if (!uploading && !full) onUpload(collectDroppedFiles(event.dataTransfer));
+                }}
+                className={`rounded-xl border border-dashed transition-colors ${
+                    dragging ? 'border-zinc-950 bg-zinc-100' : 'border-zinc-300 bg-white'
+                } ${uploading || full ? 'opacity-60' : 'hover:border-zinc-950'}`}
+            >
+                <button
+                    type="button"
+                    disabled={uploading || full}
+                    onClick={() => input.current?.click()}
+                    className="flex w-full items-center justify-center gap-3 px-4 py-4 text-xs text-zinc-600"
+                >
+                    {uploading ? (
+                        <Loader2 size={18} className="animate-spin text-zinc-900"/>
+                    ) : (
+                        <ImagePlus size={18} className="text-zinc-500"/>
+                    )}
+                    <span className="font-semibold text-zinc-800">
+                        {uploading
+                            ? '正在上传影像…'
+                            : full
+                              ? '已达到 15 张图片上限'
+                              : dragging
+                                ? '松开即可添入影像'
+                                : '点击上传或将照片拖拽至此（支持多选，最多 15 张）'}
+                    </span>
+                </button>
+                <input
+                    ref={input}
+                    aria-label="上传日记图片"
+                    type="file"
+                    multiple
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    disabled={uploading || full}
+                    className="sr-only"
+                    onChange={event => {
+                        const files = Array.from(event.target.files || []);
+                        if (files.length) onUpload(files);
+                        event.target.value = '';
+                    }}
+                />
+            </div>
+
+            {libraryOpen && (
+                <DiaryLibraryPicker
+                    existing={draft.imageAssetIds}
+                    onClose={() => setLibraryOpen(false)}
+                    onAdd={ids => onChange(diaryImagePatch([...new Set([...draft.imageAssetIds, ...ids])]))}
+                />
+            )}
+        </div>
+    );
 }

@@ -222,7 +222,7 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
     facts.explorations = list(window(Exploration.objects.filter(owner_id=owner, actor_id__in=relevant_actors),
                                      'ended_at').only('id', 'actor_id'))
     facts.wins = list(load_combat_kills(owner, actor_ids=relevant_actors, start=start, end=end,
-                                        include_daily=include_daily))
+                                        include_daily=include_daily, include_monster=False))
     if timing is not None:
         timing.mark('combat_world')
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=relevant_actors).exclude(kind='opening').exclude(amount=0)))
