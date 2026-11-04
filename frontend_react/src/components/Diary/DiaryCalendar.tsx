@@ -13,6 +13,8 @@ interface Props {
     onSelect: (day: string) => void;
     entries: DiaryEntry[];
     onOpenEntry?: (entry: DiaryEntry) => void;
+    variant?: 'card' | 'plain';
+    hideSpotlight?: boolean;
 }
 
 export default function DiaryCalendar({
@@ -22,6 +24,8 @@ export default function DiaryCalendar({
     onSelect,
     entries,
     onOpenEntry,
+    variant = 'card',
+    hideSpotlight = false,
 }: Props) {
     const year = month.getFullYear();
     const m = month.getMonth();
@@ -91,8 +95,14 @@ export default function DiaryCalendar({
 
     return (
         <aside className="space-y-4">
-            {/* 现代杂志风日历卡片 */}
-            <div className="diary-art-card p-5 select-none">
+            {/* 日历主体：卡片模式（桌面端）或平铺模式（移动端抽屉） */}
+            <div
+                className={`select-none ${
+                    variant === 'plain'
+                        ? 'p-1'
+                        : 'diary-art-card p-5'
+                }`}
+            >
                 {/* 1. 顶部刊头：年月与导航操作 */}
                 <div className="flex items-center justify-between pb-3.5 border-b border-zinc-150/70">
                     <div>
@@ -329,8 +339,8 @@ export default function DiaryCalendar({
                 </div>
             </div>
 
-            {/* 5. 往日重温小卡片 */}
-            {spotlightEntry && onOpenEntry && (
+            {/* 5. 往日重温小卡片（移动端抽屉中根据 hideSpotlight 隐藏，桌面端保留） */}
+            {!hideSpotlight && spotlightEntry && onOpenEntry && (
                 <div className="diary-art-card p-4.5 sm:p-5">
                     <div className="flex items-center justify-between">
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold text-zinc-800">
@@ -361,7 +371,7 @@ export default function DiaryCalendar({
                             {spotlightEntry.title || '无标题日记'}
                         </h3>
                         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-zinc-500">
-                            {spotlightEntry.content}
+                            {spotlightEntry.content.replace(/^#+\s+/gm, '').replace(/^>\s?/gm, '').trim()}
                         </p>
                         <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-zinc-900 group-hover:text-orange-600 transition-colors">
                             <BookOpen size={11}/>

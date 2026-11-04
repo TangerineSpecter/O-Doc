@@ -1,21 +1,33 @@
 import {useSearchParams} from 'react-router-dom';
 import {useMemo, useState} from 'react';
 import {
+    ArrowUpRight,
     BookHeart,
     BookOpen,
+    Calendar,
     LayoutGrid,
     List,
     Maximize2,
     PenLine,
+    RotateCcw,
     Search,
-        X,
+    Sparkles,
+    X,
 } from 'lucide-react';
 import {useDiary} from '../hooks/useDiary';
 import {diaryMoods, type DiaryEntry, type DiaryMood} from '../types/api/diary';
 import DiaryBrowseFilters from '../components/Diary/DiaryBrowseFilters';
-import {matchesDiarySelection, type DiaryBrowseSelection} from '../components/Diary/diaryBrowse';
+import {
+    getMoodLabel,
+    getWeatherLabel,
+    matchesDiarySelection,
+    type DiaryBrowseSelection,
+} from '../components/Diary/diaryBrowse';
 import DiaryCalendar from '../components/Diary/DiaryCalendar';
 import DiaryCard from '../components/Diary/DiaryCard';
+import DiaryTimelineItem from '../components/Diary/DiaryTimelineItem';
+import DiaryPhoto from '../components/Diary/DiaryPhoto';
+import {WeatherIcon} from '../components/Diary/DiaryMetadata';
 import DiaryEditor from '../components/Diary/DiaryEditor';
 import DiaryMoodIcon from '../components/Diary/DiaryMoodIcon';
 import DiaryReaderView from '../components/Diary/DiaryReaderView';
@@ -38,6 +50,16 @@ export default function DiaryPage() {
     const [editor, setEditor] = useState<DiaryEntry | 'new' | null>(null);
     const [initialMood, setInitialMood] = useState<DiaryMood>('');
     const [readerSelectedId, setReaderSelectedId] = useState<string>('');
+    const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
+    const [spotlightOpen, setSpotlightOpen] = useState(false);
+    const [spotlightIdx, setSpotlightIdx] = useState(0);
+    const spotlightEntry = entries.length ? entries[spotlightIdx % entries.length] : null;
+
+    const openSpotlight = () => {
+        if (!entries.length) return;
+        setSpotlightIdx(Math.floor(Math.random() * entries.length));
+        setSpotlightOpen(true);
+    };
 
     const linkedEntry = entries.find(entry => entry.diaryId === params.get('entry'));
     const activeEditor = editor || linkedEntry;
@@ -100,27 +122,58 @@ export default function DiaryPage() {
         inlineIndex >= 0 && inlineIndex < filtered.length - 1 ? filtered[inlineIndex + 1] : null;
 
     return (
-        <div className="diary-ambient-bg min-h-[calc(100dvh-64px)] text-zinc-900 selection:bg-zinc-950 selection:text-white pb-16">
-            <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-                {/* 刊头：左侧标题与统计一行带过，右侧只留心情速记与写日记 */}
-                <header className="flex flex-col gap-6 pb-8 pt-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="diary-ambient-bg min-h-[calc(100dvh-64px)] text-zinc-900 selection:bg-zinc-950 selection:text-white pb-28 sm:pb-16">
+            <main className="mx-auto max-w-7xl px-3.5 py-4 sm:px-6 sm:py-8 lg:px-8">
+                {/* 刊头：移动端紧凑排版，桌面端舒展刊头 */}
+                <header className="flex flex-col gap-3 pb-4 pt-1 sm:gap-6 sm:pb-8 sm:pt-2 md:flex-row md:items-end md:justify-between">
                     <div>
-                        <p className="diary-num text-[13px] font-medium tracking-[0.08em] text-zinc-500">
-                            {todayInfo.fullCn} · {todayInfo.weekdayLong}
-                        </p>
-                        <h1 className="mt-2 text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl">日记</h1>
-                        <p className="mt-3 text-sm text-zinc-500">
-                            <span className="diary-num font-semibold text-zinc-800">{entries.length}</span> 篇
-                            <span className="mx-2 text-zinc-300">/</span>
-                            <span className="diary-num font-semibold text-zinc-800">{stats.totalWords.toLocaleString()}</span> 字
-                            <span className="mx-2 text-zinc-300">/</span>
-                            <span className="diary-num font-semibold text-zinc-800">{stats.uniqueDays}</span> 天
-                        </p>
+                        <div className="flex items-center justify-between sm:block">
+                            <p className="diary-num text-xs font-medium tracking-[0.08em] text-zinc-500 sm:text-[13px]">
+                                {todayInfo.fullCn} · {todayInfo.weekdayLong}
+                            </p>
+                            {/* 移动端顶栏往日重温与写日记快捷键 */}
+                            <div className="flex items-center gap-1.5 sm:hidden">
+                                <button
+                                    type="button"
+                                    disabled={loading || entries.length === 0}
+                                    onClick={openSpotlight}
+                                    className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors active:bg-zinc-100 disabled:opacity-40"
+                                    title="往日重温 · 时光胶囊"
+                                >
+                                    <Sparkles size={13} className="text-amber-500"/>
+                                    <span>往日重温</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => {
+                                        setInitialMood('');
+                                        setEditor('new');
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white shadow-xs active:scale-95 disabled:opacity-50"
+                                >
+                                    <PenLine size={13}/>
+                                    写日记
+                                </button>
+                            </div>
+                        </div>
+                        <div className="mt-1 flex items-baseline gap-2.5 sm:mt-2">
+                            <h1 className="text-2xl font-black tracking-tight text-zinc-900 sm:text-5xl">日记</h1>
+                            <p className="text-xs text-zinc-500 sm:text-sm">
+                                <span className="diary-num font-semibold text-zinc-800">{entries.length}</span> 篇
+                                <span className="mx-1 text-zinc-300 sm:mx-2">/</span>
+                                <span className="diary-num font-semibold text-zinc-800">{stats.totalWords.toLocaleString()}</span> 字
+                                <span className="mx-1 text-zinc-300 sm:mx-2">/</span>
+                                <span className="diary-num font-semibold text-zinc-800">{stats.uniqueDays}</span> 天
+                            </p>
+                        </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-0.5">
-                            <span className="mr-2 text-xs text-zinc-400">今天心情</span>
+                    {/* 桌面端舒展展示：今天心情 + 写日记（移动端已收纳至顶栏胶囊，不占独立一行） */}
+                    <div className="hidden sm:flex flex-wrap items-center justify-between gap-2.5 sm:gap-4">
+                        <div className="flex max-w-full items-center gap-0.5 overflow-x-auto scrollbar-hide py-0.5">
+                            <span className="mr-1.5 shrink-0 text-xs text-zinc-400">今天心情</span>
                             {diaryMoods.map(m => (
                                 <button
                                     type="button"
@@ -131,7 +184,7 @@ export default function DiaryPage() {
                                         setInitialMood(m.value);
                                         setEditor('new');
                                     }}
-                                    className="rounded-full p-1.5 transition-all hover:scale-110 hover:bg-zinc-100 disabled:opacity-40"
+                                    className="shrink-0 rounded-full p-1.5 transition-all hover:scale-110 hover:bg-zinc-100 active:scale-95 disabled:opacity-40"
                                 >
                                     <DiaryMoodIcon mood={m.value} size={18}/>
                                 </button>
@@ -153,19 +206,19 @@ export default function DiaryPage() {
                     </div>
                 </header>
 
-                {/* 工具栏：去掉外层卡片，仅保留一条分隔线 */}
-                <div className="mb-8 flex flex-col items-start gap-4 border-y border-zinc-200/70 py-3 lg:flex-row lg:items-center lg:justify-between">
+                {/* 工具栏：紧凑响应式排版 */}
+                <div className="mb-5 flex flex-col items-stretch gap-3 border-y border-zinc-200/70 py-2.5 sm:mb-8 sm:gap-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
                     <DiaryBrowseFilters entries={entries} selection={browse} onChange={setBrowse}/>
 
-                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 transition-colors focus-within:border-zinc-900 sm:w-64">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 transition-colors focus-within:border-zinc-900 sm:w-64 sm:flex-initial">
                             <Search size={14} className="shrink-0 text-zinc-400"/>
                             <input
                                 aria-label="搜索日记"
                                 value={keyword}
                                 onChange={e => setKeyword(e.target.value)}
                                 placeholder="搜索标题、正文或标签…"
-                                className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+                                className="w-full bg-transparent text-xs sm:text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
                             />
                             {keyword && (
                                 <button
@@ -179,12 +232,27 @@ export default function DiaryPage() {
                             )}
                         </label>
 
-                        <div className="inline-flex rounded-full bg-zinc-100 p-1">
+                        {/* 移动端日历快速唤起按钮 */}
+                        <button
+                            type="button"
+                            aria-label="打开日历"
+                            title="日历与往日"
+                            onClick={() => setMobileCalendarOpen(true)}
+                            className={`flex lg:hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all ${
+                                selected
+                                    ? 'border-orange-500 bg-orange-50 text-orange-600'
+                                    : 'border-zinc-200 bg-white text-zinc-600 active:bg-zinc-100'
+                            }`}
+                        >
+                            <Calendar size={14}/>
+                        </button>
+
+                        <div className="inline-flex shrink-0 rounded-full bg-zinc-100 p-1">
                             {(
                                 [
-                                    {id: 'cards', label: '卡片画报', text: '画报', icon: LayoutGrid},
-                                    {id: 'timeline', label: '岁月长卷', text: '长卷', icon: List},
-                                    {id: 'reader', label: '沉浸书房', text: '书房', icon: BookOpen},
+                                    {id: 'cards', label: '卡片画报', text: '画报', icon: LayoutGrid, mobile: true},
+                                    {id: 'timeline', label: '岁月长卷', text: '长卷', icon: List, mobile: true},
+                                    {id: 'reader', label: '沉浸书房', text: '书房', icon: BookOpen, mobile: false},
                                 ] as const
                             ).map(v => {
                                 const Icon = v.icon;
@@ -196,7 +264,9 @@ export default function DiaryPage() {
                                         aria-label={v.label}
                                         aria-pressed={active}
                                         onClick={() => setView(v.id)}
-                                        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-bold transition-all ${
+                                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold transition-all sm:px-3.5 ${
+                                            !v.mobile ? 'hidden sm:inline-flex' : ''
+                                        } ${
                                             active
                                                 ? 'bg-white text-zinc-950 shadow-xs'
                                                 : 'text-zinc-500 hover:text-zinc-950'
@@ -221,15 +291,20 @@ export default function DiaryPage() {
                 )}
 
                 {selected && (
-                    <button
-                        type="button"
-                        onClick={() => setSelected('')}
-                        className="mb-5 inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-3.5 py-1 text-xs font-bold text-white shadow-xs"
-                    >
-                        <span>{selected}</span>
-                        <span>· 清除日期筛选</span>
-                        <X size={13}/>
-                    </button>
+                    <div className="mb-4 flex items-center justify-between rounded-xl border border-zinc-200/80 bg-zinc-50/80 px-3.5 py-2 sm:mb-5">
+                        <div className="flex items-center gap-2 text-xs font-medium text-zinc-700">
+                            <Calendar size={13} className="text-orange-500"/>
+                            <span>已筛选日期：<strong className="font-bold text-zinc-900">{selected}</strong></span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setSelected('')}
+                            className="inline-flex items-center gap-1 rounded-full bg-zinc-950 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-black"
+                        >
+                            <span>清除筛选</span>
+                            <X size={12}/>
+                        </button>
+                    </div>
                 )}
 
                 {/* 主体区域：左侧内容流 + 右侧月历卡 */}
@@ -298,13 +373,13 @@ export default function DiaryPage() {
                                 ))}
                             </div>
                         ) : view === 'timeline' ? (
-                            /* 视图 2：岁月长卷极简时间流 */
-                            <div className="space-y-12">
+                            /* 视图 2：岁月长卷（真正的清爽时间流列表） */
+                            <div className="space-y-8 sm:space-y-10">
                                 {monthGroups.map(group => (
-                                    <div key={group.yearMonth} className="space-y-6">
-                                        <div className="flex items-center justify-between border-b border-zinc-200/80 pb-3">
+                                    <div key={group.yearMonth} className="space-y-3">
+                                        <div className="flex items-center justify-between border-b border-zinc-200/80 pb-2.5 px-1">
                                             <div className="flex items-baseline gap-2">
-                                                <h2 className="text-lg font-black tracking-tight text-zinc-950">
+                                                <h2 className="text-base sm:text-lg font-black tracking-tight text-zinc-950">
                                                     {group.year} 年 {group.month} 月
                                                 </h2>
                                                 <span className="text-xs font-medium text-zinc-400">
@@ -316,12 +391,11 @@ export default function DiaryPage() {
                                             </span>
                                         </div>
 
-                                        <div className="space-y-5">
+                                        <div className="rounded-2xl border border-zinc-200/80 bg-white p-1 divide-y divide-zinc-100 shadow-2xs">
                                             {group.entries.map(entry => (
-                                                <DiaryCard
+                                                <DiaryTimelineItem
                                                     key={entry.diaryId}
                                                     entry={entry}
-                                                    timeline
                                                     onOpen={() => setEditor(entry)}
                                                 />
                                             ))}
@@ -398,15 +472,186 @@ export default function DiaryPage() {
                         )}
                     </section>
 
-                    <DiaryCalendar
-                        month={month}
-                        onMonth={setMonth}
-                        entries={entries}
-                        selected={selected}
-                        onSelect={setSelected}
-                        onOpenEntry={entry => setEditor(entry)}
-                    />
+                    {/* 桌面端常驻右侧侧边栏 */}
+                    <div className="hidden lg:block">
+                        <DiaryCalendar
+                            month={month}
+                            onMonth={setMonth}
+                            entries={entries}
+                            selected={selected}
+                            onSelect={setSelected}
+                            onOpenEntry={entry => setEditor(entry)}
+                        />
+                    </div>
                 </div>
+
+                {/* 移动端日历抽屉模态框 */}
+                {mobileCalendarOpen && (
+                    <div
+                        data-modal-scroll-lock
+                        className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/50 backdrop-blur-xs transition-opacity lg:hidden"
+                        onClick={() => setMobileCalendarOpen(false)}
+                    >
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="日历与日期筛选"
+                            className="max-h-[88dvh] w-full overflow-y-auto rounded-t-3xl bg-white px-4 pt-3 pb-6 shadow-2xl transition-transform animate-in slide-in-from-bottom scrollbar-hide"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-zinc-200"/>
+                            <div className="mb-2 flex items-center justify-between px-1">
+                                <h3 className="text-sm font-bold text-zinc-900">日历与日期筛选</h3>
+                                <button
+                                    type="button"
+                                    aria-label="关闭日历"
+                                    onClick={() => setMobileCalendarOpen(false)}
+                                    className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800"
+                                >
+                                    <X size={18}/>
+                                </button>
+                            </div>
+                            <DiaryCalendar
+                                month={month}
+                                onMonth={setMonth}
+                                entries={entries}
+                                selected={selected}
+                                onSelect={day => {
+                                    setSelected(day);
+                                    setMobileCalendarOpen(false);
+                                }}
+                                onOpenEntry={entry => {
+                                    setMobileCalendarOpen(false);
+                                    setEditor(entry);
+                                }}
+                                variant="plain"
+                                hideSpotlight={true}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* 往日重温时光卡片抽屉/弹窗 */}
+                {spotlightOpen && spotlightEntry && (
+                    <div
+                        data-modal-scroll-lock
+                        className="fixed inset-0 z-[100] flex flex-col justify-end sm:justify-center items-center bg-black/50 backdrop-blur-xs transition-opacity p-0 sm:p-4"
+                        onClick={() => setSpotlightOpen(false)}
+                    >
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="往日重温"
+                            className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white p-5 sm:p-6 shadow-2xl transition-transform animate-in slide-in-from-bottom sm:zoom-in-95 scrollbar-hide max-h-[90dvh] overflow-y-auto"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-zinc-200 sm:hidden"/>
+
+                            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+                                <div className="flex items-center gap-2">
+                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-50 text-amber-500">
+                                        <Sparkles size={15}/>
+                                    </span>
+                                    <h3 className="text-sm font-bold text-zinc-900">往日重温 · 时光记忆</h3>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {entries.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpotlightIdx(n => (n + 1) % entries.length)}
+                                            className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 active:scale-95"
+                                        >
+                                            <RotateCcw size={11}/>
+                                            <span>换一篇</span>
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        aria-label="关闭"
+                                        onClick={() => setSpotlightOpen(false)}
+                                        className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800"
+                                    >
+                                        <X size={18}/>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 记忆卡片内容区 */}
+                            <div className="mt-4 space-y-3">
+                                {(spotlightEntry.coverUrl || (spotlightEntry.imageAssetIds && spotlightEntry.imageAssetIds.length > 0)) && (
+                                    <div className="relative h-40 sm:h-48 w-full overflow-hidden rounded-2xl bg-zinc-100 border border-zinc-200/60 shadow-2xs">
+                                        <DiaryPhoto
+                                            assetId={spotlightEntry.imageAssetIds?.[0] || spotlightEntry.coverAssetId}
+                                            url={spotlightEntry.coverUrl}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    </div>
+                                )}
+
+                                <div>
+                                    <div className="flex items-center justify-between text-xs text-zinc-400">
+                                        <span className="font-semibold text-zinc-600">
+                                            {parseDiaryDate(spotlightEntry.entryDate).fullCn} · {parseDiaryDate(spotlightEntry.entryDate).weekdayLong}
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            {spotlightEntry.mood && (
+                                                <span title={getMoodLabel(spotlightEntry.mood)}>
+                                                    <DiaryMoodIcon mood={spotlightEntry.mood} size={15}/>
+                                                </span>
+                                            )}
+                                            {spotlightEntry.weather && (
+                                                <span title={getWeatherLabel(spotlightEntry.weather)}>
+                                                    <WeatherIcon weather={spotlightEntry.weather} size={13}/>
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <h4 className="diary-wenkai mt-2 text-base sm:text-lg font-bold text-zinc-900">
+                                        {spotlightEntry.title || '无标题日记'}
+                                    </h4>
+
+                                    <p className="diary-wenkai line-clamp-3 text-xs sm:text-sm leading-relaxed text-zinc-600 mt-1.5">
+                                        {spotlightEntry.content.replace(/^#+\s+/gm, '').replace(/^>\s?/gm, '').trim()}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* 底部展卷阅读 */}
+                            <div className="mt-5 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                                <span className="text-xs text-zinc-400">
+                                    {countDiaryWords(spotlightEntry.content)} 字
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSpotlightOpen(false);
+                                        setEditor(spotlightEntry);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-5 py-2 text-xs font-bold text-white shadow-xs transition-transform active:scale-95 hover:bg-black"
+                                >
+                                    <BookOpen size={13}/>
+                                    <span>展卷阅读全文</span>
+                                    <ArrowUpRight size={13}/>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 移动端右下角悬浮新建按钮（FAB），避让底部 MobileBottomBar */}
+                <button
+                    type="button"
+                    aria-label="写日记"
+                    disabled={loading}
+                    onClick={() => {
+                        setInitialMood('');
+                        setEditor('new');
+                    }}
+                    className="fixed bottom-20 right-4 z-30 flex h-13 w-13 items-center justify-center rounded-full bg-zinc-900 text-white shadow-xl transition-all duration-200 active:scale-90 hover:bg-black sm:hidden disabled:opacity-50"
+                >
+                    <PenLine size={20} strokeWidth={2.2}/>
+                </button>
 
                 {activeEditor && (
                     <DiaryEditor

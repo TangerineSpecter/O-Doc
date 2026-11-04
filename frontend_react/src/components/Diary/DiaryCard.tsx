@@ -40,7 +40,9 @@ export default function DiaryCard({entry, onOpen, timeline = false}: DiaryCardPr
                         assetId={coverId}
                         url={entry.coverUrl}
                         className={`w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03] ${
-                            timeline ? 'aspect-[16/9] sm:h-full sm:aspect-auto' : 'aspect-[16/9]'
+                            timeline
+                                ? 'h-36 sm:h-full aspect-[21/9] sm:aspect-auto'
+                                : 'h-36 sm:h-auto aspect-[21/9] sm:aspect-[16/9]'
                         }`}
                     />
                     {images.length > 1 && (

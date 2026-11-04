@@ -32,7 +32,7 @@ export default function DiaryBrowseFilters({entries, selection, onChange}: Props
         <div className="min-w-0 flex-1 space-y-3.5">
             <div
                 aria-label="日记浏览方式"
-                className="inline-flex flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100/80 p-1"
+                className="flex max-w-full items-center gap-1 overflow-x-auto scrollbar-hide rounded-full border border-zinc-200 bg-zinc-100/80 p-1 sm:inline-flex sm:flex-wrap"
             >
                 {modes.map(mode => {
                     const active = selection.mode === mode.value;
@@ -42,7 +42,7 @@ export default function DiaryBrowseFilters({entries, selection, onChange}: Props
                             key={mode.value}
                             aria-pressed={active}
                             onClick={() => onChange({mode: mode.value, value: ''})}
-                            className={`whitespace-nowrap shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-all sm:text-sm ${
+                            className={`whitespace-nowrap shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-all sm:px-4 sm:py-1.5 sm:text-sm ${
                                 active
                                     ? 'bg-zinc-950 text-white shadow-xs'
                                     : 'text-zinc-500 hover:bg-white hover:text-zinc-950'
@@ -57,7 +57,7 @@ export default function DiaryBrowseFilters({entries, selection, onChange}: Props
             {selection.mode !== 'all' && (
                 <div
                     aria-label={`${labels[selection.mode]}筛选`}
-                    className="flex flex-wrap gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3"
+                    className="flex max-w-full items-center gap-1.5 overflow-x-auto scrollbar-hide rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-2 sm:flex-wrap sm:gap-2 sm:p-3"
                 >
                     {[
                         {value: '', label: `全部${labels[selection.mode]}`, icon: null},
@@ -77,7 +77,7 @@ export default function DiaryBrowseFilters({entries, selection, onChange}: Props
                                 onClick={() =>
                                     onChange({...selection, value: selection.value === option.value ? '' : option.value})
                                 }
-                                className={`flex max-w-full items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all ${
+                                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-all sm:px-3.5 sm:py-1.5 ${
                                     active
                                         ? 'border-zinc-950 bg-zinc-950 text-white'
                                         : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-950 hover:text-zinc-950'

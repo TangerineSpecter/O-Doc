@@ -44,6 +44,7 @@ interface LayoutProps {
 export default function Layout({ children, onNavigate }: LayoutProps) {
     const location = useLocation();
     const isQuantWorkspace = location.pathname.startsWith('/quant/');
+    const isDiaryPage = location.pathname.startsWith('/diary');
     const isReadingMode = isReadingDetailPage(location.pathname);
     const isArticleReadingMode = isReadingMode && location.pathname.startsWith('/article/');
     const isNavVisible = useScrollDirection({ enabled: isReadingMode });
@@ -186,7 +187,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 </div>
             )}
 
-            {!isChatOpen && !isAgentPanelOpen && isAuthenticated && <DiaryEdgeButton />}
+            {!isChatOpen && !isAgentPanelOpen && isAuthenticated && !isDiaryPage && <DiaryEdgeButton />}
 
             <SearchModal
                 isOpen={isSearchOpen}
