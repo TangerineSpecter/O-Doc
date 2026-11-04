@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {
     AlignJustify,
     ArrowLeft,
@@ -98,6 +98,7 @@ export default function DiaryEditor({
     const [formattedToast, setFormattedToast] = useState(false);
     const [metaDrawerOpen, setMetaDrawerOpen] = useState(false);
     const [heroPhotoVisible, setHeroPhotoVisible] = useState(true);
+    const [scrolledPastTitle, setScrolledPastTitle] = useState(false);
     const lastScrollTopRef = useRef(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -136,27 +137,54 @@ export default function DiaryEditor({
         };
     }, [editing]);
 
-    // 移动端/窄屏滚动时，智能折叠或展开标题上方配图区域
+    // 移动端/窄屏滚动时：编辑模式下智能折叠配图区，阅读模式下联动顶栏标题
     useEffect(() => {
         const container = scrollContainerRef.current;
-        if (!container || !editing) return;
+        if (!container) return;
 
         const handleScroll = () => {
             const st = container.scrollTop;
-            const diff = st - lastScrollTopRef.current;
-            // 向下滚动超过 15px 且离开顶部时平滑折叠收起配图区
-            if (diff > 15 && st > 30) {
-                setHeroPhotoVisible(false);
-            } else if (diff < -10 || st <= 10) {
-                // 向上轻划或回到最顶部时展开配图区
-                setHeroPhotoVisible(true);
+
+            if (editing) {
+                const diff = st - lastScrollTopRef.current;
+                // 向下滚动超过 15px 且离开顶部时平滑折叠收起配图区
+                if (diff > 15 && st > 30) {
+                    setHeroPhotoVisible(false);
+                } else if (diff < -10 || st <= 10) {
+                    // 向上轻划或回到最顶部时展开配图区
+                    setHeroPhotoVisible(true);
+                }
+                lastScrollTopRef.current = st;
+            } else {
+                // 阅读模式：向下滚动超过 140px（大标题离开视口）时，顶栏平滑淡入日记标题
+                setScrolledPastTitle(st > 140);
             }
-            lastScrollTopRef.current = st;
         };
 
         container.addEventListener('scroll', handleScroll, {passive: true});
         return () => container.removeEventListener('scroll', handleScroll);
     }, [editing]);
+
+    // 切换日记时重置顶栏滚动状态
+    useEffect(() => {
+        setScrolledPastTitle(false);
+    }, [entry?.diaryId]);
+
+    // 编辑器标题字阶自适应计算（与阅读页保持一致）
+    const draftTitleVisualLen = useMemo(() => {
+        let len = 0;
+        const t = draft.title || '';
+        for (let i = 0; i < t.length; i++) {
+            len += t.charCodeAt(i) > 255 ? 2 : 1;
+        }
+        return len;
+    }, [draft.title]);
+
+    const draftTitleScaleClass = useMemo(() => {
+        if (draftTitleVisualLen <= 32) return '';
+        if (draftTitleVisualLen <= 64) return 'diary-title-md';
+        return 'diary-title-lg-text';
+    }, [draftTitleVisualLen]);
 
     const handleFormatProse = () => {
         if (!draft.content.trim()) return;
@@ -298,9 +326,16 @@ export default function DiaryEditor({
 
                         <div className="hidden h-4 w-px bg-zinc-200 sm:block dark:bg-zinc-800"/>
 
-                        <h2 className="shrink-0 whitespace-nowrap text-sm font-bold tracking-tight sm:text-base">
-                            {editing ? (entry ? '编辑日记' : '写日记') : '日记详情'}
-                        </h2>
+                        <div className="min-w-0 max-w-[170px] sm:max-w-[340px]">
+                            <h2
+                                title={!editing && scrolledPastTitle && entry?.title ? entry.title : undefined}
+                                className="truncate text-sm font-bold tracking-tight sm:text-base transition-opacity duration-200"
+                            >
+                                {editing
+                                    ? (entry ? '编辑日记' : '写日记')
+                                    : (scrolledPastTitle && entry?.title ? entry.title : '日记详情')}
+                            </h2>
+                        </div>
 
                         {editing && (
                             <span className="diary-num hidden shrink-0 whitespace-nowrap rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500 sm:inline-flex">
@@ -528,7 +563,7 @@ export default function DiaryEditor({
                                             <span>{dateInfo.weekdayLong}</span>
                                         </div>
 
-                                        {/* 标题：与阅读页同字号 */}
+                                        {/* 标题：与阅读页同字号与自适应规则 */}
                                         <label className="mt-4 block text-left">
                                             <span className="sr-only">标题</span>
                                             <input
@@ -538,7 +573,7 @@ export default function DiaryEditor({
                                                 value={draft.title}
                                                 onChange={e => update('title', e.target.value)}
                                                 placeholder="给今天起个名字"
-                                                className="diary-wenkai diary-canvas-input diary-title-input w-full border-none bg-transparent text-left text-zinc-900 placeholder:font-normal placeholder:text-zinc-300 outline-none ring-0"
+                                                className={`diary-wenkai diary-canvas-input diary-title-input ${draftTitleScaleClass} w-full border-none bg-transparent text-left text-zinc-900 placeholder:font-normal placeholder:text-zinc-300 outline-none ring-0`}
                                             />
                                         </label>
 

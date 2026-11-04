@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
     AlignJustify,
@@ -110,6 +110,49 @@ export default function DiaryReaderView({
         const targetX = index * heroScrollRef.current.clientWidth;
         heroScrollRef.current.scrollTo({left: targetX, behavior: 'smooth'});
     };
+
+    // 方案 3：标题字阶自适应与极端文本防爆兜底
+    const titleRef = useRef<HTMLHeadingElement>(null);
+    const [titleExpanded, setTitleExpanded] = useState(false);
+    const [isClamped, setIsClamped] = useState(false);
+
+    const visualTitleLen = useMemo(() => {
+        let len = 0;
+        const t = entry.title || '';
+        for (let i = 0; i < t.length; i++) {
+            len += t.charCodeAt(i) > 255 ? 2 : 1;
+        }
+        return len;
+    }, [entry.title]);
+
+    const titleScaleClass = useMemo(() => {
+        if (visualTitleLen <= 32) return '';
+        if (visualTitleLen <= 64) return 'diary-title-md';
+        return 'diary-title-lg-text';
+    }, [visualTitleLen]);
+
+    // 切换日记时重置折叠状态
+    useEffect(() => {
+        setTitleExpanded(false);
+        setIsClamped(false);
+    }, [entry.diaryId]);
+
+    // 真正发生 4 行截断（实际高度超出行高限制）时才显示“展开全部”；能完整容纳时不出现按钮
+    useLayoutEffect(() => {
+        const el = titleRef.current;
+        if (!el) return;
+
+        const checkOverflow = () => {
+            if (!titleExpanded) {
+                // scrollHeight 大于 clientHeight 至少 2px 说明真正被截断了第 5 行及以上
+                setIsClamped(el.scrollHeight > el.clientHeight + 2);
+            }
+        };
+
+        checkOverflow();
+        window.addEventListener('resize', checkOverflow);
+        return () => window.removeEventListener('resize', checkOverflow);
+    }, [entry.title, titleExpanded, titleScaleClass]);
 
     // 解析正文，完整保留段首缩进
     const blocks = useMemo(() => parseDiaryContent(entry.content), [entry.content]);
@@ -476,10 +519,30 @@ export default function DiaryReaderView({
                         )}
                     </p>
 
-                    <h1 className="diary-title mt-4 lg:mt-0 break-words text-left diary-wenkai">{entry.title}</h1>
+                    <div className={visualTitleLen > 64 ? 'mt-3 lg:mt-0' : 'mt-4 lg:mt-0'}>
+                        <h1
+                            ref={titleRef}
+                            className={`diary-title ${titleScaleClass} break-words text-left diary-wenkai ${
+                                !titleExpanded ? 'diary-title-clamp-4' : ''
+                            }`}
+                        >
+                            {entry.title}
+                        </h1>
+                        {(isClamped || titleExpanded) && (
+                            <button
+                                type="button"
+                                onClick={() => setTitleExpanded(v => !v)}
+                                className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-orange-700 transition-colors sm:hidden"
+                            >
+                                {titleExpanded ? '收起标题' : '... 展开全部'}
+                            </button>
+                        )}
+                    </div>
 
                     <div
-                        className={`mt-5 flex lg:hidden flex-wrap items-center gap-x-4 gap-y-2 text-[13px] ${
+                        className={`${
+                            visualTitleLen > 64 ? 'mt-3 sm:mt-5' : 'mt-5'
+                        } flex lg:hidden flex-wrap items-center gap-x-4 gap-y-2 text-[13px] ${
                             isDark ? 'text-zinc-400' : 'text-zinc-500'
                         }`}
                     >

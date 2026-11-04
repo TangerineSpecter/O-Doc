@@ -84,21 +84,60 @@
     font-size: 1.04em;
 }
 
-/* 日记标题 */
+/* 日记标题：自适应字阶体系 */
 .diary-title {
-    font-size: 2rem;
-    line-height: 1.35;
+    font-size: 1.75rem;
+    line-height: 1.32;
     font-weight: 700;
     letter-spacing: 0.01em;
     color: #18181b;
 }
 @media (min-width: 640px) {
     .diary-title {
-        font-size: 2.5rem;
+        font-size: 2.35rem;
     }
 }
 .diary-reader-dark .diary-title {
     color: #f4f4f5;
+}
+
+/* 中长标题自适应（17~32字符）：微缩以保持在两行内 */
+.diary-title.diary-title-md {
+    font-size: 1.35rem;
+    line-height: 1.35;
+}
+@media (min-width: 640px) {
+    .diary-title.diary-title-md {
+        font-size: 1.85rem;
+    }
+}
+
+/* 超长长句/题记标题自适应（>32字符/长英文）：精致题记风，平滑收敛在3~4行内 */
+.diary-title.diary-title-lg-text {
+    font-size: 1.125rem;
+    line-height: 1.42;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+}
+@media (min-width: 640px) {
+    .diary-title.diary-title-lg-text {
+        font-size: 1.5rem;
+    }
+}
+
+/* 移动端 4 行安全防爆兜底：仅在超大篇幅异常时限制行数 */
+.diary-title-clamp-4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+@media (min-width: 640px) {
+    .diary-title-clamp-4 {
+        display: block;
+        -webkit-line-clamp: unset;
+        overflow: visible;
+    }
 }
 
 /* 题头与正文之间的小装饰/分割线：移动端紧凑柔和，桌面端舒展大方 */
@@ -326,16 +365,35 @@
     caret-color: #f97316;
 }
 
-/* 编辑器标题输入：与阅读器标题同字号，所见即所得 */
+/* 编辑器标题输入：与阅读器标题自适应字号保持一致，所见即所得 */
 .diary-title-input {
-    font-size: 2rem;
-    line-height: 1.35;
+    font-size: 1.75rem;
+    line-height: 1.32;
     font-weight: 700;
     letter-spacing: 0.01em;
 }
 @media (min-width: 640px) {
     .diary-title-input {
-        font-size: 2.5rem;
+        font-size: 2.35rem;
+    }
+}
+.diary-title-input.diary-title-md {
+    font-size: 1.35rem;
+    line-height: 1.35;
+}
+@media (min-width: 640px) {
+    .diary-title-input.diary-title-md {
+        font-size: 1.85rem;
+    }
+}
+.diary-title-input.diary-title-lg-text {
+    font-size: 1.125rem;
+    line-height: 1.42;
+    font-weight: 600;
+}
+@media (min-width: 640px) {
+    .diary-title-input.diary-title-lg-text {
+        font-size: 1.5rem;
     }
 }
 
