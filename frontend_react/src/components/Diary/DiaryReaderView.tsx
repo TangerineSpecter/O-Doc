@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
     AlignJustify,
@@ -92,6 +92,24 @@ export default function DiaryReaderView({
     const images = useMemo(() => entry.imageAssetIds || [], [entry.imageAssetIds]);
     const coverId = images[0] || entry.coverAssetId;
     const hasHeroCover = Boolean(coverId || entry.coverUrl);
+
+    // 封面多图轮播状态
+    const [heroActiveIdx, setHeroActiveIdx] = useState(0);
+    const heroScrollRef = useRef<HTMLDivElement>(null);
+
+    const handleHeroScroll = useCallback(() => {
+        if (!heroScrollRef.current) return;
+        const {scrollLeft, clientWidth} = heroScrollRef.current;
+        if (clientWidth <= 0) return;
+        const newIndex = Math.round(scrollLeft / clientWidth);
+        setHeroActiveIdx(Math.max(0, Math.min(images.length - 1, newIndex)));
+    }, [images.length]);
+
+    const scrollToHeroImage = (index: number) => {
+        if (!heroScrollRef.current) return;
+        const targetX = index * heroScrollRef.current.clientWidth;
+        heroScrollRef.current.scrollTo({left: targetX, behavior: 'smooth'});
+    };
 
     // 解析正文，完整保留段首缩进
     const blocks = useMemo(() => parseDiaryContent(entry.content), [entry.content]);
@@ -270,25 +288,112 @@ export default function DiaryReaderView({
                 </div>
             )}
 
-            {/* 沉浸封面大片 (Full Hero Cover) */}
+            {/* 沉浸封面大片 (Full Hero Cover)：单图展示封面，多图支持左右滑动查看 */}
             {hasHeroCover && (
                 <div className="relative mx-auto max-w-[1040px] px-6 pt-6 sm:px-10 sm:pt-10">
-                    <button
-                        type="button"
-                        onClick={() => setLightboxIdx(0)}
-                        title="点击全屏查看封面大图"
-                        className="diary-photo-frame group relative block w-full overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-100 cursor-zoom-in text-left"
-                    >
-                        <DiaryPhoto
-                            assetId={coverId}
-                            url={entry.coverUrl}
-                            className="aspect-[21/9] sm:aspect-[24/10] w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-                        />
-                        <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-zinc-950/70 px-3 py-1 text-xs text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
-                            <Expand size={13}/>
-                            全屏画卷
-                        </span>
-                    </button>
+                    {images.length > 1 ? (
+                        <div className="diary-photo-frame group relative block w-full overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-100 text-left">
+                            {/* 横向原生 Scroll Snap 视口 */}
+                            <div
+                                ref={heroScrollRef}
+                                onScroll={handleHeroScroll}
+                                className="flex h-full w-full overflow-x-auto scrollbar-hide snap-x snap-mandatory touch-pan-x cursor-grab"
+                            >
+                                {images.map((id, idx) => (
+                                    <div
+                                        key={id || idx}
+                                        className="relative shrink-0 w-full snap-center aspect-[21/9] sm:aspect-[24/10] select-none cursor-pointer"
+                                        onClick={() => setLightboxIdx(idx)}
+                                        title="点击全屏查看"
+                                    >
+                                        <DiaryPhoto
+                                            assetId={id}
+                                            url={idx === 0 ? entry.coverUrl : ''}
+                                            className="h-full w-full object-cover select-none pointer-events-none transition-transform duration-700 ease-out"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 桌面端左右悬浮翻页小箭头 */}
+                            {heroActiveIdx > 0 && (
+                                <button
+                                    type="button"
+                                    aria-label="查看上一张图片"
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        scrollToHeroImage(heroActiveIdx - 1);
+                                    }}
+                                    className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xs shadow-md opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-black/75 hover:scale-110 active:scale-95 z-10"
+                                >
+                                    <ChevronLeft size={18}/>
+                                </button>
+                            )}
+                            {heroActiveIdx < images.length - 1 && (
+                                <button
+                                    type="button"
+                                    aria-label="查看下一张图片"
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        scrollToHeroImage(heroActiveIdx + 1);
+                                    }}
+                                    className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xs shadow-md opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-black/75 hover:scale-110 active:scale-95 z-10"
+                                >
+                                    <ChevronRight size={18}/>
+                                </button>
+                            )}
+
+                            {/* 底部居中轮播小圆点指示器 */}
+                            <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-1.5 pointer-events-none z-10">
+                                {images.map((_, dotIdx) => (
+                                    <span
+                                        key={dotIdx}
+                                        className={`h-1.5 rounded-full transition-all duration-300 shadow-xs ${
+                                            dotIdx === heroActiveIdx
+                                                ? 'w-4 bg-white'
+                                                : 'w-1.5 bg-white/50 backdrop-blur-xs'
+                                        }`}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* 右下角：张数指示 + 全屏画卷按钮 */}
+                            <div className="absolute bottom-3 right-3 flex items-center gap-2 z-10">
+                                <span className="diary-num rounded-full bg-zinc-950/70 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+                                    {heroActiveIdx + 1} / {images.length}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        setLightboxIdx(heroActiveIdx);
+                                    }}
+                                    title="全屏查看当前大图"
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950/70 px-3 py-1 text-xs text-white backdrop-blur-sm transition-all hover:bg-black active:scale-95"
+                                >
+                                    <Expand size={13}/>
+                                    <span>全屏画卷</span>
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setLightboxIdx(0)}
+                            title="点击全屏查看封面大图"
+                            className="diary-photo-frame group relative block w-full overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-100 cursor-zoom-in text-left"
+                        >
+                            <DiaryPhoto
+                                assetId={coverId}
+                                url={entry.coverUrl}
+                                className="aspect-[21/9] sm:aspect-[24/10] w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                            />
+                            <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-zinc-950/70 px-3 py-1 text-xs text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+                                <Expand size={13}/>
+                                全屏画卷
+                            </span>
+                        </button>
+                    )}
                 </div>
             )}
 

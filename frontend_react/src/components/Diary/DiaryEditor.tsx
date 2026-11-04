@@ -3,12 +3,14 @@ import {
     AlignJustify,
     ArrowLeft,
     Calendar,
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
+    CloudSun,
     Loader2,
     Pencil,
+    Smile,
     Sparkles,
+    Tag,
     Trash2,
     Wand2,
     X,
@@ -18,8 +20,10 @@ import ConfirmationModal from '../common/ConfirmationModal';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {uploadDiaryImage} from '../../api/diary';
 import DiaryDetailsFields from './DiaryDetailsFields';
+import DiaryImageUpload from './DiaryImageUpload';
 import DiaryMoodIcon from './DiaryMoodIcon';
 import {WeatherIcon} from './DiaryMetadata';
+import {getMoodLabel, getWeatherLabel} from './diaryBrowse';
 import DiaryReaderView, {type PaperTheme} from './DiaryReaderView';
 import {diaryImagePatch, MAX_DIARY_IMAGES} from './diaryImages';
 import {countDiaryWords, localDay, parseDiaryDate} from './diaryDate';
@@ -92,7 +96,9 @@ export default function DiaryEditor({
     const [paper, setPaper] = useState<PaperTheme>('light');
     const [promptIdx, setPromptIdx] = useState(0);
     const [formattedToast, setFormattedToast] = useState(false);
-    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [metaDrawerOpen, setMetaDrawerOpen] = useState(false);
+    const [heroPhotoVisible, setHeroPhotoVisible] = useState(true);
+    const lastScrollTopRef = useRef(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -128,6 +134,28 @@ export default function DiaryEditor({
             observer?.disconnect();
             window.removeEventListener('resize', fit);
         };
+    }, [editing]);
+
+    // 移动端/窄屏滚动时，智能折叠或展开标题上方配图区域
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container || !editing) return;
+
+        const handleScroll = () => {
+            const st = container.scrollTop;
+            const diff = st - lastScrollTopRef.current;
+            // 向下滚动超过 15px 且离开顶部时平滑折叠收起配图区
+            if (diff > 15 && st > 30) {
+                setHeroPhotoVisible(false);
+            } else if (diff < -10 || st <= 10) {
+                // 向上轻划或回到最顶部时展开配图区
+                setHeroPhotoVisible(true);
+            }
+            lastScrollTopRef.current = st;
+        };
+
+        container.addEventListener('scroll', handleScroll, {passive: true});
+        return () => container.removeEventListener('scroll', handleScroll);
     }, [editing]);
 
     const handleFormatProse = () => {
@@ -463,6 +491,26 @@ export default function DiaryEditor({
 
                                     {/* 中间主书写画布：严格 680px，数学与视觉上 100% 绝对居中于视口 */}
                                     <div className="w-full max-w-[680px] mx-auto min-w-0">
+                                        {/* 标题上方配图区域（中窄屏模式，随页面滚动自动收起/展开） */}
+                                        <div className="block min-[1280px]:hidden">
+                                            <div
+                                                className={`transition-all duration-300 ease-out overflow-hidden ${
+                                                    heroPhotoVisible
+                                                        ? 'max-h-[520px] opacity-100 mb-4 transform-none'
+                                                        : 'max-h-0 opacity-0 mb-0 -translate-y-2 pointer-events-none'
+                                                }`}
+                                            >
+                                                <DiaryImageUpload
+                                                    draft={draft}
+                                                    onChange={patch => setDraft(d => ({...d, ...patch}))}
+                                                    onUpload={upload}
+                                                    uploading={uploading}
+                                                    error={uploadError}
+                                                    layout="default"
+                                                />
+                                            </div>
+                                        </div>
+
                                         {/* 日期眼眉：与阅读页题头一致，点击即可改日期 */}
                                         <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-medium tracking-[0.08em] text-zinc-500">
                                             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 -ml-1.5 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
@@ -519,71 +567,63 @@ export default function DiaryEditor({
                                             </p>
                                         )}
 
-                                        {/* 中窄屏（<1280px）将印记和配图收纳在正文上方 */}
-                                        <div className="mt-4 mb-2 block min-[1280px]:hidden">
-                                            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-3 sm:p-4 transition-all">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDetailsOpen(prev => !prev)}
-                                                    className="flex w-full items-center justify-between text-left"
-                                                    aria-expanded={detailsOpen}
-                                                >
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="text-xs font-bold tracking-wider text-zinc-700 uppercase">
-                                                            这一天的印记与配图
-                                                        </span>
-                                                        {(draft.mood || draft.weather || draft.tags.length > 0 || draft.imageAssetIds.length > 0) && (
-                                                            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-                                                                {draft.mood && <DiaryMoodIcon mood={draft.mood} size={15}/>}
-                                                                {draft.weather && <WeatherIcon weather={draft.weather} size={13}/>}
-                                                                {draft.tags.length > 0 && (
-                                                                    <span className="diary-num rounded bg-zinc-200/70 px-1.5 py-0.2 text-[10px] text-zinc-600">
-                                                                        {draft.tags.length} 标签
-                                                                    </span>
-                                                                )}
-                                                                {draft.imageAssetIds.length > 0 && (
-                                                                    <span className="diary-num rounded bg-zinc-200/70 px-1.5 py-0.2 text-[10px] text-zinc-600">
-                                                                        {draft.imageAssetIds.length} 图
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <span className="inline-flex items-center gap-1 text-xs text-zinc-400 shrink-0 ml-2">
-                                                        <span>{detailsOpen ? '收起' : '展开'}</span>
-                                                        <ChevronDown
-                                                            size={14}
-                                                            className={`transition-transform duration-200 ${
-                                                                detailsOpen ? 'rotate-180' : ''
-                                                            }`}
-                                                        />
-                                                    </span>
-                                                </button>
-
-                                                {detailsOpen && (
-                                                    <div className="mt-3.5 space-y-3.5 pt-3.5 border-t border-zinc-200/60">
-                                                        <DiaryDetailsFields
-                                                            draft={draft}
-                                                            onChange={patch => setDraft(d => ({...d, ...patch}))}
-                                                            onUpload={upload}
-                                                            uploading={uploading}
-                                                            tagInput={tagInput}
-                                                            onTagInputChange={setTagInput}
-                                                            onlyMetadata
-                                                        />
-                                                        <DiaryDetailsFields
-                                                            draft={draft}
-                                                            onChange={patch => setDraft(d => ({...d, ...patch}))}
-                                                            onUpload={upload}
-                                                            uploading={uploading}
-                                                            uploadError={uploadError}
-                                                            tagInput={tagInput}
-                                                            onTagInputChange={setTagInput}
-                                                            onlyGallery
-                                                        />
-                                                    </div>
+                                        {/* 中窄屏（<1280px）将心情、天气、标签三个小按钮居中展示（白底圆钮，无多余文字） */}
+                                        <div className="my-3.5 flex items-center justify-center gap-3 min-[1280px]:hidden">
+                                            {/* 1. 心情图标按钮 */}
+                                            <button
+                                                type="button"
+                                                aria-label={draft.mood ? `心情：${getMoodLabel(draft.mood)}` : '选择心情'}
+                                                onClick={() => setMetaDrawerOpen(true)}
+                                                className={`flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-2xs transition-all active:scale-95 ${
+                                                    draft.mood
+                                                        ? 'border-zinc-300 text-zinc-900 shadow-xs'
+                                                        : 'border-zinc-200/90 text-zinc-400 hover:border-zinc-300'
+                                                }`}
+                                                title={draft.mood ? `心情：${getMoodLabel(draft.mood)}` : '选择心情'}
+                                            >
+                                                {draft.mood ? (
+                                                    <DiaryMoodIcon mood={draft.mood} size={19}/>
+                                                ) : (
+                                                    <Smile size={16} strokeWidth={1.8}/>
                                                 )}
-                                            </div>
+                                            </button>
+
+                                            {/* 2. 天气图标按钮 */}
+                                            <button
+                                                type="button"
+                                                aria-label={draft.weather ? `天气：${getWeatherLabel(draft.weather)}` : '选择天气'}
+                                                onClick={() => setMetaDrawerOpen(true)}
+                                                className={`flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-2xs transition-all active:scale-95 ${
+                                                    draft.weather
+                                                        ? 'border-zinc-300 text-zinc-800 shadow-xs'
+                                                        : 'border-zinc-200/90 text-zinc-400 hover:border-zinc-300'
+                                                }`}
+                                                title={draft.weather ? `天气：${getWeatherLabel(draft.weather)}` : '选择天气'}
+                                            >
+                                                {draft.weather ? (
+                                                    <WeatherIcon weather={draft.weather} size={16}/>
+                                                ) : (
+                                                    <CloudSun size={16} strokeWidth={1.8}/>
+                                                )}
+                                            </button>
+
+                                            {/* 3. 标签图标按钮（不用展示具体标签，仅展示是否有标签的样式） */}
+                                            <button
+                                                type="button"
+                                                aria-label={draft.tags.length > 0 ? `已设置 ${draft.tags.length} 个标签` : '添加标签'}
+                                                onClick={() => setMetaDrawerOpen(true)}
+                                                className={`relative flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-2xs transition-all active:scale-95 ${
+                                                    draft.tags.length > 0
+                                                        ? 'border-zinc-300 text-zinc-900 shadow-xs'
+                                                        : 'border-zinc-200/90 text-zinc-400 hover:border-zinc-300'
+                                                }`}
+                                                title={draft.tags.length > 0 ? `已添加 ${draft.tags.length} 个标签` : '添加标签'}
+                                            >
+                                                <Tag size={15} strokeWidth={1.8}/>
+                                                {draft.tags.length > 0 && (
+                                                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-white"/>
+                                                )}
+                                            </button>
                                         </div>
 
                                         <div className="diary-ornament" aria-hidden="true"/>
@@ -652,11 +692,8 @@ export default function DiaryEditor({
                             <span className="diary-num">{wordCount} 字</span>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setDetailsOpen(true);
-                                    scrollContainerRef.current?.scrollTo({top: 0, behavior: 'smooth'});
-                                }}
-                                title="定位并编辑心情、天气、标签与配图"
+                                onClick={() => setMetaDrawerOpen(true)}
+                                title="设置心情、天气与标签"
                                 className="inline-flex min-[1280px]:hidden items-center gap-1 font-medium text-zinc-700 transition-colors hover:text-orange-600"
                             >
                                 <span className="h-3 w-px bg-zinc-200 -ml-1 mr-1" aria-hidden="true"/>
@@ -667,7 +704,7 @@ export default function DiaryEditor({
                                 ) : (
                                     <Sparkles size={12}/>
                                 )}
-                                <span>印记与配图</span>
+                                <span>今日印记</span>
                             </button>
                             <span className="h-3 w-px bg-zinc-200" aria-hidden="true"/>
                             {formattedToast ? (
@@ -692,6 +729,50 @@ export default function DiaryEditor({
                     </div>
                 )}
             </section>
+
+            {/* 移动端/窄屏印记设置抽屉（从底部滑出，一次性设置心情、天气、标签） */}
+            {metaDrawerOpen && (
+                <div
+                    data-modal-scroll-lock
+                    className="fixed inset-0 z-[110] flex flex-col justify-end bg-black/50 backdrop-blur-xs transition-opacity"
+                    onClick={() => setMetaDrawerOpen(false)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="设置今日印记"
+                        className="w-full max-w-lg mx-auto rounded-t-3xl bg-white p-5 shadow-2xl transition-transform animate-in slide-in-from-bottom duration-200 max-h-[85dvh] overflow-y-auto scrollbar-hide"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-zinc-200"/>
+
+                        <div className="flex items-center justify-between pb-3 border-b border-zinc-150 mb-3.5">
+                            <div className="flex items-center gap-2">
+                                <Sparkles size={16} className="text-orange-500"/>
+                                <h3 className="text-sm font-bold text-zinc-900">这一天的印记</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setMetaDrawerOpen(false)}
+                                className="rounded-full bg-zinc-950 px-4 py-1.5 text-xs font-bold text-white shadow-xs active:scale-95 hover:bg-black"
+                            >
+                                完成
+                            </button>
+                        </div>
+
+                        {/* 心情、天气、标签设置 */}
+                        <DiaryDetailsFields
+                            draft={draft}
+                            onChange={patch => setDraft(d => ({...d, ...patch}))}
+                            onUpload={upload}
+                            uploading={uploading}
+                            tagInput={tagInput}
+                            onTagInputChange={setTagInput}
+                            onlyMetadata
+                        />
+                    </div>
+                </div>
+            )}
 
             <ConfirmationModal
                 isOpen={confirm !== null}

@@ -51,6 +51,7 @@ export default function DiaryPage() {
     const [initialMood, setInitialMood] = useState<DiaryMood>('');
     const [readerSelectedId, setReaderSelectedId] = useState<string>('');
     const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
+    const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
     const [spotlightOpen, setSpotlightOpen] = useState(false);
     const [spotlightIdx, setSpotlightIdx] = useState(0);
     const spotlightEntry = entries.length ? entries[spotlightIdx % entries.length] : null;
@@ -122,42 +123,95 @@ export default function DiaryPage() {
         inlineIndex >= 0 && inlineIndex < filtered.length - 1 ? filtered[inlineIndex + 1] : null;
 
     return (
-        <div className="diary-ambient-bg min-h-[calc(100dvh-64px)] text-zinc-900 selection:bg-zinc-950 selection:text-white pb-28 sm:pb-16">
+        <div className="diary-ambient-bg min-h-[calc(100dvh-64px)] text-zinc-900 selection:bg-zinc-950 selection:text-white pb-10 sm:pb-16">
             <main className="mx-auto max-w-7xl px-3.5 py-4 sm:px-6 sm:py-8 lg:px-8">
-                {/* 刊头：移动端紧凑排版，桌面端舒展刊头 */}
-                <header className="flex flex-col gap-3 pb-4 pt-1 sm:gap-6 sm:pb-8 sm:pt-2 md:flex-row md:items-end md:justify-between">
-                    <div>
-                        <div className="flex items-center justify-between sm:block">
-                            <p className="diary-num text-xs font-medium tracking-[0.08em] text-zinc-500 sm:text-[13px]">
-                                {todayInfo.fullCn} · {todayInfo.weekdayLong}
-                            </p>
-                            {/* 移动端顶栏往日重温与写日记快捷键 */}
-                            <div className="flex items-center gap-1.5 sm:hidden">
-                                <button
-                                    type="button"
-                                    disabled={loading || entries.length === 0}
-                                    onClick={openSpotlight}
-                                    className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors active:bg-zinc-100 disabled:opacity-40"
-                                    title="往日重温 · 时光胶囊"
-                                >
-                                    <Sparkles size={13} className="text-amber-500"/>
-                                    <span>往日重温</span>
-                                </button>
+                {/* 移动端沉浸手账 1 行刊头（高度收敛，让日记卡片首屏直接露头） */}
+                <header className="flex sm:hidden items-center justify-between pb-2.5 pt-1 border-b border-zinc-200/70 mb-3">
+                    <div className="flex items-baseline gap-2 min-w-0">
+                        <h1 className="text-xl font-black tracking-tight text-zinc-900 shrink-0">日记</h1>
+                        <span className="truncate text-xs font-medium text-zinc-400">
+                            <span className="diary-num font-semibold text-zinc-700">{entries.length}</span> 篇 · {todayInfo.monthPadded}.{todayInfo.dayPadded} {todayInfo.weekdayShort}
+                        </span>
+                    </div>
 
-                                <button
-                                    type="button"
-                                    disabled={loading}
-                                    onClick={() => {
-                                        setInitialMood('');
-                                        setEditor('new');
-                                    }}
-                                    className="inline-flex items-center gap-1 rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white shadow-xs active:scale-95 disabled:opacity-50"
-                                >
-                                    <PenLine size={13}/>
-                                    写日记
-                                </button>
-                            </div>
-                        </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        {/* 搜索与分类筛选（唤起移动端顶部悬浮搜索框） */}
+                        <button
+                            type="button"
+                            aria-label="打开搜索与分类筛选"
+                            onClick={() => setMobileSearchOpen(true)}
+                            className={`relative flex h-8 w-8 items-center justify-center rounded-full border transition-all ${
+                                keyword || browse.mode !== 'all'
+                                    ? 'border-zinc-900 bg-zinc-900 text-white shadow-xs'
+                                    : 'border-zinc-200 bg-white text-zinc-600 active:bg-zinc-100'
+                            }`}
+                            title="搜索与分类筛选"
+                        >
+                            <Search size={14}/>
+                            {(keyword || browse.mode !== 'all') && (
+                                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-white"/>
+                            )}
+                        </button>
+
+                        {/* 日历抽屉 */}
+                        <button
+                            type="button"
+                            aria-label="打开日历"
+                            onClick={() => setMobileCalendarOpen(true)}
+                            className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all ${
+                                selected
+                                    ? 'border-orange-500 bg-orange-50 text-orange-600'
+                                    : 'border-zinc-200 bg-white text-zinc-600 active:bg-zinc-100'
+                            }`}
+                            title="日历与打卡"
+                        >
+                            <Calendar size={14}/>
+                        </button>
+
+                        {/* 往日重温时光胶囊 */}
+                        <button
+                            type="button"
+                            disabled={loading || entries.length === 0}
+                            onClick={openSpotlight}
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-amber-500 transition-all active:bg-amber-50 active:scale-95 disabled:opacity-40"
+                            title="往日重温 · 时光胶囊"
+                        >
+                            <Sparkles size={14}/>
+                        </button>
+
+                        {/* 视图切换 (画报卡片 ⊞ / 岁月长卷 ≡) */}
+                        <button
+                            type="button"
+                            aria-label={view === 'cards' ? '切换为长卷列表' : '切换为画报卡片'}
+                            onClick={() => setView(v => (v === 'cards' ? 'timeline' : 'cards'))}
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 transition-all active:bg-zinc-100"
+                            title={view === 'cards' ? '切换为长卷列表' : '切换为画报卡片'}
+                        >
+                            {view === 'cards' ? <List size={14}/> : <LayoutGrid size={14}/>}
+                        </button>
+
+                        {/* 写日记小胶囊 */}
+                        <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => {
+                                setInitialMood('');
+                                setEditor('new');
+                            }}
+                            className="inline-flex h-8 items-center gap-1 rounded-full bg-zinc-900 px-2.5 text-xs font-semibold text-white shadow-xs active:scale-95 disabled:opacity-50"
+                        >
+                            <PenLine size={13}/>
+                            <span>记</span>
+                        </button>
+                    </div>
+                </header>
+
+                {/* 桌面端舒展刊头（保留宽屏杂志风排版） */}
+                <header className="hidden sm:flex flex-col gap-3 pb-4 pt-1 sm:gap-6 sm:pb-8 sm:pt-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <p className="diary-num text-xs font-medium tracking-[0.08em] text-zinc-500 sm:text-[13px]">
+                            {todayInfo.fullCn} · {todayInfo.weekdayLong}
+                        </p>
                         <div className="mt-1 flex items-baseline gap-2.5 sm:mt-2">
                             <h1 className="text-2xl font-black tracking-tight text-zinc-900 sm:text-5xl">日记</h1>
                             <p className="text-xs text-zinc-500 sm:text-sm">
@@ -170,8 +224,8 @@ export default function DiaryPage() {
                         </div>
                     </div>
 
-                    {/* 桌面端舒展展示：今天心情 + 写日记（移动端已收纳至顶栏胶囊，不占独立一行） */}
-                    <div className="hidden sm:flex flex-wrap items-center justify-between gap-2.5 sm:gap-4">
+                    {/* 桌面端心情选择器与写日记按钮 */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-4">
                         <div className="flex max-w-full items-center gap-0.5 overflow-x-auto scrollbar-hide py-0.5">
                             <span className="mr-1.5 shrink-0 text-xs text-zinc-400">今天心情</span>
                             {diaryMoods.map(m => (
@@ -206,8 +260,8 @@ export default function DiaryPage() {
                     </div>
                 </header>
 
-                {/* 工具栏：紧凑响应式排版 */}
-                <div className="mb-5 flex flex-col items-stretch gap-3 border-y border-zinc-200/70 py-2.5 sm:mb-8 sm:gap-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
+                {/* 桌面端平铺工具栏 */}
+                <div className="hidden sm:flex mb-5 flex-col items-stretch gap-3 border-y border-zinc-200/70 py-2.5 sm:mb-8 sm:gap-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
                     <DiaryBrowseFilters entries={entries} selection={browse} onChange={setBrowse}/>
 
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -232,7 +286,7 @@ export default function DiaryPage() {
                             )}
                         </label>
 
-                        {/* 移动端日历快速唤起按钮 */}
+                        {/* 桌面端/平板端日历快速唤起按钮（lg 大屏有右侧日历，此处隐藏） */}
                         <button
                             type="button"
                             aria-label="打开日历"
@@ -288,6 +342,48 @@ export default function DiaryPage() {
                     >
                         这篇日记不存在、已删除或无权查看。
                     </p>
+                )}
+
+                {/* 移动端当前搜索与筛选摘要条（悬浮搜索收起后若有过滤条件则显示） */}
+                {(keyword || browse.mode !== 'all') && (
+                    <div className="mb-3 flex sm:hidden items-center justify-between rounded-xl border border-zinc-200/80 bg-zinc-50/80 px-3.5 py-2 text-xs">
+                        <div className="flex items-center gap-1.5 min-w-0 text-zinc-700 font-medium">
+                            <Search size={13} className="shrink-0 text-orange-500"/>
+                            <span className="truncate">
+                                {keyword && <span>“<strong className="font-bold text-zinc-900">{keyword}</strong>”</span>}
+                                {keyword && browse.mode !== 'all' && <span className="mx-1 text-zinc-400">·</span>}
+                                {browse.mode !== 'all' && (
+                                    <span>
+                                        {browse.mode === 'mood' && `心情：${getMoodLabel((browse.value || '') as any)}`}
+                                        {browse.mode === 'weather' && `天气：${getWeatherLabel((browse.value || '') as any)}`}
+                                        {browse.mode === 'tags' && `标签：#${browse.value}`}
+                                    </span>
+                                )}
+                                <span className="ml-1.5 font-normal text-zinc-400">({filtered.length}篇)</span>
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setMobileSearchOpen(true)}
+                                className="text-[11px] font-bold text-zinc-700 underline hover:text-black"
+                            >
+                                调整
+                            </button>
+                            <button
+                                type="button"
+                                aria-label="清空搜索与筛选"
+                                onClick={() => {
+                                    setKeyword('');
+                                    setBrowse({mode: 'all', value: ''});
+                                }}
+                                className="inline-flex items-center gap-0.5 rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-700 hover:bg-zinc-300"
+                            >
+                                <X size={11}/>
+                                <span>清空</span>
+                            </button>
+                        </div>
+                    </div>
                 )}
 
                 {selected && (
@@ -485,6 +581,79 @@ export default function DiaryPage() {
                     </div>
                 </div>
 
+                {/* 移动端悬浮搜索框与筛选浮层 */}
+                {mobileSearchOpen && (
+                    <div
+                        data-modal-scroll-lock
+                        className="fixed inset-0 z-[100] flex flex-col items-center justify-start bg-black/40 backdrop-blur-xs p-3.5 pt-4 transition-opacity sm:hidden"
+                        onClick={() => setMobileSearchOpen(false)}
+                    >
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="搜索与分类筛选"
+                            className="w-full max-w-lg rounded-2xl bg-white p-3.5 shadow-2xl border border-zinc-200/90 animate-in slide-in-from-top-3 duration-200"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* 顶部搜索输入框与完成按钮 */}
+                            <div className="flex items-center gap-2">
+                                <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50/80 px-3 py-1.5 transition-colors focus-within:border-zinc-900 focus-within:bg-white">
+                                    <Search size={14} className="shrink-0 text-zinc-400"/>
+                                    <input
+                                        aria-label="搜索日记"
+                                        value={keyword}
+                                        onChange={e => setKeyword(e.target.value)}
+                                        placeholder="搜索标题、正文或标签…"
+                                        className="w-full bg-transparent text-xs text-zinc-900 outline-none placeholder:text-zinc-400"
+                                        autoFocus
+                                    />
+                                    {keyword && (
+                                        <button
+                                            type="button"
+                                            aria-label="清空搜索关键词"
+                                            onClick={() => setKeyword('')}
+                                            className="rounded-full p-0.5 text-zinc-400 hover:text-zinc-900"
+                                        >
+                                            <X size={13}/>
+                                        </button>
+                                    )}
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileSearchOpen(false)}
+                                    className="shrink-0 rounded-full bg-zinc-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs active:scale-95"
+                                >
+                                    完成
+                                </button>
+                            </div>
+
+                            {/* 分类筛选标签条（全部/心情/天气/标签） */}
+                            <div className="mt-2.5 pt-2 border-t border-zinc-150/70">
+                                <DiaryBrowseFilters entries={entries} selection={browse} onChange={setBrowse}/>
+                            </div>
+
+                            {/* 匹配结果篇数与重置按钮 */}
+                            {(keyword || browse.mode !== 'all') && (
+                                <div className="mt-2.5 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] text-zinc-500">
+                                    <span>
+                                        匹配到 <strong className="font-bold text-zinc-900">{filtered.length}</strong> 篇日记
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setKeyword('');
+                                            setBrowse({mode: 'all', value: ''});
+                                        }}
+                                        className="font-semibold text-orange-600 hover:underline"
+                                    >
+                                        重置筛选
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* 移动端日历抽屉模态框 */}
                 {mobileCalendarOpen && (
                     <div
@@ -639,19 +808,7 @@ export default function DiaryPage() {
                     </div>
                 )}
 
-                {/* 移动端右下角悬浮新建按钮（FAB），避让底部 MobileBottomBar */}
-                <button
-                    type="button"
-                    aria-label="写日记"
-                    disabled={loading}
-                    onClick={() => {
-                        setInitialMood('');
-                        setEditor('new');
-                    }}
-                    className="fixed bottom-20 right-4 z-30 flex h-13 w-13 items-center justify-center rounded-full bg-zinc-900 text-white shadow-xl transition-all duration-200 active:scale-90 hover:bg-black sm:hidden disabled:opacity-50"
-                >
-                    <PenLine size={20} strokeWidth={2.2}/>
-                </button>
+
 
                 {activeEditor && (
                     <DiaryEditor

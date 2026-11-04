@@ -80,7 +80,7 @@ export default function DiaryCard({entry, onOpen, timeline = false}: DiaryCardPr
 
                 <h3
                     title={entry.title}
-                    className="diary-wenkai mt-2 truncate text-[15px] sm:text-base font-bold leading-snug text-zinc-900"
+                    className="diary-wenkai mt-2 truncate text-[15px] sm:text-base font-bold leading-snug text-zinc-900 group-hover:text-black"
                 >
                     {entry.title}
                 </h3>
@@ -104,7 +104,7 @@ export default function DiaryCard({entry, onOpen, timeline = false}: DiaryCardPr
                         </span>
                         <span className="inline-flex items-center gap-1">
                             <Clock size={11}/>
-                            {readMins} 分钟
+                            <span className="diary-num">{readMins}</span> 分钟
                         </span>
                     </span>
                 </div>

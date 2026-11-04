@@ -101,25 +101,42 @@
     color: #f4f4f5;
 }
 
-/* 题头与正文之间的小装饰：三点 */
+/* 题头与正文之间的小装饰/分割线：移动端紧凑柔和，桌面端舒展大方 */
 .diary-ornament {
     display: flex;
     align-items: center;
-    justify-content: center;
     justify-content: flex-start;
     gap: 0.5rem;
-    margin: 2.25rem 0;
-    height: 0.25rem;
+    margin: 0.875rem 0 1.125rem;
+    height: 1px;
+}
+@media (min-width: 640px) {
+    .diary-ornament {
+        margin: 2rem 0;
+    }
 }
 .diary-ornament::before {
     content: "";
-    width: 3rem;
+    width: 100%;
+    max-width: 5rem;
     height: 1px;
-    background: currentColor;
-    color: rgba(0, 0, 0, 0.12);
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.05) 70%, transparent 100%);
+}
+@media (min-width: 640px) {
+    .diary-ornament::before {
+        max-width: 3.5rem;
+        background: currentColor;
+        color: rgba(0, 0, 0, 0.12);
+    }
 }
 .diary-reader-dark .diary-ornament::before {
-    color: rgba(255, 255, 255, 0.18);
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 70%, transparent 100%);
+}
+@media (min-width: 640px) {
+    .diary-reader-dark .diary-ornament::before {
+        background: currentColor;
+        color: rgba(255, 255, 255, 0.18);
+    }
 }
 
 /* 诗意引用块 (Editorial Blockquote) */

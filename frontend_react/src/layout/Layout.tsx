@@ -214,14 +214,14 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
             />
 
             <div
-                className={`pb-24 sm:pb-0 ${isArticleReadingMode ? 'reading-article-layout' : ''}`}
+                className={`${isDiaryPage ? 'pb-0' : 'pb-24 sm:pb-0'} ${isArticleReadingMode ? 'reading-article-layout' : ''}`}
                 data-nav-visible={isNavVisible ? 'true' : 'false'}
             >
                 {children}
             </div>
 
             {/* 移动端底部胶囊导航栏：闪念、提示词库、正中间橙色大圆AI按钮、资源库、数据统计 */}
-            {!isChatOpen && !isAgentPanelOpen && (
+            {!isChatOpen && !isAgentPanelOpen && !isDiaryPage && (
                 <MobileBottomBar onOpenAI={handleOpenAIEntry} isVisible={isNavVisible} />
             )}
 
