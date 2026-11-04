@@ -199,13 +199,174 @@ class PartyDailyProjectionTests(TestCase):
         covered = inspect_party('admin', party.pk, now=self.now+timedelta(days=8))
         self.assertTrue(covered['daily_contribution_verified'])
         self.assertFalse(covered['cleanup_ready'])
-        self.assertTrue(any('跨设备' in reason for reason in covered['blockers']))
+        self.assertTrue(any('自动任务将在事务内核验' in reason for reason in covered['blockers']))
         event = AdventureEvent.objects.filter(party_id=party.pk).order_by('sequence').first()
         AdventureEvent.objects.filter(pk=event.pk).update(digest='broken')
         damaged = inspect_party('admin', party.pk, now=self.now+timedelta(days=8))
         self.assertFalse(damaged['shared_source_verified'])
         self.assertFalse(damaged['daily_contribution_verified'])
         self.assertEqual((CombatFact.objects.count(), AdventureEvent.objects.count()), before)
+
+    def test_long_downtime_keeps_uncovered_seven_to_fourteen_day_history(self):
+        from .analytics_models import CombatPartyCoverage
+        from .archive import archive_profile
+        from .migration_guard import LegacyCombatArchiveDisabled, PROTECTION_ENV
+        from .models import CombatFact, CombatProfile
+        from .party_daily_automatic import automatic_batch
+        from .party_daily_backfill import backfill
+        from .party_models import AdventureEvent, AdventureParty
+        from .retention_preview import inspect_party
+
+        older, _ = self.finished_party()
+        later = self.now + timedelta(days=8)
+        run = explorations.request('admin', self.agents[2], 'downtime-newer',
+                                   {'adventure_mode': 'solo'}, now=later)
+        explorations.depart(run.pk, self.plan, now=later)
+        newer = AdventureParty.objects.get(leader_id=self.agents[2].pk)
+        self.force_clear(newer, later + timedelta(seconds=15))
+        explorations.finish(run.pk, now=later + timedelta(seconds=20))
+        with patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            backfill('admin', older.pk)
+        before = (CombatFact.objects.count(), AdventureEvent.objects.count())
+        now = self.now + timedelta(days=18)
+        old_check = inspect_party('admin', older.pk, now=now)
+        new_check = inspect_party('admin', newer.pk, now=now)
+        self.assertTrue(old_check['age_ready'] and old_check['daily_contribution_verified'])
+        self.assertTrue(new_check['age_ready'])
+        self.assertFalse(new_check['daily_contribution_verified'])
+        self.assertFalse(old_check['statistics_backlog']['basic_coverage_complete'])
+        self.assertEqual(old_check['statistics_backlog']['missing_party_summaries'], 1)
+        self.assertTrue(any('全部归档暂缓' in reason for reason in old_check['blockers']))
+        self.assertFalse(new_check['cleanup_ready'])
+        self.assertTrue(any('每日贡献尚未建立' in reason for reason in new_check['blockers']))
+        # Even a completed, uncovered party less than seven days old keeps the
+        # older covered party from passing the global statistics barrier.
+        early = inspect_party('admin', older.pk, now=self.now + timedelta(days=9))
+        self.assertTrue(early['age_ready'])
+        self.assertFalse(early['statistics_backlog']['basic_coverage_complete'])
+        long_outage = inspect_party('admin', older.pk, now=self.now + timedelta(days=45))
+        self.assertEqual(long_outage['statistics_backlog']['missing_party_summaries'], 1)
+        self.assertFalse(long_outage['cleanup_ready'])
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            with self.assertRaises(LegacyCombatArchiveDisabled):
+                archive_profile(CombatProfile.objects.get(pk=run.actor_id), now-timedelta(days=7), apply=True)
+            result = automatic_batch(max_seconds=60)
+        self.assertEqual(result['created'], 1, result['failures'])
+        self.assertTrue(CombatPartyCoverage.objects.filter(pk=newer.pk).exists())
+        self.assertEqual((CombatFact.objects.count(), AdventureEvent.objects.count()), before)
+        complete = inspect_party('admin', newer.pk, now=now)
+        self.assertTrue(complete['daily_contribution_verified'])
+        self.assertTrue(complete['statistics_backlog']['basic_coverage_complete'])
+        self.assertFalse(complete['cleanup_ready'])
+
+    def test_global_statistics_barrier_rejects_invalid_coverage_and_legacy_solo(self):
+        from .analytics_models import CombatPartyDay
+        from .migration_guard import PROTECTION_ENV
+        from .models import Exploration
+        from .party_daily_automatic import automatic_batch
+        from .retention_gate import inspect_statistics_backlog
+
+        party, _ = self.finished_party()
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            result = automatic_batch(max_seconds=60)
+        self.assertEqual(result['created'], 1, result['failures'])
+        self.assertTrue(inspect_statistics_backlog()['basic_coverage_complete'])
+        day = CombatPartyDay.objects.filter(party_id=party.pk).first()
+        groups = copy.deepcopy(day.groups)
+        CombatPartyDay.objects.filter(pk=day.pk).update(groups=[])
+        invalid = inspect_statistics_backlog()
+        self.assertEqual(invalid['invalid_party_summaries'], 1)
+        self.assertFalse(invalid['basic_coverage_complete'])
+        CombatPartyDay.objects.filter(pk=day.pk).update(groups=groups)
+        CombatPartyDay.objects.filter(pk=day.pk).update(owner_id='other')
+        wrong_owner = inspect_statistics_backlog()
+        self.assertEqual(wrong_owner['orphan_daily_rows'], 1)
+        self.assertEqual(wrong_owner['invalid_party_summaries'], 1)
+        self.assertFalse(wrong_owner['basic_coverage_complete'])
+        CombatPartyDay.objects.filter(pk=day.pk).update(owner_id='admin')
+        Exploration.objects.create(pk='uncovered-legacy', owner_id='admin', actor_id=self.agents[2].pk,
+            actor_name=self.agents[2].name, catalog_id='test', status='completed', ended_at=self.now)
+        legacy = inspect_statistics_backlog()
+        self.assertEqual(legacy['legacy_solo_runs'], 1)
+        self.assertFalse(legacy['basic_coverage_complete'])
+        self.assertFalse(legacy['cleanup_ready'])
+
+    def test_global_statistics_barrier_ignores_active_battle(self):
+        from .migration_guard import PROTECTION_ENV
+        from .party_daily_automatic import automatic_batch
+        from .retention_gate import inspect_statistics_backlog
+
+        self.finished_party()
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            result = automatic_batch(max_seconds=60)
+        self.assertEqual(result['created'], 1, result['failures'])
+        now = self.now + timedelta(minutes=2)
+        run = explorations.request('admin', self.agents[2], 'ongoing-retention',
+                                   {'adventure_mode': 'solo'}, now=now)
+        explorations.depart(run.pk, self.plan, now=now)
+        status = inspect_statistics_backlog()
+        self.assertTrue(status['basic_coverage_complete'], status)
+        self.assertEqual(status['completed_parties'], 1)
+        self.assertFalse(status['cleanup_ready'])
+
+    def test_preliminary_coverage_never_authorizes_cleanup_when_other_source_is_damaged(self):
+        from .migration_guard import PROTECTION_ENV
+        from .party_daily_automatic import automatic_batch
+        from .party_models import AdventureEvent, AdventureParty
+        from .retention_preview import inspect_party
+
+        older, _ = self.finished_party()
+        now = self.now + timedelta(minutes=2)
+        run = explorations.request('admin', self.agents[2], 'damaged-other-party',
+                                   {'adventure_mode': 'solo'}, now=now)
+        explorations.depart(run.pk, self.plan, now=now)
+        other = AdventureParty.objects.get(leader_id=self.agents[2].pk)
+        self.force_clear(other, now + timedelta(seconds=15))
+        explorations.finish(run.pk, now=now + timedelta(seconds=20))
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            result = automatic_batch(limit=5, max_seconds=60)
+        self.assertEqual(result['created'], 2, result['failures'])
+        event = AdventureEvent.objects.filter(party_id=other.pk).order_by('sequence').first()
+        AdventureEvent.objects.filter(pk=event.pk).update(digest='broken')
+        check = inspect_party('admin', older.pk, now=self.now + timedelta(days=45))
+        # Coverage markers alone do not re-read the other party's raw source.
+        self.assertTrue(check['statistics_backlog']['basic_coverage_complete'])
+        self.assertFalse(check['cleanup_ready'])
+        self.assertTrue(any('只读预览不能授权删除' in reason for reason in check['blockers']))
+
+    def test_global_statistics_barrier_does_not_ignore_other_accounts(self):
+        from .migration_guard import PROTECTION_ENV
+        from .party_daily_automatic import automatic_batch
+        from .party_models import AdventureParty
+        from .retention_gate import inspect_statistics_backlog
+
+        self.finished_party()
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            result = automatic_batch(max_seconds=60)
+        self.assertEqual(result['created'], 1, result['failures'])
+        AdventureParty.objects.create(pk='foreign-uncovered', owner_id='other', catalog_id='test',
+            dungeon_id='test', leader_id='other', status='completed', ends_at=self.now)
+        status = inspect_statistics_backlog()
+        self.assertEqual(status['completed_parties'], 2)
+        self.assertEqual(status['missing_party_summaries'], 1)
+        self.assertFalse(status['basic_coverage_complete'])
+
+    def test_global_statistics_barrier_rejects_orphaned_round_sources(self):
+        from .models import CombatEncounter, CombatFact
+        from .party_models import AdventureEvent
+        from .retention_gate import inspect_statistics_backlog
+
+        CombatFact.objects.create(pk='orphan-round', owner_id='admin', actor_id='missing',
+            exploration_id='missing', sequence=1, kind='round', digest='broken')
+        CombatEncounter.objects.create(pk='orphan-encounter', owner_id='admin', actor_id='missing',
+            exploration_id='missing', number=1, monster={}, result={})
+        AdventureEvent.objects.create(pk='orphan-event', owner_id='admin', party_id='missing',
+            sequence=1, kind='round', digest='broken')
+        status = inspect_statistics_backlog()
+        self.assertEqual((status['orphan_round_facts'], status['orphan_encounters'], status['orphan_round_events']),
+                         (1, 1, 1))
+        self.assertFalse(status['basic_coverage_complete'])
+        self.assertFalse(status['cleanup_ready'])
 
     def test_protected_backfill_is_idempotent_and_synced_contributions_validate_against_source(self):
         from .analytics_models import CombatPartyCoverage, CombatPartyDay
@@ -268,17 +429,17 @@ class PartyDailyProjectionTests(TestCase):
         from utils.sync_manager import SyncManager
         from .analytics_models import CombatPartyCoverage, CombatPartyDay
         from .migration_guard import PROTECTION_ENV
-        from .party_daily_backfill import backfill
+        from .party_daily_automatic import automatic_batch
 
         party, _ = self.finished_party()
-        with patch.dict(os.environ, {PROTECTION_ENV: '1'}):
-            backfill('admin', party.pk)
         with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            result = automatic_batch(max_seconds=60)
+            self.assertEqual(result['created'], 1, result['failures'])
             manager = SyncManager(MemoryStorageClient(), '/test-backup')
             data = manager.build_snapshot_data()
             snapshot = manager.publish_v2_snapshot(source='test', data_list=data, revisions={})
             remote = manager.get_v2_snapshot(snapshot['meta']['snapshot_id'])
-            self.assertEqual(remote['meta']['combat_schema_version'], 18)
+            self.assertEqual(remote['meta']['combat_schema_version'], 19)
             expected = list(CombatPartyDay.objects.order_by('day').values('day', 'groups'))
             for _ in range(2):
                 manager.apply_snapshot_data(copy.deepcopy(remote['data']), remote_meta=remote['meta'], full_overwrite=True)
@@ -344,6 +505,116 @@ class PartyDailyProjectionTests(TestCase):
         self.assertEqual(CombatPartyCoverage.objects.count(), 1)
         self.assertEqual((CombatFact.objects.count(), AdventureEvent.objects.count()), before)
 
+    def test_automatic_daily_covers_historical_then_new_parties_without_deleting_sources(self):
+        from ..life_time import SHANGHAI, storage_time
+        from ..analytics.combat_kills import load_combat_kills
+        from ..analytics.combat_statistics import load_combat_statistics
+        from .analytics_models import CombatPartyCoverage
+        from .migration_guard import PROTECTION_ENV
+        from .models import CombatFact
+        from .party_daily_automatic import automatic_batch
+        from .party_models import AdventureEvent, AdventureParty
+        from .sync import metadata, validate_source
+
+        old, _ = self.finished_party()
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            first = automatic_batch(limit=5, max_seconds=60)
+        self.assertEqual(first['created'], 1, first['failures'])
+        self.assertEqual(set(CombatPartyCoverage.objects.values_list('pk', flat=True)), {old.pk})
+        now = self.now + timedelta(minutes=2)
+        run = explorations.request('admin', self.agents[2], 'live-daily', {'adventure_mode': 'solo'}, now=now)
+        explorations.depart(run.pk, self.plan, now=now)
+        new = AdventureParty.objects.get(leader_id=self.agents[2].pk)
+        self.force_clear(new, now + timedelta(seconds=15))
+        explorations.finish(run.pk, now=now + timedelta(seconds=20))
+        source_counts = (CombatFact.objects.count(), AdventureEvent.objects.count())
+        with patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            with self.assertRaisesMessage(ValueError, '回填保护期间'):
+                automatic_batch()
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            second = automatic_batch(limit=5, max_seconds=60)
+            again = automatic_batch(limit=5, max_seconds=60)
+        self.assertEqual(second['created'], 1, second['failures'])
+        self.assertEqual(again['created'], 0, again['failures'])
+        self.assertEqual(set(CombatPartyCoverage.objects.values_list('pk', flat=True)), {old.pk, new.pk})
+        self.assertEqual((CombatFact.objects.count(), AdventureEvent.objects.count()), source_counts)
+        start = storage_time(datetime.combine(self.now.date(), time.min, SHANGHAI))
+        end = start + timedelta(days=1)
+        actors = [agent.pk for agent in self.agents[:3]]
+
+        def counts(kills):
+            personal, world = Counter(), {}
+            for kill in kills:
+                personal[(kill.actor_id, kill.exploration_id, kill.monster.get('id'))] += kill.count
+                world[kill.identity] = kill.count
+            return personal, sum(world.values())
+
+        self.assertEqual(counts(load_combat_kills('admin', actor_ids=actors, start=start, end=end)),
+                         counts(load_combat_kills('admin', actor_ids=actors, start=start, end=end, include_daily=True)))
+        residents = {agent.pk: {'id': agent.pk, 'name': agent.name, 'avatar': '', 'departed': False,
+                                'professionName': None} for agent in self.agents[:3]}
+        self.assertEqual(load_combat_statistics('admin', start, end, residents),
+                         load_combat_statistics('admin', start, end, residents, include_daily=True))
+        source = self.data()
+        info = metadata(source)
+        self.assertEqual(info['combat_schema_version'], 19)
+        self.assertTrue(validate_source(source, info))
+
+    def test_automatic_daily_ignores_active_party_until_every_member_has_finished(self):
+        from .analytics_models import CombatPartyCoverage
+        from .migration_guard import PROTECTION_ENV
+        from .party_daily_automatic import automatic_batch
+
+        run, party = self.start()
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            pending = automatic_batch(max_seconds=60)
+        self.assertEqual(pending['created'], 0)
+        self.assertFalse(CombatPartyCoverage.objects.filter(pk=party.pk).exists())
+        self.force_clear(party, self.now + timedelta(seconds=15))
+        explorations.finish(run.pk, now=self.now + timedelta(seconds=20))
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            finished = automatic_batch(max_seconds=60)
+        self.assertEqual(finished['created'], 1, finished['failures'])
+        self.assertTrue(CombatPartyCoverage.objects.filter(pk=party.pk).exists())
+
+    def test_protected_drain_creates_summary_without_deleting_originals(self):
+        from .analytics_models import CombatPartyCoverage
+        from .migration_guard import PROTECTION_ENV
+        from .models import CombatFact
+        from .party_models import AdventureEvent
+
+        party, _ = self.finished_party()
+        before = (CombatFact.objects.count(), AdventureEvent.objects.count())
+        output = StringIO()
+        with patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            call_command('backfill_party_daily_drain', '--owner', 'admin', '--max-batches', '1',
+                         '--pause-seconds', '0', stdout=output)
+        result = json.loads(output.getvalue())
+        self.assertEqual((result['created'], result['stop_reason']), (1, 'complete'))
+        self.assertTrue(CombatPartyCoverage.objects.filter(pk=party.pk).exists())
+        self.assertEqual((CombatFact.objects.count(), AdventureEvent.objects.count()), before)
+
+    def test_automatic_daily_retains_invalid_source_and_retries_after_repair(self):
+        from .analytics_models import CombatPartyCoverage
+        from .migration_guard import PROTECTION_ENV
+        from .models import CombatFact
+        from .party_daily_automatic import automatic_batch
+
+        party, _ = self.finished_party()
+        fact = CombatFact.objects.filter(actor_id=self.agents[0].pk).order_by('sequence').first()
+        original = copy.deepcopy(fact.payload)
+        before = CombatFact.objects.count()
+        CombatFact.objects.filter(pk=fact.pk).update(payload={'damaged': True})
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            failed = automatic_batch(max_seconds=60)
+            self.assertEqual((failed['created'], len(failed['failures'])), (0, 1))
+            self.assertFalse(CombatPartyCoverage.objects.exists())
+            self.assertEqual(CombatFact.objects.count(), before)
+            CombatFact.objects.filter(pk=fact.pk).update(payload=original)
+            repaired = automatic_batch(max_seconds=60)
+        self.assertEqual(repaired['created'], 1, repaired['failures'])
+        self.assertTrue(CombatPartyCoverage.objects.filter(pk=party.pk).exists())
+
     def test_streaming_frame_hash_matches_legacy_frame_including_checkpoint_rules(self):
         from .facts import frame, frame_digest
         from .models import CombatFact, CombatIntegrity, EquipmentInstance
@@ -404,7 +675,7 @@ class PartyDailyProjectionTests(TestCase):
         with patch.dict(os.environ, {PROTECTION_ENV: '1'}):
             with self.assertRaisesMessage(ValueError, '个人链及状态共'):
                 backfill('admin', first.pk, max_source_rows=source_limit, max_actor_rows=1)
-            with patch('system_settings.agent_world.combat.party_daily_backfill.verify_chain', wraps=verify_chain) as checked:
+            with patch('system_settings.agent_world.combat.summary_verification.verify_chain', wraps=verify_chain) as checked:
                 result = backfill_batch('admin', limit=5, max_seconds=60,
                                         max_source_rows=source_limit, max_actor_rows=500000)
         self.assertEqual(result['created'], 2, result['failures'])
@@ -428,7 +699,7 @@ class PartyDailyProjectionTests(TestCase):
         event = AdventureEvent.objects.filter(party_id=bad).order_by('sequence').first()
         AdventureEvent.objects.filter(pk=event.pk).update(digest='broken')
         with patch.dict(os.environ, {PROTECTION_ENV: '1'}), patch(
-                'system_settings.agent_world.combat.party_daily_backfill.verify_chain', wraps=verify_chain) as checked:
+                'system_settings.agent_world.combat.summary_verification.verify_chain', wraps=verify_chain) as checked:
             result = backfill_batch('admin', limit=5, max_seconds=60)
         self.assertEqual(result['created'], 1)
         self.assertEqual([failure['party_id'] for failure in result['failures']], [bad])
@@ -467,7 +738,7 @@ class PartyDailyProjectionTests(TestCase):
             party.save(update_fields=['frame'])
         before = AdventureEvent.objects.count()
         with patch.dict(os.environ, {PROTECTION_ENV: '1'}), patch(
-                'system_settings.agent_world.combat.party_daily_backfill.verify_chain', wraps=verify_chain) as checked:
+                'system_settings.agent_world.combat.summary_verification.verify_chain', wraps=verify_chain) as checked:
             result = backfill_batch('admin', limit=5, max_seconds=60)
         self.assertEqual((result['processed'], result['created']), (3, 1))
         self.assertEqual([item['party_id'] for item in result['failures']], [party.pk for party in parties[:2]])
@@ -650,6 +921,54 @@ class AnalyticsSnapshotTests(TransactionTestCase):
         with transaction.atomic():
             test_parties.PartyServiceTests.setUp(self)
 
+    def test_world_worker_automatically_processes_backlog_after_start_and_restart(self):
+        import threading
+        import time as clock
+        from .. import worker
+        from .analytics_models import CombatPartyCoverage
+        from .migration_guard import PROTECTION_ENV
+        from .models import CombatFact
+        from .party_models import AdventureEvent, AdventureParty
+
+        first, _ = self.finished_party()
+        stop = threading.Event()
+
+        def wait_for(party_id):
+            deadline = clock.monotonic() + 20
+            while clock.monotonic() < deadline:
+                if CombatPartyCoverage.objects.filter(pk=party_id).exists():
+                    return
+                threading.Event().wait(0.05)
+            self.fail('自动统计线程未在测试时间内覆盖已结束的会话')
+
+        with patch.dict(os.environ, {PROTECTION_ENV: '0', 'ODOC_COMBAT_DAILY_AUTO': '1'}), \
+             patch.object(worker, '_is_server_process', return_value=True), \
+             patch.object(worker, 'get_scheduler_initial_delay_seconds', return_value=0), \
+             patch.object(worker, '_stop', stop), patch.object(worker, '_thread', None), \
+             patch.object(worker, '_daily_thread', None), \
+             patch.object(worker, '_loop', side_effect=lambda: stop.wait()):
+            try:
+                before = CombatFact.objects.count(), AdventureEvent.objects.count()
+                worker.start_world_worker()
+                wait_for(first.pk)
+                worker.stop_world_worker()
+                self.assertEqual((CombatFact.objects.count(), AdventureEvent.objects.count()), before)
+
+                now = self.now + timedelta(minutes=2)
+                run = explorations.request('admin', self.agents[2], 'daily-after-restart',
+                                           {'adventure_mode': 'solo'}, now=now)
+                explorations.depart(run.pk, self.plan, now=now)
+                second = AdventureParty.objects.get(leader_id=self.agents[2].pk)
+                self.force_clear(second, now + timedelta(seconds=15))
+                explorations.finish(run.pk, now=now + timedelta(seconds=20))
+                before = CombatFact.objects.count(), AdventureEvent.objects.count()
+                worker.start_world_worker()
+                wait_for(second.pk)
+                self.assertEqual(CombatPartyCoverage.objects.count(), 2)
+                self.assertEqual((CombatFact.objects.count(), AdventureEvent.objects.count()), before)
+            finally:
+                worker.stop_world_worker()
+
     def test_endpoint_uses_consistent_daily_snapshot_and_matches_raw_results(self):
         from contextlib import contextmanager
         from django.contrib.auth.models import User
@@ -679,6 +998,31 @@ class AnalyticsSnapshotTests(TransactionTestCase):
             raw = client.get('/api/settings/agent-world/analytics/', {'start_date': day, 'end_date': day})
         self.assertEqual(raw.status_code, 200, raw.data)
         self.assertEqual(daily.data['data'], raw.data['data'])
+
+    def test_endpoint_explains_backlog_until_automatic_coverage_is_ready(self):
+        from django.contrib.auth.models import User
+        from rest_framework.test import APIClient
+        from .migration_guard import PROTECTION_ENV
+        from .party_daily_automatic import automatic_batch
+
+        self.finished_party()
+        user = User.objects.create_superuser('admin', password='test')
+        client = APIClient()
+        client.force_authenticate(user)
+        day = self.now.date().isoformat()
+        params = {'start_date': day, 'end_date': day}
+        before = client.get('/api/settings/agent-world/analytics/', params)
+        self.assertEqual(before.status_code, 200, before.data)
+        notes = before.data['data']['notes']
+        self.assertTrue(any('战斗历史统计已生成 0/1 场' in note for note in notes))
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            result = automatic_batch(max_seconds=60)
+        self.assertEqual(result['created'], 1, result['failures'])
+        after = client.get('/api/settings/agent-world/analytics/', params)
+        self.assertEqual(after.status_code, 200, after.data)
+        self.assertFalse(any('战斗历史统计已生成' in note for note in after.data['data']['notes']))
+        self.assertEqual(before.data['data']['outcomes'], after.data['data']['outcomes'])
+        self.assertEqual(before.data['data']['combatComparison'], after.data['data']['combatComparison'])
 
     def test_concurrent_backfill_does_not_mix_two_coverage_states(self):
         import threading

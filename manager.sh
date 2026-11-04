@@ -146,7 +146,9 @@ ensure_directories() {
         "$DEPLOY_DIR" \
         "$RUNTIME_DIR/postgres" \
         "$RUNTIME_DIR/media" \
-        "$RUNTIME_DIR/chroma_data"
+        "$RUNTIME_DIR/chroma_data" \
+        "$RUNTIME_DIR/system_logs" \
+        "$RUNTIME_DIR/token_usage_details"
 
 }
 
@@ -209,10 +211,19 @@ services:
       POSTGRES_PORT: 5432
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
+      ODOC_COMBAT_ARCHIVE_DAYS: \${ODOC_COMBAT_ARCHIVE_DAYS:-0}
+      ODOC_COMBAT_BACKFILL_PROTECT: \${ODOC_COMBAT_BACKFILL_PROTECT:-0}
+      ODOC_COMBAT_DAILY_BACKFILL: \${ODOC_COMBAT_DAILY_BACKFILL:-0}
+      ODOC_COMBAT_DAILY_AUTO: \${ODOC_COMBAT_DAILY_AUTO:-1}
+      ODOC_FISHING_DAILY_BACKFILL: \${ODOC_FISHING_DAILY_BACKFILL:-0}
+      ODOC_SYSTEM_LOG_DIR: /app/runtime/system_logs
+      ODOC_TOKEN_USAGE_DETAIL_DIR: /app/runtime/token_usage_details
       ODOC_CHROMA_PATH: /app/runtime/chroma_data
     volumes:
       - ./runtime/media:/app/runtime/media
       - ./runtime/chroma_data:/app/runtime/chroma_data
+      - ./runtime/system_logs:/app/runtime/system_logs
+      - ./runtime/token_usage_details:/app/runtime/token_usage_details
 EOF
 }
 

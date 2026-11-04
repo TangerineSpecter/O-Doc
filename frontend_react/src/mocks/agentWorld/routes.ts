@@ -7,7 +7,7 @@ import {blacksmithActivities, blacksmithFacts, blacksmithLifeItems, resolveBlack
 import {observationRoute, observationRequests, observationMetrics, observationFacts, addBlacksmithObservation} from './tokenUsage';
 import {residents, professions, activities, graph, feed, residentDecisions, lifeConfig, lifeItems, goals, ledger, day, at} from './residents';
 import {farms, farmRules, farmHistory, inventory, cooking, alchemy, itemCatalog, shop, listings, transactions, sessions, marketPlans} from './production';
-import {combatCatalog, combatProfiles, exploration, localParty, localOlderPartyEvents, localAdventureOptions, localPartyExploration, journey, fishingCatalog, fishingOverview, fishingTrip, fishingTrips, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
+import {combatCatalog, combatProfiles, exploration, archivedExploration, localParty, localOlderPartyEvents, localAdventureOptions, localPartyExploration, journey, fishingCatalog, fishingOverview, fishingTrip, fishingTrips, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
 import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, worldPosts} from './social';
 import type {LifeItem} from '../../types/api/agentLife';
 import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentReports} from './tournament';
@@ -215,6 +215,11 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
             const id=decodeURIComponent(path.split('/')[6]);
             const prepared=request.method==='POST'?localCombatPreparation.command(id,body.operation):localCombatPreparation.read(id);
             if(prepared)return prepared;
+            const scenario = new URLSearchParams(location.search).get('mockState');
+            if (id === 'local-exploration' && scenario?.startsWith('archived')) {
+                return scenario === 'archived-empty' ? {...archivedExploration, archivedKills: [],
+                    result: {...archivedExploration.result, kills: 0, experience: 0, rewards: []}} : archivedExploration;
+            }
             return emptyScenario()?{...exploration,party:null}:path.includes('/local-party-exploration/')?localPartyExploration:exploration;
         }
         if (new RegExp(`^${base}/travel/[^/]+/$`).test(path)) return journey;

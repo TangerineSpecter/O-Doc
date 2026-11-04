@@ -110,6 +110,9 @@ class AIModel(models.Model):
                  ('enable_thinking', 'enable_thinking'), ('adaptive', 'thinking.adaptive'),
                  ('reasoning_effort', 'reasoning_effort'),
                  ('unsupported', '不支持')])
+    reasoning_effort = models.CharField(max_length=16, default='default',
+        choices=[('default', '默认'), ('none', '关闭'), ('low', '低'), ('medium', '中'),
+                 ('high', '高'), ('xhigh', '极高'), ('max', '最高')])
 
     # 级联删除：删除 Provider 时自动删除关联的 Models
     provider = models.ForeignKey(
@@ -1058,5 +1061,5 @@ from .agent_world.tournament_models import Tournament, TournamentRound, Tourname
 from .agent_world.life_models import LifeInterleavingState
 
 from .agent_world.combat.party_models import AdventureParty, AdventureMember, AdventureWave, AdventureEvent  # noqa: E402,F401
-from .agent_world.combat.analytics_models import CombatPartyCoverage, CombatPartyDay  # noqa: E402,F401
+from .agent_world.combat.analytics_models import CombatPartyCoverage, CombatPartyDay, CombatPartySettlement, CombatSoloSettlement  # noqa: E402,F401
 from .agent_world.combat.reservation_models import AdventurePlanningDay, AdventureReservation  # noqa: E402,F401

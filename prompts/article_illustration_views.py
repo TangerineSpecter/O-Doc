@@ -12,7 +12,7 @@ from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError, get_
 from system_settings.image_generation_options import resolve_image_generation_request, serialize_image_generation_options
 from system_settings.models import AIModel
 from system_mcp.image_generation import resolve_image_model
-from system_settings.newapi_images import NewApiImageClient
+from system_settings.newapi_images import compatible_image_client
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import error_result, success_result, valid_result
@@ -78,9 +78,9 @@ class ArticleIllustrationStartView(APIView):
         try:
             prompt = build_article_illustration_prompt(selected_text)
             model = get_default_image_generation_model()
-            if model.provider.type == 'NewAPI':
+            if model.provider.type in ('NewAPI', 'OpenAi'):
                 resolve_image_generation_request(model, generation_options, scene='article_illustration')
-                client = NewApiImageClient(model)
+                client = compatible_image_client(model)
                 result = client.generate(prompt)
                 image_data = result.images[0]
                 task_id = uuid.uuid4().hex
@@ -95,7 +95,7 @@ class ArticleIllustrationStartView(APIView):
                                  task_id, message)
                     pending = remember_pending_article_illustration(
                         user_id=user_id, task_id=task_id, image_url=image_url,
-                        error_message=message, model_id=model.id, provider_type='NewAPI',
+                        error_message=message, model_id=model.id, provider_type=model.provider.type,
                     )
                     response = success_result({'status': 'download_pending', 'pending_id': pending.id})
                     response.status_code = 202

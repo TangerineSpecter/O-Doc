@@ -5,18 +5,21 @@ export type ModelType = 'chat' | 'image' | 'image_generation' | 'embedding' | 'r
 
 export type ThinkingMode = 'default' | 'enabled' | 'disabled';
 export type ThinkingProtocol = 'auto' | 'thinking' | 'enable_thinking' | 'adaptive' | 'reasoning_effort' | 'unsupported';
+export type ReasoningEffort = 'default' | 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export interface ThinkingCapability {
     supported: boolean;
     protocol: ThinkingProtocol;
     manualProtocol: boolean;
     reason: string;
     enabledEffort: string;
+    effortOptions?: Exclude<ReasoningEffort, 'default'>[];
 }
 export interface ModelInput {
     name: string;
     type: ModelType;
     thinkingMode: ThinkingMode;
     thinkingProtocol: ThinkingProtocol;
+    reasoningEffort: ReasoningEffort;
 }
 
 export interface AIModel {
@@ -25,6 +28,7 @@ export interface AIModel {
     displayName?: string;
     thinkingMode?: ThinkingMode;
     thinkingProtocol?: ThinkingProtocol;
+    reasoningEffort?: ReasoningEffort;
     thinkingCapability?: ThinkingCapability;
     type: ModelType;
 }
@@ -38,6 +42,7 @@ export interface AIModelConnectionResult {
     statusCode?: number;
     elapsedMs: number;
     detail?: string;
+    simulated?: boolean;
 }
 
 export interface AIProvider {

@@ -17,7 +17,7 @@ from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
 from system_settings.image_generation_options import (get_image_generation_profile, resolve_image_generation_request,
                                                       supports_transparent_background)
 from system_settings.models import AIModel, Agent
-from system_settings.newapi_images import NewApiImageClient
+from system_settings.newapi_images import compatible_image_client
 from system_settings.sync_state import canonical_hash
 from utils.resource_assets import get_resource_view_url
 from utils.web_parser import fetch_remote_image, WebParserError
@@ -169,7 +169,7 @@ def generate_image(arguments: object, agent: Agent | None = None, *, user_id: st
             # Ask the provider for alpha instead of relying only on prompt wording.
             options = {**options, 'background': 'transparent'}
         images = load_reference_images(references, user_id=user_id)
-        client = GrsaiImageClient(model) if model.provider.type == 'Grsai' else NewApiImageClient(model)
+        client = GrsaiImageClient(model) if model.provider.type == 'Grsai' else compatible_image_client(model)
     except GrsaiImageError as exc:
         raise ValueError(str(exc)) from exc
     from system_settings.agent_world.farm_gate import farm_gate
@@ -255,7 +255,7 @@ def get_image_generation_result(arguments: object, agent: Agent | None = None, *
             _write(task, status='submission_unknown', error_message='无法确认服务商是否接收请求，请勿自动重新生成')
         else:
             model = _model(task)
-            client = GrsaiImageClient(model) if task.provider_type == 'Grsai' else NewApiImageClient(model)
+            client = GrsaiImageClient(model) if task.provider_type == 'Grsai' else compatible_image_client(model)
             if task.status == 'generating':
                 with image_task_context(task):
                     _accept_result(task, client.get_result(task.provider_task_id))

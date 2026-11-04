@@ -274,7 +274,8 @@ class FoodExplorationTests(TestCase):
         food_sync.validate_source(data, meta, require_manifest=True)
         from ..cooking_quality_sync import validate_source as validate_cooking, metadata as cooking_metadata
         validate_cooking(data, cooking_metadata(data))
-        food_sync.validate_import(data, {**meta, **cooking_metadata(data), 'combat_schema_version': 18})
+        for version in (18, 19, 20):
+            food_sync.validate_import(data, {**meta, **cooking_metadata(data), 'combat_schema_version': version})
         self.assertEqual(stock_quantity(self.agent.pk, 'admin', 'dish.baked_potato'), 3)
         from utils.sync_manager import SyncError
         for mutation in ('missing', 'effects', 'quantity', 'stars', 'owner', 'lots'):
@@ -294,6 +295,26 @@ class FoodExplorationTests(TestCase):
                 validate_cooking(bad, cooking_metadata(data))
         with self.assertRaises(SyncError):
             validate_source(data, {**meta, 'food_explorations': []})
+
+    def test_completed_food_party_with_compact_settlement_syncs_at_version_19(self):
+        from ..cooking_quality_sync import metadata as cooking_metadata
+        from .analytics_models import CombatPartySettlement
+        from .migration_guard import PROTECTION_ENV
+        from .party_daily_automatic import automatic_batch
+
+        self.stock()
+        with patch('system_settings.agent_world.combat.party_sessions.modern', return_value=True):
+            run = self.trip('food-party-compact')
+            explorations.finish(run.pk, now=self.now + timedelta(seconds=15))
+        with patch.dict('os.environ', {PROTECTION_ENV: '0'}):
+            result = automatic_batch(max_seconds=60)
+        self.assertEqual((result['created'], result['settlement_created'], result['failures']), (1, 1, []))
+        self.assertTrue(CombatPartySettlement.objects.exists())
+        data = self.exported()
+        meta = {**metadata(data), **cooking_metadata(data)}
+        self.assertEqual(meta['combat_schema_version'], 19)
+        self.assertTrue(validate_source(data, meta))
+        food_sync.validate_import(data, meta)
 
     def test_old_explorations_without_food_still_validate(self):
         run = explorations.request('admin', self.agent, 'legacy', {}, now=self.now)

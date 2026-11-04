@@ -15,7 +15,7 @@ from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI, Au
 from httpx import AsyncClient as AsyncHTTPClient
 
 from .ai_observer import check_ai_control, emit_ai_event
-from .completion_options import temperature_options
+from .completion_options import output_limit_options, temperature_options
 from system_settings.token_usage.normalize import normalize
 
 DEADLINE_SECONDS = 120
@@ -217,12 +217,18 @@ def complete(
     network_retries, request_attempt = 0, 0
     use_json = json_output
     current_extra_body = dict(extra_body)
-    if config.get('thinking_mode', 'default') != 'default':
+    if config.get('thinking_mode', 'default') != 'default' or config.get('reasoning_effort', 'default') != 'default':
         from .thinking import thinking_body
         current_extra_body.pop('thinking', None)
         current_extra_body.pop('enable_thinking', None)
         current_extra_body.pop('reasoning_effort', None)
         current_extra_body.update(thinking_body(config))
+    limits = output_limit_options(config, max_tokens)
+    if 'max_completion_tokens' in limits:
+        # Older supported SDK releases may not expose this named argument;
+        # extra_body still serializes it at the top level of the HTTP request.
+        current_extra_body.update(limits)
+        limits = {}
     while True:
         check_ai_control()
         remaining = deadline - time.monotonic()
@@ -234,8 +240,7 @@ def complete(
         metadata.update(request_id=uuid.uuid4().hex, request_attempt=request_attempt, streaming=1, timeout_seconds=math.ceil(remaining), deadline_seconds=math.ceil(hard_deadline_seconds), sdk_retries=0, max_tokens=max_tokens, json_mode='json_object' if use_json else 'prompt' if json_output else 'text', thinking_mode='disabled' if thinking_disabled or current_extra_body.get('reasoning_effort') == 'none' else 'enabled' if config.get('thinking_mode') == 'enabled' else 'provider_default')
         parameters = {'model': config['model_name'], 'messages': [{'role': 'user', 'content': prompt}], 'stream': True,
                       **temperature_options(config, current_extra_body, .2)}
-        if max_tokens is not None:
-            parameters['max_tokens'] = max_tokens
+        parameters.update(limits)
         if config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax'):
             parameters['stream_options'] = {'include_usage': True}
         if current_extra_body:

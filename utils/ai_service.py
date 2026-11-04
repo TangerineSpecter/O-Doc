@@ -11,6 +11,7 @@ from openai import AuthenticationError, OpenAI
 from system_settings.models import SystemSetting, AIModel
 from .ai_observer import emit_ai_event
 from .thinking import thinking_body
+from .responses_tool_calls import ResponsesToolAdapter, uses_responses_tools
 from .tool_completion_options import tool_thinking_options
 from .token_usage import create_completion, sdk_retries
 
@@ -92,6 +93,7 @@ class AIService:
                 "model_type": ai_model.type,
                 "thinking_mode": ai_model.thinking_mode,
                 "thinking_protocol": ai_model.thinking_protocol,
+                "reasoning_effort": ai_model.reasoning_effort,
                 "model_role": model_role,
                 "provider_type": provider.type,
                 "provider_id": provider.id,
@@ -122,6 +124,7 @@ class AIService:
                 "model_type": ai_model.type,
                 "thinking_mode": ai_model.thinking_mode,
                 "thinking_protocol": ai_model.thinking_protocol,
+                "reasoning_effort": ai_model.reasoning_effort,
                 "provider_type": provider.type,
                 "provider_id": provider.id,
                 "provider_name": provider.name,
@@ -153,6 +156,7 @@ class AIService:
                 "model_type": ai_model.type,
                 "thinking_mode": ai_model.thinking_mode,
                 "thinking_protocol": ai_model.thinking_protocol,
+                "reasoning_effort": ai_model.reasoning_effort,
                 "provider_type": provider.type,
                 "provider_id": provider.id,
                 "provider_name": provider.name,
@@ -290,29 +294,41 @@ class AIService:
                 max_retries=sdk_retries(0 if deadline is not None else 1),
             )
             messages = [dict(message) for message in messages]
+            responses_adapter = ResponsesToolAdapter(
+                client, config, tools, disable_thinking=use_simple_model or disable_thinking,
+                explicit_task_disable=disable_thinking,
+            ) if uses_responses_tools(config, tools) else None
+            if (disable_thinking and responses_adapter and responses_adapter.effort is None
+                    and config.get('thinking_mode', 'default') == 'default'
+                    and config.get('reasoning_effort', 'default') == 'default'):
+                logger.warning('工具任务请求关闭思考，但模型 %s 不支持关闭，将按模型默认运行', config['model_name'])
 
             for _ in range(max_rounds):
                 if message_transform is not None:
                     messages = message_transform(messages)
-                request_kwargs = {
-                    'model': config['model_name'],
-                    'messages': messages,
-                    'tools': tools,
-                    'stream': False,
-                    'extra_body': tool_thinking_options(
-                        config, has_tools=bool(tools), disable_thinking=use_simple_model or disable_thinking,
-                    ) or None,
-                }
-                if tool_choice:
-                    request_kwargs['tool_choice'] = tool_choice
+                timeout = None
                 if deadline is not None:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         raise TimeoutError('任务达到执行时限')
-                    request_kwargs['timeout'] = min(120.0, remaining)
-                response = create_completion(client, config, retries=0 if deadline is not None else 1, **request_kwargs) # type: ignore
-
-                message = response.choices[0].message
+                    timeout = min(120.0, remaining)
+                if responses_adapter:
+                    message = responses_adapter.create(messages, tool_choice=tool_choice, timeout=timeout,
+                                                       retries=0 if deadline is not None else 1)
+                else:
+                    request_kwargs = {
+                        'model': config['model_name'], 'messages': messages, 'tools': tools, 'stream': False,
+                        'extra_body': tool_thinking_options(
+                            config, has_tools=bool(tools), disable_thinking=use_simple_model or disable_thinking,
+                            explicit_task_disable=disable_thinking,
+                        ) or None,
+                    }
+                    if tool_choice:
+                        request_kwargs['tool_choice'] = tool_choice
+                    if timeout is not None:
+                        request_kwargs['timeout'] = timeout
+                    response = create_completion(client, config, retries=0 if deadline is not None else 1, **request_kwargs) # type: ignore
+                    message = response.choices[0].message
                 tool_calls = getattr(message, 'tool_calls', None) or []
                 if not tool_calls:
                     return cls.strip_thinking(message.content)

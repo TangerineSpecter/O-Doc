@@ -6,6 +6,7 @@ import {resolveQuantRoute} from './quant/routes';
 import {resolveImageGalleryRoute} from './imageGallery/groupRoutes';
 import {resolveNovelReaderRoute} from './novel/readerRoutes';
 import {analyticsTiming} from './agentWorld/analyticsTiming';
+import {resolveModelSettingsRoute} from './modelSettings';
 import packageJson from '../../package.json' with {type: 'json'};
 
 export const localHandlers = [
@@ -13,10 +14,18 @@ export const localHandlers = [
     http.get('https://api.github.com/repos/TangerineSpecter/O-Doc/tags', () => HttpResponse.json([{name: `v${packageJson.version}`, commit: {sha: '0'.repeat(40)}}])),
     http.all('/api/*', async ({request}) => {
         const state = new URLSearchParams(location.search).get('mockState');
+        const archivedDetail = new URL(request.url).pathname === '/api/settings/agent-world/combat/explorations/local-exploration/';
+        if (state === 'archived-slow' && archivedDetail) await delay(1800);
+        if (state === 'archived-error' && archivedDetail) {
+            return HttpResponse.json({code: 503, msg: '本地模拟探索记录加载失败', data: null}, {status: 503});
+        }
         if (state === 'slow') await delay(1800);
-        if (state === 'error' && (new URL(request.url).pathname.startsWith('/api/diary/') || (new URL(request.url).pathname.startsWith('/api/resource/') && new URL(request.url).pathname !== '/api/resource/list') || new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/') || new URL(request.url).pathname.startsWith('/api/novel/') || new URL(request.url).pathname.startsWith('/api/article/image/') || new URL(request.url).pathname === '/api/settings/locations/' || new URL(request.url).pathname === '/api/article/list')) {
+        if (state === 'error' && (new URL(request.url).pathname.startsWith('/api/settings/providers/') || new URL(request.url).pathname.startsWith('/api/settings/models/') || new URL(request.url).pathname.startsWith('/api/diary/') || (new URL(request.url).pathname.startsWith('/api/resource/') && new URL(request.url).pathname !== '/api/resource/list') || new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/') || new URL(request.url).pathname.startsWith('/api/novel/') || new URL(request.url).pathname.startsWith('/api/article/image/') || new URL(request.url).pathname === '/api/settings/locations/' || new URL(request.url).pathname === '/api/article/list')) {
             return HttpResponse.json({code: 503, msg: '本地模拟接口失败，可切回样例状态重试', data: null}, {status: 503});
         }
+        const modelData = await resolveModelSettingsRoute(request.clone(), state === 'empty');
+        if (modelData instanceof Response) return modelData;
+        if (modelData !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: modelData});
         const diaryData = await resolveDiaryRoute(request.clone(), state === 'empty');
         if (diaryData instanceof Response) return diaryData;
         if (diaryData !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: diaryData});

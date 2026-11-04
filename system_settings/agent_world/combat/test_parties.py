@@ -695,7 +695,7 @@ class PartyServiceTests(TestCase):
         with self.assertRaisesMessage(SyncError,'需要战斗同步14'):
             validate_source(source,{**meta,'combat_schema_version':13})
         with self.assertRaisesMessage(SyncError,'版本过新'):
-            validate_source(source,{**meta,'combat_schema_version':19})
+            validate_source(source,{**meta,'combat_schema_version':21})
 
     def test_completed_legacy_party_restores_without_converting_history(self):
         from utils.sync_manager import SyncManager
@@ -768,6 +768,14 @@ class PartyServiceTests(TestCase):
         explorations.finish('analytics-leaver',now=self.now+timedelta(seconds=54))
         self.force_clear(party,self.now+timedelta(seconds=61))
         residents={agent.pk:{'id':agent.pk,'name':agent.name} for agent in self.agents[:3]}
+        rows={row['id']:row for row in load_combat_statistics('admin',storage_time(self.now-timedelta(days=1)),
+            storage_time(self.now+timedelta(days=1)),residents)}
+        leaver=rows[self.agents[1].pk]
+        # A departed member's outcomes wait for the shared activity to finish.
+        self.assertEqual((leaver['kills'], leaver['recalled']), (0, 0))
+        self.assertEqual(rows[leader.actor_id]['kills'], 0)
+        self.assertEqual(rows[self.agents[2].pk]['explorations'], 0)
+        explorations.finish(leader.pk, 'completed', '统计结算检查', now=self.now+timedelta(seconds=62))
         rows={row['id']:row for row in load_combat_statistics('admin',storage_time(self.now-timedelta(days=1)),
             storage_time(self.now+timedelta(days=1)),residents)}
         leaver=rows[self.agents[1].pk]

@@ -627,51 +627,6 @@ export default function DiaryEditor({
                                     {error}
                                 </p>
                             )}
-
-                            {/* 底部悬浮状态条：字数、印记快捷入口（移动端）、一键排版、快捷键；保存/取消只保留顶栏一处 */}
-                            <div className="pointer-events-none sticky bottom-4 z-10 mt-10 flex justify-center">
-                                <div className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-zinc-200 bg-white/90 px-4 py-1.5 text-xs text-zinc-500 shadow-lg shadow-zinc-900/5 backdrop-blur-md">
-                                    <span className="diary-num">{wordCount} 字</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setDetailsOpen(true);
-                                            scrollContainerRef.current?.scrollTo({top: 0, behavior: 'smooth'});
-                                        }}
-                                        title="定位并编辑心情、天气、标签与配图"
-                                        className="inline-flex min-[1280px]:hidden items-center gap-1 font-medium text-zinc-700 transition-colors hover:text-orange-600"
-                                    >
-                                        <span className="h-3 w-px bg-zinc-200 -ml-1 mr-1" aria-hidden="true"/>
-                                        {draft.mood ? (
-                                            <DiaryMoodIcon mood={draft.mood} size={14}/>
-                                        ) : draft.weather ? (
-                                            <WeatherIcon weather={draft.weather} size={13}/>
-                                        ) : (
-                                            <Sparkles size={12}/>
-                                        )}
-                                        <span>印记与配图</span>
-                                    </button>
-                                    <span className="h-3 w-px bg-zinc-200" aria-hidden="true"/>
-                                    {formattedToast ? (
-                                        <span className="font-medium text-emerald-600">✓ 已整理排版</span>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            onClick={handleFormatProse}
-                                            disabled={!draft.content.trim()}
-                                            title="自动每段开头空两个字，规整中西文空格与中文标点"
-                                            className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-zinc-700 transition-colors hover:text-orange-600 disabled:opacity-30 disabled:hover:text-zinc-700"
-                                        >
-                                            <Wand2 size={12}/>
-                                            一键排版
-                                        </button>
-                                    )}
-                                    <span className="hidden h-3 w-px bg-zinc-200 sm:block" aria-hidden="true"/>
-                                    <span className="hidden sm:inline">
-                                        <kbd className="diary-num rounded border border-zinc-200 bg-zinc-50 px-1 text-[11px]">⌘/Ctrl S</kbd> 保存
-                                    </span>
-                                </div>
-                            </div>
                         </form>
                     ) : (
                         entry && (
@@ -689,6 +644,53 @@ export default function DiaryEditor({
                         )
                     )}
                 </div>
+
+                {/* 底部悬浮状态条：字数、印记快捷入口（移动端）、一键排版、快捷键；固定吸附于视口底部 */}
+                {editing && (
+                    <div className="pointer-events-none absolute bottom-5 inset-x-0 z-20 flex justify-center pb-[env(safe-area-inset-bottom)]">
+                        <div className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-zinc-200 bg-white/90 px-4 py-1.5 text-xs text-zinc-500 shadow-lg shadow-zinc-900/5 backdrop-blur-md">
+                            <span className="diary-num">{wordCount} 字</span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setDetailsOpen(true);
+                                    scrollContainerRef.current?.scrollTo({top: 0, behavior: 'smooth'});
+                                }}
+                                title="定位并编辑心情、天气、标签与配图"
+                                className="inline-flex min-[1280px]:hidden items-center gap-1 font-medium text-zinc-700 transition-colors hover:text-orange-600"
+                            >
+                                <span className="h-3 w-px bg-zinc-200 -ml-1 mr-1" aria-hidden="true"/>
+                                {draft.mood ? (
+                                    <DiaryMoodIcon mood={draft.mood} size={14}/>
+                                ) : draft.weather ? (
+                                    <WeatherIcon weather={draft.weather} size={13}/>
+                                ) : (
+                                    <Sparkles size={12}/>
+                                )}
+                                <span>印记与配图</span>
+                            </button>
+                            <span className="h-3 w-px bg-zinc-200" aria-hidden="true"/>
+                            {formattedToast ? (
+                                <span className="font-medium text-emerald-600">✓ 已整理排版</span>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleFormatProse}
+                                    disabled={!draft.content.trim()}
+                                    title="自动每段开头空两个字，规整中西文空格与中文标点"
+                                    className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-zinc-700 transition-colors hover:text-orange-600 disabled:opacity-30 disabled:hover:text-zinc-700"
+                                >
+                                    <Wand2 size={12}/>
+                                    一键排版
+                                </button>
+                            )}
+                            <span className="hidden h-3 w-px bg-zinc-200 sm:block" aria-hidden="true"/>
+                            <span className="hidden sm:inline">
+                                <kbd className="diary-num rounded border border-zinc-200 bg-zinc-50 px-1 text-[11px]">⌘/Ctrl S</kbd> 保存
+                            </span>
+                        </div>
+                    </div>
+                )}
             </section>
 
             <ConfirmationModal

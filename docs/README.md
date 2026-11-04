@@ -91,6 +91,7 @@
 - [Grsai 生图接入](./integrations/Grsai生图接入.md)
 - [飞书 IM 接入技术说明](./integrations/飞书IM接入技术说明.md)
 - [New API 模型接入](./integrations/NewAPI模型接入.md)
+- [OpenAI 模型接入](./integrations/OpenAI模型接入.md)
 
 ## 配置与操作指南
 

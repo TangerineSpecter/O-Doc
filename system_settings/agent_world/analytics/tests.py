@@ -468,11 +468,11 @@ class CombatAnalyticsTests(AnalyticsTests):
             number=1, monster={'id':'boss', 'name':'首领', 'rank':'boss', 'level':10}, result={'killed':True}, ended_at=self.at)
         result = self.fetch()
         row = next(row for row in result['combatComparison'] if row['id']==self.a.pk)
-        self.assertEqual((row['explorations'],row['settled'],row['ongoing']), (3,2,1))
-        self.assertEqual((row['successRate'],row['elapsedSeconds'],row['kills'],row['bossKills']), (50.0,1050,15,1))
-        self.assertEqual((row['energy'],row['potions'],row['experience']), (12,6,300))
+        self.assertEqual((row['explorations'],row['settled'],row['ongoing']), (2,2,1))
+        self.assertEqual((row['successRate'],row['elapsedSeconds'],row['kills'],row['bossKills']), (50.0,900,10,1))
+        self.assertEqual((row['energy'],row['potions'],row['experience']), (8,4,200))
         self.assertEqual(row['monsters'][0]['highestLevel'],10)
-        self.assertEqual(row['unclassifiedKills'],14)
+        self.assertEqual(row['unclassifiedKills'],9)
         self.assertEqual(result['combatComparison'],self.fetch()['combatComparison'])
         self.assertEqual([row['id'] for row in self.fetch(self.b.pk)['combatComparison']],[self.b.pk])
 
@@ -512,6 +512,7 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertEqual(rows[self.a.pk]['explorations'],0)
         self.assertIsNone(rows[self.a.pk]['successRate'])
         self.assertEqual(rows[self.b.pk]['ongoing'],1)
+        self.assertEqual((rows[self.b.pk]['explorations'], rows[self.b.pk]['kills']), (0, 0))
         self.assertIsNone(rows[self.b.pk]['successRate'])
         self.assertIsNone(rows[self.b.pk]['killsPerHour'])
 
@@ -552,8 +553,15 @@ class CombatAnalyticsTests(AnalyticsTests):
                 self.assertEqual(row['jobName'], name)
 
     def party_kill(self, run, unit, *, template='monster.slime', rank='normal', shared=None, at=None, owner='admin'):
-        from ..combat.party_models import AdventureEvent
+        from ..combat.party_models import AdventureEvent, AdventureMember, AdventureParty
         run.snapshot['party_id']='party-test';run.save(update_fields=['snapshot'])
+        party, _ = AdventureParty.objects.get_or_create(pk='party-test', defaults={'owner_id':run.owner_id,
+            'catalog_id':'test', 'dungeon_id':'test', 'leader_id':run.actor_id,
+            'status':'completed', 'ends_at':self.at})
+        if party.owner_id == run.owner_id:
+            AdventureMember.objects.get_or_create(pk='member:'+run.pk, defaults={'party_id':party.pk,
+                'exploration_id':run.pk, 'owner_id':run.owner_id, 'actor_id':run.actor_id,
+                'active':False, 'joined_at':self.at, 'ends_at':self.at, 'left_at':self.at})
         shared=shared or 'shared-'+unit
         AdventureEvent.objects.get_or_create(pk=shared,defaults={'party_id':'party-test','owner_id':owner,
             'sequence':AdventureEvent.objects.count()+1,'kind':'round','digest':'test','created_at':at or self.at})
@@ -561,6 +569,47 @@ class CombatAnalyticsTests(AnalyticsTests):
             actor_id=run.actor_id,exploration_id=run.pk,sequence=CombatFact.objects.filter(actor_id=run.actor_id).count()+1,
             kind='round',digest='test',created_at=self.at,payload={'shared_event_id':shared,'events':[
                 {'kind':'kill','monster':{'id':template,'unit_id':unit,'name':template,'rank':rank,'level':20},'experience':10,'rewards':[]}]})
+
+    def test_unfinished_battle_has_status_only_and_no_round_statistics(self):
+        from ..combat.party_models import AdventureParty
+
+        run = self.exploration('ongoing-battle', self.a, status='active', kills=1, elapsed=300)
+        self.party_kill(run, 'ongoing-unit')
+        AdventureParty.objects.filter(pk='party-test').update(status='active')
+        with CaptureQueriesContext(connection) as captured:
+            result = self.fetch()
+        row = next(item for item in result['combatComparison'] if item['id'] == self.a.pk)
+        self.assertEqual((row['ongoing'], row['explorations'], row['kills'], row['experience'], row['elapsedSeconds']),
+                         (1, 0, 0, 0, 0))
+        self.assertEqual(result['outcomes']['wins'], 0)
+        self.assertEqual(next(item['count'] for item in result['categories'] if item['key'] == 'exploration'), 0)
+        self.assertFalse(any('system_settings_combatfact' in item['sql'].lower()
+            and '"kind" = \'round\'' in item['sql'].lower() for item in captured.captured_queries))
+
+        # A member who has left still waits for the whole party to finish.
+        Exploration.objects.filter(pk=run.pk).update(status='recalled', ended_at=self.at)
+        still_open = self.fetch()
+        self.assertEqual(still_open['outcomes']['wins'], 0)
+        self.assertEqual(next(item for item in still_open['combatComparison'] if item['id'] == self.a.pk)['kills'], 0)
+        AdventureParty.objects.filter(pk='party-test').update(status='completed')
+        finished = self.fetch()
+        row = next(item for item in finished['combatComparison'] if item['id'] == self.a.pk)
+        self.assertEqual((row['ongoing'], row['explorations'], row['kills'], row['elapsedSeconds']), (0, 1, 1, 300))
+        self.assertEqual(finished['outcomes']['wins'], 1)
+
+    def test_completed_party_flag_is_insufficient_while_a_member_is_still_running(self):
+        first = self.exploration('member-finished', self.a, kills=1)
+        second = self.exploration('member-running', self.b, status='active', kills=1)
+        self.party_kill(first, 'shared-unit')
+        self.party_kill(second, 'shared-unit')
+        pending = self.fetch()
+        rows = {item['id']: item for item in pending['combatComparison']}
+        self.assertEqual((rows[self.a.pk]['kills'], rows[self.b.pk]['kills'], pending['outcomes']['wins']), (0, 0, 0))
+        self.assertEqual(rows[self.b.pk]['ongoing'], 1)
+        Exploration.objects.filter(pk=second.pk).update(status='completed', ended_at=self.at)
+        finished = self.fetch()
+        rows = {item['id']: item for item in finished['combatComparison']}
+        self.assertEqual((rows[self.a.pk]['kills'], rows[self.b.pk]['kills'], finished['outcomes']['wins']), (1, 1, 1))
 
     def test_party_members_each_count_success_experience_and_all_monsters_without_wave_double_count(self):
         a=self.exploration('party-a',self.a,kills=3)
@@ -657,6 +706,20 @@ class CombatAnalyticsTests(AnalyticsTests):
                    if 'system_settings_combatencounter' in query['sql'].lower()]
         self.assertTrue(queries)
         self.assertFalse(any('"system_settings_combatencounter"."monster"' in query for query in queries))
+
+    def test_occurrence_window_only_loads_relevant_solo_summaries(self):
+        from .combat_kills import load_combat_kills
+
+        recent = self.exploration('recent-solo-window', self.a)
+        old = self.exploration('old-solo-window', self.a)
+        for run, at in ((recent, self.at), (old, self.at - timedelta(days=90))):
+            CombatEncounter.objects.create(pk=run.pk + ':kill', owner_id='admin', actor_id=self.a.pk,
+                exploration_id=run.pk, number=1, monster={'id': 'slime'}, result={'killed': True}, ended_at=at)
+        with patch('system_settings.agent_world.analytics.solo_daily.load_solo_kills', return_value=(set(), [])) as load:
+            kills = list(load_combat_kills('admin', actor_ids=[self.a.pk], start=self.at - timedelta(hours=1),
+                                           end=self.at + timedelta(hours=1), include_daily=True))
+        self.assertEqual({kill.exploration_id for kill in kills}, {recent.pk})
+        self.assertEqual(set(load.call_args.args[1]), {recent.pk})
 
     def test_kill_lookup_ignores_rounds_without_kills_in_both_query_modes(self):
         from .combat_kills import load_combat_kills

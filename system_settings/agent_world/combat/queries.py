@@ -106,6 +106,23 @@ def profile_view(owner,agent):
     # Shared waves may be left after a partial clear; actual personal kill receipts remain authoritative.
     for payload in CombatFact.objects.filter(owner_id=owner,actor_id=agent.pk,kind='round').values_list('payload',flat=True):
         defeated.update(e['monster']['id'] for e in payload.get('events',[]) if e.get('kind')=='kill' and e.get('monster',{}).get('id'))
+    # A partially cleared shared wave may not mark its encounter killed. Its
+    # compact settlement remains the authoritative personal kill evidence.
+    from .analytics_models import CombatPartySettlement
+    from .retention_projection import validate_archive
+    from .store import digest
+    from utils.sync_policy import SyncError
+    for marker in CombatPartySettlement.objects.filter(owner_id=owner, content__has_key='archive',
+            content__runs__contains=[{'actor_id': agent.pk}]).iterator(chunk_size=200):
+        if marker.digest != digest(marker.content):
+            raise ValueError('已归档战斗的结算指纹不一致')
+        try:
+            validate_archive(marker.content)
+        except (ValueError, KeyError, TypeError, AttributeError, IndexError, SyncError) as exc:
+            raise ValueError('已归档战斗的结算无法核对') from exc
+        for kill in marker.content['kills']:
+            if any(person['actor_id'] == agent.pk for person in kill['participants']):
+                defeated.add(kill['monster']['id'])
     return {'initialized':bool(profile),'actor_id':agent.pk,'progression':progression,'attributes':derived, **resources,
         'loadout':profile.loadout if profile else {},'equipment':equipment_items,'skills':skills,
         'potions':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['potions']],
@@ -118,6 +135,7 @@ def profile_view(owner,agent):
 
 def snapshot(run,cursor=0,limit=100):
     from .party_queries import snapshot as party_snapshot
+    from .retention_observation import archived_kills
     # The shared gate spans the complete read, preventing a round from crossing this snapshot.
     facts=CombatFact.objects.filter(exploration_id=run.pk).order_by('sequence')
     latest=facts.last()
@@ -151,6 +169,7 @@ def snapshot(run,cursor=0,limit=100):
         from utils.resource_assets import get_resource_view_url
         visual['head_image_url'] = get_resource_view_url(head_asset_id)
         visual['head_behind_body'] = appearance.get('transform', {}).get('hair_layer') == 'behind'
+    history_archived, archived_outcomes = archived_kills(run)
     return {'id':run.pk,'actor_id':run.actor_id,'version':run.revision,'can_control':bool(local_runtime(run)),'catalog_version':run.catalog_id,'stage':run.phase,'status':run.status,'reason':run.reason,
         'remaining_seconds':remaining if end else None,
         'elapsed_seconds':run.elapsed_seconds,'duration_seconds':run.duration_seconds,'next_tick_at':local_time(run.next_tick_at).isoformat() if run.next_tick_at else None,
@@ -158,6 +177,7 @@ def snapshot(run,cursor=0,limit=100):
         'party':party_snapshot(run),
         'player':run.state.get('player'),'enemy':run.state.get('enemy'),'visual':visual,'potions':run.state.get('potions',{}),
         'elixirs':[{key:entry.get(key) for key in ('recipe_id','name','stars','count','remaining','summary','trigger')} for entry in run.state.get('elixirs',[])],'result':run.result,
+        'history_archived':history_archived,'archived_kills':archived_outcomes,
         'events':events,'latest_cursor':confirmed,'next_cursor':events[-1]['sequence'] if events else min(cursor,confirmed),'has_more':bool(events and events[-1]['sequence']<confirmed)}
 
 

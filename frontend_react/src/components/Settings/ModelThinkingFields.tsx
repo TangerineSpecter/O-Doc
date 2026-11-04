@@ -1,18 +1,35 @@
 import {Select} from '../common/Select';
-import type {ThinkingCapability, ThinkingMode, ThinkingProtocol} from '../../types/api/setting';
+import type {ReasoningEffort, ThinkingCapability, ThinkingMode, ThinkingProtocol} from '../../types/api/setting';
+
+const effortLabels: Record<ReasoningEffort, string> = {
+    default: '默认', none: '关闭（none）', low: '低（low）', medium: '中（medium）',
+    high: '高（high）', xhigh: '极高（xhigh）', max: '最高（max）',
+};
 
 interface Props {
     mode: ThinkingMode;
     protocol: ThinkingProtocol;
+    effort: ReasoningEffort;
     onModeChange: (mode: ThinkingMode) => void;
     onProtocolChange: (protocol: ThinkingProtocol) => void;
+    onEffortChange: (effort: ReasoningEffort) => void;
     capability: {loading: boolean; data?: ThinkingCapability; error?: string};
     manualProtocol: boolean;
 }
 
-export function ModelThinkingFields({mode, protocol, onModeChange, onProtocolChange, capability, manualProtocol}: Props) {
+export function ModelThinkingFields({mode, protocol, effort, onModeChange, onProtocolChange, onEffortChange, capability, manualProtocol}: Props) {
+    const efforts = capability.data?.effortOptions || [];
+    const selectedEffort = effort !== 'default' ? effort : mode === 'enabled' ? 'medium' : mode === 'disabled' ? 'none' : 'default';
     return <div className="space-y-3 border-t border-slate-100 pt-4">
-        {capability.data?.supported && <div>
+        {capability.data?.supported && efforts.length > 0 && <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">思考强度</label>
+            <Select<ReasoningEffort> value={selectedEffort} onChange={onEffortChange} menuPortal options={[
+                {value: 'default', label: effortLabels.default, description: '沿用现有任务与服务商默认行为'},
+                ...efforts.map(value => ({value, label: effortLabels[value]})),
+            ]}/>
+            <p className="text-xs text-slate-400 mt-1.5">用于此模型的对话、图像识别和 Agent 任务；强度越高，通常需要更多时间和 Token。</p>
+        </div>}
+        {capability.data?.supported && efforts.length === 0 && <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">思考模式</label>
             <Select<ThinkingMode> value={mode} onChange={onModeChange} menuPortal options={[
                 {value: 'default', label: '默认', description: '沿用现有任务与服务商默认行为'},

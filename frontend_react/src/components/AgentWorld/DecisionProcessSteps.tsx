@@ -8,7 +8,7 @@ export function DecisionProcessSteps({guide}: {guide: DecisionProcessGuide}) {
             <span className="rounded-full bg-orange-50 px-3 py-1 text-orange-700">模型选择 / 概率：有限选项或内容生成</span>
             <span className="rounded-full bg-slate-100 px-3 py-1">系统判断 / 执行：过滤、概率抽签、验证与业务结算</span>
         </div>
-        <ol aria-label="执行步骤" className="space-y-3">
+        <ol aria-label="执行步骤和条件分支" className="space-y-3">
             {guide.steps.map((step, index) => <li key={`${index}-${step.title}`} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex items-start gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold tabular-nums text-slate-600">{index + 1}</span>

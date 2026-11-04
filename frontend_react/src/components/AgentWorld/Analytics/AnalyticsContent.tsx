@@ -456,7 +456,7 @@ export default function AnalyticsContent({data}: {data: ResidentAnalytics}) {
                                     <span className="font-bold tabular-nums text-slate-800">{outcomes.explorations} 次</span>
                                 </div>
                                 <div className="flex items-center justify-between text-xs">
-                                    <span className="text-slate-500" title="按实际击杀发生时间统计；世界汇总对同一只组队魔物去重，居民筛选计本人参与击杀">击败魔物</span>
+                                    <span className="text-slate-500" title="已结束战斗按实际击杀发生时间统计；世界汇总对同一只组队魔物去重，居民筛选计本人参与击杀">击败魔物</span>
                                     <span className="font-bold tabular-nums text-slate-800">{outcomes.wins} 只</span>
                                 </div>
                             </div>

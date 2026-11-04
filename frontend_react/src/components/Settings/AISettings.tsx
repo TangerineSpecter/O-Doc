@@ -4,6 +4,7 @@ import {CheckCircle2, Edit2, Eye, Globe, ImagePlus, Key, Layers, Loader2, Plus, 
 import {AIModel, AIModelConnectionResult, AIProvider, ModelType, SystemAIConfig, testAIModelConnection, fetchProviderFavicon} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 import {useToast} from '../common/ToastProvider';
+import {modelThinkingLabel} from '../../utils/modelThinkingLabel';
 
 import deepseekLogo from '@/assets/models/deepseek.svg'
 import qwenLogo from '@/assets/models/qwen.png'
@@ -199,7 +200,7 @@ export const AISettings = ({
 
     const buildModelOptions = (type: ModelType): SettingsSelectOption<string>[] => {
         const supportedImageModelIds = type === 'image_generation'
-            ? new Set(providers.filter(provider => provider.type === 'Grsai' || provider.type === 'NewAPI')
+            ? new Set(providers.filter(provider => ['Grsai', 'NewAPI', 'OpenAi'].includes(provider.type))
                 .flatMap(provider => (provider.models || []).map(model => model.id)))
             : null;
         return getModelsByType(type).filter(model => !supportedImageModelIds || supportedImageModelIds.has(model.id)).map(model => ({
@@ -232,7 +233,7 @@ export const AISettings = ({
         try {
             const result = await testAIModelConnection(model.id);
             setConnectionResults(prev => ({...prev, [model.id]: result}));
-            toast.success(`${model.name} 连通性正常`);
+            toast.success(result.simulated ? `${model.name} 本地模拟完成，未连接真实服务` : `${model.name} 连通性正常`);
         } catch (error: any) {
             const detail = error?.message || '连通性检测失败';
             setConnectionResults(prev => ({...prev, [model.id]: {ok: false, detail}}));
@@ -382,7 +383,7 @@ export const AISettings = ({
                                 />
                             </div>
                             <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                                <ImagePlus className="w-3 h-3"/> 用于提示词库生图和生成文章配图；支持 Grsai 和 New API 模型
+                                <ImagePlus className="w-3 h-3"/> 用于提示词库生图和生成文章配图；支持 Grsai、New API 和 OpenAI 模型
                             </p>
                         </div>
                     </div>
@@ -489,9 +490,9 @@ export const AISettings = ({
                                                                 title={model.name}>{model.name}</span>
                                                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                                                 <ModelTypeBadge type={model.type}/>
-                                                                {['chat', 'image'].includes(model.type) && (model.thinkingCapability?.supported || model.thinkingMode && model.thinkingMode !== 'default') && (
+                                                                {['chat', 'image'].includes(model.type) && (model.thinkingCapability?.supported || model.thinkingMode && model.thinkingMode !== 'default' || model.reasoningEffort && model.reasoningEffort !== 'default') && (
                                                                     <span className="text-[10px] text-slate-500 shrink-0 whitespace-nowrap">
-                                                                        思考：{model.thinkingCapability && !model.thinkingCapability.supported ? '需确认能力' : model.thinkingMode === 'enabled' ? '开启' : model.thinkingMode === 'disabled' ? '关闭' : '默认'}
+                                                                        {modelThinkingLabel(model)}
                                                                     </span>
                                                                 )}
                                                                 {result && (
@@ -501,7 +502,7 @@ export const AISettings = ({
                                                                     >
                                                                         {result.ok ? <CheckCircle2 className="w-3 h-3 shrink-0"/> :
                                                                             <XCircle className="w-3 h-3 shrink-0"/>}
-                                                                        <span>{result.ok ? `${result.elapsedMs}ms` : '失败'}</span>
+                                                                        <span>{result.ok ? ('simulated' in result && result.simulated ? '本地模拟' : `${result.elapsedMs}ms`) : '失败'}</span>
                                                                     </span>
                                                                 )}
                                                             </div>

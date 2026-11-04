@@ -64,6 +64,17 @@ def fake_factory(responder, requests, clients):
 
 
 class BoundedCompletionTests(SimpleTestCase):
+    def test_terra_bounded_request_uses_saved_effort_and_openai_output_limit(self):
+        for effort in ('default', 'none', 'high'):
+            requests, clients = [], []
+            config = {**CONFIG, 'provider_type': 'OpenAi', 'model_name': 'gpt-6.1-terra', 'reasoning_effort': effort}
+            with patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(lambda _: FakeStream('done'), requests, clients)):
+                self.assertEqual(complete(config, 'test', json_output=False, max_tokens=6000, extra_body={}), 'done')
+            self.assertEqual(requests[0]['extra_body']['max_completion_tokens'], 6000)
+            self.assertNotIn('max_tokens', requests[0])
+            self.assertEqual(requests[0].get('extra_body', {}).get('reasoning_effort'), None if effort == 'default' else effort)
+            self.assertEqual('temperature' in requests[0], effort == 'none')
+
     def test_openai_reasoning_mode_preserves_temperature_compatibility(self):
         for mode, effort in (('enabled', 'medium'), ('disabled', 'none')):
             with self.subTest(mode=mode):

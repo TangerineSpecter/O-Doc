@@ -31,7 +31,7 @@ interface ColumnDef {
 const columns: ColumnDef[] = [
     {key: 'kills', label: '击败魔物', icon: Swords, tip: '累计成功击败的魔物总只数'},
     {key: 'bossKills', label: '首领', icon: Crown, tip: '击破的地牢领主/首领魔物数量'},
-    {key: 'explorations', label: '探索次数', icon: Compass, tip: '实际出发的战斗探索总场次'},
+    {key: 'explorations', label: '探索次数', icon: Compass, tip: '已结束且实际出发的战斗探索场次'},
     {key: 'successRate', label: '成功率', icon: Target, tip: '按计划完成结算的探索占比'},
     {key: 'elapsedSeconds', label: '探索时长', icon: Clock, tip: '实际在战斗与探索中推进的累计时长'},
     {key: 'experience', label: '经验', icon: Sparkles, tip: '探索战斗累计获取的角色经验 EXP'},
@@ -383,7 +383,7 @@ export default function CombatResidentsRanking({
             </div>
 
             <p className="mt-2.5 text-[11px] leading-5 text-slate-400">
-                默认按击败魔物、首领、经验依次排序。仅统计区间内实际出发的探索及其最新成果；未结算不进入成功率分母。组队共同击杀分别计入参与居民，合计为参与击杀人次。点击整行任意位置查看完整战斗经历档案。
+                默认按击败魔物、首领、经验依次排序。仅统计区间内实际出发且已结束的探索；组队须等待整队结束，进行中只显示状态。组队共同击杀分别计入参与居民，合计为参与击杀人次。点击整行任意位置查看完整战斗经历档案。
             </p>
 
             {selected && (

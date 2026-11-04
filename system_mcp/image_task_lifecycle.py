@@ -64,7 +64,7 @@ def recover_battle_head_task(task_id: str, user_id: str, agent_key: str, scene: 
     """Manually query a timed-out request once; never submit a new generation."""
     from .image_generation_tasks import _model, _download, image_task_context
     from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
-    from system_settings.newapi_images import NewApiImageClient
+    from system_settings.newapi_images import compatible_image_client
 
     task = ImageGenerationTask.objects.filter(
         pk=task_id, user_id=user_id, agent_key=agent_key, request_data__scene=scene,
@@ -82,7 +82,7 @@ def recover_battle_head_task(task_id: str, user_id: str, agent_key: str, scene: 
         raise ValueError('原任务结果正在查询，请稍后重试')
     try:
         model = _model(task)
-        client = GrsaiImageClient(model) if task.provider_type == 'Grsai' else NewApiImageClient(model)
+        client = GrsaiImageClient(model) if task.provider_type == 'Grsai' else compatible_image_client(model)
         image_url = task.image_url
         if not image_url:
             if not task.provider_task_id or task.provider_type != 'Grsai':

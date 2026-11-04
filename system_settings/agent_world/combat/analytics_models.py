@@ -23,3 +23,21 @@ class CombatPartyDay(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=['party_id', 'day'], name='combat_party_day_unique')]
         indexes = [models.Index(fields=['owner_id', 'day'], name='combat_day_owner_date')]
+
+
+class CombatPartySettlement(models.Model):
+    """Compact, synchronized results from one verified completed session."""
+    id = models.CharField(primary_key=True, max_length=64)
+    owner_id = models.CharField(max_length=40, db_index=True)
+    version = models.PositiveSmallIntegerField(default=1)
+    content = models.JSONField(default=dict)
+    digest = models.CharField(max_length=64)
+
+
+class CombatSoloSettlement(models.Model):
+    """Compact, synchronized outcome of one completed legacy solo run."""
+    id = models.CharField(primary_key=True, max_length=64)
+    owner_id = models.CharField(max_length=40, db_index=True)
+    version = models.PositiveSmallIntegerField(default=1)
+    content = models.JSONField(default=dict)
+    digest = models.CharField(max_length=64)

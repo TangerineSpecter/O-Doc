@@ -76,24 +76,36 @@ def sdk_retries(default: int = 1) -> int:
 
 
 def create_completion(client, config: dict, *, retries: int = 1, **parameters):
+    return _create_tracked(client.chat.completions.create, config, retries=retries, chat=True, **parameters)
+
+
+def create_response(client, config: dict, *, retries: int = 1, **parameters):
+    """Record each Responses API attempt using the same attribution as chat."""
+    if parameters.get('stream'):
+        raise ValueError('Responses 流式用量采集尚未接入')
+    return _create_tracked(client.responses.create, config, retries=retries, chat=False, **parameters)
+
+
+def _create_tracked(create, config: dict, *, retries: int, chat: bool, **parameters):
     if usage_context() is None:
-        return client.chat.completions.create(**parameters)
+        return create(**parameters)
     from openai import APIConnectionError, APIStatusError
     from system_settings.token_usage.capture import Capture
     for attempt in range(1, retries + 2):
-        if parameters.get('stream') and config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax', 'NewAPI'):
+        if chat and parameters.get('stream') and config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax', 'NewAPI'):
             parameters['stream_options'] = {'include_usage': True}
         capture = Capture(config, attempt=attempt)
         if hasattr(capture, 'set_request'):
             capture.set_request(parameters)
         try:
-            response = client.chat.completions.create(**parameters)
+            response = create(**parameters)
             if parameters.get('stream'):
                 return TrackedStream(response, capture)
             if hasattr(capture, 'set_response'):
                 capture.set_response(response)
             capture.usage(getattr(response, 'usage', None))
-            capture.finish('success')
+            status = getattr(response, 'status', None) if not chat else None
+            capture.finish('failed' if not chat and status != 'completed' else 'success')
             return response
         except BaseException as exc:
             capture.finish('failed', error=exc)

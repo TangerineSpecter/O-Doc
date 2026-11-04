@@ -7,7 +7,7 @@ import {DecisionProcessSteps} from './DecisionProcessSteps';
 
 export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
     const [open, setOpen] = useState(false);
-    // 领域配置分别描述模型问题、概率抽签、条件跳过与失败恢复。
+    // 领域配置分别描述模型问题、概率抽签、条件跳过与供应商失败恢复。
     const guide = decisionProcessGuides[kind];
     return <>
         <button type="button" aria-label={`查看${guide.title}`} title={`${guide.title}：${guide.subtitle}`}

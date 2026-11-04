@@ -5,6 +5,8 @@ import {ModelThinkingFields} from './ModelThinkingFields';
 import { ModelType } from '../../api/setting';
 import {Eye, ImagePlus, Layers, MessageCircle, SearchCheck, X} from 'lucide-react';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
+import {OpenAIModelSelector} from './OpenAIModelSelector';
+import {OPENAI_MODEL_OPTIONS} from './openaiModelCatalog';
 
 interface ModelModalProps {
     isOpen: boolean;
@@ -16,8 +18,9 @@ interface ModelModalProps {
 }
 
 export const ModelModal = ({ isOpen, onClose, onSave, initialData, providerId, providerType }: ModelModalProps) => {
-    const [form, setForm] = useState<ModelInput>(() => ({name: initialData?.name || '', type: initialData?.type || 'chat', thinkingMode: initialData?.thinkingMode || 'default', thinkingProtocol: initialData?.thinkingProtocol || 'auto'}));
+    const [form, setForm] = useState<ModelInput>(() => ({name: initialData?.name || '', type: initialData?.type || 'chat', thinkingMode: initialData?.thinkingMode || 'default', thinkingProtocol: initialData?.thinkingProtocol || 'auto', reasoningEffort: initialData?.reasoningEffort || 'default'}));
     const [saving, setSaving] = useState(false);
+    const [customOpenAIModel, setCustomOpenAIModel] = useState(() => !!initialData?.name && !OPENAI_MODEL_OPTIONS[initialData.type].some(item => item.value === initialData.name));
     const capability = useModelThinkingCapability(providerId, form.name, form.type, form.thinkingProtocol);
     const modelSupportsThinking = !!capability.data?.supported;
     const supportsManualProtocol = ['NewAPI', 'custom'].includes(providerType);
@@ -25,7 +28,9 @@ export const ModelModal = ({ isOpen, onClose, onSave, initialData, providerId, p
     const save = async () => {
         setSaving(true);
         try {
-            if (await onSave({...form, thinkingMode: modelSupportsThinking ? form.thinkingMode : 'default'})) onClose();
+            const effortOptions = capability.data?.effortOptions || [];
+            if (await onSave({...form, thinkingMode: modelSupportsThinking ? form.thinkingMode : 'default',
+                reasoningEffort: form.reasoningEffort === 'default' || effortOptions.includes(form.reasoningEffort) ? form.reasoningEffort : 'default'})) onClose();
         } finally { setSaving(false); }
     };
     const modelTypeOptions: { type: ModelType; label: string; icon: typeof MessageCircle }[] = [
@@ -57,7 +62,7 @@ export const ModelModal = ({ isOpen, onClose, onSave, initialData, providerId, p
                     </button>
                 </div>
                 <div className="space-y-4">
-                    <div>
+                    {providerType !== 'OpenAi' && <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1.5">模型名称 (Model ID)</label>
                         <input
                             type="text"
@@ -67,7 +72,7 @@ export const ModelModal = ({ isOpen, onClose, onSave, initialData, providerId, p
                             onChange={e => setForm({ ...form, name: e.target.value })}
                         />
                         <p className="text-[10px] text-slate-400 mt-1">需与服务商 API 支持的模型名称一致</p>
-                    </div>
+                    </div>}
                     <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1.5">模型功能类型</label>
                         <div className="grid grid-cols-2 gap-2">
@@ -75,7 +80,12 @@ export const ModelModal = ({ isOpen, onClose, onSave, initialData, providerId, p
                                 <button
                                     key={type}
                                     type="button"
-                                    onClick={() => setForm({ ...form, type })}
+                                    onClick={() => {
+                                        if (form.type === type) return;
+                                        const preset = providerType === 'OpenAi' && OPENAI_MODEL_OPTIONS[form.type].some(item => item.value === form.name);
+                                        setForm({...form, type, name: preset ? '' : form.name, thinkingMode: 'default', reasoningEffort: 'default'});
+                                        if (preset) setCustomOpenAIModel(false);
+                                    }}
                                     className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs border transition-all ${form.type === type ? 'bg-orange-50 border-orange-500 text-orange-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                 >
                                     <Icon className="w-3.5 h-3.5"/>
@@ -84,10 +94,16 @@ export const ModelModal = ({ isOpen, onClose, onSave, initialData, providerId, p
                             ))}
                         </div>
                     </div>
+                    {providerType === 'OpenAi' && <OpenAIModelSelector type={form.type} name={form.name} custom={customOpenAIModel}
+                        onSelect={(name, custom) => {
+                            setCustomOpenAIModel(custom);
+                            setForm({...form, name, ...(name !== form.name ? {thinkingMode: 'default' as const, reasoningEffort: 'default' as const} : {})});
+                        }}/>}
                     {['chat', 'image'].includes(form.type) && <ModelThinkingFields
                         capability={capability} manualProtocol={supportsManualProtocol}
-                        mode={form.thinkingMode} protocol={form.thinkingProtocol}
-                        onModeChange={thinkingMode => setForm({...form, thinkingMode})}
+                        mode={form.thinkingMode} protocol={form.thinkingProtocol} effort={form.reasoningEffort}
+                        onModeChange={thinkingMode => setForm({...form, thinkingMode, reasoningEffort: 'default'})}
+                        onEffortChange={reasoningEffort => setForm({...form, reasoningEffort, thinkingMode: 'default'})}
                         onProtocolChange={thinkingProtocol => setForm({...form, thinkingProtocol})}
                     />}
                 </div>

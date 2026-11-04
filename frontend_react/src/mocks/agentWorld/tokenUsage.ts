@@ -29,7 +29,17 @@ export const observationRequests: TokenRequest[] = residents.flatMap((actor, a) 
     const persona = '喜欢研究行情，关注预算与生活目标。'.repeat(4);
     const messages: unknown[] = [{role: 'system', content: persona}, {role: 'user', content: JSON.stringify({account: {cash: '8430', reserved: '1500'}, role_prompt: persona, farm: {plots: 32, queue: Array.from({length: 8}, (_, n) => ({crop: '草莓', plot: n + 1}))}})}];
     if (investment && i >= 2) messages.push({role: 'assistant', content: null, tool_calls: [{id: 'quotes-1', type: 'function', function: {name: 'get_quotes', arguments: '{"codes":["600000"]}'}}]}, {role: 'tool', tool_call_id: 'quotes-1', content: JSON.stringify({quote: {code: '600000', price: 12.31}, indicators: {macd: .12}, history: Array.from({length: i >= 3 ? 100 : 20}, (_, n) => ({day: n + 1, close: 12 + n / 100, volume: 1800000}))})});
-    bodies.set(row.id, i === 8 ? {available: false, reason: 'not_found', message: '当前服务器未找到该请求的输入输出正文文件'} : {
+    bodies.set(row.id, i === 8 ? {available: false, reason: 'not_found', message: '当前服务器未找到该请求的输入输出正文文件'} : i === 2 ? {
+        available: true, status: row.status,
+        request: {model: 'gpt-6.1-terra', store: false, reasoning: {effort: 'low'}, input: [
+            ...messages.slice(0, 2), {type: 'reasoning', id: 'local-reasoning', encrypted_content: 'local-opaque-state'},
+            {type: 'function_call', call_id: 'quotes-1', name: 'get_quotes', arguments: '{"codes":["600000"]}'},
+            {type: 'function_call_output', call_id: 'quotes-1', output: '{"price":12.31}'},
+        ], tools: [{type: 'function', name: 'get_quotes', description: '读取报价', parameters: {type: 'object'}}]},
+        response: {output: [{type: 'reasoning', id: 'local-reasoning-next', encrypted_content: 'local-opaque-next'},
+            {type: 'message', role: 'assistant', content: [{type: 'output_text', text: '报价已读取，继续检查持仓。'}]},
+            {type: 'function_call', call_id: 'holdings-1', name: 'get_holdings', arguments: '{}'}]},
+    } : {
         available: true, status: row.status, request: {model: row.modelName, messages, tools: [{type: 'function', function: {name: 'get_quotes', description: '读取报价与行情时点', parameters: {type: 'object', properties: {codes: {type: 'array', items: {type: 'string'}}}}}}]},
         response: {choices: [{message: i === 1 || i === 5 ? {role: 'assistant', content: '先读取当前状态。', tool_calls: [{id: 'quotes-1', type: 'function', function: {name: 'get_quotes', arguments: '{"codes":["600000"]}'}}]} : {role: 'assistant', content: i === 3 ? '{"action":"buy","quantity":"待定"}' : i === 4 ? '{"action":"hold","reason":"保留旅行预算"}' : '{"choice":"ready","reason":"结合库存与资金安排"}'}}]},
     });

@@ -69,3 +69,31 @@ test('工具调用输出优先用工具名作为摘要', () => {
     assert.equal(output?.blocks[0].text, '我先查看一下市场情况');
     assert.equal(output?.blocks[1].label, '工具调用');
 });
+
+test('Responses 请求保留工具调用和结果关系，推理状态只显示占位说明', () => {
+    const blocks = inputBlocksFromRequest({input: [
+        {role: 'system', content: '遵守规则'}, {role: 'user', content: '{"market_state":{"cash":10}}'},
+        {type: 'reasoning', id: 'r1', encrypted_content: 'private-replay-state'},
+        {type: 'function_call', call_id: 'call-1', name: 'get_quotes', arguments: '{"code":"A"}'},
+        {type: 'function_call_output', call_id: 'call-1', output: '{"price":12}'},
+    ], tools: [{type: 'function', name: 'get_quotes', parameters: {type: 'object'}}]});
+    assert.equal(blocks.find(block => block.label === '模型推理状态')?.kind, 'history');
+    assert.equal(blocks.find(block => block.label === '工具调用参数与 ID')?.kind, 'history');
+    assert.match(blocks.find(block => block.kind === 'tool_results')?.source ?? '', /call-1/);
+    assert.ok(blocks.some(block => block.kind === 'tools'));
+    assert.ok(!JSON.stringify(blocks).includes('private-replay-state'));
+});
+
+test('Responses 输出识别工具调用和文本，不把加密推理状态当输出内容', () => {
+    const response = {output: [
+        {type: 'reasoning', encrypted_content: 'private-replay-state'},
+        {type: 'message', content: [{type: 'output_text', text: '先查询报价'}]},
+        {type: 'function_call', name: 'get_quotes', call_id: 'c1', arguments: '{"code":"A"}'},
+    ]};
+    const output = outputFromResponse(response);
+    assert.equal(output?.summary, '调用工具：get_quotes');
+    assert.equal(output?.blocks[0].text, '先查询报价');
+    assert.match(output?.blocks[1].text ?? '', /c1/);
+    assert.ok(!JSON.stringify(output).includes('private-replay-state'));
+    assert.equal(outputFromResponse({output: [{type: 'reasoning', encrypted_content: 'private-replay-state'}]})?.summary, '无输出内容');
+});

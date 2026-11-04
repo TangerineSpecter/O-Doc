@@ -84,8 +84,8 @@ def get_image_generation_profile(model: AIModel) -> ImageGenerationProfile:
     name = model.name.strip().lower()
 
     if provider != 'Grsai':
-        # New API gateways are configured by users and may expose different image
-        # model contracts. The current adapter does not send size parameters.
+        # The current OpenAI and New API adapters do not send size parameters;
+        # gateway model contracts can also vary by deployment.
         return ImageGenerationProfile(provider, model.name, 'automatic')
 
     if name.startswith('nano-banana'):
@@ -191,6 +191,14 @@ def resolve_image_generation_request(model: AIModel, options: object, *, scene: 
     if profile.mode == 'fixed':
         return {'aspectRatio': 'auto' if ratio == 'auto' else GPT_IMAGE_2_DIMENSIONS[ratio], 'quality': profile.quality}
     return {}
+
+
+def resolve_configured_image_generation_request(model: AIModel, *, aspect_ratio: str, image_size: str, scene: str) -> dict:
+    """Resolve saved scene defaults without sending unsupported options to automatic models."""
+    options = {} if get_image_generation_profile(model).mode == 'automatic' else {
+        'aspect_ratio': aspect_ratio, 'image_size': image_size,
+    }
+    return resolve_image_generation_request(model, options, scene=scene)
 
 
 def resolve_agent_post_illustration_request(model: AIModel, aspect_ratio: str) -> tuple[dict, str, str]:

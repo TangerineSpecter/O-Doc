@@ -1,7 +1,7 @@
 import {musicActionText} from './musicPresentation';
 import {useMemo} from 'react';
 import {ArrowRight, Clock3, Compass, Footprints, Heart, Package, PauseCircle, PlayCircle, ShieldAlert, Sparkles, Swords, Trophy, ScrollText} from 'lucide-react';
-import type {CombatAction, CombatEvent, PartyAction, PartyCombatant} from '../../types/api/combat';
+import type {ArchivedCombatKill, CombatAction, CombatEvent, PartyAction, PartyCombatant} from '../../types/api/combat';
 import {elapsed, rewardElementDescription} from './presentation';
 import {
     observationEventMessage,
@@ -490,8 +490,11 @@ export function ObservationEvents({events, playerName, partyPlayers}: {events: C
 }
 
 /** 击败记录列表 */
-export function ObservationKills({events, total}: {events: CombatEvent[]; total: number}) {
-    const records = observationKills(events);
+export function ObservationKills({events, total, archivedKills}: {events: CombatEvent[]; total: number; archivedKills?: ArchivedCombatKill[]}) {
+    const records = archivedKills
+        ? archivedKills.map(item => ({key: item.id, seconds: null, occurredAt: item.occurredAt,
+            action: {kind: 'kill', monster: item.monster, experience: item.experience, rewards: item.rewards}}))
+        : observationKills(events).map(item => ({...item, occurredAt: undefined}));
     return (
         <div>
             <div className="mb-3 flex items-center justify-between rounded-xl border border-emerald-150/80 bg-gradient-to-r from-emerald-50 via-teal-50/30 to-white px-3 py-2.5 shadow-2xs">
@@ -503,7 +506,7 @@ export function ObservationKills({events, total}: {events: CombatEvent[]; total:
             </div>
 
             <div className="space-y-2">
-                {records.map(({key, action, seconds}) => (
+                {records.map(({key, action, seconds, occurredAt}) => (
                     <article
                         key={key}
                         className="flex items-center gap-2.5 rounded-xl border border-slate-150/80 bg-white p-2.5 shadow-2xs transition-all hover:border-emerald-200"
@@ -534,7 +537,7 @@ export function ObservationKills({events, total}: {events: CombatEvent[]; total:
                             </div>
                             <p className="mt-0.5 font-mono text-[10px] text-slate-400">
                                 {action.monster && `Lv.${action.monster.level} · `}
-                                {elapsed(seconds)}
+                                {seconds == null ? new Date(occurredAt!).toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'}) : elapsed(seconds)}
                             </p>
                         </div>
                         <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-700 border border-emerald-150">

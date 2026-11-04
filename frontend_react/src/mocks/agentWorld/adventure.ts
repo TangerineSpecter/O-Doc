@@ -1,5 +1,6 @@
 import catalog from './catalog';
 import {residents, at, now, day} from './residents';
+import {firstStageSkills} from './firstStageSkills';
 import type {CombatCatalog, CombatEquipment, CombatProfile, CombatSnapshot, CombatReward} from '../../types/api/combat';
 import type {TravelJourney} from '../../types/api/travel';
 export {fishingCatalog, fishingOverview, fishingTrip, fishingTrips} from './fishing';
@@ -13,27 +14,34 @@ const backupWaterStaff:CombatEquipment = {id:'local-backup-water-staff', templat
         equipmentType:'mage_staff', grip:'one_handed', element:'water', level:18, quality:'blue', value:'92.41',
         stats:{magicAttack:57, waterPower:.05, physicalAttack:13, hpMax:110},
         affixes:[{id:'affix.physical_attack',stat:'physicalAttack',value:13},{id:'affix.hp_max',stat:'hpMax',value:110}]}};
-export const combatProfiles: CombatProfile[] = residents.map((r, i) => ({actorId: r.id, initialized: true,
-    progression: {level: 18 + i, experience: 1280, job: ['job.warrior', 'job.ranger', 'job.mage', 'job.priest'][i], stats: {strength: 30, dexterity: 24, intelligence: 25, vitality: 28, spirit: 20, luck: 12}, skills: {}},
+export const combatProfiles: CombatProfile[] = residents.map((r, i) => {
+    const level = 18 + i;
+    const job = ['job.warrior', 'job.ranger', 'job.mage', 'job.priest'][i];
+    const skills = firstStageSkills(combatCatalog, job, level);
+    return {actorId: r.id, initialized: true,
+    progression: {level, experience: 1280, job, stats: {strength: 30, dexterity: 24, intelligence: 25, vitality: 28, spirit: 20, luck: 12}, skills: Object.fromEntries(skills.map(skill => [skill.id, skill.rank]))},
     discoveries: {encountered: combatCatalog.tables.monsters.slice(0, 8).map(m => m.id), defeated: combatCatalog.tables.monsters.slice(0, 6).map(m => m.id), equipment: []},
     attributes: {hpMax: 380, mpMax: 160, physicalAttack: 62, magicAttack: 48, physicalDefense: 32, magicDefense: 28, speed: 24, strength: 30, dexterity: 24, intelligence: 25, vitality: 28, spirit: 20, luck: 12},
     hp: 320, mp: 120, loadout: {weapon: `local-equipment-${i}`}, equipment: [{id: `local-equipment-${i}`, templateId: 'equip.training_sword', bound: true, locked: false, value: '80',
         snapshot: {templateId: 'equip.training_sword', name: '训练木剑', slot: 'weapon', equipmentType: 'generic', grip: 'one_handed', level: 8, quality: 'normal', value: '80', stats: {physicalAttack: 24}, affixes: []}},
         ...(i===2 ? [backupWaterStaff] : [])],
-    // CombatRow's legacy string index signature conflicts with numeric rank; the API still supplies rank as a number.
-    skills: combatCatalog.tables.skills.filter(s => s.professionId === 'job.novice').slice(0, 3).map(s => ({...s, rank: 1, parameters: combatCatalog.tables.skillLevels.find(p => p.skillId === s.id) || {id: s.id}, effects: []})) as unknown as CombatProfile['skills'],
+    skills,
     potions: combatCatalog.tables.potions.map(p => ({...p, owned: 8})) as unknown as CombatProfile['potions'],
     materials: combatCatalog.tables.materials.slice(0, 16).map(m => ({...m, owned: 12})) as unknown as CombatProfile['materials'],
     activeExplorationId: null, promotionOptions: [], promotionBusy: false, reselectOptions: [], reselectBlocked: '', restUntil: null,
-}));
+};});
 export const exploration: CombatSnapshot = {id: 'local-exploration', actorId: residents[3].id, version: 1, stage: 'settled', status: 'completed', reason: '本地样例：完成一小时探索并结算',
-    canControl: true, elapsedSeconds: 3600, durationSeconds: 3600, nextTickAt: null,
+    canControl: true, historyArchived: false, archivedKills: [], elapsedSeconds: 3600, durationSeconds: 3600, nextTickAt: null,
     player: {name: residents[3].name, level: 21, hp: 280, mp: 80, stats: {hpMax: 380, mpMax: 160}, states: []}, enemy: null, potions: {hp: 2},
     result: {energy: 20, experience: 240, kills: 18, rewards: [{id: 'local-reward', kind: 'material', item: {id: 'combat.material.moss_cave.1', name: '黏液'}, quantity: 12, elapsedSeconds: 3600},
         {id:'local-element-reward', kind:'equipment', equipmentId:'local-reward-water-staff', item:backupWaterStaff.snapshot, elapsedSeconds:3600}],
         report: '本地样例：击败 18 只魔物，获得 240 经验、黏液和潮汐法杖。'},
     events: [{id: 'local-combat-event', sequence: 1, kind: 'settlement', elapsedSeconds: 3600, payload: {report: '探索结束，带回材料与装备。'}, createdAt: at(12)}],
     latestCursor: 1, nextCursor: 1, hasMore: false};
+export const archivedExploration: CombatSnapshot = {...exploration, historyArchived: true,
+    archivedKills: [{id: 'local-archived-kill', monster: {id: 'monster.slime', name: '软泥怪', level: 18, rank: 'normal'},
+        experience: 24, rewards: exploration.result.rewards?.slice(0, 1) || [], occurredAt: at(12)}],
+    result: {...exploration.result, kills: 1, experience: 24}, events: []};
 export const journey: TravelJourney = {id: 'local-travel', actorId: residents[2].id, status: 'completed', phase: 'completed', articleId: 'local-post-0',
     departedAt: at(8), returnedAt: at(16), createdAt: at(8), nodes: ['destination', 'visit', 'food', 'shopping', 'publish'].map(kind => ({id: kind, kind, status: 'completed', error: ''})),
     snapshot: {agentName: residents[2].name, selected: {id: 'local-hangzhou', country: '中国', city: '杭州', region: '浙江', price: '380'},

@@ -24,9 +24,10 @@ def prepare_image(moment, agent, cfg, prompt):
         from system_settings.agent_role import role_text
         prompt += '\n' + role_text(agent, 'image' if include_actor else 'repair')
         if refs and not options.get('supports_reference_images'): raise ValueError('模型不支持角色参考图')
-        from system_settings.image_generation_options import resolve_image_generation_request
+        from system_settings.image_generation_options import resolve_configured_image_generation_request
         from system_mcp.image_generation import resolve_image_model
-        resolve_image_generation_request(resolve_image_model(options['model_id']), {'aspect_ratio': cfg['image_aspect_ratio'], 'image_size': cfg['image_size']}, scene='moment')
+        resolve_configured_image_generation_request(resolve_image_model(options['model_id']),
+            aspect_ratio=cfg['image_aspect_ratio'], image_size=cfg['image_size'], scene='moment')
         request = {'request_id': f'moment:{moment.pk}:0', 'prompt': prompt,
                    'reference_image_ids': refs, 'model_id': options['model_id'], 'aspect_ratio': cfg['image_aspect_ratio'], 'image_size': cfg['image_size']}
         moment.image_state = {'status': 'pending', 'request': request, 'attempt': 0}
@@ -56,8 +57,9 @@ def retry_image(moment):
                'aspect_ratio': cfg['image_aspect_ratio'], 'image_size': cfg['image_size']}
     attempt = state.get('attempt', 0) + 1
     request['request_id'] = f'moment:{moment.pk}:{attempt}'
-    from system_settings.image_generation_options import resolve_image_generation_request
-    resolve_image_generation_request(model, {'aspect_ratio': request['aspect_ratio'], 'image_size': request['image_size']}, scene='moment')
+    from system_settings.image_generation_options import resolve_configured_image_generation_request
+    resolve_configured_image_generation_request(model, aspect_ratio=request['aspect_ratio'],
+                                                image_size=request['image_size'], scene='moment')
     moment.image_state = {'status': 'pending', 'request': request, 'attempt': attempt, 'manual': True}
     moment.save()
 

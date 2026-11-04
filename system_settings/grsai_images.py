@@ -45,8 +45,8 @@ def get_default_image_generation_model() -> AIModel:
     model = AIModel.objects.select_related('provider').filter(pk=model_id, type='image_generation').first()
     if model is None:
         raise GrsaiImageError('默认生图模型已失效，请重新选择', status_code=400)
-    if model.provider.type not in ('Grsai', 'NewAPI'):
-        raise GrsaiImageError('当前仅支持 Grsai 或 New API 生图模型', status_code=400)
+    if model.provider.type not in ('Grsai', 'NewAPI', 'OpenAi'):
+        raise GrsaiImageError('当前仅支持 Grsai、New API 或 OpenAI 生图模型', status_code=400)
     return model
 
 

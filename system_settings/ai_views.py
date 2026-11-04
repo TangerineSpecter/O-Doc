@@ -149,9 +149,10 @@ class AIModelViewSet(viewsets.ModelViewSet):
                 'documents': ['Connectivity test document.'],
             }
         from utils.thinking import thinking_body
-        from utils.completion_options import temperature_options
+        from utils.completion_options import output_limit_options, temperature_options
         config = {'provider_type': model.provider.type, 'model_name': model.name,
                                  'thinking_mode': model.thinking_mode, 'thinking_protocol': model.thinking_protocol,
+                                 'reasoning_effort': model.reasoning_effort,
                                  'base_url': model.provider.base_url, 'model_type': model.type}
         options = thinking_body(config)
         return '/chat/completions', {
@@ -159,7 +160,7 @@ class AIModelViewSet(viewsets.ModelViewSet):
             'model': model.name,
             'messages': [{'role': 'user', 'content': 'Reply with OK.'}],
             **temperature_options(config, options, 0),
-            'max_tokens': 8,
+            **output_limit_options(config, 8),
         }
 
     def _test_ollama_connection(self, model, started_at):
@@ -254,8 +255,18 @@ class AIModelViewSet(viewsets.ModelViewSet):
                     }
                 )
 
-        endpoint, payload = self._model_test_payload(model)
+        try:
+            endpoint, payload = self._model_test_payload(model)
+        except ValueError as exc:
+            detail = str(exc)
+            return valid_result(msg=f'模型思考配置无效：{detail}，请重新保存模型设置', status=400, data={
+                'ok': False, 'model_id': model.id, 'model_name': model.name, 'model_type': model.type,
+                'provider_name': provider.name, 'elapsed_ms': 0, 'detail': detail,
+            })
         api_base = provider.base_url.rstrip('/')
+        if provider.type == 'OpenAi':
+            from utils.ai_service import AIService
+            api_base = AIService._normalize_base_url(api_base)
         if provider.type == 'NewAPI' and not api_base.endswith('/v1'):
             api_base += '/v1'
         api_url = f"{api_base}{endpoint}"

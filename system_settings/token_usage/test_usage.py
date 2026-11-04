@@ -49,6 +49,10 @@ class NormalizationTests(SimpleTestCase):
         self.assertEqual(normalize(usage())['total_tokens'], 15)
         self.assertEqual(normalize(usage())['reasoning_tokens'], 2)
         self.assertIsNone(normalize({'prompt_tokens': True, 'completion_tokens': -1})['input_tokens'])
+        responses = {'input_tokens': 31, 'output_tokens': 9, 'total_tokens': 40,
+                     'input_tokens_details': {'cached_tokens': 4}, 'output_tokens_details': {'reasoning_tokens': 5}}
+        self.assertEqual(normalize(responses), {'input_tokens': 31, 'output_tokens': 9, 'total_tokens': 40,
+                                                'cached_tokens': 4, 'reasoning_tokens': 5})
 
 
 class UsageTests(TestCase):
@@ -177,6 +181,41 @@ class UsageTests(TestCase):
             self.assertEqual(factory.call_args.kwargs['max_retries'], 0)
         self.assertEqual(total(AgentTokenUsage.objects.all())['total_tokens'], 30)
         self.assertEqual(AgentTokenUsage.objects.count(), 2)
+
+    def test_responses_tool_rounds_record_actual_usage(self):
+        from utils.ai_service import AIService
+        config = {**CONFIG, 'model_name': 'gpt-6.1-terra', 'api_key': 'fake', 'base_url': 'https://fake.test'}
+        reports = {'input_tokens': 20, 'output_tokens': 8, 'total_tokens': 28,
+                   'input_tokens_details': {'cached_tokens': 3}, 'output_tokens_details': {'reasoning_tokens': 4}}
+        tools = [{'type': 'function', 'function': {'name': 'lookup', 'parameters': {'type': 'object', 'properties': {}}}}]
+        with usage_scope(agent=self.agent, task=self.task, record=self.record, purpose='task'), \
+                patch.object(AIService, 'get_default_client_config', return_value=config), \
+                patch('utils.ai_service.OpenAI') as factory:
+            factory.return_value.responses.create.side_effect = [
+                NS(status='completed', usage=reports, output=[{'type':'function_call','call_id':'one','name':'lookup','arguments':'{}'}]),
+                NS(status='completed', usage=reports, output=[{'type':'message','content':[{'type':'output_text','text':'完成'}]}]),
+            ]
+            self.assertEqual(AIService.chat_completion_messages_with_tools([], tools, lambda name, args: 'found'), '完成')
+            self.assertEqual(factory.call_args.kwargs['max_retries'], 0)
+        rows = list(AgentTokenUsage.objects.order_by('started_at'))
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all((row.input_tokens, row.output_tokens, row.cached_tokens, row.reasoning_tokens) == (20, 8, 3, 4) for row in rows))
+
+    def test_incomplete_responses_are_recorded_as_failed_without_tool_execution(self):
+        from utils.ai_service import AIService
+        config = {**CONFIG, 'model_name': 'gpt-6.1-terra', 'api_key': 'fake', 'base_url': 'https://fake.test'}
+        tools = [{'type': 'function', 'function': {'name': 'lookup', 'parameters': {'type': 'object', 'properties': {}}}}]
+        executor = MagicMock()
+        with usage_scope(agent=self.agent, task=self.task, record=self.record, purpose='task'), \
+                patch.object(AIService, 'get_default_client_config', return_value=config), \
+                patch('utils.ai_service.OpenAI') as factory:
+            factory.return_value.responses.create.return_value = NS(status='incomplete', usage={'input_tokens': 3, 'output_tokens': 0},
+                output=[{'type': 'function_call', 'call_id': 'one', 'name': 'lookup', 'arguments': '{}'}])
+            with self.assertRaisesRegex(RuntimeError, '未完整完成'):
+                AIService.chat_completion_messages_with_tools([], tools, executor)
+        executor.assert_not_called()
+        row = AgentTokenUsage.objects.get()
+        self.assertEqual((row.status, row.input_tokens, row.output_tokens, row.total_tokens), ('failed', 3, 0, 3))
 
     def test_bounded_queue_usage_on_owner_thread(self):
         from utils.bounded_completion import _drive

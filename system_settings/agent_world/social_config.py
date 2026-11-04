@@ -85,9 +85,10 @@ def validate(owner, data, *, override=False):
     if value.get('image_size', '1K') not in ('1K', '2K', '4K'): raise ValueError('配图分辨率无效')
     if value.get('image_model_id') and not override:
         from system_mcp.image_generation import resolve_image_model
-        from system_settings.image_generation_options import resolve_image_generation_request
+        from system_settings.image_generation_options import resolve_configured_image_generation_request
         from system_settings.grsai_images import GrsaiImageError
         try: model = resolve_image_model(value['image_model_id'])
         except GrsaiImageError as exc: raise ValueError(str(exc)) from exc
-        resolve_image_generation_request(model, {'aspect_ratio': value.get('image_aspect_ratio', '1:1'), 'image_size': value.get('image_size', '1K')}, scene='moment')
+        resolve_configured_image_generation_request(model, aspect_ratio=value.get('image_aspect_ratio', '1:1'),
+                                                   image_size=value.get('image_size', '1K'), scene='moment')
     return value

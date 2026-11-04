@@ -13,6 +13,8 @@ from ..market_models import MarketTransaction
 from ..investment_models import InvestmentTrade, InvestmentAccount
 from ..social_models import Moment, MomentComment, MomentLike
 from ..combat.models import CombatFact, CombatIntegrity, Exploration, CombatProfile
+from ..combat.explorations import TERMINAL
+from ..combat.analytics_eligibility import finished_explorations
 from .combat_kills import load_combat_kills
 from ..models import WorldLedger
 from ..fishing.models import FishingProfile, FishingTrip
@@ -46,6 +48,7 @@ class Facts:
     explorations: list = field(default_factory=list)
     wins: list = field(default_factory=list)
     departure_ids: set = field(default_factory=set)
+    finished_departure_ids: set = field(default_factory=set)
     unknown: set = field(default_factory=set)
 
 
@@ -205,22 +208,33 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
     departure_facts = window(CombatFact.objects.filter(owner_id=owner, actor_id__in=relevant_actors, kind='depart'))
     for row in departure_facts.only('exploration_id', 'actor_id', 'created_at').iterator():
         identity = str(row.exploration_id)
-        departures[identity] = row
         if row.actor_id in facts.residents:
+            departures.setdefault(identity, {})[row.actor_id] = row
             facts.departure_ids.add(identity)
-    for row in departures.values():
-        add('exploration:'+row.exploration_id, row.actor_id, row.created_at, 'exploration')
+    finished_departures = set(finished_explorations(
+        Exploration.objects.filter(actor_id__in=relevant_actors, pk__in=departures), owner
+    ).values_list('pk', 'actor_id'))
+    for identity, actors_by_run in departures.items():
+        for actor_id, row in actors_by_run.items():
+            if (identity, actor_id) in finished_departures:
+                facts.finished_departure_ids.add(identity)
+                add('exploration:'+identity, actor_id, row.created_at, 'exploration')
     departure_for_run = CombatFact.objects.filter(owner_id=owner, kind='depart', actor_id=OuterRef('actor_id'),
                                                    exploration_id=OuterRef('pk'))
-    unknown_departure = (Exploration.objects.filter(owner_id=owner, actor_id__in=relevant_actors, created_at__lt=end)
-        .filter(Q(ended_at__gte=start) | Q(ended_at__isnull=True))
-        .exclude(status__in=('preparing', 'failed')).alias(has_departure=Exists(departure_for_run))
+    unknown_departure = (finished_explorations(Exploration.objects.filter(
+        actor_id__in=relevant_actors, created_at__lt=end, ended_at__gte=start).exclude(status='failed'), owner)
+        .alias(has_departure=Exists(departure_for_run))
         .filter(has_departure=False).exists())
+    terminal_runs = (Exploration.objects.filter(owner_id=owner, actor_id__in=relevant_actors,
+        status__in=TERMINAL, created_at__lt=end).exclude(status='failed')
+        .filter(Q(ended_at__gte=start) | Q(ended_at__isnull=True)))
+    if terminal_runs.exclude(pk__in=finished_explorations(terminal_runs, owner).values('pk')).exists():
+        facts.unknown.add('部分探索缺少结束时间或组队尚未全部结束，暂不计入战斗统计。')
     archived_history = CombatIntegrity.objects.filter(owner_id=owner, pk__in=relevant_actors, archive_sequence__gt=0).exists()
     if unknown_departure or archived_history:
         facts.unknown.add('部分历史冒险可能缺少真实出发时间；缺失出发事实的探索未计入出发批次。')
-    facts.explorations = list(window(Exploration.objects.filter(owner_id=owner, actor_id__in=relevant_actors),
-                                     'ended_at').only('id', 'actor_id'))
+    facts.explorations = list(window(finished_explorations(
+        Exploration.objects.filter(actor_id__in=relevant_actors), owner), 'ended_at').only('id', 'actor_id'))
     facts.wins = list(load_combat_kills(owner, actor_ids=relevant_actors, start=start, end=end,
                                         include_daily=include_daily, include_monster=False))
     if timing is not None:

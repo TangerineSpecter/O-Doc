@@ -162,6 +162,170 @@ class CombatBackfillGuardTests(SimpleTestCase):
                 worker.maintain_combat_daily_backfill()
             batch.assert_called_once()
 
+    def test_automatic_daily_drains_backlog_and_rechecks_after_five_minutes(self):
+        from .party_daily_automatic import AUTO_ENV, INTERVAL_SECONDS, PAGE_PAUSE_SECONDS, enabled, run_loop
+
+        class StopAfterTwoPages:
+            waits = []
+
+            def is_set(self):
+                return len(self.waits) >= 2
+
+            def wait(self, seconds):
+                self.waits.append(seconds)
+
+        pages = [
+            {'next_after': 'next-party', 'has_more': True, 'created': 2, 'failures': []},
+            {'next_after': 'last', 'has_more': False, 'created': 1, 'failures': []},
+        ]
+        stop = StopAfterTwoPages()
+        self.assertEqual(INTERVAL_SECONDS, 300)
+        with patch.dict(os.environ, {PROTECTION_ENV: '0'}, clear=True), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_batch', side_effect=pages) as batch, \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_solo_batch',
+                   return_value={'next_after': '', 'has_more': False, 'created': 0, 'failures': []}), \
+             patch('system_settings.agent_world.combat.retention_cleanup.cleanup_batch',
+                   return_value={'cleaned': 0, 'blocked': False, 'has_more': False}) as cleanup, \
+             patch('system_settings.agent_world.combat.archived_daily_rebuild.automatic_batch',
+                   return_value={'rebuilt': 0, 'failures': [], 'next_after': '', 'has_more': False}), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.close_old_connections'):
+            self.assertTrue(enabled())
+            run_loop(stop)
+        self.assertEqual([call.kwargs['after'] for call in batch.call_args_list], ['', 'next-party'])
+        self.assertEqual(stop.waits, [PAGE_PAUSE_SECONDS, INTERVAL_SECONDS])
+        cleanup.assert_called_once()
+        with patch.dict(os.environ, {AUTO_ENV: '0'}):
+            self.assertFalse(enabled())
+
+    def test_automatic_daily_pauses_when_protection_is_active(self):
+        from .party_daily_automatic import INTERVAL_SECONDS, run_loop
+
+        class StopAfterWait:
+            stopped = False
+            def is_set(self): return self.stopped
+            def wait(self, seconds):
+                self.stopped = True
+                self.seconds = seconds
+
+        stop = StopAfterWait()
+        with patch.dict(os.environ, {PROTECTION_ENV: '1'}), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_batch') as batch:
+            run_loop(stop)
+        batch.assert_not_called()
+        self.assertEqual(stop.seconds, INTERVAL_SECONDS)
+
+    def test_automatic_daily_retries_cleanup_after_rebuilding_archived_contributions(self):
+        from .party_daily_automatic import INTERVAL_SECONDS, PAGE_PAUSE_SECONDS, run_loop
+
+        class StopAfterTwoWaits:
+            def __init__(self): self.waits = []
+            def is_set(self): return len(self.waits) >= 2
+            def wait(self, seconds): self.waits.append(seconds)
+
+        stop = StopAfterTwoWaits()
+        page = {'next_after': '', 'has_more': False, 'created': 0, 'failures': []}
+        cleanups = [{'cleaned': 0, 'blocked': True, 'has_more': False, 'backlog': {'invalid_party_summaries': 1}},
+                    {'cleaned': 1, 'blocked': False, 'has_more': False, 'round_facts': 2, 'round_events': 1}]
+        with patch.dict(os.environ, {PROTECTION_ENV: '0', 'ODOC_COMBAT_DAILY_AUTO': '1'}), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_batch', return_value=page), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_solo_batch', return_value=page), \
+             patch('system_settings.agent_world.combat.retention_cleanup.cleanup_batch', side_effect=cleanups) as cleanup, \
+             patch('system_settings.agent_world.combat.archived_daily_rebuild.automatic_batch',
+                   return_value={'rebuilt': 1, 'failures': [], 'next_after': '', 'has_more': False}) as rebuild, \
+             patch('system_settings.agent_world.combat.party_daily_automatic.close_old_connections'):
+            run_loop(stop)
+        self.assertEqual(stop.waits, [PAGE_PAUSE_SECONDS, INTERVAL_SECONDS])
+        self.assertEqual(cleanup.call_count, 2)
+        rebuild.assert_called_once()
+
+    def test_automatic_daily_retries_a_failed_batch_without_advancing_cursor(self):
+        from .party_daily_automatic import ERROR_RETRY_SECONDS, INTERVAL_SECONDS, run_loop
+
+        class StopAfterTwoWaits:
+            def __init__(self): self.waits = []
+            def is_set(self): return len(self.waits) >= 2
+            def wait(self, seconds): self.waits.append(seconds)
+
+        stop = StopAfterTwoWaits()
+        result = {'next_after': 'complete', 'has_more': False, 'created': 1, 'failures': []}
+        with patch.dict(os.environ, {PROTECTION_ENV: '0', 'ODOC_COMBAT_DAILY_AUTO': '1'}), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_batch',
+                   side_effect=[RuntimeError('database temporarily unavailable'), result]) as batch, \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_solo_batch',
+                   return_value={'next_after': '', 'has_more': False, 'created': 0, 'failures': []}), \
+             patch('system_settings.agent_world.combat.retention_cleanup.cleanup_batch',
+                   return_value={'cleaned': 0, 'blocked': False, 'has_more': False}), \
+             patch('system_settings.agent_world.combat.archived_daily_rebuild.automatic_batch',
+                   return_value={'rebuilt': 0, 'failures': [], 'next_after': '', 'has_more': False}), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.close_old_connections'), \
+             self.assertLogs('system_settings.agent_world.combat.party_daily_automatic', level='ERROR'):
+            run_loop(stop)
+        self.assertEqual([call.kwargs['after'] for call in batch.call_args_list], ['', ''])
+        self.assertEqual(stop.waits, [ERROR_RETRY_SECONDS, INTERVAL_SECONDS])
+
+    def test_automatic_daily_revisits_new_low_ids_during_a_long_backlog(self):
+        from .party_daily_automatic import run_loop
+
+        class StopAfterTwoWaits:
+            def __init__(self): self.waits = []
+            def is_set(self): return len(self.waits) >= 2
+            def wait(self, seconds): self.waits.append(seconds)
+
+        page = {'next_after': 'later-id', 'has_more': True, 'created': 1, 'failures': []}
+        with patch.dict(os.environ, {PROTECTION_ENV: '0', 'ODOC_COMBAT_DAILY_AUTO': '1'}), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_batch', return_value=page) as batch, \
+             patch('system_settings.agent_world.combat.party_daily_automatic.automatic_solo_batch',
+                   return_value={'next_after': '', 'has_more': False, 'created': 0, 'failures': []}), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.close_old_connections'), \
+             patch('system_settings.agent_world.combat.party_daily_automatic.time.monotonic', side_effect=[0, 0, 301]):
+            run_loop(StopAfterTwoWaits())
+        self.assertEqual([call.kwargs['after'] for call in batch.call_args_list], ['', ''])
+
+    def test_protected_backfill_drain_tracks_progress_and_failed_sources(self):
+        from io import StringIO
+        import json
+
+        pages = [
+            {'processed': 2, 'created': 1, 'failures': [{'party_id': 'bad', 'reason': '来源不完整'}],
+             'has_more': True, 'next_after': 'b'},
+            {'processed': 1, 'created': 1, 'failures': [], 'has_more': False, 'next_after': 'c'},
+        ]
+        target = 'system_settings.management.commands.backfill_party_daily_drain.backfill_batch'
+        with patch(target, side_effect=pages) as batch, patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            output = StringIO()
+            call_command('backfill_party_daily_drain', '--owner', 'admin', '--pause-seconds', '0', stdout=output)
+        result = json.loads(output.getvalue())
+        self.assertEqual((result['batches'], result['processed'], result['created']), (2, 3, 2))
+        self.assertEqual((result['stop_reason'], result['has_more'], result['next_after']),
+                         ('complete_with_failures', False, ''))
+        self.assertEqual(result['failures'][0]['party_id'], 'bad')
+        self.assertEqual((result['failures_total'], result['failure_details_truncated']), (1, False))
+        self.assertEqual([item.kwargs['after'] for item in batch.call_args_list], ['', 'b'])
+
+        pages = [{'processed': amount, 'created': 0,
+                  'failures': [{'party_id': str(offset + i), 'reason': '缺失'} for i in range(amount)],
+                  'has_more': offset < 100, 'next_after': str(offset + amount)}
+                 for offset, amount in ((0, 50), (50, 50), (100, 20))]
+        with patch(target, side_effect=pages), patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            output = StringIO()
+            call_command('backfill_party_daily_drain', '--pause-seconds', '0', stdout=output)
+        result = json.loads(output.getvalue())
+        self.assertEqual((result['failures_total'], len(result['failures']), result['failure_details_truncated']),
+                         (120, 100, True))
+
+        incomplete = {'processed': 1, 'created': 1, 'failures': [], 'has_more': True, 'next_after': 'resume-here'}
+        with patch(target, return_value=incomplete), patch.dict(os.environ, {PROTECTION_ENV: '1'}):
+            output = StringIO()
+            call_command('backfill_party_daily_drain', '--max-batches', '1', '--pause-seconds', '0', stdout=output)
+        result = json.loads(output.getvalue())
+        self.assertEqual((result['stop_reason'], result['has_more'], result['next_after']),
+                         ('batch_limit', True, 'resume-here'))
+
+        with patch(target) as batch, patch.dict(os.environ, {PROTECTION_ENV: '0'}):
+            with self.assertRaisesMessage(CommandError, '请先在本进程启用'):
+                call_command('backfill_party_daily_drain')
+        batch.assert_not_called()
+
     def test_fishing_background_backfill_also_requires_protection(self):
         from .. import worker
         result = {'next_after': '', 'has_more': False, 'created': 1, 'failures': []}

@@ -11,9 +11,11 @@ from itertools import chain
 from .party_daily import FACT, RUN, project_party
 from .party_integrity import canonical
 from .party_sync import EVENT, MEMBER, PARTY, WAVE
+from .store import digest
 
 COVERAGE = 'system_settings.combatpartycoverage'
 DAY = 'system_settings.combatpartyday'
+SETTLEMENT = 'system_settings.combatpartysettlement'
 VERSION = 1
 
 
@@ -35,6 +37,13 @@ def records(projection):
         'groups': item['groups'],
     }} for item in days]
     return [coverage, *entries]
+
+
+def settlement_record(settlement):
+    return {'model': SETTLEMENT, 'pk': settlement['party_id'], 'fields': {
+        'owner_id': settlement['owner_id'], 'version': 1,
+        'content': settlement, 'digest': digest(settlement),
+    }}
 
 
 def source_slices(data, party_ids):
@@ -67,11 +76,11 @@ def source_slices(data, party_ids):
     return slices
 
 
-def validate_source(data, meta=None):
+def validate_source(data, meta=None, *, archives=None):
     from utils.sync_policy import SyncError
     stored = {}
     for row in data:
-        if row['model'] not in (COVERAGE, DAY):
+        if row['model'] not in (COVERAGE, DAY, SETTLEMENT):
             continue
         key = (row['model'], str(row['pk']))
         if key in stored:
@@ -81,16 +90,38 @@ def validate_source(data, meta=None):
         return
     if meta is not None and meta.get('combat_schema_version', 0) < 18:
         raise SyncError('战斗每日贡献需要战斗同步18')
+    if meta is not None and meta.get('combat_schema_version', 0) < 19 and any(
+            model == SETTLEMENT for model, _ in stored):
+        raise SyncError('战斗压缩结算需要战斗同步19')
     party_ids = {key for (model, key) in stored if model == COVERAGE}
     if any(row['fields'].get('party_id') not in party_ids for (model, _), row in stored.items() if model == DAY):
         raise SyncError('战斗每日贡献缺少来源覆盖')
+    if any(key not in party_ids for (model, key) in stored if model == SETTLEMENT):
+        raise SyncError('战斗压缩结算缺少每日来源覆盖')
+    if archives is None:
+        from .retention_sync import archive_index
+        archives = archive_index(data, meta)
     slices = source_slices(data, party_ids)
     expected = {}
     try:
         for identity in sorted(party_ids):
-            projection = project_party(slices[identity], identity)
+            archived = archives['parties'].get(identity)
+            if archived:
+                from .party_settlement_archive import validate_settlement
+                original = {key: value for key, value in archived.items() if key != 'archive'}
+                projection = {'source': original['origin'], 'days': validate_settlement(original)}
+            else:
+                projection = project_party(slices[identity], identity)
             for row in records(projection):
                 expected[(row['model'], str(row['pk']))] = row
+            if (SETTLEMENT, identity) in stored:
+                if archived:
+                    settlement = archived
+                else:
+                    from .party_settlement_archive import _from_validated_projection
+                    settlement = _from_validated_projection(slices[identity], identity, projection)
+                row = settlement_record(settlement)
+                expected[(SETTLEMENT, identity)] = row
     except (KeyError, TypeError, ValueError) as exc:
         raise SyncError('战斗每日贡献无法由完整来源核对') from exc
     if stored != expected:
@@ -99,7 +130,8 @@ def validate_source(data, meta=None):
 
 def validate_conflicts(local, remote):
     from utils.sync_policy import SyncError
-    left = {(row['model'], str(row['pk'])): row['fields'] for row in local if row['model'] in (COVERAGE, DAY)}
+    left = {(row['model'], str(row['pk'])): row['fields'] for row in local
+            if row['model'] in (COVERAGE, DAY, SETTLEMENT)}
     for row in remote:
         key = (row['model'], str(row['pk']))
         if key in left and left[key] != row['fields']:

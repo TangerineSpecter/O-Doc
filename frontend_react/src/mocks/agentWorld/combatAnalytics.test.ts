@@ -27,6 +27,9 @@ test('shared kills appear for both members while world kills are distinct and de
     const all=combatAnalyticsMock(new URL('http://localhost/'),false);
     assert.equal(all.wins,3);assert.equal(all.explorations,2);
     assert.deepEqual(all.combatComparison.slice(0,2).map(row=>row.kills),[3,2]);
+    const ongoing=all.combatComparison[2];
+    assert.equal(ongoing.ongoing,1);assert.equal(ongoing.explorations,0);
+    assert.equal(ongoing.kills,0);assert.equal(ongoing.experience,0);assert.equal(ongoing.elapsedSeconds,0);
     for(const row of all.combatComparison)assert.equal(row.monsters.reduce((sum,m)=>sum+m.kills,0),row.kills);
     const member=combatAnalyticsMock(new URL(`http://localhost/?actor_id=${residents[1].id}`),false);
     assert.equal(member.combatComparison.length,1);assert.equal(member.wins,2);

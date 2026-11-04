@@ -7,9 +7,12 @@ from django.db import connection, transaction
 @contextmanager
 def analytics_snapshot():
     # An enclosing transaction may already have executed queries, so its
-    # isolation level cannot safely be changed. Read raw facts in that case.
+    # isolation level cannot safely be changed. Keep the local cleanup gate
+    # across the raw/archive read so a committed cleanup cannot split it.
     if connection.vendor != 'postgresql' or connection.in_atomic_block or not connection.get_autocommit():
-        yield False
+        from ..farm_gate import farm_gate
+        with farm_gate():
+            yield False
         return
     with transaction.atomic():
         with connection.cursor() as cursor:

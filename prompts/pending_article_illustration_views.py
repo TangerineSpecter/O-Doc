@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
 from system_settings.models import AIModel
-from system_settings.newapi_images import NewApiImageClient
+from system_settings.newapi_images import compatible_image_client
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
 
@@ -55,14 +55,14 @@ class PendingArticleIllustrationDetailView(APIView):
                     model_id=model.id, user_id=pending.user_id,
                 )
 
-            if pending.provider_type == 'NewAPI':
+            if pending.provider_type in ('NewAPI', 'OpenAi'):
                 model = AIModel.objects.select_related('provider').filter(
-                    pk=pending.model_id, type='image_generation', provider__type='NewAPI',
+                    pk=pending.model_id, type='image_generation', provider__type=pending.provider_type,
                 ).first()
                 if model is None:
                     raise GrsaiImageError('生图模型已删除，无法下载原图', status_code=400)
                 asset = save_first_newapi_illustration(
-                    pending.image_url, NewApiImageClient(model),
+                    pending.image_url, compatible_image_client(model),
                     user_id=pending.user_id, task_id=pending.task_id,
                 )
             else:

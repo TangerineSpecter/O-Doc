@@ -41,7 +41,7 @@ def resolve_image_model(model_id=None):
     if not model_id:
         return get_default_image_generation_model()
     model = AIModel.objects.select_related('provider').filter(pk=model_id, type='image_generation').first()
-    if not model or model.provider.type not in ('Grsai', 'NewAPI'):
+    if not model or model.provider.type not in ('Grsai', 'NewAPI', 'OpenAi'):
         raise GrsaiImageError('指定生图模型已失效或不支持，请重新选择', status_code=400)
     return model
 

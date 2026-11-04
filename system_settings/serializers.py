@@ -18,7 +18,7 @@ class AIModelSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AIModel
-        fields = ['id', 'name', 'type', 'provider', 'thinking_mode', 'thinking_protocol', 'thinking_capability']
+        fields = ['id', 'name', 'type', 'provider', 'thinking_mode', 'thinking_protocol', 'reasoning_effort', 'thinking_capability']
         read_only_fields = ['id']
         # provider 字段在嵌套时可选，但在单独创建时必填
         extra_kwargs = {'provider': {'required': False}}
@@ -27,19 +27,22 @@ class AIModelSerializer(serializers.ModelSerializer):
         from utils.thinking import thinking_body
         instance = self.instance
         mode = attrs.get('thinking_mode', getattr(instance, 'thinking_mode', 'default'))
+        effort = attrs.get('reasoning_effort', getattr(instance, 'reasoning_effort', 'default'))
         protocol = attrs.get('thinking_protocol', getattr(instance, 'thinking_protocol', 'auto'))
         model_type = attrs.get('type', getattr(instance, 'type', 'chat'))
         provider = attrs.get('provider', getattr(instance, 'provider', None))
-        if mode != 'default':
+        if mode != 'default' and effort != 'default':
+            raise serializers.ValidationError({'reasoning_effort': '思考模式和思考强度不能同时指定，请使用其中一种'})
+        if mode != 'default' or effort != 'default':
             if model_type not in ('chat', 'image'):
                 raise serializers.ValidationError({'thinking_mode': '此模型类型不支持思考控制'})
             try:
-                thinking_body({'thinking_mode': mode, 'thinking_protocol': protocol,
+                thinking_body({'thinking_mode': mode, 'thinking_protocol': protocol, 'reasoning_effort': effort,
                                'provider_type': provider.type if provider else '',
                                'base_url': provider.base_url if provider else '', 'model_type': model_type,
                                'model_name': attrs.get('name', getattr(instance, 'name', ''))})
             except ValueError as exc:
-                raise serializers.ValidationError({'thinking_protocol': str(exc)}) from exc
+                raise serializers.ValidationError({'reasoning_effort' if effort != 'default' else 'thinking_protocol': str(exc)}) from exc
         return attrs
 
 class AIProviderSerializer(serializers.ModelSerializer):

@@ -7,10 +7,10 @@ export function useCombatObservation(id: string) {
     const [data, setData] = useState<{id: string; snapshot: CombatSnapshot; events: CombatEvent[]} | null>(null);
     const [error, setError] = useState('');
     useEffect(() => {
-        let cursor = 0, active = true, pending = false;
+        let cursor = 0, active = true, pending = false, archivedComplete = false;
         let controller = new AbortController();
         const load = async () => {
-            if (pending || document.hidden) return;
+            if (pending || document.hidden || archivedComplete) return;
             pending = true;
             controller = new AbortController();
             const signal = controller.signal;
@@ -28,7 +28,7 @@ export function useCombatObservation(id: string) {
                             events: appendCombatEvents(sameRun ? previous.events : [], snapshot.events)};
                     });
                     setError('');
-                    if (!snapshot.hasMore) break;
+                    if (!snapshot.hasMore) {archivedComplete = Boolean(snapshot.historyArchived); break;}
                 } while (active && !document.hidden);
             } catch (e) {if (active && !signal.aborted) setError(e instanceof Error ? e.message : '连接中断');}
             finally {pending = false;}

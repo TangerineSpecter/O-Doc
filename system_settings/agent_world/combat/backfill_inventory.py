@@ -59,6 +59,6 @@ def inventory(owner=None, *, now=None):
         'this_process_protected': is_protected(),
         'protection_scope': '仅本命令进程；不能证明应用进程或其他设备受保护。',
         'cleanup_ready': False,
-        'cleanup_reason': '每日汇总、各设备来源核对和可恢复的七天清理尚未完成；以上计数不是可删除数量。',
+        'cleanup_reason': '只读盘点不核验完整来源、资产和压缩结果；以上计数不是可删除数量。',
         'accounts': sorted(accounts.values(), key=lambda row: row['owner']),
     }

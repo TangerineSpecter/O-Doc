@@ -78,7 +78,7 @@ export default function ResidentCombatCard({
     return (
         <WorldDialog
             title={`${row.name} · 战斗经历`}
-            description={`${startDate} 至 ${endDate} 出发的探索 · 截至本次读取的实际成果`}
+            description={`${startDate} 至 ${endDate} 出发的探索 · 已结束战斗的结算成果`}
             onClose={onClose}
             size="wide"
         >
@@ -225,7 +225,7 @@ export default function ResidentCombatCard({
 
                         <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-center">
                             <div>
-                                <p className="text-[10px] text-slate-400">总探索场次</p>
+                                <p className="text-[10px] text-slate-400">已结束场次</p>
                                 <p className="mt-0.5 text-xs font-bold text-slate-800">{row.explorations} 次</p>
                             </div>
                             <div>
@@ -390,7 +390,7 @@ export default function ResidentCombatCard({
                         统计口径说明
                     </p>
                     <p className="mt-0.5">
-                        成功率 = 按计划完成 / 已结算探索；召回、倒地、体力耗尽等均计入分母。时长使用实际战斗推进秒数（不计暂停等待）。
+                        仅统计已结束的战斗，进行中场次单独显示；组队须等待整队结束。成功率 = 按计划完成 / 已结算探索；召回、倒地、体力耗尽等均计入分母。时长使用实际战斗推进秒数（不计暂停等待）。
                         组队共同击杀按本人参与记录计入，加入前和离队后的击杀不计；经验按本人实际获得累计，药剂包含普通药剂和炼金药水。
                     </p>
                 </div>

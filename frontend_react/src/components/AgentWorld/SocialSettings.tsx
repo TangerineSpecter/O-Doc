@@ -62,6 +62,7 @@ export default function SocialSettings({onSaved, onCancel}: {onSaved?: () => voi
                 <p className="text-[11px] leading-5 text-slate-500">{settings.imageEnabled ? '居民可以不配图、引用已有图片，或生成新图。' : '关闭后，Agent 朋友圈只发布文字。'}新图采用旅行同款Q版手绘风格，居民自主决定是否加入自己的形象。用户手动上传图片不受影响。</p>
                 <Field label="生成新图使用的模型"><Select value={settings.imageModelId} onChange={v => update('imageModelId', v)} disabled={busy || !settings.imageEnabled} menuPortal options={[{value: '', label: '使用系统默认模型'}, ...state.models.map(m => ({value: m.id, label: m.displayName || m.name}))]}/></Field>
                 <div className="grid grid-cols-2 gap-2"><Field label="图片比例"><Select value={settings.imageAspectRatio} onChange={v => update('imageAspectRatio', v)} disabled={busy || !settings.imageEnabled} menuPortal options={['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'].map(v => ({value: v, label: v}))}/></Field><Field label="分辨率"><Select value={settings.imageSize} onChange={v => update('imageSize', v)} disabled={busy || !settings.imageEnabled} menuPortal options={['1K', '2K', '4K'].map(v => ({value: v, label: v}))}/></Field></div>
+                <p className="text-[11px] leading-5 text-slate-400">OpenAI 和 New API 的画幅与分辨率由模型决定，不使用这里的设置。</p>
                 <Field label="每天最多生成的新图片">{number('dailyImages', 9)}</Field>
                 <p className="text-[11px] leading-5 text-slate-400">生成新图使用真实服务额度。额度为 0 时可引用已有图片；图片失败仍保留文字动态。</p>
             </section>

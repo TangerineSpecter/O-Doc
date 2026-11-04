@@ -140,7 +140,7 @@ export function Select<T extends string>({
                     id={listboxId}
                     role="listbox"
                     style={menuPortal ? portalStyle : undefined}
-                    className={`${menuPortal ? 'fixed z-[200]' : `absolute z-30 min-w-full ${menuPlacement === 'top' ? 'bottom-full !mt-0 mb-2' : 'mt-2'}`} max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 ${menuClassName}`}
+                    className={`${menuPortal ? 'fixed z-[200]' : `absolute z-30 min-w-full ${menuPlacement === 'top' ? 'bottom-full !mt-0 mb-2' : 'mt-2'}`} max-h-72 overflow-auto scrollbar-hide rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 ${menuClassName}`}
                 >
                     {options.length === 0 && (
                         <div className="flex min-h-20 items-center justify-center rounded-md px-3 py-4 text-center text-xs leading-5 text-slate-400">

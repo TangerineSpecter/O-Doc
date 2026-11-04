@@ -8,8 +8,11 @@ PREFIX = 'system_settings.'
 PARTY, MEMBER, WAVE, EVENT = [PREFIX+n for n in ('adventureparty','adventuremember','adventurewave','adventureevent')]
 
 
-def validate_source(data, meta=None):
+def validate_source(data, meta=None, *, archives=None):
     from utils.sync_manager import SyncError
+    if archives is None:
+        from .retention_sync import archive_index
+        archives = archive_index(data, meta)
     rows = {(r['model'], str(r['pk'])): {'id':str(r['pk']), **r['fields']} for r in data}
     parties = {key:row for (model,key),row in rows.items() if model==PARTY}
     members_by_party, waves_by_party, events_by_party = defaultdict(list), defaultdict(list), defaultdict(list)
@@ -73,6 +76,14 @@ def validate_source(data, meta=None):
         if digest(canonical(frame))!=party['frame']:
             raise SyncError('组队快照包含独立合并的成员、波次或战斗状态')
         stream = sorted(events_by_party[identity], key=lambda r:r['sequence'])
+        archived = archives['parties'].get(identity)
+        if archived:
+            from .retention_segments import verify_shared
+            try:
+                verify_shared(stream, party, ranges=archived['archive']['shared_ranges'])
+            except ValueError as exc:
+                raise SyncError('共同归档事实链缺失或发生分叉') from exc
+            continue
         previous = ''
         for index, event in enumerate(stream,1):
             content = {k:event[k] for k in ('party_id','owner_id','sequence','kind','payload','previous_hash')}

@@ -155,6 +155,22 @@ class AgentPostIllustrationMCPTests(TestCase):
         self.assertIn('/api/assets/view/asset123', post.content)
         self.assertNotIn('odoc-illustration:', post.content)
 
+    def test_openai_uncertain_submission_is_not_automatically_repeated(self):
+        self.provider.type = 'OpenAi'
+        self.provider.save()
+        self.model.name = 'gpt-image-2.5-flare'
+        self.model.save()
+        self._create('第一段\n\n第二段', title='OpenAI 配图')
+        job = AgentPostIllustration.objects.get()
+        with patch('prompts.agent_post_illustration.compatible_image_client') as client:
+            client.return_value.generate.side_effect = GrsaiImageError('请求超时', status_code=504)
+            advance_agent_post_illustration(job)
+            job.refresh_from_db()
+            self.assertEqual(job.status, 'failed')
+            self.assertIn('不会自动重复提交', job.error_message)
+            process_due_illustrations(now=timezone.now() + timedelta(hours=1))
+            client.return_value.generate.assert_called_once()
+
     def test_scheduler_advances_illustration_jobs(self):
         with patch('prompts.agent_post_illustration.process_due_illustrations') as process:
             AgentTaskScheduler()._advance_post_illustrations()

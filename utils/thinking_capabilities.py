@@ -8,6 +8,12 @@ import re
 RELAY_PROVIDERS = ('NewAPI', 'custom')
 MANUAL_PROTOCOLS = ('thinking', 'enable_thinking', 'adaptive', 'reasoning_effort')
 
+# Only exact, documented native models are registered. Relay aliases do not
+# necessarily have the same parameter or tool support as their upstream model.
+OPENAI_GPT6_MODELS = {
+    'gpt-6.1-terra', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna',
+}
+OPENAI_GPT6_NO_NONE = {'gpt-6.1-sol', 'gpt-6-astra'}
 
 QWEN_HYBRID = {
     'qwen3.8-max', 'qwen3.8-flash', 'qwen3.8-27b',
@@ -36,7 +42,8 @@ def capability(config: dict, *, probe_ollama=False) -> dict:
     selected = config.get('thinking_protocol', 'auto')
     manual = provider in RELAY_PROVIDERS
     result = {'supported': False, 'protocol': 'unsupported', 'manual_protocol': manual,
-              'reason': '此模型的思考开关能力尚未确认，暂不提供开关。', 'enabled_effort': 'medium'}
+              'reason': '此模型的思考开关能力尚未确认，暂不提供开关。', 'enabled_effort': 'medium',
+              'effort_options': [], 'implicit_task_disable': True}
     if config.get('model_type', 'chat') not in ('chat', 'image'):
         result.update(reason='此模型功能类型不提供思考开关。', manual_protocol=False)
         return result
@@ -81,9 +88,18 @@ def capability(config: dict, *, probe_ollama=False) -> dict:
         elif name.startswith(('gemini-2.5-pro', 'gemini-3')):
             result['reason'] = '此 Gemini 型号不能完全关闭思考，不提供开关。'
     elif provider == 'OpenAi':
-        # These exact families document none. Do not extrapolate to Codex/Pro/6.x.
-        if re.fullmatch(r'gpt-5\.[12](?:-\d{4}-\d{2}-\d{2})?', name):
+        if re.fullmatch(r'gpt-5\.1(?:-\d{4}-\d{2}-\d{2})?', name):
             protocol = 'reasoning_effort'
+            result['effort_options'] = ['none', 'low', 'medium', 'high']
+        elif re.fullmatch(r'gpt-5\.2(?:-\d{4}-\d{2}-\d{2})?', name):
+            protocol = 'reasoning_effort'
+            result['effort_options'] = ['none', 'low', 'medium', 'high', 'xhigh']
+        elif name in OPENAI_GPT6_MODELS:
+            protocol = 'reasoning_effort'
+            result['effort_options'] = ([] if name in OPENAI_GPT6_NO_NONE else ['none']) + ['low', 'medium', 'high', 'xhigh', 'max']
+            # Prior to registration these models received the provider default,
+            # including on simple/bounded tasks; preserve that default.
+            result['implicit_task_disable'] = False
     elif provider == 'Ollama':
         metadata = config.get('ollama_thinking')
         if metadata is None and probe_ollama and name:
@@ -103,4 +119,5 @@ def capability(config: dict, *, probe_ollama=False) -> dict:
     # Native providers must use the documented protocol, not a freely selected one.
     if not manual and selected not in ('auto', protocol):
         result.update(supported=False, protocol='unsupported', reason='已保存的协议不符合此模型，请恢复自动协议。')
+        result['effort_options'] = []
     return result

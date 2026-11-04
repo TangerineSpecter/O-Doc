@@ -198,6 +198,31 @@ class SocialTests(TestCase):
         self.assertIn('Q版手绘风格', request['prompt'])
         self.assertIn('不出现居民或人物形象', request['prompt'])
 
+    def test_automatic_image_model_allows_scene_generation_and_manual_retry(self):
+        from system_settings.models import AIModel, AIProvider
+        from .social_image_prompt import SCENE_PREFIX
+        from .social_media import prepare_image, retry_image
+
+        provider = AIProvider.objects.create(name='OpenAI', type='OpenAi', base_url='https://example.invalid/v1')
+        model = AIModel.objects.create(name='gpt-image-2', type='image_generation', provider=provider)
+        settings = {**DEFAULTS, 'image_enabled': True, 'image_model_id': model.pk,
+                    'image_aspect_ratio': '16:9', 'image_size': '2K'}
+        self.assertEqual(validate(self.owner, settings)['image_model_id'], model.pk)
+        self.config.settings.update(settings)
+        self.config.save()
+        with patch('system_mcp.image_generation.image_generation_options', return_value={
+                'configured': True, 'model_id': model.pk, 'supports_reference_images': False,
+                'agent_reference_images': {}}):
+            prepare_image(self.moment, self.agent, settings, SCENE_PREFIX + '一杯茶')
+        self.moment.refresh_from_db()
+        self.assertEqual(self.moment.image_state['status'], 'pending')
+        self.assertEqual(self.moment.image_state['request']['reference_image_ids'], [])
+        self.moment.image_state['status'] = 'failed'
+        self.moment.save(update_fields=['image_state'])
+        retry_image(self.moment)
+        self.assertEqual(self.moment.image_state['status'], 'pending')
+        self.assertTrue(self.moment.image_state['manual'])
+
     def test_character_choice_preserves_reference_roles(self):
         from .social_image_prompt import encode_subject, image_prompt
         value = {'action': 'publish', 'image_choice': 'generate', 'image_prompt': '在窗边喝茶', 'image_include_actor': True}

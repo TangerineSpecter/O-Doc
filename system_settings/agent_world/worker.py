@@ -18,8 +18,11 @@ _fishing_backfill_retry_at = 0.0
 _fishing_backfill_cursor = ''
 _fishing_backfill_failed_in_cycle = False
 _lock = threading.Lock()
+_start_lock = threading.Lock()
 _thread = None
+_daily_thread = None
 _stop = threading.Event()
+_WORKER_RETRY_SECONDS = 60
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +79,7 @@ def maintain_combat_history() -> None:
     today = local_time().date()
     if _combat_maintenance_day == today:
         return
-    logger.warning('旧战斗归档已停用，ODOC_COMBAT_ARCHIVE_DAYS=%s 不会删除事实；新的七天回合清理尚未就绪', retention)
+    logger.warning('旧战斗归档已停用，ODOC_COMBAT_ARCHIVE_DAYS=%s 不影响后台七天回合清理', retention)
     _combat_maintenance_day = today
 
 
@@ -142,20 +145,56 @@ def _loop() -> None:
         _stop.wait(max(0.1, 60 - time.time() % 60))
 
 
+def _daily_loop() -> None:
+    from .combat.party_daily_automatic import run_loop
+    if not _stop.wait(get_scheduler_initial_delay_seconds()):
+        run_loop(_stop)
+
+
+def _supervise_loop(target, label: str) -> None:
+    """Restart a loop after unexpected exceptions or returns, unless stopping."""
+    while not _stop.is_set():
+        try:
+            target()
+        except Exception:
+            logger.exception('%s线程异常退出，将在 %s 秒后重试', label, _WORKER_RETRY_SECONDS)
+        else:
+            if _stop.is_set():
+                return
+            logger.warning('%s线程意外结束，将在 %s 秒后重试', label, _WORKER_RETRY_SECONDS)
+        if _stop.wait(_WORKER_RETRY_SECONDS):
+            return
+
+
 def start_world_worker() -> None:
-    global _thread
+    global _thread, _daily_thread
     server = _is_server_process() or ('runserver' in sys.argv and '--noreload' in sys.argv)
-    if not server or (_thread and _thread.is_alive()):
+    if not server:
         return
-    _stop.clear()
-    _thread = threading.Thread(target=_loop, name='agent-world-months', daemon=True)
-    _thread.start()
+    with _start_lock:
+        months_alive = bool(_thread and _thread.is_alive())
+        daily_alive = bool(_daily_thread and _daily_thread.is_alive())
+        # A stopping worker may still be releasing resources; do not revive it.
+        if (months_alive and daily_alive) or (_stop.is_set() and (months_alive or daily_alive)):
+            return
+        _stop.clear()
+        if not months_alive:
+            _thread = threading.Thread(target=_supervise_loop, args=(_loop, 'Agent 世界维护'),
+                                       name='agent-world-months', daemon=True)
+            _thread.start()
+        if not daily_alive:
+            _daily_thread = threading.Thread(target=_supervise_loop, args=(_daily_loop, '战斗统计'),
+                                             name='agent-world-combat-statistics', daemon=True)
+            _daily_thread.start()
 
 
 def stop_world_worker() -> None:
-    _stop.set()
-    if _thread and _thread.is_alive():
-        _thread.join(timeout=2)
+    with _start_lock:
+        _stop.set()
+        threads = (_thread, _daily_thread)
+    for thread in threads:
+        if thread and thread.is_alive():
+            thread.join(timeout=2)
 
 
 atexit.register(stop_world_worker)

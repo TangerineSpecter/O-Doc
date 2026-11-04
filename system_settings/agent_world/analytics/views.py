@@ -16,10 +16,12 @@ from ..serializers import LedgerSerializer
 from .queries import load_facts, visible_resident_ids
 from .service import aggregate
 from .combat_statistics import load_combat_statistics
+from .combat_daily import pending_daily_parties
 from .fishing_statistics import InvalidFishingStatisticsSource, load_fishing_statistics
 from .lottery_statistics import load_lottery_statistics
 from .consistency import analytics_snapshot
 from .timing import AnalyticsTiming
+from .archived_combat import InvalidCombatStatisticsSource
 
 logger = logging.getLogger(__name__)
 SLOW_ANALYTICS_MS = 3000
@@ -39,6 +41,13 @@ class AnalyticsParams(serializers.Serializer):
 
 class AnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def handle_exception(self, exc):
+        if isinstance(exc, InvalidCombatStatisticsSource):
+            logger.warning('已归档战斗统计来源无效：%s', exc)
+            return valid_result('战斗统计来源存在异常，无法计算完整结果，请查看系统日志。',
+                                {'reason': 'invalid_combat_statistics_source'}, status=409)
+        return super().handle_exception(exc)
 
     def get(self, request):
         timing = AnalyticsTiming()
@@ -69,11 +78,17 @@ class AnalyticsView(APIView):
             else:
                 timing.mark('fishing')
                 summary = aggregate(facts, first, last, actor)
+                if include_daily:
+                    total, pending = pending_daily_parties(owner)
+                    if pending:
+                        summary['notes'].append(
+                            f'战斗历史统计已生成 {total-pending}/{total} 场；其余已结束场次仍会计入，加载可能较慢。')
                 timing.mark('aggregate')
                 lottery = load_lottery_statistics(owner, start, end, residents)
                 timing.mark('lottery')
                 combat = load_combat_statistics(owner, start, end, residents, include_daily=include_daily,
-                                                departure_ids=facts.departure_ids)
+                                                departure_ids=facts.departure_ids,
+                                                finished_departure_ids=facts.finished_departure_ids)
                 timing.mark('combat_comparison')
                 response = success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
                                            **summary, 'lotteryStatistics': lottery, 'fishingComparison': fishing,

@@ -5,7 +5,7 @@ from system_settings.agent_world.combat.archive import checkpoint_all
 
 
 class Command(BaseCommand):
-    help = '为战斗事实链追加检查点；建议每天执行一次，归档以检查点作为删减边界。'
+    help = '手动为战斗事实链追加检查点；此命令不生成每日统计，旧版实际归档已停用。'
 
     def handle(self, *args, **options):
         created, skipped = checkpoint_all()

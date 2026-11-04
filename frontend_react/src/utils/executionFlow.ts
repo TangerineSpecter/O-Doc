@@ -183,9 +183,44 @@ function blocksFromText(rawText: string, fallbackLabel: string, idPrefix: string
     return headings.length ? headings : splitByParagraph(text, idPrefix, fallbackLabel);
 }
 
+function responsesInputBlocks(input: unknown[]): FlowBlock[] {
+    return input.flatMap<FlowBlock>((value, index) => {
+        const item = asRecord(value) ?? {};
+        const type = typeof item.type === 'string' ? item.type : '';
+        const source = `input[${index}]`;
+        if (type === 'reasoning') return [{
+            ...makeBlock(`i${index}-reasoning`, '模型推理状态', '加密状态，用于继续本次工具调用'),
+            kind: 'history' as const, source: `${source} · reasoning`,
+        }];
+        if (type === 'function_call') return [{
+            ...makeBlock(`i${index}-call`, '工具调用参数与 ID', stringifyValue({name: item.name, call_id: item.call_id, arguments: item.arguments})),
+            kind: 'history' as const, source: `${source} · function_call`,
+        }];
+        if (type === 'function_call_output') return blocksFromText(stringifyValue(item.output), '工具结果', `i${index}`)
+            .map(block => ({...block, kind: 'tool_results' as const, source: `${source} · ${item.call_id ?? 'tool'} / ${block.label}`}));
+        const role = typeof item.role === 'string' ? item.role : 'user';
+        const kind: FlowBlock['kind'] = role === 'assistant' ? 'history'
+            : role === 'system' || role === 'developer' ? 'instructions' : 'business';
+        return blocksFromText(stringifyValue(item.content ?? value), ROLE_LABELS[role] ?? role, `i${index}`)
+            .map(block => ({...block, kind, source: `${source} · ${role} / ${block.label}`}));
+    });
+}
+
 export function inputBlocksFromRequest(request: unknown): FlowBlock[] {
     const outer = asRecord(request);
     const container = asRecord(outer?.json) ?? outer;
+    if (Array.isArray(container?.input)) {
+        const blocks = responsesInputBlocks(container.input);
+        if (container.tools !== undefined) blocks.push({
+            ...makeBlock('req-tools', '工具定义 / Schema', stringifyValue(container.tools)),
+            kind: 'tools', source: 'request.tools',
+        });
+        if (asRecord(container.text)?.format !== undefined) blocks.push({
+            ...makeBlock('req-format', '输出格式约束', stringifyValue(asRecord(container.text)?.format)),
+            kind: 'instructions', source: 'request.text.format',
+        });
+        return blocks;
+    }
     const messages = Array.isArray(container?.messages) ? container.messages : null;
     if (messages) {
         const blocks: FlowBlock[] = messages.flatMap((item, index) => {
@@ -220,6 +255,7 @@ interface OutputParts {
     toolNames: string[];
     payload: unknown;
     label: string;
+    toolCalls?: unknown;
 }
 
 function toolCallNames(message: Record<string, unknown> | null): string[] {
@@ -250,6 +286,16 @@ function outputParts(response: unknown): OutputParts | null {
     }
     // 决策模型落盘为 {raw, json}，大模型直接落盘响应体，两者都可能是 OpenAI chat 响应。
     const envelope = asRecord(record.json) ?? record;
+    if (Array.isArray(envelope.output)) {
+        const output = envelope.output.map(asRecord).filter((item): item is Record<string, unknown> => item !== null);
+        const calls = output.filter(item => item.type === 'function_call')
+            .map(item => ({name: item.name, call_id: item.call_id, arguments: item.arguments}));
+        const toolNames = calls.map(call => typeof call.name === 'string' && call.name ? call.name : '未命名工具');
+        const text = output.filter(item => item.type === 'message').flatMap(item => Array.isArray(item.content) ? item.content : [])
+            .map(asRecord).filter(part => part?.type === 'output_text' && typeof part.text === 'string')
+            .map(part => part!.text as string).join('');
+        return {text, toolNames, toolCalls: calls, payload: parseJson(text), label: text ? '模型输出' : '工具调用'};
+    }
     const message = firstChoiceMessage(envelope);
     const toolNames = toolCallNames(message);
     const text =
@@ -288,7 +334,7 @@ export function outputFromResponse(response: unknown): {blocks: FlowBlock[]; sum
     if (parts.toolNames.length) {
         const record = asRecord(response);
         const message = firstChoiceMessage(asRecord(record?.json) ?? record);
-        blocks.push(makeBlock('out-tools', '工具调用', stringifyValue(message?.tool_calls) || parts.toolNames.join('、')));
+        blocks.push(makeBlock('out-tools', '工具调用', stringifyValue(parts.toolCalls ?? message?.tool_calls) || parts.toolNames.join('、')));
     }
     if (!blocks.length) blocks.push(makeBlock('out-empty', '输出', '（本次没有输出内容）'));
     return {blocks, summary: outputSummaryOf(parts)};

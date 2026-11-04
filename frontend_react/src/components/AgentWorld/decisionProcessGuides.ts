@@ -1,4 +1,4 @@
-// 帖子评价/独立评分由 scheduled 维护；关系v2来信感受与社交结算由 independent 维护。
+// 帖子评价、发帖配图恢复和独立评分由 scheduled 维护；关系v2来信感受与社交结算由 independent 维护。
 import type {DecisionGuideKind, DecisionProcessGuide} from './decisionProcessTypes';
 import {idleGuides} from './decisionGuides/idle';
 import {scheduledGuides} from './decisionGuides/scheduled';

@@ -81,6 +81,9 @@ export default function CombatObservationSidebar({
                     <CombatFoodSummary result={snapshot.result} active={['active', 'paused'].includes(snapshot.status)}/>
                 </div>
             )}
+            {snapshot.historyArchived && <p className="shrink-0 border-b border-slate-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                战斗过程已超过保留期，仍可查看击败、经验和掉落。
+            </p>}
             {/* 列表主视口 */}
             <div
                 ref={list}
@@ -97,7 +100,7 @@ export default function CombatObservationSidebar({
             >
                 {tab === 'events' && (
                     <>
-                        {hasOlder && <button type="button" disabled={loading} onClick={() => {
+                        {!snapshot.historyArchived && hasOlder && <button type="button" disabled={loading} onClick={() => {
                             following.current = false;
                             void loadOlder();
                         }} className="mb-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 disabled:opacity-50">{loading ? '加载中…' : '加载更早战斗动态'}</button>}
@@ -107,7 +110,8 @@ export default function CombatObservationSidebar({
                 )}
                 {tab === 'drops' && <ObservationLootGrid slots={slots} onSelect={setSelected} />}
                 {tab === 'kills' && (
-                    <ObservationKills events={events} total={snapshot.result.kills ?? 0} />
+                    <ObservationKills events={events} total={snapshot.result.kills ?? 0}
+                        archivedKills={snapshot.historyArchived ? snapshot.archivedKills || [] : undefined} />
                 )}
             </div>
 

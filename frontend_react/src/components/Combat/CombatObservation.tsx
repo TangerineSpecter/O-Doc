@@ -18,7 +18,7 @@ export default function CombatObservation({id,onClose}:{id:string;onClose:()=>vo
     const detail=state.snapshot?.reason||(!ended&&state.snapshot?.remainingSeconds!=null?`预计剩余 ${elapsed(state.snapshot.remainingSeconds)}`:'');
     const waitingPromotion=state.snapshot?.status==='paused'&&['promotion','promotion_failed'].includes(state.snapshot.stage);
     const promotionMessage=state.snapshot?.promotionBusy?'Agent 正在选择职业，完成后会自动继续当前探索':'Agent 尚未完成转职选择，可在冒险档案中重试';
-    const description=[ended?'本次探索已结束，可查看全部记录':waitingPromotion?promotionMessage:state.snapshot?.status==='paused'?'探索已暂停':'关闭窗口后探索继续',detail,'动作与数值以已确认战报为准'].filter(Boolean).join(' · ');
+    const description=[ended?(state.snapshot?.historyArchived?'战斗过程已过保留期，可查看结算':'本次探索已结束，可查看全部记录'):waitingPromotion?promotionMessage:state.snapshot?.status==='paused'?'探索已暂停':'关闭窗口后探索继续',detail,state.snapshot?.historyArchived?'':'动作与数值以已确认战报为准'].filter(Boolean).join(' · ');
     const summary=useMemo(()=>state.snapshot?<CombatObservationSummary snapshot={state.snapshot} busy={busy} onCommand={command}/>:undefined,[state.snapshot,busy,command]);
     return <WorldDialog title="探索观察" titleAction={summary} description={description} size="extra-wide" onClose={onClose}>
         <div className="flex h-full min-h-0 flex-col gap-3">

@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError, get_default_image_generation_model
 from system_settings.models import AIModel
-from system_settings.newapi_images import NewApiImageClient
+from system_settings.newapi_images import compatible_image_client
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
 
@@ -52,8 +52,8 @@ class PromptGenerationStartView(APIView):
         try:
             positive, negative, stored_values, combined_prompt = render_generation_prompt(template, input_values)
             model = get_default_image_generation_model()
-            if model.provider.type == 'NewAPI':
-                client = NewApiImageClient(model)
+            if model.provider.type in ('NewAPI', 'OpenAi'):
+                client = compatible_image_client(model)
                 result = client.generate(combined_prompt)
                 usage = save_newapi_generation_result(
                     template=template, user_id=get_current_user_identifier(request), client=client,

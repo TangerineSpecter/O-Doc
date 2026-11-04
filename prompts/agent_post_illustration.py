@@ -14,7 +14,7 @@ from article.models import Article
 from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError, get_default_image_generation_model
 from system_settings.image_generation_options import resolve_agent_post_illustration_request
 from system_settings.models import AIModel
-from system_settings.newapi_images import NewApiImageClient
+from system_settings.newapi_images import compatible_image_client
 
 from .article_illustration import (
     build_article_illustration_prompt,
@@ -232,6 +232,9 @@ def _generate(job: AgentPostIllustration, now) -> None:
     if model is None:
         _fail(job, '请先在设置中选择默认生图模型')
         return
+    if model.provider.type == 'OpenAi' and job.generate_attempts > 1:
+        _fail(job, '上次 OpenAI 生图结果未确认，不会自动重复提交；请检查原请求后再手动生成')
+        return
     try:
         options, applied, _note = resolve_agent_post_illustration_request(model, job.aspect_ratio)
         prompt = build_article_illustration_prompt((job.prompt or '帖子配图')[:4000])
@@ -243,18 +246,21 @@ def _generate(job: AgentPostIllustration, now) -> None:
     job.provider_type = model.provider.type
     job.save(update_fields=['aspect_ratio', 'model_id', 'provider_type', 'updated_at'])
     try:
-        if model.provider.type == 'NewAPI':
+        if model.provider.type in ('NewAPI', 'OpenAi'):
             _start_newapi(job, model, prompt, now)
         elif model.provider.type == 'Grsai':
             _start_grsai(job, model, prompt, options, now)
         else:
-            _fail(job, '当前仅支持 Grsai 或 New API 生图模型')
+            _fail(job, '当前仅支持 Grsai、New API 或 OpenAI 生图模型')
     except GrsaiImageError as exc:
         if job.provider_task_id or job.image_url:
             job.status = AgentPostIllustration.STATUS_GENERATING if not job.image_url else AgentPostIllustration.STATUS_DOWNLOAD_PENDING
             if job.status == AgentPostIllustration.STATUS_GENERATING and not job.generating_started_at:
                 job.generating_started_at = now
             job.save()
+            return
+        if model.provider.type == 'OpenAi':
+            _fail(job, f'{exc}；本次不会自动重复提交，请检查结果后再手动生成')
             return
         if job.generate_attempts >= MAX_GENERATE_ATTEMPTS:
             _fail(job, str(exc))
@@ -280,9 +286,9 @@ def _start_grsai(job, model, prompt, options, now) -> None:
 
 
 def _start_newapi(job, model, prompt, now) -> None:
-    client = NewApiImageClient(model)
+    client = compatible_image_client(model)
     image_data = client.generate(prompt).images[0]
-    job.provider_type = 'NewAPI'
+    job.provider_type = model.provider.type
     job.provider_task_id = job.id
     if not isinstance(image_data, str):
         asset = save_first_newapi_illustration(image_data, client, user_id=job.user_id, task_id=job.id)
@@ -368,12 +374,12 @@ def _retry_download(job: AgentPostIllustration, now) -> None:
 
 
 def _download_stored_url(job: AgentPostIllustration) -> dict:
-    if job.provider_type == 'NewAPI':
+    if job.provider_type in ('NewAPI', 'OpenAi'):
         model = _load_model(job)
         if model is None:
             raise GrsaiImageError('生图模型已删除，无法下载配图')
         return save_first_newapi_illustration(
-            job.image_url, NewApiImageClient(model), user_id=job.user_id, task_id=job.id,
+            job.image_url, compatible_image_client(model), user_id=job.user_id, task_id=job.id,
         )
     return save_first_grsai_illustration((job.image_url,), user_id=job.user_id, task_id=job.id)
 

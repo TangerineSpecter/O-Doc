@@ -11,12 +11,13 @@ from utils.sync_datetime import SyncJSONEncoder
 from utils.sync_policy import SyncError
 from ..farm_gate import guarded
 from ..life_time import local_time
-from .analytics_models import CombatPartyCoverage, CombatPartyDay
+from .analytics_models import CombatPartyCoverage, CombatPartyDay, CombatPartySettlement
 from .explorations import TERMINAL
 from .models import CombatFact, Exploration
 from .party_daily_preview import preview
 from .party_daily_sync import records
 from .party_models import AdventureEvent, AdventureMember, AdventureParty
+from .retention_gate import inspect_statistics_backlog
 
 
 @guarded
@@ -25,7 +26,7 @@ def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
 
     The seven-day clock starts after the last member has actually finished and
     left. This preliminary check cannot verify asset provenance or any remote
-    device, and does not implement the recoverable cleanup protocol.
+    device. The automatic cleanup transaction performs the complete validation.
     """
     if not 1 <= max_source_rows <= 50000:
         raise ValueError('单场来源行数上限必须在 1 至 50000 之间')
@@ -68,13 +69,36 @@ def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
                                                                output_field=BigIntegerField())))['total'] or 0
         observed['payload_bytes'] = payload_bytes(rounds) + payload_bytes(facts)
 
+    marker = CombatPartySettlement.objects.filter(pk=identity, owner_id=owner).first()
+    archived = bool(marker and 'archive' in (marker.content or {}))
     projection = None
-    if party.status == 'completed':
+    if archived:
+        from .party_settlement_archive import validate_settlement
+        from .retention_projection import validate_archive
+        from .store import digest
         try:
-            projection = preview(owner, identity, max_source_rows=max_source_rows)
+            if marker.version != 1 or marker.digest != digest(marker.content):
+                raise ValueError('压缩结算指纹不一致')
+            validate_archive(marker.content)
+            original = {key: value for key, value in marker.content.items() if key != 'archive'}
+            projection = {'source': original['origin'], 'days': validate_settlement(original),
+                          '_settlement': original}
+        except (ValueError, KeyError, TypeError, AttributeError, IndexError, SyncError) as exc:
+            blockers.append('已压缩结算校验未通过：' + str(exc))
+    elif party.status == 'completed':
+        try:
+            projection = preview(owner, identity, max_source_rows=max_source_rows, include_settlement=True)
         except (ValueError, KeyError, TypeError, AttributeError, IndexError, SyncError) as exc:
             blockers.append('共同来源预校验未通过：' + str(exc))
     source_valid = projection is not None
+    settlement = projection.get('_settlement') if projection else None
+    if projection and not settlement:
+        blockers.append('压缩结算无法核对：' + projection.get('_settlement_error', '缺少结果'))
+    compact = {'verified': bool(settlement), 'explorations': 0, 'kills': 0, 'rewards': 0}
+    if settlement:
+        compact.update(explorations=len(settlement['runs']), kills=len(settlement['kills']),
+            rewards=sum(len(participant['rewards']) for kill in settlement['kills']
+                        for participant in kill['participants']))
     models = [*CombatPartyCoverage.objects.filter(pk=identity), *CombatPartyDay.objects.filter(party_id=identity)]
     stored = json.loads(serializers.serialize('json', models, cls=SyncJSONEncoder))
     expected = records(projection) if projection else []
@@ -83,13 +107,19 @@ def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
         {(row['model'], str(row['pk'])): row for row in expected})
     if not coverage_valid:
         blockers.append('每日贡献尚未建立或不能与现存来源核对')
-    blockers.append('个人完整事实链、资产来源与跨设备准备、提交和中断恢复尚未完成核验')
-    blockers.append('新的七天回合清理尚未实现')
+    backlog = inspect_statistics_backlog()
+    if not backlog['basic_coverage_complete']:
+        blockers.append('存在未统计或无法核验的已结束战斗，全部归档暂缓')
+    if archived:
+        blockers.append('该场回合过程已完成清理；结算与统计仍保留')
+    else:
+        blockers.append('只读预览不能授权删除；自动任务将在事务内核验全部来源、资产和压缩后的恢复数据')
     return {
         'party_id': identity, 'owner_id': owner, 'seven_day_cutoff': cutoff.isoformat(),
         'last_member_finished_at': last_finished.isoformat() if last_finished else None,
-        'age_ready': age_ready, 'shared_source_verified': source_valid,
-        'daily_contribution_verified': coverage_valid, 'observed': observed,
+        'age_ready': age_ready, 'archived': archived, 'shared_source_verified': source_valid and not archived,
+        'daily_contribution_verified': coverage_valid, 'compact_settlement': compact,
+        'statistics_backlog': backlog, 'observed': observed,
         'payload_bytes_scope': '仅 JSON 载荷的数据库列大小；不包含索引、行、碎片或备份，不能视为可释放空间。',
         'cleanup_ready': False, 'blockers': list(dict.fromkeys(blockers)),
     }

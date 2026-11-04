@@ -1,8 +1,7 @@
-"""把检查点之前的战斗事实折叠成归档基线，仅保留最近一段可回放的回合。
+"""Inspect legacy checkpoint boundaries; actual legacy deletion is disabled.
 
-归档只在检查点边界执行：检查点紧跟在被删区间之后，仍提供成长、装备和
-探索基线；`CombatIntegrity.archive_stock` 记录被删事实的物资净变化，供
-库存校验相加。链本身从 `archive_digest` 继续，不改写任何留存事实。
+Existing archive baselines remain available for source and inventory checks.
+Seven-day round cleanup is handled separately by retention_cleanup.
 """
 from collections import Counter
 from datetime import timedelta
@@ -184,7 +183,7 @@ def prune_states() -> int:
 
 
 def archive_profile(profile, cutoff, *, apply: bool = True) -> dict:
-    """删除 cutoff 之前、且已被检查点覆盖的事实。返回统计，不写墓碑。"""
+    """Preview the old checkpoint boundary; reject requests to delete facts."""
     if apply:
         reject_legacy_archive()
     from system_settings.sync_state import suspend_tracking

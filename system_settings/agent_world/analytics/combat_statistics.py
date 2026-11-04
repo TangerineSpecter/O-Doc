@@ -1,5 +1,6 @@
 """Read-only departure-cohort combat statistics, scoped to the authenticated owner."""
 from ..combat.models import CombatCatalog, CombatFact, Exploration, CombatProfile
+from ..combat.analytics_eligibility import finished_explorations
 from .combat_kills import load_combat_kills
 
 OPEN = {'preparing', 'active', 'paused', 'settling'}
@@ -28,7 +29,7 @@ def job_level(progression):
     return value if type(value) is int and 1 <= value <= 99 else None
 
 
-def aggregate_combat(residents, runs, kills):
+def aggregate_combat(residents, runs, kills, finished_ids):
     profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys()).only(
         'id', 'catalog_id', 'progression')}
     catalog_ids = {p.catalog_id for p in profiles.values()} | {run.catalog_id for run in runs}
@@ -63,6 +64,10 @@ def aggregate_combat(residents, runs, kills):
         row = rows.get(run.actor_id)
         if row is None or run.pk in seen:
             continue
+        if run.pk not in finished_ids:
+            if run.status in OPEN:
+                row['ongoing'] += 1
+            continue
         if not row.get('jobName'):
             snap_progression = run.snapshot.get('progression') or {}
             snap_job = snap_progression.get('job')
@@ -73,11 +78,8 @@ def aggregate_combat(residents, runs, kills):
                     row['jobLevel'] = job_level(snap_progression)
         seen.add(run.pk)
         row['explorations'] += 1
-        if run.status in OPEN:
-            row['ongoing'] += 1
-        else:
-            row['settled'] += 1
-            row[run.status if run.status in ('completed', 'fallen', 'recalled', 'exhausted') else 'otherEnded'] += 1
+        row['settled'] += 1
+        row[run.status if run.status in ('completed', 'fallen', 'recalled', 'exhausted') else 'otherEnded'] += 1
         result = run.result or {}
         row['kills'] += count(result.get('kills'))
         row['experience'] += count(result.get('experience'))
@@ -113,13 +115,17 @@ def aggregate_combat(residents, runs, kills):
     return sorted(rows.values(), key=lambda row: (-row['kills'], -row['bossKills'], -row['experience'], row['id']))
 
 
-def load_combat_statistics(owner, start, end, residents, *, include_daily=False, departure_ids=None):
+def load_combat_statistics(owner, start, end, residents, *, include_daily=False, departure_ids=None,
+                           finished_departure_ids=None):
     # Missing departure dates are unknown; creation time is not a substitute.
     ids = (set(CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
         created_at__gte=start, created_at__lt=end).values_list('exploration_id', flat=True))
         if departure_ids is None else set(departure_ids))
     runs = list(Exploration.objects.filter(owner_id=owner, actor_id__in=residents, pk__in=ids).only(
         'id', 'actor_id', 'catalog_id', 'status', 'snapshot', 'result', 'elapsed_seconds'))
-    kills = load_combat_kills(owner, exploration_ids=[run.pk for run in runs], actor_ids=residents,
+    finished_ids = (set(finished_explorations(Exploration.objects.filter(
+        actor_id__in=residents, pk__in=ids), owner).values_list('pk', flat=True))
+        if finished_departure_ids is None else set(finished_departure_ids))
+    kills = load_combat_kills(owner, exploration_ids=finished_ids, actor_ids=residents,
                               include_daily=include_daily)
-    return aggregate_combat(residents, runs, kills)
+    return aggregate_combat(residents, runs, kills, finished_ids)

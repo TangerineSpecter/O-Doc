@@ -10,6 +10,17 @@ from utils.tool_completion_options import tool_thinking_options, ToolThinkingCom
 
 
 class ToolThinkingCompatibilityTests(SimpleTestCase):
+    def test_native_openai_gpt6_tool_limits_are_explicit(self):
+        config = {'provider_type': 'OpenAi', 'model_name': 'gpt-6.1-terra'}
+        self.assertEqual(tool_thinking_options(config, has_tools=False), {})
+        with self.assertRaisesRegex(ToolThinkingCompatibilityError, 'Responses API'):
+            tool_thinking_options(config, has_tools=True)
+        config['model_name'] = 'gpt-6-luna'
+        with self.assertRaisesRegex(ToolThinkingCompatibilityError, '关闭思考'):
+            tool_thinking_options(config, has_tools=True)
+        config['reasoning_effort'] = 'none'
+        self.assertEqual(tool_thinking_options(config, has_tools=True), {'reasoning_effort': 'none'})
+
     def config(self, **overrides):
         return {'base_url': 'https://4sapi.org/v1', 'model_name': 'gpt-6-luna',
                 'provider_type': 'custom', 'thinking_mode': 'default',

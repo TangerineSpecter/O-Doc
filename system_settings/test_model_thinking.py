@@ -16,6 +16,27 @@ from utils.thinking_capabilities import capability
 
 
 class ThinkingPolicyTests(SimpleTestCase):
+    def test_openai_effort_options_are_model_specific_and_do_not_change_defaults(self):
+        expected = {
+            'gpt-6.1-terra': ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+            'gpt-6.1-sol': ['low', 'medium', 'high', 'xhigh', 'max'],
+            'gpt-5.1': ['none', 'low', 'medium', 'high'],
+            'gpt-5.2': ['none', 'low', 'medium', 'high', 'xhigh'],
+        }
+        for name, options in expected.items():
+            config = {'provider_type': 'OpenAi', 'model_name': name}
+            self.assertEqual(capability(config)['effort_options'], options)
+            for effort in options:
+                self.assertEqual(thinking_body({**config, 'reasoning_effort': effort}), {'reasoning_effort': effort})
+        self.assertEqual(thinking_options({'provider_type': 'OpenAi', 'model_name': 'gpt-6.1-terra'}), {})
+        self.assertEqual(thinking_options({'provider_type': 'OpenAi', 'model_name': 'gpt-5.2'}), {'reasoning_effort': 'none'})
+        with self.assertRaises(ValueError):
+            thinking_body({'provider_type': 'OpenAi', 'model_name': 'gpt-6.1-sol', 'reasoning_effort': 'none'})
+        with self.assertRaises(ValueError):
+            thinking_body({'provider_type': 'OpenAi', 'model_name': 'gpt-5.1', 'reasoning_effort': 'max'})
+        with self.assertRaises(ValueError):
+            thinking_body({'provider_type': 'NewAPI', 'model_name': 'gpt-6.1-terra', 'reasoning_effort': 'high', 'thinking_protocol': 'reasoning_effort'})
+
     def test_native_model_capability_matrix(self):
         for provider, name, protocol in (
             ('DeepSeek', 'deepseek-flash', 'thinking'),
@@ -164,6 +185,72 @@ class ModelThinkingTests(TestCase):
                     self.assertNotIn('temperature', payload)
                 else:
                     self.assertEqual(payload['temperature'], 0)
+
+    def test_terra_connection_uses_openai_limit_and_saved_effort(self):
+        self.provider.type = 'OpenAi'
+        self.model.name = 'gpt-6.1-terra'
+        self.model.thinking_protocol = 'auto'
+        self.model.thinking_mode = 'default'
+        for effort in ('default', 'none', 'high', 'max'):
+            self.model.reasoning_effort = effort
+            _, payload = AIModelViewSet._model_test_payload(self.model)
+            self.assertEqual(payload['max_completion_tokens'], 8)
+            self.assertNotIn('max_tokens', payload)
+            self.assertEqual(payload.get('reasoning_effort'), None if effort == 'default' else effort)
+            self.assertEqual('temperature' in payload, effort == 'none')
+
+    @patch('system_settings.ai_views.requests.post')
+    def test_openai_connection_normalizes_base_url_like_actual_chat(self, post):
+        self.provider.type = 'OpenAi'
+        self.provider.base_url = 'https://api.openai.com'
+        self.provider.save()
+        self.model.name = 'gpt-6.1-terra'
+        self.model.thinking_mode = 'default'
+        self.model.thinking_protocol = 'auto'
+        self.model.save()
+        post.return_value.status_code = 200
+        request = APIRequestFactory().post('/')
+        force_authenticate(request, user=SimpleNamespace(is_authenticated=True))
+        response = AIModelViewSet.as_view({'post': 'test_connection'})(request, pk=self.model.pk)
+        self.assertTrue(response.data['data']['ok'])
+        self.assertEqual(post.call_args.args[0], 'https://api.openai.com/v1/chat/completions')
+
+    @patch('system_settings.ai_views.requests.post')
+    def test_connection_reports_stale_thinking_configuration_without_calling_provider(self, post):
+        self.provider.type = 'DeepSeek'
+        self.provider.save()
+        self.model.name = 'gpt-6-sol'
+        self.model.thinking_mode = 'default'
+        self.model.thinking_protocol = 'auto'
+        self.model.reasoning_effort = 'high'
+        self.model.save()
+        request = APIRequestFactory().post('/')
+        force_authenticate(request, user=SimpleNamespace(is_authenticated=True))
+        response = AIModelViewSet.as_view({'post': 'test_connection'})(request, pk=self.model.pk)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('此模型不支持所选的思考强度', response.data['msg'])
+        self.assertFalse(response.data['data']['ok'])
+        post.assert_not_called()
+
+    def test_effort_serializer_and_sync_preserve_new_and_old_records(self):
+        self.provider.type = 'OpenAi'
+        self.provider.save()
+        self.model.name = 'gpt-6.1-terra'
+        self.model.thinking_protocol = 'auto'
+        self.model.thinking_mode = 'default'
+        self.model.save()
+        serializer = AIModelSerializer(self.model, data={'reasoning_effort': 'high'}, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.assertEqual(AIService.get_client_config_for_model(self.model.pk)['reasoning_effort'], 'high')
+        row = json.loads(serializers.serialize('json', [self.model]))
+        self.assertEqual(row[0]['fields']['reasoning_effort'], 'high')
+        self.assertEqual(next(serializers.deserialize('json', json.dumps(row))).object.reasoning_effort, 'high')
+        row[0]['fields'].pop('reasoning_effort')
+        self.assertEqual(next(serializers.deserialize('json', json.dumps(row))).object.reasoning_effort, 'default')
+        for data in ({'thinking_mode': 'enabled'}, {'name': 'gpt-6.1-sol', 'reasoning_effort': 'none'}, {'type': 'embedding'}):
+            invalid = AIModelSerializer(self.model, data=data, partial=True)
+            self.assertFalse(invalid.is_valid(), data)
 
     def test_capability_endpoint_uses_current_provider_and_draft_model(self):
         from system_settings.ai_views import AIProviderViewSet

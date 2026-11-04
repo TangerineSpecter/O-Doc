@@ -841,7 +841,7 @@ class BlacksmithServiceTests(TestCase):
         with self.assertRaisesRegex(SyncError, '新版同步版本'):
             validate_source(data, {**metadata(data), 'blacksmith_schema_version': 0})
         with self.assertRaisesRegex(SyncError, '版本过新'):
-            validate_combat(data, {**combat_metadata(data), 'combat_schema_version': 19})
+            validate_combat(data, {**combat_metadata(data), 'combat_schema_version': 21})
         saved = copy.deepcopy(operation.result)
         for _ in range(2):
             manager.apply_snapshot_data(copy.deepcopy(data), meta, full_overwrite=True)

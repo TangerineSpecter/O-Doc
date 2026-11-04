@@ -76,7 +76,10 @@ export default function DiaryCard({entry, onOpen, timeline = false}: DiaryCardPr
                     </span>
                 </div>
 
-                <h3 className="diary-wenkai mt-2 break-words text-[15px] sm:text-base font-bold leading-snug text-zinc-900">
+                <h3
+                    title={entry.title}
+                    className="diary-wenkai mt-2 truncate text-[15px] sm:text-base font-bold leading-snug text-zinc-900"
+                >
                     {entry.title}
                 </h3>
 

@@ -1,0 +1,31 @@
+{
+  "version": "combat-1.0.38",
+  "descriptions": {
+    "skill.player.014": "武器物攻贡献 +10% / 15% / 20%",
+    "skill.player.016": "物防 +5% / 7.5% / 10%",
+    "skill.player.018": "魔攻 +5% / 7.5% / 10%",
+    "skill.player.020": "耗蓝降低 5% / 7.5% / 10%",
+    "skill.player.022": "命中 +2 / 3 / 4 个百分点",
+    "skill.player.024": "暴击伤害 +5 / 7.5 / 10 个百分点",
+    "skill.player.026": "治疗强度 +5% / 7.5% / 10%",
+    "skill.player.028": "生命与魔防各 +3% / 4.5% / 6%",
+    "skill.player.083": "辅助乐曲耗蓝降低10%／15%／20%",
+    "skill.player.086": "自身直接魔法攻击忽略目标10%／15%／20%魔防"
+  },
+  "rank3_effects": {
+    "skill.player.014.r3.e1": "0.2",
+    "skill.player.016.r3.e1": "0.1",
+    "skill.player.018.r3.e1": "0.1",
+    "skill.player.020.r3.e1": "0.1",
+    "skill.player.022.r3.e1": "0.04",
+    "skill.player.024.r3.e1": "0.1",
+    "skill.player.026.r3.e1": "0.1",
+    "skill.player.028.r3.e1": "0.06",
+    "skill.player.028.r3.e2": "0.06",
+    "skill.player.018.r3.e2": "0.05",
+    "skill.player.018.r3.e3": "0.05",
+    "skill.player.022.r3.e2": "0.08",
+    "skill.player.083.r3.e1": "0.2",
+    "skill.player.086.r3.e1": "0.2"
+  }
+}

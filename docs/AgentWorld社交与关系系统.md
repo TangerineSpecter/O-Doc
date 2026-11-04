@@ -126,6 +126,8 @@
 
 配图复用既有 ImageGenerationTask。文字先发布，图片成功后追加。提交前保存模型、尺寸、参考图、提示词和请求幂等键；恢复查询同一任务，响应未知不自动重复提交。失败保留文字；界面区分查询原请求和重新生成。自主图片额度不属于世界模拟货币，真实服务费用独立。
 
+OpenAI 和 New API 的生图适配器使用模型默认画幅与分辨率，社交设置中保存的画幅和分辨率不会传给它们；其他支持显式尺寸的模型继续使用已保存设置。OpenAI 当前仅支持无参考图的文字生图，带角色参考图的请求仍会被拒绝；仅场景配图可正常发起。人工重新生成也使用同样的模型能力校验。
+
 ## WebDAV 与迁移
 
 用户已确认：SocialConfig、Moment、MomentComment、MomentLike、SocialInbox、SocialRelation、SocialEvent、SocialOpportunity、SocialTheatreEvent、SocialIntegrity全部同步。帖子新增回复字段、图片Asset和生图请求快照也同步。小剧场关系结算沿用现有 `counterpart_id=agent-id:{居民ID}`，与朋友圈和帖子互动累计在同一关系上；历史详情按事件身份快照展示，删除沿用相同关系键重建。小剧场后台状态更新、发言保存和关系结算使用同步互斥门，锁只覆盖本地写入，不覆盖新闻搜索或模型网络等待。小剧场来源、居民身份快照与完整发言作为社交事实同步；议题、逐轮决策、拒绝候选原因和接收者关系评价复用已同步的 `snapshot` JSON，消息ID、回应目标和发言意图复用 `transcript` JSON，不新增模型字段或数据库迁移。删除使用 `is_valid` 或事项失效状态，删除居民后仍保留身份快照。

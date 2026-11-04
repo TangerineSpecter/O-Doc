@@ -213,7 +213,7 @@ class SyncManager:
             raise SyncError('量化快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>18:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>20:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>2:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 2:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
@@ -287,7 +287,7 @@ class SyncManager:
         from quant.sync import SCHEMA_VERSION as quant_schema_version
         if remote_meta and remote_meta.get('quant_schema_version', 0) > quant_schema_version:
             raise SyncError('量化快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('combat_schema_version',0)>18:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('combat_schema_version',0)>20:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('fishing_schema_version',0)>2:raise SyncError('钓鱼快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('tournament_schema_version', 0) > 2:raise SyncError('武道大会快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('alchemy_schema_version', 0) > 2:
@@ -665,8 +665,12 @@ class SyncManager:
         validate_food_import(remote.get('data') or [], remote.get('meta'))
         validate_combat(local_data, allow_exploration_review_mismatch=relax_integrity)
         validate_combat(remote.get('data') or [], remote.get('meta'), allow_exploration_review_mismatch=relax_integrity)
+        from system_settings.agent_world.combat.retention_merge import reconcile as reconcile_retention
+        base, local_data, local_revisions, remote = reconcile_retention(base, local_data, local_revisions, remote)
         from system_settings.agent_world.combat.party_daily_sync import validate_conflicts as daily_conflicts
         daily_conflicts(local_data, remote.get('data') or [])
+        from system_settings.agent_world.combat.solo_settlement_sync import validate_conflicts as solo_conflicts
+        solo_conflicts(local_data, remote.get('data') or [])
         guard('战斗目录', lambda: validate_catalog_conflicts(local_data, remote.get('data') or []))
         # 老全量快照中的原始默认城市只代表共享种子，不代表用户编辑或删除。
         if travel_sync.enabled() or (remote.get('meta') or {}).get(travel_sync.META_KEY):
@@ -744,8 +748,9 @@ class SyncManager:
         from system_settings.agent_world.combat import archive as combat_archive
         combat_archive.require_reconciled_sources([data_list], combat_archive.markers(data_list))
         data_list, revisions = combat_archive.compact(data_list, revisions)
-        from system_settings.agent_world.combat.party_daily_sync import COVERAGE, DAY
-        if any(row.get('model') in (COVERAGE, DAY) for row in data_list):
+        from system_settings.agent_world.combat.party_daily_sync import COVERAGE, DAY, SETTLEMENT
+        from system_settings.agent_world.combat.solo_settlement import SETTLEMENT as SOLO_SETTLEMENT
+        if any(row.get('model') in (COVERAGE, DAY, SETTLEMENT, SOLO_SETTLEMENT) for row in data_list):
             # The legacy boundary pass above can remove sources after export.
             # Never publish a daily contribution without revalidating the full
             # combat chains and the surviving party facts.

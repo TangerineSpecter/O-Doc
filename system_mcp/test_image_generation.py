@@ -245,7 +245,7 @@ class ImageGenerationLifecycleTests(ImageGenerationOptionsTests):
         from prompts.models import ImageGenerationTask
         self.provider.type = 'NewAPI'
         self.provider.save()
-        with patch('system_mcp.image_generation_tasks.NewApiImageClient') as client, self.assertRaises(ValueError):
+        with patch('system_mcp.image_generation_tasks.compatible_image_client') as client, self.assertRaises(ValueError):
             self._submit(reference_image_ids=['missing'])
         client.assert_not_called()
         self.assertFalse(ImageGenerationTask.objects.exists())
@@ -255,12 +255,31 @@ class ImageGenerationLifecycleTests(ImageGenerationOptionsTests):
         from system_settings.newapi_images import NewApiImageResult
         self.provider.type = 'NewAPI'
         self.provider.save()
-        with patch('system_mcp.image_generation_tasks.NewApiImageClient') as client:
+        with patch('system_mcp.image_generation_tasks.compatible_image_client') as client:
             client.return_value.generate.return_value = NewApiImageResult((self.image.content,))
             result = self._submit()
             self.assertEqual(result['status'], 'succeeded')
             client.return_value.generate.assert_called_once_with('角色在铁塔前')
             client.return_value.fetch_image.assert_not_called()
+
+    def test_openai_text_generation_is_idempotent_and_disallows_references(self):
+        from unittest.mock import patch
+        from prompts.models import ImageGenerationTask
+        from system_settings.newapi_images import NewApiImageResult
+        self.provider.type = 'OpenAi'
+        self.provider.save()
+        self.model.name = 'gpt-image-2.5-flare'
+        self.model.save()
+        with patch('system_mcp.image_generation_tasks.compatible_image_client') as client:
+            client.return_value.generate.return_value = NewApiImageResult((self.image.content,))
+            result = self._submit()
+            again = self._submit()
+            self.assertEqual(result['status'], 'succeeded')
+            self.assertEqual(result['task_id'], again['task_id'])
+            self.assertEqual(ImageGenerationTask.objects.get().provider_type, 'OpenAi')
+            client.return_value.generate.assert_called_once()
+        with self.assertRaises(ValueError):
+            self._submit(request_id='other', reference_image_ids=['not-used'])
 
     def test_explicit_reference_reaches_provider_without_prompt_rewriting(self):
         from pathlib import Path

@@ -43,7 +43,7 @@ def _protection_message():
 def reject_legacy_archive() -> None:
     if is_protected():
         raise CombatBackfillProtected(_protection_message())
-    raise LegacyCombatArchiveDisabled('旧战斗归档会删除出发等非回合来源，已停用；新的七天回合清理尚未就绪。')
+    raise LegacyCombatArchiveDisabled('旧战斗归档会删除出发等非回合来源，已停用；七天回合清理由后台独立处理。')
 
 
 def require_sync_unprotected() -> None:

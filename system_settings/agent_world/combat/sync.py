@@ -21,7 +21,7 @@ MARKET_TRADE=LABEL+'markettransaction'
 
 def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>18:
+    if meta and meta.get('combat_schema_version',0)>20:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     if meta is not None and meta.get('combat_schema_version', 0) < 15 and any(row['model'] in (LABEL+'adventureplanningday', LABEL+'adventurereservation') for row in data):
         raise SyncError('组队探索预约需要战斗同步15')
@@ -37,6 +37,8 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
     validate_food(data, meta, require_manifest=bool(meta and meta.get('combat_schema_version', 0) >= 7))
     from .elixir_sync import validate_source as validate_elixirs
     validate_elixirs(data, meta, require_manifest=bool(meta and meta.get('combat_schema_version', 0) >= 9))
+    from .retention_sync import archive_index
+    archived = archive_index(data, meta)
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
     frames = frame_index(rows)
     for (model, _), row in rows.items():
@@ -96,7 +98,12 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
         chain=chains[actor]
         ordered=sorted(facts[actor],key=lambda r:r['sequence'])
         try:
-            verify_chain(ordered, chain, actor, profile['owner_id'])
+            gaps = archived['ranges'].get(actor, [])
+            if gaps:
+                from .retention_segments import verify_personal
+                verify_personal(ordered, chain, actor=actor, owner=profile['owner_id'], ranges=gaps)
+            else:
+                verify_chain(ordered, chain, actor, profile['owner_id'])
         except ValueError as exc:
             raise SyncError('战斗事实链缺失或发生分叉') from exc
         try:
@@ -130,12 +137,9 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             if not isinstance(stock_plan, dict) or any(
                     not str(key).startswith('combat.') or type(value) is not int for key, value in stock_plan.items()):
                 raise SyncError('战斗归档库存基线无效')
-        previous = chain.get('archive_digest') or ''
-        for offset,row in enumerate(ordered):
-            sequence = base + offset + 1
-            content={k:row[k] for k in ('id','actor_id','owner_id','sequence','kind','exploration_id','elapsed_seconds','payload','previous_hash')}
-            if row['sequence']!=sequence or row['previous_hash']!=previous or digest(content)!=row['digest'] or row['owner_id']!=profile['owner_id']:raise SyncError('战斗事实链缺失或发生分叉')
-            previous=row['digest'];payload=row['payload'];kind=row['kind']
+        ordered = sorted([*ordered, *archived['outcomes'].get(actor, [])], key=lambda row: (row['sequence'], row['id']))
+        for row in ordered:
+            payload=row['payload'];kind=row['kind']
             if row['exploration_id']:
                 run=rows.get((RUN,row['exploration_id']))
                 if not run or run['actor_id']!=actor or run['owner_id']!=profile['owner_id']:raise SyncError('战斗事实缺少所属探索')
@@ -256,7 +260,7 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
                     expected_rules[equipment_id]=deepcopy(payload.get('equipment_rules'))
                     expected_retained.discard(equipment_id)
                     validate_gear(expected_gear[equipment_id], expected_rules[equipment_id])
-        if chain['head']!=base+len(ordered) or chain['digest']!=previous or progression!=profile['progression']:raise SyncError('战斗成长或事实链终点不一致')
+        if progression!=profile['progression']:raise SyncError('战斗成长或事实链终点不一致')
         equipment=[r for (m,_),r in rows.items() if m==GEAR and r['actor_id']==actor]
         if {r['id'] for r in equipment}!=set(expected_gear):raise SyncError('装备缺少掉落或绑定来源')
         for item in equipment:
@@ -325,9 +329,11 @@ def _validate_source(data,meta=None,*,allow_exploration_review_mismatch=False):
             if recap_mismatch and not allow_exploration_review_mismatch:
                 raise SyncError('探索回顾记录与固定结算摘要不一致')
     from .party_sync import validate_source as validate_parties
-    validate_parties(data, meta)
+    validate_parties(data, meta, archives=archived)
     from .party_daily_sync import validate_source as validate_daily
-    validate_daily(data, meta)
+    validate_daily(data, meta, archives=archived)
+    from .solo_settlement_sync import validate_source as validate_solo_settlements
+    validate_solo_settlements(data, meta, archives=archived)
     return True
 
 
@@ -433,11 +439,18 @@ def metadata(data=None):
                        if row['model'] == FACT and row['fields']['kind'] == 'checkpoint'}
     from .elixir_sync import metadata as elixir_metadata
     # 12: forge receipts establish equipment provenance and consume maze materials.
-    from .party_daily_sync import COVERAGE, DAY
+    from .party_daily_sync import COVERAGE, DAY, SETTLEMENT
+    from .solo_settlement import SETTLEMENT as SOLO_SETTLEMENT
     if data is None:
-        from .analytics_models import CombatPartyCoverage, CombatPartyDay
+        from .analytics_models import CombatPartyCoverage, CombatPartyDay, CombatPartySettlement, CombatSoloSettlement
         has_daily = CombatPartyCoverage.objects.exists() or CombatPartyDay.objects.exists()
+        has_settlement = CombatPartySettlement.objects.exists() or CombatSoloSettlement.objects.exists()
+        has_archive = (CombatPartySettlement.objects.filter(content__has_key='archive').exists()
+                       or CombatSoloSettlement.objects.filter(content__has_key='archive').exists())
     else:
         has_daily = any(row['model'] in (COVERAGE, DAY) for row in data)
-    return {'combat_schema_version':18 if has_daily else 17,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
+        has_settlement = any(row['model'] in (SETTLEMENT, SOLO_SETTLEMENT) for row in data)
+        has_archive = any(row['model'] in (SETTLEMENT, SOLO_SETTLEMENT)
+                          and 'archive' in (row['fields'].get('content') or {}) for row in data)
+    return {'combat_schema_version':20 if has_archive else 19 if has_settlement else 18 if has_daily else 17,'combat_actors':actors, **food_metadata(data), **elixir_metadata(data),
             'combat_checkpoints':checkpoints,'combat_catalogs':exported,'combat_current_catalog':current_catalog}
