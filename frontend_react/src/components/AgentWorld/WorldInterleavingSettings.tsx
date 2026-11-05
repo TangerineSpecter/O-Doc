@@ -36,7 +36,7 @@ const TIMINGS: TimingItem[] = [
         label: '条件预检间隔',
         description: '定时巡检居民空档与资源',
         fallback: 5,
-        min: 1,
+        min: 5,
         max: 1440,
         step: 1,
     },

@@ -444,6 +444,153 @@ class MarketAutomationTests(TestCase):
         return {'goals': [{'kind': 'buy_shop', 'batch_id': batch.pk, 'slot_id': 'feed',
                            'quantity': 1, 'unit_price': quote, '_goal': goal.pk}]}, goal
 
+    def test_planned_purchase_enters_without_entry_decision(self):
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        plan = self.plan()
+        _, goal = self.purchase_actions(plan)
+        tick = self.tick(plan)
+        tick.scheduled_at = self.now
+        tick.save(update_fields=['scheduled_at'])
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.market_planning.refresh_queue_needs'), \
+             patch('system_settings.agent_world.market_bait_refresh.refresh_bait_needs'), \
+             patch('system_settings.agent_world.market_equipment_candidates.equipment_candidates', return_value=[]), \
+             patch('system_settings.agent_world.market_equipment_shopping.decide_entry', side_effect=AssertionError('已确认计划无需进场决策')), \
+             patch('system_settings.agent_world.life_commitments.require_energy'), \
+             patch('system_settings.agent_world.market_sessions.stamina', return_value=100):
+            result = run_ticks(self.now)
+        goal.refresh_from_db(); tick.refresh_from_db()
+        self.assertEqual((result['entered'], goal.filled_quantity, tick.status), (1, 1, 'done'))
+        self.assertEqual(MarketTransaction.objects.filter(actor_id=self.a.pk).count(), 1)
+
+    def test_busy_purchase_waits_across_hour_and_executes_once(self):
+        from system_settings.models import AgentExecutionLease
+        from .life_commitments import ResourceProtected
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        self.now = self.now.replace(hour=10, minute=55, second=0, microsecond=0)
+        plan = self.plan()
+        _, goal = self.purchase_actions(plan)
+        tick = MarketTick.objects.create(pk='busy-tick', owner_id='admin', actor_id=self.a.pk,
+            hour=storage_time(local_time(self.now).replace(minute=0)), scheduled_at=self.now)
+        AgentExecutionLease.objects.create(agent=self.a, token='busy', until=self.now + timedelta(minutes=10))
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.market_planning.refresh_queue_needs'), \
+             patch('system_settings.agent_world.market_bait_refresh.refresh_bait_needs'), \
+             patch('system_settings.agent_world.market_equipment_candidates.equipment_candidates', return_value=[]), \
+             patch('system_settings.agent_world.market_equipment_shopping.decide_entry', side_effect=AssertionError('不应询问')), \
+             patch('system_settings.agent_world.life_commitments.require_energy', side_effect=ResourceProtected('体力保护')) as energy_check, \
+             patch('system_settings.agent_world.market_sessions.stamina', return_value=0) as stamina_check, \
+             patch('django.utils.timezone.now', return_value=self.now):
+            run_ticks(self.now)
+            tick.refresh_from_db()
+            self.assertEqual(tick.status, 'pending')
+            self.assertTrue(tick.hits['deferred_busy'])
+            self.assertFalse(MarketTransaction.objects.exists())
+            energy_check.assert_not_called()
+            stamina_check.assert_not_called()
+            later = self.now + timedelta(minutes=11)
+            energy_check.side_effect = None
+            stamina_check.return_value = 100
+            # Use the current hour's real quote and ensure a duplicate tick cannot enter too.
+            batch = current_batch('admin', later); batch.feed_price = Decimal('100'); batch.save(update_fields=['feed_price'])
+            duplicate = MarketTick.objects.create(pk='next-hour', owner_id='admin', actor_id=self.a.pk,
+                hour=storage_time(local_time(later).replace(minute=0)), scheduled_at=later)
+            with patch('django.utils.timezone.now', return_value=later):
+                run_ticks(later, limit=10)
+                run_ticks(later, limit=10)
+        tick.refresh_from_db(); duplicate.refresh_from_db(); goal.refresh_from_db()
+        self.assertEqual((tick.status, duplicate.status, goal.filled_quantity), ('done', 'skipped', 1))
+        self.assertEqual(MarketTransaction.objects.filter(actor_id=self.a.pk).count(), 1)
+
+    def test_deferred_opportunity_rechecks_availability_and_expires_next_day(self):
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        self.now = self.now.replace(hour=10, minute=0, second=0, microsecond=0)
+        self.plan()
+        tick = MarketTick.objects.create(pk='old-busy', owner_id='admin', actor_id=self.a.pk,
+            hour=storage_time(local_time(self.now).replace(minute=0)), scheduled_at=self.now,
+            hits={'deferred_busy': True})
+        empty = {key: [] for key in ('dispositions', 'goals', 'reprices', 'withdraws', 'equipment')}
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.market_planning.refresh_queue_needs'), \
+             patch('system_settings.agent_world.market_bait_refresh.refresh_bait_needs'), \
+             patch('system_settings.agent_world.market_tick.build_actions', return_value=empty), \
+             patch('system_settings.agent_world.market_equipment_candidates.equipment_candidates', return_value=[]), \
+             patch('system_settings.agent_world.market_tick.execute') as execute:
+            run_ticks(self.now)
+            tick.refresh_from_db()
+            self.assertEqual(tick.status, 'skipped')
+            execute.assert_not_called()
+            tick.status = 'pending'; tick.save(update_fields=['status'])
+            run_ticks(self.now + timedelta(days=1))
+            tick.refresh_from_db()
+            self.assertEqual(tick.status, 'skipped')
+            execute.assert_not_called()
+
+    def test_energy_protection_skips_without_entering(self):
+        from .life_commitments import ResourceProtected
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        plan = self.plan(); _, goal = self.purchase_actions(plan)
+        tick = self.tick(plan); tick.scheduled_at = self.now; tick.save(update_fields=['scheduled_at'])
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.market_planning.refresh_queue_needs'), \
+             patch('system_settings.agent_world.market_bait_refresh.refresh_bait_needs'), \
+             patch('system_settings.agent_world.market_equipment_candidates.equipment_candidates', return_value=[]), \
+             patch('system_settings.agent_world.life_commitments.require_energy', side_effect=ResourceProtected('体力不足')):
+            run_ticks(self.now)
+        tick.refresh_from_db(); goal.refresh_from_db()
+        self.assertEqual((tick.status, goal.filled_quantity), ('skipped', 0))
+        self.assertFalse(MarketTransaction.objects.exists())
+
+    def test_busy_then_still_protected_does_not_enter(self):
+        from system_settings.models import AgentExecutionLease
+        from .life_commitments import ResourceProtected
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        plan = self.plan(); _, goal = self.purchase_actions(plan)
+        tick = self.tick(plan); tick.scheduled_at = self.now; tick.save(update_fields=['scheduled_at'])
+        lease = AgentExecutionLease.objects.create(agent=self.a, token='busy', until=self.now + timedelta(minutes=5))
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.market_planning.refresh_queue_needs'), \
+             patch('system_settings.agent_world.market_bait_refresh.refresh_bait_needs'), \
+             patch('system_settings.agent_world.market_equipment_candidates.equipment_candidates', return_value=[]), \
+             patch('system_settings.agent_world.life_commitments.require_energy', side_effect=ResourceProtected('体力保护')) as energy_check, \
+             patch('django.utils.timezone.now', return_value=self.now):
+            run_ticks(self.now)
+            tick.refresh_from_db()
+            self.assertEqual(tick.status, 'pending')
+            energy_check.assert_not_called()
+            lease.until = self.now; lease.save(update_fields=['until'])
+            later = self.now + timedelta(minutes=1)
+            with patch('django.utils.timezone.now', return_value=later):
+                run_ticks(later)
+        tick.refresh_from_db(); goal.refresh_from_db()
+        self.assertEqual((tick.status, goal.filled_quantity), ('skipped', 0))
+        energy_check.assert_called_once()
+        self.assertFalse(MarketTransaction.objects.exists())
+
+    def test_deferred_purchase_does_not_enter_only_for_unrelated_equipment(self):
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        self.plan()
+        tick = self.tick(None); tick.scheduled_at = self.now
+        tick.hits = {'deferred_busy': True, 'entry_basis': 'planned'}
+        tick.save(update_fields=['scheduled_at', 'hits'])
+        empty = {key: [] for key in ('dispositions', 'goals', 'reprices', 'withdraws', 'equipment')}
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.market_planning.refresh_queue_needs'), \
+             patch('system_settings.agent_world.market_bait_refresh.refresh_bait_needs'), \
+             patch('system_settings.agent_world.market_tick.build_actions', return_value=empty), \
+             patch('system_settings.agent_world.market_equipment_candidates.equipment_candidates', return_value=[{'listing_id': 'new'}]), \
+             patch('system_settings.agent_world.market_tick.execute') as execute:
+            run_ticks(self.now)
+        tick.refresh_from_db()
+        self.assertEqual(tick.status, 'skipped')
+        execute.assert_not_called()
+
     def test_purchase_preserves_new_life_reservations(self):
         plan = self.plan()
         actions, goal = self.purchase_actions(plan)

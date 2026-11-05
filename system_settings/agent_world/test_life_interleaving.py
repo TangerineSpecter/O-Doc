@@ -247,6 +247,20 @@ class IdleSchedulingTests(TestCase):
         for key in ('interleaving_check_minutes', 'interleaving_decision_minutes', 'interleaving_wait_minutes'):
             with self.assertRaises(ValueError):
                 validate_settings({key: 0})
+        with self.assertRaises(ValueError):
+            validate_settings({'interleaving_check_minutes': 4})
+        self.assertEqual(validate_settings({'interleaving_check_minutes': 5})['interleaving_check_minutes'], 5)
+
+    def test_deferred_market_has_priority_over_new_free_activity(self):
+        from .life_interleaving import ready
+        from .market_plan_models import MarketTick
+        self.config.settings['market_automation_v2'] = True
+        self.config.save(update_fields=['settings'])
+        tick = MarketTick.objects.create(pk='waiting-market', owner_id='admin', actor_id=self.agent.pk,
+            hour=self.now.replace(minute=0), scheduled_at=self.now, status='pending', hits={'deferred_busy': True})
+        self.assertFalse(ready(self.config, self.agent, self.now))
+        tick.status = 'skipped'; tick.save(update_fields=['status'])
+        self.assertTrue(ready(self.config, self.agent, self.now))
 
     def test_main_inputs_and_voluntary_empty_slot(self):
         from .life_main_context import build

@@ -15,7 +15,9 @@
 
 ## 对战与战报
 
-每场直接读取当前职业、等级、技能和穿戴装备，无报名装备副本。双方使用真实数值、满血满蓝、空临时状态，统一均衡风格，每回合随机先后手；后台直接计算，无需打开页面。
+每场直接读取当前职业、等级、技能和穿戴装备，无报名装备副本。双方使用真实数值、满血满蓝、空临时状态，每回合随机先后手；后台直接计算，无需打开页面。
+
+比赛使用独立行动策略，不调用模型，也不改变地牢探索的行动选择或技能结算。复用战斗引擎筛选已学、未被沉默、冷却完成且法力足够的有效技能；状态已存在的纯增益和正在持续的纯持续治疗不会重复选择。有候选时 95% 选择技能、5% 普攻，无候选时普攻。技能之间按效果评分抽取：生命低于 70% 时治疗进入候选并提高权重，低于 40% 进一步提高；低于 20% 且有可用治疗时只在治疗技能中抽取。治疗判定使用行动前的当前生命，持续治疗生效中不会重复施放；没有可用治疗时仍可攻击。技能仍按既有规则消耗法力、设置冷却和结算效果，加赛过滤治疗后不会将它作为治疗候选。旧战报是已保存的比赛事实，不重新计算。
 
 比赛状态独立于探索，不写实际血蓝、冷却、体力，不使用美食或消耗品，不发经验或魔物掉落。普通上限200回合，按剩余生命比例判胜；相同则进入最多50回合禁止生命恢复的加赛，最后仍相同则随机判胜。生命恢复限制同时覆盖主动治疗、持续治疗、被动生命恢复；法力恢复保留。双倒地随机判胜。
 
@@ -61,7 +63,7 @@ Agent 世界工具栏「武道大会」打开当前赛事、赛程、奖品、�
 
 ## 代码入口
 
-- 后端：`system_settings/agent_world/tournament_{models,rules,service,battle,rewards,decision,runner,queries,views,sync}.py`。
+- 后端：`system_settings/agent_world/tournament_{models,rules,service,battle,strategy,rewards,decision,runner,queries,views,sync}.py`。
 - 调度：`world_cycle.tick` 分派独立大会后台线程，使用本机租约及提交许可复核。
 - 资产：`combat/facts.py`、`combat/sync.py`、`alchemy_integrity.py`、共用 `inventory_stock.py`；同步总入口 `utils/sync_manager.py`。
 - 前端：`components/Tournament/`、`hooks/useTournament.ts`、`api/tournament.ts`、`types/api/tournament.ts`；流程配置在 `decisionProcessGuides.ts` 和 `DecisionProcessInfo.tsx`。

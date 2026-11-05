@@ -55,6 +55,8 @@ def validate_settings(data: dict) -> dict:
     for key, upper in (('interleaving_check_minutes', 1440), ('interleaving_decision_minutes', 10080), ('interleaving_wait_minutes', 10080), ('count', 10000), ('interval_minutes', 10080), ('min_gap_minutes', 1440), ('min_remaining_minutes', 1440)):
         if type(value[key]) is not int or not 1 <= value[key] <= upper:
             raise ValueError(f'{key} 超出允许范围')
+    if value['interleaving_check_minutes'] < 5:
+        raise ValueError('条件预检间隔不能少于5分钟')
     def minutes(text):
         if not isinstance(text, str) or len(text) != 5 or text[2] != ':':
             raise ValueError('活动时间须为 HH:mm')

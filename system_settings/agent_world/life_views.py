@@ -80,7 +80,9 @@ class LifeConfigView(APIView):
     def get(self,request):
         config=config_for(owner_of(request))
         from system_settings.decision.failover import public_status
-        return success_result({'settings':{**DEFAULTS,**config.settings},'active_agent_ids':effective_settings(config).get('agent_ids',[]),'paused_agents':config.paused_agents,'migrated':config.migrated,'profile_agent_ids':list(LifeProfile.objects.filter(owner_id=config.pk).values_list('pk',flat=True)),
+        settings = {**DEFAULTS, **config.settings}
+        settings['interleaving_check_minutes'] = max(5, settings['interleaving_check_minutes'])
+        return success_result({'settings':settings,'active_agent_ids':effective_settings(config).get('agent_ids',[]),'paused_agents':config.paused_agents,'migrated':config.migrated,'profile_agent_ids':list(LifeProfile.objects.filter(owner_id=config.pk).values_list('pk',flat=True)),
                                'migration_summary':{'converted_items':LifeItem.objects.filter(owner_id=config.pk,context__legacy=True).count(),'running_items':LifeItem.objects.filter(owner_id=config.pk,status='running').count()},
                                'active_cycle':list(LifeCycle.objects.filter(owner_id=config.pk,ends_at__gt=timezone.now()).values('id','starts_at','ends_at','snapshot')[:1]),
                                'decision_failover':public_status(config.pk)})

@@ -12,6 +12,8 @@ from .life_models import LifeConfig
 from .life_time import local_time, storage_time
 from .market_batch import build_actions, execute
 from .market_plan_models import MarketPlan, MarketTick, tick_id
+from .market_sessions import MarketResidentBusy
+from .life_commitments import ResourceProtected
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,8 @@ def run(now=None, limit: int = 3) -> dict:
     result = {'checked': 0, 'entered': 0, 'skipped': 0, 'failed': 0}
     for tick in ticks:
         result['checked'] += 1
-        if tick.hour < current_hour:
+        deferred = bool((tick.hits or {}).get('deferred_busy'))
+        if local_time(tick.hour).date() != local_time(now).date() or (tick.hour < current_hour and not deferred):
             tick.status = 'skipped'
             tick.reason = '错过执行时段，不补跑'
             tick.save(update_fields=['status', 'reason', 'updated_at'])
@@ -91,6 +94,14 @@ def run(now=None, limit: int = 3) -> dict:
         if tick.actor_id in (config.paused_agents or []):
             tick.status = 'skipped'
             tick.reason = '居民已暂停自动执行'
+            tick.save(update_fields=['status', 'reason', 'updated_at'])
+            result['skipped'] += 1
+            continue
+        if not deferred and MarketTick.objects.filter(owner_id=tick.owner_id, actor_id=tick.actor_id,
+                status='pending', hits__deferred_busy=True,
+                hour__gte=storage_time(local_time(now).replace(hour=0, minute=0, second=0, microsecond=0))).exclude(pk=tick.pk).exists():
+            tick.status = 'skipped'
+            tick.reason = '已有等待活动结束的市场机会'
             tick.save(update_fields=['status', 'reason', 'updated_at'])
             result['skipped'] += 1
             continue
@@ -133,10 +144,19 @@ def run(now=None, limit: int = 3) -> dict:
                 tick.save(update_fields=['status', 'reason', 'hits', 'updated_at'])
                 result['skipped'] += 1
                 continue
-            entry = decide_entry(tick.owner_id, agent, tick, actions, candidates,
+            # 已确认的购物和处置计划不再重复询问是否进场；仅装备发现保留原判断。
+            planned = any(actions.get(key) for key in ('dispositions', 'goals', 'reprices', 'withdraws', 'equipment'))
+            if deferred and not planned and (tick.hits or {}).get('entry_basis') == 'planned':
+                tick.status = 'skipped'
+                tick.reason = '等待期间计划交易机会已失效'
+                tick.save(update_fields=['status', 'reason', 'updated_at'])
+                result['skipped'] += 1
+                continue
+            entry = 'enter' if planned or deferred else decide_entry(tick.owner_id, agent, tick, actions, candidates,
                                  equipment_funds(tick.owner_id, agent.pk, plan))
             tick.hits = {**(tick.hits or {}), **_summary(actions),
-                         'equipment_candidates': equipment_summary(candidates), 'entry_choice': entry}
+                         'equipment_candidates': equipment_summary(candidates), 'entry_choice': entry,
+                         'entry_basis': 'planned' if planned else 'equipment'}
             if entry != 'enter':
                 tick.status = 'skipped'
                 tick.reason = '居民决定本小时不去市场' if entry == 'wait' else '市场进场决策不可用，留待下小时'
@@ -152,7 +172,22 @@ def run(now=None, limit: int = 3) -> dict:
                            f"失败 {len(outcome.get('failed', []))} 笔")
             tick.hits = {**tick.hits, 'outcome': outcome}
             tick.save(update_fields=['status', 'reason', 'hits', 'session_id', 'updated_at'])
+            if deferred:
+                MarketTick.objects.filter(owner_id=tick.owner_id, actor_id=tick.actor_id,
+                    hour=current_hour, status='pending').exclude(pk=tick.pk).update(
+                        status='skipped', reason='已在活动结束后执行市场机会')
             result['entered'] += 1
+        except MarketResidentBusy as exc:
+            tick.status = 'pending'
+            tick.reason = f'{exc}，活动结束后重新检查市场'
+            tick.scheduled_at = storage_time(local_time(now) + timedelta(minutes=1))
+            tick.hits = {**(tick.hits or {}), 'deferred_busy': True}
+            tick.save(update_fields=['status', 'reason', 'scheduled_at', 'hits', 'updated_at'])
+        except ResourceProtected as exc:
+            tick.status = 'skipped'
+            tick.reason = str(exc)[:500]
+            tick.save(update_fields=['status', 'reason', 'hits', 'updated_at'])
+            result['skipped'] += 1
         except Exception as exc:  # noqa: BLE001 - 单个居民失败不能拖垮其他预检
             logger.exception('市场预检执行失败 tick=%s', tick.pk)
             tick.status = 'failed'

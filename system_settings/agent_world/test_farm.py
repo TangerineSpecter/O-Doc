@@ -315,6 +315,33 @@ class FarmTests(TestCase):
         response=self.client.post('/api/settings/agent-tasks/', {'name':'farm','task_kind':'farm','agent':self.agent.pk,'agents':[self.agent.pk]},format='json')
         self.assertEqual(response.status_code,403)
 
+    def test_farm_observation_only_reads_display_data_without_gate(self):
+        from .inventory_stock import add_stock
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        farm.state['yield_remainders'] = {'crop.radish': '0.5'}
+        farm.state['planting_plans'] = {'old-plan': {'events': ['历史数据'] * 100}}
+        farm.save(update_fields=['state'])
+        add_stock(farm.pk, farm.owner_id, farm.actor_name, 'crop.radish', 1, '萝卜', 'crop', 18, 'display')
+        add_stock(farm.pk, farm.owner_id, farm.actor_name, 'seed.corn', 1, '玉米种子', 'seed', 35, 'other')
+        original = copy.deepcopy(AgentFarm.objects.get(pk=farm.pk).state)
+        with patch('system_settings.agent_world.farm_views.farm_gate', side_effect=AssertionError('只读请求不应等待互斥锁')):
+            response = self.client.get(f'/api/settings/agent-world/farms/{farm.pk}/')
+        self.assertEqual(response.status_code, 200)
+        data = response.data['data']
+        self.assertEqual(data['state']['yield_remainders'], {'crop.radish': '0.5'})
+        self.assertNotIn('planting_plans', data['state'])
+        self.assertEqual([(i['sku'], i['name']) for i in data['inventory']], [('crop.radish', '萝卜')])
+        self.assertEqual(AgentFarm.objects.get(pk=farm.pk).state, original)
+
+    def test_farm_observation_without_remainders_skips_inventory_query(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(f'/api/settings/agent-world/farms/{self.agent.pk}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data']['inventory'], [])
+        self.assertFalse(any('agentinventoryitem' in q['sql'].lower() for q in queries.captured_queries))
+
     def test_autonomous_plan_partial_failure_does_not_recall_model(self):
         AgentExecutionLease.objects.all().delete()
         with patch('system_settings.agent_world.farm_runner.decide',return_value={'choices':['0','1'],'reason':'买饲料'}), patch('system_settings.agent_world.farm_runner.commit_operation',side_effect=[None,ValueError('资金变化')]) as commit:

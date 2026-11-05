@@ -97,13 +97,15 @@ flowchart TD
 ## 接口及素材
 
 - `GET /api/settings/agent-world/farms/`：当前用户的农场列表。
-- `GET /api/settings/agent-world/farms/<agent_id>/`：服务端时间、状态版本、天气、余额、当前动作、农场及背包。
+- `GET /api/settings/agent-world/farms/<agent_id>/`：服务端时间、状态版本、天气、余额、当前动作及当前农场展示状态；库存投影只包含用于增产余量名称的相关 SKU，完整背包通过独立背包接口读取。
 - `PATCH`同路径：仅接受像素外观`appearance`，`style`和`palette`范围0–3。
 - `GET .../<agent_id>/history/`：最近100项经营结果。
 - `GET/PATCH /api/settings/agent-world/farm-catalog/`：当前世界目录；PATCH提交完整`rules`。
 - 原任务接口新增`taskKind=farm`及服务端生成的`farmConfig.ownerId`。内置任务固定ID `builtin-farm`，不可删除。
 
 前后端沿用项目的驼峰转换和`code/msg/data`协议。详情、外观和历史由用户归属检查保护，页面不开放经营写接口。农场每15秒更新，隐藏停止轮询，切居民取消旧请求；场景失败仍保留状态列表和重试。
+
+详情读取只投影地块、动物、建筑、种植经验和增产余量，不返回种植计划等历史状态；没有增产余量时不查背包。列表不读取各农场完整状态。详情为只读展示，不进入农场业务互斥锁；农场状态各字段来自同一数据库查询，余额、行动和库存名称来自后续独立读取，在并发更新时可能短暂反映相邻提交，下一次刷新会更新。经营写入和同步仍保留原有锁与事务，不改变持久数据及 WebDAV 范围。
 
 场景为原生 Canvas 2D 像素画（不再使用 PixiJS），位于 `components/Farm/scene/`，随农场模态卡片按需加载。画布固定 324×216 逻辑像素，按容器和设备像素比取整数倍缩放（浪费超过 12% 时拉伸填满），`image-rendering: pixelated`；所有精灵启动时预渲染到离屏画布，动物、居民等逻辑按 10 tick/秒推进，画面最高 15 帧/秒（`pacing.ts` 的 `FRAME_MS`）直接画在可见画布上：tick 之间在上一位置与当前位置之间插值，走动更连贯，某一帧没有任何对象移动过一个像素就不重画；下雨时雨丝不再逐滴绘制，而是两层预渲染的无缝平铺图案（远景淡而慢、近景亮而快，`rainPattern.ts` 生成，`rainSheet.ts` 绘制），每帧各做一次整数偏移的 drawImage，雨天每帧出图；地面水花和池塘涟漪由 tick 逻辑生成。出帧率是 CPU 开销的主要旋钮：每帧的合成成本远大于绘制本身，调整 `FRAME_MS` 即可在流畅和省电间取舍。循环由定时器驱动，到点才用一次 rAF 对齐刷新。页签隐藏、画布滚出视口和卸载时停止，系统开启“减少动态效果”时只绘制静态画面。可见画布使用不透明上下文（`alpha:false`），HUD 浮层不使用 `backdrop-filter`，避免动画画面每次更新都触发背景模糊重绘。
 

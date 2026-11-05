@@ -7,20 +7,7 @@ from .combat.effects import upkeep
 from .combat.profiles import wearing
 from .combat.store import current
 from .tournament_rules import NORMAL_ROUNDS, OVERTIME_ROUNDS
-
-
-class DuelCatalog:
-    """A local view suppresses healing in overtime, including mixed-effect skills."""
-    def __init__(self, catalog, overtime=False):
-        self.catalog, self.overtime = catalog, overtime
-        self.rules, self.tables = catalog.rules, catalog.tables
-
-    def row(self, *args):
-        return self.catalog.row(*args)
-
-    def skill(self, identity, rank):
-        row, effects = self.catalog.skill(identity, rank)
-        return row, [effect for effect in effects if not self.overtime or effect['code'] not in ('heal', 'hot')]
+from .tournament_strategy import DuelCatalog, action
 
 
 def participant(profile, name: str) -> tuple[dict, object, dict]:
@@ -70,8 +57,7 @@ def simulate(left: tuple, right: tuple, seed: str) -> dict:
             entity['mp'] = passive_entity['mp']
             if not overtime:
                 entity['hp'] = passive_entity['hp']
-            events.extend(engine.player_action(catalog, entity, enemy, {}, tick,
-                                              catalog.row('styles', 'style.balanced'), rng))
+            events.extend(action(catalog, entity, enemy, tick, rng))
         rounds.append({'number': tick, 'overtime': overtime, 'order': [entities[i]['name'] for i in order],
                        'events': events, 'resources': [{'actor_id': e['name'], 'hp': max(0, e['hp']), 'mp': e['mp']} for e in entities]})
         if any(entity['hp'] <= 0 for entity in entities):

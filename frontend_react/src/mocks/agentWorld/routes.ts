@@ -189,10 +189,14 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         }
         if (writing) {item.status = body.action === 'cancel' ? 'cancelled' : 'pending'; item.result = {reason: String(body.reason || '本地模拟操作')};} return projectLifeStatusReason(item) satisfies LifeItem;}
     if (path.includes('/life/profiles/')) return {id: path.split('/').slice(-2)[0], preferences: '喜欢旅行、农场和制作美食。', direction: '攒钱探索新的目的地。', ...body};
-    if (path === `${base}/farms/`) return list(farms);
+    if (path === `${base}/farms/`) return list(farms.map(({id, actorName, appearance, avatar, professionName}) => ({id, actorName, appearance, avatar, professionName})));
     const farmMatch = path.match(/\/farms\/([^/]+)\/(history\/)?$/);
     if (farmMatch) {const farm = farms.find(r => r.id === farmMatch[1]) || farms[0]; if (farmMatch[2]) return list(farmHistory);
-        if (writing && body.appearance) farm.appearance = body.appearance as typeof farm.appearance; return farm;}
+        if (writing && body.appearance) {farm.appearance = body.appearance as typeof farm.appearance; return farm.appearance;}
+        const {plots, animals, buildings, plantingExperience, yieldRemainders} = farm.state;
+        const {avatar: _avatar, ...detail} = farm;
+        return {...detail, state: {plots, animals, buildings, plantingExperience, yieldRemainders: yieldRemainders || {}},
+            inventory: farm.inventory.filter(item => Object.prototype.hasOwnProperty.call(yieldRemainders || {}, item.sku))};}
     if (path.startsWith(`${base}/market/`)) {
         if (path.endsWith('/listings/')) return page(forActor(listings.map(r => ({...r, actorId: r.sellerId})), url).filter(r => !url.searchParams.get('search') || r.item.name.includes(url.searchParams.get('search')!)), url);
         if (path.endsWith('/transactions/')) return page(forActor(transactions, url), url);
@@ -278,6 +282,12 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === '/api/anthology/detail/local-world') return {collId: 'local-world', title: '居民生活手记', type: 'agent', description: '本地样例', permission: 'public', iconId: 'bot', articles: worldPosts};
     if (path === `${base}/combat/catalog/` && emptyScenario()) {
         return {...combatCatalog, tables: Object.fromEntries(Object.keys(combatCatalog.tables).map(key => [key, []])), monsterPreviews: []};
+    }
+    if (path === `${base}/life/config/` && writing) {
+        const settings = (body.settings || body) as Record<string, unknown>;
+        if (typeof settings.interleavingCheckMinutes === 'number' && settings.interleavingCheckMinutes < 5) {
+            return Response.json({code: 400, msg: '条件预检间隔不能少于5分钟', data: null}, {status: 400});
+        }
     }
     if (path in staticData) {
         if (writing) {const original = resource.get(path) ?? staticData[path]; const updated = typeof original === 'object' && original && !Array.isArray(original) ? {...original, ...body} : body; resource.set(path, updated); return updated;}

@@ -5,6 +5,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 from django.db import transaction
+from django.db.models.fields.json import KeyTextTransform
 
 from .farm_gate import guarded
 from .combat.equipment_effective import snapshots
@@ -33,8 +34,9 @@ def include_new(state: dict, live: dict[str, dict]) -> bool:
 
 def owned(owner: str, actor_id: str) -> tuple[str, dict, list[dict]]:
     profile = CombatProfile.objects.get(pk=actor_id, owner_id=owner)
-    listed = MarketListing.objects.filter(owner_id=owner, status='active',
-        item__source__kind='combat_equipment').values_list('item__source__equipment_id', flat=True)
+    listed = (MarketListing.objects.filter(owner_id=owner, status='active', item__source__kind='combat_equipment')
+        .annotate(listed_equipment_id=KeyTextTransform.from_lookup('item__source__equipment_id'))
+        .exclude(listed_equipment_id__isnull=True).values_list('listed_equipment_id', flat=True))
     gears = list(EquipmentInstance.objects.filter(owner_id=owner, actor_id=actor_id, sold=False)
                  .exclude(pk__in=listed).order_by('created_at', 'pk'))
     effective = snapshots(gears)

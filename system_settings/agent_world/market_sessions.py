@@ -17,6 +17,10 @@ from .market_recovery import PROCESS_INTERRUPTED, recover_interrupted_sessions
 COST, MAX_CALLS, DURATION = 5, 20, timedelta(minutes=5)
 
 
+class MarketResidentBusy(ValueError):
+    """居民暂被其他活动占用，市场机会可以延后重查。"""
+
+
 def check_mcp():
     config = SystemSetting.objects.filter(key='system_mcp_config').first()
     if not config or not (config.value or {}).get('enabled', False):
@@ -105,14 +109,14 @@ def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='m
         raise ValueError('居民不属于此市场')
     from .combat.schedule import PREPARING
     from .combat.models import Exploration
-    if Exploration.objects.filter(actor_id=agent.pk,status__in=['preparing','active','paused','settling']).exclude(pk=PREPARING.get()).exists():raise ValueError('居民正在战斗探索')
+    if Exploration.objects.filter(actor_id=agent.pk,status__in=['preparing','active','paused','settling']).exclude(pk=PREPARING.get()).exists():raise MarketResidentBusy('居民正在战斗探索')
     from .fishing.models import FishingTrip
     if FishingTrip.objects.filter(actor_id=agent.pk, ended_at__isnull=True).exists():
-        raise ValueError('居民正在钓鱼')
+        raise MarketResidentBusy('居民正在钓鱼')
     from .travel_candidates import travelling_ids
-    if agent.pk in travelling_ids(): raise ValueError('居民正在旅行')
+    if agent.pk in travelling_ids(): raise MarketResidentBusy('居民正在旅行')
     if MarketSession.objects.filter(actor_id=agent.pk, status='active').exists():
-        raise ValueError('居民已有市场会话')
+        raise MarketResidentBusy('居民已有市场会话')
     if task and ((mode != 'manual' and not task.enabled) or not life_allowed(task,agent.pk)):
         raise ValueError('市场任务已停止或居民已解绑')
     if mode in ('automatic', 'batch') and not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
@@ -122,12 +126,12 @@ def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='m
     agent = Agent.objects.select_for_update().get(pk=agent.pk)
     from system_settings.agent_availability import require_active_agent
     require_active_agent(agent)
+    lease, _ = AgentExecutionLease.objects.get_or_create(agent=agent)
+    if lease.until and lease.until > now: raise MarketResidentBusy('居民正在执行其他任务')
     from .life_commitments import require_energy
     from .life_scope import manual_combat_potion_owner
     require_energy(owner, agent, COST, manual=mode == 'manual' or manual_combat_potion_owner(agent.pk) is not None, now=now)
     if stamina(agent, now) < COST: raise ValueError('体力不足')
-    lease, _ = AgentExecutionLease.objects.get_or_create(agent=agent)
-    if lease.until and lease.until > now: raise ValueError('居民正在执行其他任务')
     token = uuid.uuid4().hex
     lease.token, lease.until = token, now+DURATION+timedelta(seconds=5)
     lease.save(update_fields=['token', 'until'])

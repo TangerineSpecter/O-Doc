@@ -25,6 +25,14 @@ def ready(config, agent, now, item=None):
         return False
     if agent.pk not in effective_settings(config, now).get('agent_ids', []):
         return False
+    # 已有市场机会因忙碌顺延时，先让市场重查，避免刚空闲又被新的自由活动占用。
+    from .life_config import market_automation_enabled
+    from .market_plan_models import MarketTick
+    start = storage_time(local_time(now).replace(hour=0, minute=0, second=0, microsecond=0))
+    if market_automation_enabled(config, now) and MarketTick.objects.filter(
+        owner_id=config.pk, actor_id=agent.pk, status='pending', hits__deferred_busy=True, hour__gte=start,
+    ).exists():
+        return False
     if LifeItem.objects.filter(actor_id=agent.pk, status__in=OPEN, context__interleaving__version=1).exclude(pk=item.pk if item else '').exists():
         return False
     if occupied(item or SimpleNamespace(pk='', actor_id=agent.pk)):
@@ -91,7 +99,7 @@ def process(config, state, scheduler, now):
     if not agent:
         return
     settings = {**DEFAULTS, **config.settings}
-    state.next_check_at = now + timedelta(minutes=settings['interleaving_check_minutes'])
+    state.next_check_at = now + timedelta(minutes=max(5, settings['interleaving_check_minutes']))
     state.save(update_fields=['next_check_at', 'updated_at'])
     item = state.item
     if item:

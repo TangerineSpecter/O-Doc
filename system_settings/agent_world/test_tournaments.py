@@ -220,12 +220,11 @@ class TournamentTests(TestCase):
         self.actors(2)
         inputs = [participant(CombatProfile.objects.get(pk=a.pk), a.name) for a in self.agents]
         calls = []
-        def action(catalog, actor, opponent, carried, tick, style, rng):
+        def action(catalog, actor, opponent, tick, rng):
             calls.append((actor['name'], tick, catalog.overtime))
-            self.assertEqual(carried, {})
             return []
         original = copy.deepcopy([item[0] for item in inputs])
-        with patch('system_settings.agent_world.tournament_battle.engine.player_action', side_effect=action):
+        with patch('system_settings.agent_world.tournament_battle.action', side_effect=action):
             report = simulate(*inputs, 'overtime-fixture')
         self.assertEqual(len(report['rounds']), 250)
         self.assertEqual(report['reason'], 'overtime_draw')
