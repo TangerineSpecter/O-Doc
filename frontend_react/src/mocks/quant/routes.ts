@@ -1,4 +1,5 @@
 import {initDocument,resolveDocument} from './documents';
+import {shareRoute} from './reportSharing';
 import {mockImplementationReceipt,mockRunSummary,mockDirectory,mockOverview,mockReportBody,mockStatus,resolveReading} from './reading';
 import {seedDemoEntry} from './demoSeed';
 import {resolveStudyRoute} from './studies';
@@ -62,6 +63,11 @@ export async function resolveQuantRoute(request: Request): Promise<unknown> {
     const state = quantState();
     const collection = state.collections.find(row => row.collId === collId && row.type === 'quant');
     if (!collection) return fail(404, '量化文集不存在或无权访问');
+    if (domain === 'report-import' && !entryId) return shareRoute(request, collId, undefined, 'import');
+    if (domain === 'entries' && entryId && (section === 'report-export' || section === 'imported-report')) {
+        const sharedEntry=state.entries.find(row => row.collId === collId && row.id === entryId && row.isValid);
+        return shareRoute(request, collId, sharedEntry, section === 'report-export' ? 'export' : 'read');
+    }
     if(domain==='ai-studies')return resolveStudyRoute(request,collId,entryId,section);
     if(domain==='connectors')return resolveConnectorRoute(request,collId,entryId,section);
     if(domain==='connector-preview')return resolveConnectorRoute(request,collId,undefined,'preview');

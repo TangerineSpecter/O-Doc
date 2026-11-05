@@ -31,6 +31,7 @@ import { quantApi } from '../api/quant';
 import { quantDate } from '../utils/quant';
 import { EntryList } from '../components/Quant/EntryList';
 import { ReportPanel } from '../components/Quant/ReportPanel';
+import {ImportReport, ExportReport, ImportedReport} from '../components/Quant/sharing/ReportShare';
 import { QuantWorkbenchSkeleton } from '../components/Quant/QuantWorkbenchSkeleton';
 import { FactorGraph } from '../components/Quant/FactorGraph';
 import { FactorLibrary } from '../components/Quant/FactorLibrary';
@@ -97,7 +98,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
             setExtra('');
             setSeed(null);
             setSelectedRun('');
-            navigate(`/quant/${collection}/entries/${id}`);
+            navigate(`/quant/${collection}/entries/${id}${params.get('mockState') ? `?mockState=${encodeURIComponent(params.get('mockState')!)}` : ''}`);
         });
     const startAI = (version: QuantCodeVersion, kind: 'explain' | 'convert') => setAIRequest({ version, kind });
     const entry = controller.detail;
@@ -379,6 +380,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                               : 'flex'
                     } w-full min-w-0 shrink-0 flex-col border-r border-slate-200/90 bg-white md:w-72`}
                 >
+                    <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3"><ImportReport collection={collection} imported={id => {void controller.directory.refresh(); selectEntry(id);}} /></div>
                     <EntryList
                         entries={controller.entries}
                         directory={controller.directory}
@@ -498,7 +500,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                 }`}
                             >
                                 {tab === 'report' && (
-                                    <ReportPanel
+                                    <ImportedReport collection={collection} entry={entry.id} selectedReportId={sourceReport || deepReportId}><div className="mb-3"><ExportReport collection={collection} entry={entry.id} title={entry.title}/></div><ReportPanel
                                         key={`${entry.id}:${sourceReport}:${deepReportId}`}
                                         initialReportId={sourceReport||deepReportId}
                                         entry={entry}
@@ -519,7 +521,7 @@ function QuantWorkbench({ collection, entryId }: { collection: string; entryId: 
                                             setInitialExperiment(id || '');
                                             setLibrary(true);
                                         }}
-                                    />
+                                    /></ImportedReport>
                                 )}
                                 {tab === 'feedback' && (
                                     <FeedbackPanel

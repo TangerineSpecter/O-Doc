@@ -11,10 +11,11 @@ from .research.sync import LABELS as RESEARCH_LABELS, validate_research
 
 from .intake.sync import LABELS as INTAKE_LABELS
 
-SCHEMA_VERSION = 90
+SCHEMA_VERSION = 91
 LABELS = {'quant.entry', 'quant.implementation', 'quant.codeversion', 'quant.backtest', 'quant.attachment', 'quant.airun'} | RESEARCH_LABELS | {'quant.marketdataset', 'quant.experimentrequest', 'quant.experimentresult', 'quant.experimentcheckpoint', 'quant.experimentproposal', 'quant.researchcampaign', 'quant.researchround', 'quant.researchevaluation', 'quant.researchoutcome'}
 LABELS |= INTAKE_LABELS
 LABELS.add('quant.strategyartifact')
+LABELS.add('quant.importedresearchreport')
 LABELS.add('quant.selectiondiagnostic')
 LABELS |= {'quant.nativepythonrequest','quant.nativepythonresult'}
 from .validation_studies.sync import LABELS as VALIDATION_LABELS
@@ -105,6 +106,10 @@ def validate(data: list, meta=None) -> None:
             if identity in rows.setdefault(label, {}):
                 fail('量化快照包含重复记录，拒绝恢复')
             rows[label][identity] = row['fields']
+    if 'quant_schema_version' in meta and schema_version < 91 and rows.get('quant.importedresearchreport'):
+        fail('导入的研究报告需要量化同步格式91，请升级其他设备')
+    from .report_sharing.sync import validate_imported_reports
+    validate_imported_reports(rows, fail)
     if 'quant_schema_version' in meta and schema_version < 90 and any(r.get('workflow_version') in (41, 42) for r in rows.get('quant.airun', {}).values()):
         fail('严格源码计算目录需要量化同步格式90，请升级其他设备')
     if 'quant_schema_version' in meta and schema_version < 89 and (rows.get('quant.researchdocument') or any(r.get('publication_mode', 'legacy') != 'legacy' for r in rows.get('quant.researchreport', {}).values())):

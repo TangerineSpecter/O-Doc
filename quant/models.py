@@ -288,6 +288,12 @@ class ResearchReport(ImmutableRecord):
         ordering = ['-created_at', '-id']
 
 
+class ImportedResearchReport(Record):
+    """A portable reading snapshot; never grants task or code execution authority."""
+    entry = models.OneToOneField(Entry, on_delete=models.CASCADE, related_name='imported_research_report')
+    package = models.JSONField(default=dict)
+
+
 class ResearchDocument(Record):
     entry = models.OneToOneField(Entry, on_delete=models.CASCADE, related_name='research_document')
     revision = models.PositiveIntegerField(default=1)

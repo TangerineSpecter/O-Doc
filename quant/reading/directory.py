@@ -3,7 +3,7 @@ import re
 from django.db.models import BooleanField, Count, Exists, OuterRef, Q
 from django.db.models.functions import Substr
 from rest_framework import serializers
-from quant.models import Entry, Implementation, SourceRevision
+from quant.models import Entry, Implementation, SourceRevision, ImportedResearchReport
 from quant.research.list_scores import with_default_report_score, normalized_score
 
 
@@ -52,8 +52,9 @@ def directory(collection, params):
     if values['language']:
         rows = rows.alias(
             has_impl=Exists(Implementation.objects.filter(entry_id=OuterRef('pk'), language=values['language'])),
-            has_source=Exists(SourceRevision.objects.filter(material__entry_id=OuterRef('pk'), payload__language=values['language']))
-        ).filter(Q(has_impl=True) | Q(has_source=True))
+            has_source=Exists(SourceRevision.objects.filter(material__entry_id=OuterRef('pk'), payload__language=values['language'])),
+            has_shared_source=Exists(ImportedResearchReport.objects.filter(entry_id=OuterRef('pk'), package__source__language=values['language']))
+        ).filter(Q(has_impl=True) | Q(has_source=True) | Q(has_shared_source=True))
     counts = {kind: 0 for kind in Entry.KINDS}
     counts.update({row['kind']: row['n'] for row in rows.order_by().values('kind').annotate(n=Count('id'))})
     if values['kind']:

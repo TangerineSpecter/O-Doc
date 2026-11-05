@@ -1,3 +1,4 @@
+from quant.report_sharing.views import ExportShareView, ImportedShareView, ImportShareView
 from quant.documents.views import DocumentView
 from .reading.views import ReadingView, StatusView
 from .strategy_exports.views import StrategyExportView
@@ -30,6 +31,9 @@ from .graph.correlation_views import CorrelationView
 from .mt4_reports.views import ExpertView as MT4ExpertView, PreviewView as MT4PreviewView, TestView as MT4TestView, AttachmentView as MT4AttachmentView, VisionView as MT4VisionView, ZipChartView
 
 urlpatterns = [
+    path('<str:coll_id>/report-import/', ImportShareView.as_view()),
+    path('<str:coll_id>/entries/<str:entry_id>/report-export/', ExportShareView.as_view()),
+    path('<str:coll_id>/entries/<str:entry_id>/imported-report/', ImportedShareView.as_view()),
     path('<str:coll_id>/entries/<str:entry_id>/document/', DocumentView.as_view()),
     path('<str:coll_id>/entries/<str:entry_id>/reading/notes/', ReadingView.as_view(), {'section': 'notes'}),
     path('<str:coll_id>/entries/<str:entry_id>/reading/reports/', ReadingView.as_view(), {'section': 'reports'}),

@@ -140,6 +140,23 @@
     }
 }
 
+/* 页尾上下篇导航卡片样式规范：脱离正文排版干扰，约束标题最多两行高度，超出后省略 */
+.diary-prose footer p {
+    margin-bottom: 0;
+    white-space: normal;
+}
+.diary-prose .diary-nav-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+    white-space: normal !important;
+    line-height: 1.375;
+    max-height: 2.75em;
+}
+
 /* 题头与正文之间的小装饰/分割线：移动端紧凑柔和，桌面端舒展大方 */
 .diary-ornament {
     display: flex;

@@ -7,20 +7,30 @@
 @media (min-width: 1024px) {
     .world-dialog-sized {
         --world-dialog-ratio: 1.5;
-    }
-
-    [role="dialog"].world-dialog-sized {
-        width: min(calc(100vw - 2.5rem), calc(88vh * var(--world-dialog-ratio)));
-        height: 88vh;
-        max-height: 88vh;
+        --world-dialog-base-w: 64rem;
+        --world-dialog-max-w: 72rem;
     }
 
     .world-dialog-sized-extra-wide {
         --world-dialog-ratio: 1.9;
+        --world-dialog-base-w: 80rem;
+        --world-dialog-max-w: 1520px;
     }
 
     .world-dialog-sized-full {
         --world-dialog-ratio: 2;
+        --world-dialog-base-w: 90rem;
+        --world-dialog-max-w: 1680px;
+    }
+
+    [role="dialog"].world-dialog-sized {
+        width: min(
+            calc(100vw - 2.5rem),
+            var(--world-dialog-max-w),
+            max(var(--world-dialog-base-w), calc(88vh * var(--world-dialog-ratio)))
+        );
+        height: 88vh;
+        max-height: 88vh;
     }
 }
 

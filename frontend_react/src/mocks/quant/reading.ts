@@ -6,7 +6,14 @@ import {HttpResponse} from 'msw';
 import {quantState} from './state';
 import {collectMockFactors} from './factors';
 const adoptedReport=(entry:QuantEntryDetail,section:'reading'|'review')=>entry.reports?.find(row=>row.id===quantState().documents?.[entry.id]?.sections[section]?.reportId);
-const adoptedScore=(entry:QuantEntryDetail)=>quantState().documents?.[entry.id]?adoptedReport(entry,'review')?.data.totalScore??null:researchReportScore(entry.reports);
+const adoptedScore=(entry:QuantEntryDetail)=>{
+    const normal=quantState().documents?.[entry.id]?adoptedReport(entry,'review')?.data.totalScore??null:researchReportScore(entry.reports);
+    if(normal!==null)return normal;
+    const raw=quantState().sharedReports?.[entry.id];
+    if(!raw)return null;
+    try {const data=JSON.parse(raw).report.data; const score=data.total_score??data.totalScore; return typeof score==='number' && Number.isFinite(score) && score>=0 && score<=100?score:null;} catch {return null;}
+};
+const sharedLanguage=(entry:QuantEntryDetail)=>{try {return JSON.parse(quantState().sharedReports?.[entry.id]||'null')?.source?.language||'';} catch {return '';}};
 const fail=(status:number,msg:string)=>HttpResponse.json({code:status,msg,data:null},{status});
 const ordered=<T extends {createdAt:string;id:string}>(rows:T[])=>[...rows].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id));
 export function mockOverview(entry:QuantEntryDetail):QuantEntryOverview {
@@ -31,7 +38,7 @@ export function mockDirectory(entries:QuantEntryDetail[],params:URLSearchParams)
     const query=(params.get('q')||'').trim().toLowerCase(),kind=params.get('kind')||'',language=params.get('language')||'';
     if(kind&&!['factor','indicator','strategy'].includes(kind))return fail(400,'研究类型无效');
     if(language&&!['python','pine','mql4','tongdaxin','text'].includes(language))return fail(400,'代码语言无效');
-    const rows=entries.filter(row=>(!query||[row.title,row.content,...row.tags].join(' ').toLowerCase().includes(query))&&(!language||row.implementations.some(impl=>impl.language===language)||row.sources?.some(source=>source.payload.language===language)));
+    const rows=entries.filter(row=>(!query||[row.title,row.content,...row.tags].join(' ').toLowerCase().includes(query))&&(!language||row.implementations.some(impl=>impl.language===language)||row.sources?.some(source=>source.payload.language===language)||sharedLanguage(row)===language));
     const kindCounts:Record<string,number>={factor:0,indicator:0,strategy:0};for(const row of rows)kindCounts[row.kind]++;
     const filtered=rows.filter(row=>!kind||row.kind===kind).sort(params.get('sort')==='title'?(a,b)=>a.title<b.title?-1:a.title>b.title?1:a.id.localeCompare(b.id):(a,b)=>b.updatedAt.localeCompare(a.updatedAt)||b.id.localeCompare(a.id));
     const page=mockPage(filtered,params,row=>({id:row.id,title:row.title,kind:row.kind,createdAt:row.createdAt,updatedAt:row.updatedAt,

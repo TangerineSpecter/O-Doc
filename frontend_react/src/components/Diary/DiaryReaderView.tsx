@@ -656,12 +656,15 @@ export default function DiaryReaderView({
                                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 transition-transform group-hover:-translate-x-1">
                                         <ArrowLeft size={16}/>
                                     </div>
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                         <p className="text-[11px] font-semibold text-zinc-400">
                                             上一篇 · {prevEntry.entryDate}
                                         </p>
-                                        <p className="mt-0.5 truncate text-sm font-bold">
-                                            {prevEntry.title}
+                                        <p
+                                            title={prevEntry.title || '无标题日记'}
+                                            className="mt-0.5 diary-nav-title line-clamp-2 break-words text-sm font-bold leading-snug text-zinc-800 dark:text-zinc-200"
+                                        >
+                                            {prevEntry.title || '无标题日记'}
                                         </p>
                                     </div>
                                 </button>
@@ -679,12 +682,15 @@ export default function DiaryReaderView({
                                             : 'border-black/[0.06] bg-white/80 hover:border-zinc-300 hover:bg-white hover:shadow-sm'
                                     }`}
                                 >
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                         <p className="text-[11px] font-semibold text-zinc-400">
                                             下一篇 · {nextEntry.entryDate}
                                         </p>
-                                        <p className="mt-0.5 truncate text-sm font-bold">
-                                            {nextEntry.title}
+                                        <p
+                                            title={nextEntry.title || '无标题日记'}
+                                            className="mt-0.5 diary-nav-title line-clamp-2 break-words text-sm font-bold leading-snug text-zinc-800 dark:text-zinc-200"
+                                        >
+                                            {nextEntry.title || '无标题日记'}
                                         </p>
                                     </div>
                                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 transition-transform group-hover:translate-x-1">

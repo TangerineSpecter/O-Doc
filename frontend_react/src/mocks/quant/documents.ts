@@ -24,7 +24,7 @@ function payload(entry:QuantEntryDetail,ref:DocumentPointer|undefined,key:Resear
     const data=report.data as unknown as Record<string,unknown>;
     return {...(key==='plan'?{proposal:report.proposal||null}:{}),...Object.fromEntries(fields[key].filter(field=>field in data).map(field=>[field,data[field]])),
         ...(key==='review'?{researchMemoryJson:report.researchMemoryJson??entry.runs.find(row=>row.id===report.runId)?.researchMemoryJson??null}:{}),
-        ...(key==='reading'?{markdown:report.revisions.find(row=>row.id===ref?.revisionId)?.markdown||report.originalMarkdown}:{})};
+        ...(key==='reading'?{markdown:report.revisions.find(row=>row.id===ref?.revisionId)?.markdown??report.originalMarkdown}:{})};
 }
 function differences(entry:QuantEntryDetail,document:MockDocument,target:Partial<Record<ResearchSection,DocumentPointer>>) {
     return keys.filter(key=>target[key]).map(section=>{

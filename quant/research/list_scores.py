@@ -1,10 +1,9 @@
 """Project the score of the default report without loading every report body."""
 import json
-from math import isfinite
 from django.db.models import Case, IntegerField, OuterRef, Subquery, TextField, Value, When
-from django.db.models.functions import Cast
+from django.db.models.functions import Cast, Coalesce
 from django.db.models.fields.json import KeyTextTransform
-from quant.models import ResearchReport, ResearchDocument
+from quant.models import ResearchReport, ResearchDocument, ImportedResearchReport
 
 
 def with_default_report_score(entries):
@@ -17,7 +16,8 @@ def with_default_report_score(entries):
         .order_by('report_priority', '-created_at', '-id'))
     entries = entries.annotate(adopted_review_id=Subquery(ResearchDocument.objects.filter(entry_id=OuterRef('pk')).annotate(review_id=KeyTextTransform.from_lookup('sections__review__report_id')).values('review_id')[:1]))
     adopted = ResearchReport.objects.filter(pk=OuterRef('adopted_review_id')).annotate(score_text=Cast('data__total_score', output_field=TextField()))
-    return entries.annotate(default_report_score=Case(When(adopted_review_id__isnull=False, then=Subquery(adopted.values('score_text')[:1])), default=Subquery(reports.values('score_text')[:1]), output_field=TextField()))
+    shared = ImportedResearchReport.objects.filter(entry_id=OuterRef('pk')).annotate(score_text=Coalesce(Cast('package__report__data__total_score', output_field=TextField()), Cast('package__report__data__totalScore', output_field=TextField()), output_field=TextField()))
+    return entries.annotate(default_report_score=Coalesce(Case(When(adopted_review_id__isnull=False, then=Subquery(adopted.values('score_text')[:1])), default=Subquery(reports.values('score_text')[:1]), output_field=TextField()), Subquery(shared.values('score_text')[:1]), output_field=TextField()))
 
 
 def normalized_score(score):
@@ -27,4 +27,4 @@ def normalized_score(score):
             score = json.loads(score)
         except (ValueError, TypeError):
             return None
-    return score if isinstance(score, (int, float)) and not isinstance(score, bool) and isfinite(score) and 0 <= score <= 100 else None
+    return score if type(score) in (int, float) and 0 <= score <= 100 else None

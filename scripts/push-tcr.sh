@@ -68,10 +68,8 @@ EOF
     esac
 fi
 
-echo "登录腾讯云 TCR：$TCR_REGISTRY"
-printf "%s" "$TCR_PASSWORD" | docker login "$TCR_REGISTRY" --username "$TCR_USERNAME" --password-stdin
-
-build_tags=(-t "$TCR_IMAGE")
+LOCAL_IMAGE="${TCR_LOCAL_IMAGE:-o-doc:local-ready}"
+build_tags=(-t "$LOCAL_IMAGE" -t "$TCR_IMAGE")
 if [ -n "$TCR_EXTRA_TAGS" ]; then
     IFS=',' read -r -a extra_tags <<<"$TCR_EXTRA_TAGS"
     for tag in "${extra_tags[@]}"; do
@@ -81,7 +79,7 @@ if [ -n "$TCR_EXTRA_TAGS" ]; then
     done
 fi
 
-echo "构建并推送镜像：$TCR_IMAGE ($TCR_PLATFORM)"
+echo "构建本地镜像：$LOCAL_IMAGE ($TCR_PLATFORM)"
 if [ -n "$TCR_EXTRA_TAGS" ]; then
     echo "附加镜像标签：$TCR_EXTRA_TAGS"
 fi
@@ -90,6 +88,26 @@ docker buildx build \
     --build-arg "ODOC_BUILD_VERSION=$TCR_BUILD_VERSION" \
     --build-arg "ODOC_BUILD_COMMIT=$TCR_BUILD_COMMIT" \
     "${build_tags[@]}" \
-    --push "$PROJECT_ROOT"
+    --load "$PROJECT_ROOT"
+
+docker image inspect "$LOCAL_IMAGE" >/dev/null
+echo "本地镜像已就绪：${LOCAL_IMAGE}；可在同一 Docker daemon 上手动升级。"
+if [ -n "${TCR_BUILD_WEBHOOK_URL:-}" ]; then
+    if ! TCR_LOCAL_IMAGE="$LOCAL_IMAGE" python3 "$PROJECT_ROOT/scripts/notify-local-image.py"; then
+        echo "本地镜像就绪通知失败；继续推送云端。" >&2
+    fi
+fi
+
+echo "登录腾讯云 TCR：$TCR_REGISTRY"
+printf "%s" "$TCR_PASSWORD" | docker login "$TCR_REGISTRY" --username "$TCR_USERNAME" --password-stdin
+echo "推送镜像：$TCR_IMAGE"
+docker push "$TCR_IMAGE"
+if [ -n "$TCR_EXTRA_TAGS" ]; then
+    for tag in "${extra_tags[@]}"; do
+        if [ -n "$tag" ]; then
+            docker push "$tag"
+        fi
+    done
+fi
 
 echo "腾讯云 TCR 镜像推送完成：$TCR_IMAGE"

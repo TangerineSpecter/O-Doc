@@ -110,13 +110,13 @@ function AttributeRow({
                 <div className="mt-3 grid grid-cols-2 gap-2">
                     {/* 种植技能 */}
                     <div className="rounded-xl border border-lime-100 bg-lime-50/40 p-2">
-                        <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
-                                <Sprout className="h-3 w-3 text-lime-600" />
-                                种植
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-slate-700">
+                                <Sprout className="h-3 w-3 shrink-0 text-lime-600" />
+                                <span className="shrink-0">种植</span>
                                 <LevelPlate level={node.planting?.level || 1} variant="lime" size="xs" />
                             </span>
-                            <span className="text-xs font-bold tabular-nums text-slate-700">
+                            <span className="ml-1 shrink-0 whitespace-nowrap text-xs font-bold tabular-nums text-slate-700">
                                 {node.planting?.experience || 0}
                                 <span className="ml-0.5 text-[10px] font-normal text-slate-400">经验</span>
                             </span>
@@ -138,12 +138,12 @@ function AttributeRow({
 
                     {/* 创作力 */}
                     <div className="rounded-xl border border-orange-100/90 bg-orange-50/40 p-2">
-                        <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-600">
-                                <Sparkles className="h-3 w-3 text-orange-500" />
-                                创作力
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="flex min-w-0 items-center gap-1 text-[11px] font-medium text-slate-600">
+                                <Sparkles className="h-3 w-3 shrink-0 text-orange-500" />
+                                <span className="shrink-0">创作力</span>
                             </span>
-                            <span className="text-xs font-bold tabular-nums text-slate-800">
+                            <span className="ml-1 shrink-0 whitespace-nowrap text-xs font-bold tabular-nums text-slate-800">
                                 {node.creativity}
                                 <span className="text-[10px] font-normal text-slate-400">/100</span>
                             </span>
@@ -158,13 +158,13 @@ function AttributeRow({
 
                     {/* 厨艺技能 */}
                     <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-2">
-                        <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
-                                <ChefHat className="h-3 w-3 text-orange-500" />
-                                厨艺
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-slate-700">
+                                <ChefHat className="h-3 w-3 shrink-0 text-orange-500" />
+                                <span className="shrink-0">厨艺</span>
                                 <LevelPlate level={node.cooking?.level || 1} variant="orange" size="xs" />
                             </span>
-                            <span className="text-xs font-bold tabular-nums text-slate-700">
+                            <span className="ml-1 shrink-0 whitespace-nowrap text-xs font-bold tabular-nums text-slate-700">
                                 {node.cooking?.experience || 0}
                                 <span className="ml-0.5 text-[10px] font-normal text-slate-400">经验</span>
                             </span>
@@ -186,13 +186,13 @@ function AttributeRow({
 
                     {/* 炼金技能 */}
                     <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-2">
-                        <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
-                                <FlaskConical className="h-3 w-3 text-violet-500" />
-                                炼金
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-slate-700">
+                                <FlaskConical className="h-3 w-3 shrink-0 text-violet-500" />
+                                <span className="shrink-0">炼金</span>
                                 <LevelPlate level={node.alchemy?.level || 1} variant="purple" size="xs" />
                             </span>
-                            <span className="text-xs font-bold tabular-nums text-slate-700">
+                            <span className="ml-1 shrink-0 whitespace-nowrap text-xs font-bold tabular-nums text-slate-700">
                                 {node.alchemy?.experience || 0}
                                 <span className="ml-0.5 text-[10px] font-normal text-slate-400">经验</span>
                             </span>
@@ -214,13 +214,13 @@ function AttributeRow({
 
                     {/* 钓鱼技能 */}
                     <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-2">
-                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
-                                <Fish className="h-3 w-3 text-teal-600" />
-                                钓鱼
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-slate-700">
+                                <Fish className="h-3 w-3 shrink-0 text-teal-600" />
+                                <span className="shrink-0">钓鱼</span>
                                 <LevelPlate level={node.fishing?.level || 1} variant="emerald" size="xs" />
                             </span>
-                            <span className="text-xs font-bold tabular-nums text-slate-700">
+                            <span className="ml-1 shrink-0 whitespace-nowrap text-xs font-bold tabular-nums text-slate-700">
                                 {node.fishing?.experience || 0}
                                 <span className="ml-0.5 text-[10px] font-normal text-slate-400">经验</span>
                             </span>
@@ -245,12 +245,12 @@ function AttributeRow({
                         className="rounded-xl border border-lime-100/90 bg-lime-50/40 p-2"
                         title="自然恢复速度在世界管理的体力设置中配置，成功评论并打分消耗 10 点"
                     >
-                        <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-600">
-                                <Battery className="h-3 w-3 text-lime-600" />
-                                体力
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="flex min-w-0 items-center gap-1 text-[11px] font-medium text-slate-600">
+                                <Battery className="h-3 w-3 shrink-0 text-lime-600" />
+                                <span className="shrink-0">体力</span>
                             </span>
-                            <span className="text-xs font-bold tabular-nums text-slate-800">
+                            <span className="ml-1 shrink-0 whitespace-nowrap text-xs font-bold tabular-nums text-slate-800">
                                 {energy == null ? '—' : Number(energy.toFixed(1))}
                                 <span className="text-[10px] font-normal text-slate-400">/100</span>
                             </span>
@@ -315,11 +315,11 @@ function AttributeRow({
                         type="button"
                         onClick={onOpenRelations}
                         aria-label={`查看${node.name}的互动`}
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-slate-200/90 bg-white px-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
                     >
-                        <MessageSquare className="h-3.5 w-3.5 text-slate-400" />
-                        <span>互动</span>
-                        <span className="rounded-full bg-slate-100 px-1.5 py-0.2 text-[10px] font-bold tabular-nums text-slate-500">
+                        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="shrink-0">互动</span>
+                        <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.2 text-[10px] font-bold tabular-nums text-slate-500">
                             {relations.length}
                         </span>
                     </button>
@@ -328,10 +328,10 @@ function AttributeRow({
                         type="button"
                         onClick={onOpenActivities}
                         aria-label={`查看${node.name}的活动`}
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/60 px-2 text-xs font-semibold text-orange-700 shadow-2xs transition-all hover:border-orange-300 hover:bg-orange-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-orange-200/80 bg-orange-50/60 px-1.5 text-xs font-semibold text-orange-700 shadow-2xs transition-all hover:border-orange-300 hover:bg-orange-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
                     >
-                        <Activity className="h-3.5 w-3.5 text-orange-500" />
-                        <span>活动</span>
+                        <Activity className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                        <span className="shrink-0">活动</span>
                     </button>
 
                     <button
@@ -339,23 +339,23 @@ function AttributeRow({
                         onClick={onOpenCombat}
                         disabled={!onOpenCombat}
                         aria-label={`查看${node.name}的冒险`}
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-rose-200/80 bg-rose-50/60 px-2 text-xs font-semibold text-rose-700 shadow-2xs transition-all hover:border-rose-300 hover:bg-rose-100 active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-rose-200/80 bg-rose-50/60 px-1.5 text-xs font-semibold text-rose-700 shadow-2xs transition-all hover:border-rose-300 hover:bg-rose-100 active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
                     >
-                        <Swords className="h-3.5 w-3.5 text-rose-500" />
-                        <span>冒险</span>
+                        <Swords className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                        <span className="shrink-0">冒险</span>
                     </button>
                 </div>
 
                 {/* 资产与操作栏：金钱余额 + 持仓明细 + 背包 */}
-                <div className="mt-2.5 flex items-center justify-between gap-1.5 rounded-xl border border-amber-200/70 bg-amber-50/30 p-2">
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-y-2 gap-x-2 rounded-xl border border-amber-200/70 bg-amber-50/30 p-2">
                     {/* 金钱余额 */}
-                    <div className="flex min-w-0 items-center gap-1.5">
+                    <div className="flex min-w-0 items-center gap-1.5 shrink-0">
                         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white text-amber-600 shadow-2xs">
                             <Wallet className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0">
                             <span
-                                className="block truncate font-mono text-xs font-bold text-slate-800"
+                                className="block font-mono text-xs font-bold text-slate-800 whitespace-nowrap"
                                 title={`金钱余额：¥${Number(node.money).toLocaleString('zh-CN', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
@@ -370,7 +370,7 @@ function AttributeRow({
                     </div>
 
                     {/* 操作按钮组：持仓明细 + 打开背包 */}
-                    <div className="flex shrink-0 items-center gap-1.5">
+                    <div className="flex shrink-0 items-center gap-1.5 ml-auto">
                         <button
                             type="button"
                             onClick={onOpenHoldings}
@@ -378,8 +378,8 @@ function AttributeRow({
                             title="查看股票投资持仓与盈亏"
                             className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-orange-200 bg-white px-2 py-1 text-xs font-semibold text-orange-600 shadow-2xs transition-all hover:bg-orange-50 hover:border-orange-300 active:scale-95"
                         >
-                            <TrendingUp className="h-3 w-3" />
-                            <span>持仓明细</span>
+                            <TrendingUp className="h-3 w-3 shrink-0" />
+                            <span className="shrink-0 whitespace-nowrap">持仓明细</span>
                         </button>
 
                         <button
@@ -389,8 +389,8 @@ function AttributeRow({
                             title="查看随身持有物"
                             className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-95"
                         >
-                            <Package className="h-3 w-3 text-slate-400" />
-                            <span>背包({node.inventoryCount ?? 0})</span>
+                            <Package className="h-3 w-3 shrink-0 text-slate-400" />
+                            <span className="shrink-0 whitespace-nowrap">背包({node.inventoryCount ?? 0})</span>
                         </button>
                     </div>
                 </div>
@@ -442,7 +442,7 @@ export default function AgentAttributePanel({
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px]">最近 30 天</span>
                 </div>
             ) : null}
-            <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid items-start gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                 {!loading && !error
                     ? nodes.map((node) => (
                           <AttributeRow

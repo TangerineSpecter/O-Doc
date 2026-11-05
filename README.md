@@ -208,6 +208,8 @@ Linux Docker Compose 部署通过服务器脚本或 Compose 手动更新；“�
 
 脚本会优先读取 `TCR_USERNAME`、`TCR_PASSWORD`、`TCR_IMAGE` 等环境变量；未配置时会交互输入，并可选择保存到本机 `.env.tcr.local`。该文件已被 Git 忽略，不会提交到仓库。
 
+脚本先加载本地镜像 `o-doc:local-ready`，再推送 TCR；可配置 `TCR_BUILD_WEBHOOK_URL` 在本地镜像就绪时通知。使用条件、消息格式和手动更新步骤见[部署与更新指南](docs/部署与更新指南.md)。
+
 安装时如果你没有输入 `DJANGO_SECRET_KEY`，脚本会自动生成；`DJANGO_ALLOWED_HOSTS` 默认使用宽松配置，适合大多数个人部署场景。
 
 部署与维护的详细说明请查看 [部署与更新指南](docs/部署与更新指南.md)。
