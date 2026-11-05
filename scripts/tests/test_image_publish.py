@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -79,6 +80,35 @@ class PublishTests(unittest.TestCase):
             conn.getresponse.return_value.status = 302
             with self.assertRaises(ValueError):
                 notify.send_notification("https://example.com/hook", {})
+
+    def test_feishu_payload_and_optional_signature(self):
+        info = {"image": "o-doc:local-ready", "version": "v1.6.6", "commit": "abc", "platform": "linux/amd64"}
+        self.assertTrue(notify.is_feishu("https://open.feishu.cn/open-apis/bot/v2/hook/token"))
+        self.assertEqual(notify.notification_payload(info, False)["event"], "local_image_ready")
+        with mock.patch.object(notify.time, "time", return_value=1599360473):
+            payload = notify.notification_payload(info, True, "test-secret", "更新提醒")
+        self.assertEqual(payload["msg_type"], "text")
+        self.assertIn("更新提醒", payload["content"]["text"])
+        self.assertIn("v1.6.6", payload["content"]["text"])
+        self.assertEqual(payload["timestamp"], "1599360473")
+        self.assertEqual(payload["sign"], "wSds2BzzFIIGf/WrhUO+NI1q/9j+FRJd3JNHKAq0NZY=")
+        self.assertNotIn("timestamp", notify.notification_payload(info, True))
+
+    def test_feishu_checks_application_status_on_http_success(self):
+        addresses = [(2, 1, 6, "", ("8.8.8.8", 443))]
+        with mock.patch.object(notify.socket, "getaddrinfo", return_value=addresses), \
+             mock.patch.object(notify.http.client, "HTTPSConnection") as factory:
+            conn = factory.return_value
+            conn.getresponse.return_value.status = 200
+            conn.getresponse.return_value.read.return_value = json.dumps({"code": 0}).encode()
+            notify.send_notification("https://open.feishu.cn/hook", {}, True)
+            conn.getresponse.return_value.read.return_value = b'{"code":19024,"msg":"sensitive"}'
+            with self.assertRaisesRegex(notify.NotificationError, "19024") as raised:
+                notify.send_notification("https://open.feishu.cn/hook", {}, True)
+            self.assertNotIn("sensitive", str(raised.exception))
+            conn.getresponse.return_value.read.return_value = b'not json'
+            with self.assertRaisesRegex(notify.NotificationError, "响应格式"):
+                notify.send_notification("https://open.feishu.cn/hook", {}, True)
 
 
 if __name__ == "__main__":

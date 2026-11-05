@@ -77,6 +77,8 @@ jobs:
           TCR_BUILD_VERSION: ${{ github.ref_name }}
           TCR_BUILD_COMMIT: ${{ github.sha }}
           TCR_BUILD_WEBHOOK_URL: ${{ secrets.TCR_BUILD_WEBHOOK_URL }}
+          TCR_BUILD_WEBHOOK_SECRET: ${{ secrets.TCR_BUILD_WEBHOOK_SECRET }}
+          TCR_BUILD_WEBHOOK_KEYWORD: ${{ vars.TCR_BUILD_WEBHOOK_KEYWORD }}
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             export TCR_EXTRA_TAGS="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:${GITHUB_REF_NAME}"

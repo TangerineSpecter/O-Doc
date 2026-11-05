@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Send a best-effort, HTTPS-only notification when the local image is ready."""
 
+import base64
+import hashlib
+import hmac
 import http.client
 import ipaddress
 import json
@@ -8,17 +11,43 @@ import os
 import socket
 import ssl
 import sys
+import time
 from urllib.parse import urlsplit
 
 
-def send_notification(url: str, payload: dict) -> None:
+class NotificationError(ValueError):
+    pass
+
+
+def is_feishu(url: str) -> bool:
+    return urlsplit(url).hostname in {"open.feishu.cn", "open.larksuite.com"}
+
+
+def notification_payload(info: dict, feishu: bool, secret: str = "", keyword: str = "") -> dict:
+    if not feishu:
+        return {"event": "local_image_ready", **info}
+    lines = ["O-Doc 本地镜像已就绪", f"镜像：{info['image']}",
+             f"版本：{info['version']}", f"提交：{info['commit']}",
+             f"平台：{info['platform']}", "可手动升级；云端推送随后继续。"]
+    if keyword:
+        lines.insert(1, keyword)
+    payload = {"msg_type": "text", "content": {"text": "\n".join(lines)}}
+    if secret:
+        timestamp = str(int(time.time()))
+        key = f"{timestamp}\n{secret}".encode("utf-8")
+        payload["timestamp"] = timestamp
+        payload["sign"] = base64.b64encode(hmac.new(key, digestmod=hashlib.sha256).digest()).decode("ascii")
+    return payload
+
+
+def send_notification(url: str, payload: dict, feishu: bool = False) -> None:
     target = urlsplit(url)
     if target.scheme != "https" or not target.hostname or target.username or target.password or target.fragment:
-        raise ValueError("Webhook must be an HTTPS URL without credentials or a fragment")
+        raise NotificationError("地址必须是 HTTPS，且不能包含用户凭据或片段")
     port = target.port or 443
     addresses = socket.getaddrinfo(target.hostname, port, type=socket.SOCK_STREAM)
     if not addresses or any(not ipaddress.ip_address(item[4][0]).is_global for item in addresses):
-        raise ValueError("Webhook must resolve only to public IP addresses")
+        raise NotificationError("地址必须只解析到公网 IP")
 
     # Connect to a validated IP directly while checking the certificate against the hostname.
     # HTTP redirects are not followed, so they cannot bypass destination validation.
@@ -35,24 +64,45 @@ def send_notification(url: str, payload: dict) -> None:
         conn.request("POST", path, body, {"Content-Type": "application/json"})
         response = conn.getresponse()
         if not 200 <= response.status < 300:
-            raise ValueError(f"Webhook returned HTTP {response.status}")
+            raise NotificationError(f"HTTP 状态码 {response.status}")
+        if feishu:
+            try:
+                result = json.loads(response.read(65537))
+                code = result.get("code") if isinstance(result, dict) else None
+            except (UnicodeError, json.JSONDecodeError):
+                code = None
+            if type(code) is not int:
+                raise NotificationError("飞书响应格式无效")
+            if code != 0:
+                reasons = {19021: "签名校验失败或服务器时间不准确", 19022: "IP 白名单校验失败",
+                           19024: "消息未包含机器人配置的关键词"}
+                raise NotificationError(f"飞书错误码 {code}：{reasons.get(code, '请检查机器人配置')}")
     finally:
         conn.close()
 
 
 def main() -> int:
-    payload = {
-        "event": "local_image_ready",
+    info = {
         "image": os.environ["TCR_LOCAL_IMAGE"],
         "version": os.environ.get("TCR_BUILD_VERSION", "unknown"),
         "commit": os.environ.get("TCR_BUILD_COMMIT", "unknown"),
         "platform": os.environ.get("TCR_PLATFORM", "linux/amd64"),
     }
     try:
-        send_notification(os.environ["TCR_BUILD_WEBHOOK_URL"], payload)
-    except (OSError, ValueError, http.client.HTTPException):
-        # Do not expose URLs, tokens, addresses, or response bodies in CI logs.
-        print("Webhook 通知未成功，请检查地址、网络和接收端。", file=sys.stderr)
+        url = os.environ["TCR_BUILD_WEBHOOK_URL"]
+        feishu = is_feishu(url)
+        payload = notification_payload(info, feishu, os.environ.get("TCR_BUILD_WEBHOOK_SECRET", ""),
+                                       os.environ.get("TCR_BUILD_WEBHOOK_KEYWORD", ""))
+        send_notification(url, payload, feishu)
+    except NotificationError as exc:
+        # These messages are generated locally and do not contain the URL or response body.
+        print(f"Webhook 通知未成功：{exc}", file=sys.stderr)
+        return 1
+    except ValueError:
+        print("Webhook 通知未成功：地址或响应格式无效。", file=sys.stderr)
+        return 1
+    except (OSError, http.client.HTTPException):
+        print("Webhook 通知未成功：DNS、网络连接或 TLS 错误。", file=sys.stderr)
         return 1
     print("本地镜像就绪通知已发送。")
     return 0
