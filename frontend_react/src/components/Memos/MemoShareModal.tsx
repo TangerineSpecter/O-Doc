@@ -29,7 +29,7 @@ interface PosterStyleMeta {
 }
 
 const posterStyles: PosterStyleMeta[] = [
-    {id: 'stamp', name: '复古邮票', tagline: '航空邮戳 · 信笺明信片', icon: Mail},
+    {id: 'stamp', name: '纪念邮票', tagline: '齿孔画框 · 志号与面值', icon: Mail},
     {id: 'receipt', name: '灵感小票', tagline: '热敏小票 · 极客条形码', icon: Receipt},
     {id: 'polaroid', name: '拍立得', tagline: '胶片快照 · 和纸胶带', icon: Camera},
     {id: 'magazine', name: '杂志大刊', tagline: '独立文摘 · 极简黑曜石', icon: BookOpen},
@@ -146,7 +146,7 @@ export default function MemoShareModal({
                             分享闪念海报
                         </h2>
                         <p className="text-xs text-slate-500">
-                            精选 5 款不同视觉形态的海报版式，直接复制或保存
+                            精选 5 款不同形态的高质感卡片设计，直接复制或保存
                         </p>
                     </div>
                     <button
@@ -196,114 +196,123 @@ export default function MemoShareModal({
                             ref={posterRef}
                             className="w-full max-w-[440px] transition-all duration-200"
                         >
-                            {/* 样式 1: 复古邮票明信片 */}
+                            {/* 样式 1: 真实纪念邮票 (Commemorative Postage Stamp) */}
                             {currentStyle === 'stamp' && (
-                                <div className="relative overflow-hidden rounded-3xl border-2 border-[#D8C9B0] bg-[#FBF8F1] p-6 text-[#2C241E] shadow-xl sm:p-7">
-                                    {/* 航空信封红蓝条纹装饰 */}
-                                    <div
-                                        className="mb-4 h-2 w-full rounded-full opacity-85"
-                                        style={{
-                                            background:
-                                                'repeating-linear-gradient(135deg, #c2410c 0px, #c2410c 12px, #fbf8f1 12px, #fbf8f1 18px, #1d4ed8 18px, #1d4ed8 30px, #fbf8f1 30px, #fbf8f1 36px)',
-                                        }}
-                                    />
-
-                                    {/* 顶部：航空标与邮票/邮戳 */}
-                                    <div className="relative flex items-start justify-between gap-3 border-b-2 border-dashed border-[#D5C6AC] pb-4">
-                                        <div className="flex flex-col gap-1.5">
-                                            <div className="inline-flex items-center gap-1.5 rounded border border-[#1D4ED8]/40 bg-[#1D4ED8]/5 px-2 py-0.5 text-[11px] font-black tracking-widest text-[#1D4ED8]">
-                                                <span>✈</span>
-                                                <span>PAR AVION · 航空明信片</span>
-                                            </div>
-                                            <span className="text-[10px] font-mono text-[#8C7A68]">
-                                                POST CARD NO. {yearNum}{monthNum}{dayNum}
-                                            </span>
-                                            <div className="flex items-center gap-1 text-xs font-semibold text-[#5C4A3A]">
-                                                <span>{yearNum}年{monthNum}月{dayNum}日</span>
-                                                <span>·</span>
-                                                <span>{weekdayName}</span>
-                                            </div>
+                                <div className="relative mx-auto w-full max-w-[430px] p-2 sm:p-3">
+                                    {/* 邮票主体：纯白高级特种纸（四周仿真齿孔 Perforation） */}
+                                    <div className="relative overflow-hidden rounded-xs bg-white p-5 sm:p-7 shadow-2xl ring-1 ring-black/5">
+                                        {/* 顶边齿孔 */}
+                                        <div className="pointer-events-none absolute -top-1.5 inset-x-4 flex justify-between overflow-hidden">
+                                            {Array.from({length: 22}).map((_, i) => (
+                                                <div key={i} className="h-3 w-3 shrink-0 rounded-full bg-slate-200/90 shadow-inner" />
+                                            ))}
+                                        </div>
+                                        {/* 底边齿孔 */}
+                                        <div className="pointer-events-none absolute -bottom-1.5 inset-x-4 flex justify-between overflow-hidden">
+                                            {Array.from({length: 22}).map((_, i) => (
+                                                <div key={i} className="h-3 w-3 shrink-0 rounded-full bg-slate-200/90 shadow-inner" />
+                                            ))}
+                                        </div>
+                                        {/* 左边齿孔 */}
+                                        <div className="pointer-events-none absolute -left-1.5 inset-y-4 flex flex-col justify-between overflow-hidden">
+                                            {Array.from({length: 24}).map((_, i) => (
+                                                <div key={i} className="h-3 w-3 shrink-0 rounded-full bg-slate-200/90 shadow-inner" />
+                                            ))}
+                                        </div>
+                                        {/* 右边齿孔 */}
+                                        <div className="pointer-events-none absolute -right-1.5 inset-y-4 flex flex-col justify-between overflow-hidden">
+                                            {Array.from({length: 24}).map((_, i) => (
+                                                <div key={i} className="h-3 w-3 shrink-0 rounded-full bg-slate-200/90 shadow-inner" />
+                                            ))}
                                         </div>
 
-                                        {/* 邮票与盖戳区域 */}
-                                        <div className="relative shrink-0">
-                                            {/* 实体邮票 */}
-                                            <div className="flex h-20 w-16 rotate-2 flex-col items-center justify-between rounded border-2 border-dashed border-amber-800/40 bg-[#FFF7ED] p-1.5 shadow-2xs">
-                                                <span className="text-[8px] font-bold tracking-tight text-amber-900/80">
-                                                    小橘快邮
-                                                </span>
-                                                <OrangeFruitIcon className="h-6 w-6" />
-                                                <span className="font-mono text-[9px] font-extrabold text-amber-900">
-                                                    ¥ 1.20
-                                                </span>
-                                            </div>
+                                        {/* 邮票双层内画框 (Inner Stamp Frame) */}
+                                        <div className="relative rounded-xs border-2 border-red-600/80 bg-white p-4 sm:p-5 shadow-xs">
+                                            {/* 邮票细内辅助线 */}
+                                            <div className="relative rounded-xs border border-red-200 p-4 sm:p-5">
+                                                {/* 邮政名称与面值 */}
+                                                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <OrangeFruitIcon className="h-5 w-5" />
+                                                        <div className="flex flex-col">
+                                                            <span className="font-serif text-sm font-black tracking-[0.25em] text-slate-900">
+                                                                小橘邮政
+                                                            </span>
+                                                            <span className="font-mono text-[9px] font-bold tracking-wider text-slate-400">
+                                                                CHINA · O-DOC POST
+                                                            </span>
+                                                        </div>
+                                                    </div>
 
-                                            {/* 复古波浪邮戳 */}
-                                            <div className="pointer-events-none absolute -left-8 -top-2 flex h-20 w-20 -rotate-12 flex-col items-center justify-center rounded-full border-2 border-[#1E3A8A]/75 p-0.5 text-center text-[#1E3A8A]">
-                                                <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-dashed border-[#1E3A8A]/50">
-                                                    <span className="text-[8px] font-black tracking-widest opacity-85">
-                                                        ODOC POST
+                                                    {/* 邮票大面值 */}
+                                                    <div className="flex items-baseline font-serif text-red-600">
+                                                        <span className="mr-0.5 text-xs font-bold">¥</span>
+                                                        <span className="font-mono text-2xl font-black leading-none tracking-tight">1.20</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* 邮票画心内容（灵感正文） */}
+                                                <div className="relative py-6 sm:py-7">
+                                                    {/* 水印底纹 */}
+                                                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03]">
+                                                        <OrangeFruitIcon className="h-40 w-40" />
+                                                    </div>
+
+                                                    <div
+                                                        className={`relative z-10 break-words font-serif leading-relaxed text-slate-900 ${
+                                                            isShort
+                                                                ? 'text-lg sm:text-xl font-medium sm:leading-loose text-center'
+                                                                : 'text-sm sm:text-base leading-relaxed'
+                                                        }`}
+                                                    >
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
+                                                            components={{
+                                                                p: ({children}) => <p className="mb-3.5 last:mb-0 whitespace-pre-line">{children}</p>,
+                                                                blockquote: ({children}) => (
+                                                                    <blockquote className="my-2 border-l-2 border-red-500 pl-3 italic text-slate-700">
+                                                                        {children}
+                                                                    </blockquote>
+                                                                ),
+                                                            }}
+                                                        >
+                                                            {memo.content}
+                                                        </ReactMarkdown>
+                                                    </div>
+
+                                                    {memo.tag && (
+                                                        <div className="relative z-10 mt-5 text-center">
+                                                            <span className="inline-block rounded-full border border-red-200 bg-red-50/80 px-3 py-0.5 font-serif text-xs font-semibold text-red-700 shadow-2xs">
+                                                                〔 志号主题 · #{memo.tag} 〕
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* 邮票底端正规志号 (Philatelic Code) */}
+                                                <div className="flex items-center justify-between border-t border-slate-200 pt-3 font-mono text-[10px] text-slate-400">
+                                                    <span>{yearNum}-{monthNum}</span>
+                                                    <span className="font-serif font-bold text-slate-700">
+                                                        (1-1)J · 灵感留存
                                                     </span>
-                                                    <span className="text-[9px] font-black">
-                                                        {monthNum}.{dayNum}
-                                                    </span>
-                                                    <span className="text-[7px] font-semibold opacity-75">
-                                                        SHANGHAI
-                                                    </span>
+                                                    <span>{author || '小橘'} 印制</span>
+                                                </div>
+
+                                                {/* 倾斜加盖的圆形邮政盖销邮戳 */}
+                                                <div className="pointer-events-none absolute -bottom-3 -right-3 flex h-20 w-20 -rotate-12 flex-col items-center justify-center rounded-full border-2 border-blue-700/80 p-0.5 text-center text-blue-800 shadow-2xs">
+                                                    <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-dashed border-blue-700/60">
+                                                        <span className="text-[8px] font-black tracking-widest text-blue-900/90">
+                                                            小橘邮政
+                                                        </span>
+                                                        <span className="font-mono text-[9px] font-black">
+                                                            {yearNum}.{monthNum}.{dayNum}
+                                                        </span>
+                                                        <span className="text-[7px] font-bold text-blue-700/80">
+                                                            投递成功 · POSTED
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-
-                                    {/* 正文区域 */}
-                                    <div className="py-6 sm:py-7">
-                                        <div className="mb-2 text-xs font-serif italic text-amber-900/60">
-                                            致 心中的灵感：
-                                        </div>
-                                        <div
-                                            className={`font-serif leading-relaxed text-[#2C241E] break-words ${
-                                                isShort ? 'text-lg sm:text-xl font-medium sm:leading-loose' : 'text-sm sm:text-base'
-                                            }`}
-                                        >
-                                            <ReactMarkdown
-                                                remarkPlugins={[remarkGfm]}
-                                                components={{
-                                                    p: ({children}) => <p className="mb-3.5 last:mb-0 whitespace-pre-line">{children}</p>,
-                                                    blockquote: ({children}) => (
-                                                        <blockquote className="my-2 border-l-2 border-amber-700/40 pl-3 italic text-amber-950/80">
-                                                            {children}
-                                                        </blockquote>
-                                                    ),
-                                                }}
-                                            >
-                                                {memo.content}
-                                            </ReactMarkdown>
-                                        </div>
-
-                                        {memo.tag && (
-                                            <div className="mt-5 flex items-center gap-1.5 text-xs text-[#8A5B36]">
-                                                <span className="rounded border border-[#8A5B36]/30 bg-[#F2E8D5] px-2.5 py-0.5 font-mono text-[11px] font-semibold">
-                                                    [ 邮包分类: #{memo.tag} ]
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* 底部邮资印章与寄件人 */}
-                                    <div className="flex items-end justify-between border-t border-[#E3D6C1] pt-4 text-xs">
-                                        <div className="flex flex-col text-left">
-                                            <span className="text-[10px] text-[#8C7A68]">寄件人 (SENDER)</span>
-                                            <span className="font-serif font-bold text-[#2C241E]">
-                                                {author || '小橘用户'} · 小橘文档
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-col items-end text-right">
-                                            <span className="rounded border border-[#1D4ED8]/30 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#1D4ED8]">
-                                                POSTAGE PAID
-                                            </span>
-                                            <span className="mt-1 text-[10px] text-[#8C7A68]">
-                                                投递至 · 浩瀚星河
-                                            </span>
                                         </div>
                                     </div>
                                 </div>
