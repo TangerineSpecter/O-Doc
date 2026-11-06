@@ -52,10 +52,10 @@ def is_feishu(url: str) -> bool:
     return parse_target(url).hostname in {"open.feishu.cn", "open.larksuite.com"}
 
 
-def notification_payload(info: dict, feishu: bool, secret: str = "", keyword: str = "") -> dict:
+def notification_payload(info: dict, feishu: bool, secret: str = "", keyword: str = "", test: bool = False) -> dict:
     if not feishu:
-        return {"event": "local_image_ready", **info}
-    lines = ["O-Doc 本地镜像已就绪", f"镜像：{info['image']}",
+        return {"event": "notification_test" if test else "local_image_ready", **info}
+    lines = ["O-Doc 通知测试", "这是一条连通性测试消息，不表示新的镜像构建完成。"] if test else ["O-Doc 本地镜像已就绪", f"镜像：{info['image']}",
              f"版本：{info['version']}", f"提交：{info['commit']}",
              f"平台：{info['platform']}", "可手动升级；云端推送随后继续。"]
     if keyword:
@@ -116,15 +116,16 @@ def main() -> int:
         if sys.argv[1:] == ["--check-config"]:
             print(f"{'飞书' if feishu else '通用'} Webhook 地址格式检查通过（未联网、未发送）。")
             return 0
+        test = sys.argv[1:] == ["--test"]
         info = {
-            "image": os.environ["TCR_LOCAL_IMAGE"],
+            "image": "" if test else os.environ["TCR_LOCAL_IMAGE"],
             "version": os.environ.get("TCR_BUILD_VERSION", "unknown"),
             "commit": os.environ.get("TCR_BUILD_COMMIT", "unknown"),
             "platform": os.environ.get("TCR_PLATFORM", "linux/amd64"),
         }
         stage = "生成消息"
         payload = notification_payload(info, feishu, os.environ.get("TCR_BUILD_WEBHOOK_SECRET", ""),
-                                       os.environ.get("TCR_BUILD_WEBHOOK_KEYWORD", ""))
+                                       os.environ.get("TCR_BUILD_WEBHOOK_KEYWORD", ""), test)
         stage = "发送及读取响应"
         send_notification(url, payload, feishu)
     except NotificationError as exc:
@@ -137,7 +138,7 @@ def main() -> int:
     except (OSError, http.client.HTTPException) as exc:
         print(f"Webhook 通知未成功：DNS、网络连接或 TLS 错误（{failure_location(exc)}）。", file=sys.stderr)
         return 1
-    print("本地镜像就绪通知已发送。")
+    print("测试通知已发送。" if test else "本地镜像就绪通知已发送。")
     return 0
 
 

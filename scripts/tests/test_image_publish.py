@@ -126,6 +126,18 @@ class PublishTests(unittest.TestCase):
             self.assertEqual(notify.main(), 0)
             send.assert_not_called()
 
+    def test_manual_test_needs_no_image_and_reports_delivery_failure(self):
+        with mock.patch.dict(os.environ, {"TCR_BUILD_WEBHOOK_URL": "https://open.feishu.cn/hook/token"}, clear=True), \
+             mock.patch.object(notify.sys, "argv", ["notify-local-image.py", "--test"]), \
+             mock.patch.object(notify, "send_notification") as send, \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(notify.main(), 0)
+            payload = send.call_args.args[1]
+            self.assertIn("通知测试", payload["content"]["text"])
+            self.assertNotIn("本地镜像已就绪", payload["content"]["text"])
+            send.side_effect = notify.NotificationError("飞书错误码 19024")
+            self.assertEqual(notify.main(), 1)
+
     def test_failure_location_does_not_expose_exception_message(self):
         try:
             raise ValueError("private-webhook-token")

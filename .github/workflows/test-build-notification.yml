@@ -1,0 +1,30 @@
+name: Test Build Notification
+run-name: 测试飞书构建通知
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-notification:
+    name: Test notification on TCR runner
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 3
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Send test notification
+        env:
+          TCR_BUILD_WEBHOOK_URL: ${{ secrets.TCR_BUILD_WEBHOOK_URL }}
+          TCR_BUILD_WEBHOOK_SECRET: ${{ secrets.TCR_BUILD_WEBHOOK_SECRET }}
+          TCR_BUILD_WEBHOOK_KEYWORD: ${{ vars.TCR_BUILD_WEBHOOK_KEYWORD }}
+        run: |
+          if [ -z "$TCR_BUILD_WEBHOOK_URL" ]; then
+            echo "未配置 Repository secret：TCR_BUILD_WEBHOOK_URL"
+            exit 1
+          fi
+          python3 scripts/notify-local-image.py --check-config
+          python3 scripts/notify-local-image.py --test
