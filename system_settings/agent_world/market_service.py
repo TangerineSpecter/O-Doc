@@ -97,7 +97,7 @@ def withdraw_listing(listing, agent, key):
 
 @guarded
 @transaction.atomic
-def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None, *, protect_goals=False) -> dict:
+def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None, *, protect_goals=False, retention_sku=None, retention_revision=None) -> dict:
     if not isinstance(operation,dict) or not isinstance(operation.get('kind'),str):raise ValueError('交易操作格式无效')
     check_mcp()
     at = now or timezone.now()
@@ -112,6 +112,26 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
     from system_settings.agent_availability import require_active_agent
     require_active_agent(agent)
     owner, kind = session.owner_id, operation['kind']
+    retention_free = None
+    if retention_sku is not None:
+        from .inventory_policy import RetentionChanged
+        from .market_disposition import surplus_plan
+        live = surplus_plan(owner, agent.pk, retention_sku)
+        count = quantity(operation.get('quantity'))
+        if not live or live['revision'] != retention_revision or count > live['surplus']:
+            raise RetentionChanged('用途目标、制作预留或策略已变化，留待重新预检')
+        if kind in ('sell', 'list'):
+            item = AgentInventoryItem.objects.filter(pk=operation.get('item_id'), owner_id=owner, actor_id=agent.pk).first()
+            if (not item or (item.source or {}).get('sku') != retention_sku
+                    or count > live['free_rows'].get(item.pk, 0)):
+                raise RetentionChanged('该批库存已被用途目标保护')
+        elif kind != 'sell_combat_material' or retention_sku != 'combat.' + operation.get('material_id', ''):
+            raise RetentionChanged('处置品类与策略不一致')
+        if kind == 'list':
+            from .market_listing_expiry import expired_return_trade_ids
+            if expired_return_trade_ids(owner, agent.pk, [item]):
+                raise RetentionChanged('到期返还库存不能直接重复挂牌')
+        retention_free = live['free_rows']
     result = {'kind': kind}
     deltas = []
     if kind == 'list_combat_equipment':
@@ -153,7 +173,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         def change_combat_money(target, amount, transaction_key, transaction_at):
             return change_money(target,amount,transaction_key,transaction_at,operation_kind=kind)
         result.update(transact(owner,agent,key,operation,change_combat_money,at,
-                               protect_goals=protect_goals))
+                               protect_goals=protect_goals, retention_free_rows=retention_free))
         deltas = result['deltas']
     elif kind == 'buy_shop':
         batch = current_batch(owner, at)
@@ -232,6 +252,9 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
     elif kind in ('buy_listing', 'reprice', 'withdraw'):
         listing = MarketListing.objects.select_for_update().filter(pk=operation.get('listing_id'), owner_id=owner).first()
         if not listing or listing.status != 'active': raise ValueError('挂牌不存在或已结束')
+        from .market_listing_expiry import is_expired
+        if kind != 'withdraw' and is_expired(listing, at):
+            raise ValueError('挂牌已到期，等待系统下架')
         if type(operation.get('version')) is not int or operation['version'] != listing.version:
             raise ValueError('挂牌报价或库存已变化，请重新查询')
         if kind == 'buy_listing':

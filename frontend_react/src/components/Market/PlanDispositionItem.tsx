@@ -1,232 +1,43 @@
-import {AlertTriangle, Sparkles, UserCheck, ShieldCheck} from 'lucide-react';
-import type {MarketAutomationDisposition} from '../../types/api/market';
+import type {InventoryPurpose, MarketAutomationDisposition} from '../../types/api/market';
 import {marketSkuName} from './marketPresentation';
 
+const purposeLabels: Record<InventoryPurpose, string> = {alchemy: '炼金', cooking: '烹饪', forge: '锻造', selfUse: '自用'};
 type Props = {row: MarketAutomationDisposition; itemNames: Record<string, string>; variant?: 'compact' | 'full'};
 
 export function PlanDispositionItem({row, itemNames, variant = 'compact'}: Props) {
-    const displayName = marketSkuName(row.sku, itemNames);
-    const isReview = row.status === 'review';
-    const holdRatio = Math.max(0, 100 - row.sellRatio - row.listRatio);
-    const priceRatioNum = Number(row.listPriceRatio || 1);
-    const markupPercent = Math.round((priceRatioNum - 1) * 100);
-    if (variant === 'full') return (
-        <div
-
-            className={`rounded-xl border p-3.5 sm:p-4 transition-all ${
-                isReview
-                    ? 'border-amber-300 bg-amber-50/40'
-                    : 'border-slate-200/80 bg-slate-50/40 hover:border-orange-200 hover:shadow-2xs'
-            }`}
-        >
-            <div className="flex flex-wrap items-center justify-between gap-1.5">
-                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                    <span className="text-xs font-bold text-slate-800">
-                        {displayName}
-                    </span>
-                    {row.source === 'model' ? (
-                        <span className="inline-flex items-center gap-0.5 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.2 text-[9px] font-semibold text-purple-700">
-                            <Sparkles className="h-2.5 w-2.5 text-purple-500" />
-                            AI智囊
-                        </span>
-                    ) : row.source === 'manual' ? (
-                        <span className="inline-flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-semibold text-blue-700">
-                            <UserCheck className="h-2.5 w-2.5 text-blue-500" />
-                            手动
-                        </span>
-                    ) : null}
-    
-                    {/* 保底件数徽章 */}
-                    <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600 font-medium">
-                        <ShieldCheck className="h-3 w-3 text-slate-400" />
-                        <span>保底自留</span>
-                        <strong className="text-slate-800 font-bold tabular-nums">{row.targetHold}</strong>
-                        <span>件</span>
-                    </span>
-                </div>
-    
-                <div className="flex items-center gap-1 shrink-0 text-xs">
-                    <span
-                        className={`rounded px-1.5 py-0.2 text-[10px] font-medium ${
-                            row.starOrder === 'high'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-slate-200 text-slate-600'
-                        }`}
-                    >
-                        {row.starOrder === 'high' ? '⭐ 高星优先' : '低星优先'}
-                    </span>
-                    {markupPercent !== 0 && (
-                        <span className="rounded bg-violet-100 border border-violet-200/80 px-1.5 py-0.2 text-[10px] font-bold text-violet-700">
-                            {markupPercent > 0 ? `+${markupPercent}% 挂牌溢价` : `${markupPercent}% 挂牌`}
-                        </span>
-                    )}
-                </div>
-            </div>
-    
-            {/* 超出保底流向指标 */}
-            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
-                <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1 font-semibold text-violet-700">
-                        <span className="h-2 w-2 rounded-full bg-violet-500 ring-2 ring-violet-100" />
-                        集市挂牌 <strong className="tabular-nums">{row.listRatio}%</strong>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
-                        商店直售 <strong className="tabular-nums">{row.sellRatio}%</strong>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium text-slate-500">
-                        <span className="h-2 w-2 rounded-full bg-slate-300 ring-2 ring-slate-100" />
-                        背包留存 <strong className="tabular-nums">{holdRatio}%</strong>
-                    </span>
-                </div>
-                <span className="text-[10px] text-slate-400">超出保底分配</span>
-            </div>
-    
-            {/* 三色分段条 */}
-            <div className="mt-1 flex h-2 w-full overflow-hidden rounded-full bg-slate-200/80 ring-1 ring-slate-200/60 p-0.5 gap-0.5">
-                {row.listRatio > 0 && (
-                    <div
-                        title={`集市挂牌 ${row.listRatio}%`}
-                        className="h-full rounded-l-full bg-violet-500 transition-all duration-300"
-                        style={{width: `${row.listRatio}%`}}
-                    />
-                )}
-                {row.sellRatio > 0 && (
-                    <div
-                        title={`商店直售 ${row.sellRatio}%`}
-                        className={`h-full bg-emerald-500 transition-all duration-300 ${
-                            row.listRatio === 0 ? 'rounded-l-full' : ''
-                        } ${holdRatio === 0 ? 'rounded-r-full' : ''}`}
-                        style={{width: `${row.sellRatio}%`}}
-                    />
-                )}
-                {holdRatio > 0 && (
-                    <div
-                        title={`背包留存 ${holdRatio}%`}
-                        className="h-full rounded-r-full bg-slate-300 transition-all duration-300"
-                        style={{width: `${holdRatio}%`}}
-                    />
-                )}
-            </div>
-    
-            {row.reason && (
-                <div className="mt-2 flex items-center gap-1 rounded-md bg-amber-100/70 px-2 py-1 text-[11px] text-amber-800">
-                    <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-                    <span className="truncate">{row.reason}</span>
-                </div>
-            )}
+    const strategy = row.strategy?.version === 1 ? row.strategy : undefined;
+    const state = row.protection;
+    const pending = !strategy || row.reviewStatus === 'review' || row.status === 'review';
+    const count = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString('zh-CN');
+    return <article className={`rounded-xl border bg-white ${variant === 'full' ? 'p-4' : 'p-3'} ${pending ? 'border-amber-200' : 'border-slate-200'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-bold text-slate-800">{marketSkuName(row.sku, itemNames)}</span>
+            <span className={`text-[11px] ${pending ? 'text-amber-700' : 'text-slate-500'}`}>
+                {pending ? '待复核' : '今日已复核'}{row.reviewedDate ? ` · ${row.reviewedDate}` : ''}
+            </span>
         </div>
-    );
-    return (
-        <div
-
-            className={`rounded-xl border p-2.5 transition-all ${
-                isReview
-                    ? 'border-amber-300/80 bg-amber-50/40'
-                    : 'border-slate-200/80 bg-white hover:border-orange-200 hover:shadow-2xs'
-            }`}
-        >
-            {/* 顶部：名称 + 保底件数 + 标签群 */}
-            <div className="flex flex-wrap items-center justify-between gap-1.5">
-                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                    <span className="text-xs font-bold text-slate-800">
-                        {displayName}
-                    </span>
-    
-                    {/* 决策来源 */}
-                    {row.source === 'model' ? (
-                        <span className="inline-flex items-center gap-0.5 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.2 text-[9px] font-semibold text-purple-700 shrink-0">
-                            <Sparkles className="h-2.5 w-2.5 text-purple-500" />
-                            AI智囊
-                        </span>
-                    ) : row.source === 'manual' ? (
-                        <span className="inline-flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-semibold text-blue-700 shrink-0">
-                            <UserCheck className="h-2.5 w-2.5 text-blue-500" />
-                            手动
-                        </span>
-                    ) : null}
-    
-                    {/* 保底自用件数（独立徽章，不混淆比例） */}
-                    <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.2 text-[10px] text-slate-600 font-medium shrink-0">
-                        <ShieldCheck className="h-3 w-3 text-slate-400" />
-                        <span>保底自留</span>
-                        <strong className="text-slate-800 font-bold tabular-nums">{row.targetHold}</strong>
-                        <span>件</span>
-                    </span>
-                </div>
-    
-                {/* 星级偏好与溢价倍率 */}
-                <div className="flex items-center gap-1 shrink-0 text-[10px]">
-                    <span
-                        className={`rounded px-1.5 py-0.2 font-medium ${
-                            row.starOrder === 'high'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-slate-100 text-slate-600'
-                        }`}
-                    >
-                        {row.starOrder === 'high' ? '⭐ 高星优先' : '低星优先'}
-                    </span>
-                    {markupPercent !== 0 && (
-                        <span className="rounded bg-violet-100 border border-violet-200/80 px-1.5 py-0.2 font-bold text-violet-700">
-                            {markupPercent > 0 ? `+${markupPercent}% 挂牌溢价` : `${markupPercent}% 挂牌`}
-                        </span>
-                    )}
-                </div>
-            </div>
-    
-            {/* 超额部分分配图例说明（颜色与下方进度条严格一一对应） */}
-            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[10px]">
-                <div className="flex items-center gap-3 flex-wrap">
-                    <span className="inline-flex items-center gap-1 font-semibold text-violet-700">
-                        <span className="h-2 w-2 rounded-full bg-violet-500 ring-2 ring-violet-100 shrink-0" />
-                        集市挂牌 <strong className="tabular-nums font-bold">{row.listRatio}%</strong>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100 shrink-0" />
-                        商店直售 <strong className="tabular-nums font-bold">{row.sellRatio}%</strong>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium text-slate-500">
-                        <span className="h-2 w-2 rounded-full bg-slate-300 ring-2 ring-slate-100 shrink-0" />
-                        背包留存 <strong className="tabular-nums font-medium">{holdRatio}%</strong>
-                    </span>
-                </div>
-                <span className="text-[9px] text-slate-400">超出保底处置</span>
-            </div>
-    
-            {/* 高对比度三色分段进度条 (紫色=挂牌, 绿色=直售, 浅灰=背包自用) */}
-            <div className="mt-1 flex h-2 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/60 p-0.5 gap-0.5">
-                {row.listRatio > 0 && (
-                    <div
-                        title={`集市挂牌 ${row.listRatio}%`}
-                        className="h-full rounded-l-full bg-violet-500 transition-all duration-300"
-                        style={{width: `${row.listRatio}%`}}
-                    />
-                )}
-                {row.sellRatio > 0 && (
-                    <div
-                        title={`商店直售 ${row.sellRatio}%`}
-                        className={`h-full bg-emerald-500 transition-all duration-300 ${
-                            row.listRatio === 0 ? 'rounded-l-full' : ''
-                        } ${holdRatio === 0 ? 'rounded-r-full' : ''}`}
-                        style={{width: `${row.sellRatio}%`}}
-                    />
-                )}
-                {holdRatio > 0 && (
-                    <div
-                        title={`背包留存 ${holdRatio}%`}
-                        className="h-full rounded-r-full bg-slate-300 transition-all duration-300"
-                        style={{width: `${holdRatio}%`}}
-                    />
-                )}
-            </div>
-    
-            {/* 待复核或异常原因 */}
-            {row.reason && (
-                <div className="mt-2 flex items-center gap-1 rounded-md bg-amber-100/70 px-2 py-1 text-[10px] text-amber-800">
-                    <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-                    <span className="truncate">{row.reason}</span>
-                </div>
-            )}
-        </div>
-    );
+        <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] tabular-nums">
+            <div><dt className="text-slate-500">现有数量</dt><dd className="mt-0.5 font-semibold text-slate-800">{count(state?.total)}</dd></div>
+            <div><dt className="text-slate-500">实际保护</dt><dd className="mt-0.5 font-semibold text-slate-800">{count(state?.protected)}</dd></div>
+            <div><dt className="text-slate-500">可处置</dt><dd className="mt-0.5 font-semibold text-orange-700">{count(state?.disposable)}</dd></div>
+        </dl>
+        {state && Object.keys(state.uses).length > 0 && <div className="mt-3 overflow-x-auto scrollbar-hide">
+            <table className="w-full text-[11px] tabular-nums"><caption className="sr-only">用途目标与未执行需求</caption>
+                <thead className="text-slate-500"><tr><th className="py-1 text-left font-medium">用途</th><th className="text-right font-medium">目标</th><th className="text-right font-medium">已排需求</th><th className="text-right font-medium">保护</th><th className="text-right font-medium">缺口</th></tr></thead>
+                <tbody>{Object.entries(state.uses).map(([purpose, use]) => <tr key={purpose} className="text-slate-700">
+                    <th className="py-1 text-left font-medium">{purposeLabels[purpose as InventoryPurpose]}</th>
+                    <td className="text-right">{use.target}</td><td className="text-right">{use.committed}</td><td className="text-right">{use.protected}</td>
+                    <td className={`text-right ${use.missing ? 'text-amber-700' : ''}`}>{use.missing}</td>
+                </tr>)}</tbody>
+            </table>
+        </div>}
+        {strategy ? <div className="mt-2 space-y-1 text-[11px] text-slate-600">
+            <p>目标 {Object.entries(strategy.targets).map(([purpose, n]) => `${purposeLabels[purpose as InventoryPurpose]} ${n} 件`).join(' · ')}</p>
+            {!row.sku.startsWith('combat.material.') && <p>保留{strategy.retainOrder === 'high' ? '高' : '低'}星优先 · 超量{row.starOrder === 'high' ? '高' : '低'}星优先</p>}
+            <p>超量出售 {row.sellRatio}% · 挂牌 {row.listRatio}%{row.listRatio > 0 ? ` · 基准价 × ${row.listPriceRatio}` : ''}</p>
+        </div> : <p className="mt-2 text-[11px] text-slate-500">旧标记等待制定用途目标，期间保留库存。</p>}
+        {(state?.blockedReason || row.reason && pending) && <p role="note" className="mt-2 break-words rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">
+            {state?.blockedReason || row.reason}{state?.blockedListing ? `（${state.blockedListing} 件）` : ''}
+        </p>}
+    </article>;
 }

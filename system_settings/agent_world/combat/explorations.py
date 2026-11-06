@@ -368,7 +368,7 @@ def settle(run, profile, status, reason, now):
                           entry['name'],'elixir',lot['price'],run.pk+':elixir-return',stars=entry['stars'])
             from ..market_disposition import enqueue
             enqueue(profile.owner_id, profile.pk, 'elixir.'+entry['recipe_id'], remaining,
-                    source='exploration', operation=run.pk+':elixir-return')
+                    source='exploration')
             returned_elixirs.append({'recipe_id':entry['recipe_id'],'stars':entry['stars'],'count':remaining})
     player=run.state.get('player')
     if player:
@@ -549,7 +549,7 @@ def tick(run_id, expected_revision=None, now=None):
                 add_stock(run.actor_id,run.owner_id,run.actor_name,'combat.'+item['id'],reward['quantity'],item['name'],'combat_material',item['sale_price'],identity)
                 from ..market_disposition import enqueue
                 enqueue(run.owner_id, run.actor_id, 'combat.'+item['id'], reward['quantity'],
-                        source='loot', operation=identity)
+                        source='loot')
             reward['id']=identity;reward['elapsed_seconds']=run.elapsed_seconds
         run.result['rewards']+=earned
         encounter=CombatEncounter.objects.get(pk=f'{run.pk}:{run.state["encounter"]}')

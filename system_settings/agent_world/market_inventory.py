@@ -70,5 +70,5 @@ def deliver(owner: str, agent, payload: dict, trade_id: str, *, preserve_source:
     # 买入或撤单返还后重新进入背包，需要按当前居民的策略重新标记。
     from .market_disposition import enqueue
     enqueue(owner, agent.pk, (values['source'] or {}).get('sku', ''), payload['quantity'],
-            source='fishing' if preserve_source else 'market', operation=trade_id)
+            source='fishing' if preserve_source else 'market')
     return item

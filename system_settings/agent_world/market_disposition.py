@@ -1,6 +1,6 @@
 """入库处置策略：入队、聚合、超量拆分与星级选行。
 
-处置策略按 sku 长期有效；新产出只入队一次，由 worker 补齐策略后自动套用。
+用途目标按 sku 每日复核；新产出套用最近完整新版策略，不给物品标记用途。
 这里不调用模型，也不直接交易，便于在事务内安全入队。
 """
 from decimal import Decimal
@@ -33,21 +33,26 @@ def can_list(sku: str) -> bool:
 
 
 def enqueue(owner: str, actor_id: str, sku: str, quantity: int = 1, *,
-            source: str = 'stock', operation: str = '') -> MarketDispositionTask | None:
-    """按稳定操作键入队；重复入库只累加待标记数量，不重复询问。"""
+            source: str = 'stock') -> MarketDispositionTask | None:
+    """按居民、上海日期和 SKU 入队；同日入库只累加数量，不重复询问。"""
     if not disposable(sku) or quantity < 0:
         return None
-    bucket = operation or timezone.now().strftime('%Y%m%d%H')
-    identity = disposition_task_id(owner, actor_id, sku, source, bucket)
+    from .life_time import local_time
+    bucket = local_time(timezone.now()).date().isoformat()
+    # One local claim per resident/SKU/day, independent of the number of arrivals.
+    identity = disposition_task_id(owner, actor_id, sku, 'review', bucket)
     with transaction.atomic():
         task = MarketDispositionTask.objects.select_for_update().filter(pk=identity).first()
         if task:
+            from .inventory_policy import is_current
+            policy = MarketDisposition.objects.filter(owner_id=owner, actor_id=actor_id, sku=sku).first()
+            if task.status == 'done' and (not is_current(policy) or policy.strategy['reviewed_date'] != bucket):
+                task.status, task.attempts, task.error = 'pending', 0, ''
+                task.save(update_fields=['status', 'attempts', 'error', 'updated_at'])
             if task.status in ('pending', 'running', 'failed'):
-                task.quantity += quantity
-                task.status = 'pending'
-                task.attempts = 0
-                task.error = ''
-                task.save(update_fields=['quantity', 'status', 'attempts', 'error', 'updated_at'])
+                if quantity:
+                    task.quantity += quantity
+                    task.save(update_fields=['quantity'])
             return task
         return MarketDispositionTask.objects.create(
             pk=identity, owner_id=owner, actor_id=actor_id, sku=sku,
@@ -88,34 +93,31 @@ def reserved_quantity(owner: str, actor_id: str, sku: str) -> int:
 
     预留计划无法解释时向上抛出，宁可不处置也不能把已排制作的材料卖掉。
     """
-    from .alchemy_materials import material_pool
-    from .crafting_materials import available_pool
-    total = sum(row['quantity'] for row in material_pool(actor_id, owner) if row['sku'] == sku)
-    free = sum(row['quantity'] for row in available_pool(owner, actor_id) if row['sku'] == sku)
-    from .blacksmith_goals import requirements
-    return max(0, total - free) + requirements(owner, actor_id)[sku]
+    from .inventory_protection import projection
+    return projection(owner, actor_id, sku)['required']
 
 
 def total_quantity(owner: str, actor_id: str, sku: str) -> int:
     return sum(row.quantity for row in rows_for(owner, actor_id, sku))
 
 
-def surplus_plan(owner: str, actor_id: str, sku: str) -> dict | None:
+def surplus_plan(owner: str, actor_id: str, sku: str, *, context=None) -> dict | None:
     """按已生效策略计算本次应出售、上架和保留的数量。"""
     disposition = MarketDisposition.objects.filter(
         owner_id=owner, actor_id=actor_id, sku=sku, status='active').first()
     if not disposition:
         return None
-    total = total_quantity(owner, actor_id, sku)
-    reserved = min(total, reserved_quantity(owner, actor_id, sku))
-    available = max(0, total - reserved)
-    surplus = max(0, available - disposition.target_hold)
+    from .inventory_policy import is_current
+    from .inventory_protection import projection
+    if not is_current(disposition):
+        return None
+    state = projection(owner, actor_id, sku, disposition.strategy, context=context)
+    surplus = state['disposable']
     sell = surplus * disposition.sell_ratio // 100
-    listed = surplus * disposition.list_ratio // 100
-    return {'total': total, 'reserved': reserved, 'available': available,
-            'target_hold': disposition.target_hold, 'surplus': surplus,
-            'sell': sell, 'list': listed, 'keep': available - sell - listed,
-            'star_order': disposition.star_order,
+    return {**state, 'reserved': state['protected'], 'available': surplus,
+            'target_hold': sum(disposition.strategy['targets'].values()), 'surplus': surplus,
+            'sell': sell, 'list': surplus - sell, 'keep': state['total'] - surplus,
+            'revision': disposition.revision, 'star_order': disposition.star_order,
             'unit_price': listing_price(disposition, sku, owner, actor_id)}
 
 
@@ -130,17 +132,20 @@ def listing_price(disposition: MarketDisposition, sku: str, owner: str, actor_id
     return max(Decimal('0.01'), (value * disposition.list_price_ratio).quantize(Decimal('0.01')))
 
 
-def select_rows(owner: str, actor_id: str, sku: str, quantity: int, star_order: str, *, skip: int = 0):
+def select_rows(owner: str, actor_id: str, sku: str, quantity: int, star_order: str, *,
+                skip: int = 0, prevent_expired_relisting: bool = False, context=None):
     """显式按星级选行；现有 split_item 是行内 FIFO，不能替代跨行星级顺序。"""
     rows = rows_for(owner, actor_id, sku)
-    free = None
-    if sku.startswith('combat.material.'):
-        from .crafting_materials import available_pool
-        free = {row['inventory_id']: row['quantity'] for row in available_pool(owner, actor_id, protect_goals=True)}
-    # Combat materials have no stars; match the NPC sale's available-lot FIFO so
-    # a combined sale/list plan skips exactly the batches that the sale will take.
-    rows.sort(key=lambda row: (int((row.source or {}).get('stars') or 1),
-                               row.created_at, row.pk), reverse=free is None and star_order == 'high')
+    expired_returns = set()
+    if prevent_expired_relisting:
+        from .market_listing_expiry import expired_return_trade_ids
+        expired_returns = expired_return_trade_ids(owner, actor_id, rows)
+    from .inventory_protection import projection
+    from .inventory_policy import is_current
+    policy = MarketDisposition.objects.filter(owner_id=owner, actor_id=actor_id, sku=sku).first()
+    free = projection(owner, actor_id, sku, policy.strategy if is_current(policy) else None, context=context)['free_rows']
+    rows.sort(key=lambda row: ((-1 if star_order == 'high' and not sku.startswith('combat.material.') else 1)
+                               * int((row.source or {}).get('stars') or 1), row.created_at, row.pk))
     selected, remaining = [], quantity
     for row in rows:
         if remaining <= 0:
@@ -148,10 +153,12 @@ def select_rows(owner: str, actor_id: str, sku: str, quantity: int, star_order: 
         available = row.quantity if free is None else free.get(row.pk, 0)
         skipped = min(skip, available)
         skip -= skipped
+        if str((row.source or {}).get('market_trade_id') or '') in expired_returns:
+            continue
         take = min(remaining, available - skipped)
         if take:
             selected.append((row, take))
             remaining -= take
-    if remaining:
+    if remaining and not prevent_expired_relisting:
         raise ValueError('可处置库存不足')
     return selected

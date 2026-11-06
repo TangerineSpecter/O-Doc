@@ -13,6 +13,7 @@ def grouped_execution_events(events, start, end):
         else:
             projected.append(event)
     for (identity, actor), rows in groups.items():
+        expiry = identity.startswith('market-expiry:')
         if all(row.get('_execution_batch') for row in rows):
             # 旧批量记录的离场时间可能早于逐件装备交易；完成序列才是实际顺序。
             rows.sort(key=lambda row: (row.get('_execution_order', 0), row['occurredAt'], row['id']))
@@ -28,7 +29,7 @@ def grouped_execution_events(events, start, end):
         category = ('farm' if identity.startswith('farm:') else 'cooking' if identity.startswith('cooking:')
                     else 'alchemy' if identity.startswith('alchemy:')
                     else 'blacksmith' if identity.startswith('blacksmith:')
-                    else 'trade' if identity.startswith('market-sale:')
+                    else 'trade' if identity.startswith('market-sale:') or expiry
                     else latest['category'] if identity.startswith('activity:') else 'market')
         operations = [row for row in rows if row['source'] in ('farm', 'cooking', 'alchemy', 'blacksmith', 'market', 'market-seller', 'activity')]
         closing = [row for row in rows if row['source'] == 'market-session']
@@ -57,6 +58,8 @@ def grouped_execution_events(events, start, end):
                 detail_text = f'{label} {len(operations)} {unit} · {products_text}' + (f' · {reason}' if reason else '')
             else:
                 detail_text = (f'{label} {len(operations)} {unit}' if operations else ('未进行美食制作' if category == 'cooking' else '未进行炼金制作')) + (f' · {reason}' if reason else '')
+        elif expiry:
+            detail_text = f'已下架 {len(operations)} 条到期挂牌，未售物品已返还'
         elif category == 'blacksmith':
             detail_text = f'已打造 {len(operations)} 件装备' + (f' · {reason}' if reason else '')
         else:
@@ -69,6 +72,8 @@ def grouped_execution_events(events, start, end):
                   'status': 'running' if running else 'failed' if any(row.get('_execution_failed') or row.get('status') == 'failed' for row in rows) else 'success',
                   'categories': sorted({category, *(row['category'] for row in rows)}),
                   'steps': steps}
+        if expiry:
+            result['title'] = '挂牌到期下架'
         if identity.startswith('activity:'):
             result['rating'] = None
             result['target'] = {'kind': 'run', 'id': identity.removeprefix('activity:')}

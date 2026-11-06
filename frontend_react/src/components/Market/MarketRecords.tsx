@@ -9,7 +9,7 @@ import {
     Store,
 } from 'lucide-react';
 import type {MarketItem, MarketSession, MarketTransaction} from '../../types/api/market';
-import {marketMoney, marketOperationLabels, marketTime} from './marketPresentation';
+import {marketMoney, marketOperationLabel, marketOperationLabels, marketTime} from './marketPresentation';
 import {TransactionItemIcon} from './TransactionItemIcon';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import {ElementBadge} from '../Combat/ElementBadge';
@@ -98,7 +98,7 @@ export function MarketTransactions({
                                                       : 'bg-slate-100 text-slate-600'
                                             }`}
                                         >
-                                            {row.operation.reason === 'agent_archive' ? '归档下架' : marketOperationLabels[row.operation.kind] || row.operation.kind}
+                                            {marketOperationLabel(row.operation)}
                                         </span>
                                     </div>
                                     <p className="mt-1 text-xs text-slate-600">
@@ -239,6 +239,8 @@ export function MarketSessions({
                 const isExpanded = expandedIds[row.id] ?? true; // 默认展开最新动态
                 const resident = residentMap.get(row.actorId) || residentMap.get(row.actorName);
                 const isBatch = row.mode === 'batch';
+                const isManagement = row.mode === 'archive';
+                const showsTransactions = isBatch || isManagement;
 
                 return (
                     <article
@@ -264,11 +266,11 @@ export function MarketSessions({
                                             }`}
                                         >
                                             {isActive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                                            {isActive ? '正在逛市场…' : '已结束市场活动'}
+                                            {isActive ? '正在逛市场…' : isManagement ? '管理下架完成' : '已结束市场活动'}
                                         </span>
                                     </div>
                                     <p className="mt-0.5 text-[11px] text-slate-400">
-                                        {marketTime(row.createdAt)} {row.mode === 'archive' ? '归档下架' : '进入集市'}
+                                        {marketTime(row.createdAt)} {isManagement ? (row.reason.startsWith('挂牌到期') ? '到期下架' : '归档下架') : '进入集市'}
                                         {!isBatch && ` · ${row.reason || '自主经营采办'}`}
                                     </p>
                                 </div>
@@ -294,7 +296,7 @@ export function MarketSessions({
                         </div>
 
                         {/* 按日计划批量执行的真实成交与挂牌；交互会话仍展示工具调用 */}
-                        {isExpanded && isBatch && row.transactions.length > 0 && (
+                        {isExpanded && showsTransactions && row.transactions.length > 0 && (
                             <div className="mt-3.5 space-y-2 border-l-2 border-orange-100 pl-4 ml-2">
                                 {row.transactions.map(transaction => {
                                     const kind = transaction.operation.kind;
@@ -307,9 +309,7 @@ export function MarketSessions({
                                             <div className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-orange-400 ring-2 ring-white" />
                                             <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
                                                 <span className="font-semibold text-slate-700">
-                                                    {transaction.operation.reason === 'agent_archive'
-                                                        ? '归档下架'
-                                                        : marketOperationLabels[kind] || kind}
+                                                    {marketOperationLabel(transaction.operation)}
                                                 </span>
                                                 <span className="text-slate-400 tabular-nums">{marketTime(transaction.createdAt)}</span>
                                             </div>
@@ -331,10 +331,10 @@ export function MarketSessions({
                                 })}
                             </div>
                         )}
-                        {isExpanded && isBatch && row.transactions.length === 0 && (
+                        {isExpanded && showsTransactions && row.transactions.length === 0 && (
                             <p className="mt-3.5 pl-4 text-[11px] text-slate-400">本次没有记录到成功的市场操作。</p>
                         )}
-                        {isExpanded && !isBatch && row.calls.length > 0 && (
+                        {isExpanded && !showsTransactions && row.calls.length > 0 && (
                             <div className="mt-3.5 space-y-2 border-l-2 border-orange-100 pl-4 ml-2">
                                 {row.calls.map((call, index) => {
                                     const hasError = Boolean(call.result?.error);

@@ -10,6 +10,7 @@ from django.core import serializers
 from utils.sync_datetime import SyncJSONEncoder
 from system_settings.agent_world import travel_sync
 from .sync_models import SnapshotModels
+from system_settings.agent_world.market_strategy_sync import metadata as market_strategy_metadata
 
 class SnapshotExporter:
     """Export domain checkpoints; the orchestrator holds the domain guards."""
@@ -41,6 +42,7 @@ class SnapshotExporter:
         checkpoint_tournaments()
         from system_settings.agent_world.fishing.sync import checkpoint_all as checkpoint_fishing
         checkpoint_fishing()
+        from system_settings.agent_world.market_strategy_sync import validate_source as validate_market_strategy
         all_data = []
         sparse_cities = compact_travel and travel_sync.enabled()
         for model in self.models.iter_target_models():
@@ -52,6 +54,7 @@ class SnapshotExporter:
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
         from system_settings.agent_world.food_sync import validate_source as validate_food
         validate_food(all_data)
+        validate_market_strategy(all_data)
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
         validate_combat(all_data, combat_metadata(all_data),
                         allow_exploration_review_mismatch=allow_exploration_review_mismatch or relax_integrity)
@@ -93,6 +96,7 @@ class SnapshotExporter:
             **alchemy_metadata(data_list),
             **blacksmith_metadata(data_list),
             **memory_metadata(data_list),
+            **market_strategy_metadata(data_list),
             'social_schema_version': 2,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'snapshot_id': uuid.uuid4().hex,

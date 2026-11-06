@@ -20,7 +20,15 @@ def listings(owner: str, arguments: dict) -> dict:
     if arguments.get('seller_id'): rows = rows.filter(seller_id=arguments['seller_id'])
     if arguments.get('status', 'active') != 'all': rows = rows.filter(status=arguments.get('status','active'))
     if arguments.get('search'): rows = rows.filter(item__name__icontains=str(arguments['search'])[:200])
+    from django.utils import timezone
+    from .market_listing_expiry import expires_at
+    from .market_expiry_index import visible_listings
+    if arguments.get('status', 'active') == 'active':
+        rows = visible_listings(owner, rows, timezone.now())
+    total = rows.count()
     items = list(rows.values()[size*(page-1):size*page])
+    for row in items:
+        row['expires_at'] = expires_at(row['created_at'], row['history'])
     from .combat.models import EquipmentInstance
     from .combat.equipment_effective import for_instance
     identities = {str(((row.get('item') or {}).get('source') or {}).get('equipment_id') or '')
@@ -47,7 +55,7 @@ def listings(owner: str, arguments: dict) -> dict:
             asset_id = icons.get(sku)
             item['icon_asset_id'] = asset_id if asset_id in valid else None
             item['icon_url'] = f'/api/resource/view/{asset_id}' if asset_id in valid else ''
-    return {'total':rows.count(), 'page':page, 'items':items}
+    return {'total':total, 'page':page, 'items':items}
 
 
 def _equipment_history(owner: str, items: list[dict]) -> None:
@@ -97,7 +105,7 @@ def sessions(owner: str, arguments: dict) -> dict:
     from .market_life_history import budget_calls
     from .life_time import local_time
     adjustments = budget_calls(owner, items)
-    batch_session_ids = [row['id'] for row in items if row['mode'] == 'batch']
+    batch_session_ids = [row['id'] for row in items if row['mode'] in ('batch', 'archive')]
     transactions_by_session = {}
     if batch_session_ids:
         orders = batch_operation_orders(owner, batch_session_ids)

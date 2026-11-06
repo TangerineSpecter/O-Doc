@@ -18,10 +18,14 @@ ASSET_MODELS = CORE_ASSET_MODELS + PLAN_ASSET_MODELS
 CHECKPOINT_MODELS = CORE_ASSET_MODELS[:4] + PLAN_ASSET_MODELS
 
 
-def fingerprints(owner: str, *, legacy=False, models=None) -> dict[str, str]:
+def fingerprints(owner: str, *, legacy=False, models=None, legacy_strategy=False) -> dict[str, str]:
     result = {}
     for model in (ASSET_MODELS if models is None else models):
         rows = list(model.objects.filter(owner_id=owner).order_by('pk').values())
+        if model is MarketDisposition and legacy_strategy:
+            for row in rows:
+                if not row['strategy']:
+                    row.pop('strategy')
         if model is MarketBatch:
             # The added empty field must not invalidate original legacy checkpoint hashes.
             for row in rows:
@@ -41,7 +45,12 @@ def normalize_legacy_dates():
         if row.hashes == fingerprints(row.pk, legacy=True):
             row.hashes = hashes
             row.save(update_fields=['hashes', 'updated_at'])
-        elif row.hashes == fingerprints(row.pk, legacy=True, models=CORE_ASSET_MODELS):
+        elif row.hashes in (fingerprints(row.pk, legacy_strategy=True),
+                            fingerprints(row.pk, legacy=True, legacy_strategy=True)):
+            row.hashes = hashes
+            row.save(update_fields=['hashes', 'updated_at'])
+        elif (row.hashes == fingerprints(row.pk, legacy=True, models=CORE_ASSET_MODELS)
+              and not MarketDisposition.objects.filter(owner_id=row.pk).exclude(strategy={}).exists()):
             # 升级到日规划版本：旧检查点只覆盖六项核心资产，允许一次性重建。
             row.hashes = hashes
             row.save(update_fields=['hashes', 'updated_at'])
@@ -90,6 +99,7 @@ def _validate_inventory_transfers(*, batch_size=500):
 
 
 def reconcile_market() -> None:
+    normalize_legacy_dates()
     from utils.sync_manager import SyncError
     from system_settings.models import Agent, WorldAction
     from .models import WorldLedger
@@ -151,6 +161,11 @@ def reconcile_market() -> None:
                 validate_selection(plan.context[KEY])
             except (ValueError, TypeError, KeyError, IndexError) as exc:
                 raise SyncError('市场装备暂选进度无效或版本过新，请升级后重新同步') from exc
+    from django.core import serializers
+    from .market_strategy_sync import validate_source
+    data = json.loads(serializers.serialize('json', MarketDisposition.objects.all(), cls=SyncJSONEncoder))
+    data += json.loads(serializers.serialize('json', MarketPlan.objects.all(), cls=SyncJSONEncoder))
+    validate_source(data)
     for row in MarketDisposition.objects.all():
         if row.sell_ratio + row.list_ratio > 100 or row.star_order not in ('high', 'low'):
             raise SyncError('市场处置策略比例无效')
@@ -205,7 +220,7 @@ def reconcile_market() -> None:
     for session in MarketSession.objects.all():
         if session.mode == 'archive':
             if session.status != 'closed' or session.call_count:
-                raise SyncError('归档下架会话不得包含执行授权或工具调用')
+                raise SyncError('管理下架会话不得包含执行授权或工具调用')
             continue
         WorldAction.objects.update_or_create(pk=hashlib.sha256(('market-energy:'+session.pk).encode()).hexdigest(), defaults={'actor_id':session.actor_id,
             'task':session.task,'status':'success','consumed_at':session.created_at,'energy_cost':5,'effects_done':True,

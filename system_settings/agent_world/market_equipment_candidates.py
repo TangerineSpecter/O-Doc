@@ -1,5 +1,6 @@
 """Live, unjudged equipment listings shared by hourly summaries and shopping."""
 from collections import Counter
+from django.utils import timezone
 
 from .combat.equipment_effective import snapshots as effective_snapshots
 from .combat.models import CombatProfile, EquipmentInstance
@@ -30,7 +31,9 @@ def equipment_candidates(owner: str, actor_id: str, *, listing_ids=None) -> list
         remaining_quantity__gt=0, item__source__kind='combat_equipment').exclude(seller_id=actor_id)
     if listing_ids is not None:
         listings = listings.filter(pk__in=listing_ids)
-    rows = list(listings.order_by('created_at', 'pk'))
+    from .market_listing_expiry import is_expired
+    now = timezone.now()
+    rows = [row for row in listings.order_by('created_at', 'pk') if not is_expired(row, now)]
     identities = {str((row.item.get('source') or {}).get('equipment_id') or '') for row in rows}
     identities.update(profile.loadout.values())
     gears = {item.pk: item for item in EquipmentInstance.objects.filter(

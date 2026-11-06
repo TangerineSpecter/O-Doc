@@ -463,7 +463,8 @@ class BlacksmithServiceTests(TestCase):
         template = template_options(self.catalog, self.profile, self.rule)[0]
         for identity in ('same-recipe-one', 'same-recipe-two'):
             goals.register('admin', self.agent.pk, self.rule['id'], template['template_id'], identity)
-        other = DEFAULT_RULES['1-10:head']
+        other = next(rule for rule in DEFAULT_RULES.values() if rule['id'] != self.rule['id']
+                     and template_options(self.catalog, self.profile, rule))
         kind = template_options(self.catalog, self.profile, other)[0]
         goals.register('admin', self.agent.pk, other['id'], kind['template_id'], 'other-recipe')
         expected = Counter()
@@ -589,7 +590,7 @@ class BlacksmithServiceTests(TestCase):
         goal = register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'market-hold')
         ingredient = self.rule['ingredients'][0]
         MarketDisposition.objects.create(owner_id='admin', actor_id=self.agent.pk, sku=ingredient['sku'],
-            target_hold=0, sell_ratio=100, list_ratio=0)
+            target_hold=0, strategy={'version': 1, 'targets': {'alchemy': 0}, 'retain_order': 'low', 'reviewed_date': self.now.date().isoformat()}, sell_ratio=100, list_ratio=0)
         self.assertEqual(surplus_plan('admin', self.agent.pk, ingredient['sku'])['sell'], 0)
         self.grant(1, key='extra-market-stock')
         self.assertEqual(surplus_plan('admin', self.agent.pk, ingredient['sku'])['sell'], ingredient['quantity'])
@@ -617,21 +618,24 @@ class BlacksmithServiceTests(TestCase):
         goal.refresh_from_db()
         self.assertEqual(goal.status, 'active', '图鉴查询不能改写同步状态')
 
-    def test_market_marking_waits_when_all_stock_is_for_goal(self):
+    def test_market_strategy_defined_even_when_all_stock_is_for_goal(self):
         from .blacksmith_goals import register
-        from .market_disposition import enqueue
+        from .market_disposition import enqueue, surplus_plan
         from .market_disposition_worker import run as run_worker
         from .market_plan_models import MarketDisposition
         template = template_options(self.catalog, self.profile, self.rule)[0]
-        register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'market-marking')
+        register('admin', self.agent.pk, self.rule['id'], template['template_id'], 'all-protected')
         sku = self.rule['ingredients'][0]['sku']
-        task = enqueue('admin', self.agent.pk, sku, 1, source='stock', operation='goal-stock')
-        with patch('system_settings.agent_world.market_disposition_worker.choose_scene',
-                   side_effect=AssertionError('全部受保护的材料不得进入处置模型')):
+        task = enqueue('admin', self.agent.pk, sku, 1, source='loot')
+        def choose(_owner, _agent, _scene, _state, choices, **kwargs):
+            return 'sell' if 'sell' in choices else next(iter(choices))
+        with patch('system_settings.agent_world.market_disposition_worker.choose_scene', side_effect=choose) as decide:
             run_worker(owner='admin')
+            self.assertGreater(decide.call_count, 0)
         task.refresh_from_db()
         self.assertEqual(task.status, 'done')
-        self.assertFalse(MarketDisposition.objects.filter(owner_id='admin', actor_id=self.agent.pk, sku=sku).exists())
+        self.assertTrue(MarketDisposition.objects.get(actor_id=self.agent.pk, sku=sku).strategy)
+        self.assertEqual(surplus_plan('admin', self.agent.pk, sku)['sell'], 0)
 
     def test_frozen_v2_piece_preempts_goal_hold_without_double_reserving(self):
         from .blacksmith_goals import register, requirements

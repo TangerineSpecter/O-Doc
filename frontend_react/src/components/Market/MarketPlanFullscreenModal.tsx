@@ -90,7 +90,7 @@ export function MarketPlanFullscreenModal({
                     </div>
                 </section>
 
-                {/* 3. 产物处置与挂牌策略全景 (全展开多列网格) */}
+                {/* 3. 用途保留与超量处置全景 (全展开多列网格) */}
                 <section className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-2xs">
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-3.5 border-b border-slate-100">
                         <div className="flex items-center gap-2">
@@ -98,7 +98,7 @@ export function MarketPlanFullscreenModal({
                                 <SlidersHorizontal className="h-4 w-4" />
                             </div>
                             <div>
-                                <h4 className="text-sm font-bold text-slate-800">产物处置与挂牌策略</h4>
+                                <h4 className="text-sm font-bold text-slate-800">用途保留与超量处置</h4>
                                 <p className="text-[11px] text-slate-400">
                                     自留保底与超出部分的集市挂牌、商店快速变现配比
                                 </p>

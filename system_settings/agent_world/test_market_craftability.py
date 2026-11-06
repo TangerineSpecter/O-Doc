@@ -90,7 +90,7 @@ class MarketCraftingIntegrationTests(TestCase):
         from .market_disposition_worker import run
         from .market_plan_models import MarketDisposition, MarketDispositionTask
         self.stock(self.seller, 'crop.potato', 10)
-        enqueue('owner', self.seller.pk, 'crop.potato', 10, operation='test-demand')
+        enqueue('owner', self.seller.pk, 'crop.potato', 10)
 
         def choose(owner, agent, scene, state, choices, **kwargs):
             self.assertEqual(state['crafting_demand']['status'], 'unavailable')
@@ -101,7 +101,7 @@ class MarketCraftingIntegrationTests(TestCase):
         with patch('system_settings.agent_world.market_plan_candidates.crafting_demand_facts',
                    side_effect=RuntimeError('统计不可用')):
             with patch('system_settings.agent_world.market_disposition_worker.choose_scene', side_effect=choose):
-                with self.assertLogs('system_settings.agent_world.market_disposition_worker', level='ERROR'):
+                with self.assertLogs('system_settings.agent_world.market_policy_review', level='ERROR'):
                     run(owner='owner')
         self.assertEqual(MarketDispositionTask.objects.get().status, 'done')
         self.assertEqual(MarketDisposition.objects.get().list_ratio, 100)
@@ -111,7 +111,7 @@ class MarketCraftingIntegrationTests(TestCase):
         from .market_disposition_worker import run
         from .market_plan_models import MarketDisposition
         self.stock(self.seller, 'crop.potato', 10)
-        enqueue('owner', self.seller.pk, 'crop.potato', 10, operation='zero-demand')
+        enqueue('owner', self.seller.pk, 'crop.potato', 10)
 
         def choose(owner, agent, scene, state, choices, **kwargs):
             self.assertEqual(state['crafting_demand']['status'], 'complete')

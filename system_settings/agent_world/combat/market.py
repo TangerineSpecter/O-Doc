@@ -7,7 +7,7 @@ from .facts import append
 from ..inventory_stock import add_stock
 
 
-def transact(owner,agent,key,operation,change_money,at,*,protect_goals=False):
+def transact(owner,agent,key,operation,change_money,at,*,protect_goals=False,retention_free_rows=None):
     profile=CombatProfile.objects.select_for_update().filter(pk=agent.pk,owner_id=owner).first()
     if not profile:
         from .profiles import ensure
@@ -15,7 +15,8 @@ def transact(owner,agent,key,operation,change_money,at,*,protect_goals=False):
     catalog=current(profile.catalog_id)
     kind=operation['kind']
     count=operation.get('quantity',1)
-    if type(count)is not int or not 1<=count<=99:raise ValueError('交易数量须为 1 至 99')
+    from ..market_service import quantity
+    count = quantity(count)
     if kind=='buy_potion':
         if count>20:raise ValueError('单次药剂采购最多 20 瓶')
         row=catalog.row('potions',operation.get('potion_id'))
@@ -29,8 +30,11 @@ def transact(owner,agent,key,operation,change_money,at,*,protect_goals=False):
         row=catalog.row('materials',operation.get('material_id'))
         from ..crafting_materials import available_pool
         from ..alchemy_materials import allocate, consume
-        materials=allocate(available_pool(owner,agent.pk,protect_goals=protect_goals),
-                           [{'sku':'combat.'+row['id'],'quantity':count}])
+        pool = available_pool(owner, agent.pk, protect_goals=protect_goals)
+        if retention_free_rows is not None:
+            for item in pool:
+                item['quantity'] = min(item['quantity'], retention_free_rows.get(item['inventory_id'], 0))
+        materials = allocate(pool, [{'sku': 'combat.' + row['id'], 'quantity': count}])
         consume(agent.pk,owner,materials)
         amount=Decimal(row['sale_price'])*count
         result={'name':row['name'],'quantity':count,'total':str(amount)}

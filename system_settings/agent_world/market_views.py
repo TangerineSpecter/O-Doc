@@ -68,10 +68,8 @@ class MarketAutomationView(APIView):
             goals = list(MarketGoal.objects.filter(plan=plan).values(
                 'id', 'kind', 'sku', 'slot', 'min_stars', 'quantity', 'filled_quantity',
                 'max_unit_price', 'status', 'reason'))
-            dispositions = list(MarketDisposition.objects.filter(
-                owner_id=owner, actor_id=plan.actor_id).values(
-                'sku', 'target_hold', 'sell_ratio', 'list_ratio', 'star_order',
-                'list_price_ratio', 'status', 'source', 'reason'))
+            from .market_policy_queries import policies_payload
+            dispositions = policies_payload(owner, plan.actor_id)
             no_buy = list(MarketNoBuy.objects.filter(
                 owner_id=owner, actor_id=plan.actor_id).values(
                 'equipment_id', 'price', 'reason', 'decided_at')[:50])

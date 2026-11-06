@@ -108,7 +108,7 @@ def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
     if not coverage_valid:
         blockers.append('每日贡献尚未建立或不能与现存来源核对')
     backlog = inspect_statistics_backlog()
-    if not backlog['basic_coverage_complete']:
+    if not backlog['cleanup_coverage_complete']:
         blockers.append('存在未统计或无法核验的已结束战斗，全部归档暂缓')
     if archived:
         blockers.append('该场回合过程已完成清理；结算与统计仍保留')

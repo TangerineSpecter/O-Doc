@@ -103,6 +103,11 @@ listings.push(...fishingInventory.filter(item => item.rarity === 'rare').map(ite
     item: {...item, kind: 'fish', iconAssetId: undefined}, initialQuantity: 1, remainingQuantity: 1,
     unitPrice: item.value, version: 1, status: 'active', createdAt: at(10), history: [],
 })));
+for (const listing of listings) listing.expiresAt = new Date(new Date(listing.createdAt).getTime() + 48 * 60 * 60 * 1000).toISOString();
+listings[0].history = [{from: '30', to: '24', at: at(12, -1)}];
+listings[0].createdAt = at(10, -1);
+listings[0].unitPrice = '24';
+listings[0].expiresAt = new Date(new Date(listings[0].history[0].at).getTime() + 48 * 60 * 60 * 1000).toISOString();
 export const transactions: MarketTransaction[] = [...residents.map((r, i) => ({id: `local-transaction-${i}`, actorId: r.id, actorName: r.name,
     sessionId: `local-session-${i}`, operation: {kind: 'buy', reason: '补足下一轮种植的种子'}, result: {kind: 'seed', name: '草莓种子', quantity: 3, total: '120', unitPrice: '40'}, createdAt: at(10 + i)})),
     {id: 'local-transaction-fish', actorId: residents[0].id, actorName: residents[0].name, sessionId: 'local-session-0',
@@ -119,4 +124,11 @@ export const sessions: MarketSession[] = residents.map((r, i) => ({id: `local-se
     createdAt: at(10), expiresAt: at(11), endedAt: at(11), reason: '已完成采购并保留日常储备金',
     calls: [{name: 'buy', at: at(10), arguments: {sku: 'seed.strawberry', quantity: 3}, result: {name: '草莓种子', quantity: 3, total: '120', budgetBefore: '300', budgetAfter: '180'}}],
     transactions: [transactions[i]]}));
+const expiredTransaction: MarketTransaction = {id: 'local-expired-transaction', actorId: residents[0].id, actorName: residents[0].name,
+    sessionId: 'local-expired-session', operation: {kind: 'withdraw', reason: 'listing_expired'},
+    result: {kind: 'withdraw', name: '草莓', quantity: 3}, createdAt: at(9)};
+transactions.unshift(expiredTransaction);
+sessions.unshift({id: 'local-expired-session', actorId: residents[0].id, actorName: residents[0].name,
+    status: 'closed', mode: 'archive', callCount: 0, createdAt: at(9), expiresAt: at(9), endedAt: at(9),
+    reason: '挂牌到期自动下架，不消耗体力', calls: [], transactions: [expiredTransaction]});
 export const marketPlans: MarketAutomationPlan[] = residents.map((r, i) => createMarketPlanPreview(r, i));

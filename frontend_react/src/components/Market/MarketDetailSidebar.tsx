@@ -5,7 +5,7 @@ import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
 import {BaitPortrait} from '../Fishing/BaitPortrait';
 import {getSkuKnowledge, getSupplyKnowledge} from './marketMetadata';
-import {marketListingCategory, marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
+import {marketListingCategory, marketMoney, marketTime, marketOperationLabel} from './marketPresentation';
 import {MarketListingItemIcon} from './MarketListingItemIcon';
 import {elementStatLabels, equipmentSlotLabel, formatRatio, statLabels} from '../Combat/presentation';
 import {ElementBadge} from '../Combat/ElementBadge';
@@ -192,7 +192,7 @@ export function MarketDetailSidebar({
                                         <span className="text-orange-600 font-bold">{tx.result.total ? `${marketMoney(tx.result.total)} 币` : ''}</span>
                                     </div>
                                     <p className="mt-0.5 text-slate-400 text-[10px]">
-                                        {marketOperationLabels[tx.operation.kind] || tx.operation.kind} · {tx.result.name || '商品'} · {marketTime(tx.createdAt)}
+                                        {marketOperationLabel(tx.operation)} · {tx.result.name || '商品'} · {marketTime(tx.createdAt)}
                                     </p>
                                 </div>
                             ))}
@@ -266,6 +266,10 @@ export function MarketDetailSidebar({
                     </div>
 
                     <div className="mt-3 space-y-2 text-[11px]">
+                        {listing.expiresAt && <div className="flex justify-between text-slate-500">
+                            <span>到期下架时间</span>
+                            <span className="font-semibold text-slate-700">{marketTime(listing.expiresAt)}</span>
+                        </div>}
                         <div className="flex justify-between text-slate-500">
                             <span>初始挂牌数量</span>
                             <span className="font-semibold text-slate-700">{listing.initialQuantity} {isCombatEquipment ? '件' : '份'}</span>
@@ -331,7 +335,7 @@ export function MarketDetailSidebar({
                         居民集市规则
                     </p>
                     <p className="mt-1 text-slate-500">
-                        居民在配置「市场交易」任务后，会根据背包存量与行情策略自行在此挂牌或采购其他居民的上架物品。
+                        居民可根据背包存量挂牌或采购。挂牌两天后到期下架，实际降价会重新计算两天；未售出的物品退回卖家。
                     </p>
                 </div>
             </div>

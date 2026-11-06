@@ -673,11 +673,15 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         ) if part)
         amount = next((entry.get('amount') for entry in result.get('deltas', [])
                        if entry.get('actor_id') == row.actor_id), None)
+        management_label = ({'agent_archive': '归档下架', 'listing_expired': '到期下架'}
+                            .get(op.get('reason')) if kind == 'withdraw' else None)
         events.append(_event(category, 'market', row.pk, row.created_at, row.actor_id,
-                             row.actor_name, '归档下架' if op.get('reason') == 'agent_archive' else MARKET_LABELS.get(kind, '市场操作'), detail,
+                             row.actor_name, management_label or MARKET_LABELS.get(kind, '市场操作'), detail,
                              amount=amount, target={'kind': 'market', 'id': row.pk}))
         session = session_map[row.session_id]
-        if session.mode != 'archive':
+        if session.mode == 'archive' and op.get('reason') == 'listing_expired':
+            events[-1]['_execution_group'] = 'market-expiry:' + session.pk
+        elif session.mode != 'archive':
             events[-1]['_execution_group'] = 'market:' + (session.record_id or session.pk)
             if session.mode == 'batch':
                 events[-1]['_execution_batch'] = True

@@ -18,6 +18,7 @@ class WorldCycleTests(TestCase):
         self.token = 'world-token'
         self.runtime = WorldActionRuntime.objects.create(pk='world', enabled=False)
         callbacks = {
+            'market_expiry.expire_due': 'market_expiry',
             'tournament_runner.tick': 'tournaments',
             'market_sessions.cleanup': 'market_cleanup',
             'market_tick.run': 'market_tick',
@@ -53,7 +54,7 @@ class WorldCycleTests(TestCase):
         tick(self.scheduler)
 
         self.assertEqual(self.events, [
-            'tournaments', 'market_cleanup', 'market_tick', 'bounties', 'post_photos',
+            'market_expiry', 'tournaments', 'market_cleanup', 'market_tick', 'bounties', 'post_photos',
             'investment_recovery', 'cooking', 'alchemy', 'blacksmith', 'life',
             'lease_entered', 'travel', 'farm', 'lease_released',
         ])

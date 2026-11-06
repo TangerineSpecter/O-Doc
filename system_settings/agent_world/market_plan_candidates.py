@@ -311,7 +311,12 @@ def blacksmith_purchase_skus(owner: str, agent, quantities: dict[str, int], *, c
 def listing_rows(owner: str, actor_id: str, limit: int = 2, agent=None) -> list[dict]:
     """按 sku 聚合居民挂牌，先过滤无法加工增产的原料，再排高星与性价比。"""
     best = {}
+    from django.utils import timezone
+    from .market_listing_expiry import is_expired
+    now = timezone.now()
     for row in MarketListing.objects.filter(owner_id=owner, status='active', remaining_quantity__gt=0).exclude(seller_id=actor_id):
+        if is_expired(row, now):
+            continue
         item = row.item or {}
         source = item.get('source') or {}
         sku = source.get('sku') or ''
@@ -382,10 +387,16 @@ def listing_star_options(row: dict, available) -> dict:
 def listing_quote(owner: str, actor_id: str, sku: str, min_stars: int) -> dict | None:
     """Refresh only the selected SKU and threshold after the quality decision."""
     count, minimum = 0, None
+    from django.utils import timezone
+    from .life_time import local_time
+    from .market_listing_expiry import expires_at
+    now = local_time(timezone.now())
     rows = MarketListing.objects.filter(owner_id=owner, status='active', remaining_quantity__gt=0,
         item__source__sku=sku).exclude(seller_id=actor_id).values(
-            'unit_price', 'remaining_quantity', 'item__source__stars')
+            'unit_price', 'remaining_quantity', 'item__source__stars', 'created_at', 'history')
     for row in rows:
+        if local_time(expires_at(row['created_at'], row['history'])) <= now:
+            continue
         stars = _listing_stars({'stars': row['item__source__stars']})
         if stars is None or stars < min_stars or row['unit_price'] <= 0:
             continue

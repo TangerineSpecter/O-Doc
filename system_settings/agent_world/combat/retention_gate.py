@@ -16,6 +16,7 @@ from .party_daily_coverage import valid_days
 from .party_models import AdventureEvent, AdventureParty
 from .party_settlement_archive import validate_settlement
 from .solo_daily_backfill import legacy_runs
+from .solo_source_status import historical_gap_runs
 from .solo_settlement import matches_run as solo_matches_run
 from .store import digest
 
@@ -23,12 +24,14 @@ from .store import digest
 @guarded
 @transaction.atomic
 def inspect_statistics_backlog():
-    """Check all finished sources, regardless of their age or owner.
+    """Check finished sources, exposing isolated gaps separately from blockers.
 
     This is a preliminary coverage check, not permission to delete: complete
     source chains, assets and the projected recovery snapshot are verified by
     the cleanup transaction after this check.
-    Active parties do not count as unfinished statistical backlog.
+    Active parties and proven unstarted cancellations are not backlog. A solo
+    missing its departure may remain an explicit historical gap; it is never
+    summarized or cleaned, while all other source validation remains required.
     """
     parties = {row.pk: row for row in AdventureParty.objects.only(
         'id', 'owner_id', 'status', 'head', 'digest', 'frame', 'frame_version').iterator(chunk_size=128)}
@@ -88,6 +91,8 @@ def inspect_statistics_backlog():
     solo_owners = dict(CombatSoloSettlement.objects.values_list('pk', 'owner_id').iterator())
     missing_solo = {identity for identity, run in legacy.items()
                     if solo_owners.get(identity) != run.owner_id}
+    isolated_solo = set(historical_gap_runs().filter(pk__in=missing_solo)
+                        .exclude(pk__in=solo_owners).values_list('pk', flat=True))
     invalid_solo = set()
     for settlement in CombatSoloSettlement.objects.iterator(chunk_size=128):
         identity = settlement.pk
@@ -124,7 +129,13 @@ def inspect_statistics_backlog():
         'orphan_encounters': orphan_encounters,
         'orphan_round_events': orphan_events,
     }
-    return {**counts, 'basic_coverage_complete': not any(value for key, value in counts.items()
-                                                          if key != 'completed_parties'),
+    complete = not any(value for key, value in counts.items() if key != 'completed_parties')
+    cleanup_counts = {**counts, 'legacy_solo_runs': len(missing_solo - isolated_solo)}
+    return {**counts, 'basic_coverage_complete': complete,
+            'historical_solo_gaps': len(isolated_solo),
+            'historical_solo_gap_ids': sorted(isolated_solo),
+            'blocking_legacy_solo_runs': len(missing_solo - isolated_solo),
+            'cleanup_coverage_complete': not any(value for key, value in cleanup_counts.items()
+                                                if key != 'completed_parties'),
             'cleanup_ready': False,
-            'scope': '全账号、全部已结束战斗的初步覆盖；清理事务仍须完整校验来源链、资产及压缩后的恢复数据。'}
+            'scope': '全账号已结束战斗的初步覆盖；缺少出发事实且有执行依据的单人历史保留为缺口，不阻断其他完整场次。清理事务仍须完整校验全部来源链、资产及压缩后的恢复数据。'}

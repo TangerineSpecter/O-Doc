@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 def _advance_independent_domains(scheduler):
+    # 到期是市场托管维护，不依赖居民进场、市场自动化或体力。
+    from .market_expiry import expire_due
+    try:
+        expire_due()
+    except Exception:
+        logger.exception('市场挂牌到期检查失败')
     from .tournament_runner import tick as tick_tournaments
     tick_tournaments()
     from .market_sessions import cleanup
@@ -21,15 +27,26 @@ def _advance_independent_domains(scheduler):
     from .life_models import LifeConfig
     from .market_plan_models import MarketDispositionTask
     from .market_disposition_worker import recover_stale_tasks, run as run_dispositions
-    automation = any(market_automation_enabled(config) for config in LifeConfig.objects.filter(migrated=True))
+    automation = (WorldActionRuntime.objects.filter(pk='world', enabled=True).exists()
+                  and any(market_automation_enabled(config) for config in LifeConfig.objects.filter(migrated=True)))
     if automation:
         recover_stale_tasks()
+        from .market_review_schedule import enqueue_due_review
+        from .life_config import effective_settings
+        for config in LifeConfig.objects.filter(migrated=True):
+            if market_automation_enabled(config):
+                for actor in effective_settings(config).get('agent_ids', []):
+                    if actor not in (config.paused_agents or []):
+                        try:
+                            enqueue_due_review(config.pk, actor)
+                        except Exception:
+                            logger.exception('库存每日复核入队失败 actor=%s', actor)
     oldest = (MarketDispositionTask.objects
               .filter(status__in=('pending', 'failed'), attempts__lt=3)
               .order_by('created_at').first())
     if automation and oldest and (timezone.now() - oldest.created_at).total_seconds() >= 60:
         try:
-            run_dispositions(limit=5, seconds=20)
+            run_dispositions(limit=5, seconds=20, automatic=True)
         except Exception:
             logger.exception('市场处置标记失败')
     # 小时预检：只读判断，命中才进场；每次 tick 最多处理少量居民，避免占满执行位。

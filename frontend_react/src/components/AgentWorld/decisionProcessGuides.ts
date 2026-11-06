@@ -7,7 +7,7 @@ import {interleavingGuide} from './decisionGuides/interleaving';
 
 export type {DecisionGuideKind, DecisionFlowStep, DecisionProcessGuide} from './decisionProcessTypes';
 
-/** The single registry used by task cards and domain panels, including lottery probability draws and each domain's actual decision inputs. */
+/** The shared registry includes decision inputs and daily inventory retention decisions with portable progress and independent system maintenance such as market expiry and combat retention with preserved historical source gaps. */
 export const decisionProcessGuides: Record<DecisionGuideKind, DecisionProcessGuide> = {
     ...scheduledGuides, ...idleGuides, ...independentGuides, interleaving: interleavingGuide,
 };

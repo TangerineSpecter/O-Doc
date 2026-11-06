@@ -205,6 +205,8 @@ class SyncManager:
 
 
     def validate_remote_snapshot_version(self, remote_meta):
+        from system_settings.agent_world.market_strategy_sync import validate_version
+        validate_version(remote_meta)
         travel_sync.validate(remote_meta)
         from system_settings.agent_world.blacksmith_sync import validate_version as validate_blacksmith_version
         validate_blacksmith_version(remote_meta)
@@ -281,6 +283,8 @@ class SyncManager:
 
 
     def validate_import_snapshot_version(self, remote_meta):
+        from system_settings.agent_world.market_strategy_sync import validate_version
+        validate_version(remote_meta)
         travel_sync.validate(remote_meta)
         from system_settings.agent_world.blacksmith_sync import validate_version as validate_blacksmith_version
         validate_blacksmith_version(remote_meta)
@@ -316,6 +320,8 @@ class SyncManager:
     @staticmethod
     def _validate_force_overwrite_source(data):
         """Validate the normalized local snapshot before publishing it for strict readers."""
+        from system_settings.agent_world.market_strategy_sync import validate_source as validate_strategy
+        validate_strategy(data)
         from system_settings.agent_world.life_snapshot import validate_source as validate_life
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
         from system_settings.agent_world.cooking_quality_sync import (
@@ -523,6 +529,8 @@ class SyncManager:
         validate_tournaments(data, meta)
         from system_settings.agent_world.fishing.sync import validate_source as validate_fishing
         validate_fishing(data, meta)
+        from system_settings.agent_world.market_strategy_sync import validate_source as validate_strategy
+        validate_strategy(data, meta)
         revisions = self.remote.read_json(self.remote.snapshot_path(snapshot_id, 'revisions.json'), required=True)
         self._guard_integrity('旅行目录', lambda: travel_sync.validate_revisions(meta, revisions), relax=relax_integrity)
         return {
@@ -649,6 +657,9 @@ class SyncManager:
         from system_settings.agent_world.fishing.sync import validate_conflicts as fishing_conflicts
         fishing_conflicts(local_data, remote.get('data') or [])
         from system_settings.agent_world.life_snapshot import validate_source, refresh_merged_integrity
+        from system_settings.agent_world.market_strategy_sync import validate_source as validate_strategy
+        validate_strategy(local_data)
+        validate_strategy(remote.get('data') or [], remote.get('meta'))
         guard('生活', lambda: validate_source(local_data))
         guard('生活', lambda: validate_source(remote.get('data') or []))
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crop_source
@@ -729,6 +740,7 @@ class SyncManager:
         # 严格合并仍拒绝半份烹饪链。放宽时保留两边已经合并的记录，稍后再整理摘要。
         from system_settings.agent_world.food_sync import validate_source as validate_food
         validate_food(result)
+        validate_strategy(result)
         guard('烹饪', lambda: validate_cooking_source(result, cooking_metadata(result)))
         validate_combat(result, allow_exploration_review_mismatch=relax_integrity)
         summary['integrity_warnings'] = list(self._integrity_warnings)

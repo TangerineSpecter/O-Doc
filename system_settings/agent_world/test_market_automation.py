@@ -11,6 +11,8 @@ from django.utils import timezone
 from system_settings.models import Agent, AgentTask, SystemSetting, WorldActionRuntime
 
 from . import market_batch
+# 加载购物模块后再替换候选查询，避免懒导入把测试替身保留到其他测试中。
+from . import market_equipment_shopping  # noqa: F401
 from .combat.models import EquipmentInstance
 from .inventory_stock import add_stock, inventory_items
 from .life_time import local_time, storage_time
@@ -61,8 +63,8 @@ class MarketAutomationTests(TestCase):
 
     def test_enqueue_is_idempotent_and_aggregates(self):
         self.stock(quantity=4)
-        first = enqueue('admin', self.a.pk, 'dish.stew', 4, source='cooking', operation='cook-1')
-        second = enqueue('admin', self.a.pk, 'dish.stew', 3, source='cooking', operation='cook-1')
+        first = enqueue('admin', self.a.pk, 'dish.stew', 4, source='cooking')
+        second = enqueue('admin', self.a.pk, 'dish.stew', 3, source='cooking')
         self.assertEqual(first.pk, second.pk)
         self.assertEqual(MarketDispositionTask.objects.count(), 1)
         self.assertEqual(MarketDispositionTask.objects.get().quantity, 7)
@@ -72,7 +74,7 @@ class MarketAutomationTests(TestCase):
         self.stock(quantity=4, stars=5, key='high')
         MarketDisposition.objects.create(
             owner_id='admin', actor_id=self.a.pk, sku='dish.stew',
-            target_hold=2, sell_ratio=50, list_ratio=50, star_order='high')
+            target_hold=2, strategy={'version': 1, 'targets': {'self_use': 2}, 'retain_order': 'low', 'reviewed_date': self.now.date().isoformat()}, sell_ratio=50, list_ratio=50, star_order='high')
         plan = surplus_plan('admin', self.a.pk, 'dish.stew')
         self.assertEqual((plan['total'], plan['surplus'], plan['sell'], plan['list']), (10, 8, 4, 4))
         selected = select_rows('admin', self.a.pk, 'dish.stew', 5, 'high')
@@ -81,7 +83,7 @@ class MarketAutomationTests(TestCase):
 
     def test_worker_uses_split_questions(self):
         self.stock(quantity=10, stars=5, key='cook-1')
-        enqueue('admin', self.a.pk, 'dish.stew', 10, source='cooking', operation='cook-1')
+        enqueue('admin', self.a.pk, 'dish.stew', 10, source='cooking')
 
         def fake(owner, agent, scene, state, choices, **kwargs):
             key = kwargs['question_id'].rsplit(':', 1)[-1]
@@ -103,13 +105,13 @@ class MarketAutomationTests(TestCase):
 
     def test_worker_defaults_to_review_when_model_unavailable(self):
         self.stock(quantity=6, key='cook-2')
-        enqueue('admin', self.a.pk, 'dish.stew', 6, source='cooking', operation='cook-2')
+        enqueue('admin', self.a.pk, 'dish.stew', 6, source='cooking')
         with patch('system_settings.agent_world.market_disposition_worker.choose_scene', return_value=None):
             run_worker(limit=20, seconds=30)
         policy = MarketDisposition.objects.get(owner_id='admin', actor_id=self.a.pk, sku='dish.stew')
         self.assertEqual(policy.status, 'review')
-        self.assertEqual(policy.target_hold, 6)
-        self.assertEqual(MarketDispositionTask.objects.get().status, 'done')
+        self.assertEqual(policy.strategy, {})
+        self.assertEqual(MarketDispositionTask.objects.get().status, 'failed')
 
     def test_equipment_no_buy_filter_and_cleanup(self):
         gear = EquipmentInstance.objects.create(
@@ -193,7 +195,7 @@ class MarketAutomationTests(TestCase):
         self.assertEqual(rows.filter(item__source__stars__gte=4).count(), 0)
 
     def test_reprice_stops_at_recovery_price_and_runs_once_a_day(self):
-        old = timezone.now() - timedelta(days=3)
+        old = timezone.now() - timedelta(days=1, hours=1)
         listing = MarketListing.objects.create(
             pk='listing-stale', owner_id='admin', seller_id=self.a.pk, seller_name='A',
             item={'name': '炖菜', 'value': '10', 'source': {'sku': 'dish.stew'}},
@@ -667,7 +669,7 @@ class MarketAutomationTests(TestCase):
                 self.stock(quantity=6, stars=1, key='low')
                 policy = MarketDisposition.objects.create(
                     pk='split-policy', owner_id='admin', actor_id=self.a.pk, sku='dish.stew',
-                    target_hold=2, sell_ratio=50, list_ratio=50, star_order=order)
+                    target_hold=2, strategy={'version': 1, 'targets': {'self_use': 2}, 'retain_order': 'low', 'reviewed_date': self.now.date().isoformat()}, sell_ratio=50, list_ratio=50, star_order=order)
                 plan = self.plan() if order == 'high' else MarketPlan.objects.get(pk='plan-test')
                 tick = self.tick(plan) if order == 'high' else MarketTick.objects.get(pk='tick-test')
                 tick.pk = 'split-' + order
@@ -681,18 +683,30 @@ class MarketAutomationTests(TestCase):
                 sold = MarketTransaction.objects.get(operation__item_id=first['item_id'], operation__kind='sell')
                 self.assertEqual(sold.result['stars'], 5 if policy.star_order == 'high' else 1)
 
-    def test_stale_running_disposition_resumes_cached_answers(self):
+    def test_stale_running_disposition_resumes_synced_answers(self):
+        import hashlib
+        import json
+        from .market_policy_facts import facts
+        from .market_plan_models import disposition_id, plan_id
+        from .life_time import local_time
         self.stock(quantity=6)
-        task = enqueue('admin', self.a.pk, 'dish.stew', 6, operation='restart')
-        MarketDispositionTask.objects.filter(pk=task.pk).update(
-            status='running', attempts=3, answers={'hold': '0', 'channel': 'sell'},
+        day = local_time(timezone.now()).date()
+        policy = MarketDisposition.objects.create(pk=disposition_id('admin', self.a.pk, 'dish.stew'),
+            owner_id='admin', actor_id=self.a.pk, sku='dish.stew', status='review')
+        signature = hashlib.sha256(json.dumps({'purposes': facts('admin', self.a.pk, 'dish.stew')['purposes'],
+                                               'revision': policy.revision}, sort_keys=True).encode()).hexdigest()
+        MarketPlan.objects.create(pk=plan_id('admin', self.a.pk, day), owner_id='admin', actor_id=self.a.pk,
+            plan_date=day, context={'inventory_policy_reviews': {'dish.stew': {'signature': signature,
+                'status': 'pending', 'answers': {'target:self_use': '0', 'channel': 'sell',
+                                                'retain_order': 'low', 'stars': 'low'}}}})
+        task = enqueue('admin', self.a.pk, 'dish.stew', 6)
+        MarketDispositionTask.objects.filter(pk=task.pk).update(status='running', attempts=3,
             updated_at=timezone.now() - timedelta(minutes=6))
         with patch('system_settings.agent_world.market_disposition_worker.choose_scene') as decide:
             run_worker(owner='admin')
             decide.assert_not_called()
         task.refresh_from_db()
         self.assertEqual(task.status, 'done')
-        self.assertEqual(task.answers, {'hold': '0', 'channel': 'sell'})
         self.assertEqual(MarketDisposition.objects.get().sell_ratio, 100)
 
     def test_recovery_leaves_fresh_running_and_other_owner_tasks_alone(self):
@@ -734,14 +748,14 @@ class MarketAutomationTests(TestCase):
         actions = {
             'withdraws': [{'kind': 'withdraw', 'listing_id': 'l1', 'version': 1}],
             'reprices': [{'kind': 'reprice', 'listing_id': 'l2', 'version': 1, 'unit_price': '2'}],
-            'dispositions': [{'sku': 'dish.stew',
+            'dispositions': [{'sku': 'dish.stew', 'revision': 1,
                               'operations': [{'kind': 'sell', 'item_id': 'i1', 'quantity': 1}]}],
             'goals': [{'kind': 'buy_shop', 'batch_id': 'b1', 'slot_id': 'feed',
                        'quantity': 2, 'unit_price': '5', '_goal': ''}],
         }
         calls = []
 
-        def fake_trade(session, agent, key, operation, now=None):
+        def fake_trade(session, agent, key, operation, now=None, **kwargs):
             calls.append((operation['kind'], key))
             if operation['kind'] == 'sell':
                 raise RuntimeError('回收失败')

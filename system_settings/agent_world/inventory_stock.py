@@ -34,9 +34,13 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
             Q(source__stars=1) |
             Q(source__stars__isnull=True))
     row = rows.last()
+    # 到期退回的最后一行不能吸收新产物，也不能向前合并以免打乱跨行 FIFO。
+    from .market_listing_expiry import expired_return_trade_ids
+    returned = expired_return_trade_ids(owner_id, actor_id, [row] if row else [])
+    separate_return = bool(row and str((row.source or {}).get('market_trade_id') or '') in returned)
     # Newly produced goods must not inherit a traded item's original owner.
     separate_origin = bool(row and row.origin_actor_id and row.origin_actor_id != actor_id)
-    if separate_origin:
+    if separate_origin or separate_return:
         row = None
     if row:
         if sku.startswith(('crop.', 'product.', 'dish.', 'fertilizer.', 'elixir.', 'bait.', 'fish.')):
@@ -47,7 +51,7 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
         row.save(update_fields=['quantity', 'source'])
         return row
     return AgentInventoryItem.objects.create(
-        pk=uuid.uuid4().hex if separate_origin else hashlib.sha256((f'inventory:{owner_id}:{actor_id}:{sku}' + (f':stars:{stars}' if sku.startswith(('crop.', 'dish.', 'elixir.')) and stars != 1 else '')).encode()).hexdigest(),
+        pk=uuid.uuid4().hex if separate_origin or separate_return else hashlib.sha256((f'inventory:{owner_id}:{actor_id}:{sku}' + (f':stars:{stars}' if sku.startswith(('crop.', 'dish.', 'elixir.')) and stars != 1 else '')).encode()).hexdigest(),
         actor_id=actor_id, owner_id=owner_id, actor_name=actor_name,
         origin_actor_id=actor_id, origin_actor_name=actor_name,
         name=name, kind=kind, quantity=quantity, value=price,

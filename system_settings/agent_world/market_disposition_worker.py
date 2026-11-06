@@ -1,4 +1,4 @@
-"""逐题询问决策模型，把待标记 sku 补成长期处置策略。
+"""逐题询问决策模型，按居民、日期和 sku 复核用途保留策略。
 
 问题拆开问：持有量、渠道、比例、星级顺序、挂牌价。禁止把数量与星级合并成
 笛卡尔候选；每个答案写入任务缓存，重启或限流后不重掷。
@@ -9,19 +9,17 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from system_settings.decision.routing import choose_scene, jev_enabled
+from system_settings.decision.routing import choose_scene
 from system_settings.models import Agent
 
 from .market_disposition import (aggregate, can_list, can_shop_sell,
                                  reserved_quantity)
-from .market_plan_models import (MarketDisposition, MarketDispositionTask,
-                                 disposition_id)
+from .market_plan_models import MarketDisposition, MarketDispositionTask
 from .market_models import MarketListing
 
 QUESTION_LIMIT = 20
 RUN_SECONDS = 60
 QUESTION_SECONDS = 20
-MIN_ASK_QUANTITY = 3
 TASK_TIMEOUT = timedelta(minutes=5)
 logger = logging.getLogger(__name__)
 
@@ -76,7 +74,7 @@ def _ask(owner: str, agent, task: MarketDispositionTask, budget: Budget, key: st
             )
         selected = choose_scene(
             owner, agent, 'market_disposition', state, choices,
-            deadline=time.monotonic() + QUESTION_SECONDS,
+            deadline=min(budget.deadline, time.monotonic() + QUESTION_SECONDS),
             question_id=f'market-disposition:{task.pk}:{key}',
             instructions=instructions, include_role=False, max_probability=True)
         if selected not in choices:
@@ -113,163 +111,62 @@ def _state(owner: str, actor_id: str, sku: str) -> dict:
         'current_policy': ({'target_hold': disposition.target_hold,
                             'sell_ratio': disposition.sell_ratio,
                             'list_ratio': disposition.list_ratio,
-                            'star_order': disposition.star_order} if disposition else None),
+                            'star_order': disposition.star_order, 'strategy': disposition.strategy} if disposition else None),
         'forge_goals': forge_goals,
     }
 
 
-def _save_policy(owner: str, actor_id: str, sku: str, *, target_hold: int, sell_ratio: int,
-                 list_ratio: int, star_order: str, list_price_ratio: str,
-                 source: str, status: str, reason: str) -> None:
-    identity = disposition_id(owner, actor_id, sku)
-    current = MarketDisposition.objects.filter(pk=identity).first()
-    MarketDisposition.objects.update_or_create(pk=identity, defaults={
-        'owner_id': owner, 'actor_id': actor_id, 'sku': sku,
-        'target_hold': max(0, target_hold), 'sell_ratio': max(0, min(100, sell_ratio)),
-        'list_ratio': max(0, min(100, list_ratio)), 'star_order': star_order,
-        'list_price_ratio': list_price_ratio, 'source': source, 'status': status,
-        'reason': reason[:500], 'revision': (current.revision + 1) if current else 1,
-    })
-
-
-def _default(owner: str, actor_id: str, sku: str, state: dict, reason: str) -> None:
-    _save_policy(owner, actor_id, sku, target_hold=state['available'], sell_ratio=0,
-                 list_ratio=0, star_order='low', list_price_ratio='1.20',
-                 source='default', status='review', reason=reason)
-
-
 def _decide_task(owner: str, agent, task: MarketDispositionTask, budget: Budget) -> None:
+    from .life_time import local_time
+    if local_time(task.created_at).date() < local_time(timezone.now()).date():
+        task.status, task.error = 'done', '旧日期复核结束，由今日重新制定'
+        task.save(update_fields=['status', 'error', 'updated_at'])
+        return
     state = _state(owner, task.actor_id, task.sku)
     total = state['total']
-    if total <= 0:
+    if total <= 0 and reserved_quantity(owner, task.actor_id, task.sku) <= 0:
         task.status = 'done'
         task.error = ''
         task.save(update_fields=['status', 'error', 'updated_at'])
         return
-    disposition = MarketDisposition.objects.filter(
-        owner_id=owner, actor_id=task.actor_id, sku=task.sku, status='active').first()
-    if disposition:
-        # 已有长期策略时，新产出直接套用，不再重复提问。
-        task.status = 'done'
-        task.error = ''
-        task.save(update_fields=['status', 'error', 'updated_at'])
-        return
-
-    available = state['available']
-    if available == 0 and state['forge_goals']:
-        # Protected stock has no disposable portion yet. Do not create a
-        # lasting zero-surplus policy; completion/invalidity will queue it again.
-        task.status = 'done'
-        task.error = ''
-        task.save(update_fields=['status', 'error', 'updated_at'])
-        return
-    if available <= MIN_ASK_QUANTITY - 1:
-        _save_policy(owner, task.actor_id, task.sku, target_hold=available, sell_ratio=0,
-                     list_ratio=0, star_order='low', list_price_ratio='1.20',
-                     source='default', status='active', reason='存量较少，默认自用')
-        task.status = 'done'
-        task.error = ''
-        task.save(update_fields=['status', 'error', 'updated_at'])
-        return
-
-    from .market_plan_candidates import crafting_demand_facts
+    from .market_policy_review import decide
     try:
-        crafting_demand = crafting_demand_facts(owner, task.actor_id, task.sku)
-    except Exception:  # noqa: BLE001 - 辅助统计失败不阻断处置，显式标记未知并保留诊断。
-        logger.exception('市场需求统计失败 actor=%s sku=%s', task.actor_id, task.sku)
-        crafting_demand = {'status': 'unavailable', 'resident_count_excluding_self': None,
-                           'demand_resident_count': None}
-    if crafting_demand:
-        state['crafting_demand'] = crafting_demand
-
-    try:
-        mid = available // 2
-        hold_choices = {}
-        for value, label in ((0, '全部处理'), (mid, f'保留一半（{mid}）'), (available, f'全部自用（{available}）')):
-            hold_choices[str(value)] = label
-        hold_key = _ask(owner, agent, task, budget, 'hold', state, hold_choices,
-                        '决定这个商品长期保留多少自用；超量部分再决定出售或上架。只选一个选项。')
-        hold = int(hold_key)
-        surplus = max(0, available - hold)
-        if surplus <= 0:
-            _save_policy(owner, task.actor_id, task.sku, target_hold=hold, sell_ratio=0,
-                         list_ratio=0, star_order='low', list_price_ratio='1.20',
-                         source='model', status='active', reason=f'保留{hold}，不处置超量')
-            task.status = 'done'
-            task.error = ''
-            task.save(update_fields=['status', 'error', 'updated_at'])
-            return
-
-        channels = state['channels']
-        if not channels:
-            _default(owner, task.actor_id, task.sku, state, '该品类暂无可用的出售或上架渠道')
-            task.status = 'done'
-            task.save(update_fields=['status', 'updated_at'])
-            return
-        if len(channels) == 1:
-            channel = channels[0]
-        else:
-            channel = _ask(owner, agent, task, budget, 'channel', state,
-                           {'sell': '超量部分全部出售给商店', 'list': '超量部分全部上架',
-                            'split': '一部分出售，一部分上架'},
-                           '决定超量部分走商店回收还是居民集市挂牌。只选一个选项。')
-        if channel == 'split':
-            ratio = _ask(owner, agent, task, budget, 'ratio', state,
-                         {'25': '出售25%，上架75%', '50': '各一半', '75': '出售75%，上架25%'},
-                         '决定超量部分出售与上架的比例。只选一个选项。')
-            sell_ratio, list_ratio = {'25': (25, 75), '50': (50, 50), '75': (75, 25)}[ratio]
-        elif channel == 'sell':
-            sell_ratio, list_ratio = 100, 0
-        else:
-            sell_ratio, list_ratio = 0, 100
-
-        star_levels = [stars for stars, quantity in state['stars'].items() if quantity]
-        if surplus > 1 and len(star_levels) > 1:
-            star_order = _ask(owner, agent, task, budget, 'stars', state,
-                              {'low': '低星优先处理', 'high': '高星优先处理'},
-                              '决定先处理低星还是高星库存。只选一个选项。')
-        else:
-            star_order = 'low'
-
-        list_qty = surplus * list_ratio // 100
-        if list_qty > 0:
-            price_key = _ask(owner, agent, task, budget, 'price', state,
-                             {'1.00': '按回收价挂牌', '1.20': '回收价的1.2倍',
-                              '1.50': '回收价的1.5倍', '2.00': '回收价的2倍'},
-                             '决定挂牌单价相对物品回收价的倍数。上架不等于成交。只选一个选项。')
-        else:
-            price_key = '1.20'
-        _save_policy(owner, task.actor_id, task.sku, target_hold=hold,
-                     sell_ratio=sell_ratio, list_ratio=list_ratio, star_order=star_order,
-                     list_price_ratio=price_key, source='model', status='active',
-                     reason=f'留{hold}，超量出售{sell_ratio}%/上架{list_ratio}%，{star_order}星优先')
+        decide(owner, agent, task, budget, state, _ask)
     except BudgetExhausted:
         task.status = 'pending'
         task.attempts = max(0, task.attempts - 1)
         task.save(update_fields=['status', 'attempts', 'updated_at'])
         raise
     except ModelUnavailable:
-        _default(owner, task.actor_id, task.sku, state, '决策模型不可用，暂按自用保留，等待复核')
-        task.status = 'done'
-        task.error = '决策模型不可用，已按自用保留并标记复核'
+        task.status, task.error = 'failed', '决策连接不可用，保留最近完整策略，等待复核'
         task.save(update_fields=['status', 'error', 'updated_at'])
         return
-
-    task.status = 'done'
-    task.error = ''
+    task.status, task.error = 'done', ''
     task.save(update_fields=['status', 'error', 'updated_at'])
 
 
-def run(limit: int = QUESTION_LIMIT, seconds: int = RUN_SECONDS, owner: str | None = None) -> dict:
+def run(limit: int = QUESTION_LIMIT, seconds: int = RUN_SECONDS, owner: str | None = None, *, automatic: bool = False) -> dict:
     """处理待标记队列；达到问题数或时长上限时保留剩余任务，下次继续。"""
     budget = Budget(limit, seconds)
     recover_stale_tasks(owner)
     tasks = MarketDispositionTask.objects.filter(status__in=('pending', 'failed'), attempts__lt=3)
     if owner:
         tasks = tasks.filter(owner_id=owner)
+    if automatic:
+        from django.db.models import Q
+        from system_settings.models import WorldActionRuntime
+        from .life_config import market_automation_enabled, effective_settings
+        from .life_models import LifeConfig
+        allowed = Q(pk__in=[])
+        if WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
+            for config in LifeConfig.objects.filter(migrated=True):
+                if market_automation_enabled(config):
+                    actors = set(effective_settings(config).get('agent_ids', [])) - set(config.paused_agents or [])
+                    allowed |= Q(owner_id=config.pk, actor_id__in=actors)
+        tasks = tasks.filter(allowed)
     processed = 0
     for task in tasks.order_by('created_at', 'id')[:200]:
-        if not budget.can_ask() and budget.questions <= 0:
+        if not budget.can_ask():
             break
         agent = Agent.objects.filter(pk=task.actor_id, archived_at__isnull=True).first()
         if not agent:
@@ -296,11 +193,20 @@ def run(limit: int = QUESTION_LIMIT, seconds: int = RUN_SECONDS, owner: str | No
 
 
 def enqueue_review(owner: str, actor_id: str) -> int:
-    """把待复核策略重新入队；由每日规划调用。"""
-    from .market_disposition import enqueue
+    """Daily review covers all stock and live commitments, not just fallback policies."""
+    from .inventory_protection import commitments
+    from .market_disposition import enqueue, disposable
+    from .inventory_policy import is_current
+    from .life_time import local_time
+    day = local_time(timezone.now()).date().isoformat()
+    skus = {entry['sku'] for entry in aggregate(owner, actor_id)}
+    skus.update(d['sku'] for d in commitments(owner, actor_id) if disposable(d['sku']))
+    policies = {p.sku: p for p in MarketDisposition.objects.filter(owner_id=owner, actor_id=actor_id)}
     count = 0
-    for disposition in MarketDisposition.objects.filter(owner_id=owner, actor_id=actor_id, status='review'):
-        enqueue(owner, actor_id, disposition.sku, 0, source='review',
-                operation=f'review:{disposition.revision}')
+    for sku in sorted(skus):
+        policy = policies.get(sku)
+        if is_current(policy) and policy.strategy['reviewed_date'] == day:
+            continue
+        enqueue(owner, actor_id, sku, 0, source='review')
         count += 1
     return count

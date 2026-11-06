@@ -230,7 +230,9 @@ class FishingTests(TestCase):
         self.buy('minnow',12,10)
         return self.prepared(bait='minnow')
 
-    def test_worker_cast_respects_postgres_primary_key_length(self):
+    # 这些测试在 TestCase 的事务线程内直接推进 worker；真实 worker 使用独立连接。
+    @patch('system_settings.agent_world.fishing.worker.close_old_connections')
+    def test_worker_cast_respects_postgres_primary_key_length(self, _close_connections):
         from .worker import advance_one
         trip = self.prepared()
         create = WorldAction.objects.create
@@ -301,7 +303,8 @@ class FishingTests(TestCase):
         self.assertEqual(row.rules, legacy)
         checkpoint_all(); validate_source(database_data())
 
-    def test_revoked_permit_stops_worker_and_daily_feed_shows_pause(self):
+    @patch('system_settings.agent_world.fishing.worker.close_old_connections')
+    def test_revoked_permit_stops_worker_and_daily_feed_shows_pause(self, _close_connections):
         from .worker import advance_one, start
         trip = self.prepared()
         with patch('system_settings.sync_scheduler._is_server_process', return_value=True), \
@@ -705,6 +708,21 @@ class FishingTests(TestCase):
             listing=MarketListing.objects.get(pk='list-fish')
             trade(self.session,self.agent,'withdraw-fish',{'kind':'withdraw','listing_id':listing.pk,'version':listing.version})
         checkpoint_all();self.assertEqual(stock_quantity(self.agent.pk,'admin','fish.crucian'),1)
+
+    def test_expired_fish_returns_and_keeps_fishing_sync_provenance(self):
+        from ..inventory_stock import stock_rows
+        from ..market_expiry import expire_listing
+        from ..market_models import MarketTransaction
+        trip=self.prepared();self.cast_at(trip,kind='fish');finish(trip.pk,'返回')
+        self.session.status='active';self.session.save()
+        AgentExecutionLease.objects.filter(agent=self.agent).update(token='market-test',until=NOW+timedelta(hours=1))
+        item=stock_rows(self.agent.pk,'admin','fish.crucian').get()
+        with patch('system_settings.agent_world.market_service.check_mcp'):
+            trade(self.session,self.agent,'expiring-fish',{'kind':'list','item_id':item.pk,'quantity':1,'unit_price':'3'})
+        self.assertTrue(expire_listing('expiring-fish', NOW+timedelta(days=2)))
+        self.assertEqual(stock_quantity(self.agent.pk,'admin','fish.crucian'),1)
+        self.assertEqual(MarketTransaction.objects.get(operation__reason='listing_expired').result['fishing_sku'], 'fish.crucian')
+        checkpoint_all();validate_source(database_data())
 
     def test_missing_bait_purchase_ledger_rejected_even_without_digest(self):
         trip=self.prepared();finish(trip.pk,'返回');checkpoint_all()

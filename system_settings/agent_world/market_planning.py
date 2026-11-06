@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from system_settings.decision.routing import choose_scene
 from system_settings.models import Agent
-from .farm_gate import guarded
+from .farm_gate import farm_gate, guarded
 
 from .life_budget_policy import remaining_reservation
 from .life_models import LifeItem
@@ -150,6 +150,8 @@ def _queue_goals(owner: str, agent, plan: MarketPlan, rows: list[dict], room: De
     return created, added, lines
 
 
+@guarded
+@transaction.atomic
 def refresh_queue_needs(owner: str, actor_id: str, now=None) -> int:
     """农场队列出现种子或肥料缺口时，按采购上限补入市场目标。
 
@@ -157,7 +159,7 @@ def refresh_queue_needs(owner: str, actor_id: str, now=None) -> int:
     缺口金额已由代码算好，成交仍受当日市场预算、生活预留与队列采购上限约束。
     """
     now = now or timezone.now()
-    plan = MarketPlan.objects.filter(owner_id=owner, actor_id=actor_id,
+    plan = MarketPlan.objects.select_for_update().filter(owner_id=owner, actor_id=actor_id,
                                      plan_date=local_time(now).date()).first()
     if not plan or plan.status != 'active':
         return 0
@@ -191,6 +193,15 @@ def refresh_queue_needs(owner: str, actor_id: str, now=None) -> int:
     return created
 
 
+def _save_plan_answer(plan: MarketPlan, key: str, answer: str) -> None:
+    # Share both the snapshot gate and context row lock with inventory reviews.
+    with farm_gate(), transaction.atomic():
+        live = MarketPlan.objects.select_for_update().get(pk=plan.pk)
+        live.context = {**(live.context or {}), 'answers': {**(live.context or {}).get('answers', {}), key: answer}}
+        live.save(update_fields=['context', 'updated_at'])
+        plan.context = live.context
+
+
 def _ask(owner: str, agent, plan: MarketPlan, key: str, state: dict, choices: dict,
          instructions: str, questions_left: int) -> tuple[str | None, int]:
     """单题调用决策链；答案写入计划上下文，恢复或重试不重复提问。"""
@@ -208,12 +219,7 @@ def _ask(owner: str, agent, plan: MarketPlan, key: str, state: dict, choices: di
         instructions=instructions, include_role=False, max_probability=True)
     if selected not in choices:
         return None, questions_left
-    context = dict(plan.context or {})
-    answers = dict(context.get('answers') or {})
-    answers[key] = selected
-    context['answers'] = answers
-    plan.context = context
-    plan.save(update_fields=['context', 'updated_at'])
+    _save_plan_answer(plan, key, selected)
     return selected, questions_left - 1
 
 
@@ -324,9 +330,7 @@ def _decide(owner: str, agent, plan: MarketPlan, facts: dict) -> tuple[list[dict
             continue
         if (plan.context or {}).get('answers', {}).get(star_key) != selected:
             # A sole legal quality is still a confirmed prerequisite for pricing.
-            plan.context = {**(plan.context or {}), 'answers': {
-                **((plan.context or {}).get('answers') or {}), star_key: selected}}
-            plan.save(update_fields=['context', 'updated_at'])
+            _save_plan_answer(plan, star_key, selected)
         stars = choices[selected]['min_stars']
         quote = listing_quote(owner, agent.pk, row['sku'], stars)
         if not quote or quote['min_price'] > remaining:

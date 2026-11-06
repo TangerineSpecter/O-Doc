@@ -15,7 +15,7 @@ export function PlanDispositionsCard({
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                     <SlidersHorizontal className="h-4 w-4 text-orange-500" />
-                    <span>产物处置与挂牌策略</span>
+                    <span>用途保留与超量处置</span>
                     <span className="rounded-full bg-orange-100 px-1.5 py-0.2 text-[10px] font-bold text-orange-700">
                         {dispositions.length} 种产物
                     </span>
@@ -33,7 +33,7 @@ export function PlanDispositionsCard({
                     </span>
                     <span className="flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                        背包留存
+                        用途保护
                     </span>
                 </div>
             </div>

@@ -4,7 +4,7 @@ import time
 
 from django.core import serializers
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef
 
 from utils.sync_datetime import SyncJSONEncoder
 from utils.sync_policy import SyncError
@@ -14,18 +14,13 @@ from .explorations import TERMINAL
 from .migration_guard import is_protected
 from .models import CombatEncounter, CombatFact, Exploration
 from .solo_settlement import project, record
+from .solo_source_status import historical_gap_runs, solo_runs
 from .summary_verification import MAX_ACTOR_ROWS, verify_actors
 
 
 def legacy_runs():
-    """Select terminal solo explorations; failed preparations without a battle are ignored."""
-    facts = CombatFact.objects.filter(exploration_id=OuterRef('pk'), actor_id=OuterRef('actor_id'),
-                                      owner_id=OuterRef('owner_id'), kind__in=('depart', 'round'))
-    encounters = CombatEncounter.objects.filter(exploration_id=OuterRef('pk'), actor_id=OuterRef('actor_id'),
-                                                 owner_id=OuterRef('owner_id'))
-    return (Exploration.objects.filter(status__in=TERMINAL).exclude(snapshot__has_key='party_id')
-            .alias(has_fact=Exists(facts), has_encounter=Exists(encounters))
-            .filter(~Q(status='failed') | Q(has_fact=True) | Q(has_encounter=True)))
+    """Select finished battles, retaining genuine or uncertain source gaps."""
+    return solo_runs()
 
 
 def _backfill(owner, identity, max_source_rows, max_actor_rows, verified):
@@ -63,7 +58,7 @@ def automatic_batch(*, after='', limit=3, max_seconds=2,
             or max_actor_rows is not None and not 1 <= max_actor_rows <= MAX_ACTOR_ROWS or not 1 <= max_seconds <= 60):
         raise ValueError('旧单人回填批次或来源行数上限无效')
     covered = CombatSoloSettlement.objects.filter(pk=OuterRef('pk'))
-    query = legacy_runs().filter(pk__gt=after).alias(has_summary=Exists(covered)).filter(
+    query = legacy_runs().exclude(pk__in=historical_gap_runs().values('pk')).filter(pk__gt=after).alias(has_summary=Exists(covered)).filter(
         has_summary=False).order_by('pk')
     candidates = list(query.values_list('pk', 'owner_id')[:limit])
     started = time.monotonic()

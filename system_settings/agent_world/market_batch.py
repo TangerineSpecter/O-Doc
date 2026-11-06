@@ -24,6 +24,7 @@ from .market_models import MarketListing, MarketTransaction
 from .market_plan_models import MarketGoal, MarketPlan
 from .market_plan_candidates import craftable_after_purchase, crafting_input_domain
 from .market_service import trade
+from .inventory_policy import RetentionChanged
 from .market_shop import current_batch
 from .market_sessions import close_session, enter
 
@@ -44,7 +45,7 @@ def _unit_price(operation: dict) -> Decimal:
         return Decimal('0')
 
 
-def _sell_operation(owner: str, actor_id: str, sku: str, quantity: int, star_order: str) -> list[dict]:
+def _sell_operation(owner: str, actor_id: str, sku: str, quantity: int, star_order: str, *, context=None) -> list[dict]:
     operations = []
     if sku.startswith('combat.material.'):
         from .combat.store import current
@@ -55,15 +56,16 @@ def _sell_operation(owner: str, actor_id: str, sku: str, quantity: int, star_ord
         catalog = current(profile.catalog_id if profile else None)
         catalog.row('materials', material_id)
         return [{'kind': 'sell_combat_material', 'material_id': material_id, 'quantity': quantity}]
-    for row, take in select_rows(owner, actor_id, sku, quantity, star_order):
+    for row, take in select_rows(owner, actor_id, sku, quantity, star_order, context=context):
         operations.append({'kind': 'sell', 'item_id': row.pk, 'quantity': take})
     return operations
 
 
 def _list_operations(owner: str, actor_id: str, sku: str, quantity: int, star_order: str,
-                     unit_price: Decimal, *, skip: int = 0) -> list[dict]:
+                     unit_price: Decimal, *, skip: int = 0, context=None) -> list[dict]:
     operations = []
-    for row, take in select_rows(owner, actor_id, sku, quantity, star_order, skip=skip):
+    for row, take in select_rows(owner, actor_id, sku, quantity, star_order, skip=skip,
+                                 prevent_expired_relisting=True, context=context):
         operations.append({'kind': 'list', 'item_id': row.pk, 'quantity': take,
                            'unit_price': str(unit_price)})
     return operations
@@ -103,7 +105,7 @@ def _goal_buy(owner: str, actor_id: str, plan: MarketPlan, goal: MarketGoal, now
     else:
         # 装备由 tick 层逐件判断“买/永久不买”，这里不直接生成购买动作。
         return None
-    candidates = list(rows.order_by('unit_price', 'created_at')[:20])
+    candidates = rows.order_by('unit_price', 'created_at')
     cache = crafting_facts if crafting_facts is not None else {}
     buyer = agent
     if goal.kind == 'listing' and crafting_input_domain(goal.sku) and buyer is None:
@@ -111,6 +113,9 @@ def _goal_buy(owner: str, actor_id: str, plan: MarketPlan, goal: MarketGoal, now
         buyer = (Agent.objects.filter(pk=actor_id, archived_at__isnull=True).first()
                  if owns_actor(owner, actor_id) else None)
     for listing in candidates:
+        from .market_listing_expiry import is_expired
+        if is_expired(listing, now):
+            continue
         if goal.max_unit_price and listing.unit_price > goal.max_unit_price:
             continue
         quantity = 1 if goal.kind == 'equipment' else min(remain, listing.remaining_quantity)
@@ -224,17 +229,11 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
             for operation in row.get('operations', []):
                 key = _key(tick.pk, operation)
                 try:
-                    # A forge goal can be registered after the hourly read-only precheck.
-                    if row['sku'].startswith('combat.material.'):
-                        live = surplus_plan(owner, agent.pk, row['sku'])
-                        if not live or int(operation.get('quantity', 0)) > live['surplus']:
-                            result['skipped'].append({'operation': operation, 'reason': '材料已分配给打造目标'})
-                            continue
-                    if row['sku'].startswith('combat.material.'):
-                        trade(session, agent, key, operation, now, protect_goals=True)
-                    else:
-                        trade(session, agent, key, operation, now)
+                    trade(session, agent, key, operation, now, protect_goals=True,
+                          retention_sku=row['sku'], retention_revision=row['revision'])
                     result['done'].append(operation)
+                except RetentionChanged as exc:
+                    result['skipped'].append({'operation': operation, 'reason': str(exc)[:300]})
                 except Exception as exc:  # noqa: BLE001
                     result['failed'].append({'operation': operation, 'reason': str(exc)[:300]})
         if actions.get('equipment'):
@@ -281,35 +280,39 @@ def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None, agent=N
     actions = {'dispositions': [], 'goals': [], 'reprices': [], 'withdraws': [],
                'equipment': pending_actions(owner, agent_id)}
     from .market_plan_models import MarketDisposition
+    from .inventory_protection import read_context
+    protection_context = read_context(owner, agent_id)
     for disposition in MarketDisposition.objects.filter(owner_id=owner, actor_id=agent_id, status='active'):
         # 鱼在进场时统一回收，不再按处置策略生成出售或上架动作。
         if disposition.sku.startswith('fish.'):
             continue
-        state = surplus_plan(owner, agent_id, disposition.sku)
+        state = surplus_plan(owner, agent_id, disposition.sku, context=protection_context)
         if not state:
             continue
         operations = []
         if state['sell'] > 0:
-            operations.extend(_sell_operation(owner, agent_id, disposition.sku, state['sell'], state['star_order']))
+            operations.extend(_sell_operation(owner, agent_id, disposition.sku, state['sell'], state['star_order'], context=protection_context))
         if state['list'] > 0:
             operations.extend(_list_operations(owner, agent_id, disposition.sku, state['list'],
-                                               state['star_order'], state['unit_price'], skip=state['sell']))
+                                               state['star_order'], state['unit_price'], skip=state['sell'], context=protection_context))
         if operations:
             actions['dispositions'].append({'sku': disposition.sku, 'operations': operations,
-                                             'sell': state['sell'], 'list': state['list']})
+                                             'sell': state['sell'], 'list': state['list'], 'revision': state['revision']})
     # 仅在本轮只读预检中复用；下一轮重新读取库存和计划预留。
     crafting_facts = {}
     for goal in plan.goals.filter(status='open'):
         operation = _goal_buy(owner, agent_id, plan, goal, now, agent=agent, crafting_facts=crafting_facts)
         if operation:
             actions['goals'].append(operation)
-    # 挂牌超过两天每天最多小幅降价一次，且不低于回收价；装备挂牌同样适用。
+    # 首次挂牌或上次改价满一天后可降价，避免首次自动改价落在到期之后。
     from django.db.models import Q
-    stale = storage_time(now - timedelta(days=2))
     last_drop = storage_time(now - timedelta(days=1))
     rows = MarketListing.objects.filter(owner_id=owner, seller_id=agent_id, status='active').filter(
-        Q(created_at__lt=stale, repriced_at__isnull=True) | Q(repriced_at__lt=last_drop))
-    for listing in rows.order_by('created_at')[:10]:
+        Q(created_at__lt=last_drop, repriced_at__isnull=True) | Q(repriced_at__lt=last_drop))
+    from .market_listing_expiry import is_expired
+    for listing in rows.order_by('created_at'):
+        if is_expired(listing, now):
+            continue
         floor = Decimal(str((listing.item or {}).get('value') or 0))
         sku = ((listing.item or {}).get('source') or {}).get('sku', '')
         if sku.startswith('combat.material.'):
@@ -320,4 +323,6 @@ def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None, agent=N
             continue
         actions['reprices'].append({'kind': 'reprice', 'listing_id': listing.pk,
                                     'version': listing.version, 'unit_price': str(new_price)})
+        if len(actions['reprices']) >= 10:
+            break
     return actions

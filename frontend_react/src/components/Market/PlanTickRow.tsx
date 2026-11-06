@@ -1,11 +1,15 @@
+import {marketTickIssues} from './marketTickDetails';
+import {PlanTickFailures} from './PlanTickFailures';
 import type {MarketAutomationTick} from '../../types/api/market';
 import {marketTickStatusLabels} from './marketPresentation';
 
 type Props = {tick: MarketAutomationTick; isLatest: boolean; variant?: 'compact' | 'full'};
 
 export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
-    const isDone = tick.status === 'done';
-    const isFailed = tick.status === 'failed';
+    const issues = marketTickIssues(tick);
+    const partial = tick.status === 'done' && issues.length > 0;
+    const isDone = tick.status === 'done' && !partial;
+    const isFailed = tick.status === 'failed' || partial;
     const isSkipped = tick.status === 'skipped';
     if (variant === 'full') return (
         <div
@@ -45,7 +49,7 @@ export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
                                 : 'bg-slate-100 text-slate-600'
                     }`}
                 >
-                    {marketTickStatusLabels[tick.status] || tick.status}
+                    {partial ? '部分失败' : marketTickStatusLabels[tick.status] || tick.status}
                 </span>
                 {tick.reason && (
                     <span className="truncate text-slate-500 text-xs">
@@ -59,6 +63,7 @@ export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
                     最新巡检
                 </span>
             )}
+            <PlanTickFailures issues={issues}/>
         </div>
     );
     return (
@@ -99,7 +104,7 @@ export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
                                 : 'bg-slate-100 text-slate-600'
                     }`}
                 >
-                    {marketTickStatusLabels[tick.status] || tick.status}
+                    {partial ? '部分失败' : marketTickStatusLabels[tick.status] || tick.status}
                 </span>
                 {tick.reason && (
                     <span className="truncate text-slate-500 text-[10px]">
@@ -113,6 +118,7 @@ export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
                     最新
                 </span>
             )}
+            <PlanTickFailures issues={issues}/>
         </div>
     );
 }

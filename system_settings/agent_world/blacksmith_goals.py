@@ -52,8 +52,7 @@ def _valid_goals(owner: str, actor_id: str, rows: list[BlacksmithGoal], choices:
                 from .market_disposition import enqueue
                 rule = rules_for(owner).get(goal.recipe_id, {})
                 for ingredient in rule.get('ingredients', []):
-                    enqueue(owner, actor_id, ingredient['sku'], 0, source='blacksmith',
-                            operation=f'goal-invalid:{goal.pk}:{ingredient["sku"]}')
+                    enqueue(owner, actor_id, ingredient['sku'], 0, source='blacksmith')
             continue
         result.append(goal)
     return result

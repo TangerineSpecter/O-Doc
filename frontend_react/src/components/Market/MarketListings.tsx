@@ -100,8 +100,8 @@ export function MarketListings({items}: {items: MarketListing[]}) {
                                 </div>
 
                                 {/* 底部轻量标签行：改价信息与上架时间 */}
-                                <div className="mt-3 flex items-center justify-between border-t border-slate-100/90 pt-2 text-[10px] text-slate-400">
-                                    <span>上架 {marketTime(item.createdAt)}</span>
+                                <div className="mt-3 flex flex-wrap items-center justify-between gap-1 border-t border-slate-100/90 pt-2 text-[10px] text-slate-400">
+                                    <span>上架 {marketTime(item.createdAt)}{item.expiresAt && ` · ${marketTime(item.expiresAt)} 到期`}</span>
 
                                     {hasRepriced && (
                                         <span

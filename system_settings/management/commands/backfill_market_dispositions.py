@@ -37,7 +37,7 @@ class Command(BaseCommand):
                 if entry['quantity'] <= 0:
                     continue
                 enqueue(owner, actor_id, entry['sku'], entry['quantity'],
-                        source='backfill', operation='backfill')
+                        source='backfill')
                 queued += 1
         self.stdout.write(f'已扫描 {len(actors)} 位居民，入队 {queued} 个 sku。')
         if options['run']:

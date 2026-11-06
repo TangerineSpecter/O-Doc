@@ -75,7 +75,7 @@ def commit_portion(actor_id: str, opportunity_id: str, index: int, recipe_id: st
     gained = quality.get('experience_gained', snapshot['experience'])
     add_stock(actor_id, owner, agent.name, 'dish.' + recipe_id, 1, snapshot['name'], 'dish', price, key, stars=quality.get('stars', 1))
     from .market_disposition import enqueue
-    enqueue(owner, actor_id, 'dish.' + recipe_id, 1, source='cooking', operation=key)
+    enqueue(owner, actor_id, 'dish.' + recipe_id, 1, source='cooking')
     skill.experience += gained
     skill.actor_name, skill.updated_at = agent.name, now
     skill.save(update_fields=['experience', 'actor_name', 'updated_at'])

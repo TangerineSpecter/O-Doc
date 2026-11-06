@@ -121,8 +121,7 @@ def commit_piece(actor_id: str, opportunity_id: str, index: int, recipe_id: str,
         goal.save(update_fields=['status', 'operation_id', 'updated_at'])
         from .market_disposition import enqueue
         for ingredient in snapshot['rule']['ingredients']:
-            enqueue(owner, actor_id, ingredient['sku'], 0, source='blacksmith',
-                    operation=f'goal-completed:{key}:{ingredient["sku"]}')
+            enqueue(owner, actor_id, ingredient['sku'], 0, source='blacksmith')
     WorldAction.objects.create(pk=hashlib.sha256(f'blacksmith-energy:{key}'.encode()).hexdigest(),
         task=task, agent=agent, actor_id=actor_id, status='success', energy_cost=2, consumed_at=now,
         effects_done=True, snapshot={'blacksmith_energy': True, 'owner_id': owner}, result={'operation_id': key})

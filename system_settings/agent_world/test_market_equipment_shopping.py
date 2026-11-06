@@ -102,6 +102,22 @@ class EquipmentShoppingTests(TestCase):
         listing.refresh_from_db()
         self.assertEqual(listing.item['equipment_snapshot'], original)
 
+    def test_expired_equipment_returns_same_instance_and_syncs(self):
+        from .market_expiry import expire_listing
+        from .market_sync import reconcile_market
+        from .combat.equipment_market import equipment_listing_ids, pending_preparation_actions
+        item, listing = self.listing('expired-staff')
+        self.assertTrue(expire_listing(listing.pk, self.now + timedelta(days=2)))
+        listing.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(listing.status, 'withdrawn')
+        self.assertEqual(item.actor_id, self.b.pk)
+        self.assertFalse(item.sold)
+        self.assertNotIn(item.pk, equipment_listing_ids('admin'))
+        self.assertFalse(any(row['equipment_id'] == item.pk for row in pending_preparation_actions('admin', self.b.pk)))
+        self.assertEqual(MarketTransaction.objects.get(operation__reason='listing_expired').result['equipment_id'], item.pk)
+        reconcile_market()
+
     def test_explicit_no_disappears_next_hour_and_new_instance_appears(self):
         one, _ = self.listing('staff-1')
         two, _ = self.listing('staff-2')

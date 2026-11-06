@@ -78,6 +78,7 @@ class MarketDisposition(models.Model):
     owner_id = models.CharField(max_length=40, db_index=True)
     actor_id = models.CharField(max_length=40, db_index=True)
     sku = models.CharField(max_length=128)
+    strategy = models.JSONField(default=dict)
     target_hold = models.PositiveIntegerField(default=0)
     sell_ratio = models.PositiveSmallIntegerField(default=0)
     list_ratio = models.PositiveSmallIntegerField(default=0)

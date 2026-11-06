@@ -46,7 +46,7 @@ def grant(run, reward, identity):
         add_stock(run.actor_id, run.owner_id, run.actor_name, 'combat.'+item['id'], reward['quantity'],
                   item['name'], 'combat_material', item['sale_price'], identity)
         from ..market_disposition import enqueue
-        enqueue(run.owner_id, run.actor_id, 'combat.'+item['id'], reward['quantity'], source='loot', operation=identity)
+        enqueue(run.owner_id, run.actor_id, 'combat.'+item['id'], reward['quantity'], source='loot')
     reward.update(id=identity, elapsed_seconds=run.elapsed_seconds)
     run.result['rewards'].append(reward)
     return reward

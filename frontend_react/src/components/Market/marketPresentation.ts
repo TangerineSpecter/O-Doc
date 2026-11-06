@@ -10,6 +10,12 @@ export const marketOperationLabels: Record<string, string> = {
 export const marketTime = (value?: string) => value ? new Date(value).toLocaleString('zh-CN', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '—';
 export const marketMoney = (value: string) => Number(value).toLocaleString('zh-CN', {maximumFractionDigits: 2});
 
+export function marketOperationLabel(operation: {kind: string; reason?: string}) {
+    if (operation.kind === 'withdraw' && operation.reason === 'listing_expired') return '到期下架';
+    if (operation.kind === 'withdraw' && operation.reason === 'agent_archive') return '归档下架';
+    return marketOperationLabels[operation.kind] || operation.kind;
+}
+
 export function marketListingCategory(item: MarketItem) {
     const sku = item.source?.sku || '';
     if (sku.startsWith('fish.')) return {label: item.kind === 'fish_king' ? '鱼王' : '鱼类', className: 'bg-teal-50 border-teal-200 text-teal-700'};

@@ -83,10 +83,11 @@ def _delete_rows(model, ids):
 @guarded
 @transaction.atomic
 def cleanup_batch(*, now=None, limit=DEFAULT_BATCH_SIZE):
-    """Clean only after every finished battle is covered and both snapshots pass.
+    """Clean covered battles after both full snapshots pass validation.
 
     The local business/sync gate and one transaction cover the global check,
-    full-source validation, projected restore validation, and deletion.
+    full-source validation, projected restore validation, and deletion. Isolated
+    historical solo gaps are retained verbatim and never enter this batch.
     Any failure rolls back marker updates, deletions and revision changes.
     """
     if is_protected():
@@ -98,7 +99,7 @@ def cleanup_batch(*, now=None, limit=DEFAULT_BATCH_SIZE):
     if not parties and not solos:
         return {'cleaned': 0, 'round_facts': 0, 'round_events': 0, 'has_more': False, 'blocked': False}
     backlog = inspect_statistics_backlog()
-    if not backlog['basic_coverage_complete']:
+    if not backlog['cleanup_coverage_complete']:
         return {'cleaned': 0, 'round_facts': 0, 'round_events': 0, 'has_more': False,
                 'blocked': True, 'backlog': backlog}
 
