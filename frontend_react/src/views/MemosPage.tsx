@@ -25,6 +25,7 @@ import {useToast} from '../components/common/ToastProvider';
 import KnowledgeGraphPanel from '../components/Memos/KnowledgeGraphPanel';
 import MemoEditModal from '../components/Memos/MemoEditModal';
 import MemoCard from '../components/Memos/MemoCard';
+import MemoShareModal from '../components/Memos/MemoShareModal';
 import MemosSidebar from '../components/Memos/MemosSidebar';
 import RandomWalkModal from '../components/Memos/RandomWalkModal';
 import MemoCollision from '../components/Memos/MemoCollision';
@@ -133,6 +134,7 @@ export default function MemosPage() {
     const [selectedCreator, setSelectedCreator] = useState('');
     const [selectedCreatorSnapshot, setSelectedCreatorSnapshot] = useState<MemoCreatorOption | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [sharingMemo, setSharingMemo] = useState<MemoItem | null>(null);
     const [editingMemo, setEditingMemo] = useState<MemoItem | null>(null);
     const [editContent, setEditContent] = useState('');
     const [editTag, setEditTag] = useState('');
@@ -661,6 +663,7 @@ export default function MemosPage() {
                 markdownComponents={markdownComponents}
                 remarkPlugins={[remarkSoftLineBreaks, remarkGfm]}
                 onEdit={openEditModal}
+                onShare={setSharingMemo}
                 onPatch={patchMemo}
                 onDelete={setDeleteId}
                 formatDate={formatDate}
@@ -681,6 +684,8 @@ export default function MemosPage() {
                 confirmText="移入回收站"
                 type="danger"
             />
+
+            {sharingMemo && <MemoShareModal memo={sharingMemo} author={getMemoCreator(sharingMemo).name} onClose={() => setSharingMemo(null)} />}
 
             {editingMemo && (
                 <MemoEditModal

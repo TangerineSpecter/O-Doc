@@ -20,7 +20,7 @@ type CustomAxiosError = AxiosError<{
 const service: AxiosInstance = axios.create({
     // 环境变量中的 API 地址，一体项目，无代理，直接请求 /api 即可
     baseURL: '/api',
-    timeout: 10000, // 请求超时时间：10s
+    timeout: 30000, // 请求超时时间：30s
     headers: {
         'Content-Type': 'application/json;charset=utf-8'
     }

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import {Bot, CalendarClock, Edit3, Hash, Inbox, MoreHorizontal, Pin, PinOff, Trash2, User} from 'lucide-react';
+import {Bot, CalendarClock, Edit3, Hash, Inbox, MoreHorizontal, Share2, Pin, PinOff, Trash2, User} from 'lucide-react';
 import type {CreateMemoParams, MemoItem} from '../../types/api/memo';
 
 interface MemoAuthorMeta {
@@ -14,6 +14,7 @@ interface MemoCardProps {
     markdownComponents: Record<string, any>;
     remarkPlugins: any[];
     onEdit: (memo: MemoItem) => void;
+    onShare: (memo: MemoItem) => void;
     onPatch: (memoId: string, payload: Partial<CreateMemoParams>) => void;
     onDelete: (memoId: string) => void;
     formatDate: (date: string) => string;
@@ -27,6 +28,7 @@ export default function MemoCard({
     markdownComponents,
     remarkPlugins,
     onEdit,
+    onShare,
     onPatch,
     onDelete,
     formatDate,
@@ -66,6 +68,14 @@ export default function MemoCard({
                         >
                             <Edit3 className="h-4 w-4"/>
                             编辑
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onShare(memo)}
+                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-slate-700 transition hover:bg-slate-50 hover:text-orange-600"
+                        >
+                            <Share2 className="h-4 w-4"/>
+                            分享海报
                         </button>
                         <button
                             type="button"

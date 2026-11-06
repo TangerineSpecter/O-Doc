@@ -68,8 +68,7 @@ EOF
     esac
 fi
 
-LOCAL_IMAGE="${TCR_LOCAL_IMAGE:-o-doc:local-ready}"
-build_tags=(-t "$LOCAL_IMAGE" -t "$TCR_IMAGE")
+build_tags=(-t "$TCR_IMAGE")
 if [ -n "$TCR_EXTRA_TAGS" ]; then
     IFS=',' read -r -a extra_tags <<<"$TCR_EXTRA_TAGS"
     for tag in "${extra_tags[@]}"; do
@@ -79,21 +78,39 @@ if [ -n "$TCR_EXTRA_TAGS" ]; then
     done
 fi
 
-echo "构建本地镜像：$LOCAL_IMAGE ($TCR_PLATFORM)"
+echo "构建本地镜像：$TCR_IMAGE ($TCR_PLATFORM)"
 if [ -n "$TCR_EXTRA_TAGS" ]; then
     echo "附加镜像标签：$TCR_EXTRA_TAGS"
 fi
+image_id_file="$(mktemp)"
+trap 'rm -f "$image_id_file"' EXIT
 docker buildx build \
     --platform "$TCR_PLATFORM" \
     --build-arg "ODOC_BUILD_VERSION=$TCR_BUILD_VERSION" \
     --build-arg "ODOC_BUILD_COMMIT=$TCR_BUILD_COMMIT" \
-    "${build_tags[@]}" \
+    "${build_tags[@]}" --iidfile "$image_id_file" \
     --load "$PROJECT_ROOT"
 
-docker image inspect "$LOCAL_IMAGE" >/dev/null
-echo "本地镜像已就绪：${LOCAL_IMAGE}；可在同一 Docker daemon 上手动升级。"
+image_id="$(cat "$image_id_file")"
+if [ -z "$image_id" ]; then
+    echo "构建未返回镜像 ID，停止发布。" >&2
+    exit 1
+fi
+verify_tag() {
+    if [ "$(docker image inspect --format '{{.Id}}' "$1")" != "$image_id" ]; then
+        echo "镜像标签 $1 与本次构建不一致，停止发布。" >&2
+        exit 1
+    fi
+}
+for tag in "$TCR_IMAGE" "${extra_tags[@]:-}"; do
+    if [ -n "$tag" ]; then
+        docker tag "$image_id" "$tag"
+        verify_tag "$tag"
+    fi
+done
+echo "本地镜像已就绪：${TCR_IMAGE} (${image_id})；可在同一 Docker daemon 上手动升级。"
 if [ -n "${TCR_BUILD_WEBHOOK_URL:-}" ]; then
-    if ! TCR_LOCAL_IMAGE="$LOCAL_IMAGE" python3 "$PROJECT_ROOT/scripts/notify-local-image.py"; then
+    if ! TCR_LOCAL_IMAGE="$TCR_IMAGE" python3 "$PROJECT_ROOT/scripts/notify-local-image.py"; then
         echo "本地镜像就绪通知失败；继续推送云端。" >&2
     fi
 fi
@@ -101,10 +118,12 @@ fi
 echo "登录腾讯云 TCR：$TCR_REGISTRY"
 printf "%s" "$TCR_PASSWORD" | docker login "$TCR_REGISTRY" --username "$TCR_USERNAME" --password-stdin
 echo "推送镜像：$TCR_IMAGE"
+verify_tag "$TCR_IMAGE"
 docker push "$TCR_IMAGE"
 if [ -n "$TCR_EXTRA_TAGS" ]; then
     for tag in "${extra_tags[@]}"; do
         if [ -n "$tag" ]; then
+            verify_tag "$tag"
             docker push "$tag"
         fi
     done
