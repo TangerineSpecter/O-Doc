@@ -27,6 +27,7 @@ urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
     path('api/health/', health_check),
     path('api/system/logs/', include('system_logs.urls')),
+    path('api/system/performance/', include('system_performance.urls')),
     path('api/', include('user.urls')),
     path('api/anthology/', include('anthology.urls')),  # 文集接口
     path('api/learning/', include('learning.urls')),

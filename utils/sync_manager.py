@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from system_performance.instrumentation import monitored_task
+
 import hashlib
 import json
 import os
@@ -386,6 +388,7 @@ class SyncManager:
     @novel_sync_guard
     @learning_sync_guard
     @quant_sync_guard
+    @monitored_task('sync.import_backup')
     def import_local_backup_zip(self, zip_path, should_abort=None):
         require_sync_unprotected()
         extract_dir = tempfile.mkdtemp(prefix='odoc-backup-')
@@ -1277,6 +1280,7 @@ class SyncManager:
             raise SyncChoicesRequired(preview.get('choice_items') or [], preview['choice_total'])
 
 
+    @monitored_task('sync.webdav')
     def sync_v2(
         self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
         should_abort=None, recover_owned_remote_lock=False, force_overwrite=False,
@@ -1435,6 +1439,7 @@ class SyncManager:
     @novel_sync_guard
     @learning_sync_guard
     @quant_sync_guard
+    @monitored_task('sync.force_download')
     def force_download_v2(
         self, *, runner_id='', on_progress=None, should_abort=None, recover_owned_remote_lock=False,
     ):

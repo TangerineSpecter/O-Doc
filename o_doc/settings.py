@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'prompts.apps.PromptsConfig',
     'system_settings',
     'system_logs.apps.SystemLogsConfig',
+    'system_performance.apps.PerformanceConfig',
     'ai_assistant',
     'rag.apps.RagConfig',
     'message.apps.MessageConfig',
@@ -102,6 +103,7 @@ REST_FRAMEWORK = {
 
 MIDDLEWARE = [
     'system_logs.middleware.DiagnosticMiddleware',
+    'system_performance.middleware.PerformanceMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'djangorestframework_camel_case.middleware.CamelCaseMiddleWare',

@@ -1,3 +1,4 @@
+from system_performance.instrumentation import monitored_task
 import logging
 import os
 import socket
@@ -221,6 +222,7 @@ class ArticleRagScheduler:
 
         return current
 
+    @monitored_task('rag.article_sync')
     def _run(self, trigger='scheduler', run_date=None, notification_user=None, window_end=None):
         started_at = timezone.now()
         runtime_patch = {

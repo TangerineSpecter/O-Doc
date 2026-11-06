@@ -8,6 +8,8 @@ from .capture import capture, request_context
 
 def diagnostic_operation(module, resource_attr=None):
     def decorate(function):
+        from system_performance.instrumentation import monitored_task
+        function = monitored_task(f'{module}.{function.__qualname__}')(function)
         signature = inspect.signature(function)
         @wraps(function)
         def call(*args, **kwargs):

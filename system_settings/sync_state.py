@@ -21,6 +21,9 @@ LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
     'system_decision_sticky',
 })
 LOCAL_ONLY_MODEL_LABELS = frozenset({
+    'system_performance.performancepolicy', 'system_performance.performancebucket',
+    'system_performance.performancesample', 'system_performance.performanceflushbatch',
+    'system_performance.databasestatsnapshot', 'system_performance.performanceinflight',
     'memos.sproutjob',
     'memos.memocaptureauthorization',
     'system_settings.combatruntime', 'system_settings.fishingruntime', 'system_settings.tournamentruntime',

@@ -1,3 +1,4 @@
+import {resolvePerformanceRoute} from './performance';
 import type {PendingArticleIllustration} from '../types/api/prompt';
 import {resolveDiaryRoute} from './diary';
 import {delay, http, HttpResponse} from 'msw';
@@ -23,6 +24,9 @@ export const localHandlers = [
         if (state === 'error' && (new URL(request.url).pathname.startsWith('/api/settings/providers/') || new URL(request.url).pathname.startsWith('/api/settings/models/') || new URL(request.url).pathname.startsWith('/api/diary/') || (new URL(request.url).pathname.startsWith('/api/resource/') && new URL(request.url).pathname !== '/api/resource/list') || new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/') || new URL(request.url).pathname.startsWith('/api/novel/') || new URL(request.url).pathname.startsWith('/api/article/image/') || new URL(request.url).pathname === '/api/settings/locations/' || new URL(request.url).pathname === '/api/article/list')) {
             return HttpResponse.json({code: 503, msg: '本地模拟接口失败，可切回样例状态重试', data: null}, {status: 503});
         }
+        const performanceData = await resolvePerformanceRoute(request.clone(), state);
+        if (performanceData instanceof Response) return performanceData;
+        if (performanceData !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: performanceData});
         const modelData = await resolveModelSettingsRoute(request.clone(), state === 'empty');
         if (modelData instanceof Response) return modelData;
         if (modelData !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: modelData});

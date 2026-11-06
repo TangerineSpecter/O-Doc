@@ -1,6 +1,7 @@
 """统一入口：已规划且到点的安排先执行，再补规划，避免后续规划拖住当前机会。"""
 import logging
 from datetime import timedelta
+from system_performance.instrumentation import monitored_task
 from django.db import transaction
 from django.utils import timezone
 from system_settings.models import Agent, AgentTask, AgentRunRecord, WorldAction, WorldActionRuntime
@@ -86,6 +87,7 @@ def ready_without_replanning(item: LifeItem, now) -> bool:
     return local_time(item.scheduled_at) >= now - timedelta(seconds=90)
 
 
+@monitored_task('agent_world.execute_item')
 def execute_item(item: LifeItem, scheduler) -> None:
     from .life_config import config_for
     config=config_for(item.owner_id)

@@ -1,3 +1,4 @@
+import { PerformanceMonitor } from '../components/Settings/PerformanceMonitor';
 import type {AIModel} from '../types/api/setting';
 import { SystemLogs } from '../components/Settings/SystemLogs';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,8 +33,8 @@ import { ModelModal } from '../components/Settings/ModelModal';
 import { LocationSettings } from '../components/Settings/LocationSettings';
 import { AboutSettings } from '../components/Settings/AboutSettings';
 
-type SettingsTab = 'ai' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about' | 'logs';
-const SETTINGS_TABS: SettingsTab[] = ['ai', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about', 'logs'];
+type SettingsTab = 'ai' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about' | 'logs' | 'performance';
+const SETTINGS_TABS: SettingsTab[] = ['ai', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about', 'logs', 'performance'];
 
 interface TabItem {
     id: SettingsTab;
@@ -50,6 +51,7 @@ const TAB_ITEMS: TabItem[] = [
     { id: 'schedule', label: '定时设置', icon: <CalendarClock className="w-4 h-4 shrink-0" /> },
     { id: 'location', label: '地理位置', icon: <MapPin className="w-4 h-4 shrink-0" /> },
     { id: 'general', label: '常规设置', icon: <Settings className="w-4 h-4 shrink-0" /> },
+    { id: 'performance', label: '性能监控', icon: <Cpu className="w-4 h-4 shrink-0" />, adminOnly: true },
     { id: 'logs', label: '系统日志', icon: <Info className="w-4 h-4 shrink-0" />, adminOnly: true },
     { id: 'about', label: '关于', icon: <Info className="w-4 h-4 shrink-0" /> },
 ];
@@ -208,8 +210,8 @@ export default function SettingsPage() {
                 return;
             }
 
-            if ((activeTab === 'about' || activeTab === 'logs')) {
-                toast.info('关于页面无需保存');
+            if ((activeTab === 'about' || activeTab === 'logs' || activeTab === 'performance')) {
+                toast.info(activeTab === 'about' ? '关于页面无需保存' : '该页面无需保存');
                 return;
             }
         } catch (error: any) {
@@ -307,7 +309,7 @@ export default function SettingsPage() {
                 </div>
                 <button
                     onClick={handleSaveChanges}
-                    disabled={isSaving || headerSaving || (activeTab === 'about' || activeTab === 'logs')}
+                    disabled={isSaving || headerSaving || (activeTab === 'about' || activeTab === 'logs' || activeTab === 'performance')}
                     className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs sm:text-sm font-medium transition-colors shadow-sm disabled:opacity-70 whitespace-nowrap shrink-0 active:scale-95"
                 >
                     {isSaving || headerSaving ? (
@@ -315,7 +317,7 @@ export default function SettingsPage() {
                     ) : (
                         <Save className="w-4 h-4 shrink-0" />
                     )}
-                    <span>{(activeTab === 'about' || activeTab === 'logs') ? '无需保存' : '保存更改'}</span>
+                    <span>{(activeTab === 'about' || activeTab === 'logs' || activeTab === 'performance') ? '无需保存' : '保存更改'}</span>
                 </button>
             </div>
 
@@ -368,6 +370,7 @@ export default function SettingsPage() {
 
                 {/* Content */}
                 <div className="md:col-span-3 min-w-0">
+                    {activeTab === 'performance' && (isAdministrator ? <PerformanceMonitor /> : <p className="text-sm text-slate-500">仅管理员可以查看性能监控。</p>)}
                     {activeTab === 'logs' && (isAdministrator ? <SystemLogs /> : <p className="text-sm text-slate-500">仅管理员可以查看系统日志。</p>)}
                     {activeTab === 'ai' && (
                         <AISettings

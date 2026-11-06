@@ -39,6 +39,10 @@ class SnapshotModels:
     def drop_local_only_settings(self, data_list):
         filtered = []
         for item in data_list:
+            # Deployment diagnostics must also be ignored on import; excluding
+            # exports alone would allow a supplied snapshot to overwrite policy.
+            if str(item.get('model', '')).startswith('system_performance.'):
+                continue
             if (
                 item.get('model') == 'system_settings.systemsetting'
                 and str(item.get('pk')) in LOCAL_ONLY_SYSTEM_SETTING_KEYS

@@ -7,6 +7,8 @@ from .capture import capture, request_context
 
 
 def model_operation(function):
+    from system_performance.operations import monitored_model
+    function = monitored_model(function)
     @wraps(function)
     def call(*args, **kwargs):
         def execute():
@@ -45,6 +47,13 @@ def model_config(config):
     context = request_context.get()
     if context.get('module') == 'ai':
         request_context.set({**context, **{key: config.get(key, '') for key in ('provider_name', 'model_name', 'model_role')}})
+        from system_performance.instrumentation import CURRENT
+        event = CURRENT.get()
+        if event is not None:
+            for key in ('provider_name', 'model_name'):
+                value = str(config.get(key) or '')
+                if value and len(value) <= 100 and '://' not in value and '\n' not in value:
+                    event[key] = value
     return config
 
 

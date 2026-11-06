@@ -77,6 +77,8 @@ async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.
                         # leave content empty. Keep it for parsing; do not treat it as
                         # published output or as a failure of the next provider.
                         reasoning_parts.append(reasoning)
+                        if len(reasoning_parts) == 1:
+                            inbox.put(('performance_first_output', 'thinking'))
                     if isinstance(choice.finish_reason, str):
                         finish = choice.finish_reason
         finally:
@@ -128,13 +130,17 @@ def _drive(
         raise AIRequestTimeout(f'模型调用达到 {math.ceil(hard_deadline_seconds)} 秒硬时限')
     from system_settings.token_usage.capture import Capture
     capture = Capture(config, attempt=metadata.get('request_attempt', 1))
+    from system_performance.operations import observe_attempt
+    observe_attempt(metadata.get('request_attempt', 1))
     capture.set_request(parameters)
     status = 'interrupted'
     response_content = None
     failure = None
     output_parts = []
     inbox, cancelled = queue.Queue(), threading.Event()
-    thread = threading.Thread(target=_network, args=(config, parameters, seconds, inbox, cancelled), daemon=True, name='bounded-ai-network')
+    from contextvars import copy_context
+    diagnostic_context = copy_context()
+    thread = threading.Thread(target=diagnostic_context.run, args=(_network, config, parameters, seconds, inbox, cancelled), daemon=True, name='bounded-ai-network')
     thread.start()
     try:
         while True:
@@ -153,6 +159,10 @@ def _drive(
             if kind == 'output':
                 output_parts.append(value)
                 continue
+            if kind == 'performance_first_output':
+                from system_performance.operations import first_output
+                first_output(value)
+                continue
             if kind == 'done':
                 status = 'success'
                 response_content = value
@@ -164,6 +174,9 @@ def _drive(
                     raise AIRequestTimeout(f'模型调用达到 {math.ceil(hard_deadline_seconds)} 秒硬时限或连接已取消') from value
                 raise value
             event, title, details = value
+            if event == 'model_first_output':
+                from system_performance.operations import first_output
+                first_output()
             emit_ai_event(event, title, **metadata, **details)
     except BaseException as exc:
         failure = exc
@@ -195,6 +208,10 @@ def _thinking_unsupported(exc: Exception) -> bool:
     return ('thinking' in message or 'enable_thinking' in message) and any(word in message for word in ('unsupported', 'not support', 'unknown', 'unrecognized', 'not permitted', 'extra input', '不支持'))
 
 
+from system_performance.operations import bounded_model
+
+
+@bounded_model
 def complete(
     config: dict,
     prompt: str,

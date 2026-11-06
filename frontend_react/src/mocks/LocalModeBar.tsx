@@ -1,6 +1,9 @@
+import {useState} from 'react';
+import {simulatePerformanceActivity} from './performance';
 import {clearQuantMockData} from './quant/state';
 
 export default function LocalModeBar() {
+    const [notice, setNotice] = useState('');
     const state = new URLSearchParams(location.search).get('mockState') || 'populated';
     const change = (value: string) => {
         const url = new URL(location.href);
@@ -14,6 +17,13 @@ export default function LocalModeBar() {
             {([['populated', '样例'], ['empty', '空数据'], ['slow', '加载中'], ['error', '接口错误']] as const).map(([value, label]) =>
                 <button key={value} type="button" aria-pressed={state === value} onClick={() => change(value)} className={`rounded-full px-2 py-0.5 ${state === value ? 'bg-orange-500 text-white' : 'hover:bg-orange-100'}`}>{label}</button>)}
         </div>
+        {location.pathname === '/settings' && new URLSearchParams(location.search).get('tab') === 'performance' && <button type="button" onClick={() => {
+            if (state === 'empty') {setNotice('请切回样例模式再模拟采集'); return;}
+            const generated = simulatePerformanceActivity();
+            setNotice(generated ? '已生成新一轮诊断样本' : '采集已暂停，请先在采集设置中开启');
+            if (generated) window.dispatchEvent(new Event('odoc:performance-mock-updated'));
+        }} className="rounded-full border border-orange-200 bg-white px-2 py-0.5">模拟新采集</button>}
+        {notice && <span role="status">{notice}</span>}
         <button type="button" onClick={() => {clearQuantMockData();location.reload();}} className="rounded-full border border-orange-200 bg-white px-2 py-0.5 hover:bg-orange-100">重置样例</button>
     </aside>;
 }
