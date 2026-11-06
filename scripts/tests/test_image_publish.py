@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -109,6 +111,46 @@ class PublishTests(unittest.TestCase):
             conn.getresponse.return_value.read.return_value = b'not json'
             with self.assertRaisesRegex(notify.NotificationError, "响应格式"):
                 notify.send_notification("https://open.feishu.cn/hook", {}, True)
+
+    def test_malformed_url_errors_do_not_include_secret(self):
+        for url in ("https://open.feishu.cn/hook/secret中文", "https://open.feishu.cn:secret/hook",
+                    "https://open.feishu.cn/hook/secret\n"):
+            with self.subTest(url=url), self.assertRaises(notify.NotificationError) as raised:
+                notify.parse_target(url)
+            self.assertNotIn("secret", str(raised.exception))
+
+    def test_config_check_does_not_connect_or_need_image(self):
+        with mock.patch.dict(os.environ, {"TCR_BUILD_WEBHOOK_URL": "https://open.feishu.cn/hook/token"}, clear=True), \
+             mock.patch.object(notify.sys, "argv", ["notify-local-image.py", "--check-config"]), \
+             mock.patch.object(notify, "send_notification") as send, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(notify.main(), 0)
+            send.assert_not_called()
+
+    def test_failure_location_does_not_expose_exception_message(self):
+        try:
+            raise ValueError("private-webhook-token")
+        except ValueError as exc:
+            description = notify.failure_location(exc)
+        self.assertIn("ValueError", description)
+        self.assertIn("test_image_publish.py", description)
+        self.assertNotIn("private-webhook-token", description)
+
+    def test_real_http_client_serializes_chinese_feishu_message(self):
+        addresses = [(2, 1, 6, "", ("8.8.8.8", 443))]
+        sock = mock.MagicMock()
+        sock.makefile.return_value = io.BytesIO(b'HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n{"code":0}')
+        context = mock.MagicMock()
+        context.wrap_socket.return_value = sock
+        info = {"image": "o-doc:local-ready", "version": "v1.6.7", "commit": "abc", "platform": "linux/amd64"}
+        payload = notify.notification_payload(info, True)
+        with mock.patch.object(notify.socket, "getaddrinfo", return_value=addresses), \
+             mock.patch.object(notify.socket, "create_connection", return_value=sock) as connect, \
+             mock.patch.object(notify.ssl, "create_default_context", return_value=context):
+            notify.send_notification("https://open.feishu.cn/open-apis/bot/v2/hook/test", payload, True)
+        connect.assert_called_once_with(("8.8.8.8", 443), 10, None)
+        context.wrap_socket.assert_called_once_with(sock, server_hostname="open.feishu.cn")
+        sent = b"".join(call.args[0] for call in sock.sendall.call_args_list)
+        self.assertIn("本地镜像已就绪".encode("utf-8"), sent)
 
 
 if __name__ == "__main__":
