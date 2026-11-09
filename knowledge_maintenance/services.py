@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
@@ -412,15 +413,22 @@ def collect_health_issues(user_id):
     rag_used = any(article.last_rag_synced_at for article in articles)
 
     for article in articles:
+        tags = article.tags.all()
+        empty = not (article.content or '').strip()
+        uncategorized = not article.category or not article.category.is_valid
+        untagged = not any(tag.is_valid for tag in tags)
+        rag_pending = (rag_enabled or rag_used) and not article.is_rag_synced and not empty
+        if not (empty or uncategorized or untagged or rag_pending):
+            continue
         edit_action = {'type': 'navigate', 'target': {'view': 'editor', 'params': {'article_id': article.article_id}}}
-        article_fingerprint = _fingerprint(article.updated_at, article.title, article.content, article.category_id, sorted(tag.tag_id for tag in article.tags.all()))
-        if not (article.content or '').strip():
+        article_fingerprint = _fingerprint(article.updated_at, article.title, article.content, article.category_id, sorted(tag.tag_id for tag in tags))
+        if empty:
             issues.append(_issue('article_empty', 'warning', 'article', article.article_id, article.title, '正文为空，建议补充内容或确认是否需要保留。', article_fingerprint, edit_action))
-        if not article.category or not article.category.is_valid:
+        if uncategorized:
             issues.append(_issue('article_uncategorized', 'info', 'article', article.article_id, article.title, '未设置有效分类，后续查找和整理会更困难。', article_fingerprint, edit_action))
-        if not any(tag.is_valid for tag in article.tags.all()):
+        if untagged:
             issues.append(_issue('article_untagged', 'info', 'article', article.article_id, article.title, '还没有标签，可以在编辑器中补充。', article_fingerprint, edit_action))
-        if (rag_enabled or rag_used) and not article.is_rag_synced and (article.content or '').strip():
+        if rag_pending:
             issues.append(_issue('rag_pending', 'warning', 'article', article.article_id, article.title, '文章尚未进入 RAG 知识库。', article_fingerprint, {'type': 'rag_sync', 'article_id': article.article_id}))
 
     memo_cutoff = timezone.now() - timedelta(days=7)
@@ -453,8 +461,9 @@ def collect_health_issues(user_id):
             book_ref and book_ref[1] == 'file' and
             book_ref[0].local_state == 'cloud_only' and book_ref[0].remote_available
         )
-        fingerprint = _fingerprint(asset.update_time, asset.file_hash, asset.is_linked, os.path.isfile(absolute_path))
-        if not os.path.isfile(absolute_path) and not intentionally_cloud_only:
+        file_exists = os.path.isfile(absolute_path)
+        fingerprint = _fingerprint(asset.update_time, asset.file_hash, asset.is_linked, file_exists)
+        if not file_exists and not intentionally_cloud_only:
             if book_ref and book_ref[1] == 'file':
                 book = book_ref[0]
                 action = {'type': 'navigate', 'target': {'view': 'book', 'params': {'coll_id': book.anthology_id, 'book_id': book.book_id}}}
@@ -468,28 +477,47 @@ def collect_health_issues(user_id):
     return issues
 
 
-def health_payload(user_id, severity='', rule_code='', include_ignored=False, page=1, page_size=20):
-    issues = collect_health_issues(user_id)
+def health_summary_cache_key(user_id):
+    return f'knowledge-health:v1:{user_id}'
+
+
+def _mark_ignored_issues(user_id, issues):
     ignore_map = {
         (item.rule_code, item.source_type, item.source_id): item.source_fingerprint
         for item in HealthIssueIgnore.objects.filter(user_id=user_id)
     }
-    for issue in issues:
-        key = (issue['rule_code'], issue['source_type'], issue['source_id'])
-        issue['ignored'] = ignore_map.get(key) == issue['fingerprint']
+    return [
+        {**issue, 'ignored': ignore_map.get((issue['rule_code'], issue['source_type'], issue['source_id'])) == issue['fingerprint']}
+        for issue in issues
+    ]
 
+
+def _score_health_issues(issues):
     visible_for_score = [issue for issue in issues if not issue['ignored']]
     severity_counts = {
         level: sum(issue['severity'] == level for issue in visible_for_score)
         for level in ('critical', 'warning', 'info')
     }
+    score = max(0, 100 - min(40, severity_counts['critical'] * 10) - min(30, severity_counts['warning'] * 3) - min(30, severity_counts['info']))
+    status = '良好' if score >= 90 else '待整理' if score >= 70 else '需处理'
+
+    summary = {
+        'score': score, 'status': status, 'severity_counts': severity_counts,
+        'total': len(visible_for_score),
+    }
+    return summary, visible_for_score
+
+
+def health_payload(user_id, severity='', rule_code='', include_ignored=False, page=1, page_size=20, *, issues=None):
+    if issues is None:
+        issues = collect_health_issues(user_id)
+    issues = _mark_ignored_issues(user_id, issues)
+    summary, visible_for_score = _score_health_issues(issues)
+    cache.set(health_summary_cache_key(user_id), summary, timeout=60)
     rule_counts = {
         code: sum(issue['rule_code'] == code for issue in visible_for_score)
         for code in HEALTH_RULE_TITLES
     }
-    score = max(0, 100 - min(40, severity_counts['critical'] * 10) - min(30, severity_counts['warning'] * 3) - min(30, severity_counts['info']))
-    status = '良好' if score >= 90 else '待整理' if score >= 70 else '需处理'
-
     filtered = issues if include_ignored else visible_for_score
     if severity:
         filtered = [issue for issue in filtered if issue['severity'] == severity]
@@ -500,9 +528,7 @@ def health_payload(user_id, severity='', rule_code='', include_ignored=False, pa
     total = len(filtered)
     start = (page - 1) * page_size
     return {
-        'score': score,
-        'status': status,
-        'severity_counts': severity_counts,
+        **summary,
         'rule_counts': rule_counts,
         'total': total,
         'page': page,
@@ -513,7 +539,11 @@ def health_payload(user_id, severity='', rule_code='', include_ignored=False, pa
 
 def overview_payload(user_id):
     review = review_payload(user_id)
-    health = health_payload(user_id, page_size=3)
+    health = cache.get(health_summary_cache_key(user_id))
+    if health is None:
+        issues = _mark_ignored_issues(user_id, collect_health_issues(user_id))
+        health, _ = _score_health_issues(issues)
+        cache.set(health_summary_cache_key(user_id), health, timeout=60)
     return {
         'review': {
             'date': review['date'],
@@ -523,10 +553,5 @@ def overview_payload(user_id):
             'streak': review['streak'],
             'lead_item': next((item for item in review['items'] if item['status'] == 'pending'), None),
         },
-        'health': {
-            'score': health['score'],
-            'status': health['status'],
-            'severity_counts': health['severity_counts'],
-            'total': sum(health['severity_counts'].values()),
-        },
+        'health': health,
     }

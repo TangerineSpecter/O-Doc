@@ -27,6 +27,7 @@ write_compose_file'''
                          'ODOC_COMBAT_DAILY_AUTO', 'ODOC_FISHING_DAILY_BACKFILL'):
                 self.assertIn(f'{name}: ${{{name}:-', compose)
             self.assertIn('ODOC_COMBAT_DAILY_AUTO: ${ODOC_COMBAT_DAILY_AUTO:-1}', compose)
+            self.assertIn('ODOC_COMBAT_ROUND_RETENTION_DAYS: ${ODOC_COMBAT_ROUND_RETENTION_DAYS-7}', compose)
             for name in ('system_logs', 'token_usage_details'):
                 self.assertIn(f'./runtime/{name}:/app/runtime/{name}', compose)
                 self.assertTrue((Path(temp) / 'runtime' / name).is_dir())

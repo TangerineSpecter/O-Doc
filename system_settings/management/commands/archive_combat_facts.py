@@ -31,4 +31,4 @@ class Command(BaseCommand):
                 self.stdout.write(f"居民 {item['actor']}：旧版预览覆盖 {item['archived']} 条，边界 {item['boundary']}")
             elif item.get('reason'):
                 self.stdout.write(f"居民 {item['actor']}：跳过（{item['reason']}）")
-        self.stdout.write(self.style.WARNING(f'旧版预览覆盖 {total} 条事实；旧版删除已停用，不能当作七天可清理数量'))
+        self.stdout.write(self.style.WARNING(f'旧版预览覆盖 {total} 条事实；旧版删除已停用，不能当作实际可清理数量'))

@@ -167,10 +167,10 @@ def quota_limit(config: dict, key: str) -> int:
         return 0
 
 
-def quota_reason(task, agent, config: dict, quota=None) -> str:
+def quota_reason(task, agent, config: dict, quota=None, now=None) -> str:
     if not config.get('quota_enabled'):
         return ''
-    total, counts = quota if quota is not None else quota_usage(task, config)
+    total, counts = quota if quota is not None else quota_usage(task, config, now=now)
     limit = quota_limit(config, 'quota_total')
     if limit and total >= limit:
         return '本期发帖总量已达到上限'
@@ -201,7 +201,7 @@ def eligibility(task, agent, *, config=None, preview=False, quota=None, now=None
     if not categories_for(config):
         return '没有启用且允许发布的分类'
     if config.get('quota_enabled'):
-        reason = quota_reason(task, agent, config, quota)
+        reason = quota_reason(task, agent, config, quota, now=now)
         if reason:
             return reason
     if not preview and stamina(agent) < PUBLISH_COST:

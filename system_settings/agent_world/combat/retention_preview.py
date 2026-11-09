@@ -1,4 +1,4 @@
-"""Read-only inspection of one shared battle's proposed seven-day boundary."""
+"""Read-only inspection of one shared battle's proposed retention boundary."""
 import json
 from datetime import timedelta
 
@@ -17,6 +17,7 @@ from .models import CombatFact, Exploration
 from .party_daily_preview import preview
 from .party_daily_sync import records
 from .party_models import AdventureEvent, AdventureMember, AdventureParty
+from .retention_policy import retention_window
 from .retention_gate import inspect_statistics_backlog
 
 
@@ -24,7 +25,7 @@ from .retention_gate import inspect_statistics_backlog
 def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
     """Report local source and payload observations, never authorize deletion.
 
-    The seven-day clock starts after the last member has actually finished and
+    The retention clock starts after the last member has actually finished and
     left. This preliminary check cannot verify asset provenance or any remote
     device. The automatic cleanup transaction performs the complete validation.
     """
@@ -36,7 +37,8 @@ def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
     members = list(AdventureMember.objects.filter(party_id=identity))
     runs = {row.pk: row for row in Exploration.objects.filter(pk__in=[item.exploration_id for item in members]).only(
         'id', 'owner_id', 'actor_id', 'status', 'ended_at', 'snapshot')}
-    cutoff = local_time(now) - timedelta(days=7)
+    observed_at = local_time(now)
+    days, cutoff = retention_window(observed_at)
     blockers = []
     timestamps = []
     if party.status != 'completed' or not members:
@@ -55,7 +57,7 @@ def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
     last_finished = max(timestamps, default=None)
     age_ready = bool(not blockers and last_finished and last_finished <= cutoff)
     if not blockers and not age_ready:
-        blockers.append('最后一位成员结束尚未满七天')
+        blockers.append(f'最后一位成员结束尚未满 {days} 天')
 
     events = AdventureEvent.objects.filter(party_id=identity)
     rounds = events.filter(kind='round')
@@ -115,7 +117,8 @@ def inspect_party(owner, identity, *, now=None, max_source_rows=20000):
     else:
         blockers.append('只读预览不能授权删除；自动任务将在事务内核验全部来源、资产和压缩后的恢复数据')
     return {
-        'party_id': identity, 'owner_id': owner, 'seven_day_cutoff': cutoff.isoformat(),
+        'party_id': identity, 'owner_id': owner, 'retention_days': days, 'retention_cutoff': cutoff.isoformat(),
+        'seven_day_cutoff': (observed_at - timedelta(days=7)).isoformat(),
         'last_member_finished_at': last_finished.isoformat() if last_finished else None,
         'age_ready': age_ready, 'archived': archived, 'shared_source_verified': source_valid and not archived,
         'daily_contribution_verified': coverage_valid, 'compact_settlement': compact,

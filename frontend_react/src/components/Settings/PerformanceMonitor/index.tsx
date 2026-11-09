@@ -93,15 +93,15 @@ export function PerformanceMonitor() {
             ? [{at: points[index - 1].at + (data?.overview.trendStepSeconds || 60), averageMs: null}, point]
             : [point]
     );
-    const runningGroups = new Map<string, {kind: PerformanceKind; operation: string; count: number; longestMs: number}>();
+    const runningGroups = new Map<string, {kind: PerformanceKind; operation: string; status: string; count: number; longestMs: number}>();
     for (const item of data?.overview.inflight ?? []) {
-        const key = JSON.stringify([item.kind, item.operation]);
+        const key = JSON.stringify([item.kind, item.operation, item.status]);
         const group = runningGroups.get(key);
         if (group) {
             group.count += 1;
             group.longestMs = Math.max(group.longestMs, item.elapsedMs);
         } else {
-            runningGroups.set(key, {kind: item.kind, operation: item.operation, count: 1, longestMs: item.elapsedMs});
+            runningGroups.set(key, {kind: item.kind, operation: item.operation, status: item.status, count: 1, longestMs: item.elapsedMs});
         }
     }
 
@@ -486,7 +486,7 @@ export function PerformanceMonitor() {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
                         </span>
-                        <h3 className="font-bold text-slate-900 text-sm">正在执行</h3>
+                        <h3 className="font-bold text-slate-900 text-sm">在途操作</h3>
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-50 text-orange-700">
                             {data?.overview.inflight.length}
                         </span>
@@ -497,12 +497,12 @@ export function PerformanceMonitor() {
                             <div key={key} className="p-3 bg-white hover:bg-slate-50/80 flex items-center justify-between gap-4 text-xs">
                                 <span className="font-mono text-slate-800 break-all">{item.operation === 'unmatched' ? '尚未匹配路由的请求' : item.operation} <span className="font-sans text-slate-400">（{kindNames[item.kind as Exclude<PerformanceKind, ''>]}）</span></span>
                                 <span className="tabular-nums font-medium whitespace-nowrap text-orange-600 shrink-0">
-                                    {item.count} 个 · 最长已执行 {duration(item.longestMs)}
+                                    {item.count} 个 · {item.status === 'unconfirmed' ? '心跳中断，上次已执行' : '最长已执行'} {duration(item.longestMs)}
                                 </span>
                             </div>
                         ))}
                     </div>
-                    <p className="text-[11px] text-slate-400">按操作类型合并，显示当前执行数量和最长已执行时间；最多展示最近 100 个在途操作。心跳超过 5 分钟后不再展示。</p>
+                    <p className="text-[11px] text-slate-400">超过 20 秒未收到心跳时，显示上次心跳确认的耗时。最多展示最近 100 条，5 分钟后隐藏失联记录。</p>
                 </section>
             )}
 

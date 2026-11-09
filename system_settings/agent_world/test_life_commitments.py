@@ -7,7 +7,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from system_settings.models import Agent, AgentTask, AIProvider, AIModel, WorldAction, WorldActionRuntime, SystemSetting
-from .execution import stamina
+from .execution import resident_stamina, stamina
 from .farm_automation import tick_automation, tend_farm
 from .farm_catalog import DEFAULT_RULES
 from .farm_models import AgentFarm, FarmOperation
@@ -45,6 +45,11 @@ class FarmCommitmentTests(TestCase):
         WorldAction.objects.update_or_create(pk='prior-consumption', defaults={
             'actor_id': self.agent.pk, 'status': 'success', 'energy_cost': 100 - amount,
             'consumed_at': storage_time(NOW - timedelta(seconds=1))})
+
+    def test_stamina_replays_a_single_pass_resident_iterator(self):
+        self.energy(37)
+        agents = Agent.objects.filter(pk=self.agent.pk).iterator()
+        self.assertEqual(resident_stamina(agents), {self.agent.pk: Decimal(37)})
 
     def crops(self, offsets):
         farm = AgentFarm.objects.get(pk=self.agent.pk)

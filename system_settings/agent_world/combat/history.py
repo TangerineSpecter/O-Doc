@@ -1,7 +1,9 @@
 """Transactional sealing and runtime catalog retention. No historical records are deleted."""
 import json
 from django.core import serializers
-from django.db import transaction
+from django.db import connection, transaction
+from django.db.models import Count, Func, IntegerField, TextField
+from django.db.models.functions import Cast
 from .models import CombatCatalog, CombatProfile, CombatFact, CombatIntegrity, EquipmentInstance, Exploration, CombatEncounter
 from .history_snapshot import normalize_source, OPEN
 from ..farm_gate import guarded
@@ -64,7 +66,6 @@ def runtime_catalog_ids() -> set[str]:
 
 def prepare_fact_restore(data: list[dict]) -> None:
     """Restore each already-validated stream atomically, including migrated sequence numbers."""
-    from django.db import connection
     if not connection.in_atomic_block:
         raise RuntimeError('恢复战斗事实必须位于事务内')
     streams = {}
@@ -94,13 +95,21 @@ def summary(owner: str) -> dict:
     profiles = CombatProfile.objects.filter(owner_id=owner)
     checkpoints = CombatFact.objects.filter(owner_id=owner, kind='checkpoint')
     active = Exploration.objects.filter(owner_id=owner, status__in=OPEN)
+    profile_counts = dict(profiles.order_by().values_list('catalog_id').annotate(n=Count('pk')))
+    active_counts = dict(active.order_by().values_list('catalog_id').annotate(n=Count('pk')))
     needed = runtime_catalog_ids()
-    rows = list(CombatCatalog.objects.order_by('-created_at', '-pk'))
-    return {'current_version': rows[0].pk if rows else '', 'catalog_count': len(rows),
-        'sync_catalog_count': sum(row.pk in needed for row in rows),
-        'frozen_residents': checkpoints.values('actor_id').distinct().count(), 'resident_count': profiles.count(),
+    catalogs = CombatCatalog.objects.order_by('-created_at', '-pk')
+    if connection.vendor == 'postgresql':
+        sizes = list(catalogs.annotate(size_bytes=Func(
+            Cast('tables', TextField()), function='octet_length', output_field=IntegerField(),
+        )).values_list('pk', 'size_bytes'))
+    else:
+        sizes = [(row.pk, len(json.dumps(row.tables, ensure_ascii=False).encode())) for row in catalogs]
+    return {'current_version': sizes[0][0] if sizes else '', 'catalog_count': len(sizes),
+        'sync_catalog_count': sum(version in needed for version, _ in sizes),
+        'frozen_residents': checkpoints.values('actor_id').distinct().count(), 'resident_count': sum(profile_counts.values()),
         'frozen_explorations': Exploration.objects.filter(owner_id=owner, snapshot__history_frozen=1).count(),
-        'active_explorations': active.count(),
-        'versions': [{'version': row.pk, 'bytes': len(json.dumps(row.tables, ensure_ascii=False).encode()),
-            'synchronized': row.pk in needed, 'active_explorations': active.filter(catalog_id=row.pk).count(),
-            'residents': profiles.filter(catalog_id=row.pk).count()} for row in rows]}
+        'active_explorations': sum(active_counts.values()),
+        'versions': [{'version': version, 'bytes': size,
+            'synchronized': version in needed, 'active_explorations': active_counts.get(version, 0),
+            'residents': profile_counts.get(version, 0)} for version, size in sizes]}

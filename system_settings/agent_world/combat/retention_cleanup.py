@@ -1,6 +1,5 @@
 """Atomically replace verified old combat rounds with compact settlements."""
 import json
-from datetime import timedelta
 
 from django.apps import apps
 from django.core import serializers
@@ -22,13 +21,13 @@ from .party_daily_sync import SETTLEMENT as PARTY_SETTLEMENT
 from .party_models import AdventureEvent, AdventureMember, AdventureParty
 from .party_sync import EVENT
 from .retention_compaction import CHAIN, compact
+from .retention_policy import retention_window
 from .retention_gate import inspect_statistics_backlog
 from .solo_daily_backfill import legacy_runs
 from .solo_settlement import SETTLEMENT as SOLO_SETTLEMENT
 from .store import digest
 from .sync import metadata, validate_source
 
-RETENTION_DAYS = 7
 DEFAULT_BATCH_SIZE = 20
 # Inputs used by combat.sync and its reservation, stock and asset checks.
 # Keep this list synchronized with those validators as they gain new sources.
@@ -94,7 +93,7 @@ def cleanup_batch(*, now=None, limit=DEFAULT_BATCH_SIZE):
         raise ValueError('回填保护期间暂停战斗回合清理')
     if type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError('战斗回合清理批量无效')
-    cutoff = (now or timezone.now()) - timedelta(days=RETENTION_DAYS)
+    _, cutoff = retention_window(now or timezone.now())
     parties, solos = _candidates(cutoff, limit)
     if not parties and not solos:
         return {'cleaned': 0, 'round_facts': 0, 'round_events': 0, 'has_more': False, 'blocked': False}

@@ -1,7 +1,7 @@
 """Inspect legacy checkpoint boundaries; actual legacy deletion is disabled.
 
 Existing archive baselines remain available for source and inventory checks.
-Seven-day round cleanup is handled separately by retention_cleanup.
+Per-round cleanup is handled separately by retention_cleanup.
 """
 from collections import Counter
 from datetime import timedelta

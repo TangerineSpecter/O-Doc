@@ -51,6 +51,8 @@ def persist(events: list[dict], batch_id: str):
         _dimension_day, _dimension_keys = timezone.now().date(), set()
     if PerformanceFlushBatch.objects.filter(pk=batch_id).exists():
         return dict(duplicate=True, rejected_events=0, discarded_samples=0)
+    # Completion retires the heartbeat even when storage rejects this batch.
+    PerformanceInflight.objects.filter(pk__in=[event['id'] for event in events]).delete()
     groups = {}
     samples = []
     for event in events:
@@ -108,7 +110,6 @@ def persist(events: list[dict], batch_id: str):
             row.histogram = [row.histogram[i] + data['histogram'][i] for i in range(len(data['histogram']))] if histogram_valid else []
             row.save()
     PerformanceSample.objects.bulk_create(retained, ignore_conflicts=True)
-    PerformanceInflight.objects.filter(pk__in=[event['id'] for event in events]).delete()
     PerformanceFlushBatch.objects.create(id=batch_id)
     budget.state['discarded_samples'] += skipped
     budget.save()

@@ -14,6 +14,7 @@ from .migration_guard import PROTECTION_ENV
 from .models import CombatFact, Exploration
 from .party_daily_automatic import automatic_batch
 from .party_models import AdventureEvent, AdventureMember
+from .retention_policy import RETENTION_ENV
 from .retention_cleanup import cleanup_batch
 from .solo_daily_backfill import automatic_batch as solo_batch
 from .sync import metadata, validate_source
@@ -207,7 +208,7 @@ class RetentionCleanupTests(TestCase):
         from .queries import profile_view, snapshot
 
         party, _ = self.finished_party()
-        with patch.dict('os.environ', {PROTECTION_ENV: '0'}):
+        with patch.dict('os.environ', {PROTECTION_ENV: '0', RETENTION_ENV: '2'}):
             automatic_batch(max_seconds=60)
             run_ids = list(Exploration.objects.filter(snapshot__party_id=party.pk).values_list('pk', flat=True))
             event = AdventureEvent.objects.filter(party_id=party.pk, kind='round',
@@ -239,7 +240,13 @@ class RetentionCleanupTests(TestCase):
             discoveries = {agent.pk: profile_view('admin', agent)['discoveries']['defeated'] for agent in self.agents}
             originals = list(Exploration.objects.filter(pk__in=run_ids).values_list('snapshot', flat=True))
             self.assertTrue(any((snapshot.get('party_final') or {}).get('events') for snapshot in originals))
-            self.assertEqual(cleanup_batch(now=self.now + timedelta(days=8))['cleaned'], 1)
+            last_end = max(*Exploration.objects.filter(pk__in=run_ids).values_list('ended_at', flat=True),
+                           *AdventureMember.objects.filter(party_id=party.pk).values_list('left_at', flat=True))
+            boundary = last_end + timedelta(days=2)
+            self.assertEqual(cleanup_batch(now=boundary - timedelta(microseconds=1))['cleaned'], 0)
+            with patch.dict('os.environ', {RETENTION_ENV: '0'}), self.assertRaisesRegex(ValueError, RETENTION_ENV):
+                cleanup_batch(now=boundary)
+            self.assertEqual(cleanup_batch(now=boundary)['cleaned'], 1)
             self.assertTrue(all((snapshot.get('party_final') or {}).get('events') == []
                                 for snapshot in Exploration.objects.filter(pk__in=run_ids)
                                 .values_list('snapshot', flat=True)))

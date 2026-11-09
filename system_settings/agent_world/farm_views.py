@@ -61,7 +61,7 @@ class FarmListView(APIView):
         agent_ids = [f.pk for f in farms]
         agents = {
             a.pk: a
-            for a in Agent.objects.select_related('profession').filter(pk__in=agent_ids)
+            for a in Agent.objects.filter(pk__in=agent_ids).select_related('profession').only('name', 'avatar', 'profession__name')
         }
         rows = []
         for f in farms:
@@ -105,7 +105,7 @@ class FarmHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, farm_id):
-        farm = get_object_or_404(AgentFarm, pk=farm_id, owner_id=get_current_user_identifier(request))
+        farm = get_object_or_404(AgentFarm.objects.only('pk'), pk=farm_id, owner_id=get_current_user_identifier(request))
         return success_result(list(farm.operations.values('id', 'operation', 'result', 'reason', 'created_at')[:100]))
 
 

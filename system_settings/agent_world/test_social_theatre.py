@@ -1,7 +1,7 @@
 import json
 import time
 from contextlib import contextmanager
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 from unittest.mock import patch
@@ -431,6 +431,15 @@ class SocialTheatreTests(TestCase):
         response = client.get('/api/settings/agent-world/social/discussions/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['data']['items'][0]['id'], event.pk)
+        newer = SocialTheatreEvent.objects.create(
+            id='upcoming', owner_id='admin', business_date=date(2026, 10, 20), slot_index=0,
+            scheduled_at=event.scheduled_at + timedelta(days=1), status='scheduled',
+        )
+        current_url = '/api/settings/agent-world/social/discussions/?current=1'
+        self.assertEqual([row['id'] for row in client.get(current_url).json()['data']['items']], [newer.pk])
+        event.status = 'running'
+        event.save(update_fields=['status'])
+        self.assertEqual([row['id'] for row in client.get(current_url).json()['data']['items']], [event.pk])
         detail = client.get(f'/api/settings/agent-world/social/discussions/{event.pk}/')
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.json()['data']['source']['url'], 'https://news.example/a')
@@ -440,6 +449,7 @@ class SocialTheatreTests(TestCase):
         client.force_authenticate(other)
         listing = client.get('/api/settings/agent-world/social/discussions/')
         self.assertEqual(listing.json()['data']['items'], [])
+        self.assertEqual(client.get(current_url).json()['data']['items'], [])
         hidden = client.get(f'/api/settings/agent-world/social/discussions/{event.pk}/')
         self.assertEqual(hidden.status_code, 404)
 

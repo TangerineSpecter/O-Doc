@@ -1,4 +1,5 @@
 """居民历史查询应跳过其他居民的日期，并保留权限、分页与售出记录。"""
+import json
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -104,6 +105,20 @@ class ResidentDailyFeedTests(TestCase):
         activity.save()
         response = self.client.get('/api/settings/agent-world/daily-feed/', {'actor_id': self.actor.pk})
         self.assertEqual([row['id'] for row in response.data['data']['items']], [f'activity:{activity.pk}'])
+
+    def test_theatre_date_matches_historical_numeric_and_current_string_ids(self):
+        from .daily_feed import FeedScope
+        from .social_models import SocialTheatreEvent
+        scope = FeedScope(actors={'17'}, names={}, visible_colls=())
+        for days, participant in [(6, 17), (4, '17'), (2, '017')]:
+            when = storage_time(self.today - timedelta(days=days))
+            row = SocialTheatreEvent.objects.create(id=f'scene-{days}', owner_id=self.owner,
+                business_date=when.date(), slot_index=0, scheduled_at=when, participants=[{'id': participant}])
+            SocialTheatreEvent.objects.filter(pk=row.pk).update(updated_at=when)
+        for before_days, expected_days in [(0, 4), (5, 6)]:
+            day = latest_event_day(None, self.owner, storage_time(self.today - timedelta(days=before_days)),
+                                   'interaction', '17', scope=scope)
+            self.assertEqual(day, (self.today - timedelta(days=expected_days)).date())
 
     def test_unfiltered_history_includes_both_residents(self):
         first = self.activity(self.actor, 3)
@@ -302,3 +317,64 @@ class FarmFeedPollingTests(ResidentDailyFeedTests):
         self.assertEqual(card['occurredAt'], (self.today + timedelta(minutes=len(visible_codes)-1)).isoformat())
         farm.refresh_from_db()
         self.assertEqual(len(farm.state['planting_plans']['p']['events']), len(codes))
+
+    def test_deferred_ledger_is_serializable_before_and_after_paging(self):
+        from .models import WorldLedger
+        row = WorldLedger.objects.create(pk='feed-ledger', agent_id=self.actor.pk, kind='farm',
+                                         amount=8, snapshot={'title': '种植收入'}, created_at=storage_time(self.today))
+        request = APIRequestFactory().get('/')
+        request.user = self.user
+        _, cards, _, _, _ = day_events(request, self.owner, self.today.date(), page_projection=True)
+        card = next(card for card in cards if card['id'] == f'ledger:{row.pk}')
+        self.assertFalse(any(k.startswith('_') for k in json.loads(json.dumps(card))))
+        response = self.client.get('/api/settings/agent-world/daily-feed/',
+                                   {'category': 'finance', 'date': self.today.date().isoformat()})
+        shown = next(item for item in response.json()['data']['items'] if item['id'] == card['id'])
+        self.assertEqual((shown['title'], shown['detail']), ('农场收入', '种植收入'))
+
+    def test_only_page_groups_build_steps_while_counts_cover_whole_day(self):
+        from .daily_feed_page import attach_steps
+        from .farm_models import AgentFarm, FarmOperation
+
+        for i, actor in enumerate((self.actor, self.other)):
+            farm = AgentFarm.objects.create(id=actor.pk, owner_id=self.owner, actor_name=actor.name)
+            for pos in range(3):
+                FarmOperation.objects.create(pk=f'op:{i}:{pos}', farm=farm, operation={'kind': 'water'},
+                    created_at=storage_time(self.today + timedelta(minutes=i * 10 + pos)))
+
+        request = APIRequestFactory().get('/')
+        request.user = self.user
+        full, _, _, _, _ = day_events(request, self.owner, self.today.date())
+        deferred, _, _, _, _ = day_events(request, self.owner, self.today.date(), page_projection=True)
+        json.dumps(deferred)
+        self.assertTrue(all(not key.startswith('_') for card in deferred for key in card))
+        url = '/api/settings/agent-world/daily-feed/'
+        params = {'category': 'farm', 'date': self.today.date().isoformat(), 'page_size': 1}
+        with patch('system_settings.agent_world.daily_feed_page.attach_steps', wraps=attach_steps) as build:
+            first = self.client.get(url, params).data['data']
+            self.assertEqual(build.call_count, 1)
+            second = self.client.get(url, {**params, 'cursor': first['nextCursor']}).data['data']
+            self.assertEqual(build.call_count, 2)
+        self.assertEqual(first['items'] + second['items'], full)
+        self.assertEqual(first['allTotal'], 2)
+        self.assertEqual(first['counts']['farm'], 2)
+        self.assertEqual(first['actorCounts'], {self.actor.pk: 1, self.other.pk: 1})
+        self.assertFalse(second['hasMore'])
+
+    def test_farm_history_skips_polling_only_dates_and_other_residents(self):
+        from .daily_feed import feed_scope
+        from .farm_models import AgentFarm
+        for actor, days, code in [(self.actor, 1, 'busy'), (self.other, 2, 'completed')]:
+            events = [{'id': 'first', 'at': (self.today - timedelta(days=days)).timestamp(),
+                       'code': code, 'detail': code}]
+            if actor == self.actor:
+                events.append({'id': 'older', 'at': (self.today - timedelta(days=8)).timestamp(),
+                               'code': 'completed', 'detail': '收获完成'})
+            AgentFarm.objects.create(pk=actor.pk, owner_id=self.owner, state={'planting_plans': {'p': {'events': events}}})
+        request = APIRequestFactory().get('/')
+        request.user = self.user
+        scope = feed_scope(request, self.owner)
+        before = storage_time(self.today)
+        for actor, days in [('', 2), (self.actor.pk, 8)]:
+            self.assertEqual(latest_event_day(request, self.owner, before, 'farm', actor, scope=scope),
+                             (self.today - timedelta(days=days)).date())

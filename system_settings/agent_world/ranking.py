@@ -1,3 +1,4 @@
+from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -29,12 +30,35 @@ def rank(collection_id: str, period='total', value='', cutoff=None) -> list[dict
         for change in WorldChange.objects.filter(occurred_at__lt=cutoff).order_by('occurred_at', 'id'):
             states[change.kind][change.object_id] = change.payload
     else:
-        posts = list(Article.objects.filter(coll_id=collection_id, is_valid=True))
+        candidates = Article.objects.filter(coll_id=collection_id, is_valid=True)
+        if period in ('month', 'year'):
+            try:
+                start = datetime.strptime(str(value), '%Y-%m' if period == 'month' else '%Y')
+                end = month_cutoff(value) if period == 'month' else start.replace(year=start.year + 1)
+                if settings.USE_TZ:
+                    start = start.replace(tzinfo=SHANGHAI)
+                    if period == 'year':
+                        end = end.replace(tzinfo=SHANGHAI)
+            except (ValueError, OverflowError):
+                return []
+            candidates = candidates.filter(created_at__gte=start, created_at__lt=end)
+        posts = list(candidates.only('pk', 'coll_id', 'title', 'agent_post_author_id',
+            'agent_post_creator_id', 'agent_post_creator_name', 'created_at', 'is_valid', 'permission'))
         for post in posts:
             states['post'][post.pk] = payload(post)[1]
         for model, kind in [(ArticlePostComment, 'comment'), (ArticlePostRating, 'rating')]:
-            for row in model.objects.filter(article_id__in=[p.pk for p in posts], is_valid=True).order_by('updated_at', model._meta.pk.name):
+            fields = ('rater_id', 'rating') if kind == 'rating' else ('creator_id',)
+            for row in model.objects.filter(article_id__in=states['post'], is_valid=True).only(
+                    'pk', 'article_id', 'actor_agent_id', 'is_valid', *fields).order_by('updated_at', model._meta.pk.name):
                 states[kind][row.pk] = payload(row)[1]
+    comments_by_post = defaultdict(set)
+    ratings_by_post = defaultdict(dict)
+    for item in states['comment'].values():
+        if item['valid'] and item['actor']:
+            comments_by_post[item['post_id']].add(item['actor'])
+    for item in states['rating'].values():
+        if item['valid'] and item['actor']:
+            ratings_by_post[item['post_id']][item['actor']] = item['rating']
     result = []
     for post_id, post in states['post'].items():
         if post['collection_id'] != collection_id or not post['valid']:
@@ -46,8 +70,10 @@ def rank(collection_id: str, period='total', value='', cutoff=None) -> list[dict
         if period == 'month' and date.strftime('%Y-%m') != value:
             continue
         owner = actor_key(post.get('author_id', ''), post.get('creator_id', ''))
-        comments = {p['actor'] for p in states['comment'].values() if p['post_id'] == post_id and p['valid'] and p['actor'] and p['actor'] != owner}
-        ratings = {p['actor']: p['rating'] for p in states['rating'].values() if p['post_id'] == post_id and p['valid'] and p['actor'] and p['actor'] != owner}
+        comments = comments_by_post[post_id]
+        comments.discard(owner)
+        ratings = ratings_by_post[post_id]
+        ratings.pop(owner, None)
         if not comments and not ratings:
             continue
         score = juice(list(ratings.values()), comments)

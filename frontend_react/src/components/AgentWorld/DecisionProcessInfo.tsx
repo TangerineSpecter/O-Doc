@@ -10,7 +10,7 @@ export function DecisionProcessInfo({kind}: {kind: DecisionGuideKind}) {
     // 领域配置还描述不经过模型的后台维护，避免把到期下架误认为居民决策。
     const guide = decisionProcessGuides[kind];
     const description = kind === 'exploration'
-        ? `${guide.subtitle}；历史保留与缺口处理见执行边界。` : kind === 'market' ? `${guide.subtitle}；用途目标每日复核，承诺去重保护；后台补扫与失败返还限频。` : guide.subtitle;
+        ? `${guide.subtitle}；历史保留与缺口处理见执行边界。` : kind === 'market' ? `${guide.subtitle}；用途目标每日复核，承诺去重保护；后台补扫与失败返还限频。` : (kind === 'main_schedule' || kind === 'post_publish') ? `${guide.subtitle}；本机自动重排与历史配额修复见执行边界。` : guide.subtitle;
     return <>
         <button type="button" aria-label={`查看${guide.title}`} title={`${guide.title}：${guide.subtitle}`}
             aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}

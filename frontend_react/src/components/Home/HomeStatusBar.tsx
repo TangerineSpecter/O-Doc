@@ -7,7 +7,7 @@ import type { MaintenanceOverview } from '../../types/api/maintenance';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 
 interface HomeStatusBarProps {
-    onNavigate: (viewName: string, params?: any) => void;
+    onNavigate: (viewName: string) => void;
 }
 
 const formatActivityTime = (value: string) => {
@@ -22,81 +22,47 @@ const formatActivityTime = (value: string) => {
 
 export default function HomeStatusBar({ onNavigate }: HomeStatusBarProps) {
     const [agentSummary, setAgentSummary] = useState<SummaryData | null>(null);
-    const [activities, setActivities] = useState<AgentActivity[]>([]);
+    const [activities, setActivities] = useState<AgentActivity[] | null>();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
-    const [maintenance, setMaintenance] = useState<MaintenanceOverview | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [maintenance, setMaintenance] = useState<MaintenanceOverview | null>();
+    const activityCount = activities?.length ?? 0;
 
     useEffect(() => {
         const controller = new AbortController();
-        let active = true;
+        const {signal} = controller;
+        void getAgentWorldSummary(signal).then(data => {
+            if (!signal.aborted) setAgentSummary(data);
+        }).catch(() => {
+            if (!signal.aborted) setAgentSummary(null);
+        });
+        void getAgentActivities({limit: 8}, signal).then(data => {
+            if (!signal.aborted) setActivities(data.items);
+        }).catch(() => {
+            if (!signal.aborted) setActivities(null);
+        });
+        void getMaintenanceOverview(signal).then(data => {
+            if (!signal.aborted) setMaintenance(data);
+        }).catch(() => {
+            if (!signal.aborted) setMaintenance(null);
+        });
 
-        const fetchData = async () => {
-            try {
-                const [agentSumRes, agentActRes, maintRes] = await Promise.allSettled([
-                    getAgentWorldSummary(controller.signal),
-                    getAgentActivities({ limit: 8 }, controller.signal),
-                    getMaintenanceOverview(),
-                ]);
-
-                if (!active || controller.signal.aborted) return;
-
-                if (agentSumRes.status === 'fulfilled') {
-                    setAgentSummary(agentSumRes.value);
-                }
-                if (agentActRes.status === 'fulfilled' && agentActRes.value.items?.length > 0) {
-                    setActivities(agentActRes.value.items);
-                }
-                if (maintRes.status === 'fulfilled') {
-                    setMaintenance(maintRes.value);
-                }
-            } catch {
-                // 忽略非关键错误，保持静默降级
-            } finally {
-                if (active && !controller.signal.aborted) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        void fetchData();
-
-        return () => {
-            active = false;
-            controller.abort();
-        };
+        return () => controller.abort();
     }, []);
 
     // 动态滚动定时器（鼠标悬停时自动暂停）
     useEffect(() => {
-        if (activities.length <= 1 || isPaused) return;
+        if (activityCount <= 1 || isPaused) return;
 
         const timer = setInterval(() => {
-            setCurrentIndex((prev) => (prev + 1) % activities.length);
+            setCurrentIndex((prev) => (prev + 1) % activityCount);
         }, 3200);
 
         return () => clearInterval(timer);
-    }, [activities.length, isPaused]);
+    }, [activityCount, isPaused]);
 
-    // 加载中骨架条
-    if (loading) {
-        return (
-            <div className="mb-4 h-11 w-full animate-pulse rounded-xl border border-slate-200/80 bg-white shadow-sm flex items-center px-4 justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="h-4 w-20 rounded bg-slate-100" />
-                    <div className="h-4 w-44 rounded bg-slate-100 hidden sm:block" />
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="h-4 w-24 rounded bg-slate-100" />
-                    <div className="h-6 w-14 rounded-lg bg-slate-100" />
-                </div>
-            </div>
-        );
-    }
-
-    const reviewHandled = maintenance?.review.handled ?? 0;
-    const reviewTotal = maintenance?.review.total ?? 0;
+    const reviewHandled = maintenance?.review.handled ?? '–';
+    const reviewTotal = maintenance?.review.total ?? '–';
     const healthScore = maintenance?.health.score;
     const activeCount = agentSummary?.activeAgentCount ?? 0;
 
@@ -129,12 +95,12 @@ export default function HomeStatusBar({ onNavigate }: HomeStatusBarProps) {
 
                         {/* 垂直平滑滚动动态流 */}
                         <div className="relative h-5 min-w-0 flex-1 overflow-hidden">
-                            {activities.length > 0 ? (
+                            {activityCount > 0 ? (
                                 <div
                                     className="transition-transform duration-500 ease-out"
                                     style={{ transform: `translateY(-${currentIndex * 20}px)` }}
                                 >
-                                    {activities.map((activity) => (
+                                    {activities?.map((activity) => (
                                         <div
                                             key={activity.id}
                                             className="flex h-5 items-center gap-1.5 truncate text-xs text-slate-600 transition group-hover:text-slate-900"
@@ -159,7 +125,7 @@ export default function HomeStatusBar({ onNavigate }: HomeStatusBarProps) {
                                 </div>
                             ) : (
                                 <div className="flex h-5 items-center gap-1 text-xs text-slate-400">
-                                    <Bot className="h-3 w-3" /> 暂无新动态
+                                    <Bot className="h-3 w-3" /> {activities === undefined ? '正在读取动态…' : activities === null ? '动态暂不可用' : '暂无新动态'}
                                 </div>
                             )}
                         </div>
@@ -183,9 +149,11 @@ export default function HomeStatusBar({ onNavigate }: HomeStatusBarProps) {
 
                         <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">
                             <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                            <span>{reviewHandled}</span>
-                            <span className="text-slate-400">/</span>
-                            <span>{reviewTotal}</span>
+                            {maintenance === null ? '暂不可用' : <>
+                                <span>{reviewHandled}</span>
+                                <span className="text-slate-400">/</span>
+                                <span>{reviewTotal}</span>
+                            </>}
                         </span>
 
                         {healthScore !== undefined && (

@@ -176,14 +176,17 @@ def backfill_relation_events():
 
 
 def relation_graph(owner_id=None, include_departed=False):
-    from .agent_world.execution import stamina
+    from .agent_world.execution import resident_stamina
     from .agent_world.travel_models import AgentInventoryItem
     from django.db.models import Sum
 
-    agents_query = Agent.objects.select_related("profession").all()
+    agents_query = Agent.objects.select_related('profession').only(
+        'name', 'avatar', 'money', 'archived_at', 'created_at', 'profession__name',
+    )
     if not include_departed:
         agents_query = agents_query.filter(archived_at__isnull=True)
     agents = list(agents_query)
+    stamina_by_agent = resident_stamina(agents)
     from .agent_world.life_queries import next_activity_times
     next_times = next_activity_times(owner_id, [agent.pk for agent in agents if not agent.archived])
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
@@ -220,19 +223,21 @@ def relation_graph(owner_id=None, include_departed=False):
     farms = AgentFarm.objects.all()
     if owner_id:
         farms = farms.filter(owner_id=owner_id)
-    planting_experience = {f.pk: f.state.get('planting_experience', 0) for f in farms}
+    planting_experience = dict(farms.filter(pk__in=stamina_by_agent).values_list('pk', 'state__planting_experience'))
     combat_info_map = {}
     try:
         from .agent_world.combat.models import CombatProfile, CombatCatalog
         from .agent_world.combat.catalog import bundled
         from .agent_world.combat.store import current
-        cat = current() if CombatCatalog.objects.exists() else bundled()[0]
         c_profiles = CombatProfile.objects.all()
         if owner_id is not None:
             c_profiles = c_profiles.filter(owner_id=owner_id)
-        for cp in c_profiles:
-            job_id = cp.progression.get('job', 'job.novice')
-            lvl = int(cp.progression.get('level', 1))
+        profiles = list(c_profiles.filter(pk__in=stamina_by_agent).values_list('pk', 'progression__job', 'progression__level'))
+        if profiles:
+            cat = current() if CombatCatalog.objects.exists() else bundled()[0]
+        for actor_id, job, level in profiles:
+            job_id = job or 'job.novice'
+            lvl = int(level if level is not None else 1)
             j_name = '新手'
             try:
                 row = cat.row('professions', job_id)
@@ -240,7 +245,7 @@ def relation_graph(owner_id=None, include_departed=False):
                     j_name = row['name']
             except Exception:
                 pass
-            combat_info_map[cp.pk] = {'name': j_name, 'level': lvl}
+            combat_info_map[actor_id] = {'name': j_name, 'level': lvl}
     except Exception:
         pass
     for agent in agents:
@@ -253,11 +258,11 @@ def relation_graph(owner_id=None, include_departed=False):
             'avatar': agent.avatar,
             'money': format(agent.money, '.2f'),
             'inventory_count': inventory_counts.get(agent.id, 0),
-            'stamina': format(stamina(agent), '.1f'),
+            'stamina': format(stamina_by_agent[agent.pk], '.1f'),
             'cooking': skill_progress(cooking_experience.get(agent.id, 0)),
             'alchemy': alchemy_progress(alchemy_experience.get(agent.id, 0)),
             'fishing': fishing_progress(fishing_experience.get(agent.id, 0), fishing_maximum),
-            'planting': planting_progress(planting_experience.get(agent.id, 0)),
+            'planting': planting_progress(planting_experience.get(agent.id) or 0),
             'profession_name': agent.profession.name if agent.profession else '',
             'combat_profession_name': c_info['name'] if c_info else '新手',
             'combat_level': c_info['level'] if c_info else 1,

@@ -242,7 +242,11 @@ export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/con
 
 export const getMemosPushConfig = () => request.get<MemosPushConfig>('/settings/config/get_memos_push_config/') as unknown as Promise<MemosPushConfig>;
 
-export const saveMemosPushConfig = (data: MemosPushConfig) => request.post('/settings/config/save_memos_push_config/', data);
+export const saveMemosPushConfig = async (data: MemosPushConfig) => {
+    const result = await request.post('/settings/config/save_memos_push_config/', data);
+    window.dispatchEvent(new Event('memos-push-config-saved'));
+    return result;
+};
 
 export const getArticleRagScheduleConfig = () => request.get<ArticleRagScheduleConfig>('/settings/config/get_article_rag_schedule_config/') as unknown as Promise<ArticleRagScheduleConfig>;
 

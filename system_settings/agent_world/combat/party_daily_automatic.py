@@ -99,14 +99,19 @@ def _run_loop(stop):
             more = result['has_more'] or solo['has_more']
             if not more:
                 from .retention_cleanup import cleanup_batch
-                cleaned = cleanup_batch()
-                if cleaned['blocked']:
-                    logger.warning('仍有未核对的已结束战斗，暂停全部七天回合清理：%s', cleaned['backlog'])
-                elif cleaned['cleaned']:
+                from .retention_policy import InvalidRetentionWindow
+                try:
+                    cleaned = cleanup_batch()
+                except InvalidRetentionWindow as exc:
+                    logger.warning('%s', exc)
+                    cleaned = None
+                if cleaned and cleaned['blocked']:
+                    logger.warning('仍有未核对的已结束战斗，暂停全部回合清理：%s', cleaned['backlog'])
+                elif cleaned and cleaned['cleaned']:
                     logger.info('已校验并压缩 %s 场旧战斗，清理个人回合 %s 条、共同回合 %s 条',
                                 cleaned['cleaned'], cleaned['round_facts'], cleaned['round_events'])
-                more = cleaned['has_more']
-                if not more and not cleaned['cleaned']:
+                more = bool(cleaned and cleaned['has_more'])
+                if not more and (not cleaned or not cleaned['cleaned']):
                     from .archived_daily_rebuild import automatic_batch as rebuild_batch
                     rebuilt = rebuild_batch(after=rebuild_cursor)
                     for item in rebuilt['failures']:

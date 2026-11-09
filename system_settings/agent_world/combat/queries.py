@@ -17,7 +17,7 @@ def resident_presence(owner: str | None = None) -> dict[str, dict]:
     if owner is not None:
         runs=runs.filter(owner_id=owner)
     return {run.actor_id:{'status':'idle' if run.status=='paused' else 'running',
-        'current_action':'等待 Agent 完成转职' if run.status=='paused' and run.phase in ('promotion','promotion_failed') else '等待下一波加入队伍' if run.phase=='waiting_party' else labels[run.status]} for run in runs}
+        'current_action':'等待 Agent 完成转职' if run.status=='paused' and run.phase in ('promotion','promotion_failed') else '等待下一波加入队伍' if run.phase=='waiting_party' else labels[run.status]} for run in runs.only('actor_id', 'status', 'phase')}
 
 
 def with_timezone(value):

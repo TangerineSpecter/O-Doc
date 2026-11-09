@@ -1,6 +1,7 @@
 from .agent_world.farm_gate import guarded
 import logging
 import threading
+from datetime import timedelta
 
 from django.db import transaction, IntegrityError
 from django.db.models import Count, OuterRef, Q, Subquery
@@ -661,14 +662,14 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='today-summary')
     def today_summary(self, request):
-        today = _local_now().date()
-        today_activities = self.get_queryset().filter(occurred_at__date=today)
+        start = _local_now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_activities = self.get_queryset().filter(occurred_at__gte=start, occurred_at__lt=start + timedelta(days=1))
         ordered_activities = self.get_queryset().order_by('-occurred_at', '-id')
         latest = list(ordered_activities[:3])
-        counts = {
-            item['agent_id']: item['count']
-            for item in today_activities.exclude(agent_id=None).values('agent_id').annotate(count=Count('id'))
-        }
+        daily_counts = list(today_activities.order_by().values('agent_id').annotate(
+            count=Count('pk'), publications=Count('pk', filter=Q(activity_type='publication')),
+        ))
+        counts = {row['agent_id']: row['count'] for row in daily_counts}
         # Fetch at most two activity records per current resident, rather than
         # materializing historical rows until every resident has been found.
         resident_activities = ordered_activities.filter(agent_id=OuterRef('pk'))
@@ -700,8 +701,8 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
                 'todayCount': counts.get(agent.id, 0),
             })
         return success_result({
-            'todayActivityCount': today_activities.count(),
-            'todayWorkCount': today_activities.filter(activity_type='publication').count(),
+            'todayActivityCount': sum(row['count'] for row in daily_counts),
+            'todayWorkCount': sum(row['publications'] for row in daily_counts),
             'activeAgentCount': sum(agent['status']=='running' for agent in agents),
             'latest': self.get_serializer(latest, many=True).data,
             'agents': agents,

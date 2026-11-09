@@ -1,10 +1,12 @@
 """按稳定执行身份聚合展示；原始操作和账本保持独立。"""
 from collections import Counter, defaultdict
 from decimal import Decimal
+
+from .daily_feed_page import DeferredFeedCard, attach_steps
 from .life_time import local_time
 
 
-def grouped_execution_events(events, start, end):
+def grouped_execution_events(events, start, end, *, defer_steps=False):
     groups, projected = defaultdict(list), []
     for event in events:
         group = event.pop('_execution_group', None)
@@ -37,14 +39,6 @@ def grouped_execution_events(events, start, end):
         reason = (next((row.get('reason') for row in rows if row.get('reason')), '')
                   if category in ('farm', 'cooking', 'alchemy', 'blacksmith') else (closing[-1]['detail'] if closing else ''))
         values = [Decimal(row['amount']) for row in operations if row['amount'] is not None]
-        steps = [{k: row[k] for k in ('id', 'title', 'detail', 'occurredAt', 'amount')} for row in rows]
-        for step in steps:
-            if reason and step.get('detail'):
-                detail = step['detail']
-                if detail == reason:
-                    step['detail'] = ''
-                elif detail.endswith(f' · {reason}'):
-                    step['detail'] = detail[:-len(f' · {reason}')]
         if category in ('cooking', 'alchemy'):
             product_counts = Counter()
             for row in operations:
@@ -70,24 +64,26 @@ def grouped_execution_events(events, start, end):
                   'amount': str(sum(values, Decimal(0))) if values else None,
                   'reason': reason or latest.get('reason') or '',
                   'status': 'running' if running else 'failed' if any(row.get('_execution_failed') or row.get('status') == 'failed' for row in rows) else 'success',
-                  'categories': sorted({category, *(row['category'] for row in rows)}),
-                  'steps': steps}
+                  'categories': sorted({category, *(row['category'] for row in rows)})}
         if expiry:
             result['title'] = '挂牌到期下架'
         if identity.startswith('activity:'):
             result['rating'] = None
             result['target'] = {'kind': 'run', 'id': identity.removeprefix('activity:')}
-            for step, row in zip(result['steps'], rows):
-                if row.get('rating') is not None:
-                    step['detail'] = f"★ {row['rating']} / 10 · {step['detail']}"
+
         if category == 'farm' and not operations:
             result['detail'] = '种植计划与队列状态（尚无实际操作）' + (f' · {reason}' if reason else '')
+        if defer_steps:
+            result = DeferredFeedCard(result, steps=(rows, reason))
+        else:
+            attach_steps(result, rows, reason)
         projected.append(result)
     # 跨日执行只在最近业务事实所属日期出现，筛选与分页在聚合以后进行。
     lower, upper = local_time(start).isoformat(), local_time(end).isoformat()
     for row in projected:
         row.pop('_execution_running', None)
         row.pop('_execution_failed', None)
+        row.pop('_potion', None)
         row.pop('_dish', None)
         row.pop('_stars', None)
         row.pop('_exp', None)

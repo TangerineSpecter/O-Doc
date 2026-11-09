@@ -1,5 +1,5 @@
 """Owner-isolated read APIs for news discussion history."""
-from django.db.models import Q
+from django.db.models import Q, Case, When, F
 from django.db import transaction
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -84,6 +84,17 @@ class SocialTheatreListView(APIView):
                 rows = rows.filter(Q(business_date__lt=marker.business_date) |
                                    Q(business_date=marker.business_date, scheduled_at__lt=marker.scheduled_at) |
                                    Q(business_date=marker.business_date, scheduled_at=marker.scheduled_at, pk__lt=marker.pk))
+        if request.query_params.get('current') == '1':
+            # Preserve the history card's selection within its first page, including
+            # ties between upcoming sessions. Only materialize the selected row.
+            page = rows.values('pk')[:30]
+            selected = all_rows.filter(pk__in=page).order_by(
+                Case(When(status='running', then=0), When(status='searching', then=1),
+                     When(status='scheduled', then=2), default=3),
+                Case(When(status='scheduled', then=F('scheduled_at'))),
+                '-business_date', '-scheduled_at', '-pk',
+            ).first()
+            return success_result({'items': [event_list_item(selected)] if selected else [], 'next_cursor': None})
         values = list(rows[:31])
         return success_result({'items': [event_list_item(row) for row in values[:30]],
                                'next_cursor': values[29].pk if len(values) > 30 else None})

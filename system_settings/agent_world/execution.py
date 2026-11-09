@@ -1,6 +1,7 @@
 """本机执行互斥与成功行动的体力重放。"""
 import threading
 import uuid
+from collections.abc import Iterable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import timedelta
@@ -10,7 +11,7 @@ from django.db import close_old_connections
 from django.db.models import Q
 from django.utils import timezone
 
-from system_settings.models import WorldAction
+from system_settings.models import Agent, WorldAction
 
 ENERGY_MAX = Decimal('100')
 INTERACTION_COST = Decimal('10')
@@ -25,15 +26,28 @@ class WorldLeaseBusy(Exception):
 
 def stamina(agent, now=None) -> Decimal:
     """从唯一消费事件计算，换设备后不把可变余额当作结算依据。"""
-    now = now or timezone.now()
+    return resident_stamina([agent], now)[agent.pk]
+
+
+def resident_stamina(agents: Iterable[Agent], now=None) -> dict[str, Decimal]:
+    """按居民批量回放同一时刻的余额，每次只读取一份恢复规则。"""
     from .stamina_settings import history, recovered_between
+
+    now = now or timezone.now()
+    previous = {agent.pk: agent.created_at for agent in agents}
+    if not previous:
+        return {}
+    balances = dict.fromkeys(previous, ENERGY_MAX)
     recovery_history = history()
-    energy, previous = ENERGY_MAX, agent.created_at
-    for action in WorldAction.objects.filter(actor_id=agent.pk, status='success', consumed_at__lte=now).order_by('consumed_at', 'pk'):
-        recovered = recovered_between(previous, action.consumed_at, recovery_history)
-        energy = max(Decimal('0'), min(ENERGY_MAX, energy + recovered) - action.energy_cost)
-        previous = max(previous, action.consumed_at)
-    return min(ENERGY_MAX, energy + recovered_between(previous, now, recovery_history))
+    actions = WorldAction.objects.filter(
+        actor_id__in=balances, status='success', consumed_at__lte=now,
+    ).order_by('actor_id', 'consumed_at', 'pk').values_list('actor_id', 'consumed_at', 'energy_cost')
+    for actor, consumed, cost in actions.iterator():
+        recovered = recovered_between(previous[actor], consumed, recovery_history)
+        balances[actor] = max(Decimal('0'), min(ENERGY_MAX, balances[actor] + recovered) - cost)
+        previous[actor] = max(previous[actor], consumed)
+    return {actor: min(ENERGY_MAX, balance + recovered_between(previous[actor], now, recovery_history))
+            for actor, balance in balances.items()}
 
 
 @contextmanager

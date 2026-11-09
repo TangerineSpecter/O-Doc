@@ -21,9 +21,16 @@ class PerformanceView(AdminView):
         if self.action == 'overview':
             from django.utils import timezone
             now = timezone.now()
-            running = [dict(**row.state, updated=row.updated.isoformat(),
-                            elapsed_ms=max(0, (now.timestamp() - row.state['started']) * 1000), status='running')
-                       for row in PerformanceInflight.objects.filter(updated__gte=now - timedelta(minutes=5)).order_by('-updated')[:100]]
+            running = []
+            snapshots = PerformanceInflight.objects.filter(
+                updated__gte=now - timedelta(minutes=5),
+            ).order_by('-updated')[:100]
+            for row in snapshots:
+                fresh = now - row.updated <= timedelta(seconds=20)
+                observed = now if fresh else row.updated
+                running.append(dict(**row.state, updated=row.updated.isoformat(),
+                                    elapsed_ms=max(0, (observed.timestamp() - row.state['started']) * 1000),
+                                    status='running' if fresh else 'unconfirmed'))
             return success_result({**queries.overview(options['hours']), 'policy': load_policy(), 'health': collector.health(), 'inflight': running})
         if self.action == 'rankings':
             return success_result(queries.rankings(options['hours'], options['kind']))

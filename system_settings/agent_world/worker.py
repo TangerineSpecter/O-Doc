@@ -79,7 +79,7 @@ def maintain_combat_history() -> None:
     today = local_time().date()
     if _combat_maintenance_day == today:
         return
-    logger.warning('旧战斗归档已停用，ODOC_COMBAT_ARCHIVE_DAYS=%s 不影响后台七天回合清理', retention)
+    logger.warning('旧战斗归档已停用，ODOC_COMBAT_ARCHIVE_DAYS=%s 不影响后台回合清理', retention)
     _combat_maintenance_day = today
 
 

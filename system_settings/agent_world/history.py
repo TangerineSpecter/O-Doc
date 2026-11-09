@@ -4,14 +4,13 @@ from django.dispatch import receiver
 from article.models import Article, ArticlePostComment, ArticlePostRating
 from system_settings.sync_state import is_tracking_suspended
 from .models import WorldChange
-from .identity import actor_key, author
+from .identity import actor_key
 
 
 def payload(instance) -> tuple[str, dict]:
     if isinstance(instance, Article):
-        recipient = author(instance)
         return 'post', {'post_id': instance.pk, 'collection_id': instance.coll_id, 'title': instance.title,
-                        'author_id': (recipient.pk if recipient else instance.agent_post_author_id), 'creator_id': instance.agent_post_creator_id,
+                        'author_id': instance.agent_post_author_id, 'creator_id': instance.agent_post_creator_id,
                         'author_name': instance.agent_post_creator_name, 'created_at': instance.created_at.isoformat(),
                         'valid': instance.is_valid, 'permission': instance.permission}
     rating = isinstance(instance, ArticlePostRating)

@@ -215,16 +215,18 @@ class CombatBackfillGuardTests(SimpleTestCase):
         self.assertEqual(stop.seconds, INTERVAL_SECONDS)
 
     def test_automatic_daily_retries_cleanup_after_rebuilding_archived_contributions(self):
+        from .retention_policy import InvalidRetentionWindow
         from .party_daily_automatic import INTERVAL_SECONDS, PAGE_PAUSE_SECONDS, run_loop
 
-        class StopAfterTwoWaits:
+        class StopAfterThreeWaits:
             def __init__(self): self.waits = []
-            def is_set(self): return len(self.waits) >= 2
+            def is_set(self): return len(self.waits) >= 3
             def wait(self, seconds): self.waits.append(seconds)
 
-        stop = StopAfterTwoWaits()
+        stop = StopAfterThreeWaits()
         page = {'next_after': '', 'has_more': False, 'created': 0, 'failures': []}
-        cleanups = [{'cleaned': 0, 'blocked': True, 'has_more': False, 'backlog': {'invalid_party_summaries': 1}},
+        cleanups = [InvalidRetentionWindow('保留天数无效'),
+                    {'cleaned': 0, 'blocked': True, 'has_more': False, 'backlog': {'invalid_party_summaries': 1}},
                     {'cleaned': 1, 'blocked': False, 'has_more': False, 'round_facts': 2, 'round_events': 1}]
         with patch.dict(os.environ, {PROTECTION_ENV: '0', 'ODOC_COMBAT_DAILY_AUTO': '1'}), \
              patch('system_settings.agent_world.combat.party_daily_automatic.automatic_batch', return_value=page), \
@@ -234,9 +236,9 @@ class CombatBackfillGuardTests(SimpleTestCase):
                    return_value={'rebuilt': 1, 'failures': [], 'next_after': '', 'has_more': False}) as rebuild, \
              patch('system_settings.agent_world.combat.party_daily_automatic.close_old_connections'):
             run_loop(stop)
-        self.assertEqual(stop.waits, [PAGE_PAUSE_SECONDS, INTERVAL_SECONDS])
-        self.assertEqual(cleanup.call_count, 2)
-        rebuild.assert_called_once()
+        self.assertEqual(stop.waits, [PAGE_PAUSE_SECONDS, PAGE_PAUSE_SECONDS, INTERVAL_SECONDS])
+        self.assertEqual(cleanup.call_count, 3)
+        self.assertEqual(rebuild.call_count, 2)
 
     def test_automatic_daily_retries_a_failed_batch_without_advancing_cursor(self):
         from .party_daily_automatic import ERROR_RETRY_SECONDS, INTERVAL_SECONDS, run_loop

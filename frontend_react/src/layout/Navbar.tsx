@@ -2,8 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, UserRound, ArchiveRestore } from 'lucide-react';
 import { useVersionInfo } from '@/contexts/VersionInfoContext';
 import NotificationPopover from '../components/NotificationPopover';
-import { getNotifications, pushRandomMemoNotification } from '../api/message';
-import { getMemosPushConfig } from '../api/setting';
+import {useNavbarNotifications} from '../hooks/useNavbarNotifications';
 import type { UserInfo } from '../types/api/user';
 
 interface NavbarProps {
@@ -18,7 +17,7 @@ interface NavbarProps {
 export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, onOpenProfile, isVisible = true }: NavbarProps) {
     const {currentVersion, latestVersion, updateAvailable} = useVersionInfo();
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const {unreadCount, setUnreadCount} = useNavbarNotifications(userInfo?.userid);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -33,78 +32,8 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
         return () => document.removeEventListener('click', handleClickOutside);
     }, [isUserMenuOpen]);
 
-    const fetchUnread = async () => {
-        if (!userInfo) {
-            setUnreadCount(0);
-            return;
-        }
-        try {
-            const res = await getNotifications('unread');
-            if (Array.isArray(res)) {
-                setUnreadCount(res.length);
-            }
-        } catch (error) {
-            console.warn("Failed to fetch notifications", error);
-        }
-    };
-
-    const getLocalDateKey = (date: Date) => (
-        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    );
-
-    const getDaysBetween = (fromDateKey: string, toDateKey: string) => {
-        const from = new Date(`${fromDateKey}T00:00:00`);
-        const to = new Date(`${toDateKey}T00:00:00`);
-        return Math.floor((to.getTime() - from.getTime()) / 86400000);
-    };
-
-    // 获取未读消息数量
     useEffect(() => {
-        if (!userInfo) {
-            setUnreadCount(0);
-            setIsNotificationOpen(false);
-            return;
-        }
-        fetchUnread();
-        // 简单轮询，每分钟检查一次
-        const timer = setInterval(fetchUnread, 60000);
-        return () => clearInterval(timer);
-    }, [userInfo]);
-
-    useEffect(() => {
-        if (!userInfo) return;
-
-        const checkMemosPush = async () => {
-            try {
-                const config = await getMemosPushConfig();
-                if (!config?.enabled) return;
-
-                const now = new Date();
-                const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                if (currentTime !== config.pushTime) return;
-
-                if (config.frequency === 'weekly' && String(now.getDay()) !== config.weekday) return;
-                if (config.frequency === 'monthly' && String(now.getDate()) !== config.monthDay) return;
-
-                const today = getLocalDateKey(now);
-                const storageKey = `o-doc:memos-push:last:${config.frequency}:${config.pushTime}`;
-                const lastPushedDate = localStorage.getItem(storageKey);
-                if (lastPushedDate === today) return;
-                if (config.frequency === 'everyTwoDays' && lastPushedDate && getDaysBetween(lastPushedDate, today) < 2) return;
-
-                const notification = await pushRandomMemoNotification();
-                if (notification) {
-                    localStorage.setItem(storageKey, today);
-                    await fetchUnread();
-                }
-            } catch (error) {
-                console.warn('Memos 定时推送检查失败', error);
-            }
-        };
-
-        checkMemosPush();
-        const timer = setInterval(checkMemosPush, 30000);
-        return () => clearInterval(timer);
+        if (!userInfo) setIsNotificationOpen(false);
     }, [userInfo]);
 
     const shouldHide = !isVisible && !isNotificationOpen && !isUserMenuOpen;

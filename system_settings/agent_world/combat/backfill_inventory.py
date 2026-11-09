@@ -5,6 +5,7 @@ from django.db.models import Count, Max, Q
 from django.utils import timezone
 
 from .history_snapshot import OPEN
+from .retention_policy import retention_window
 from .migration_guard import is_protected
 from .models import CombatFact, CombatIntegrity, Exploration
 from .party_models import AdventureEvent, AdventureParty
@@ -19,6 +20,7 @@ def inventory(owner=None, *, now=None):
     """
     observed_at = now or timezone.now()
     cutoff = observed_at - timedelta(days=7)
+    days, retention_cutoff = retention_window(observed_at)
     accounts = {}
 
     def scoped(model):
@@ -56,6 +58,7 @@ def inventory(owner=None, *, now=None):
     return {
         'observed_at': observed_at.isoformat(),
         'seven_day_cutoff': cutoff.isoformat(),
+        'retention_days': days, 'retention_cutoff': retention_cutoff.isoformat(),
         'this_process_protected': is_protected(),
         'protection_scope': '仅本命令进程；不能证明应用进程或其他设备受保护。',
         'cleanup_ready': False,

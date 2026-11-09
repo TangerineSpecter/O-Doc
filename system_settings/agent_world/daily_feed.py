@@ -4,10 +4,14 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 
-from django.db.models import Q, Prefetch
+from django.db import connection
+from django.db.models import BooleanField, Q, Prefetch
+from django.db.models.expressions import RawSQL
+from django.db.models.functions import Substr
 
 from article.access import get_visible_anthology_queryset
 from system_settings.models import Agent, AgentActivity, AgentRunRecord, AgentTask, WorldAction
+from .daily_feed_farm import FarmQueueDays
 from .farm_models import AgentFarm, FarmOperation
 from .farm_catalog import DEFAULT_RULES as FARM_RULES
 from .investment_models import InvestmentAccount, InvestmentDecision, InvestmentTrade
@@ -67,13 +71,14 @@ class FeedScope:
     actors: set[str]
     names: dict[str, str]
     visible_colls: tuple[str, ...]
+    farm_queue: FarmQueueDays | None = None
 
 
 def feed_scope(request, owner: str) -> FeedScope:
     """仅在一次请求内复用归属和可见性，下一次请求重新检查权限。"""
     actors = _actor_scope(owner)
     return FeedScope(
-        actors=actors,
+        actors=actors, farm_queue=FarmQueueDays(owner),
         names=dict(Agent.objects.filter(pk__in=actors).values_list('id', 'name')),
         visible_colls=tuple(get_visible_anthology_queryset(request).values_list('coll_id', flat=True)),
     )
@@ -84,25 +89,31 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
     scope = scope or feed_scope(request, owner)
     actors, visible_colls = scope.actors, scope.visible_colls
     candidates = []
+    latest_queries = []
     if category in ('all', 'interaction'):
         from .social_models import SocialTheatreEvent
         scenes = SocialTheatreEvent.objects.filter(owner_id=owner).exclude(status='deleted')
         scenes = scenes.filter(updated_at__lt=before).order_by('-updated_at')
-        if actor_id:
-            # 同时兼容 SQLite 和 PostgreSQL 的身份快照查询。
+        if not actor_id:
+            latest_queries.append(scenes.values_list('updated_at', flat=True)[:1])
+        elif connection.vendor == 'postgresql':
+            # ->> compares string and historical integer IDs by their text, without coercing "001" to "1".
+            scenes = scenes.filter(RawSQL(
+                "EXISTS (SELECT 1 FROM jsonb_array_elements(participants) person WHERE person->>'id' = %s)",
+                (actor_id,), output_field=BooleanField(),
+            ))
+            latest_queries.append(scenes.values_list('updated_at', flat=True)[:1])
+        else:
             collect_scene = next((when for when, people in scenes.values_list('updated_at', 'participants').iterator()
                                   if any(str(person.get('id')) == actor_id for person in people)), None)
-        else:
-            collect_scene = scenes.values_list('updated_at', flat=True).first()
-        if collect_scene is not None:
-            candidates.append(collect_scene)
+            if collect_scene is not None:
+                candidates.append(collect_scene)
 
     def collect(queryset, field, actor_field='actor_id'):
         if actor_id and actor_field:
             queryset = queryset.filter(**{actor_field: actor_id})
-        value = queryset.filter(**{f'{field}__lt': before}).order_by(f'-{field}').values_list(field, flat=True).first()
-        if value is not None:
-            candidates.append(value)
+        latest_queries.append(queryset.filter(**{f'{field}__lt': before})
+                              .order_by(f'-{field}').values_list(field, flat=True)[:1])
 
     if category in ('all', 'publication', 'interaction', 'record'):
         activity_types = ('publication', 'interaction') if category == 'all' else (
@@ -144,14 +155,9 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
         collect(BlacksmithOperation.objects.filter(owner_id=owner), 'created_at')
     if category in ('all', 'farm'):
         collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at', 'farm_id')
-        for farm in AgentFarm.objects.filter(owner_id=owner):
-            if actor_id and farm.pk != actor_id:
-                continue
-            for plan in farm.state.get('planting_plans', {}).values():
-                for event in plan.get('events', []):
-                    when = storage_time(datetime.fromtimestamp(event['at'], SHANGHAI))
-                    if when < before:
-                        candidates.append(when)
+        queue_time = (scope.farm_queue or FarmQueueDays(owner)).latest_before(before, actor_id)
+        if queue_time is not None:
+            candidates.append(queue_time)
     if category in ('all', 'market', 'trade'):
         transactions = MarketTransaction.objects.filter(owner_id=owner)
         if actor_id:
@@ -175,6 +181,14 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
     if category in ('all', 'finance'):
         ledger = WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)
         collect(ledger, 'created_at', 'agent_id')
+    if latest_queries:
+        if connection.vendor == 'postgresql':
+            # 每个分支仍独立使用排序和 LIMIT 1，一次往返获取各来源的候选时间。
+            candidates.extend(latest_queries[0].union(*latest_queries[1:], all=True)
+                              if len(latest_queries) > 1 else latest_queries[0])
+        else:
+            for query in latest_queries:
+                candidates.extend(query)
     return local_time(max(candidates)).date() if candidates else None
 
 
@@ -190,12 +204,11 @@ def _event(category, source, identity, when, actor_id, actor_name, title, detail
 
 def _actor_scope(owner):
     from .combat.models import CombatProfile
-    ids = set(CombatProfile.objects.filter(owner_id=owner).values_list('id',flat=True))
-    ids.update(LifeProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
-    for model, field in ((AgentFarm, 'id'), (InvestmentAccount, 'id'),
-                         (MarketSession, 'actor_id'), (TravelJourney, 'actor_id')):
-        # Identity discovery only needs each historical resident once.
-        ids.update(model.objects.filter(owner_id=owner).order_by().values_list(field, flat=True).distinct())
+    sources = ((CombatProfile, 'id'), (LifeProfile, 'id'), (AgentFarm, 'id'),
+               (InvestmentAccount, 'id'), (MarketSession, 'actor_id'), (TravelJourney, 'actor_id'))
+    queries = [model.objects.filter(owner_id=owner).order_by().values_list(field, flat=True)
+               for model, field in sources]
+    ids = set(queries[0].union(*queries[1:]))
     for task in AgentTask.objects.exclude(task_kind='custom'):
         if task_owner(task) == owner:
             ids.update(task.agent_ids or [task.agent_id])
@@ -247,7 +260,7 @@ def _investment_detail(decision, trades):
     return ' · '.join(parts) or '正在研究持仓和市场'
 
 
-def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = None):
+def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = None, page_projection=False):
     """每条事件引用稳定业务主键；筛选发生于聚合后，避免账目视角重复计数。"""
     start, end = _window(day)
     scope = scope or feed_scope(request, owner)
@@ -261,9 +274,14 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         Q(activity_type='work', agent_id__isnull=True, run_record__agent_id__in=actors) |
         Q(activity_type__in=('publication', 'interaction'), artifact_coll_id__in=visible_colls) |
         Q(action__startswith='social_', metadata__owner_id=owner)
-    ).select_related('agent', 'run_record')
+    ).select_related('agent', 'run_record').only(
+        'event_key', 'activity_type', 'status', 'agent__name', 'run_record__agent_id',
+        'run_record__agent_name', 'run_record__agent_runs', 'title', 'summary', 'current_action',
+        'artifact_kind', 'artifact_id', 'artifact_article_id', 'artifact_coll_id', 'artifact_title',
+        'action', 'counterpart_name', 'score_delta_basis', 'metadata', 'occurred_at',
+    )
     day_activities = activities.filter(occurred_at__gte=start, occurred_at__lt=end)
-    activities = activities.filter(Q(pk__in=day_activities.values('pk')) |
+    activities = activities.filter(Q(occurred_at__gte=start, occurred_at__lt=end) |
         Q(run_record_id__in=day_activities.exclude(activity_type='work').exclude(run_record_id=None).values('run_record_id')))
     from system_settings.agent_activity_presentation import grouped_activities, activity_title, activity_rating
     activities = grouped_activities(activities)
@@ -273,7 +291,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         if row.action.startswith('social_') and isinstance(row.metadata, dict) and row.metadata.get('social_opportunity_id')
     ]
     from .social_models import SocialOpportunity, Moment
-    social_ops = {op.pk: op for op in SocialOpportunity.objects.filter(pk__in=social_op_ids)} if social_op_ids else {}
+    social_ops = {op.pk: op for op in SocialOpportunity.objects.filter(pk__in=social_op_ids).only('result')} if social_op_ids else {}
     from .social_targets import reply_targets
     social_reply_targets = reply_targets(activities, owner, visible_colls)
 
@@ -292,7 +310,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                         moment_ids.add(mid)
     moment_ids.update(target['artifactId'] for target in social_reply_targets.values()
                       if target.get('artifactKind') == 'moment')
-    moments_map = {m.pk: m for m in Moment.objects.filter(pk__in=moment_ids, owner_id=owner, is_valid=True)} if moment_ids else {}
+    moments_map = {m.pk: m for m in Moment.objects.filter(pk__in=moment_ids, owner_id=owner, is_valid=True).only('identity')} if moment_ids else {}
 
     recorded_runs = set()
     for row in activities:
@@ -471,16 +489,20 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
             status=status, target={'kind':'fishing', 'id':trip.pk}))
     from .combat.models import Exploration
     from .combat.explorations import EXECUTION_COMPLETED, execution_completed
-    settled_exploration_records = set(Exploration.objects.filter(
-        owner_id=owner, updated_at__gte=start, updated_at__lt=end, ended_at__isnull=False,
-        status__in=EXECUTION_COMPLETED,
-    ).exclude(record_id='').values_list('record_id', flat=True))
+    exploration_runs = list(Exploration.objects.filter(
+        owner_id=owner, updated_at__gte=start, updated_at__lt=end,
+    ).defer('state'))
+    settled_exploration_records = {run.record_id for run in exploration_runs
+                                   if run.ended_at and run.status in EXECUTION_COMPLETED and run.record_id}
+    run_rows = AgentRunRecord.objects.filter(agent_id__in=actors).only(
+        'id', 'agent_id', 'agent_name', 'task_name', 'summary', 'status', 'started_at', 'updated_at',
+    )
+    if not page_projection:
+        run_rows = run_rows.annotate(preview=Substr('output', 1, 300))
 
     # 历史自定义任务可能没有 AgentActivity；使用执行记录补齐，而不重复已有任务卡片。
     # 自定义任务没有账号字段；只展示归属可由居民资料或已有资产确认的执行。
-    run_scope = Q(agent_id__in=actors)
-    runs = AgentRunRecord.objects.filter(started_at__gte=start, started_at__lt=end).filter(
-        run_scope).exclude(pk__in=recorded_runs)
+    runs = run_rows.filter(started_at__gte=start, started_at__lt=end).exclude(pk__in=recorded_runs)
     runs = list(runs)
     from .daily_feed_idle import waiting_runs
     idle_waiting = waiting_runs(owner, [row.pk for row in runs if row.status == 'running'])
@@ -489,21 +511,21 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                        row.agent_name or names.get(row.agent_id), row.task_name, row.summary,
                        status='success' if row.pk in settled_exploration_records else row.status,
                        target={'kind': 'run', 'id': row.pk})
-        event['outputPreview'] = str(row.output or '')[:300]
+        if not page_projection:
+            event['outputPreview'] = row.preview or ''
         if row.pk in idle_waiting:
             event.update(idle_waiting[row.pk])
         events.append(event)
-    completed_runs = AgentRunRecord.objects.filter(updated_at__gte=start, updated_at__lt=end,
-                                                    status__in=('success', 'failed')).filter(run_scope)
+    completed_runs = run_rows.filter(updated_at__gte=start, updated_at__lt=end, status__in=('success', 'failed'))
     for row in completed_runs.exclude(started_at__gte=start, started_at__lt=end):
         event = _event('record', 'run-finished', row.pk, row.updated_at, row.agent_id,
                        row.agent_name or names.get(row.agent_id), f'{row.task_name}结束', row.summary,
                        status='success' if row.pk in settled_exploration_records else row.status,
                        target={'kind': 'run', 'id': row.pk})
-        event['outputPreview'] = str(row.output or '')[:300]
+        if not page_projection:
+            event['outputPreview'] = row.preview or ''
         events.append(event)
 
-    exploration_runs = list(Exploration.objects.filter(owner_id=owner,updated_at__gte=start,updated_at__lt=end))
     from .combat.participation import participation, display_report
     rosters = participation(exploration_runs, owner)
     for run in exploration_runs:
@@ -514,9 +536,17 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         if run.pk in rosters:
             events[-1]['explorationParty'] = rosters[run.pk]
     from .cooking_models import CookingOperation
-    day_cookings = CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
-    cooking_opp_ids = day_cookings.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
-    cooking_actions = dict(WorldAction.objects.filter(pk__in=cooking_opp_ids).values_list('pk', 'status'))
+    from .alchemy_models import AlchemyOperation
+    from .blacksmith_models import BlacksmithOperation
+    day_filter = {'created_at__gte': start, 'created_at__lt': end}
+    day_cookings = list(CookingOperation.objects.filter(owner_id=owner, **day_filter))
+    day_alchemy = list(AlchemyOperation.objects.filter(owner_id=owner, **day_filter))
+    forged = list(BlacksmithOperation.objects.filter(owner_id=owner, **day_filter))
+    farms = list(FarmOperation.objects.filter(farm__owner_id=owner, **day_filter)
+                 .select_related('farm').only('opportunity_id', 'operation', 'result', 'reason', 'created_at', 'farm__actor_name'))
+    opportunity_ids = {row.opportunity_id for group in (day_cookings, day_alchemy, forged, farms)
+                       for row in group if row.opportunity_id}
+    action_status = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))
     for row in day_cookings:
         dish_name = (row.snapshot or {}).get('name') or row.recipe_id
         stars = (row.result or {}).get('stars', 1)
@@ -539,12 +569,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         group = ('cooking:' + row.opportunity_id) if row.opportunity_id else ('cooking:' + day.isoformat() + ':' + row.actor_id)
         events[-1]['_execution_group'] = group
         if row.opportunity_id:
-            events[-1]['_execution_failed'] = cooking_actions.get(row.opportunity_id) == 'failed'
-            events[-1]['_execution_running'] = cooking_actions.get(row.opportunity_id) == 'claimed'
-    from .alchemy_models import AlchemyOperation
-    day_alchemy = AlchemyOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
-    alchemy_ids = day_alchemy.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
-    alchemy_actions = dict(WorldAction.objects.filter(pk__in=alchemy_ids).values_list('pk', 'status'))
+            events[-1]['_execution_failed'] = action_status.get(row.opportunity_id) == 'failed'
+            events[-1]['_execution_running'] = action_status.get(row.opportunity_id) == 'claimed'
     for row in day_alchemy:
         potion_name = (row.snapshot or {}).get('name') or row.recipe_id
         stars = (row.result or {}).get('stars', 1)
@@ -566,11 +592,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
             events[-1]['reason'] = row.reason
         events[-1]['_execution_group'] = ('alchemy:' + row.opportunity_id) if row.opportunity_id else ('alchemy:' + day.isoformat() + ':' + row.actor_id)
         if row.opportunity_id:
-            events[-1]['_execution_failed'] = alchemy_actions.get(row.opportunity_id) == 'failed'
-            events[-1]['_execution_running'] = alchemy_actions.get(row.opportunity_id) == 'claimed'
-    from .blacksmith_models import BlacksmithOperation
-    forged = BlacksmithOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
-    forging_actions = dict(WorldAction.objects.filter(pk__in=forged.values_list('opportunity_id', flat=True)).values_list('pk', 'status'))
+            events[-1]['_execution_failed'] = action_status.get(row.opportunity_id) == 'failed'
+            events[-1]['_execution_running'] = action_status.get(row.opportunity_id) == 'claimed'
     for row in forged:
         item = (row.result or {}).get('item', {})
         quality = {'white': '白装', 'blue': '蓝装', 'gold': '金装'}.get(item.get('quality'), '')
@@ -580,12 +603,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
             target={'kind': 'blacksmith', 'id': row.opportunity_id}))
         events[-1]['reason'] = row.reason
         events[-1]['_execution_group'] = 'blacksmith:' + row.opportunity_id
-        events[-1]['_execution_failed'] = forging_actions.get(row.opportunity_id) == 'failed'
-        events[-1]['_execution_running'] = forging_actions.get(row.opportunity_id) == 'claimed'
-    day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
-    opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
-    farm_actions = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))
-    farms = day_farms.select_related('farm')
+        events[-1]['_execution_failed'] = action_status.get(row.opportunity_id) == 'failed'
+        events[-1]['_execution_running'] = action_status.get(row.opportunity_id) == 'claimed'
     for row in farms:
         op, result = row.operation or {}, row.result or {}
         kind = op.get('kind', '')
@@ -622,8 +641,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                 events[-1]['detail'] += ' · 来源计划 ' + '、'.join(sorted({o['day'] for o in origins}))
         events[-1]['_execution_group'] = 'farm:' + day.isoformat() + ':' + row.farm_id
         if row.opportunity_id:
-            events[-1]['_execution_failed'] = farm_actions.get(row.opportunity_id) == 'failed'
-            events[-1]['_execution_running'] = farm_actions.get(row.opportunity_id) == 'claimed'
+            events[-1]['_execution_failed'] = action_status.get(row.opportunity_id) == 'failed'
+            events[-1]['_execution_running'] = action_status.get(row.opportunity_id) == 'claimed'
 
     day_transactions = MarketTransaction.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
     day_sessions = MarketSession.objects.filter(owner_id=owner).filter(
@@ -632,7 +651,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     # 同次任务可能有多个会话；不按分钟或角色名称猜测执行归属。
     sessions = list(MarketSession.objects.filter(owner_id=owner).filter(
         Q(pk__in=day_sessions.values('pk')) | Q(record_id__in=day_sessions.exclude(record_id=None).values('record_id'))
-    ).select_related('record'))
+    ).select_related('record').defer('record__output', 'record__steps', 'record__agent_runs', 'record__random_context'))
     session_map = {row.pk: row for row in sessions}
     transactions = list(MarketTransaction.objects.filter(owner_id=owner, session_id__in=session_map))
     batch_session_ids = [row.pk for row in sessions if row.mode == 'batch']
@@ -640,26 +659,13 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     listing_ids = {row.operation.get('listing_id') for row in transactions
                    if isinstance(row.operation, dict) and row.operation.get('listing_id')}
     listings = {row.pk: row for row in MarketListing.objects.filter(owner_id=owner, pk__in=listing_ids)}
-    for farm in AgentFarm.objects.filter(owner_id=owner):
-        for plan in farm.state.get('planting_plans', {}).values():
-            for row in plan.get('events', []):
-                # 轮询状态供队列恢复和诊断使用，不是居民已发生的行动；
-                # 在投影处过滤，也覆盖历史数据，避免重试刷新卡片时间。
-                if row['code'] in {
-                    'busy', 'recovered', 'resumed', 'activated', 'land', 'seeds',
-                    'fertilizer', 'stamina', 'travel', 'paused', 'mcp-disabled',
-                    'investment-stamina', 'investment-protected',
-                }:
-                    continue
-                when = datetime.fromtimestamp(row['at'], SHANGHAI)
-                if not start <= storage_time(when) < end:
-                    continue
-                events.append(_event('farm', 'farm-queue', row['id'], when, farm.pk,
-                    names.get(farm.pk, farm.actor_name), 'AI规划' if row['code'] == 'planned' else '队列状态', row['detail'],
-                    target={'kind': 'farm', 'id': farm.pk}))
-                events[-1]['_execution_group'] = 'farm:' + day.isoformat() + ':' + farm.pk
-                if row['code'] == 'planned':
-                    events[-1]['reason'] = plan['versions'][0]['reason']
+    for actor, name, when, row, reason in (scope.farm_queue or FarmQueueDays(owner)).by_day.get(day, ()):
+        events.append(_event('farm', 'farm-queue', row['id'], when, actor,
+            names.get(actor, name), 'AI规划' if row['code'] == 'planned' else '队列状态', row['detail'],
+            target={'kind': 'farm', 'id': actor}))
+        events[-1]['_execution_group'] = 'farm:' + day.isoformat() + ':' + actor
+        if row['code'] == 'planned':
+            events[-1]['reason'] = reason
 
     for row in transactions:
         op, result = row.operation or {}, row.result or {}
@@ -724,7 +730,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                 event['_execution_batch'] = True
             events.append(event)
 
-    decisions = list(InvestmentDecision.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end).select_related('record'))
+    decisions = list(InvestmentDecision.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end).select_related('record').defer('record__output', 'record__steps', 'record__agent_runs', 'record__random_context'))
     decision_ids = [row.pk for row in decisions]
     trades_by_decision = {pk: [] for pk in decision_ids}
     for trade in InvestmentTrade.objects.filter(owner_id=owner, decision_id__in=decision_ids).order_by('created_at', 'pk'):
@@ -770,10 +776,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
 
     ledger = list(WorldLedger.objects.filter(created_at__gte=start, created_at__lt=end,
                                              agent_id__in=actors).exclude(kind='opening').exclude(amount=0))
-    from .market_finance import classify_market_ledger_entries
-    classify_market_ledger_entries(ledger, owner)
-    from .ledger_details import ledger_details
-    descriptions = ledger_details(ledger, owner)
+    from .daily_feed_page import DeferredFeedCard, ledger_presentation
+    descriptions = {} if page_projection else ledger_presentation(ledger, owner)
     travel_ids = {row.snapshot.get('journey_id') for row in ledger
                   if row.kind in ('travel', 'souvenir') and isinstance(row.snapshot, dict)
                   and row.snapshot.get('journey_id')}
@@ -794,6 +798,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         # 资金视角始终完整；总时间线用业务事实代表对应扣款，避免同一笔成交出现两次。
         if row.kind in ('market', 'farm') or (row.kind == 'investment' and row.pk in covered_investment_charges) or (row.kind in ('travel', 'souvenir') and (row.pk in covered_travel_charges or snapshot.get('journey_id') in owned_travel_ids)):
             entry['_finance_only'] = True
+        if page_projection:
+            entry = DeferredFeedCard(entry, ledger=row)
         events.append(entry)
 
     from .combat.reservation_models import AdventureReservation
@@ -805,7 +811,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                 status=appointment.status, target={'kind':'life','id':member['item_id']}))
 
     revisions = list(LifeRevision.objects.filter(item__owner_id=owner, created_at__gte=start,
-                                                  created_at__lt=end).select_related('item'))
+                                                  created_at__lt=end).select_related('item').only(
+        'created_at', 'before', 'after', 'reason', 'item__actor_id', 'item__record_id'))
     revised_terminal_ids = {row.item_id for row in revisions
                             if (row.after or {}).get('status') in ('rest', 'failed', 'cancelled')
                             and (row.before or {}).get('status') != (row.after or {}).get('status')}
@@ -831,7 +838,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                              status=status, target={'kind': 'life', 'id': row.item_id}))
 
     from .daily_feed_groups import grouped_execution_events
-    events = grouped_execution_events(events, start, end)
+    events = grouped_execution_events(events, start, end, defer_steps=page_projection)
     global_events = [event for event in events if event['category'] != 'record' and not event.get('_finance_only')]
     summary_events = global_events
     actor_counts = dict(Counter(identity for event in summary_events

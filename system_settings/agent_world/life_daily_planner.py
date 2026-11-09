@@ -148,6 +148,9 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
         raise ValueError('已选活动当前不可用，请重新规划')
     reason = task_reason(config.pk, agent, task, local_time(item.scheduled_at))
     if reason:
+        from .publish_schedule import quota_skip
+        if activity == 'post_publish' and quota_skip(reason):
+            return {**plan, 'activity': 'rest', 'reason': '系统说明：' + reason + '，本时段不发帖'}
         raise ValueError(reason + '，请重新规划日程')
     cash = available_cash(config.pk, agent.pk, exclude_ids=[item.pk])
     if activity == 'lottery':
@@ -224,6 +227,9 @@ def plan_days(config, agent, items: list, *, apply, ask, ask_detail) -> list[dic
             grouped[day].append(item)
     selected = []
     for daily in grouped.values():
+        from .publish_schedule import replan_if_blocked
+        for item in daily:
+            replan_if_blocked(item)
         select_day(config, agent, daily, ask)
         from .life_budget_choices import BudgetChoices
         agent.refresh_from_db()

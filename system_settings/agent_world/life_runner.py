@@ -51,11 +51,13 @@ def finish_running(config, now):
             continue
         action=WorldAction.objects.filter(pk=key).first()
         if action and action.status in ('success','failed','skipped'):
+            from .publish_schedule import quota_skip
             # A forge visit can finish by registering goals without producing gear.
             if action.status == 'success' or (item.activity == 'blacksmith' and action.status == 'skipped'):
                 status = 'completed'
             else:
-                status = 'rest' if item.activity == 'market_prepare' and action.status == 'skipped' else 'failed'
+                status = 'rest' if action.status == 'skipped' and (item.activity == 'market_prepare' or
+                    (item.activity == 'post_publish' and quota_skip(action.result.get('reason', '')))) else 'failed'
             revise(item,'已核对实际执行事实',status=status,record_id=action.record_id or '',result=action.result)
         elif local_time(item.updated_at) < now-timedelta(minutes=15) and not action:
             revise(item,'准备阶段中断，没有业务提交，本机会结束',status='failed',result={'reason':'执行准备中断'})
@@ -98,6 +100,9 @@ def execute_item(item: LifeItem, scheduler) -> None:
         revise(item,'居民已删除',status='cancelled');return
     if item.actor_id in config.paused_agents:
         revise(item,'居民暂停',status='paused');return
+    from .publish_schedule import replan_if_blocked
+    if replan_if_blocked(item):
+        return
     from .life_occupancy import occupied, defer_busy
     if item.activity != 'market_prepare' and occupied(item):
         defer_busy(item, config)
@@ -230,7 +235,10 @@ def execute_item(item: LifeItem, scheduler) -> None:
             return  # 后续节点只继续本次 workflow。
         action=WorldAction.objects.filter(pk=execution_key(item)).first()
         skipped = bool(action and action.status == 'skipped')
-        if item.activity == 'investment' and outcome and outcome.status == 'success' and skipped:
+        from .publish_schedule import quota_skip
+        if item.activity == 'post_publish' and skipped and quota_skip(action.result.get('reason', '')):
+            status = 'rest'
+        elif item.activity == 'investment' and outcome and outcome.status == 'success' and skipped:
             status = 'rest'
         elif not outcome or outcome.status in ('failed', 'skipped') or skipped:
             status = 'failed'
@@ -258,9 +266,11 @@ def tick_life(scheduler) -> None:
     reconcile()
     configs=list(LifeConfig.objects.filter(migrated=True))
     # 核对业务事实不启动新行动，手动旅行结束时也必须释放预留。
+    from .publish_schedule import repair_quota_failures, replan_quota_intentions
     for config in configs:
         requeue_busy_failures(config, local_time())
         finish_running(config,local_time())
+        repair_quota_failures(config)
     from .life_interleaving_recovery import expire_selections
     expire_selections()
     # Finishing accounting is safe even after local automatic execution is disabled.
@@ -278,6 +288,7 @@ def tick_life(scheduler) -> None:
     for config in configs:
         now=local_time()
         try:
+            replan_quota_intentions(config, now)
             ran=False
             due=due_item(config,now)
             # 世界执行位被其他任务占用时留在原时间，下一轮再试，避免把机会记成休息或失败。

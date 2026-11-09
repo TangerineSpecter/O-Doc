@@ -180,6 +180,11 @@ class PartyDailyProjectionTests(TestCase):
         self.assertFalse(recent['age_ready'])
         old = inspect_party('admin', party.pk, now=self.now+timedelta(days=7, seconds=55))
         self.assertTrue(old['age_ready'])
+        with patch.dict('os.environ', {'ODOC_COMBAT_ROUND_RETENTION_DAYS': '2'}):
+            short = inspect_party('admin', party.pk, now=self.now+timedelta(days=2, seconds=55))
+        self.assertTrue(short['age_ready'])
+        self.assertEqual(short['retention_days'], 2)
+        self.assertEqual(short['retention_cutoff'], old['retention_cutoff'])
         self.assertTrue(old['shared_source_verified'])
         self.assertFalse(old['daily_contribution_verified'])
         self.assertFalse(old['cleanup_ready'])

@@ -198,7 +198,7 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
              'investment': BudgetChoices(agent.money).options('investment', cash_left=available)}
     allowed_kinds = set()
     quotas = {}
-    from .publish_config import quota_usage
+    from .publish_config import quota_bounds, quota_usage
     for slot in context['slots']:
         at = local_time(datetime.fromisoformat(slot['time']))
         slot['time'] = at.isoformat()
@@ -206,14 +206,20 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
         slot_allowed = []
         for kind in allowed:
             task = tasks[next(row['task_id'] for row in context['activities'] if row['kind'] == kind)]
-            if task.task_kind == 'post_publish' and task.pk not in quotas:
-                quotas[task.pk] = quota_usage(task)
-            if not task_reason(owner, agent, task, at, quota=quotas.get(task.pk)):
+            quota = None
+            if task.task_kind == 'post_publish':
+                key = (task.pk, quota_bounds(task.publish_config, at))
+                if key not in quotas:
+                    quotas[key] = quota_usage(task, now=at)
+                quota = quotas[key]
+            if not task_reason(owner, agent, task, at, quota=quota):
                 slot_allowed.append(kind)
         slot['allowed_activities'] = slot_allowed
         allowed_kinds.update(slot_allowed)
     context['activities'] = [{**row, 'description': DESCRIPTIONS[row['kind']]}
                              for row in context['activities'] if row['kind'] in allowed_kinds]
+    for field in ('requirements', 'activity_energy'):
+        context[field] = {kind: value for kind, value in context[field].items() if kind in allowed_kinds}
     if 'travel' in allowed_kinds:
         context['travel'] = {key: value for key, value in quotes.items() if key in ('candidates', 'budget')}
     if 'farm' in allowed_kinds:

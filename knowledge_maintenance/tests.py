@@ -1,8 +1,10 @@
 import os
 import tempfile
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -14,6 +16,7 @@ from assets.models import Asset
 from memos.models import Memo
 
 from .models import DailyReviewItem
+from .services import collect_health_issues, health_summary_cache_key
 
 
 class KnowledgeMaintenanceApiTests(APITestCase):
@@ -170,6 +173,20 @@ class KnowledgeMaintenanceApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data['code'], 400)
 
+    def test_overview_reuses_only_the_user_health_summary_and_manual_check_refreshes_it(self):
+        cache.delete(health_summary_cache_key(self.user.username))
+        with patch('knowledge_maintenance.services.collect_health_issues', wraps=collect_health_issues) as scan:
+            first = self.client.get('/api/maintenance/overview').data['data']['health']
+            self.create_old_article()
+            cached = self.client.get('/api/maintenance/overview').data['data']['health']
+            self.assertEqual(first, cached)
+            self.assertEqual(scan.call_count, 1)
+            fresh = self.client.get('/api/maintenance/health').data['data']
+            updated = self.client.get('/api/maintenance/overview').data['data']['health']
+            self.assertGreater(fresh['total'], first['total'])
+            self.assertEqual(updated['total'], fresh['total'])
+            self.assertEqual(scan.call_count, 2)
+
     def test_health_rules_ignore_and_content_change(self):
         article = self.create_old_article(content='有内容但没有分类和标签')
         missing_asset = Asset.objects.create(
@@ -188,12 +205,15 @@ class KnowledgeMaintenanceApiTests(APITestCase):
         self.assertNotIn('rag_pending', rule_codes)
 
         issue = next(item for item in issues if item['rule_code'] == 'article_untagged')
-        ignored = self.client.post('/api/maintenance/health/ignore', {
-            'ruleCode': issue['rule_code'],
-            'sourceType': issue['source_type'],
-            'sourceId': issue['source_id'],
-            'fingerprint': issue['fingerprint'],
-        }, format='json')
+        with patch('knowledge_maintenance.views.collect_health_issues', wraps=collect_health_issues) as scan, \
+                patch('knowledge_maintenance.services.collect_health_issues', side_effect=AssertionError('重复健康扫描')):
+            ignored = self.client.post('/api/maintenance/health/ignore', {
+                'ruleCode': issue['rule_code'],
+                'sourceType': issue['source_type'],
+                'sourceId': issue['source_id'],
+                'fingerprint': issue['fingerprint'],
+            }, format='json')
+        scan.assert_called_once_with('admin')
         self.assertEqual(ignored.status_code, 200)
         after_ignore = self.client.get('/api/maintenance/health')
         self.assertNotIn('article_untagged', {

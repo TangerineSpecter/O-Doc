@@ -1,6 +1,7 @@
 import re
 
-from django.db.models import Max, Q
+from django.db.models import F, Max, Q, Window
+from django.db.models.functions import RowNumber
 from rest_framework.views import APIView
 
 from article.models import Article, Image
@@ -185,20 +186,21 @@ class GlobalSearchView(APIView):
                     group_filter |= Q(coll_id=group['coll_id'], photo_group_id=group['photo_group_id'])
                     group_updated_at[group_key] = group['latest_updated_at']
 
-                representatives = {}
-                if selected_groups:
-                    for image in grouped_images.filter(group_filter).order_by(
-                        'coll_id', 'photo_group_id', 'group_index', '-updated_at'
-                    ):
-                        group_key = (image.coll_id, image.photo_group_id)
-                        representatives.setdefault(group_key, image)
-
                 image_results = [
                     (image, image.updated_at)
                     for image in standalone_images[:limit]
                 ]
-                for group_key, image in representatives.items():
-                    image_results.append((image, group_updated_at[group_key]))
+                if selected_groups:
+                    representatives = grouped_images.filter(group_filter).annotate(
+                        group_position=Window(
+                            expression=RowNumber(),
+                            partition_by=[F('coll_id'), F('photo_group_id')],
+                            order_by=[F('group_index').asc(), F('updated_at').desc(), F('pk').asc()],
+                        )
+                    ).filter(group_position=1).order_by('coll_id', 'photo_group_id')
+                    for image in representatives:
+                        group_key = (image.coll_id, image.photo_group_id)
+                        image_results.append((image, group_updated_at[group_key]))
                 image_results.sort(key=lambda result: result[1], reverse=True)
 
                 for image, result_updated_at in image_results[:limit]:

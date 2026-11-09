@@ -29,6 +29,8 @@ class NotificationView(APIView):
         # 只看自己的通知
         status = request.query_params.get('status', 'unread')
         msg_list = get_notification_queryset(request.user, status)
+        if request.query_params.get('count_only') == '1':
+            return success_result({'count': msg_list.count()})
         json_data = NotificationSerializer(msg_list, many=True).data
         return success_result(json_data)
 

@@ -9,7 +9,7 @@ import type {
 } from '../types/api/maintenance';
 
 
-export const getMaintenanceOverview = () => request.get<unknown, MaintenanceOverview>('/maintenance/overview');
+export const getMaintenanceOverview = (signal?: AbortSignal) => request.get<unknown, MaintenanceOverview>('/maintenance/overview', {signal});
 
 export const getDailyReview = (date?: string) => request.get<unknown, DailyReviewPayload>(
     '/maintenance/reviews',

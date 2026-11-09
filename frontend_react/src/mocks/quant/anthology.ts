@@ -14,6 +14,7 @@ const owner = (request: Request) => Boolean(request.headers.get('Authorization')
 export async function resolveQuantAnthology(request: Request): Promise<unknown> {
     const url = new URL(request.url), path = url.pathname.replace(/\/$/, '');
     if (path === '/api/maintenance/overview') {
+        if (mockScenario() === 'error') return fail(503, '维护概览暂不可用');
         return {review: {date: '2026-10-22', total: 0, handled: 0, pending: 0, streak: 0, leadItem: null}, health: {score: 100, status: '良好', severityCounts: {critical: 0, warning: 0, info: 0}, total: 0}} satisfies MaintenanceOverview;
     }
     if (!path.startsWith('/api/anthology/')) return undefined;

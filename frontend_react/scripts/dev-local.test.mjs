@@ -52,7 +52,7 @@ test('unknown startup modes fail before starting services', () => {
 test('Vite reads local mode from env files with shell variables taking precedence', () => {
     const require = createRequire(import.meta.url);
     const vite = pathToFileURL(require.resolve('vite')).href;
-    const configFile = new URL('../vite.config.ts', import.meta.url).pathname;
+    const projectRoot = new URL('../', import.meta.url).pathname;
     for (const [fileValue, shellValue, expected] of [['true', undefined, 'true'], ['true', 'false', 'false'], ['false', 'true', 'true']]) {
         const root = mkdtempSync(join(tmpdir(), 'odoc-vite-local-test-'));
         try {
@@ -61,11 +61,11 @@ test('Vite reads local mode from env files with shell variables taking precedenc
             delete env.VITE_LOCAL_MODE;
             if (shellValue !== undefined) env.VITE_LOCAL_MODE = shellValue;
             const code = `import {resolveConfig} from ${JSON.stringify(vite)};
-                const config = await resolveConfig({configFile: ${JSON.stringify(configFile)}}, 'serve');
-                console.log(JSON.stringify({localMode: config.env.VITE_LOCAL_MODE, proxy: Boolean(config.server.proxy)}));`;
+                const config = await resolveConfig({root: ${JSON.stringify(projectRoot)}, envDir: process.cwd()}, 'serve');
+                console.log(JSON.stringify({configFile: config.configFile.split('/').pop(), localMode: config.env.VITE_LOCAL_MODE, proxy: Boolean(config.server.proxy)}));`;
             const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {cwd: root, env, encoding: 'utf8', timeout: 20000});
             assert.equal(result.status, 0, result.stderr);
-            assert.deepEqual(JSON.parse(result.stdout.trim()), {localMode: expected, proxy: expected !== 'true'});
+            assert.deepEqual(JSON.parse(result.stdout.trim()), {configFile: 'vite.config.ts', localMode: expected, proxy: expected !== 'true'});
         } finally {
             assert.ok(root.startsWith(join(tmpdir(), 'odoc-vite-local-test-')));
             rmSync(root, {recursive: true, force: true});

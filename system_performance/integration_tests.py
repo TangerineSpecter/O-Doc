@@ -50,15 +50,16 @@ class PostgreSQLIntegration(unittest.TestCase):
         from datetime import timedelta
         from django.utils import timezone
         now = timezone.now()
-        for identity, age in [('stale', 301), ('live', 20)]:
+        for identity, age in [('stale', 301), ('delayed', 60), ('live', 5)]:
             PerformanceInflight.objects.create(id=identity, updated=now - timedelta(seconds=age),
                 state={'id': identity, 'kind': 'task', 'operation': 'example', 'started': now.timestamp() - age, 'generation': 1})
         request = self.factory.get('/api/system/performance/overview/')
         force_authenticate(request, user=SimpleNamespace(is_authenticated=True, is_superuser=True))
         response = PerformanceView.as_view(action='overview')(request)
-        self.assertEqual([item['id'] for item in response.data['data']['inflight']], ['live'])
+        self.assertEqual([(item['id'], item['status']) for item in response.data['data']['inflight']],
+                         [('live', 'running'), ('delayed', 'unconfirmed')])
         maintain()
-        self.assertEqual(list(PerformanceInflight.objects.values_list('id', flat=True)), ['live'])
+        self.assertEqual(set(PerformanceInflight.objects.values_list('id', flat=True)), {'live', 'delayed'})
 
     def test_atomic_batches_and_clear_generation(self):
         event = self.event()
@@ -178,7 +179,11 @@ class PostgreSQLIntegration(unittest.TestCase):
         # stored by other workers. These markers must not be evicted for space.
         PerformanceFlushBatch.objects.bulk_create([PerformanceFlushBatch(id=uuid.uuid4().hex) for _ in range(512)])
         protected = set(PerformanceFlushBatch.objects.values_list('pk', flat=True))
-        result = persist([self.event()], uuid.uuid4().hex)
+        event = self.event()
+        from django.utils import timezone
+        PerformanceInflight.objects.create(id=event['id'], updated=timezone.now(), state={})
+        result = persist([event], uuid.uuid4().hex)
+        self.assertFalse(PerformanceInflight.objects.filter(pk=event['id']).exists())
         self.assertEqual(result['rejected_events'], 1)
         self.assertEqual(PerformanceBucket.objects.count(), 0)
         self.assertEqual(PerformanceSample.objects.count(), 0)

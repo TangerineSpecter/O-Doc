@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -11,7 +12,7 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import error_result, success_result, valid_result
 
 from .models import DailyReviewItem, HealthIssueIgnore
-from .services import collect_health_issues, health_payload, overview_payload, refresh_daily_review, review_payload
+from .services import collect_health_issues, health_summary_cache_key, health_payload, overview_payload, refresh_daily_review, review_payload
 
 
 def _requested_review_date(request):
@@ -119,8 +120,9 @@ class HealthIgnoreView(APIView):
         if not all((rule_code, source_type, source_id, fingerprint)):
             return valid_result('缺少问题标识或内容指纹', status=400)
         user_id = get_current_user_identifier(request)
+        issues = collect_health_issues(user_id)
         current_issue = next((
-            issue for issue in collect_health_issues(user_id)
+            issue for issue in issues
             if issue['rule_code'] == rule_code and issue['source_type'] == source_type and issue['source_id'] == source_id
         ), None)
         if not current_issue or current_issue['fingerprint'] != fingerprint:
@@ -132,16 +134,18 @@ class HealthIgnoreView(APIView):
             source_id=source_id,
             defaults={'source_fingerprint': fingerprint},
         )
-        return success_result(health_payload(user_id))
+        return success_result(health_payload(user_id, issues=issues))
 
     def delete(self, request):
         rule_code, source_type, source_id, _ = self._identity(request)
         if not all((rule_code, source_type, source_id)):
             return valid_result('缺少问题标识', status=400)
+        user_id = get_current_user_identifier(request)
         HealthIssueIgnore.objects.filter(
-            user_id=get_current_user_identifier(request),
+            user_id=user_id,
             rule_code=rule_code,
             source_type=source_type,
             source_id=source_id,
         ).delete()
+        cache.delete(health_summary_cache_key(user_id))
         return success_result()

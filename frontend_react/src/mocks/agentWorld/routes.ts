@@ -1,3 +1,5 @@
+import {resolveNotificationRoute} from '../notifications';
+import {selectTheatreEvent} from '../../utils/socialTheatre';
 import {projectArticleList} from '../articleProjection';
 import {reservationItems} from './reservations';
 import {bardProfiles,bardSnapshot,bardParty} from './bardSamples';
@@ -88,7 +90,7 @@ const staticData: Record<string, unknown> = {
     '/api/settings/config/get_ai_config/': {defaultChatModelId: 'local-model', simpleChatModelId: 'local-model', defaultImageModelId: '', defaultImageGenerationModelId: '', defaultEmbeddingModelId: '', defaultRerankModelId: ''},
     '/api/settings/config/get_runtime_info/': {firstStartedAt: at(8, -20), lastStartedAt: at(8), uptimeSeconds: 7200},
     '/api/settings/config/get_image_upload_config/': {maxLongEdge: 2048, maxFileSizeMb: 10},
-    '/api/message/notifications/': [], '/api/system/logs/report/': null,
+    '/api/system/logs/report/': null,
 };
 
 function schedule(url: URL) {
@@ -104,6 +106,8 @@ function schedule(url: URL) {
 
 export async function resolveLocalRoute(request: Request): Promise<unknown> {
     const url = new URL(request.url), path = url.pathname;
+    const notification = resolveNotificationRoute(request, emptyScenario());
+    if (notification !== undefined) return notification;
     const artResult = await resolveTournamentArtRoute(request.clone());
     if (artResult !== undefined) return artResult;
     const iconResult = await resolveItemIconRoute(request.clone(), emptyScenario());
@@ -240,7 +244,11 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (momentMatch[2] === 'like/' && writing) {row.liked = Boolean(body.active); row.likeCount += row.liked ? 1 : -1;}
         if (request.method === 'DELETE') moments.splice(moments.indexOf(row), 1); return row;
     }
-    if (path === `${base}/social/discussions/`) return {items: list(theatreEvents), nextCursor: null};
+    if (path === `${base}/social/discussions/`) {
+        const rows = list(theatreEvents);
+        const current = selectTheatreEvent(rows);
+        return {items: url.searchParams.get('current') === '1' ? (current ? [current] : []) : rows, nextCursor: null};
+    }
     if (path === `${base}/social/discussions/trigger/` && writing) {
         const topic = typeof body.topic === 'string' ? body.topic.trim() : '';
         const event: SocialTheatreEvent = {...theatre, id: `local-theatre-${Date.now()}`, manual: true,
@@ -303,6 +311,10 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (typeof settings.interleavingCheckMinutes === 'number' && settings.interleavingCheckMinutes < 5) {
             return Response.json({code: 400, msg: '条件预检间隔不能少于5分钟', data: null}, {status: 400});
         }
+    }
+    if (path === '/api/settings/config/save_memos_push_config/' && writing) {
+        resource.set('/api/settings/config/get_memos_push_config/', body);
+        return null;
     }
     if (path in staticData) {
         if (writing) {const original = resource.get(path) ?? staticData[path]; const updated = typeof original === 'object' && original && !Array.isArray(original) ? {...original, ...body} : body; resource.set(path, updated); return updated;}

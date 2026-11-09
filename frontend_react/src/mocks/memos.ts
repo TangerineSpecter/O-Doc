@@ -7,6 +7,10 @@ let items: MemoItem[] = [
     {memoId: 'local-memo-2', content: '## 读书笔记\n\n- 保持好奇\n- 多观察，也多提问', tag: '阅读', isPinned: false, userName: '本地演示', createdAt: now, updatedAt: now},
 ];
 
+export function randomLocalMemo(): MemoItem | undefined {
+    return items[Math.floor(Math.random() * items.length)];
+}
+
 export async function resolveMemoRoute(request: Request, empty: boolean) {
     const url = new URL(request.url);
     const path = url.pathname;

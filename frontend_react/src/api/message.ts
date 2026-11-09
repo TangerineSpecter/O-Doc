@@ -9,6 +9,9 @@ export const getNotifications = (status: NotificationStatus = 'unread') => {
     return request.get<any, NotificationItem[]>('/message/notifications/', { params: { status } });
 };
 
+export const getUnreadNotificationCount = () =>
+    request.get<unknown, {count: number}>('/message/notifications/', {params: {status: 'unread', count_only: '1'}});
+
 // 标记单条通知已读
 export const markRead = (id: string) => {
     return request.patch(`/message/notifications/${id}/`, { isRead: true });
