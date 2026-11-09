@@ -24,9 +24,11 @@ test('sample pagination and aggregate amounts agree with generated records', asy
 });
 
 test('clear stays empty until explicit activity and never resurrects deleted IDs', async () => {
+    assert.equal((await call('overview/') as PerformanceOverview).inflight.length, 3);
     const old = (await call('samples/?kind=request') as Samples).rows[0];
     const clearedAt = Date.now() / 1000;
     await call('clear/', 'POST');
+    assert.equal((await call('overview/') as PerformanceOverview).inflight.length, 0);
     for (let index = 0; index < 3; index++) assert.equal((await call('samples/?kind=request') as Samples).total, 0);
     const missing = await call(`samples/${old.id}/`) as Response;
     assert.equal(missing.status, 404);

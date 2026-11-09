@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from datetime import timedelta
 from rest_framework.exceptions import NotFound, ValidationError
 from system_logs.views import AdminView
 from utils.response_utils import success_result
@@ -19,10 +20,10 @@ class PerformanceView(AdminView):
         options = query.validated_data
         if self.action == 'overview':
             from django.utils import timezone
+            now = timezone.now()
             running = [dict(**row.state, updated=row.updated.isoformat(),
-                            elapsed_ms=max(0, (timezone.now().timestamp() - row.state['started']) * 1000),
-                            status='unknown' if (timezone.now() - row.updated).total_seconds() > 300 else 'running')
-                       for row in PerformanceInflight.objects.order_by('-updated')[:100]]
+                            elapsed_ms=max(0, (now.timestamp() - row.state['started']) * 1000), status='running')
+                       for row in PerformanceInflight.objects.filter(updated__gte=now - timedelta(minutes=5)).order_by('-updated')[:100]]
             return success_result({**queries.overview(options['hours']), 'policy': load_policy(), 'health': collector.health(), 'inflight': running})
         if self.action == 'rankings':
             return success_result(queries.rankings(options['hours'], options['kind']))

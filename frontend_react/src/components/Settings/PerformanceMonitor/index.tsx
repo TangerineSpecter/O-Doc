@@ -93,6 +93,17 @@ export function PerformanceMonitor() {
             ? [{at: points[index - 1].at + (data?.overview.trendStepSeconds || 60), averageMs: null}, point]
             : [point]
     );
+    const runningGroups = new Map<string, {kind: PerformanceKind; operation: string; count: number; longestMs: number}>();
+    for (const item of data?.overview.inflight ?? []) {
+        const key = JSON.stringify([item.kind, item.operation]);
+        const group = runningGroups.get(key);
+        if (group) {
+            group.count += 1;
+            group.longestMs = Math.max(group.longestMs, item.elapsedMs);
+        } else {
+            runningGroups.set(key, {kind: item.kind, operation: item.operation, count: 1, longestMs: item.elapsedMs});
+        }
+    }
 
     const maxRankingTotalMs = data?.rankings?.length
         ? Math.max(...data.rankings.map(r => r.totalMs), 1)
@@ -168,6 +179,15 @@ export function PerformanceMonitor() {
                         >
                             <Settings2 className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                             采集设置
+                        </button>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setClearOpen(true)}
+                            className="inline-flex items-center gap-1.5 h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 shadow-2xs transition-all hover:text-red-600 hover:border-red-200 hover:bg-red-50 active:scale-95 disabled:opacity-50 whitespace-nowrap shrink-0"
+                        >
+                            <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                            清空监控数据
                         </button>
                     </div>
                 </div>
@@ -426,7 +446,7 @@ export function PerformanceMonitor() {
                                     />
                                     <Tooltip
                                         labelFormatter={val => new Date(Number(val) * 1000).toLocaleString()}
-                                        formatter={(val: any) => [`${val} ms`, '平均耗时']}
+                                        formatter={val => [`${Math.round(Number(val))} ms`, '平均耗时']}
                                         contentStyle={{
                                             backgroundColor: '#ffffff',
                                             borderRadius: '0.75rem',
@@ -466,22 +486,23 @@ export function PerformanceMonitor() {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
                         </span>
-                        <h3 className="font-bold text-slate-900 text-sm">正在执行 / 结果未知</h3>
+                        <h3 className="font-bold text-slate-900 text-sm">正在执行</h3>
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-50 text-orange-700">
                             {data?.overview.inflight.length}
                         </span>
                     </div>
 
                     <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
-                        {data?.overview.inflight.map(item => (
-                            <div key={item.id} className="p-3 bg-white hover:bg-slate-50/80 flex items-center justify-between gap-4 text-xs">
-                                <span className="font-mono text-slate-800 break-all">{item.operation}</span>
+                        {[...runningGroups.entries()].map(([key, item]) => (
+                            <div key={key} className="p-3 bg-white hover:bg-slate-50/80 flex items-center justify-between gap-4 text-xs">
+                                <span className="font-mono text-slate-800 break-all">{item.operation === 'unmatched' ? '尚未匹配路由的请求' : item.operation} <span className="font-sans text-slate-400">（{kindNames[item.kind as Exclude<PerformanceKind, ''>]}）</span></span>
                                 <span className="tabular-nums font-medium whitespace-nowrap text-orange-600 shrink-0">
-                                    {item.status === 'unknown' ? '心跳过期，结果未知' : `已执行 ${duration(item.elapsedMs)}`}
+                                    {item.count} 个 · 最长已执行 {duration(item.longestMs)}
                                 </span>
                             </div>
                         ))}
                     </div>
+                    <p className="text-[11px] text-slate-400">按操作类型合并，显示当前执行数量和最长已执行时间；最多展示最近 100 个在途操作。心跳超过 5 分钟后不再展示。</p>
                 </section>
             )}
 
@@ -514,6 +535,7 @@ export function PerformanceMonitor() {
                                     <th className="text-right font-semibold py-2.5 px-3 whitespace-nowrap">调用次数</th>
                                     <th className="text-right font-semibold py-2.5 px-3 whitespace-nowrap">累计耗时</th>
                                     <th className="text-right font-semibold py-2.5 px-3 whitespace-nowrap">平均耗时</th>
+                                    <th className="text-right font-semibold py-2.5 px-3 whitespace-nowrap">最长耗时</th>
                                     <th className="text-right font-semibold py-2.5 px-3 whitespace-nowrap">近似 P95</th>
                                     <th className="text-right font-semibold py-2.5 px-3 whitespace-nowrap">错误率</th>
                                 </tr>
@@ -584,6 +606,10 @@ export function PerformanceMonitor() {
                                                 {duration(row.averageMs)}
                                             </td>
 
+                                            <td className="text-right tabular-nums py-3 px-3 whitespace-nowrap text-slate-700 font-mono">
+                                                {duration(row.maxMs)}
+                                            </td>
+
                                             {/* 近似 P95 */}
                                             <td className="text-right tabular-nums py-3 px-3 whitespace-nowrap text-slate-700 font-mono">
                                                 {quantile(row.p95)}
@@ -646,25 +672,14 @@ export function PerformanceMonitor() {
 
             {/* 7. 诊断样本卡片 */}
             <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2.5">
-                        <FileSearch className="w-4 h-4 text-orange-500 shrink-0" />
-                        <h3 className="font-bold text-slate-900 text-sm">
-                            诊断样本
-                        </h3>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200/60">
-                            {samplesReady && data ? `${data.total} 条` : '—'}
-                        </span>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => setClearOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all active:scale-95 whitespace-nowrap shrink-0 self-start sm:self-auto"
-                    >
-                        <Trash2 size={13} className="shrink-0" />
-                        <span>清空监控数据</span>
-                    </button>
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                    <FileSearch className="w-4 h-4 text-orange-500 shrink-0" />
+                    <h3 className="font-bold text-slate-900 text-sm">
+                        诊断样本
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200/60">
+                        {samplesReady && data ? `${data.total} 条` : '—'}
+                    </span>
                 </div>
 
                 <p className="text-xs text-slate-500">
@@ -776,7 +791,7 @@ export function PerformanceMonitor() {
                 isLoading={busy}
                 type="danger"
                 title="清空性能监控数据"
-                description="将删除当前部署已保存的性能统计、样本和数据库快照。采集策略保留，业务数据不受影响。"
+                description="将删除当前部署已保存的性能统计、样本、在途记录和数据库快照。采集策略保留，业务数据不受影响。"
                 confirmText="确认清空"
             />
         </div>

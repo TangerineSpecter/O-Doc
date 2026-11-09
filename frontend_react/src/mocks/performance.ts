@@ -9,6 +9,7 @@ const kinds = Object.keys(names) as Kind[];
 const bounds = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 30000, 60000, 120000, 300000, 600000, 1800000];
 const records = new Map<string, PerformanceEvent>();
 let nextIndex = 0;
+let running: PerformanceOverview['inflight'] = [];
 
 function createEvent(kind: Kind, index: number, started: number): PerformanceEvent {
     const kindIndex = kinds.indexOf(kind);
@@ -45,6 +46,12 @@ function addEvents(count: number, initial = false) {
 }
 export function resetPerformanceMock() {
     policy = {...initialPolicy}; records.clear(); nextIndex = 0;
+    const started = Date.now() / 1000 - 70;
+    running = [
+        {id: 'live-1', operation: 'agent_world.execute_item', kind: 'task', started, status: 'running', elapsedMs: 70000},
+        {id: 'live-2', operation: 'agent_world.execute_item', kind: 'task', started: started + 20, status: 'running', elapsedMs: 50000},
+        {id: 'live-3', operation: 'unmatched', kind: 'request', started: started + 40, status: 'running', elapsedMs: 30000},
+    ];
     addEvents(24, true);
 }
 resetPerformanceMock();
@@ -79,7 +86,7 @@ export async function resolvePerformanceRoute(request: Request, state: string | 
     if (!path.startsWith('/api/system/performance/')) return undefined;
     if (state === 'error') return Response.json({code: 503, msg: '本地模拟性能接口失败', data: null}, {status: 503});
     if (path.endsWith('/clear/')) {
-        records.clear(); nextIndex = 0; policy = {...policy, generation: policy.generation + 1};
+        records.clear(); running = []; nextIndex = 0; policy = {...policy, generation: policy.generation + 1};
         return policy;
     }
     if (path.endsWith('/policy/')) {
@@ -99,7 +106,7 @@ export async function resolvePerformanceRoute(request: Request, state: string | 
             return [...groups].sort((a, b) => a[0] - b[0]).map(([at, rows]) => ({...metrics(rows), at, kind: name}));
         });
         const result: PerformanceOverview = {start: new Date(Date.now() - Number(url.searchParams.get('hours') || 24) * 3600000).toISOString(), end: new Date().toISOString(),
-            truncated: false, policy, inflight: [], trendStepSeconds: 60, trend,
+            truncated: false, policy, inflight: state === 'empty' ? [] : running.map(item => ({...item, elapsedMs: Math.max(0, Date.now() - item.started * 1000)})), trendStepSeconds: 60, trend,
             health: {dropped: 0, failedBatches: 0, lastFlush: all.length ? Math.max(...all.map(row => row.started)) : null, error: null, queueSize: 0, processId: 0},
             byKind: Object.fromEntries(kinds.map(name => [name, metrics(all.filter(row => row.kind === name))]))};
         return result;

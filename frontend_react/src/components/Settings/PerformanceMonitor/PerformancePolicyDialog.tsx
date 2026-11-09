@@ -76,18 +76,18 @@ export function PerformancePolicyDialog({
     };
 
     return (
-        <div data-modal-scroll-lock className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xs p-4 flex items-center justify-center animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[120] bg-slate-900/40 backdrop-blur-xs p-4 flex items-center justify-center animate-in fade-in duration-200">
             <section
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="performance-policy-title"
-                className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+                className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[88dvh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
             >
                 {/* Header */}
-                <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-                    <div className="flex items-center gap-3">
+                <div className="px-6 py-4 border-b border-slate-100 flex shrink-0 items-center justify-between gap-3 bg-slate-50/60">
+                    <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-600 border border-orange-100/60 shrink-0">
-                            <Sliders className="h-4.5 w-4.5" />
+                            <Sliders className="h-4 w-4" />
                         </div>
                         <div>
                             <h2 id="performance-policy-title" className="font-bold text-slate-800 text-base">
@@ -103,14 +103,14 @@ export function PerformancePolicyDialog({
                         disabled={busy}
                         onClick={onClose}
                         aria-label="关闭采集设置"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        className="p-1.5 shrink-0 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                     >
                         <X size={18} />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-6 overflow-y-auto scrollbar-hide space-y-6 text-slate-700">
+                <div className="min-h-0 flex-1 p-6 overflow-y-auto overscroll-contain scrollbar-hide space-y-6 text-slate-700">
                     {/* 启用开关卡片 */}
                     <div className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-4 transition-all">
                         <div className="flex items-start gap-3">
@@ -128,9 +128,9 @@ export function PerformancePolicyDialog({
 
                     {/* 阈值分组 */}
                     <div className="space-y-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <Clock className="w-4 h-4 text-orange-500 shrink-0" />
-                            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            <h3 className="shrink-0 text-xs font-bold text-slate-700 uppercase tracking-wider">
                                 慢操作耗时阈值
                             </h3>
                             <span className="text-[11px] text-slate-400 font-normal">（超过阈值将记录详细样本）</span>
@@ -141,7 +141,7 @@ export function PerformancePolicyDialog({
                                     key={key}
                                     className="bg-white border border-slate-200/80 rounded-xl p-3 hover:border-slate-300 transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20"
                                 >
-                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 mb-1.5">
                                         <label htmlFor={`policy-input-${key}`} className="text-xs font-semibold text-slate-700">
                                             {label}
                                         </label>
@@ -167,9 +167,9 @@ export function PerformancePolicyDialog({
 
                     {/* 存储容量分组 */}
                     <div className="space-y-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <Database className="w-4 h-4 text-orange-500 shrink-0" />
-                            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            <h3 className="shrink-0 text-xs font-bold text-slate-700 uppercase tracking-wider">
                                 存储与清理策略
                             </h3>
                             <span className="text-[11px] text-slate-400 font-normal">（超出限制自动分批清理最旧数据）</span>
@@ -212,7 +212,7 @@ export function PerformancePolicyDialog({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-3">
+                <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex shrink-0 items-center justify-end gap-3">
                     <button
                         type="button"
                         disabled={busy}

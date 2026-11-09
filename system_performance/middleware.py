@@ -2,7 +2,7 @@ import time
 import inspect
 from pathlib import Path
 from .safety import ROOT
-from .instrumentation import active, finish, open_operation, outcome
+from .instrumentation import CURRENT, active, finish, open_operation, outcome
 
 EXCLUDE = ('/api/system/', '/api/health/', '/static/', '/media/')
 
@@ -10,6 +10,12 @@ EXCLUDE = ('/api/system/', '/api/health/', '/static/', '/media/')
 class PerformanceMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        event = CURRENT.get()
+        match = getattr(request, 'resolver_match', None)
+        if event is not None and event['kind'] == 'request' and match and getattr(match, 'route', None):
+            event['operation'] = str(match.route)[:240]
 
     def __call__(self, request):
         if not request.path.startswith('/api/') or request.path.startswith(EXCLUDE):

@@ -148,7 +148,7 @@ def maintain():
     _delete_old(PerformanceBucket, now - timedelta(days=config['aggregate_days']), 'minute')
     _delete_old(DatabaseStatSnapshot, now - timedelta(days=7))
     _delete_old(PerformanceFlushBatch, now - timedelta(hours=24))
-    _delete_old(PerformanceInflight, now - timedelta(days=1), 'updated')
+    _delete_old(PerformanceInflight, now - timedelta(minutes=5), 'updated')
     # Each pass is short; pressure causes another pass without waiting a minute.
     # New records cannot outgrow the budget while this cleanup catches up.
     with transaction.atomic():

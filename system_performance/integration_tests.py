@@ -46,6 +46,20 @@ class PostgreSQLIntegration(unittest.TestCase):
                     status='success', slow=True, sql_count=2, sql_ms=500, build={},
                     policy_version=1, generation=1, children=[], **changes)
 
+    def test_stale_inflight_is_hidden_and_cleaned_without_removing_live_rows(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        now = timezone.now()
+        for identity, age in [('stale', 301), ('live', 20)]:
+            PerformanceInflight.objects.create(id=identity, updated=now - timedelta(seconds=age),
+                state={'id': identity, 'kind': 'task', 'operation': 'example', 'started': now.timestamp() - age, 'generation': 1})
+        request = self.factory.get('/api/system/performance/overview/')
+        force_authenticate(request, user=SimpleNamespace(is_authenticated=True, is_superuser=True))
+        response = PerformanceView.as_view(action='overview')(request)
+        self.assertEqual([item['id'] for item in response.data['data']['inflight']], ['live'])
+        maintain()
+        self.assertEqual(list(PerformanceInflight.objects.values_list('id', flat=True)), ['live'])
+
     def test_atomic_batches_and_clear_generation(self):
         event = self.event()
         batch = uuid.uuid4().hex

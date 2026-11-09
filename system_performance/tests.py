@@ -165,6 +165,16 @@ class InstrumentationTests(unittest.TestCase):
             self.assertTrue(any(item['id'] == event['id'] for item in collector.live_snapshot()))
         self.assertFalse(any(item['id'] == event['id'] for item in collector.live_snapshot()))
 
+    def test_request_route_is_available_before_view_finishes(self):
+        request = SimpleNamespace(path='/api/example/', method='GET', resolver_match=SimpleNamespace(route='api/example/<int:pk>/', func=None))
+        middleware = None
+        def view(_request):
+            middleware.process_view(request, None, (), {})
+            self.assertEqual(collector.live_snapshot()[0]['operation'], 'api/example/<int:pk>/')
+            return HttpResponse()
+        middleware = PerformanceMiddleware(view)
+        middleware(request)
+
     def test_generator_does_not_leak_context_and_closes_original(self):
         closed = []
         @monitored_model
