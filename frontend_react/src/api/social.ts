@@ -19,7 +19,7 @@ export const saveSocialConfiguration = (value: SocialConfiguration) => request.p
 export const getSocialTheatreEvents = (before?: string) => request.get<unknown, {items: SocialTheatreEvent[]; nextCursor: string | null}>(`${base}/social/discussions/`, {params: before ? {before} : {}});
 export const getSocialTheatreEvent = (id: string) => request.get<unknown, SocialTheatreEvent>(`${base}/social/discussions/${id}/`);
 export const deleteSocialTheatreEvent = (id: string) => request.delete(`${base}/social/discussions/${id}/`);
-export const triggerSocialTheatre = () => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/trigger/`, {});
+export const triggerSocialTheatre = (topic = '') => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/trigger/`, {topic});
 export const resumeSocialTheatre = (id: string) => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/${id}/resume/`, {});
 export const regenerateMomentImage = (id: string) => request.post<unknown, Moment>(`${base}/moments/${id}/regenerate/`);
 

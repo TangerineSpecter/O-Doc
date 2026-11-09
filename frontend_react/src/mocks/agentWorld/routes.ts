@@ -10,6 +10,7 @@ import {farms, farmRules, farmHistory, inventory, cooking, alchemy, itemCatalog,
 import {combatCatalog, combatProfiles, exploration, archivedExploration, localParty, localOlderPartyEvents, localAdventureOptions, localPartyExploration, journey, fishingCatalog, fishingOverview, fishingTrip, fishingTrips, lottery, lotteryRound, previousRound, tickets, positions, investmentOverview, trades, investmentDecisions} from './adventure';
 import {moments, comments, theatre, socialConfig, bounties, analytics, analyticsLedger, metrics, worldPosts} from './social';
 import type {LifeItem} from '../../types/api/agentLife';
+import type {SocialTheatreEvent} from '../../types/api/social';
 import {tournamentEvents, tournamentHistory, tournamentOverview, tournamentReports} from './tournament';
 import {resolveItemIconRoute} from './itemIcons';
 import {resolveCookingRoute} from './cooking';
@@ -34,6 +35,7 @@ const page = <T,>(items: T[], url: URL) => {
 const actor = (url: URL) => url.searchParams.get('actor_id') || url.searchParams.get('actorId') || url.searchParams.get('agentId') || url.searchParams.get('agent') || url.searchParams.get('seller_id') || '';
 const forActor = <T extends {actorId?: string; agentId?: string}>(rows: T[], url: URL) => rows.filter(r => !actor(url) || (r.actorId || r.agentId) === actor(url));
 const resource = new Map<string, unknown>();
+const theatreEvents: SocialTheatreEvent[] = [theatre];
 lifeItems.push(...blacksmithLifeItems, ...reservationItems);
 for (const item of lifeItems) {
     if (item.source === 'interleaved') item.activityUsage = {requests: 4, inputTokens: 860, outputTokens: 32, totalTokens: 892, usageComplete: true};
@@ -238,8 +240,21 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (momentMatch[2] === 'like/' && writing) {row.liked = Boolean(body.active); row.likeCount += row.liked ? 1 : -1;}
         if (request.method === 'DELETE') moments.splice(moments.indexOf(row), 1); return row;
     }
-    if (path === `${base}/social/discussions/`) return {items: list([theatre]), nextCursor: null};
-    if (path.startsWith(`${base}/social/discussions/`)) return writing ? {event: theatre} : theatre;
+    if (path === `${base}/social/discussions/`) return {items: list(theatreEvents), nextCursor: null};
+    if (path === `${base}/social/discussions/trigger/` && writing) {
+        const topic = typeof body.topic === 'string' ? body.topic.trim() : '';
+        const event: SocialTheatreEvent = {...theatre, id: `local-theatre-${Date.now()}`, manual: true,
+            scheduledAt: new Date().toISOString(), status: 'completed',
+            topic: topic ? {title: topic, question: topic, event: '本地样例：围绕输入的议题搜索相关资料。', tradeoff: '不同观点'} : theatre.topic};
+        theatreEvents.unshift(event);
+        return {event};
+    }
+    if (path.startsWith(`${base}/social/discussions/`)) {
+        const id = path.slice(`${base}/social/discussions/`.length).split('/')[0];
+        const event = theatreEvents.find(row => row.id === id) || theatre;
+        if (request.method === 'DELETE') {const index = theatreEvents.indexOf(event); if (index >= 0) theatreEvents.splice(index, 1); return {deleted: true};}
+        return writing ? {event} : event;
+    }
     if (path === `${base}/fishing/`) return {...fishingOverview, enabled: (resource.get(`${base}/fishing/config/`) as {enabled: boolean} | undefined)?.enabled ?? fishingOverview.enabled, ...page(forActor(fishingOverview.items, url), url), active: list(forActor(fishingOverview.active, url)), residents: list(fishingOverview.residents)};
     if (path.includes('/fishing/trips/')) return fishingTrips.find(trip => path.includes(`/${trip.id}/`)) || fishingTrip;
     if (path === `${base}/lottery/rounds/`) return page([lotteryRound, previousRound], url);

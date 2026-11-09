@@ -44,7 +44,9 @@ def _topic(event, residents, candidates, *, owner, check):
         check()
         _snapshot(event.pk, stage='topic', candidate_index=index + 1, candidate_count=len(candidates))
         try:
-            topic = _model_call(lambda: prepare_topic(residents[0], source, owner=owner, check=check), check)
+            manual_topic = (event.snapshot or {}).get('manual_topic', '')
+            topic = _model_call(lambda: prepare_topic(residents[0], source, owner=owner, check=check,
+                                                       **({'manual_topic': manual_topic} if manual_topic else {})), check)
         except SCENE_ERRORS as exc:
             rejections.append({'title': source['title'], 'reason': '模型暂未完成议题提炼',
                                'error': str(exc)[:1000]})
@@ -54,6 +56,8 @@ def _topic(event, residents, candidates, *, owner, check):
         if not topic['is_event']:
             rejections.append({'title': source['title'], 'reason': topic['reason']})
             continue
+        if manual_topic:
+            topic['question'] = manual_topic
         with farm_gate(), transaction.atomic():
             row = SocialTheatreEvent.objects.select_for_update().get(pk=event.pk)
             if row.status != 'running':

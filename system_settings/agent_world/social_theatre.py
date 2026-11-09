@@ -94,7 +94,7 @@ def _is_multi_story_result(value, title=''):
     return False
 
 
-def normalize_news(rows, limit=3, *, now=None):
+def normalize_news(rows, limit=3, *, now=None, require_recent=True):
     """Keep distinct article sources without clipping their search snippets."""
     result, seen_urls, seen_titles = [], set(), set()
     now = now or datetime.now(timezone.utc)
@@ -106,7 +106,7 @@ def normalize_news(rows, limit=3, *, now=None):
         raw_summary = row.get('summary')
         title = _compact(row.get('title'), 200)
         if (_is_multi_story_result(raw_summary, row.get('title'))
-                or not _is_recent(row.get('published_at'), now)):
+                or (require_recent and not _is_recent(row.get('published_at'), now))):
             continue
         summary = _clean_text(raw_summary)
         url = str(row.get('url') or '').strip()

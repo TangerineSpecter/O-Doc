@@ -125,8 +125,11 @@ class SocialTheatreTriggerView(APIView):
     @guarded
     def post(self, request):
         owner = get_current_user_identifier(request)
+        topic = request.data.get('topic', '')
+        if not isinstance(topic, str) or len(topic.strip()) > 200:
+            return valid_result('议题须为不超过200字的文本', status=400)
         try:
-            row = queue_manual_event(config_for(owner))
+            row = queue_manual_event(config_for(owner), topic=topic.strip())
         except ValueError as exc:
             return valid_result(str(exc), status=409)
         from .social_theatre_worker import start_manual_theatre_worker

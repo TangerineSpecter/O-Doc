@@ -29,6 +29,17 @@ from .social_theatre_decision import (prepare_topic, decide_turn, review_relatio
 
 
 class SocialTheatreContentTests(SimpleTestCase):
+    def test_custom_topic_accepts_older_sources_but_not_directories(self):
+        rows = [{'title': '历史报道', 'summary': '相关事实。', 'published_at': '2020-01-01T00:00:00Z',
+                 'url': 'https://news.example/story'},
+                {'title': '新闻栏目', 'summary': '相关事实。', 'url': 'https://news.example/news'}]
+        self.assertEqual(normalize_news(rows), [])
+        self.assertEqual([row['title'] for row in normalize_news(rows, require_recent=False)], ['历史报道'])
+
+    def test_custom_topic_is_excluded_from_daily_anchor(self):
+        custom = SimpleNamespace(snapshot={'manual': True, 'manual_topic': '人工智能'})
+        self.assertIsNone(_news_anchor([custom]))
+
     def test_decision_stages_use_world_decision_routing_and_minimal_profiles(self):
         agent = SimpleNamespace(pk='a', name='甲', role_profile={'personality': '直率', 'mbti': 'ENTP',
                                                                'background': 'private-background'})
@@ -168,6 +179,25 @@ class SocialTheatreContentTests(SimpleTestCase):
 
 
 class SocialTheatreTests(TestCase):
+    def test_custom_search_is_independent_of_daily_events(self):
+        now = datetime(2026, 10, 20, 12, tzinfo=ZoneInfo('Asia/Shanghai'))
+        automatic = SocialTheatreEvent.objects.create(id='auto-custom-test', owner_id='owner',
+            business_date=now.date(), slot_index=0, scheduled_at=now, status='scheduled',
+            snapshot={'version': NEWS_SNAPSHOT_VERSION})
+        custom = SocialTheatreEvent.objects.create(id='custom-test', owner_id='owner',
+            business_date=now.date(), slot_index=3, scheduled_at=now, status='scheduled',
+            snapshot={'manual': True, 'manual_topic': '人工智能', 'search_server_id': 'search'})
+        with patch('system_settings.agent_world.publish_search.search', return_value=[{
+            'title': '资料', 'summary': '相关事实。', 'url': 'https://example.com/story',
+            'published_at': '2020-01-01T00:00:00Z'}]) as query:
+            self.assertTrue(_ensure_news([custom], now, custom))
+        self.assertEqual(query.call_args.args[1:3], ('人工智能', 'general'))
+        custom.refresh_from_db()
+        automatic.refresh_from_db()
+        self.assertEqual(custom.source['title'], '资料')
+        self.assertEqual(automatic.status, 'scheduled')
+        self.assertEqual(automatic.source, {})
+
     def test_manual_trigger_can_retry_version_three_topic_failure_only_once(self):
         now = datetime(2026, 10, 20, 12, tzinfo=ZoneInfo('Asia/Shanghai'))
         WorldActionRuntime.objects.create(pk='world', enabled=True)

@@ -60,6 +60,7 @@ def _cached_news_error(snapshot):
 
 
 def _news_anchor(events):
+    events = [event for event in events if not (event.snapshot or {}).get('manual_topic')]
     if not events:
         return None
     current = [event for event in events
@@ -136,7 +137,7 @@ def ensure_daily_events(config, life, now=None):
     return list(SocialTheatreEvent.objects.filter(owner_id=config.pk, business_date=day).order_by('slot_index'))
 
 
-def queue_manual_event(config, now=None):
+def queue_manual_event(config, now=None, *, topic=''):
     """Queue one standalone scene without consuming an automatic daily slot."""
     now = local_time(now)
     cfg = settings_for(config)
@@ -168,6 +169,8 @@ def queue_manual_event(config, now=None):
         active = next((event for event in events if _is_manual_event(event)
                        and event.status in ('scheduled', 'searching', 'running')), None)
         if active:
+            if (active.snapshot or {}).get('manual_topic', '') != topic:
+                raise ValueError('已有手动小剧场正在进行，请结束后再发起新议题')
             return active
         manual_slots = [event.slot_index for event in events if _is_manual_event(event)]
         slot_index = max([MANUAL_SLOT_START - 1, *manual_slots]) + 1
@@ -178,7 +181,9 @@ def queue_manual_event(config, now=None):
                     'theatre_daily_count': cfg['theatre_daily_count'],
                     'active_start': life_settings['active_start'], 'active_end': life_settings['active_end'],
                     'manual': True, 'version': NEWS_SNAPSHOT_VERSION}
-        anchor = _news_anchor(events)
+        if topic:
+            snapshot['manual_topic'] = topic
+        anchor = None if topic else _news_anchor(events)
         source = {}
         search_state = 'pending'
         if (anchor and anchor.search_state in ('ready', 'failed')
@@ -239,6 +244,8 @@ def _ensure_news(events, now, anchor=None):
     if not events:
         return False
     anchor = anchor or _news_anchor(events)
+    if anchor and not (anchor.snapshot or {}).get('manual_topic'):
+        events = [event for event in events if not (event.snapshot or {}).get('manual_topic')]
     first = SocialTheatreEvent.objects.filter(pk=anchor.pk).first() if anchor else None
     if not first or first.search_state in ('ready', 'failed'):
         return first is not None and first.search_state == 'ready'
@@ -262,10 +269,12 @@ def _ensure_news(events, now, anchor=None):
         max_news = 3
         # Fetch enough candidates to survive directory/roundup filtering, while
         # retaining at most three usable single-article sources.
-        rows = search({'search_server_id': server_id}, news_query(first.business_date), 'news', NEWS_DAYS,
+        topic = first.snapshot.get('manual_topic', '')
+        rows = search({'search_server_id': server_id}, topic or news_query(first.business_date),
+                      'general' if topic else 'news', NEWS_DAYS,
                       time.monotonic() + 90, search_depth='advanced', max_results=10,
-                      time_range='day', require_news_filters=True, preserve_content=True)
-        news = normalize_news(rows, limit=max_news)
+                      time_range='' if topic else 'day', require_news_filters=not bool(topic), preserve_content=True)
+        news = normalize_news(rows, limit=max_news, require_recent=not bool(topic))
         logger.info('小剧场新闻筛选 owner=%s date=%s candidates=%s accepted=%s',
                     first.owner_id, first.business_date, len(rows), len(news))
     except Exception as exc:
@@ -298,7 +307,7 @@ def _ensure_news(events, now, anchor=None):
                 row.search_batch = news
                 row.snapshot = {**(row.snapshot or {}), 'news_candidate_count': len(rows),
                                 'version': NEWS_SNAPSHOT_VERSION}
-            index = (_manual_news_index(
+            index = (0 if topic else _manual_news_index(
                 row.slot_index, row.snapshot, len(news))
                      if _is_manual_event(row) else row.slot_index)
             if index is not None and index < len(news):
@@ -327,6 +336,8 @@ def _attach_cached_news(events, anchor=None):
     news = normalize_news(anchor.search_batch or [], limit=3)
     for event in events:
         if event.status not in ('scheduled', 'searching'):
+            continue
+        if (event.snapshot or {}).get('manual_topic'):
             continue
         if (event.snapshot or {}).get('resume') and (event.snapshot or {}).get('topic'):
             continue
@@ -444,6 +455,8 @@ def _settle_relations(event):
 
 
 def _scene_sources(event):
+    if (event.snapshot or {}).get('manual_topic'):
+        return normalize_news([event.source, *(event.search_batch or [])], limit=3, require_recent=False)
     events = list(SocialTheatreEvent.objects.filter(
         owner_id=event.owner_id, business_date=event.business_date).order_by('slot_index'))
     anchor = _news_anchor(events)
@@ -571,16 +584,24 @@ def _tick_theatres(config, now=None, *, manual_only=False):
            and (not manual_only or _is_manual_event(event) or (event.snapshot or {}).get('resume'))]
     if not due:
         return
+    # 指定议题有独立搜索批次，不能被当日新闻缓存覆盖，也不能影响自动场次。
+    for event in due:
+        if (event.snapshot or {}).get('manual_topic') and event.search_state == 'pending':
+            _ensure_news([event], now, event)
+    events = list(SocialTheatreEvent.objects.filter(owner_id=config.pk, business_date=now.date()).order_by('slot_index'))
+    due = [event for event in events if event.status in ('scheduled', 'searching')
+           and local_time(event.scheduled_at) <= now
+           and (not manual_only or _is_manual_event(event) or (event.snapshot or {}).get('resume'))]
     anchor = _news_anchor(events)
     needs_news = any(not ((event.snapshot or {}).get('resume') and (event.snapshot or {}).get('topic'))
-                     for event in due)
+                     and not (event.snapshot or {}).get('manual_topic') for event in due)
     if needs_news and anchor and anchor.search_state == 'pending':
         _ensure_news(events, now, anchor)
         events = list(SocialTheatreEvent.objects.filter(owner_id=config.pk, business_date=now.date()).order_by('slot_index'))
         anchor = _news_anchor(events)
     elif needs_news and anchor and anchor.search_state == 'searching' and anchor.updated_at < timezone.now() - timedelta(minutes=5):
         with farm_gate():
-            _skip_day_after_search_failure(events, '新闻搜索中断，本日不重复搜索')
+            _skip_day_after_search_failure([event for event in events if not (event.snapshot or {}).get('manual_topic')], '新闻搜索中断，本日不重复搜索')
             SocialTheatreEvent.objects.filter(pk=anchor.pk).update(search_state='failed', status='failed')
         return
     _attach_cached_news(events, anchor)
