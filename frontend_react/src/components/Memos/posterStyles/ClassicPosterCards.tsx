@@ -19,244 +19,278 @@ export function ClassicPosterCards({
     const serialCode = (memo.memoId || 'ODOC2026').slice(0, 8).toUpperCase();
 
     /* =====================================================================
-     * 样式 1: 纪念邮票 (Commemorative Postage Stamp - 全新雕版齿孔与水波销戳设计)
+     * 样式 1: 纪念邮票 (Commemorative Postage Stamp - 纯白边透明齿孔 PNG + 钢版画票面)
      * ===================================================================== */
     if (styleId === 'stamp') {
+        const paperColor = '#FFFEFA';
+        const toothSize = 20;
+        const holeRadius = 5.5;
+        const edgeThickness = 11;
+
         return (
-            <div className="relative mx-auto w-full max-w-[436px] rounded-2xl bg-[#E7DEC9] p-3.5 shadow-xl ring-1 ring-[#CDBE9F]/70 sm:p-4">
-                {/* 集邮册衬底细框装饰 */}
-                <div className="pointer-events-none absolute inset-2 rounded-xl border border-dashed border-[#BFA882]/55" />
+            <div className="relative mx-auto w-full max-w-[420px] p-2 drop-shadow-[0_14px_28px_rgba(15,23,42,0.15)]">
+                {/* 纯邮票网格：四周使用径向渐变直接镂空出 100% 透明的半圆齿孔，无任何外层底板 */}
+                <div
+                    className="grid"
+                    style={{
+                        gridTemplateColumns: `${edgeThickness}px 1fr ${edgeThickness}px`,
+                        gridTemplateRows: `${edgeThickness}px 1fr ${edgeThickness}px`,
+                    }}
+                >
+                    {/* 左上角四分之一齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at 0px 0px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                        }}
+                    />
+                    {/* 顶边连续半圆齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at ${toothSize / 2}px 0px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                            backgroundSize: `${toothSize}px ${edgeThickness}px`,
+                            backgroundRepeat: 'repeat-x',
+                        }}
+                    />
+                    {/* 右上角四分之一齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at ${edgeThickness}px 0px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                        }}
+                    />
 
-                {/* 邮票特种纸主体 */}
-                <div className="relative overflow-hidden bg-[#FFFCF6] p-5 shadow-md sm:p-6">
-                    {/* 顶部仿真半圆齿孔（咬合集邮底板色 #E7DEC9） */}
-                    <div className="pointer-events-none absolute -top-2 inset-x-3 flex justify-between">
-                        {Array.from({length: 19}).map((_, i) => (
-                            <span
-                                key={i}
-                                className="h-3.5 w-3.5 shrink-0 rounded-full bg-[#E7DEC9] shadow-[inset_0_-1px_1px_rgba(0,0,0,0.12)]"
-                            />
-                        ))}
-                    </div>
-                    {/* 底部仿真半圆齿孔 */}
-                    <div className="pointer-events-none absolute -bottom-2 inset-x-3 flex justify-between">
-                        {Array.from({length: 19}).map((_, i) => (
-                            <span
-                                key={i}
-                                className="h-3.5 w-3.5 shrink-0 rounded-full bg-[#E7DEC9] shadow-[inset_0_1px_1px_rgba(0,0,0,0.12)]"
-                            />
-                        ))}
-                    </div>
-                    {/* 左侧仿真半圆齿孔 */}
-                    <div className="pointer-events-none absolute -left-2 inset-y-3 flex flex-col justify-between">
-                        {Array.from({length: 21}).map((_, i) => (
-                            <span
-                                key={i}
-                                className="h-3.5 w-3.5 shrink-0 rounded-full bg-[#E7DEC9] shadow-[inset_-1px_0_1px_rgba(0,0,0,0.12)]"
-                            />
-                        ))}
-                    </div>
-                    {/* 右侧仿真半圆齿孔 */}
-                    <div className="pointer-events-none absolute -right-2 inset-y-3 flex flex-col justify-between">
-                        {Array.from({length: 21}).map((_, i) => (
-                            <span
-                                key={i}
-                                className="h-3.5 w-3.5 shrink-0 rounded-full bg-[#E7DEC9] shadow-[inset_1px_0_1px_rgba(0,0,0,0.12)]"
-                            />
-                        ))}
-                    </div>
+                    {/* 左边连续半圆齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at 0px ${toothSize / 2}px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                            backgroundSize: `${edgeThickness}px ${toothSize}px`,
+                            backgroundRepeat: 'repeat-y',
+                        }}
+                    />
 
-                    {/* 雕版邮票外框 */}
-                    <div className="relative border-2 border-[#B63128] bg-[#FFFDF8] p-1">
-                        {/* 四角雕版卷草角花 SVG */}
-                        {[
-                            'top-1 left-1 rotate-0',
-                            'top-1 right-1 rotate-90',
-                            'bottom-1 right-1 rotate-180',
-                            'bottom-1 left-1 -rotate-90',
-                        ].map((pos, idx) => (
-                            <svg
-                                key={idx}
-                                viewBox="0 0 24 24"
-                                className={`pointer-events-none absolute h-4 w-4 text-[#B63128] ${pos}`}
-                                fill="none"
-                            >
-                                <path
-                                    d="M2 2h12v2H4v10H2V2zm4 4h6v1.5H7.5V12H6V6z"
-                                    fill="currentColor"
-                                    opacity="0.85"
-                                />
-                                <circle cx="10" cy="10" r="1.5" fill="currentColor" />
-                            </svg>
-                        ))}
-
-                        {/* 雕版内细线框 */}
-                        <div className="relative border border-[#D88B7D] bg-[#FFFDF9] p-4 sm:p-5">
-                            {/* 邮票铭头：邮政徽标与面值 */}
-                            <div
-                                className="flex items-center justify-between border-b border-[#E7C6BD] pb-3"
-                                style={{
-                                    backgroundImage:
-                                        'repeating-linear-gradient(135deg, rgba(182,49,40,0.04) 0px, rgba(182,49,40,0.04) 2px, transparent 2px, transparent 6px)',
-                                }}
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#B63128]/40 bg-[#FDF3EE] shadow-2xs">
-                                        <OrangeFruitIcon className="h-5 w-5" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="font-serif text-sm font-black tracking-[0.22em] text-[#2A1E1B]">
-                                                中国小橘邮政
-                                            </span>
-                                            <span className="rounded-xs bg-[#B63128] px-1 py-0.2 font-mono text-[8px] font-bold text-white">
-                                                纪特
-                                            </span>
-                                        </div>
-                                        <span className="font-mono text-[9px] font-bold tracking-[0.18em] text-[#9A6F66]">
-                                            CHINA · O-DOC POSTAGE
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* 经典邮票面值区 */}
-                                <div className="flex flex-col items-end">
-                                    <div className="flex items-baseline text-[#B63128]">
-                                        <span className="mr-1 font-serif text-[10px] font-bold text-[#7A3E38]">
-                                            RMB
-                                        </span>
-                                        <span className="font-serif text-2xl font-black italic leading-none tracking-tight">
-                                            1.20
-                                        </span>
-                                        <span className="ml-0.5 font-serif text-xs font-bold">元</span>
-                                    </div>
-                                    <div className="mt-1 h-[2px] w-14 bg-gradient-to-r from-transparent via-[#B63128] to-[#B63128]" />
-                                </div>
-                            </div>
-
-                            {/* 邮票画心区域 */}
-                            <div className="relative my-3.5 border border-[#F0DFD8] bg-[#FCF7EC] px-4 py-6 sm:px-5 sm:py-7">
-                                {/* 雕版防伪放射底纹 */}
-                                <div
-                                    className="pointer-events-none absolute inset-0 opacity-40"
-                                    style={{
-                                        backgroundImage:
-                                            'radial-gradient(circle at 50% 50%, rgba(217,119,36,0.08) 0%, transparent 70%), repeating-radial-gradient(circle at 50% 50%, rgba(182,49,40,0.03) 0px, rgba(182,49,40,0.03) 1px, transparent 1px, transparent 8px)',
-                                    }}
-                                />
-
-                                {/* 画心四角微缩十字准星 */}
-                                <span className="pointer-events-none absolute left-2 top-1.5 font-mono text-[8px] text-[#C89B8E]">
-                                    ┏
-                                </span>
-                                <span className="pointer-events-none absolute right-2 top-1.5 font-mono text-[8px] text-[#C89B8E]">
-                                    ┓
-                                </span>
-                                <span className="pointer-events-none absolute bottom-1.5 left-2 font-mono text-[8px] text-[#C89B8E]">
-                                    ┗
-                                </span>
-                                <span className="pointer-events-none absolute bottom-1.5 right-2 font-mono text-[8px] text-[#C89B8E]">
-                                    ┛
-                                </span>
-
-                                {/* 顶部编号小字 */}
-                                <div className="relative z-10 mb-3 flex items-center justify-between font-mono text-[9px] text-[#A27B6E]">
-                                    <span>NO. {serialCode}</span>
-                                    <span>ISSUE // {yearNum}</span>
-                                </div>
-
-                                <div
-                                    className={`relative z-10 break-words font-serif text-[#2B201C] ${
-                                        isShort
-                                            ? 'text-lg sm:text-xl font-semibold leading-relaxed sm:leading-loose text-center'
-                                            : 'text-sm sm:text-base leading-relaxed'
-                                    }`}
-                                >
-                                    <PosterMarkdown
-                                        content={memo.content}
-                                        blockquoteClassName="my-2 border-l-2 border-[#B63128] pl-3 italic text-[#5C3A33]"
-                                        codeClassName="rounded bg-[#F2E5D5] px-1.5 py-0.5 font-mono text-xs text-[#8C2D19]"
-                                    />
-                                </div>
-
-                                {/* 主题枚标与朱砂方印 */}
-                                <div className="relative z-10 mt-5 flex items-center justify-between gap-2 pt-2">
-                                    {memo.tag ? (
-                                        <span className="inline-flex items-center gap-1 rounded-xs border border-[#B63128]/35 bg-[#FDF1EC] px-2.5 py-0.5 font-serif text-xs font-semibold text-[#9E2A22]">
-                                            〔 专题 · #{memo.tag} 〕
-                                        </span>
-                                    ) : (
-                                        <span className="font-serif text-[11px] italic text-[#9A7B70]">
-                                            〔 浮光掠影 · 纪念珍藏 〕
-                                        </span>
-                                    )}
-
-                                    {/* 篆刻朱砂小方印 */}
-                                    <div className="flex h-6 items-center border border-[#B63128] bg-[#B63128] px-1.5 font-serif text-[10px] font-black tracking-widest text-[#FFFDF9] shadow-2xs">
-                                        小橘珍藏
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 邮票底边志号与厂铭 */}
-                            <div className="relative z-10 flex items-center justify-between pt-1 font-mono text-[10px] text-[#7D5D53]">
-                                <span>
-                                    志号：{yearNum}-{monthNum}
-                                </span>
-                                <span className="font-serif font-bold text-[#3D2924]">
-                                    (1-1) T · 闪念留存
-                                </span>
-                                <span className="font-serif">{author || '小橘'} · 雕版印制</span>
-                            </div>
-
-                            {/* 仿真邮政水波纹销票日戳 SVG（完整落于票面右下，不裁切） */}
-                            <div className="pointer-events-none absolute bottom-2 right-2 z-20 flex -rotate-12 items-center opacity-80">
-                                {/* 左侧水波纹销票线 */}
+                    {/* 邮票纯白纸芯主体 */}
+                    <div
+                        className="relative px-3.5 pt-3.5 pb-2.5 sm:px-4 sm:pt-4 sm:pb-3"
+                        style={{backgroundColor: paperColor}}
+                    >
+                        {/* 邮票唯一主画心（告别多层套盒，采用传统钢版画单画幅构图） */}
+                        <div
+                            className="relative overflow-hidden border-[1.5px] border-[#9E2A22] p-[3px]"
+                            style={{
+                                background:
+                                    'linear-gradient(180deg, #FDF6EC 0%, #FFFDF9 46%, #FBF0E1 100%)',
+                            }}
+                        >
+                            {/* 画心内细线与雕版画幅 */}
+                            <div className="relative border border-[#D48C78]/65 px-5 pt-4 pb-5 sm:px-6 sm:pt-5 sm:pb-6">
+                                {/* 钢版画同心放射水波底纹 SVG */}
                                 <svg
-                                    viewBox="0 0 68 36"
-                                    className="-mr-2 h-8 w-14 text-[#1E3A8A]"
+                                    viewBox="0 0 400 320"
+                                    preserveAspectRatio="xMidYMid slice"
+                                    className="pointer-events-none absolute inset-0 h-full w-full"
                                     fill="none"
                                 >
-                                    {[6, 14, 22, 30].map((y) => (
-                                        <path
-                                            key={y}
-                                            d={`M2 ${y} Q 10 ${y - 4}, 18 ${y} T 34 ${y} T 50 ${y} T 66 ${y}`}
-                                            stroke="currentColor"
-                                            strokeWidth="1.5"
-                                            strokeLinecap="round"
+                                    {/* 右上角日晷同心细线 */}
+                                    {[28, 44, 60, 76, 92, 108, 124, 140].map((r) => (
+                                        <circle
+                                            key={r}
+                                            cx="350"
+                                            cy="40"
+                                            r={r}
+                                            stroke="#C85A32"
+                                            strokeWidth="0.6"
+                                            strokeDasharray={r % 32 === 0 ? '3 3' : undefined}
+                                            opacity="0.12"
                                         />
                                     ))}
+
+                                    {/* 底部钢版画远山、祥云与柑橘折枝暗纹 */}
+                                    <path
+                                        d="M-10 305 Q 65 268, 145 292 T 310 278 T 410 295 L 410 325 L -10 325 Z"
+                                        fill="#E8CDB8"
+                                        opacity="0.28"
+                                    />
+                                    <path
+                                        d="M-10 305 Q 65 268, 145 292 T 310 278 T 410 295"
+                                        stroke="#B84A39"
+                                        strokeWidth="0.8"
+                                        opacity="0.25"
+                                    />
+                                    <path
+                                        d="M30 315 Q 115 282, 205 304 T 390 288"
+                                        stroke="#C87A51"
+                                        strokeWidth="0.7"
+                                        strokeDasharray="2 2"
+                                        opacity="0.3"
+                                    />
+                                    {/* 右下角微雕祥云 */}
+                                    <path
+                                        d="M275 272 C 285 262, 302 262, 308 272 C 318 265, 334 268, 336 279 C 346 279, 352 289, 342 295 L 270 295 C 260 289, 265 275, 275 272 Z"
+                                        stroke="#B84A39"
+                                        strokeWidth="0.8"
+                                        fill="#FFFDF9"
+                                        fillOpacity="0.5"
+                                        opacity="0.28"
+                                    />
                                 </svg>
-                                {/* 圆形邮政日戳 */}
-                                <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full border-2 border-[#1E3A8A] bg-[#FFFDF8]/60 p-0.5 text-center text-[#1E3A8A]">
-                                    <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-dashed border-[#1E3A8A]/75">
-                                        <span className="text-[7px] font-black tracking-widest">
-                                            小橘邮政局
+
+                                {/* 四角古典雕版直角花饰 */}
+                                <div className="pointer-events-none absolute left-1.5 top-1.5 h-2.5 w-2.5 border-l-2 border-t-2 border-[#9E2A22]" />
+                                <div className="pointer-events-none absolute right-1.5 top-1.5 h-2.5 w-2.5 border-r-2 border-t-2 border-[#9E2A22]" />
+                                <div className="pointer-events-none absolute bottom-1.5 left-1.5 h-2.5 w-2.5 border-b-2 border-l-2 border-[#9E2A22]" />
+                                <div className="pointer-events-none absolute bottom-1.5 right-1.5 h-2.5 w-2.5 border-b-2 border-r-2 border-[#9E2A22]" />
+
+                                {/* 邮票铭记顶栏：中国小橘邮政 & 面值 1.20 */}
+                                <div className="relative z-10 flex items-start justify-between border-b border-[#DFB9A8]/70 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <OrangeFruitIcon className="h-5 w-5 shrink-0" />
+                                        <div className="flex flex-col">
+                                            <span className="font-serif text-sm font-black tracking-[0.26em] text-[#6E1E14]">
+                                                中国小橘邮政
+                                            </span>
+                                            <span className="font-mono text-[8.5px] font-bold tracking-[0.22em] text-[#9E5B4B]">
+                                                CHINA · O-DOC POST
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* 经典邮票大字面值 */}
+                                    <div className="flex items-baseline text-[#9E2A22]">
+                                        <span className="font-serif text-2xl font-black italic leading-none tracking-tight sm:text-[26px]">
+                                            1.20
                                         </span>
-                                        <span className="my-0.5 border-y border-[#1E3A8A]/60 px-1 font-mono text-[8px] font-black">
-                                            {yearNum}.{monthNum}.{dayNum}
+                                        <span className="ml-1 font-serif text-xs font-bold">元</span>
+                                    </div>
+                                </div>
+
+                                {/* 邮票核心诗意文字区 */}
+                                <div className="relative z-10 py-7 sm:py-8">
+                                    <div
+                                        className={`break-words font-serif text-[#241915] ${
+                                            isShort
+                                                ? 'text-lg sm:text-xl font-semibold leading-relaxed sm:leading-loose text-center'
+                                                : 'text-sm sm:text-base leading-relaxed'
+                                        }`}
+                                    >
+                                        <PosterMarkdown
+                                            content={memo.content}
+                                            blockquoteClassName="my-2.5 border-l-2 border-[#9E2A22] pl-3 italic text-[#5C3A33]"
+                                            codeClassName="rounded bg-[#F4E6D8] px-1.5 py-0.5 font-mono text-xs text-[#8C2D19]"
+                                        />
+                                    </div>
+
+                                    {memo.tag && (
+                                        <div
+                                            className={`mt-5 flex items-center gap-2 font-serif text-xs font-semibold tracking-widest text-[#9E2A22] ${
+                                                isShort ? 'justify-center' : 'justify-start'
+                                            }`}
+                                        >
+                                            <span className="text-[9px] opacity-60">◆</span>
+                                            <span>#{memo.tag}</span>
+                                            <span className="text-[9px] opacity-60">◆</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 画心左下角：作者题款与朱砂小方印（避开右下角邮戳区，不再重叠） */}
+                                <div className="relative z-10 flex items-center justify-between pt-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex h-5 w-5 items-center justify-center rounded-2xs bg-[#9E2A22] font-serif text-[10px] font-black text-[#FFFDF9] shadow-2xs">
+                                            印
                                         </span>
-                                        <span className="text-[6px] font-bold tracking-wider">
-                                            POSTMARKED
+                                        <span className="font-serif text-xs font-bold tracking-wider text-[#4A2C24]">
+                                            {author || '小橘'} · 谨识
                                         </span>
                                     </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* 邮票外白边底栏：真实邮票微缩志号与厂铭（位于画框外白边上） */}
+                        <div className="mt-2 flex items-center justify-between px-0.5 font-mono text-[9.5px] tracking-wider text-[#6E5A4F]">
+                            <span>
+                                {yearNum}-{monthNum} &nbsp;(1-1) T
+                            </span>
+                            <span className="font-serif text-[10px] font-semibold text-[#5A463C]">
+                                《闪念留存》
+                            </span>
+                            <span className="font-serif text-[9.5px]">小橘邮票厂</span>
+                        </div>
+
+                        {/* 右下角跨框骑缝邮政销票日戳 + 水波纹销票线（避开底部文字，干净透气） */}
+                        <div className="pointer-events-none absolute right-3 bottom-6 z-20 flex -rotate-12 items-center opacity-75">
+                            <svg
+                                viewBox="0 0 60 32"
+                                className="-mr-2.5 h-7 w-13 text-[#263859]"
+                                fill="none"
+                            >
+                                {[5, 12, 19, 26].map((y) => (
+                                    <path
+                                        key={y}
+                                        d={`M2 ${y} Q 9 ${y - 3.5}, 16 ${y} T 30 ${y} T 44 ${y} T 58 ${y}`}
+                                        stroke="currentColor"
+                                        strokeWidth="1.35"
+                                        strokeLinecap="round"
+                                    />
+                                ))}
+                            </svg>
+                            <div className="flex h-15 w-15 flex-col items-center justify-center rounded-full border-[1.5px] border-[#263859] bg-white/35 p-0.5 text-center text-[#263859]">
+                                <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-dashed border-[#263859]/70">
+                                    <span className="text-[6.5px] font-black tracking-widest">
+                                        小橘邮政
+                                    </span>
+                                    <span className="my-0.5 border-y border-[#263859]/50 px-1 font-mono text-[7.5px] font-black">
+                                        {yearNum}.{monthNum}.{dayNum}
+                                    </span>
+                                    <span className="font-mono text-[5.5px] font-bold tracking-wider">
+                                        POSTMARK
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    {/* 右边连续半圆齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at ${edgeThickness}px ${toothSize / 2}px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                            backgroundSize: `${edgeThickness}px ${toothSize}px`,
+                            backgroundRepeat: 'repeat-y',
+                        }}
+                    />
+
+                    {/* 左下角四分之一齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at 0px ${edgeThickness}px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                        }}
+                    />
+                    {/* 底边连续半圆齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at ${toothSize / 2}px ${edgeThickness}px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                            backgroundSize: `${toothSize}px ${edgeThickness}px`,
+                            backgroundRepeat: 'repeat-x',
+                        }}
+                    />
+                    {/* 右下角四分之一齿孔 */}
+                    <div
+                        style={{
+                            backgroundImage: `radial-gradient(circle at ${edgeThickness}px ${edgeThickness}px, transparent ${holeRadius}px, ${paperColor} ${holeRadius + 0.6}px)`,
+                        }}
+                    />
                 </div>
             </div>
         );
     }
 
     /* =====================================================================
-     * 样式 2: 灵感小票 (Boutique Roastery Receipt - 锯齿热敏单与特调配方)
+     * 样式 2: 灵感小票 (Boutique Roastery Receipt - 纯透明底锯齿热敏单与特调配方)
      * ===================================================================== */
     if (styleId === 'receipt') {
         return (
-            <div className="relative mx-auto w-full max-w-[430px] rounded-2xl bg-[#E4E0D6] p-3.5 shadow-xl ring-1 ring-stone-300/80 sm:p-4">
-                <div className="relative drop-shadow-md">
-                    {/* 顶部真实 SVG 锯齿撕纸边缘 */}
+            <div className="relative mx-auto w-full max-w-[420px] p-2 drop-shadow-[0_14px_26px_rgba(15,23,42,0.15)]">
+                <div className="relative">
+                    {/* 顶部真实 SVG 锯齿撕纸边缘（外侧全透明 PNG） */}
                     <svg
                         viewBox="0 0 400 12"
                         preserveAspectRatio="none"

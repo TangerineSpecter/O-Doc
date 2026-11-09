@@ -19,156 +19,166 @@ export function ExtendedPosterCards({
     const serialCode = (memo.memoId || 'ODOC2026').slice(0, 8).toUpperCase();
 
     /* =====================================================================
-     * 样式 6: 登机牌 (First-Class Boarding Pass - 头等舱航线与撕线副券)
+     * 样式 6: 登机牌 (First-Class Boarding Pass - 头等舱航线与透明半圆撕口副券)
      * ===================================================================== */
     if (styleId === 'boarding') {
         return (
-            <div className="relative mx-auto w-full max-w-[436px] rounded-2xl bg-[#DCE5F2] p-3 shadow-xl ring-1 ring-blue-200/80 sm:p-3.5">
-                <div className="relative overflow-hidden rounded-xl bg-white text-slate-800 shadow-md">
-                    {/* 顶部航空蓝与活力橙头等舱横幅 */}
-                    <div className="flex items-center justify-between bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#1E40AF] px-5 py-3 text-white">
-                        <div className="flex items-center gap-2">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15">
-                                <Plane className="h-3.5 w-3.5 -rotate-45 text-white" />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="font-mono text-xs font-black tracking-[0.2em]">
-                                    O-DOC AIRWAYS
-                                </span>
-                                <span className="text-[9px] tracking-widest text-blue-200">
-                                    小橘思想航线 · BOARDING PASS
-                                </span>
-                            </div>
-                        </div>
-                        <span className="rounded-full bg-[#EA580C] px-2.5 py-0.5 font-mono text-[10px] font-black tracking-wider text-white shadow-2xs">
-                            FIRST CLASS · 头等舱
-                        </span>
-                    </div>
-
-                    {/* 航线起降大字报头 (NOW -> INF) */}
-                    <div className="border-b border-slate-200 bg-[#F8FAFC] px-5 py-3.5">
-                        <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <span className="font-mono text-[9px] font-bold tracking-widest text-slate-400">
-                                    ORIGIN / 出发地
-                                </span>
-                                <span className="font-mono text-2xl font-black leading-tight tracking-tight text-[#1E3A8A]">
-                                    NOW
-                                </span>
-                                <span className="text-[11px] font-semibold text-slate-600">
-                                    此刻思绪 · 闪念港
-                                </span>
-                            </div>
-
-                            {/* 航线轨迹 SVG */}
-                            <div className="flex flex-1 flex-col items-center px-3">
-                                <span className="font-mono text-[10px] font-bold text-[#EA580C]">
-                                    FLIGHT OD-{monthNum}
-                                    {dayNum}
-                                </span>
-                                <div className="my-1 flex w-full items-center">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[#1D4ED8]" />
-                                    <div className="h-[1.5px] flex-1 border-b border-dashed border-blue-400" />
-                                    <Plane className="mx-1.5 h-4 w-4 text-[#EA580C]" />
-                                    <div className="h-[1.5px] flex-1 border-b border-dashed border-blue-400" />
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[#EA580C]" />
+            <div className="relative mx-auto w-full max-w-[430px] p-2 drop-shadow-[0_14px_28px_rgba(15,23,42,0.15)]">
+                <div className="relative overflow-hidden rounded-2xl text-slate-800">
+                    {/* 上半联：主登机牌 */}
+                    <div className="bg-white">
+                        {/* 顶部航空蓝与活力橙头等舱横幅 */}
+                        <div className="flex items-center justify-between bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#1E40AF] px-5 py-3 text-white">
+                            <div className="flex items-center gap-2">
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15">
+                                    <Plane className="h-3.5 w-3.5 -rotate-45 text-white" />
                                 </div>
-                                <span className="font-mono text-[9px] text-slate-400">
-                                    NON-STOP · 直达留存
-                                </span>
-                            </div>
-
-                            <div className="flex flex-col items-end">
-                                <span className="font-mono text-[9px] font-bold tracking-widest text-slate-400">
-                                    DESTINATION / 目的地
-                                </span>
-                                <span className="font-mono text-2xl font-black leading-tight tracking-tight text-[#1E3A8A]">
-                                    MEMO
-                                </span>
-                                <span className="text-[11px] font-semibold text-slate-600">
-                                    永恒记忆 · 灵感岛
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* 四宫格航班参数 */}
-                        <div className="mt-3 grid grid-cols-4 gap-2 rounded-lg border border-slate-200/90 bg-white px-3 py-2 font-mono">
-                            <div>
-                                <div className="text-[8px] font-bold text-slate-400">PASSENGER</div>
-                                <div className="truncate font-sans text-xs font-bold text-slate-900">
-                                    {author || '小橘机长'}
+                                <div className="flex flex-col">
+                                    <span className="font-mono text-xs font-black tracking-[0.2em]">
+                                        O-DOC AIRWAYS
+                                    </span>
+                                    <span className="text-[9px] tracking-widest text-blue-200">
+                                        小橘思想航线 · BOARDING PASS
+                                    </span>
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-[8px] font-bold text-slate-400">DATE</div>
-                                <div className="text-xs font-black text-slate-900">
-                                    {dayNum} {monthEnShort}
+                            <span className="rounded-full bg-[#EA580C] px-2.5 py-0.5 font-mono text-[10px] font-black tracking-wider text-white shadow-2xs">
+                                FIRST CLASS · 头等舱
+                            </span>
+                        </div>
+
+                        {/* 航线起降大字报头 (NOW -> MEMO) */}
+                        <div className="border-b border-slate-200 bg-[#F8FAFC] px-5 py-3.5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="font-mono text-[9px] font-bold tracking-widest text-slate-400">
+                                        ORIGIN / 出发地
+                                    </span>
+                                    <span className="font-mono text-2xl font-black leading-tight tracking-tight text-[#1E3A8A]">
+                                        NOW
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-slate-600">
+                                        此刻思绪 · 闪念港
+                                    </span>
+                                </div>
+
+                                {/* 航线轨迹 SVG */}
+                                <div className="flex flex-1 flex-col items-center px-3">
+                                    <span className="font-mono text-[10px] font-bold text-[#EA580C]">
+                                        FLIGHT OD-{monthNum}
+                                        {dayNum}
+                                    </span>
+                                    <div className="my-1 flex w-full items-center">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-[#1D4ED8]" />
+                                        <div className="h-[1.5px] flex-1 border-b border-dashed border-blue-400" />
+                                        <Plane className="mx-1.5 h-4 w-4 text-[#EA580C]" />
+                                        <div className="h-[1.5px] flex-1 border-b border-dashed border-blue-400" />
+                                        <span className="h-1.5 w-1.5 rounded-full bg-[#EA580C]" />
+                                    </div>
+                                    <span className="font-mono text-[9px] text-slate-400">
+                                        NON-STOP · 直达留存
+                                    </span>
+                                </div>
+
+                                <div className="flex flex-col items-end">
+                                    <span className="font-mono text-[9px] font-bold tracking-widest text-slate-400">
+                                        DESTINATION / 目的地
+                                    </span>
+                                    <span className="font-mono text-2xl font-black leading-tight tracking-tight text-[#1E3A8A]">
+                                        MEMO
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-slate-600">
+                                        永恒记忆 · 灵感岛
+                                    </span>
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-[8px] font-bold text-slate-400">GATE</div>
-                                <div className="text-xs font-black text-[#EA580C]">G-{monthNum}</div>
+
+                            {/* 四宫格航班参数 */}
+                            <div className="mt-3 grid grid-cols-4 gap-2 rounded-lg border border-slate-200/90 bg-white px-3 py-2 font-mono">
+                                <div>
+                                    <div className="text-[8px] font-bold text-slate-400">PASSENGER</div>
+                                    <div className="truncate font-sans text-xs font-bold text-slate-900">
+                                        {author || '小橘机长'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-[8px] font-bold text-slate-400">DATE</div>
+                                    <div className="text-xs font-black text-slate-900">
+                                        {dayNum} {monthEnShort}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-[8px] font-bold text-slate-400">GATE</div>
+                                    <div className="text-xs font-black text-[#EA580C]">G-{monthNum}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[8px] font-bold text-slate-400">SEAT</div>
+                                    <div className="text-xs font-black text-[#1D4ED8]">01A · 靠窗</div>
+                                </div>
                             </div>
-                            <div>
-                                <div className="text-[8px] font-bold text-slate-400">SEAT</div>
-                                <div className="text-xs font-black text-[#1D4ED8]">01A · 靠窗</div>
+                        </div>
+
+                        {/* 机舱灵感申报正文区 */}
+                        <div className="relative px-5 py-5 sm:px-6">
+                            {/* 经纬线地球暗纹 SVG */}
+                            <svg
+                                viewBox="0 0 200 100"
+                                className="pointer-events-none absolute right-3 top-3 h-24 w-44 text-blue-900/[0.04]"
+                                fill="none"
+                            >
+                                <circle cx="140" cy="50" r="42" stroke="currentColor" strokeWidth="1.5" />
+                                <ellipse cx="140" cy="50" rx="22" ry="42" stroke="currentColor" strokeWidth="1.2" />
+                                <line x1="98" y1="35" x2="182" y2="35" stroke="currentColor" strokeWidth="1" />
+                                <line x1="98" y1="50" x2="182" y2="50" stroke="currentColor" strokeWidth="1.2" />
+                                <line x1="98" y1="65" x2="182" y2="65" stroke="currentColor" strokeWidth="1" />
+                            </svg>
+
+                            <div className="mb-2.5 flex items-center justify-between font-mono text-[10px] font-bold text-blue-700/80">
+                                <span>CABIN MANIFEST // 随身灵感记录</span>
+                                <span>{contentLength} KG (CHARS)</span>
                             </div>
+
+                            <div
+                                className={`relative z-10 break-words leading-relaxed text-slate-800 ${
+                                    isShort
+                                        ? 'text-lg sm:text-xl font-semibold sm:leading-loose'
+                                        : 'text-sm sm:text-base leading-relaxed'
+                                }`}
+                            >
+                                <PosterMarkdown
+                                    content={memo.content}
+                                    blockquoteClassName="my-2 border-l-[3px] border-[#2563EB] bg-blue-50/70 py-1 pl-3 italic text-slate-700"
+                                    codeClassName="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-blue-800"
+                                />
+                            </div>
+
+                            {memo.tag && (
+                                <div className="mt-4 flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-0.5 font-mono text-xs font-bold text-[#EA580C]">
+                                        <span>PRIORITY TAG //</span>
+                                        <span>#{memo.tag}</span>
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* 机舱灵感申报正文区 */}
-                    <div className="relative px-5 py-5 sm:px-6">
-                        {/* 经纬线地球暗纹 SVG */}
-                        <svg
-                            viewBox="0 0 200 100"
-                            className="pointer-events-none absolute right-3 top-3 h-24 w-44 text-blue-900/[0.04]"
-                            fill="none"
-                        >
-                            <circle cx="140" cy="50" r="42" stroke="currentColor" strokeWidth="1.5" />
-                            <ellipse cx="140" cy="50" rx="22" ry="42" stroke="currentColor" strokeWidth="1.2" />
-                            <line x1="98" y1="35" x2="182" y2="35" stroke="currentColor" strokeWidth="1" />
-                            <line x1="98" y1="50" x2="182" y2="50" stroke="currentColor" strokeWidth="1.2" />
-                            <line x1="98" y1="65" x2="182" y2="65" stroke="currentColor" strokeWidth="1" />
-                        </svg>
-
-                        <div className="mb-2.5 flex items-center justify-between font-mono text-[10px] font-bold text-blue-700/80">
-                            <span>CABIN MANIFEST // 随身灵感记录</span>
-                            <span>{contentLength} KG (CHARS)</span>
-                        </div>
-
-                        <div
-                            className={`relative z-10 break-words leading-relaxed text-slate-800 ${
-                                isShort
-                                    ? 'text-lg sm:text-xl font-semibold sm:leading-loose'
-                                    : 'text-sm sm:text-base leading-relaxed'
-                            }`}
-                        >
-                            <PosterMarkdown
-                                content={memo.content}
-                                blockquoteClassName="my-2 border-l-[3px] border-[#2563EB] bg-blue-50/70 py-1 pl-3 italic text-slate-700"
-                                codeClassName="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-blue-800"
-                            />
-                        </div>
-
-                        {memo.tag && (
-                            <div className="mt-4 flex items-center gap-2">
-                                <span className="inline-flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-0.5 font-mono text-xs font-bold text-[#EA580C]">
-                                    <span>PRIORITY TAG //</span>
-                                    <span>#{memo.tag}</span>
-                                </span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 登机牌左右半圆撕口与虚线分割线 */}
-                    <div className="relative flex items-center justify-between py-1">
-                        <span className="-ml-3 h-6 w-6 rounded-full bg-[#DCE5F2] shadow-inner" />
-                        <div className="mx-2 flex-1 border-t-2 border-dashed border-slate-300" />
-                        <span className="-mr-3 h-6 w-6 rounded-full bg-[#DCE5F2] shadow-inner" />
+                    {/* 登机牌左右真实透明半圆缺口与虚线分割线 */}
+                    <div
+                        className=" flex h-5 items-center px-4"
+                        style={{
+                            backgroundImage:
+                                'radial-gradient(circle at 0px 50%, transparent 10px, #F8FAFC 10.6px), radial-gradient(circle at 100% 50%, transparent 10px, #F8FAFC 10.6px)',
+                            backgroundSize: '51% 100%, 51% 100%',
+                            backgroundPosition: 'left center, right center',
+                            backgroundRepeat: 'no-repeat',
+                        }}
+                    >
+                        <div className="w-full border-t-2 border-dashed border-slate-300" />
                     </div>
 
                     {/* 底部登机副券 (Boarding Stub) */}
-                    <div className="flex items-center justify-between bg-[#F8FAFC] px-5 py-3.5">
+                    <div className="flex items-center justify-between bg-[#F8FAFC] px-5 pt-2 pb-4">
                         <div className="flex flex-col space-y-0.5 font-mono">
                             <div className="flex items-center gap-2">
                                 <span className="rounded-xs bg-emerald-600 px-1.5 py-0.2 text-[9px] font-black text-white">
@@ -464,18 +474,18 @@ export function ExtendedPosterCards({
      * ===================================================================== */
     if (styleId === 'shiori') {
         return (
-            <div className="relative mx-auto w-full max-w-[434px] rounded-2xl bg-[#E8E0CE] p-3.5 shadow-xl ring-1 ring-[#CDBE9F] sm:p-4">
-                {/* 宣纸藏书票主体 */}
+            <div className="relative mx-auto w-full max-w-[426px] p-2 drop-shadow-[0_14px_28px_rgba(15,23,42,0.15)]">
+                {/* 宣纸藏书票主体（无外层底图，纯宣纸笺本） */}
                 <div
-                    className="relative overflow-hidden rounded-lg border-2 border-[#4A706B] bg-[#FAF5E8] p-1.5 shadow-md"
+                    className="relative overflow-hidden rounded-xl border-2 border-[#4A706B] bg-[#FAF5E8] p-2"
                     style={{
                         backgroundImage:
                             'radial-gradient(circle at 85% 82%, rgba(74,112,107,0.08) 0%, transparent 55%), linear-gradient(180deg, #FBF7EC 0%, #F4ECDA 100%)',
                     }}
                 >
                     {/* 顶部藏书签黄铜穿孔与朱红流苏结装饰 */}
-                    <div className="pointer-events-none absolute top-2.5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center">
-                        <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-[#B08D57] bg-[#E8E0CE] shadow-inner">
+                    <div className="pointer-events-none absolute top-3 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center">
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-[#B08D57] bg-[#FAF5E8] shadow-inner">
                             <span className="h-1.5 w-1.5 rounded-full bg-[#B8332A]" />
                         </div>
                     </div>
