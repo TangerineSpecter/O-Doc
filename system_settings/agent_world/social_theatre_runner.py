@@ -137,7 +137,7 @@ def ensure_daily_events(config, life, now=None):
     return list(SocialTheatreEvent.objects.filter(owner_id=config.pk, business_date=day).order_by('slot_index'))
 
 
-def queue_manual_event(config, now=None, *, topic=''):
+def queue_manual_event(config, now=None, *, topic='', participant_ids=None):
     """Queue one standalone scene without consuming an automatic daily slot."""
     now = local_time(now)
     cfg = settings_for(config)
@@ -158,7 +158,14 @@ def queue_manual_event(config, now=None, *, topic=''):
 
     residents = configured_residents(config, life)
     residents = [agent for agent in residents if agent.pk not in life.paused_agents]
-    if len(residents) <= 2:
+    participant_ids = participant_ids or []
+    if participant_ids:
+        if len(participant_ids) not in (2, 3) or len(set(participant_ids)) != len(participant_ids):
+            raise ValueError('请指定2至3位不同的居民')
+        if not set(participant_ids).issubset({agent.pk for agent in residents}):
+            raise ValueError('指定居民已暂停、退出社交或未配置聊天模型，请重新选择')
+        residents = [agent for agent in residents if agent.pk in participant_ids]
+    elif len(residents) <= 2:
         raise ValueError('至少需要3位已启用社交且配置了聊天模型的居民')
 
     ensure_daily_events(config, life, now)
@@ -169,8 +176,9 @@ def queue_manual_event(config, now=None, *, topic=''):
         active = next((event for event in events if _is_manual_event(event)
                        and event.status in ('scheduled', 'searching', 'running')), None)
         if active:
-            if (active.snapshot or {}).get('manual_topic', '') != topic:
-                raise ValueError('已有手动小剧场正在进行，请结束后再发起新议题')
+            if ((active.snapshot or {}).get('manual_topic', '') != topic
+                    or set((active.snapshot or {}).get('manual_participant_ids', [])) != set(participant_ids)):
+                raise ValueError('已有手动小剧场正在进行，请结束后再更换议题或参与居民')
             return active
         manual_slots = [event.slot_index for event in events if _is_manual_event(event)]
         slot_index = max([MANUAL_SLOT_START - 1, *manual_slots]) + 1
@@ -183,6 +191,8 @@ def queue_manual_event(config, now=None, *, topic=''):
                     'manual': True, 'version': NEWS_SNAPSHOT_VERSION}
         if topic:
             snapshot['manual_topic'] = topic
+        if participant_ids:
+            snapshot['manual_participant_ids'] = list(participant_ids)
         anchor = None if topic else _news_anchor(events)
         source = {}
         search_state = 'pending'
@@ -478,7 +488,15 @@ def run_event(config, event, available, now):
         profiles = event.participants
         rounds = event.rounds
     else:
-        residents = random.sample(available, requested)
+        fixed_ids = (event.snapshot or {}).get('manual_participant_ids', [])
+        if fixed_ids:
+            by_id = {agent.pk: agent for agent in available}
+            if not set(fixed_ids).issubset(by_id):
+                _defer_or_skip(event, now, '指定居民正在忙碌，稍后重试')
+                return
+            residents = [by_id[identity] for identity in fixed_ids]
+        else:
+            residents = random.sample(available, requested)
         profiles = [participant_profile(agent, include_expression=True) | {'avatar': agent.avatar} for agent in residents]
         rounds = random.choice((2, 3))
     with ExitStack() as stack:
@@ -626,10 +644,14 @@ def _tick_theatres(config, now=None, *, manual_only=False):
             _set_skipped(event.pk, '当天没有可用新闻')
             continue
         available, pool_size = _available_residents(config, event, now)
-        if pool_size <= 2:
+        fixed_ids = (event.snapshot or {}).get('manual_participant_ids', [])
+        if fixed_ids and pool_size < len(fixed_ids):
+            _set_skipped(event.pk, '指定居民已暂停、退出社交或不再可用')
+            continue
+        if not fixed_ids and pool_size <= 2:
             _set_skipped(event.pk, '参与小剧场的居民不足三位')
             continue
-        if len(available) < 2:
+        if len(available) < (len(fixed_ids) if fixed_ids else 2):
             _defer_or_skip(event, now, '参与居民正在忙碌，稍后重试')
             continue
         run_event(config, event, available, now)

@@ -5,6 +5,7 @@ import type {SocialTheatreEvent} from '../../types/api/social';
 import ConfirmationModal from '../common/ConfirmationModal';
 import WorldDialog from './WorldDialog';
 import SocialTheatreRelationChanges from './SocialTheatreRelationChanges';
+import ManualTheatreForm from './ManualTheatreForm';
 
 const statusText: Record<SocialTheatreEvent['status'], string> = {
     scheduled: '等待调度', searching: '正在找新闻', running: '讨论中', completed: '已完成',
@@ -96,7 +97,6 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [showTrigger, setShowTrigger] = useState(false);
-    const [manualTopic, setManualTopic] = useState('');
 
     const activeTabRef = useRef<HTMLButtonElement | null>(null);
     const detailRequest = useRef(0);
@@ -198,15 +198,14 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
         };
     }, [pollingId]);
 
-    const trigger = async (topic = '') => {
+    const trigger = async (topic = '', participantIds: string[] = []) => {
         const request = ++detailRequest.current;
         setTriggering(true);
         setError('');
         setNotice('');
         try {
-            const result = await triggerSocialTheatre(topic);
+            const result = await triggerSocialTheatre(topic, participantIds);
             setShowTrigger(false);
-            setManualTopic('');
             if (request === detailRequest.current) {
                 setSelected(result.event);
             }
@@ -309,15 +308,7 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
                         </div>
                     </div>
 
-                    {showTrigger && <form className="mb-3 shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4" onSubmit={event => {event.preventDefault(); if (manualTopic.trim()) void trigger(manualTopic.trim());}}>
-                        <label htmlFor="theatre-manual-topic" className="block text-sm font-semibold text-slate-800">指定讨论议题</label>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">输入想讨论的话题，系统会搜索相关资料，再邀请居民讨论。</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            <input id="theatre-manual-topic" value={manualTopic} onChange={event => setManualTopic(event.target.value)} maxLength={200} placeholder="例如：人工智能会怎样改变日常生活？" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
-                            <button type="submit" disabled={triggering || !manualTopic.trim()} className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50">搜索并讨论</button>
-                            <button type="button" disabled={triggering} onClick={() => void trigger()} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">随机新闻</button>
-                        </div>
-                    </form>}
+                    {showTrigger && <ManualTheatreForm busy={triggering} onSubmit={(topic, ids) => void trigger(topic, ids)}/>}
 
                     <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide p-1 pt-2 pb-4">
                         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">

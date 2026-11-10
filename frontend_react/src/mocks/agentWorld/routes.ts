@@ -250,10 +250,16 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         const current = selectTheatreEvent(rows);
         return {items: url.searchParams.get('current') === '1' ? (current ? [current] : []) : rows, nextCursor: null};
     }
+    if (path === `${base}/social/discussions/trigger/` && !writing) return {participants: list(residents.map(person => ({id: person.id, name: person.name})))};
     if (path === `${base}/social/discussions/trigger/` && writing) {
         const topic = typeof body.topic === 'string' ? body.topic.trim() : '';
+        const ids = Array.isArray(body.participantIds) ? body.participantIds as string[] : [];
+        const people = ids.length ? theatre.participants.filter(person => ids.includes(person.id)) : theatre.participants.slice(0, 3);
         const event: SocialTheatreEvent = {...theatre, id: `local-theatre-${Date.now()}`, manual: true,
-            scheduledAt: new Date().toISOString(), status: 'completed',
+            scheduledAt: new Date().toISOString(), status: 'completed', participants: people,
+            relationChanges: theatre.relationChanges?.filter(change => people.some(person => person.id === change.actorId) && people.some(person => person.id === change.counterpartId)),
+            transcript: theatre.transcript?.filter(turn => people.some(person => person.id === turn.speakerId)),
+            messageCount: theatre.transcript?.filter(turn => people.some(person => person.id === turn.speakerId)).length,
             topic: topic ? {title: topic, question: topic, event: '本地样例：围绕输入的议题搜索相关资料。', tradeoff: '不同观点'} : theatre.topic};
         if (new URLSearchParams(location.search).get('mockState') === 'theatre-failed') {
             Object.assign(event, {status: 'scheduled', transcript: [], messageCount: 0, error: '', relationChanges: []});

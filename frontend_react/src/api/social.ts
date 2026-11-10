@@ -21,7 +21,8 @@ export const getCurrentSocialTheatreEvent = (signal?: AbortSignal) =>
     request.get<unknown, {items: SocialTheatreEvent[]}>(`${base}/social/discussions/`, {params: {current: 1}, signal});
 export const getSocialTheatreEvent = (id: string) => request.get<unknown, SocialTheatreEvent>(`${base}/social/discussions/${id}/`);
 export const deleteSocialTheatreEvent = (id: string) => request.delete(`${base}/social/discussions/${id}/`);
-export const triggerSocialTheatre = (topic = '') => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/trigger/`, {topic});
+export const getTheatreParticipantOptions = () => request.get<unknown, {participants: {id: string; name: string}[]}>(`${base}/social/discussions/trigger/`);
+export const triggerSocialTheatre = (topic = '', participantIds: string[] = []) => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/trigger/`, {topic, participantIds});
 export const resumeSocialTheatre = (id: string) => request.post<unknown, {event: SocialTheatreEvent}>(`${base}/social/discussions/${id}/resume/`, {});
 export const regenerateMomentImage = (id: string) => request.post<unknown, Moment>(`${base}/moments/${id}/regenerate/`);
 

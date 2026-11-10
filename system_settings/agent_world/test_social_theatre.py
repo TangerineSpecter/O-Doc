@@ -602,3 +602,32 @@ class SocialTheatrePipelineTests(TestCase):
         self.assertEqual(len(self.event.snapshot['relation_reviews']), 1)
         self.assertFalse(SocialEvent.objects.filter(owner_id=self.owner).exists())
         self.assertFalse(SocialRelation.objects.filter(owner_id=self.owner).exists())
+
+    def test_fixed_participants_are_not_randomly_reduced_or_replaced(self):
+        third = Agent.objects.create(name='丙')
+        self.agents.append(third)
+        self.event.snapshot['manual_participant_ids'] = [agent.pk for agent in self.agents]
+        self.event.save()
+        with patch('system_settings.agent_world.social_theatre_runner.random.choice', return_value=2):
+            self.run_scene()
+        self.assertEqual({person['id'] for person in self.event.participants}, {agent.pk for agent in self.agents})
+        self.assertEqual(self.event.status, 'completed', self.event.error)
+
+    def test_fixed_busy_resident_defers_without_using_substitute(self):
+        self.event.snapshot['manual_participant_ids'] = [agent.pk for agent in self.agents]
+        self.event.save()
+        substitute = Agent.objects.create(name='替补')
+        with patch('system_settings.agent_world.social_theatre_runner._defer_or_skip') as defer:
+            run_event(self.config, self.event, [self.agents[0], substitute], self.now)
+        defer.assert_called_once()
+        self.assertEqual(self.mocks[5].call_count, 0)
+
+    def test_second_round_all_stop_leaves_only_first_round_messages(self):
+        self.mocks[3].side_effect = lambda agent, **kwargs: (
+            {'action': 'stop', 'reply_to': '', 'stance': '', 'point': '', 'tone': ''}
+            if len(kwargs['transcript']) >= len(self.agents) else self.intent)
+        with patch('system_settings.agent_world.social_theatre_runner.random.choice', return_value=3):
+            self.run_scene()
+        self.assertEqual(self.event.rounds, 3)
+        self.assertEqual({turn['round'] for turn in self.event.transcript}, {1})
+        self.assertEqual(self.event.status, 'completed', self.event.error)

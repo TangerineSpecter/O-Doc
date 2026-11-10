@@ -133,14 +133,28 @@ class SocialTheatreDetailView(APIView):
 class SocialTheatreTriggerView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        from .life_models import LifeConfig
+        from .social_theatre_runner import configured_residents
+        config = config_for(get_current_user_identifier(request))
+        life = LifeConfig.objects.filter(pk=config.pk, migrated=True).first()
+        residents = configured_residents(config, life) if life else []
+        return success_result({'participants': [{'id': agent.pk, 'name': agent.name}
+            for agent in residents if agent.pk not in life.paused_agents]})
+
     @guarded
     def post(self, request):
         owner = get_current_user_identifier(request)
         topic = request.data.get('topic', '')
         if not isinstance(topic, str) or len(topic.strip()) > 200:
             return valid_result('议题须为不超过200字的文本', status=400)
+        participant_ids = request.data.get('participant_ids', [])
+        if (not isinstance(participant_ids, list) or len(participant_ids) not in (0, 2, 3)
+                or any(not isinstance(identity, str) or not identity or len(identity) > 100 for identity in participant_ids)
+                or len(set(participant_ids)) != len(participant_ids)):
+            return valid_result('请自动分配，或指定2至3位不同的居民', status=400)
         try:
-            row = queue_manual_event(config_for(owner), topic=topic.strip())
+            row = queue_manual_event(config_for(owner), topic=topic.strip(), participant_ids=participant_ids)
         except ValueError as exc:
             return valid_result(str(exc), status=409)
         from .social_theatre_worker import start_manual_theatre_worker
