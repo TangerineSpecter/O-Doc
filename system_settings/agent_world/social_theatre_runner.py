@@ -526,7 +526,12 @@ def tick_theatres(config, now=None, *, manual_only=False):
         return
     with execution_lease(WorldActionRuntime, {'pk': 'social-th:' + stable_id(config.pk)[:30]}) as token:
         if token:
-            _tick_theatres(config, now, manual_only=manual_only)
+            from .social_theatre_feedback import pending_manual_ids, notify_manual_results
+            pending_ids = pending_manual_ids(config.pk)
+            try:
+                _tick_theatres(config, now, manual_only=manual_only)
+            finally:
+                notify_manual_results(config.pk, pending_ids)
 
 
 def _tick_theatres(config, now=None, *, manual_only=False):

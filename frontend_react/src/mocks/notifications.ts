@@ -5,6 +5,13 @@ import {randomLocalMemo} from './memos';
 let notifications: NotificationItem[] = [];
 const base = '/api/message/notifications/';
 
+export function addLocalNotification(input: Pick<NotificationItem, 'title' | 'content' | 'type' | 'link'>): NotificationItem {
+    const row: NotificationItem = {...input, id: createRequestKey(), isRead: false,
+        isDeleted: false, createdAt: new Date().toISOString(), deletedAt: null};
+    notifications.unshift(row);
+    return row;
+}
+
 export function resolveNotificationRoute(request: Request, empty: boolean) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith(base)) return undefined;

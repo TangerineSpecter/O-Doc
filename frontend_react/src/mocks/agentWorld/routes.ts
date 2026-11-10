@@ -1,4 +1,4 @@
-import {resolveNotificationRoute} from '../notifications';
+import {addLocalNotification, resolveNotificationRoute} from '../notifications';
 import {selectTheatreEvent} from '../../utils/socialTheatre';
 import {projectArticleList} from '../articleProjection';
 import {reservationItems} from './reservations';
@@ -38,6 +38,7 @@ const actor = (url: URL) => url.searchParams.get('actor_id') || url.searchParams
 const forActor = <T extends {actorId?: string; agentId?: string}>(rows: T[], url: URL) => rows.filter(r => !actor(url) || (r.actorId || r.agentId) === actor(url));
 const resource = new Map<string, unknown>();
 const theatreEvents: SocialTheatreEvent[] = [theatre];
+const pendingTheatreFailures = new Map<string, string>();
 lifeItems.push(...blacksmithLifeItems, ...reservationItems);
 for (const item of lifeItems) {
     if (item.source === 'interleaved') item.activityUsage = {requests: 4, inputTokens: 860, outputTokens: 32, totalTokens: 892, usageComplete: true};
@@ -245,7 +246,7 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         if (request.method === 'DELETE') moments.splice(moments.indexOf(row), 1); return row;
     }
     if (path === `${base}/social/discussions/`) {
-        const rows = list(theatreEvents);
+        const rows = list(theatreEvents.filter(row => ['scheduled', 'searching', 'running'].includes(row.status) || (row.messageCount ?? row.transcript?.length ?? 0) > 0));
         const current = selectTheatreEvent(rows);
         return {items: url.searchParams.get('current') === '1' ? (current ? [current] : []) : rows, nextCursor: null};
     }
@@ -254,12 +255,23 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
         const event: SocialTheatreEvent = {...theatre, id: `local-theatre-${Date.now()}`, manual: true,
             scheduledAt: new Date().toISOString(), status: 'completed',
             topic: topic ? {title: topic, question: topic, event: '本地样例：围绕输入的议题搜索相关资料。', tradeoff: '不同观点'} : theatre.topic};
+        if (new URLSearchParams(location.search).get('mockState') === 'theatre-failed') {
+            Object.assign(event, {status: 'scheduled', transcript: [], messageCount: 0, error: '', relationChanges: []});
+            pendingTheatreFailures.set(event.id, topic || '随机新闻');
+        }
         theatreEvents.unshift(event);
         return {event};
     }
     if (path.startsWith(`${base}/social/discussions/`)) {
         const id = path.slice(`${base}/social/discussions/`.length).split('/')[0];
         const event = theatreEvents.find(row => row.id === id) || theatre;
+        const failedTopic = pendingTheatreFailures.get(id);
+        if (failedTopic && request.method === 'GET') {
+            event.status = 'failed';
+            event.error = '模型输出未通过场景校验：议题依据必须逐字引用新闻片段';
+            pendingTheatreFailures.delete(id);
+            addLocalNotification({title: '手动小剧场未完成', content: `议题：${failedTopic}\n结果：暂时中断\n原因：${event.error}`, type: 'warning', link: '/agent-world'});
+        }
         if (request.method === 'DELETE') {const index = theatreEvents.indexOf(event); if (index >= 0) theatreEvents.splice(index, 1); return {deleted: true};}
         return writing ? {event} : event;
     }

@@ -172,8 +172,9 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
                 const hidden = emptyAttempt(latest);
                 setSelected(current => current?.id === pollingId ? (hidden ? null : latest) : current);
                 if (hidden) {
-                    setNotice(latest.status === 'failed'
-                        ? '本次讨论暂未开始，可稍后重新发起。活动流已保留简短记录。'
+                    setNotice(latest.manual
+                        ? '本次未形成讨论，处理结果和原因请查看系统通知。'
+                        : latest.status === 'failed' ? '本次讨论暂未开始，可稍后重新发起。活动流已保留简短记录。'
                         : '本次没有形成讨论，活动流已保留简短记录。');
                 }
                 if (!activeStatuses.has(latest.status)) onRelationsChangedRef.current?.();
@@ -635,7 +636,7 @@ export default function SocialTheatreHistoryDialog({onClose, onRelationsChanged,
 
                                 {selected.status === 'failed' && (
                                     <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-orange-100 bg-orange-50 p-3 text-xs text-orange-700">
-                                        <p>本场讨论暂时中断，已保存的发言会保留。</p>
+                                        <p>{selected.error || '本场讨论暂时中断，已保存的发言会保留。'}</p>
                                         <button
                                             type="button"
                                             disabled={triggering}
