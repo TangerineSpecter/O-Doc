@@ -990,7 +990,12 @@ class AnalyticsSnapshotTests(TransactionTestCase):
         client = APIClient()
         client.force_authenticate(user)
         day = self.now.date().isoformat()
+        from ..analytics.archive_worker import process_one
+        if connection.vendor == 'postgresql':
+            self.assertEqual(client.get('/api/settings/agent-world/analytics/', {'start_date': day, 'end_date': day}).status_code, 202)
         with CaptureQueriesContext(connection) as queries:
+            if connection.vendor == 'postgresql':
+                self.assertTrue(process_one())
             daily = client.get('/api/settings/agent-world/analytics/', {'start_date': day, 'end_date': day})
         self.assertEqual(daily.status_code, 200, daily.data)
         self.assertTrue(any('system_settings_combatpartyday' in query['sql'].lower() for query in queries))
@@ -999,7 +1004,8 @@ class AnalyticsSnapshotTests(TransactionTestCase):
         def raw_snapshot():
             yield False
 
-        with patch('system_settings.agent_world.analytics.views.analytics_snapshot', raw_snapshot):
+        with patch('system_settings.agent_world.analytics.views.AnalyticsView.uses_daily_archive', return_value=False), \
+             patch('system_settings.agent_world.analytics.views.analytics_snapshot', raw_snapshot):
             raw = client.get('/api/settings/agent-world/analytics/', {'start_date': day, 'end_date': day})
         self.assertEqual(raw.status_code, 200, raw.data)
         self.assertEqual(daily.data['data'], raw.data['data'])
@@ -1017,12 +1023,20 @@ class AnalyticsSnapshotTests(TransactionTestCase):
         day = self.now.date().isoformat()
         params = {'start_date': day, 'end_date': day}
         before = client.get('/api/settings/agent-world/analytics/', params)
+        from ..analytics.archive_worker import process_one
+        from ..analytics.models import ResidentAnalyticsWork
+        if before.status_code == 202:
+            self.assertTrue(process_one())
+            before = client.get('/api/settings/agent-world/analytics/', params)
         self.assertEqual(before.status_code, 200, before.data)
         notes = before.data['data']['notes']
         self.assertTrue(any('战斗历史统计已生成 0/1 场' in note for note in notes))
         with patch.dict(os.environ, {PROTECTION_ENV: '0'}):
             result = automatic_batch(max_seconds=60)
         self.assertEqual(result['created'], 1, result['failures'])
+        from django.utils import timezone
+        if ResidentAnalyticsWork.objects.filter(dirty=True).update(after=timezone.now()):
+            self.assertTrue(process_one())
         after = client.get('/api/settings/agent-world/analytics/', params)
         self.assertEqual(after.status_code, 200, after.data)
         self.assertFalse(any('战斗历史统计已生成' in note for note in after.data['data']['notes']))

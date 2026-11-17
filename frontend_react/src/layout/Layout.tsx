@@ -1,7 +1,7 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, type ReactNode, useEffect, useMemo, useState } from 'react';
+import {isAxiosError} from 'axios';
 import { useLocation } from 'react-router-dom';
 import FloatingActionMenu from '../components/FloatingActionMenu';
-import { AIChatWindow } from '../components/AIChatWindow';
 import { PeekingBotButton } from '../components/AIChatWindow/PeekingBotButton';
 import DiaryEdgeButton from '../components/Diary/DiaryEdgeButton';
 import AgentWorldEdgeButton from '../components/AgentWorld/AgentWorldEdgeButton';
@@ -17,6 +17,8 @@ import { AuthProvider } from '../contexts/AuthContext';
 import {clearAuthToken, getAuthToken} from '../utils/authStorage';
 import { registerSwipeBackInterceptor } from '../utils/swipeBackRegistry';
 import { useScrollDirection } from '../hooks/useScrollDirection';
+
+const AIChatWindow = lazy(() => import('../components/AIChatWindow'));
 
 /**
  * 判断当前路由是否属于文章或帖子的具体阅读详情页。
@@ -51,7 +53,8 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
     // --- 状态管理 ---
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [isChatOpen, setIsChatOpen] = useState(false);
+    // Load on first open and keep the mounted conversation when the window closes.
+    const [isChatOpen, setIsChatOpen] = useState<boolean | null>(null);
     const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(false);
     const [activeAgent, setActiveAgent] = useState<AgentConfig | null>(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -60,14 +63,16 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
     // --- 用户信息获取 ---
     useEffect(() => {
         const token = getAuthToken();
-        if (token) {
-            getUserInfo().then(res => {
-                setUserInfo(res);
-            }).catch(() => {
-                clearAuthToken();
-                setUserInfo(null);
-            });
-        }
+        if (!token) return;
+        const controller = new AbortController();
+        getUserInfo(controller.signal).then(res => {
+            if (!controller.signal.aborted && getAuthToken() === token) setUserInfo(res);
+        }).catch(error => {
+            if (controller.signal.aborted || getAuthToken() !== token) return;
+            if (isAxiosError(error) && error.response?.status === 401) clearAuthToken();
+            setUserInfo(null);
+        });
+        return () => controller.abort();
     }, []);
 
     // --- 事件处理 ---
@@ -156,13 +161,15 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         <AuthProvider value={authValue}>
         <div className={`${isQuantWorkspace ? 'min-h-0' : 'min-h-screen'} bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900`}>
 
-            <AIChatWindow
-                isOpen={isChatOpen}
-                onClose={() => setIsChatOpen(false)}
-                activeAgent={activeAgent}
-                onOpenContacts={isAuthenticated ? handleOpenContactsFromChat : undefined}
-                onSelectAgent={isAuthenticated ? setActiveAgent : undefined}
-            />
+            {isChatOpen !== null && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-[80] rounded-xl bg-white p-3 text-sm shadow">正在打开对话…</div>}>
+                <AIChatWindow
+                    isOpen={isChatOpen}
+                    onClose={() => setIsChatOpen(false)}
+                    activeAgent={activeAgent}
+                    onOpenContacts={isAuthenticated ? handleOpenContactsFromChat : undefined}
+                    onSelectAgent={isAuthenticated ? setActiveAgent : undefined}
+                />
+            </Suspense>}
 
             <AgentContactPanel
                 isOpen={isAgentPanelOpen}

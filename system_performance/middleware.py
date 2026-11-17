@@ -1,10 +1,21 @@
 import time
 import inspect
+from functools import lru_cache
 from pathlib import Path
 from .safety import ROOT
 from .instrumentation import CURRENT, active, finish, open_operation, outcome
 
 EXCLUDE = ('/api/system/', '/api/health/', '/static/', '/media/')
+
+
+@lru_cache(maxsize=1024)
+def _source_path(filename):
+    if filename.startswith('<'):
+        return None
+    try:
+        return Path(filename).resolve().relative_to(ROOT).as_posix()
+    except (OSError, ValueError):
+        return None
 
 
 class PerformanceMiddleware:
@@ -37,12 +48,11 @@ class PerformanceMiddleware:
             view_class = getattr(callback, 'cls', None) or getattr(callback, 'view_class', None)
             action = getattr(callback, 'actions', {}).get(request.method.lower(), request.method.lower())
             handler = inspect.unwrap(getattr(view_class, action, callback))
-            event['handler'] = f'{handler.__module__}.{getattr(handler, "__qualname__", type(handler).__name__)}'
-            try:
-                path = Path(inspect.getsourcefile(handler)).resolve().relative_to(ROOT).as_posix()
-                event['source'] = [dict(file=path, function=getattr(handler, '__qualname__', 'unknown'), line=inspect.getsourcelines(handler)[1])]
-            except (ValueError, TypeError, OSError):
-                pass
+            name = getattr(handler, '__qualname__', type(handler).__name__)
+            event['handler'] = f'{getattr(handler, "__module__", type(handler).__module__)}.{name}'
+            code = getattr(handler, '__code__', None)
+            if code is not None and (path := _source_path(code.co_filename)):
+                event['source'] = [dict(file=path, function=name, line=code.co_firstlineno)]
         event['http_status'] = response.status_code
         status = 'failed' if response.status_code >= 500 else 'client_error' if response.status_code >= 400 else 'success'
         if not response.streaming:

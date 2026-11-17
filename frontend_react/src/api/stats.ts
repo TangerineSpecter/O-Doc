@@ -22,6 +22,6 @@ export const reportReadDuration = async (articleId: string, duration: number) =>
 /**
  * 获取统计看板数据
  */
-export const getStatisticsData = async (year?: number): Promise<StatsDashboardData> => {
-    return request.get('/stats/dashboard', {params: year ? {year} : undefined});
+export const getStatisticsData = async (year?: number, signal?: AbortSignal): Promise<StatsDashboardData> => {
+    return request.get('/stats/dashboard', {params: year ? {year} : undefined, signal});
 };

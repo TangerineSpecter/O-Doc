@@ -11,7 +11,9 @@ INSTALLED_APPS = ['django.contrib.auth', 'django.contrib.contenttypes', 'rest_fr
 ROOT_URLCONF = 'system_performance.urls'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.TokenAuthentication',
+                                       'rest_framework.authentication.SessionAuthentication'],
+    'EXCEPTION_HANDLER': 'utils.exceptions.custom_exception_handler',
     'DEFAULT_RENDERER_CLASSES': ['djangorestframework_camel_case.render.CamelCaseJSONRenderer'],
     'DEFAULT_PARSER_CLASSES': ['djangorestframework_camel_case.parser.CamelCaseJSONParser'],
 }

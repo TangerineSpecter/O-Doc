@@ -21,6 +21,7 @@ _lock = threading.Lock()
 _start_lock = threading.Lock()
 _thread = None
 _daily_thread = None
+_analytics_thread = None
 _stop = threading.Event()
 _WORKER_RETRY_SECONDS = 60
 logger = logging.getLogger(__name__)
@@ -167,7 +168,7 @@ def _supervise_loop(target, label: str) -> None:
 
 
 def start_world_worker() -> None:
-    global _thread, _daily_thread
+    global _thread, _daily_thread, _analytics_thread
     server = _is_server_process() or ('runserver' in sys.argv and '--noreload' in sys.argv)
     if not server:
         return
@@ -175,7 +176,8 @@ def start_world_worker() -> None:
         months_alive = bool(_thread and _thread.is_alive())
         daily_alive = bool(_daily_thread and _daily_thread.is_alive())
         # A stopping worker may still be releasing resources; do not revive it.
-        if (months_alive and daily_alive) or (_stop.is_set() and (months_alive or daily_alive)):
+        analytics_alive = bool(_analytics_thread and _analytics_thread.is_alive())
+        if (months_alive and daily_alive and analytics_alive) or (_stop.is_set() and any((months_alive, daily_alive, analytics_alive))):
             return
         _stop.clear()
         if not months_alive:
@@ -186,12 +188,17 @@ def start_world_worker() -> None:
             _daily_thread = threading.Thread(target=_supervise_loop, args=(_daily_loop, '战斗统计'),
                                              name='agent-world-combat-statistics', daemon=True)
             _daily_thread.start()
+        if not analytics_alive:
+            from .analytics.archive_worker import run_loop
+            _analytics_thread = threading.Thread(target=_supervise_loop, args=(lambda: run_loop(_stop), '居民统计'),
+                                                name='resident-analytics', daemon=True)
+            _analytics_thread.start()
 
 
 def stop_world_worker() -> None:
     with _start_lock:
         _stop.set()
-        threads = (_thread, _daily_thread)
+        threads = (_thread, _daily_thread, _analytics_thread)
     for thread in threads:
         if thread and thread.is_alive():
             thread.join(timeout=2)

@@ -87,7 +87,9 @@ class BlacksmithCandidateTests(SimpleTestCase):
         self.assertEqual((sword['level_min'], sword['level_max']), (50, 60))
         self.assertFalse(sword['can_equip'])
         self.assertIn('job.swordsman', sword['job_ids'])
-        self.assertFalse(self.types('job.guardian', '50-60', 'weapon', 30))
+        guardian = self.types('job.guardian', '50-60', 'weapon', 30)
+        self.assertIn('equip.sword.30.element.earth', {row['template_id'] for row in guardian})
+        self.assertNotIn('two_handed_sword', {row['equipment_type'] for row in guardian})
         self.assertTrue(self.types('job.elementalist', '30-40', 'weapon', 30))
         self.assertFalse(self.types('job.occultist', '30-40', 'weapon', 30)
                          and any(row['equipment_type'] == 'two_handed_staff'
@@ -110,12 +112,13 @@ class BlacksmithCandidateTests(SimpleTestCase):
         self.assertFalse(recipe_options({rule['id']: rule}, self.catalog, profile, pool, 1))
 
     def test_shared_level_endpoints_keep_both_legal_templates(self):
+        expected = ['equip.head.heavy', 'equip.head.heavy.30', 'equip.head.plate', 'equip.head.plate.30']
         options = self.types('job.warrior', '30-40', 'head')
-        self.assertEqual([row['template_id'] for row in options], ['equip.head', 'equip.head.30'])
-        self.assertEqual([(row['level_min'], row['level_max']) for row in options], [(30, 30), (30, 40)])
+        self.assertEqual([row['template_id'] for row in options], expected)
+        self.assertEqual([(row['level_min'], row['level_max']) for row in options], [(30, 30), (30, 40)] * 2)
         prior = self.types('job.warrior', '20-30', 'head')
-        self.assertEqual([row['template_id'] for row in prior], ['equip.head', 'equip.head.30'])
-        self.assertEqual([(row['level_min'], row['level_max']) for row in prior], [(20, 30), (30, 30)])
+        self.assertEqual([row['template_id'] for row in prior], expected)
+        self.assertEqual([(row['level_min'], row['level_max']) for row in prior], [(20, 30), (30, 30)] * 2)
 
 
 class BlacksmithApiTests(TestCase):

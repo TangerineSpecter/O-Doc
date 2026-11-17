@@ -42,6 +42,11 @@ class AnalyticsParams(serializers.Serializer):
 class AnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def uses_daily_archive():
+        from django.db import connection
+        return connection.vendor == 'postgresql'
+
     def handle_exception(self, exc):
         if isinstance(exc, InvalidCombatStatisticsSource):
             logger.warning('已归档战斗统计来源无效：%s', exc)
@@ -59,6 +64,22 @@ class AnalyticsView(APIView):
         start = storage_time(datetime.combine(first, time.min, SHANGHAI))
         end = storage_time(datetime.combine(last+timedelta(days=1), time.min, SHANGHAI))
         owner = get_current_user_identifier(request)
+        if self.uses_daily_archive():
+            from .archive import read_report
+            report = read_report(owner, first, last, actor)
+            timing.mark('daily_archive')
+            if 'archiveError' in report:
+                reason = report['archiveError']
+                message = {'invalid_fishing_statistics_source': '钓鱼记录存在异常，无法计算完整统计。',
+                           'invalid_combat_statistics_source': '战斗统计来源存在异常，无法计算完整统计。'
+                           }.get(reason, '每日统计暂未生成，后台将重试。')
+                response = valid_result(message, {'reason': reason}, status=409)
+            else:
+                response = success_result(report)
+                if report.get('archivePending'):
+                    response.status_code = 202
+                    response['Retry-After'] = '3'
+            return self.timed_response(request, response, timing)
         with analytics_snapshot() as include_daily:
             timing.mark('setup')
             facts = load_facts(request, owner, start, end, actor=actor, include_daily=include_daily, timing=timing)
@@ -93,6 +114,9 @@ class AnalyticsView(APIView):
                 response = success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
                                            **summary, 'lotteryStatistics': lottery, 'fishingComparison': fishing,
                                            'combatComparison': combat})
+        return self.timed_response(request, response, timing)
+
+    def timed_response(self, request, response, timing):
         timing.mark('finish')
         durations = timing.header()
         response['Server-Timing'] = durations

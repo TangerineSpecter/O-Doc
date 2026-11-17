@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from system_performance.instrumentation import monitored_task
 
-import hashlib
 import json
 import os
 import shutil
@@ -22,10 +21,12 @@ from learning.locking import snapshot_guard as learning_sync_guard
 from novel.locking import snapshot_guard as novel_sync_guard
 from quant.locking import snapshot_guard as quant_sync_guard
 from novel.chapters import enforce_revision_retention as enforce_novel_revision_retention
+from system_settings.agent_world.analytics.archive_sync import validate_version as validate_resident_analytics_version
 from system_settings.agent_world import travel_sync
 from system_settings.agent_world.combat.migration_guard import require_sync_unprotected
 from .sync_merge import item_map, revision_key, merge_records
 from .sync_policy import SyncError, OverwriteConfirmationRequired, SyncChoicesRequired, schema_guard, ensure_not_aborted
+from .sync_revision_index import apply_revision_rows, digest_entries, local_manifest_entries, local_revision_rows
 from .sync_repository import SnapshotRepository
 from .sync_media import SnapshotMedia
 from .sync_models import SnapshotModels
@@ -207,6 +208,7 @@ class SyncManager:
 
 
     def validate_remote_snapshot_version(self, remote_meta):
+        validate_resident_analytics_version(remote_meta)
         from system_settings.agent_world.market_strategy_sync import validate_version
         validate_version(remote_meta)
         travel_sync.validate(remote_meta)
@@ -285,6 +287,7 @@ class SyncManager:
 
 
     def validate_import_snapshot_version(self, remote_meta):
+        validate_resident_analytics_version(remote_meta)
         from system_settings.agent_world.market_strategy_sync import validate_version
         validate_version(remote_meta)
         travel_sync.validate(remote_meta)
@@ -836,19 +839,8 @@ class SyncManager:
 
 
     def _apply_v2_revisions(self, revisions):
-        from system_settings.models import SyncEntityState
         with suspend_tracking():
-            for key, revision in revisions.items():
-                model_label, object_pk = key.split(':', 1)
-                SyncEntityState.objects.update_or_create(
-                    model_label=model_label, object_pk=object_pk,
-                    defaults={
-                        'content_hash': revision.get('hash', ''),
-                        'revision_at': self._normalize_revision_time(revision.get('revision_at')) or timezone.now(),
-                        'origin_device': revision.get('origin_device', ''),
-                        'is_deleted': bool(revision.get('deleted')),
-                    },
-                )
+            apply_revision_rows(revisions, self._normalize_revision_time)
 
         travel_sync.prune_states()
         from system_settings.agent_world.combat import archive as combat_archive
@@ -941,45 +933,15 @@ class SyncManager:
     @staticmethod
     def manifest_digest(manifest):
         """稳定摘要：逐键排序后拼接，避免整份清单进入同一段序列化内存。"""
-        digest = hashlib.sha256()
-        for key in sorted(manifest):
-            payload = json.dumps(
-                [key, manifest[key]], ensure_ascii=False, sort_keys=True,
-                separators=(',', ':'), default=str,
-            )
-            digest.update(payload.encode('utf-8'))
-            digest.update(b'\n')
-        return digest.hexdigest()
-
-    def _local_revision_entries(self):
-        """本机修订清单的投影，字段与发布时的 revisions.json 完全一致。"""
-        from system_settings.models import SyncEntityState
-        device_id = get_device_id()
-        entries = {}
-        for state in SyncEntityState.objects.all().iterator(chunk_size=2000):
-            if (
-                state.model_label == 'system_settings.systemsetting'
-                and state.object_pk in LOCAL_ONLY_SYSTEM_SETTING_KEYS
-            ):
-                continue
-            entries[revision_key(state.model_label, state.object_pk)] = {
-                'hash': state.content_hash or '',
-                'revision_at': state.revision_at.isoformat(),
-                'origin_device': state.origin_device or device_id,
-                'deleted': bool(state.is_deleted),
-            }
-        return entries
+        return digest_entries((key, manifest[key]) for key in sorted(manifest))[1]
 
     def _local_index_digest_matches(self, index_digest):
         expected = (index_digest or {}).get('revisions') or {}
         if not expected.get('sha256'):
             return False
         self._repair_miskeyed_revisions()
-        entries = self._local_revision_entries()
-        return (
-            len(entries) == expected.get('count')
-            and self.manifest_digest(entries) == expected['sha256']
-        )
+        count, digest = digest_entries(local_manifest_entries(get_device_id()))
+        return count == expected.get('count') and digest == expected['sha256']
 
 
     def _repair_miskeyed_revisions(self):
@@ -1019,31 +981,19 @@ class SyncManager:
 
 
     def _revisions_match_stored_index(self, remote_revisions):
-        from system_settings.models import SyncEntityState
         self._repair_miskeyed_revisions()
-        remote_revisions = {
-            key: revision for key, revision in remote_revisions.items()
-            if not self._revision_key_is_device_local(key)
-        }
-        local = {}
-        for state in SyncEntityState.objects.all().iterator(chunk_size=2000):
-            if (
-                state.model_label == 'system_settings.systemsetting'
-                and state.object_pk in LOCAL_ONLY_SYSTEM_SETTING_KEYS
-            ):
-                continue
-            local[revision_key(state.model_label, state.object_pk)] = state
-        if set(local) != set(remote_revisions):
-            return False
-        for key, remote_rev in remote_revisions.items():
-            state = local[key]
-            if bool(state.is_deleted) != bool(remote_rev.get('deleted')):
+        expected_count = sum(not self._revision_key_is_device_local(key) for key in remote_revisions)
+        count = 0
+        for label, pk, content_hash, at, _, deleted in local_revision_rows():
+            remote = remote_revisions.get(revision_key(label, pk))
+            if remote is None or bool(deleted) != bool(remote.get('deleted')):
                 return False
-            if (state.content_hash or '') != (remote_rev.get('hash') or ''):
+            if (content_hash or '') != (remote.get('hash') or ''):
                 return False
-            if self._local_revision_is_newer(state.revision_at, remote_rev.get('revision_at')):
+            if self._local_revision_is_newer(at, remote.get('revision_at')):
                 return False
-        return True
+            count += 1
+        return count == expected_count
 
 
     @staticmethod

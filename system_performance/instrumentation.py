@@ -58,10 +58,12 @@ def sql_wrapper(execute, sql, params, many, context):
 
 
 def open_operation(kind: str, name: str, **safe_fields) -> dict | None:
-    if MUTED.get() or not collector.policy()['enabled']:
+    if MUTED.get():
+        return None
+    config = collector.policy()
+    if not config['enabled']:
         return None
     parent = CURRENT.get()
-    config = collector.policy()
     identity = uuid.uuid4().hex
     from system_logs.capture import request_context
     diagnostic = request_context.get()

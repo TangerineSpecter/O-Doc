@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import {useToast} from './common/ToastProvider';
+import {useNotificationList} from '../hooks/useNotificationList';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import {
     Archive,
@@ -26,7 +28,6 @@ import {
     clearNotificationTrash,
     deleteNotification,
     deleteNotificationPermanently,
-    getNotifications,
     markAllRead,
     markRead,
     NotificationItem,
@@ -180,12 +181,29 @@ function renderFormattedNotificationTitle(item: NotificationItem, isDetail = fal
     );
 }
 
+function NotificationPages({page, pages, setPage}: {page: number; pages: number; setPage: (page: number) => void}) {
+    if (pages <= 1) return null;
+    return (
+        <nav aria-label="通知分页" className="flex shrink-0 items-center justify-center gap-3 py-2 text-xs text-slate-600">
+            <button type="button" disabled={page <= 1} className="disabled:opacity-40" onClick={() => setPage(page - 1)}>上一页</button>
+            <span>{page} / {pages}</span>
+            <button type="button" disabled={page >= pages} className="disabled:opacity-40" onClick={() => setPage(page + 1)}>下一页</button>
+        </nav>
+    );
+}
+
+function NotificationLoadError({retry}: {retry: () => void}) {
+    return (
+        <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-600" role="status">
+            通知加载失败
+            <button type="button" className="font-semibold text-orange-600" onClick={retry}>重试</button>
+        </div>
+    );
+}
+
 export default function NotificationPopover({ isAuthenticated, onClose, onNavigate, onUnreadChange }: NotificationPopoverProps) {
-    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-    const [historyNotifications, setHistoryNotifications] = useState<NotificationItem[]>([]);
+    const toast = useToast();
     const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [historyLoading, setHistoryLoading] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [historyStatus, setHistoryStatus] = useState<NotificationStatus>('all');
     const [isExpanded, setIsExpanded] = useState(false);
@@ -195,54 +213,14 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
     useEscapeDismissal(historyOpen, () => setHistoryOpen(false));
     useEscapeDismissal(Boolean(selectedNotification), () => setSelectedNotification(null));
 
-    const fetchList = async () => {
-        if (!isAuthenticated) {
-            setNotifications([]);
-            onUnreadChange?.(0);
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        try {
-            const res = await getNotifications('unread');
-            const list = Array.isArray(res) ? res : [];
-            setNotifications(list);
-            onUnreadChange?.(list.length);
-        } catch (e) {
-            console.error(e);
-            setNotifications([]);
-            onUnreadChange?.(0);
-        } finally {
-            setLoading(false);
-        }
+    const unread = useNotificationList(isAuthenticated ? 'unread' : null, onUnreadChange);
+    const history = useNotificationList(isAuthenticated && historyOpen ? historyStatus : null);
+    const notifications = unread.rows;
+    const historyNotifications = history.rows;
+    const refresh = () => {
+        unread.reload();
+        history.reload();
     };
-
-    const fetchHistory = async (status: NotificationStatus = historyStatus) => {
-        if (!isAuthenticated) {
-            setHistoryNotifications([]);
-            return;
-        }
-        setHistoryLoading(true);
-        try {
-            const res = await getNotifications(status);
-            setHistoryNotifications(Array.isArray(res) ? res : []);
-        } catch (error) {
-            console.error('Failed to fetch notification history', error);
-            setHistoryNotifications([]);
-        } finally {
-            setHistoryLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchList();
-    }, [isAuthenticated]);
-
-    useEffect(() => {
-        if (historyOpen) {
-            fetchHistory(historyStatus);
-        }
-    }, [historyOpen, historyStatus, isAuthenticated]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -259,41 +237,37 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [selectedNotification, historyOpen]);
 
-    const handleMarkAllRead = async () => {
-        if (!isAuthenticated) return;
-        await markAllRead();
-        setNotifications([]);
-        onUnreadChange?.(0);
-        if (historyOpen) fetchHistory();
+    const changeNotification = async (operation: () => Promise<unknown>) => {
+        try {
+            await operation();
+            refresh();
+            return true;
+        } catch {
+            toast.error('通知更新失败，请重试');
+            return false;
+        }
+    };
+
+    const handleMarkAllRead = () => {
+        if (isAuthenticated) void changeNotification(markAllRead);
     };
 
     const handleClickItem = async (item: NotificationItem) => {
-        setSelectedNotification({ ...item, isRead: true });
-
-        if (isAuthenticated && !item.isRead) {
-            await markRead(item.id);
-            const next = notifications.filter(n => n.id !== item.id);
-            setNotifications(next);
-            onUnreadChange?.(next.length);
-            if (historyOpen) fetchHistory();
+        setSelectedNotification(item);
+        if (isAuthenticated && !item.isRead && !item.isDeleted && await changeNotification(() => markRead(item.id))) {
+            setSelectedNotification(current => current?.id === item.id ? {...current, isRead: true} : current);
         }
     };
 
     const handleDeleteSelected = async () => {
-        if (!selectedNotification) return;
-        try {
-            await deleteNotification(selectedNotification.id);
-            const next = notifications.filter(item => item.id !== selectedNotification.id);
-            setNotifications(next);
-            onUnreadChange?.(next.length);
-            if (historyOpen) await fetchHistory();
-            setSelectedNotification(null);
-        } catch (error) {
-            console.error('Failed to delete notification', error);
+        if (selectedNotification && await changeNotification(() => deleteNotification(selectedNotification.id))) {
+            setSelectedNotification(current => current?.id === selectedNotification.id ? null : current);
         }
     };
 
     const handleOpenHistory = () => {
+        history.setPage(1);
+        history.reload();
         setHistoryOpen(true);
         setHistoryStatus('all');
     };
@@ -303,22 +277,18 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
     };
 
     const handleRestore = async (item: NotificationItem) => {
-        await restoreNotification(item.id);
-        await fetchHistory();
-        await fetchList();
+        await changeNotification(() => restoreNotification(item.id));
     };
 
     const handlePermanentDelete = async (item: NotificationItem) => {
         if (!window.confirm('确定要彻底删除这条消息吗？此操作不可恢复。')) return;
-        await deleteNotificationPermanently(item.id);
-        await fetchHistory();
+        await changeNotification(() => deleteNotificationPermanently(item.id));
     };
 
     const handleClearTrash = async () => {
         if (historyNotifications.length === 0) return;
         if (!window.confirm('确定要清空回收站吗？回收站中的消息会被彻底删除。')) return;
-        await clearNotificationTrash();
-        await fetchHistory();
+        await changeNotification(clearNotificationTrash);
     };
 
     const handleOpenLink = (item: NotificationItem) => {
@@ -621,7 +591,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                                 {historyTabs.find(t => t.value === historyStatus)?.label}通知
                             </h3>
                             <span className="text-xs text-slate-400 font-mono">
-                                ({historyNotifications.length})
+                                {history.total != null && `(${history.total})`}
                             </span>
                         </div>
 
@@ -649,10 +619,12 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                     </header>
 
                     <div className="min-h-[420px] max-h-[70vh] overflow-y-auto bg-slate-50/50 p-4">
-                        {historyLoading ? (
+                        {history.loading ? (
                             <div className="flex h-64 items-center justify-center">
                                 <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
                             </div>
+                        ) : history.failed ? (
+                            <NotificationLoadError retry={history.reload} />
                         ) : historyNotifications.length === 0 ? (
                             <div className="flex h-64 flex-col items-center justify-center gap-2 text-center text-slate-400">
                                 <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300">
@@ -666,6 +638,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                             </div>
                         )}
                     </div>
+                    <NotificationPages {...history} />
                 </section>
             </div>
         </div>,
@@ -712,7 +685,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                         <h3 className="text-sm font-bold text-slate-900">通知中心</h3>
                         {notifications.length > 0 && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold">
-                                {notifications.length} 未读
+                                {unread.total} 未读
                             </span>
                         )}
                     </div>
@@ -737,11 +710,13 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                 </div>
 
                 <div className="flex-1 overflow-y-auto divide-y divide-slate-100 bg-white">
-                    {loading ? (
+                    {unread.loading ? (
                         <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                             <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
                             <span className="text-xs font-medium">加载通知中...</span>
                         </div>
+                    ) : unread.failed ? (
+                        <NotificationLoadError retry={unread.reload} />
                     ) : notifications.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
                             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -755,6 +730,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                     )}
                 </div>
 
+                <NotificationPages {...unread} />
                 <div className="p-3 border-t border-slate-100 bg-slate-50 shrink-0">
                     <button
                         type="button"
@@ -780,7 +756,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                         <h3 className="text-sm font-bold text-slate-900">系统通知</h3>
                         {notifications.length > 0 && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold">
-                                {notifications.length} 未读
+                                {unread.total} 未读
                             </span>
                         )}
                     </div>
@@ -795,10 +771,12 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                 </div>
 
                 <div className="max-h-[420px] overflow-y-auto bg-white divide-y divide-slate-100">
-                    {loading ? (
+                    {unread.loading ? (
                         <div className="flex justify-center py-8">
                             <Loader2 className="h-5 w-5 animate-spin text-orange-500" />
                         </div>
+                    ) : unread.failed ? (
+                        <NotificationLoadError retry={unread.reload} />
                     ) : notifications.length === 0 ? (
                         <div className="flex flex-col items-center gap-2 py-8 text-center">
                             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -812,6 +790,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                     )}
                 </div>
 
+                <NotificationPages {...unread} />
                 <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-2.5 text-center">
                     <button
                         type="button"

@@ -1,6 +1,6 @@
 """Owner-isolated read APIs for news discussion history."""
-from django.db.models import Q, Case, When, F
-from django.db import transaction
+from django.db.models import Q, Case, When, F, Func, IntegerField
+from django.db import connection, transaction
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from urllib.parse import urlparse
@@ -13,30 +13,37 @@ from .farm_gate import guarded
 from .social_relation_replay import rebuild_pairs
 
 
+def _summary_rows(rows):
+    length = 'jsonb_array_length' if connection.vendor == 'postgresql' else 'json_array_length'
+    return rows.only('id', 'business_date', 'scheduled_at', 'status', 'error', 'source', 'participants').annotate(
+        summary_manual=F('snapshot__manual'), summary_topic=F('snapshot__topic'),
+        message_count=Func('transcript', function=length, output_field=IntegerField()))
+
+
 def event_list_item(row, *, detail=False):
+    snapshot = (row.snapshot or {}) if detail else {'manual': row.summary_manual, 'topic': row.summary_topic}
+    topic = snapshot.get('topic')
+    message_count = len(row.transcript) if detail else row.message_count
     raw_url = str(row.source.get('url') or '')
     parsed = urlparse(raw_url)
     safe_url = raw_url if parsed.scheme in ('http', 'https') and parsed.netloc else ''
     data = {'id': row.pk, 'business_date': row.business_date, 'scheduled_at': row.scheduled_at,
-            'status': row.status, 'error': row.error, 'manual': bool((row.snapshot or {}).get('manual')),
-            'message_count': len(row.transcript),
+            'status': row.status, 'error': row.error, 'manual': bool(snapshot.get('manual')),
+            'message_count': message_count,
             'source': {'title': str(row.source.get('title') or '')[:200],
                        'summary': str(row.source.get('summary') or ''),
                        'url': safe_url, 'published_at': row.source.get('published_at') or ''},
-            'topic': {key: (row.snapshot or {}).get('topic', {}).get(key, '')
-                      for key in ('title', 'event', 'question', 'tradeoff')}
-                     if (row.snapshot or {}).get('topic') else None,
+            'topic': {key: topic.get(key, '') for key in ('title', 'event', 'question', 'tradeoff')} if topic else None,
             'participants': [{'id': person.get('id', ''), 'name': person.get('name', ''),
                               'avatar': person.get('avatar', '')} for person in row.participants]}
     if detail:
         profiles = {str(person.get('id')): person for person in row.participants}
-        snapshot = row.snapshot or {}
         data.update({'progress': {
             'stage': snapshot.get('stage', ''),
             'speaker_name': snapshot.get('active_speaker_name', ''),
             'started_at': snapshot.get('scene_started_at', ''),
             'stage_started_at': snapshot.get('stage_started_at', ''),
-            'message_count': len(row.transcript),
+            'message_count': message_count,
             'reviewed_count': len(snapshot.get('relation_reviews', [])),
             'participant_count': len(row.participants),
             'candidate_index': snapshot.get('candidate_index', 0),
@@ -79,7 +86,7 @@ class SocialTheatreListView(APIView):
         ).order_by('-business_date', '-scheduled_at', '-pk')
         cursor = request.query_params.get('before')
         if cursor:
-            marker = all_rows.filter(pk=cursor).first()
+            marker = all_rows.only('pk', 'business_date', 'scheduled_at').filter(pk=cursor).first()
             if marker:
                 rows = rows.filter(Q(business_date__lt=marker.business_date) |
                                    Q(business_date=marker.business_date, scheduled_at__lt=marker.scheduled_at) |
@@ -88,14 +95,14 @@ class SocialTheatreListView(APIView):
             # Preserve the history card's selection within its first page, including
             # ties between upcoming sessions. Only materialize the selected row.
             page = rows.values('pk')[:30]
-            selected = all_rows.filter(pk__in=page).order_by(
+            selected = _summary_rows(all_rows.filter(pk__in=page)).order_by(
                 Case(When(status='running', then=0), When(status='searching', then=1),
                      When(status='scheduled', then=2), default=3),
                 Case(When(status='scheduled', then=F('scheduled_at'))),
                 '-business_date', '-scheduled_at', '-pk',
             ).first()
             return success_result({'items': [event_list_item(selected)] if selected else [], 'next_cursor': None})
-        values = list(rows[:31])
+        values = list(_summary_rows(rows)[:31])
         return success_result({'items': [event_list_item(row) for row in values[:30]],
                                'next_cursor': values[29].pk if len(values) > 30 else None})
 

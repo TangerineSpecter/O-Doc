@@ -29,7 +29,19 @@ def job_level(progression):
     return value if type(value) is int and 1 <= value <= 99 else None
 
 
-def aggregate_combat(residents, runs, kills, finished_ids):
+def current_jobs(residents):
+    """Small current-profile projection; historical ranges show today's job and level."""
+    profiles = list(CombatProfile.objects.filter(pk__in=residents).values_list(
+        'id', 'catalog_id', 'progression__job', 'progression__level'))
+    catalogs = {pk: {row['id']: row['name'] for row in professions or []
+                     if isinstance(row, dict) and row.get('id') and row.get('name')}
+                for pk, professions in CombatCatalog.objects.filter(pk__in={p[1] for p in profiles})
+                    .values_list('pk', 'tables__professions')}
+    return {pk: {'job': job, 'jobName': catalogs.get(catalog, {}).get(job) or JOB_NAMES.get(job, job),
+                 'jobLevel': job_level({'level': level})} for pk, catalog, job, level in profiles if job}
+
+
+def aggregate_combat(residents, runs, kills, finished_ids, *, contributions=False):
     profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys()).only(
         'id', 'catalog_id', 'progression')}
     catalog_ids = {p.catalog_id for p in profiles.values()} | {run.catalog_id for run in runs}
@@ -105,6 +117,12 @@ def aggregate_combat(residents, runs, kills, finished_ids):
         detail['kills'] += kill.count
         detail['highestLevel'] = max(detail['highestLevel'], count(monster.get('level')))
         row['bossKills'] += kill.count if monster.get('rank') == 'boss' else 0
+    if contributions:
+        return {actor: {**row, 'destinations': sorted(row['destinations'])} for actor, row in rows.items()}
+    return finish_combat(rows)
+
+
+def finish_combat(rows):
     for row in rows.values():
         row['successRate'] = round(100 * row['completed'] / row['settled'], 1) if row['settled'] else None
         row['averageSeconds'] = round(row['elapsedSeconds'] / row['explorations']) if row['explorations'] else 0
@@ -116,7 +134,7 @@ def aggregate_combat(residents, runs, kills, finished_ids):
 
 
 def load_combat_statistics(owner, start, end, residents, *, include_daily=False, departure_ids=None,
-                           finished_departure_ids=None):
+                           finished_departure_ids=None, contributions=False):
     # Missing departure dates are unknown; creation time is not a substitute.
     ids = (set(CombatFact.objects.filter(owner_id=owner, actor_id__in=residents, kind='depart',
         created_at__gte=start, created_at__lt=end).values_list('exploration_id', flat=True))
@@ -128,4 +146,4 @@ def load_combat_statistics(owner, start, end, residents, *, include_daily=False,
         if finished_departure_ids is None else set(finished_departure_ids))
     kills = load_combat_kills(owner, exploration_ids=finished_ids, actor_ids=residents,
                               include_daily=include_daily)
-    return aggregate_combat(residents, runs, kills, finished_ids)
+    return aggregate_combat(residents, runs, kills, finished_ids, contributions=contributions)

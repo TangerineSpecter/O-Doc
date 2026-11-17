@@ -1,32 +1,31 @@
-import {useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {getUnreadNotificationCount, pushRandomMemoNotification} from '../api/message';
 import {getMemosPushConfig} from '../api/setting';
-
-const getLocalDateKey = (date: Date) => (
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-);
-
-const getDaysBetween = (fromDateKey: string, toDateKey: string) => {
-    const from = new Date(`${fromDateKey}T00:00:00`);
-    const to = new Date(`${toDateKey}T00:00:00`);
-    return Math.floor((to.getTime() - from.getTime()) / 86400000);
-};
+import {runScheduledMemoPush} from '../utils/memoPushSchedule';
 
 export function useNavbarNotifications(userId?: string) {
-    const [unreadCount, setUnreadCount] = useState(0);
+    const [badge, setBadge] = useState({userId, count: 0});
+    const pending = useRef<AbortController | null>(null);
+    const setUnreadCount = useCallback((count: number) => {
+        pending.current?.abort();
+        pending.current = null;
+        setBadge({userId, count});
+    }, [userId]);
     useEffect(() => {
-        setUnreadCount(0);
         if (!userId) return;
         let active = true;
-        let requestId = 0;
+
         const fetchUnread = async () => {
-            if (document.hidden) return;
-            const id = ++requestId;
+            if (document.hidden || pending.current) return;
+            const controller = new AbortController();
+            pending.current = controller;
             try {
-                const {count} = await getUnreadNotificationCount();
-                if (active && id === requestId) setUnreadCount(count);
+                const {count} = await getUnreadNotificationCount(controller.signal);
+                if (active && !controller.signal.aborted) setBadge({userId, count});
             } catch (error) {
-                console.warn('未读通知数量读取失败', error);
+                if (!controller.signal.aborted) console.warn('未读通知数量读取失败', error);
+            } finally {
+                if (pending.current === controller) pending.current = null;
             }
         };
         void fetchUnread();
@@ -47,23 +46,12 @@ export function useNavbarNotifications(userId?: string) {
                 checkedMinute = minute;
                 if (!config?.enabled) return;
 
-                const now = new Date();
-                const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                if (currentTime !== config.pushTime) return;
-
-                if (config.frequency === 'weekly' && String(now.getDay()) !== config.weekday) return;
-                if (config.frequency === 'monthly' && String(now.getDate()) !== config.monthDay) return;
-
-                const today = getLocalDateKey(now);
-                const storageKey = `o-doc:memos-push:last:${config.frequency}:${config.pushTime}`;
-                const lastPushedDate = localStorage.getItem(storageKey);
-                if (lastPushedDate === today) return;
-                if (config.frequency === 'everyTwoDays' && lastPushedDate && getDaysBetween(lastPushedDate, today) < 2) return;
-
-                const notification = await pushRandomMemoNotification();
-                if (notification) {
-                    localStorage.setItem(storageKey, today);
-                    if (active) await fetchUnread();
+                const pushed = await runScheduledMemoPush(userId, config,
+                    () => active && revision === configRevision, pushRandomMemoNotification);
+                if (pushed && active) {
+                    pending.current?.abort();
+                    pending.current = null;
+                    await fetchUnread();
                 }
             } catch (error) {
                 checkedMinute = -1;
@@ -84,11 +72,13 @@ export function useNavbarNotifications(userId?: string) {
         const timer = setInterval(checkMemosPush, 30000);
         return () => {
             active = false;
+            pending.current?.abort();
+            pending.current = null;
             clearInterval(timer);
             clearInterval(unreadTimer);
             document.removeEventListener('visibilitychange', fetchUnread);
             window.removeEventListener('memos-push-config-saved', onSaved);
         };
     }, [userId]);
-    return {unreadCount, setUnreadCount};
+    return {unreadCount: badge.userId === userId ? badge.count : 0, setUnreadCount};
 }

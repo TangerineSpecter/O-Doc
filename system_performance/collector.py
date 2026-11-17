@@ -86,7 +86,7 @@ def submit(event):
 
 def _take():
     global _bytes
-    rows = []
+    batch = []
     with _lock:
         for _ in range(200):
             try:
@@ -94,10 +94,10 @@ def _take():
             except queue.Empty:
                 break
             _bytes -= size
-            rows.append(json.loads(raw))
+            batch.append(raw)
         if _queue.empty():
             _wake.clear()
-    return rows
+    return [json.loads(raw) for raw in batch]
 
 
 def _record_failure(stage, exc):

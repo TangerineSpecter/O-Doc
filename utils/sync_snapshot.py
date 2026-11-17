@@ -53,6 +53,8 @@ class SnapshotExporter:
                 all_data.extend(json.loads(serializers.serialize('json', queryset, cls=SyncJSONEncoder)))
         from system_settings.agent_world.combat.sync import validate_source as validate_combat
         from system_settings.agent_world.food_sync import validate_source as validate_food
+        from system_settings.agent_world.analytics.archive_sync import validate as validate_resident_days
+        validate_resident_days(all_data)
         validate_food(all_data)
         validate_market_strategy(all_data)
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
@@ -70,6 +72,7 @@ class SnapshotExporter:
 
 
     def build_snapshot_meta(self, source='manual', runner_id='', data_list=None):
+        from system_settings.agent_world.analytics.models import ARCHIVE_VERSION
         from system_settings.agent_world.social_models import SocialIntegrity
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
         from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
@@ -97,6 +100,7 @@ class SnapshotExporter:
             **blacksmith_metadata(data_list),
             **memory_metadata(data_list),
             **market_strategy_metadata(data_list),
+            'resident_analytics_version': ARCHIVE_VERSION,
             'social_schema_version': 2,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'snapshot_id': uuid.uuid4().hex,

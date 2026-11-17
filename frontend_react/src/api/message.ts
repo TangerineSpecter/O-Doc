@@ -1,16 +1,14 @@
 import request from '../utils/request';
-import type { NotificationItem, NotificationStatus } from '../types/api/message';
+import type { NotificationItem, NotificationPage, NotificationStatus } from '../types/api/message';
 
 // 重新导出类型以便其他组件使用
 export type { NotificationItem, NotificationStatus };
 
-// 获取通知列表
-export const getNotifications = (status: NotificationStatus = 'unread') => {
-    return request.get<any, NotificationItem[]>('/message/notifications/', { params: { status } });
-};
+export const getNotificationPage = (status: NotificationStatus, page: number, signal: AbortSignal) =>
+    request.get<unknown, NotificationPage>('/message/notifications/', {params: {status, page}, signal});
 
-export const getUnreadNotificationCount = () =>
-    request.get<unknown, {count: number}>('/message/notifications/', {params: {status: 'unread', count_only: '1'}});
+export const getUnreadNotificationCount = (signal?: AbortSignal) =>
+    request.get<unknown, {count: number}>('/message/notifications/', {params: {status: 'unread', count_only: '1'}, signal});
 
 // 标记单条通知已读
 export const markRead = (id: string) => {
@@ -43,6 +41,7 @@ export const markAllRead = () => {
 };
 
 // 随机抽取一条 Memos 生成系统通知
-export const pushRandomMemoNotification = () => {
-    return request.post<any, NotificationItem | null>('/message/notifications/push_memo/');
+export const pushRandomMemoNotification = (schedule?: string) => {
+    return request.post<unknown, NotificationItem | null>('/message/notifications/push_memo/', undefined,
+        schedule ? {headers: {'Idempotency-Key': schedule}} : undefined);
 };

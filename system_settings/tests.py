@@ -210,6 +210,22 @@ class SyncManagerTests(TestCase):
         self.assertEqual(exported['fields']['content'], 'replacement')
         self.assertEqual(client.files['/renamed-backup/sync-v2/current.json'], b'old backup untouched')
 
+    def test_force_upload_preserves_newer_resident_analytics_snapshot(self):
+        from system_settings.agent_world.analytics.models import ARCHIVE_VERSION
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/backup')
+        snapshot, _, _ = manager.sync_v2(manual_upload=True)
+        meta = {**snapshot['meta'], 'resident_analytics_version': ARCHIVE_VERSION + 1}
+        meta_path = manager.remote.snapshot_path(meta['snapshot_id'], 'snapshot_meta.json')
+        client.files[meta_path] = json.dumps(meta).encode()
+        pointer = client.files[manager.remote.v2_current_file]
+        with self.assertRaisesRegex(SyncError, '居民每日统计版本'):
+            manager.sync_v2(manual_upload=True, force_overwrite=True)
+        self.assertEqual(client.files[manager.remote.v2_current_file], pointer)
+        self.assertEqual(json.loads(client.files[meta_path]), meta)
+        with self.assertRaisesRegex(SyncError, '居民每日统计版本'):
+            manager.validate_import_snapshot_version(meta)
+
     def test_manual_upload_requires_confirmation_for_v1_or_v2_backup(self):
         for name in ('data_index.json', 'sync-v2/current.json'):
             with self.subTest(name=name):
@@ -475,6 +491,33 @@ class SyncManagerTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.source['stars'], 5)
         self.assertEqual(client.files[manager.remote.v2_current_file], pointer)
+
+    def test_revision_batches_keep_unchanged_rows_and_manifest_order(self):
+        import hashlib
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from utils.sync_revision_index import apply_revision_rows, digest_entries, local_manifest_entries
+        manager = SyncManager(MemoryStorageClient(), '/test')
+        at = timezone.now().isoformat()
+        sample = dict(hash='x', revision_at=at, origin_device='sample', deleted=False)
+        revisions = {f'sample.a:{n}': sample for n in range(1001)}
+        revisions.update({key: {**sample, 'deleted': True} for key in
+                          ['sample.a1:0', 'sample.a:身份:甲', 'sample.a:Z', 'sample.a:🍊']})
+        apply_revision_rows(revisions, manager._normalize_revision_time)
+        entries = [(k, v) for k, v in local_manifest_entries('sample') if k in revisions]
+        self.assertEqual([k for k, _ in entries], sorted(revisions))
+        reference = hashlib.sha256()
+        for key in sorted(revisions):
+            reference.update(json.dumps([key, revisions[key]], ensure_ascii=False, sort_keys=True,
+                                        separators=(',', ':')).encode() + b'\n')
+        self.assertEqual(digest_entries(entries), (len(revisions), reference.hexdigest()))
+        with CaptureQueriesContext(connection) as captured:
+            apply_revision_rows(revisions, manager._normalize_revision_time)
+        self.assertFalse(any('INSERT INTO' in q['sql'] or 'UPDATE "sys_sync_entity_state"' in q['sql'] for q in captured))
+        revisions['sample.a:1'] = {**sample, 'hash': 'changed', 'deleted': True}
+        apply_revision_rows(revisions, manager._normalize_revision_time)
+        changed = SyncEntityState.objects.get(model_label='sample.a', object_pk='1')
+        self.assertEqual((changed.is_deleted, changed.content_hash), (True, 'changed'))
 
     def test_aligned_unchanged_sync_skips_export_and_publish(self):
         user = User.objects.create_user(username='aligned-user', password='password')

@@ -33,7 +33,8 @@ class WorkerSupervisionTests(SimpleTestCase):
         daily.is_alive.return_value = True
         stop = threading.Event()
         with patch.object(worker, '_stop', stop), patch.object(worker, '_thread', months), \
-                patch.object(worker, '_daily_thread', None), patch.object(worker, '_is_server_process', return_value=True), \
+                patch.object(worker, '_daily_thread', None), patch.object(worker, '_analytics_thread', months), \
+                patch.object(worker, '_is_server_process', return_value=True), \
                 patch.object(worker.threading, 'Thread', return_value=daily) as create:
             worker.start_world_worker()
             worker.start_world_worker()
@@ -48,7 +49,8 @@ class WorkerSupervisionTests(SimpleTestCase):
         months = MagicMock()
         months.is_alive.return_value = True
         with patch.object(worker, '_stop', stop), patch.object(worker, '_thread', months), \
-                patch.object(worker, '_daily_thread', None), patch.object(worker, '_is_server_process', return_value=True), \
+                patch.object(worker, '_daily_thread', None), patch.object(worker, '_analytics_thread', months), \
+                patch.object(worker, '_is_server_process', return_value=True), \
                 patch.object(worker.threading, 'Thread') as create:
             worker.start_world_worker()
             create.assert_not_called()

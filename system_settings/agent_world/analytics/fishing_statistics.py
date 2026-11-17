@@ -45,6 +45,10 @@ def load_fishing_statistics(owner, start, end, residents, *, include_daily=False
             row['kings'] += int(bool(caught.get('king')))
             if kind == 'cast' and not caught.get('king'):
                 row['ordinaryCatches'] += 1
+    return finish_fishing(rows)
+
+
+def finish_fishing(rows):
     for row in rows.values():
         attempts = row['ordinaryCatches'] + row['escaped']
         row['ordinaryCatchRate'] = round(100 * row['ordinaryCatches'] / attempts, 1) if attempts else None

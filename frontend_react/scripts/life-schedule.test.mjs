@@ -8,6 +8,7 @@ const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location')
 Object.defineProperty(globalThis, 'location', {value: location, configurable: true});
 const original = lifeItems.slice();
 const sample = lifeItems[0];
+const nextDay = new Date(Date.parse(day) + 86400000).toISOString().slice(0, 10);
 lifeItems.splice(0, lifeItems.length, ...Array.from({length: 122}, (_, i) => ({...sample,
     id:`overflow-${i}`, source: i<10 || i>=100 && i<110 ? 'schedule' : 'interleaved',
     activity: i<10 || i>=100 && i<110 ? 'farm' : 'cooking',
@@ -18,12 +19,12 @@ const server = setupServer(...localHandlers, unhandledLocalApi);
 server.listen({onUnhandledRequest:'error'});
 after(() => {server.close();lifeItems.splice(0,lifeItems.length,...original);if(previousLocation)Object.defineProperty(globalThis,'location',previousLocation);else Reflect.deleteProperty(globalThis,'location');});
 async function get(query='') {
- const response = await fetch(`http://localhost/api/settings/agent-world/life/schedule/?start=${day}&end=${day}&${query}`);
+ const response = await fetch(`http://localhost/api/settings/agent-world/life/schedule/?start=${day}&end=${nextDay}&${query}`);
  return {status:response.status,...await response.json()};
 }
 test('full today and source filtering include records after the first 100',async()=>{
  const all=await get('view=today&source=all');
- assert.equal(all.data.items.length,122);assert.deepEqual(all.data.counts,{main:20,interleaved:102});
+ assert.equal(all.data.items.length,122);assert.deepEqual(all.data.counts,{main:20,interleaved:102,reservation:0});
  const main=await get('view=today&source=main');assert.equal(main.data.total,20);assert.equal(main.data.summary.pending,10);
  const completed=await get('view=today&source=main&status=completed');assert.equal(completed.data.total,10);assert.equal(completed.data.summary.pending,10);
  const page1=await get('source=interleaved');const page2=await get('source=interleaved&page=2');

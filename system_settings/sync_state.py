@@ -32,7 +32,7 @@ LOCAL_ONLY_MODEL_LABELS = frozenset({
     'quant.job', 'quant.nativepythonjob', 'quant.aistudyjob', 'quant.connectorsecret',
     'quant.factorvector', 'quant.factorindexjob', 'quant.experimentjob', 'quant.validationjob', 'quant.researchcampaignjob', 'quant.intakebatchjob',
     'learning.runtime', 'learning.devicejob', 'learning.goaljob',
-    'system_settings.investmentcache',
+    'system_settings.investmentcache', 'system_settings.residentanalyticswork',
     'system_settings.marketruntime',
     'system_settings.markettick', 'system_settings.marketdispositiontask',
     'system_settings.travelruntime', 'system_settings.travelmaterialcache',
@@ -164,9 +164,12 @@ def record_bulk_change(queryset):
     from system_settings.models import SyncEntityState
     now = timezone.now()
     device_id = get_device_id()
-    for object_pk in object_pks:
-        SyncEntityState.objects.update_or_create(
-            model_label=queryset.model._meta.label_lower,
-            object_pk=str(object_pk),
-            defaults={'revision_at': now, 'origin_device': device_id, 'is_deleted': False},
-        )
+    label = queryset.model._meta.label_lower
+    # Stable lock order also handles repeated keys from joined querysets.
+    states = [SyncEntityState(model_label=label, object_pk=key, revision_at=now,
+                              origin_device=device_id, is_deleted=False)
+              for key in sorted({str(pk) for pk in object_pks})]
+    SyncEntityState.objects.bulk_create(
+        states, batch_size=500, update_conflicts=True, unique_fields=['model_label', 'object_pk'],
+        update_fields=['revision_at', 'origin_device', 'is_deleted', 'updated_at'],
+    )

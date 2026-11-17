@@ -4,9 +4,9 @@ import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Pr
 import {VersionInfoProvider} from './contexts/VersionInfoContext';
 import GlobalSwipeBack from './components/common/GlobalSwipeBack';
 import Layout from './layout/Layout';
-import HomePage from './views/HomePage';
-import ArticleOutline from './views/ArticleOutline';
 import StarLoader from './components/common/StarLoader';
+const HomePage = lazy(() => import('./views/HomePage'));
+const ArticleOutline = lazy(() => import('./views/ArticleOutline'));
 const ImageAnthologyPage = lazy(() => import('./views/ImageAnthologyPage'));
 const BookAnthologyPage = lazy(() => import('./views/BookAnthologyPage'));
 const QuantPage = lazy(() => import('./views/QuantPage'));

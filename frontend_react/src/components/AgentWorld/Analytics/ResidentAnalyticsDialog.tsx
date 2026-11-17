@@ -62,8 +62,8 @@ export default function ResidentAnalyticsDialog({
     ];
 
     const dialogDescription = currentResident
-        ? `正在查看「${currentResident.name}」的个人生活数据，从日常行为、创作往来和收支，看看居民这段时间的生活。`
-        : '正在汇总全镇居民活跃、创作和交易账目数据，从日常行为、创作往来和收支，看看居民这段时间的生活。';
+        ? `查看「${currentResident.name}」在所选日期的日常活动、创作往来和收支。`
+        : '查看全镇居民在所选日期的日常活动、创作往来和收支。';
 
     return (
         <WorldDialog
@@ -204,7 +204,7 @@ export default function ResidentAnalyticsDialog({
                             <p>{rangeError}</p>
                         </div>
                     ) : analytics.loading ? (
-                        <WorldOrbitLoader title="正在整理居民的生活记录与日常账目"/>
+                        <WorldOrbitLoader title={analytics.progress ? "正在生成每日统计" : "正在读取居民统计"} subtitle={analytics.progress || "读取所选日期的汇总"}/>
                     ) : analytics.error ? (
                         <div role="alert" className="py-16 text-center text-xs text-rose-500">
                             <p>{analytics.error}</p>

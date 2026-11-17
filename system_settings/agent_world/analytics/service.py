@@ -35,19 +35,19 @@ def aggregate(facts, first, last, actor=''):
             resident = residents[event.actor]
             resident['days'].add(date)
             days[date]['activeResidents'].add(event.actor)
-            days[date]['behaviors'] += 1
-            categories[event.category] += 1
-            if event.category == 'publication': resident['publications'] += 1
+            days[date]['behaviors'] += event.count
+            categories[event.category] += event.count
+            if event.category == 'publication': resident['publications'] += event.count
             if event.category == 'social':
-                resident['interactions'] += 1
+                resident['interactions'] += event.count
                 if event.peer and event.peer != event.actor:
-                    peers[event.peer] += 1
+                    peers[event.peer] += event.count
                     peer_names[event.peer] = event.peer_name
         if event.category == 'social' and event.peer in residents and event.peer != event.actor:
-            residents[event.peer]['received'] += 1
+            residents[event.peer]['received'] += event.count
             # One world interaction contributes once to counterpart ranking; inbound external senders contribute too.
             if event.actor not in residents and event.actor:
-                peers[event.actor] += 1
+                peers[event.actor] += event.count
                 peer_names[event.actor] = event.name
     sources = defaultdict(lambda: {'income': Decimal(0), 'expense': Decimal(0)})
     for entry in facts.ledger:

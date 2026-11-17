@@ -31,8 +31,9 @@ import {
     XAxis,
     YAxis
 } from 'recharts';
-import {getStatisticsData, StatsDashboardData} from '../api/stats';
-import {getWhiteboardList} from '../api/whiteboard';
+import type {StatsDashboardData} from '../types/api/stats';
+import {useStatisticsDashboard} from '../hooks/useStatisticsDashboard';
+import ErrorState from '../components/common/ErrorState';
 import {Select, SelectOption} from '../components/common/Select';
 import PageLoading from '../components/common/PageLoading';
 
@@ -95,17 +96,6 @@ const formatDateKey = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
-const buildWhiteboardDailyCounts = (year: number, documents: {createdAt: number}[]) => {
-    const counts = new Map<string, number>();
-    documents.forEach((document) => {
-        const createdAt = new Date(document.createdAt);
-        if (Number.isNaN(createdAt.getTime()) || createdAt.getFullYear() !== year) return;
-        const dateKey = formatDateKey(createdAt);
-        counts.set(dateKey, (counts.get(dateKey) || 0) + 1);
-    });
-    return counts;
-};
-
 const getIntensityClass = (count: number, maxCount: number) => {
     if (count <= 0 || maxCount <= 0) return 'bg-slate-100 border-slate-100';
     const ratio = count / maxCount;
@@ -115,7 +105,7 @@ const getIntensityClass = (count: number, maxCount: number) => {
     return 'bg-orange-100 border-orange-100';
 };
 
-const buildHeatmapCells = (year: number, dailyCreation: StatsDashboardData['dailyCreation'], whiteboardCounts: Map<string, number>): HeatmapCell[] => {
+const buildHeatmapCells = (year: number, dailyCreation: StatsDashboardData['dailyCreation']): HeatmapCell[] => {
     const serverDailyMap = new Map(dailyCreation.map((item) => [item.date, item]));
     const cells: HeatmapCell[] = [];
 
@@ -139,7 +129,7 @@ const buildHeatmapCells = (year: number, dailyCreation: StatsDashboardData['dail
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
         const dateKey = formatDateKey(date);
         const serverItem = serverDailyMap.get(dateKey);
-        const whiteboards = whiteboardCounts.get(dateKey) || 0;
+        const whiteboards = serverItem?.whiteboards || 0;
         const articles = serverItem?.articles || 0;
         const images = serverItem?.images || 0;
         const memos = serverItem?.memos || 0;
@@ -205,13 +195,14 @@ const formatShortHeatmapDate = (dateKey: string) => {
 
 export default function StatisticsPage() {
     const currentYear = new Date().getFullYear();
-    const [loading, setLoading] = useState(true);
-    const [heatmapLoading, setHeatmapLoading] = useState(false);
-    const [data, setData] = useState<StatsDashboardData | null>(null);
     const [selectedYear, setSelectedYear] = useState(currentYear);
+    const {data, loading, heatmapLoading, error, retry} = useStatisticsDashboard(selectedYear);
     const [heatmapHover, setHeatmapHover] = useState<HeatmapHoverState | null>(null);
     const [selectedCell, setSelectedCell] = useState<HeatmapCell | null>(null);
-    const [whiteboardCounts, setWhiteboardCounts] = useState<Map<string, number>>(new Map());
+    useEffect(() => {
+        setHeatmapHover(null);
+        setSelectedCell(null);
+    }, [selectedYear]);
     const heatmapTooltipRef = useRef<HTMLDivElement | null>(null);
     const heatmapHoverPositionRef = useRef({x: 0, y: 0});
     const heatmapHoverFrameRef = useRef<number | null>(null);
@@ -246,58 +237,6 @@ export default function StatisticsPage() {
         }
     }, []);
 
-    useEffect(() => {
-        let ignore = false;
-
-        const fetchData = async () => {
-            const isInitialLoad = data === null;
-            try {
-                if (isInitialLoad) {
-                    setLoading(true);
-                } else {
-                    setHeatmapLoading(true);
-                    setHeatmapHover(null);
-                    setSelectedCell(null);
-                }
-
-                const [res, whiteboards] = await Promise.all([
-                    getStatisticsData(selectedYear),
-                    getWhiteboardList().catch((error) => {
-                        console.warn('Failed to fetch whiteboard stats:', error);
-                        return [];
-                    }),
-                ]);
-                if (ignore) return;
-
-                setWhiteboardCounts(buildWhiteboardDailyCounts(selectedYear, whiteboards));
-
-                setData((prev) => {
-                    if (!prev) return res;
-                    return {
-                        ...prev,
-                        dailyCreation: res.dailyCreation,
-                        selectedYear: res.selectedYear,
-                    };
-                });
-            } catch (error) {
-                console.error("Failed to fetch stats:", error);
-            } finally {
-                if (ignore) return;
-                if (isInitialLoad) {
-                    setLoading(false);
-                } else {
-                    setHeatmapLoading(false);
-                }
-            }
-        };
-
-        fetchData();
-
-        return () => {
-            ignore = true;
-        };
-    }, [selectedYear]);
-
     // 派生统计集中在 useMemo 中，避免热力图悬停等交互触发全量重算。
     const derivedStats = useMemo(() => {
         if (!data) return null;
@@ -305,7 +244,7 @@ export default function StatisticsPage() {
             ...item,
             color: COLORS[index % COLORS.length]
         }));
-        const heatmapCells = buildHeatmapCells(selectedYear, data.dailyCreation, whiteboardCounts);
+        const heatmapCells = buildHeatmapCells(data.selectedYear, data.dailyCreation);
         return {
             categoryDataWithColor,
             heatmapCells,
@@ -314,13 +253,13 @@ export default function StatisticsPage() {
             yearlyCreationTotal: heatmapCells.reduce((total, item) => total + item.total, 0),
             activeDaysCount: heatmapCells.filter((item) => !item.isBlank && item.total > 0).length,
         };
-    }, [data, selectedYear, whiteboardCounts]);
+    }, [data]);
 
     if (loading) {
         return <PageLoading message="正在分析数据..." minHeight="min-h-[calc(100vh-160px)]" />;
     }
 
-    if (!data) return null;
+    if (error || !data) return <ErrorState title="统计数据加载失败" error={error} onRetry={retry}/>;
 
     const categoryDataWithColor = derivedStats?.categoryDataWithColor ?? [];
 

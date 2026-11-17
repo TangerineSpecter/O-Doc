@@ -10,6 +10,10 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
+def notification_title(title):
+    return title[:Notification._meta.get_field('title').max_length]
+
+
 class NotificationService:
     @staticmethod
     def send(user, title, content, level='info', link=None):
@@ -35,11 +39,10 @@ class NotificationService:
 
             Notification.objects.create(
                 user=target_user,
-                title=title,
+                title=notification_title(title),
                 content=content,
                 type=level,
                 link=link
             )
-        except Exception as e:
-            # 这里使用 logging 防止通知系统崩溃影响主业务，暂用 print 示意，实际应记录日志
+        except Exception:
             logger.exception('Failed to send notification: recipient=%s, level=%s', user, level)

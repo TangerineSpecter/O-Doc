@@ -3,11 +3,13 @@ from datetime import datetime, timedelta, timezone as utc
 import time
 from django.db import connection, transaction
 from django.db.models import Q
+from django.db.models.expressions import RawSQL
+from django.db.models.functions import Extract
 from django.utils import timezone
 
 from .metrics import DEFAULT_POLICY, digest, distribution, histogram_schema, valid_distribution
 from .models import PerformancePolicy, PerformanceBucket, PerformanceSample, PerformanceFlushBatch, DatabaseStatSnapshot, PerformanceInflight
-from .capacity import Budget, estimate, ROW_OVERHEAD
+from .capacity import Budget, estimate, row_cost_sql, ROW_OVERHEAD
 
 _dimension_keys = set()
 _dimension_day = None
@@ -86,7 +88,11 @@ def persist(events: list[dict], batch_id: str):
     lookup = Q(pk__in=[])
     for key, minute in groups:
         lookup |= Q(key=key, minute=minute)
-    existing = {(row.key, row.minute): row for row in PerformanceBucket.objects.select_for_update().filter(lookup)}
+    # PostgreSQL returns naive local datetimes when USE_TZ is disabled. Match the
+    # actual stored instant to the UTC batch key, including repeated local hours.
+    stored = (PerformanceBucket.objects.select_for_update().filter(lookup)
+              .annotate(minute_epoch=Extract('minute', 'epoch', tzinfo=utc.utc)))
+    existing = {(row.key, datetime.fromtimestamp(int(row.minute_epoch), utc.utc)): row for row in stored}
     required = ROW_OVERHEAD + sum(estimate(PerformanceBucket, data) for identity, data in groups.items() if identity not in existing)
     if not budget.reserve(required):
         budget.state['rejected_events'] += len(events)
@@ -108,7 +114,7 @@ def persist(events: list[dict], batch_id: str):
                 setattr(row, name, getattr(row, name) + data[name])
             row.max_ms = max(row.max_ms, data['max_ms'])
             row.histogram = [row.histogram[i] + data['histogram'][i] for i in range(len(data['histogram']))] if histogram_valid else []
-            row.save()
+            row.save(update_fields=['count', 'errors', 'slow', 'total_ms', 'sql_count', 'sql_ms', 'max_ms', 'histogram'])
     PerformanceSample.objects.bulk_create(retained, ignore_conflicts=True)
     PerformanceFlushBatch.objects.create(id=batch_id)
     budget.state['discarded_samples'] += skipped
@@ -155,21 +161,21 @@ def maintain():
     with transaction.atomic():
         _timeouts()
         policy = PerformancePolicy.objects.select_for_update().get(pk=1)
-        budget = Budget(policy)
-        budget.reconcile()
+        budget = Budget(policy, reconcile=True)
         deadline = time.monotonic() + 1
         while budget.state['limited'] and time.monotonic() < deadline:
             deleted = False
             for model in (PerformanceSample, DatabaseStatSnapshot, PerformanceBucket):
                 oldest = 'minute' if model is PerformanceBucket else 'created'
-                ids = list(model.objects.order_by(oldest, 'pk').values_list('pk', flat=True)[:100])
-                if ids:
-                    model.objects.filter(pk__in=ids).delete()
+                rows = list(model.objects.select_for_update().annotate(cost=RawSQL(row_cost_sql(model), ()))
+                            .order_by(oldest, 'pk').values_list('pk', 'cost')[:100])
+                if rows:
+                    model.objects.filter(pk__in=[pk for pk, _ in rows]).delete()
+                    budget.set_usage(budget.state['used_bytes'] - sum(cost for _, cost in rows))
                     deleted = True
                     break
             if not deleted:
                 break  # active inflight / unexpired dedup markers are protected
-            budget.reconcile()
         budget.save()
         return budget.info()
 

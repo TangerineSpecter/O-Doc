@@ -100,6 +100,7 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                             {/* Notification Bell */}
                             <div className="relative">
                                 <button
+                                    aria-label="通知中心"
                                     onClick={() => setIsNotificationOpen(!isNotificationOpen)}
                                     className={`p-2 transition-colors relative ${isNotificationOpen ? 'text-orange-600 bg-orange-50 rounded-full' : 'text-slate-500 hover:text-orange-600'}`}
                                 >
@@ -112,6 +113,7 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 </button>
                                 {isNotificationOpen && (
                                     <NotificationPopover
+                                        key={userInfo?.userid}
                                         isAuthenticated={Boolean(userInfo)}
                                         onClose={() => setIsNotificationOpen(false)}
                                         onNavigate={onNavigate}

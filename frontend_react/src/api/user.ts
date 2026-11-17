@@ -10,8 +10,8 @@ export const login = (data: LoginParams) => {
 };
 
 // 获取用户信息
-export const getUserInfo = () => {
-    return request.get<any, UserInfo>('/user/profile');
+export const getUserInfo = (signal?: AbortSignal) => {
+    return request.get<any, UserInfo>('/user/profile', {signal});
 };
 
 // 更新用户资料

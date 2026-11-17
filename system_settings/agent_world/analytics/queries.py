@@ -35,6 +35,8 @@ class Event:
     peer: str = ''
     peer_name: str = ''
     name: str = ''
+    count: int = 1
+    priority: int = 1
 
 
 @dataclass
@@ -52,9 +54,7 @@ class Facts:
     unknown: set = field(default_factory=set)
 
 
-def load_facts(request, owner, start, end, actor='', *, include_daily=False, timing=None):
-    selected_actor = actor  # Identity-discovery loops below also use the name ``actor``.
-    facts = Facts()
+def _base_resident_ids(owner):
     actors = _actor_scope(owner)
     # Unassigned global residents remain visible, as in the residents sidebar; assets owned by another account do not.
     foreign = set()
@@ -63,8 +63,17 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
     actors.update(Agent.objects.exclude(pk__in=foreign).values_list('id', flat=True))
     actors.update(CookingSkill.objects.filter(owner_id=owner).values_list('id', flat=True))
     actors.update(FishingProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
-    for model in (CookingOperation, InvestmentTrade, MarketTransaction, Exploration, CombatFact):
+    for model in (CookingOperation, InvestmentTrade, MarketTransaction, Exploration):
         actors.update(model.objects.filter(owner_id=owner).order_by().values_list('actor_id', flat=True).distinct())
+    return actors
+
+
+def load_facts(request, owner, start, end, actor='', *, include_daily=False, timing=None, combat_errors=None, article_archive=None):
+    selected_actor = actor  # Identity-discovery loops below also use the name ``actor``.
+    facts = Facts()
+    actors = _base_resident_ids(owner)
+    actors.update(CombatFact.objects.filter(owner_id=owner).order_by().values_list(
+        'actor_id', flat=True).distinct())
 
     def remember(actor, name='', avatar=''):
         if actor:
@@ -93,12 +102,13 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
     for model in (MomentComment, MomentLike):
         for actor, identity in model.objects.filter(moment__owner_id=owner).values_list('actor_id', 'identity'):
             remember(resident_id(actor), identity.get('name', ''), identity.get('avatar', ''))
-    for actor, metadata in owned_activities.values_list('agent_id', 'metadata'):
-        snapshot = metadata.get('agentSnapshot', {})
+    for actor, snapshot in owned_activities.values_list('agent_id', 'metadata__agentSnapshot').iterator():
+        snapshot = snapshot or {}
         remember(actor or snapshot.get('id', ''), snapshot.get('name', ''), snapshot.get('avatar', ''))
     for actor in list(actors):
         remember(actor)
-    for agent in Agent.objects.filter(pk__in=actors).select_related('profession'):
+    for agent in Agent.objects.filter(pk__in=actors).select_related('profession').only(
+            'id', 'name', 'avatar', 'archived_at', 'profession__name'):
         facts.residents[agent.pk] = {
             'id': agent.pk,
             'name': agent.name,
@@ -111,9 +121,9 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
     def window(query, time='created_at'):
         return query.filter(**{time+'__gte': start, time+'__lt': end})
 
-    def add(key, actor, at, category, name='', peer='', peer_name=''):
+    def add(key, actor, at, category, name='', peer='', peer_name='', *, priority=1):
         # External senders may contribute received interactions, never resident activity totals.
-        facts.events.append(Event(key, actor, at, category, peer, peer_name, name))
+        facts.events.append(Event(key, actor, at, category, peer, peer_name, name, priority=priority))
 
     visible = tuple(get_visible_anthology_queryset(request).values_list('coll_id', flat=True))
     for actor, name, avatar in Article.objects.filter(coll_id__in=visible, agent_post_author_id__in=actors).values_list(
@@ -130,7 +140,7 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
         'id', 'event_key', 'activity_type', 'agent_id', 'metadata', 'artifact_id', 'artifact_article_id',
         'occurred_at', 'counterpart_id', 'counterpart_type', 'counterpart_name').order_by('occurred_at', 'id'))
     from .articles import article_events
-    article_events(visible, actors, start, end, activities, add)
+    article_events(visible, actors, start, end, activities, lambda *args: add(*args, priority=0), article_archive)
     for row in activities:
         actor = row.agent_id or row.metadata.get('agentSnapshot', {}).get('id', '')
         if row.activity_type not in ('publication', 'interaction'):
@@ -150,13 +160,13 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
             add('moment:'+row.pk, actor, row.created_at, 'publication')
     comments = window(MomentComment.objects.filter(moment__owner_id=owner, is_valid=True)).select_related('moment').only(
         'id', 'actor_id', 'created_at', 'reply_to_actor_id', 'moment_id', 'moment__actor_id', 'moment__identity')
-    for row in comments:
+    for row in comments.order_by('created_at', 'pk'):
         peer = row.reply_to_actor_id or row.moment.actor_id
         add('moment-comment:'+row.pk, resident_id(row.actor_id) or row.actor_id, row.created_at, 'social',
             peer=resident_id(peer) or peer, peer_name=row.moment.identity.get('name', '') if not row.reply_to_actor_id else '')
     # Likes store their latest state/time, rather than an immutable first-like timestamp.
     for row in window(MomentLike.objects.filter(moment__owner_id=owner, is_valid=True), 'updated_at').select_related('moment').only(
-            'id', 'actor_id', 'updated_at', 'moment_id', 'moment__actor_id', 'moment__identity'):
+            'id', 'actor_id', 'updated_at', 'moment_id', 'moment__actor_id', 'moment__identity').order_by('updated_at', 'pk'):
         add('moment-like:'+row.pk, resident_id(row.actor_id) or row.actor_id, row.updated_at, 'social',
             peer=resident_id(row.moment.actor_id) or row.moment.actor_id, peer_name=row.moment.identity.get('name', ''))
     facts.unknown.add('朋友圈点赞按保留的有效状态及更新时间统计，已撤销的点赞不计入。')
@@ -235,8 +245,20 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
         facts.unknown.add('部分历史冒险可能缺少真实出发时间；缺失出发事实的探索未计入出发批次。')
     facts.explorations = list(window(finished_explorations(
         Exploration.objects.filter(actor_id__in=relevant_actors), owner), 'ended_at').only('id', 'actor_id'))
-    facts.wins = list(load_combat_kills(owner, actor_ids=relevant_actors, start=start, end=end,
-                                        include_daily=include_daily, include_monster=False))
+    from .archived_combat import InvalidCombatStatisticsSource
+    def occurrence_kills(ids):
+        return list(load_combat_kills(owner, actor_ids=ids, start=start, end=end,
+                                      include_daily=include_daily, include_monster=False))
+    try:
+        facts.wins = occurrence_kills(relevant_actors)
+    except InvalidCombatStatisticsSource:
+        if combat_errors is None:
+            raise
+        for resident in relevant_actors:
+            try:
+                facts.wins.extend(occurrence_kills([resident]))
+            except InvalidCombatStatisticsSource:
+                combat_errors[resident] = 'invalid_combat_statistics_source'
     if timing is not None:
         timing.mark('combat_world')
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=relevant_actors).exclude(kind='opening').exclude(amount=0)))
@@ -251,26 +273,16 @@ def load_facts(request, owner, start, end, actor='', *, include_daily=False, tim
 
 def visible_resident_ids(owner):
     """Return the same account-visible resident identities used by analytics."""
-    actors = _actor_scope(owner)
-    foreign = set()
-    for model in (LifeProfile, AgentFarm, CookingSkill, InvestmentAccount, CombatProfile, FishingProfile):
-        foreign.update(model.objects.exclude(owner_id=owner).values_list('id', flat=True))
-    actors.update(Agent.objects.exclude(pk__in=foreign).values_list('id', flat=True))
-    actors.update(CookingSkill.objects.filter(owner_id=owner).values_list('id', flat=True))
-    actors.update(FishingProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
-
-    for model in (CookingOperation, MarketTransaction, InvestmentTrade):
-        actors.update(model.objects.filter(owner_id=owner).values_list('actor_id', flat=True).distinct())
-    for model, field in ((AgentFarm, 'id'), (CookingSkill, 'id'),
-                         (TravelJourney, 'actor_id'), (Exploration, 'actor_id'), (FishingTrip, 'actor_id'), (LotteryTicket, 'actor_id')):
-        actors.update(model.objects.filter(owner_id=owner).values_list(field, flat=True).distinct())
+    actors = _base_resident_ids(owner)
+    for model, field in ((FishingTrip, 'actor_id'), (LotteryTicket, 'actor_id')):
+        actors.update(model.objects.filter(owner_id=owner).order_by().values_list(field, flat=True).distinct())
     actors.update(filter(None, (resident_id(value) for value in
-        Moment.objects.filter(owner_id=owner).values_list('actor_id', flat=True).distinct())))
+        Moment.objects.filter(owner_id=owner).order_by().values_list('actor_id', flat=True).distinct())))
     for model in (MomentComment, MomentLike):
         actors.update(filter(None, (resident_id(value) for value in
-            model.objects.filter(moment__owner_id=owner).values_list('actor_id', flat=True).distinct())))
+            model.objects.filter(moment__owner_id=owner).order_by().values_list('actor_id', flat=True).distinct())))
 
-    activities = AgentActivity.objects.filter(metadata__owner_id=owner)
+    activities = AgentActivity.objects.filter(metadata__owner_id=owner).order_by()
     actors.update(activities.exclude(agent_id__isnull=True).exclude(agent_id='').values_list('agent_id', flat=True).distinct())
     actors.update(filter(None, activities.filter(agent_id__isnull=True).values_list(
         'metadata__agentSnapshot__id', flat=True).distinct()))

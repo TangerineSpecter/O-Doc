@@ -32,7 +32,7 @@ function render(category, target = null, explorationParty = undefined) {
             shanghaiDay: () => '2026-10-22',
             useDailyFeed: () => ({items: [event], result: null, loading: false, error: '', reload: stub}),
         };
-        if (name === '../../hooks/useHorizontalWheelScroll') return {default: stub};
+        if (['../../hooks/useHorizontalWheelScroll', '../../hooks/useLoadMoreOnScroll'].includes(name)) return {default: stub};
         if (name === '../Combat/observationRecords') return {parseSettlementReport: stub};
         if (name === './fishingSettlement') return {parseFishingSettlement: stub};
         if (children.has(name)) return {default: stub, ExecutionFeedSteps: stub, ExplorationFeedSettlement: stub, FishingFeedSettlement: stub};

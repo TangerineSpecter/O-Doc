@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "test:read-stats": "node --test scripts/read-stats.test.mjs",
     "test:bard": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/bardSamples.test.ts src/components/Combat/art/combatArtCoverage.test.ts",
     "test:parties": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/mocks/agentWorld/combatPreparation.test.ts src/mocks/agentWorld/combatAnalytics.test.ts src/components/Combat/animation/observation/partyEventCursor.test.ts src/components/Combat/partyObservationRecords.test.ts",
     "test:chat-stream": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/AIChatWindow/smoothStreamQueue.test.ts",

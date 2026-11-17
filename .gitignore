@@ -36,6 +36,7 @@ __pycache__/
 *$py.class
 
 # Build outputs (generated files)
+*.tsbuildinfo
 templates/index.html
 static/*
 staticfiles/*

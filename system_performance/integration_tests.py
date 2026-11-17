@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.db import connection, transaction
+from django.test import override_settings
 from rest_framework.test import APIRequestFactory, force_authenticate
 from .models import PerformancePolicy, PerformanceBucket, PerformanceSample, PerformanceFlushBatch, DatabaseStatSnapshot, PerformanceInflight
 from .storage import load_policy, persist, save_policy, maintain, checkpoint_inflight, save_database_snapshot
@@ -126,6 +127,8 @@ class PostgreSQLIntegration(unittest.TestCase):
         self.assertEqual(data['duration_comparison']['count'], 1)
         self.assertEqual(data['all_results']['error_ratio'], .5)
         request = self.factory.get('/api/system/performance/samples/x/report/')
+        self.assertEqual(PerformanceView.as_view(action='report')(request, sample_id=first['id']).status_code, 401)
+        force_authenticate(request, user=SimpleNamespace(is_authenticated=True, is_superuser=False))
         self.assertEqual(PerformanceView.as_view(action='report')(request, sample_id=first['id']).status_code, 403)
         force_authenticate(request, user=SimpleNamespace(is_authenticated=True, is_superuser=True))
         with patch('system_performance.reports.associated_errors', return_value={'status': 'not_found', 'rows': []}):
@@ -144,7 +147,11 @@ class PostgreSQLIntegration(unittest.TestCase):
         self.assertEqual(json.loads(response.content)['data']['requestMs'], 2000)
         request = self.factory.put('/api/system/performance/policy/', {'requestMs': -1}, format='json')
         force_authenticate(request, user=SimpleNamespace(is_authenticated=True, is_superuser=True))
-        self.assertEqual(PerformanceView.as_view(action='policy')(request).status_code, 400)
+        from utils.error_codes import ErrorCode
+        rejected = PerformanceView.as_view(action='policy')(request)
+        self.assertEqual(rejected.status_code, 200)
+        self.assertEqual(rejected.data['code'], ErrorCode.PARAM_ERROR.code)
+        self.assertEqual(load_policy()['request_ms'], 2000)
 
     def test_capacity_limits_samples_before_aggregates_and_recovers(self):
         save_policy({'max_mb': 1})
@@ -193,3 +200,26 @@ class PostgreSQLIntegration(unittest.TestCase):
         self.assertFalse(DatabaseStatSnapshot.objects.exists())
         self.assertTrue(maintain()['limited'])
         self.assertEqual(set(PerformanceFlushBatch.objects.values_list('pk', flat=True)), protected)
+
+    @override_settings(USE_TZ=False, TIME_ZONE='Asia/Shanghai')
+    def test_separate_flushes_update_the_same_minute_without_timezone_support(self):
+        event = self.event()
+        persist([event], uuid.uuid4().hex)
+        persist([{**event, 'id': uuid.uuid4().hex}], uuid.uuid4().hex)
+        self.assertEqual(PerformanceBucket.objects.get().count, 2)
+
+    def test_multi_batch_eviction_matches_live_bytes_with_one_reconciliation(self):
+        from django.utils import timezone
+        from .capacity import measure_live_bytes
+        save_policy({'max_mb': 1})
+        PerformanceSample.objects.bulk_create([
+            PerformanceSample(id=uuid.uuid4().hex, created=timezone.now(), kind='sql', operation='test',
+                              duration_ms=1, status='ok', evidence={'text': '橘' * 20})
+            for _ in range(700)
+        ])
+        with patch('system_performance.capacity.measure_live_bytes', wraps=measure_live_bytes) as measure:
+            state = maintain()
+        self.assertEqual(measure.call_count, 1)
+        self.assertLessEqual(PerformanceSample.objects.count(), 500)
+        self.assertEqual(state['used_bytes'], measure_live_bytes())
+        self.assertFalse(state['limited'])

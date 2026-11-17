@@ -1063,3 +1063,4 @@ from .agent_world.life_models import LifeInterleavingState
 from .agent_world.combat.party_models import AdventureParty, AdventureMember, AdventureWave, AdventureEvent  # noqa: E402,F401
 from .agent_world.combat.analytics_models import CombatPartyCoverage, CombatPartyDay, CombatPartySettlement, CombatSoloSettlement  # noqa: E402,F401
 from .agent_world.combat.reservation_models import AdventurePlanningDay, AdventureReservation  # noqa: E402,F401
+from .agent_world.analytics.models import ResidentAnalyticsDay, ResidentAnalyticsWork  # noqa: E402,F401

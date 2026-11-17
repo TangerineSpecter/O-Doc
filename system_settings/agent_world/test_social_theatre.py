@@ -423,14 +423,18 @@ class SocialTheatreTests(TestCase):
         user = User.objects.create_superuser(username='admin', password='test')
         event = SocialTheatreEvent.objects.create(id='theatre-api', owner_id='admin',
             business_date=date(2026, 10, 19), slot_index=0, scheduled_at=datetime(2026, 10, 19, 12, tzinfo=ZoneInfo('Asia/Shanghai')),
-            status='completed', source={'title': '新闻', 'summary': '摘要', 'url': 'https://news.example/a'},
+            status='completed', snapshot={'manual': True, 'topic': {'title': '手动议题'}},
+            source={'title': '新闻', 'summary': '摘要', 'url': 'https://news.example/a'},
             participants=[{'id': 'resident', 'name': '居民', 'avatar': '🙂'}],
             rounds=2, transcript=[{'round': 1, 'speaker_id': 'resident', 'name': '居民', 'avatar': '🙂', 'content': '我看到了。'}])
         client = APIClient()
         client.force_authenticate(user)
         response = client.get('/api/settings/agent-world/social/discussions/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['data']['items'][0]['id'], event.pk)
+        item = response.json()['data']['items'][0]
+        self.assertEqual((item['id'], item['messageCount'], item['manual'], item['topic']['title']),
+                         (event.pk, 1, True, '手动议题'))
+        self.assertNotIn('transcript', item)
         newer = SocialTheatreEvent.objects.create(
             id='upcoming', owner_id='admin', business_date=date(2026, 10, 20), slot_index=0,
             scheduled_at=event.scheduled_at + timedelta(days=1), status='scheduled',

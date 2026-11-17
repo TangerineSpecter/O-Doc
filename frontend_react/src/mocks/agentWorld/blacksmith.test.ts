@@ -62,8 +62,8 @@ test('新手仅有本职业允许装备，不泄漏未来专属武器或精通�
 test('档位端点保留同类型的全部合法模板，并按templateId稳定排序', () => {
     const recipes = blacksmithOverview(actorId).recipes;
     const head = recipes.find(recipe => recipe.bandId === '30-40' && recipe.slot === 'head')!;
-    assert.deepEqual(head.types.map(type => type.templateId), ['equip.head', 'equip.head.30']);
-    assert.deepEqual(head.types.map(type => [type.levelMin, type.levelMax]), [[30, 30], [30, 40]]);
+    assert.deepEqual(head.types.map(type => type.templateId), ['equip.head.heavy', 'equip.head.heavy.30', 'equip.head.plate', 'equip.head.plate.30']);
+    assert.deepEqual(head.types.map(type => [type.levelMin, type.levelMax]), [[30, 30], [30, 40], [30, 30], [30, 40]]);
     assert.equal(head.types[0].equipmentType, head.types[1].equipmentType);
     for (const recipe of recipes) assert.deepEqual(recipe.types.map(type => type.templateId), recipe.types.map(type => type.templateId).sort());
 });

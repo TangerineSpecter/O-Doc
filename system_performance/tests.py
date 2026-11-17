@@ -175,6 +175,17 @@ class InstrumentationTests(unittest.TestCase):
         middleware = PerformanceMiddleware(view)
         middleware(request)
 
+    def test_view_source_uses_code_location_without_reading_source(self):
+        def endpoint(request):
+            return HttpResponse()
+        match = SimpleNamespace(route='api/example/', func=endpoint)
+        request = SimpleNamespace(path='/api/example/', method='GET', resolver_match=match)
+        with patch('inspect.getsourcelines', side_effect=AssertionError('unexpected source scan')):
+            PerformanceMiddleware(endpoint)(request)
+        source, = self.events[-1]['source']
+        self.assertEqual(source, dict(file='system_performance/tests.py', function=endpoint.__qualname__,
+                                      line=endpoint.__code__.co_firstlineno))
+
     def test_generator_does_not_leak_context_and_closes_original(self):
         closed = []
         @monitored_model

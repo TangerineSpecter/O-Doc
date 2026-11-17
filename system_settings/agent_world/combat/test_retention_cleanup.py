@@ -501,6 +501,10 @@ class RetentionCleanupTests(TestCase):
         CombatPartyDay.objects.filter(party_id=party.pk).delete()
         day = self.now.date().isoformat()
         analytics = client.get('/api/settings/agent-world/analytics/', {'start_date': day, 'end_date': day})
+        if analytics.status_code == 202:
+            from ..analytics.archive_worker import process_one
+            self.assertTrue(process_one())
+            analytics = client.get('/api/settings/agent-world/analytics/', {'start_date': day, 'end_date': day})
         self.assertEqual(analytics.status_code, 409)
         self.assertEqual(analytics.json()['data']['reason'], 'invalid_combat_statistics_source')
         client.force_authenticate(User.objects.create_user('other'))

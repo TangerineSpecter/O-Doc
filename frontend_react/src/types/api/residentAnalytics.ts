@@ -68,3 +68,9 @@ export interface LotteryAnalyticsMetrics {
     firstPrize: string; secondPrize: string; thirdPrize: string;
 }
 export interface LotteryAnalyticsResident extends AnalyticsResident, LotteryAnalyticsMetrics {}
+
+export interface ResidentAnalyticsPending {
+    archivePending: true;
+    readyDays: number;
+    totalDays: number;
+}

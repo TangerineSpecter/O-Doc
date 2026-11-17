@@ -13,3 +13,10 @@ export interface NotificationItem {
 }
 
 export type NotificationStatus = 'all' | 'read' | 'unread' | 'deleted';
+
+export interface NotificationPage {
+    items: NotificationItem[];
+    total: number;
+    page: number;
+    pages: number;
+}

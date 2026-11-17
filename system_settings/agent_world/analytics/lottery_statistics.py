@@ -30,7 +30,7 @@ def serialize(row):
     return result
 
 
-def load_lottery_statistics(owner, start, end, residents):
+def load_lottery_statistics(owner, start, end, residents, *, contributions=False):
     rows = {actor: {**resident, **empty()} for actor, resident in residents.items()}
     total = empty()
     tickets = LotteryTicket.objects.filter(owner_id=owner, round__owner_id=owner,
@@ -71,5 +71,11 @@ def load_lottery_statistics(owner, start, end, residents):
                 if prefix:
                     target[prefix + 'Awards'] += 1
                     target[prefix + 'Prize'] += entry.amount
+    if contributions:
+        return {actor: {**{key: row[key] for key in COUNT_FIELDS},
+                        **{key: money(row[key]) for key in (*MONEY_FIELDS, 'maxPrize')},
+                        'roundIds': sorted(row['roundIds']), 'winningRoundIds': sorted(row['winningRoundIds']),
+                        'purchaseKeys': sorted(key for _, key in row['purchaseKeys'])}
+                for actor, row in rows.items() if row['tickets'] or row['expense'] or row['prizes']}
     ordered = sorted(rows.values(), key=lambda row: (-(row['prizes'] - row['expense']), -row['winningTickets'], row['id']))
     return {'overview': serialize(total), 'residents': [serialize(row) for row in ordered]}

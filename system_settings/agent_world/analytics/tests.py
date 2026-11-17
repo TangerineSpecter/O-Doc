@@ -31,6 +31,9 @@ class RangeTests(SimpleTestCase):
 
 class AnalyticsTests(TestCase):
     def setUp(self):
+        # These assertions exercise the underlying source queries and legacy
+        # report contract. PostgreSQL archive/API parity is covered separately.
+        self.enterContext(patch('system_settings.agent_world.analytics.views.AnalyticsView.uses_daily_archive', return_value=False))
         self.user = User.objects.create_superuser('admin', password='test')
         self.client = APIClient()
         self.client.force_authenticate(self.user)

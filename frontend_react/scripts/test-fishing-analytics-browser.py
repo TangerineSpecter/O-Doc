@@ -50,11 +50,13 @@ def run(browser, base, filename, width, domain='fishing'):
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.on('response', lambda response: responses.append((response.status, response.from_service_worker)) if response.url.startswith(base + '/api/') else None)
     try:
-        states = ['populated', 'empty', 'slow', 'error']
+        states = ['populated', 'empty', 'slow', 'error', 'archive-pending']
         if domain == 'fishing':
             states.append('fishing-invalid')
         for state in states:
             page.goto(f'{base}/{filename}?mockState={state}')
+            if state == 'archive-pending':
+                expect(page.get_by_text('后台已整理 18 / 30 天，完成后自动显示')).to_be_visible()
             if state == 'slow':
                 expect(page.locator('[aria-busy=true]')).to_be_visible()
             if state in ('error', 'fishing-invalid'):
@@ -79,6 +81,17 @@ def run(browser, base, filename, width, domain='fishing'):
                                 assert table.locator('xpath=..').evaluate('(el) => el.scrollLeft > 0')
                             page.screenshot(path=f'/tmp/{domain}-analytics-{width}-details.png', full_page=True)
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
+        # A succeeds, B is awaiting backfill, then A is no longer verified.
+        page.goto(f'{base}/{filename}?mockState=populated')
+        heading = page.get_by_role('heading', name=heading_text, exact=True)
+        expect(heading).to_be_visible()
+        page.evaluate("history.replaceState(null, '', '?mockState=archive-pending')")
+        page.get_by_role('button', name='近 7 天').click()
+        expect(page.get_by_text('完成后自动显示', exact=False)).to_be_visible()
+        page.get_by_role('button', name='近 30 天').click()
+        expect(page.get_by_text('完成后自动显示', exact=False)).to_be_visible()
+        expect(heading).to_have_count(0)
+        expect(heading).to_be_visible(timeout=8000)
         page.goto(f'{base}/{filename}?actor=first')
         heading = page.get_by_role('heading', name=heading_text, exact=True)
         heading.scroll_into_view_if_needed()

@@ -27,6 +27,7 @@ import {localEquipmentPreview} from './combatEquipmentPreview';
 import {resolveTournamentArtRoute} from './tournamentArt';
 
 const base = '/api/settings/agent-world';
+const pendingAnalyticsRanges = new Set<string>();
 export const emptyScenario = () => new URLSearchParams(location.search).get('mockState') === 'empty';
 const list = <T,>(items: T[]) => emptyScenario() ? [] : items;
 const page = <T,>(items: T[], url: URL) => {
@@ -296,6 +297,11 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === `${base}/analytics/`) {
         if (new URLSearchParams(location.search).get('mockState') === 'fishing-invalid')
             return Response.json(fishingAnalyticsSourceError, {status: 409, headers: {'Server-Timing': analyticsErrorTiming}});
+        if (new URLSearchParams(location.search).get('mockState') === 'archive-pending' && !pendingAnalyticsRanges.has(url.search)) {
+            pendingAnalyticsRanges.add(url.search);
+            return Response.json({code: 200, msg: '本地样例', data: {archivePending: true, readyDays: 18, totalDays: 30}},
+                {status: 202, headers: {'Retry-After': '3'}});
+        }
         const combat=combatAnalyticsMock(url,emptyScenario());
         return {...analytics, startDate: url.searchParams.get('start_date') || analytics.startDate, endDate: url.searchParams.get('end_date') || day, actorId: actor(url), lotteryStatistics: lotteryAnalyticsMock(url, emptyScenario()), fishingComparison: fishingAnalyticsMock(url, emptyScenario()),
             combatComparison:combat.combatComparison,outcomes:{...analytics.outcomes,explorations:combat.explorations,wins:combat.wins},

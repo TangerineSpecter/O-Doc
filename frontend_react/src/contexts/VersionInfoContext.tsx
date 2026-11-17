@@ -1,5 +1,5 @@
 import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react';
-import packageJson from '../../package.json';
+import packageJson from '../../package.json' with {type: 'json'};
 import {useToast} from '@/components/common/ToastProvider';
 import {getLatestVersionInfo, isNewerVersion, type LatestVersionInfo} from '@/api/versionInfo';
 

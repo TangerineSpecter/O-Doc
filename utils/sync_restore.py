@@ -197,6 +197,8 @@ class SnapshotRestorer:
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_dishes
         cooking_source_hashes = guard('烹饪', lambda: validate_dishes(data_list, remote_meta)) or {}
         guard('战斗', lambda: validate_combat(data_list, remote_meta))
+        from system_settings.agent_world.analytics.archive_sync import validate as validate_resident_days
+        validate_resident_days(data_list, remote_meta)
         from system_settings.agent_world.lottery_sync import validate_source as validate_lottery
         validate_lottery(data_list, remote_meta)
         from system_settings.agent_world.tournament_sync import validate_source as validate_tournaments
@@ -415,6 +417,13 @@ class SnapshotRestorer:
             if not any(item.get('model', '').startswith('system_settings.social') for item in data_list):
                 from system_settings.agent_world.social_migration import seed_legacy_relations
                 seed_legacy_relations()
+            # Derived daily reports may have arrived from another snapshot.
+            # Revalidate against the merged source before serving them locally.
+            from django.utils import timezone
+            from django.db.models import F
+            from system_settings.agent_world.analytics.models import ResidentAnalyticsWork
+            ResidentAnalyticsWork.objects.all().update(verified_digest='', dirty=True, after=timezone.now(),
+                                                       error='', scope_generation=F('scope_generation') + 1)
             self._reset_restored_sequences(restored_models)
             travel_sync.record_missing()
 

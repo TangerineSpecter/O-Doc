@@ -1,17 +1,17 @@
 import logging
 
-from django.db import transaction, models
+from django.utils import timezone
 from django.db.models import Sum, Count, Q
-from django.db.models.functions import ExtractHour, ExtractWeekDay, TruncDate
+from django.db.models.functions import ExtractHour, ExtractWeekDay
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
-from article.models import Article, Image
+from article.models import Article
 from assets.models import Asset
 from categories.models import Category
-from memos.models import Memo
-from prompts.models import PromptTemplate
+from stats.creation import daily_creation
 from stats.models import ReadStat
+from stats.read_duration import record_duration
 from tags.models import Tag
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
@@ -28,59 +28,36 @@ class ReportReadDurationView(APIView):
     permission_classes = [AllowAny]  # 允许游客上报
 
     def post(self, request):
+        data = request.data
+        if not isinstance(data, dict):
+            return error_result(status=400)
+        article_id = data.get('article_id')
+        duration = data.get('duration')
+        if not isinstance(article_id, str) or not article_id or type(duration) not in (int, str):
+            return error_result(status=400)
         try:
-            article_id = request.data.get('article_id')
-            duration = request.data.get('duration')  # 增量时长或总时长，这里建议传本次新增的秒数
+            seconds = int(duration)
+        except ValueError:
+            return error_result(status=400)
+        if seconds <= 0 or seconds > 86400:
+            return success_result(msg="时长无效，已忽略")
 
-            if not article_id or not duration:
-                return error_result()
-
-            # 确保时长是有效数字
-            try:
-                duration = int(duration)
-                if duration <= 0 or duration > 86400:  # 限制单次上报不超过24小时，防止脏数据
-                    return success_result(msg="时长无效，已忽略")
-            except ValueError:
-                return error_result()
-
-            # 1. 获取用户标识
-            user_identifier = 'anonymous'
+        try:
             if request.user.is_authenticated:
-                user_identifier = get_current_user_identifier(request)
+                reader = get_current_user_identifier(request)
             else:
-                # 获取IP作为标识 (简单处理)
-                x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-                if x_forwarded_for:
-                    user_identifier = x_forwarded_for.split(',')[0]
-                else:
-                    user_identifier = request.META.get('REMOTE_ADDR')
-
-            # 2. 记录日志 (stats应用)
-            # 策略A：每次心跳都存一条新记录（数据量大，但详尽）
-            # 策略B：同一天同一用户同一文章只存一条，累加时长（推荐）
-
-            from django.utils import timezone
-            today = timezone.now().date()
-
-            with transaction.atomic():
-                # 查找今天该用户对该文章的记录
-                stat, created = ReadStat.objects.get_or_create(
-                    article_id=article_id,
-                    user_identifier=user_identifier,
-                    created_at__date=today,
-                    defaults={'duration': 0}
-                )
-
-                # 累加时长
-                stat.duration = models.F('duration') + duration
-                stat.save()
-
+                forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+                reader = forwarded or request.META.get('REMOTE_ADDR') or 'anonymous'
+            if len(reader) > 64:
+                return error_result(status=400)
+            if not record_duration(article_id, reader, seconds):
+                return error_result(ErrorCode.ARTICLE_NOT_EXIST, status=404)
             return success_result()
 
-        except Exception as e:
+        except Exception:
             # 统计接口报错不应影响主业务，打印日志即可
-            logger.exception('Failed to report article read duration: article_id=%s', request.data.get('article_id'))
-            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+            logger.exception('Failed to report article read duration: article_id=%s', article_id)
+            return error_result(ErrorCode.SYSTEM_ERROR, status=500)
 
 
 class StatisticsView(APIView):
@@ -91,10 +68,10 @@ class StatisticsView(APIView):
 
     def get(self, request):
         try:
-            from django.utils import timezone
-
             try:
                 selected_year = int(request.query_params.get('year') or timezone.now().year)
+                if not 1 <= selected_year <= 9999:
+                    selected_year = timezone.now().year
             except (TypeError, ValueError):
                 selected_year = timezone.now().year
             current_user_id = get_current_user_identifier(request)
@@ -105,11 +82,9 @@ class StatisticsView(APIView):
             # --- 1. 核心 KPI 数据 ---
             valid_articles = Article.objects.filter(is_valid=True)
 
-            total_articles = valid_articles.count()
-
             # 聚合计算字数。阅读时长以 ReadStat 为准，保持与趋势图和阅读时长榜单口径一致。
             agg_data = valid_articles.aggregate(
-                total_words=Sum('word_count')
+                total_articles=Count('pk'), total_words=Sum('word_count')
             )
 
             total_words = agg_data.get('total_words') or 0
@@ -124,7 +99,7 @@ class StatisticsView(APIView):
             # --- 2. 24小时阅读趋势 (Hourly Data) ---
             # 统计全站历史数据，按小时提取并分组 (ExtractHour)
             # 这里的 hour=ExtractHour('created_at') 会自动把所有日期的 "created_at" 提取为 0-23 的数字
-            hourly_stats = ReadStat.objects.annotate(
+            hourly_stats = ReadStat.objects.filter(article__is_valid=True).annotate(
                 hour=ExtractHour('created_at')
             ).values('hour').annotate(
                 visits=Count('id'),
@@ -165,7 +140,7 @@ class StatisticsView(APIView):
             ]
 
             # --- 4. 分类占比 ---
-            category_stats = Category.objects.annotate(
+            category_stats = Category.objects.filter(is_valid=True, articles__is_valid=True).annotate(
                 value=Count('articles')
             ).filter(value__gt=0).values('name', 'value').order_by('-value')
 
@@ -215,83 +190,9 @@ class StatisticsView(APIView):
                     'value': val_str
                 })
 
-            # --- 7. 年度创作热力图 ---
-            article_daily_stats = valid_articles.filter(
-                created_at__year=selected_year
-            ).annotate(
-                date=TruncDate('created_at')
-            ).values('date').annotate(
-                articles=Count('article_id')
-            )
-
-            image_daily_stats = Image.objects.filter(
-                is_valid=True,
-                created_at__year=selected_year
-            ).annotate(
-                date=TruncDate('created_at')
-            ).values('date').annotate(
-                images=Count('image_id')
-            )
-
-            memo_daily_stats = Memo.objects.filter(
-                is_valid=True,
-                created_at__year=selected_year
-            ).annotate(
-                date=TruncDate('created_at')
-            ).values('date').annotate(
-                memos=Count('memo_id')
-            )
-
-            prompt_daily_stats = PromptTemplate.objects.filter(
-                is_valid=True,
-                created_at__year=selected_year
-            ).annotate(
-                date=TruncDate('created_at')
-            ).values('date').annotate(
-                prompts=Count('id')
-            )
-
-            daily_creation_map = {}
-
-            def ensure_daily_item(date_value):
-                date_key = date_value.isoformat()
-                if date_key not in daily_creation_map:
-                    daily_creation_map[date_key] = {
-                        'date': date_key,
-                        'articles': 0,
-                        'images': 0,
-                        'memos': 0,
-                        'prompts': 0,
-                        'total': 0
-                    }
-                return daily_creation_map[date_key]
-
-            for item in article_daily_stats:
-                daily_item = ensure_daily_item(item['date'])
-                daily_item['articles'] = item['articles']
-
-            for item in image_daily_stats:
-                daily_item = ensure_daily_item(item['date'])
-                daily_item['images'] = item['images']
-
-            for item in memo_daily_stats:
-                daily_item = ensure_daily_item(item['date'])
-                daily_item['memos'] = item['memos']
-
-            for item in prompt_daily_stats:
-                daily_item = ensure_daily_item(item['date'])
-                daily_item['prompts'] = item['prompts']
-
-            daily_creation = []
-            for item in daily_creation_map.values():
-                item['total'] = item['articles'] + item['images'] + item['memos'] + item['prompts']
-                daily_creation.append(item)
-
-            daily_creation.sort(key=lambda item: item['date'])
-
             return success_result(data={
                 'kpi': {
-                    'total_articles': total_articles,
+                    'total_articles': agg_data['total_articles'],
                     'total_words': total_words,
                     'total_assets': total_assets,
                     'total_duration_hours': total_duration_hours
@@ -302,7 +203,7 @@ class StatisticsView(APIView):
                 'tag_stats': list(tag_stats),
                 'top_visits': top_visits_data,
                 'top_duration': top_duration_data,
-                'daily_creation': daily_creation,
+                'daily_creation': daily_creation(selected_year, current_user_id if request.user.is_authenticated else None),
                 'selected_year': selected_year
             })
 

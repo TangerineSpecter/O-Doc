@@ -1,5 +1,6 @@
 import {resolveMemoRoute} from './memos';
 import {resolvePerformanceRoute} from './performance';
+import {localStatistics, localReadDuration} from './statistics';
 import type {PendingArticleIllustration} from '../types/api/prompt';
 import {resolveDiaryRoute} from './diary';
 import {delay, http, HttpResponse} from 'msw';
@@ -22,6 +23,13 @@ export const localHandlers = [
             return HttpResponse.json({code: 503, msg: '本地模拟探索记录加载失败', data: null}, {status: 503});
         }
         if (state === 'slow') await delay(new URL(request.url).pathname === '/api/maintenance/overview' ? 3600 : 1800);
+        const url = new URL(request.url);
+        if ((url.pathname === '/api/stats/dashboard' && request.method === 'GET') ||
+            (url.pathname === '/api/stats/report/duration' && request.method === 'POST')) {
+            if (state === 'error') return HttpResponse.json({code: 503, msg: '本地统计服务暂不可用', data: null}, {status: 503});
+            if (request.method === 'POST') return localReadDuration(request);
+            return HttpResponse.json({code: 200, msg: '成功', data: localStatistics(url, state === 'empty')});
+        }
         if (state === 'error' && (new URL(request.url).pathname === '/api/settings/agent-relations/' || new URL(request.url).pathname.startsWith('/api/message/notifications/') || new URL(request.url).pathname === '/api/settings/config/get_memos_push_config/' || new URL(request.url).pathname.startsWith('/api/settings/providers/') || new URL(request.url).pathname.startsWith('/api/settings/models/') || new URL(request.url).pathname.startsWith('/api/diary/') || new URL(request.url).pathname.startsWith('/api/memo/') || (new URL(request.url).pathname.startsWith('/api/resource/') && new URL(request.url).pathname !== '/api/resource/list') || new URL(request.url).pathname.startsWith('/api/settings/agent-world/') || new URL(request.url).pathname.startsWith('/api/quant/') || new URL(request.url).pathname.startsWith('/api/anthology/') || new URL(request.url).pathname.startsWith('/api/novel/') || new URL(request.url).pathname.startsWith('/api/article/image/') || new URL(request.url).pathname === '/api/settings/locations/' || new URL(request.url).pathname === '/api/article/list')) {
             return HttpResponse.json({code: 503, msg: '本地模拟接口失败，可切回样例状态重试', data: null}, {status: 503});
         }
