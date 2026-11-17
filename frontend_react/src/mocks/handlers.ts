@@ -1,3 +1,5 @@
+import {createdNodes, createdRows} from './createdArticles';
+import {videoArticleRows, videoTreeNodes} from './videoNotes';
 import {projectArticleList} from './articleProjection';
 import { http, HttpResponse } from 'msw';
 import { fakerZH_CN as faker } from '@faker-js/faker';
@@ -30,6 +32,7 @@ const generateArticle = (articleId: string) => {
   return {
     id: faker.number.int({ min: 1, max: 1000 }),
     articleId,
+    creationSource: 'unknown',
     // 使用上面的中文生成器
     title: generateChineseTitle(),
     content: generateChineseDesc(), // 简略内容
@@ -116,6 +119,7 @@ export const handlers = [
       data: {
         id: 1,
         articleId: typeof articleId === 'string' ? articleId : '1',
+        creationSource: 'unknown',
         title: articleDemoData.title,
         content: articleDemoData.content,
         collId: 'col_deploy_001',
@@ -141,6 +145,7 @@ export const handlers = [
       data: {
         id: faker.number.int({ min: 1, max: 1000 }),
         articleId: faker.string.alpha({ length: 10, casing: 'lower' }),
+        creationSource: 'manual',
         title: body.title,
         content: body.content,
         collId: body.collId,
@@ -192,14 +197,13 @@ export const handlers = [
     if (collId) {
       articles = articles.map(a => ({ ...a, collId }));
     }
-    if (keyword) {
-      articles = articles.filter(a => a.title.includes(keyword));
-    }
+    const combined = [...createdRows(collId), ...videoArticleRows(collId), ...articles];
+    const filtered = keyword ? combined.filter(a => a.title.includes(keyword)) : combined;
 
     return HttpResponse.json({
       code: 200,
       msg: 'success',
-      data: projectArticleList(new URLSearchParams(location.search).get('mockState') === 'empty' ? [] : articles, url)
+      data: projectArticleList(new URLSearchParams(location.search).get('mockState') === 'empty' ? [] : filtered, url)
     });
   }),
 
@@ -442,12 +446,12 @@ export const handlers = [
   }),
 
   // 新增：23. 获取文章大纲树
-  http.get('/api/article/tree-list', ( ) => {
-
+  http.get('/api/article/tree-list', ({request}) => {
+    const collId = new URL(request.url).searchParams.get('collId');
     return HttpResponse.json({
       code: 200,
       msg: 'success',
-      data: articleTreeData
+      data: [...createdNodes(collId), ...videoTreeNodes(collId), ...articleTreeData]
     });
   }),
 

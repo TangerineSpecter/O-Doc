@@ -577,6 +577,7 @@ def _persist_import(
                 content=markdown,
                 coll_id=coll_id,
                 source_url=source_url,
+                creation_source='imported',
                 is_polishing=need_polishing,
                 author=author,
             )

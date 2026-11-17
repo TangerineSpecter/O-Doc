@@ -7,4 +7,6 @@ class ArticleConfig(AppConfig):
 
     def ready(self):
         from .image_search_scheduler import start_scheduler
+        from .video_notes.scheduler import start_worker
         start_scheduler()
+        start_worker()

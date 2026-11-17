@@ -60,3 +60,4 @@ deploy/.env
 
 /runtime/system_logs/
 /runtime/token_usage_details/
+/runtime/video_notes/

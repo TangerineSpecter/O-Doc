@@ -17,6 +17,8 @@ ENV DJANGO_DEBUG=false
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libgomp1 && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 

@@ -1,3 +1,4 @@
+from article.video_notes.views import JobsView, JobActionView
 from django.urls import path
 from article.html_note_views import HtmlPreviewView, HtmlConversionView, HtmlDeletionSummaryView
 from article.image_search_views import (
@@ -24,6 +25,9 @@ from article.photo_review_views import ImageReviewListView
 from article.version_views import ArticleVersionDetailView, ArticleVersionListView, ArticleVersionRestoreView
 
 urlpatterns = [
+    path('video-notes/jobs', JobsView.as_view()),
+    path('video-notes/jobs/<uuid:job_id>/upload', JobActionView.as_view(), {'action': 'upload'}),
+    path('video-notes/jobs/<uuid:job_id>/retry', JobActionView.as_view(), {'action': 'retry'}),
     path('image/search', ImageSmartSearchView.as_view()),
     path('image/search-by-image', ImageReferenceSearchView.as_view()),
     path('image/similar/<str:image_id>', ImageSimilarView.as_view()),

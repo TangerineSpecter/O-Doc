@@ -269,7 +269,7 @@ def import_original(uploaded_file, coll_id: str, author: str) -> tuple[list[Arti
                     url = f'/api/resource/view/{materials[key].id}'
                     preview = preview.replace(f'odoc-material:{key}', url)
                     markdown = markdown.replace(f'odoc-material:{key}', url)
-                article = Article.objects.create(title=title, content=markdown, content_format='html', coll_id=coll_id, author=author)
+                article = Article.objects.create(title=title, content=markdown, content_format='html', creation_source='imported', coll_id=coll_id, author=author)
                 source = store(Path(name).name, files[name], 'source')
                 rendered = store('preview.html', preview.encode('utf-8'), 'preview')
                 for asset, role in [(source, 'source'), (rendered, 'preview'), *[(materials[key], 'material') for key in keys]]:

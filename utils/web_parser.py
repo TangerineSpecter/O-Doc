@@ -198,12 +198,12 @@ def _validate_connected_peer(response):
         raise WebParserError('为保护服务器安全，实际连接指向了本机或内网地址。')
 
 
-def _validate_fetch_url(url):
+def _validate_fetch_url(url, *, max_length=MAX_URL_LENGTH):
     if not isinstance(url, str) or not url.strip():
         raise WebParserError('请输入有效的网址。')
 
     value = url.strip()
-    if len(value) > MAX_URL_LENGTH or any(ord(char) < 32 or ord(char) == 127 for char in value):
+    if len(value) > max_length or any(ord(char) < 32 or ord(char) == 127 for char in value):
         raise WebParserError('网址格式无效。')
 
     try:

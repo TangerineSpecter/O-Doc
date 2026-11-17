@@ -12,8 +12,15 @@ import {resetImageGalleryMock} from '../src/mocks/imageGallery/groupRoutes.ts';
 const location = new URL('http://localhost/?mockState=populated');
 const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
 const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+const previousSessionStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+const sessionValues = new Map();
 Object.defineProperty(globalThis, 'location', {value: location, configurable: true});
 Object.defineProperty(globalThis, 'document', {value: {baseURI: location.href, cookie: ''}, configurable: true});
+Object.defineProperty(globalThis, 'sessionStorage', {configurable: true, value: {
+    getItem: key => sessionValues.get(key) ?? null,
+    setItem: (key, value) => sessionValues.set(key, value),
+    removeItem: key => sessionValues.delete(key),
+}});
 
 const server = setupServer(...localHandlers, ...handlers, unhandledLocalApi);
 server.listen({onUnhandledRequest: 'error'});
@@ -23,6 +30,8 @@ after(() => {
     else Reflect.deleteProperty(globalThis, 'location');
     if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
     else Reflect.deleteProperty(globalThis, 'document');
+    if (previousSessionStorage) Object.defineProperty(globalThis, 'sessionStorage', previousSessionStorage);
+    else Reflect.deleteProperty(globalThis, 'sessionStorage');
 });
 
 const base = 'http://localhost/api/settings/agent-world';
@@ -417,3 +426,43 @@ for (const state of ['populated', 'empty', 'slow', 'error']) {
         if (state === 'slow') assert.ok(performance.now() - started >= 1700);
     });
 }
+
+test('deleting a local video note survives reloads and keeps the completed task', async () => {
+    location.search = '?mockState=populated';
+    const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+    const stored = new Map();
+    Object.defineProperty(globalThis, 'sessionStorage', {configurable: true, value: {
+        getItem: key => stored.get(key) ?? null,
+        setItem: (key, value) => stored.set(key, value),
+        removeItem: key => stored.delete(key),
+    }});
+    const id = '0123456789abcdef0123456789abcdef';
+    const articleId = 'local-video-' + id;
+    const origin = 'http://localhost/api/article';
+    stored.set('odoc-local-video-jobs-v1', JSON.stringify([{
+        id, collId: 'local-video-collection', state: 'queued', stage: '等待处理',
+        sourceUrl: 'https://www.bilibili.com/video/BV12P411t7PQ/', title: '', message: '', articleId: '',
+        createdAt: new Date().toISOString(), started: 0, uploaded: false,
+    }]));
+    try {
+        const readRows = async path => (await (await fetch(origin + path)).json()).data;
+        assert.ok((await readRows('/list?collId=local-video-collection')).some(row => row.articleId === articleId));
+        assert.ok((await readRows('/tree-list?collId=local-video-collection')).some(row => row.articleId === articleId));
+        assert.equal((await fetch(origin + '/delete/' + articleId, {method: 'DELETE'})).status, 200);
+        for (let refresh = 0; refresh < 2; refresh++) {
+            assert.ok(!(await readRows('/list?collId=local-video-collection')).some(row => row.articleId === articleId));
+            assert.ok(!(await readRows('/tree-list?collId=local-video-collection')).some(row => row.articleId === articleId));
+            assert.equal((await fetch(origin + '/detail/' + articleId)).status, 404);
+        }
+        assert.equal((await fetch(origin + '/delete/' + articleId, {method: 'DELETE'})).status, 404);
+        assert.equal((await fetch(origin + '/update/' + articleId, {method: 'PUT',
+            headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content: 'revive'})})).status, 404);
+        const tasks = await readRows('/video-notes/jobs?collId=local-video-collection');
+        assert.equal(tasks[0].state, 'completed');
+        assert.equal(tasks[0].articleId, articleId);
+        assert.equal(JSON.parse(stored.get('odoc-local-video-jobs-v1'))[0].articleDeleted, true);
+    } finally {
+        if (previousStorage) Object.defineProperty(globalThis, 'sessionStorage', previousStorage);
+        else Reflect.deleteProperty(globalThis, 'sessionStorage');
+    }
+});

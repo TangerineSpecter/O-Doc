@@ -66,6 +66,7 @@ class HtmlNoteTests(APITestCase):
     def test_static_import_extracts_clean_markdown_and_sanitizes_preview(self):
         article = self.imported()
         self.assertEqual(article.content_format, 'html')
+        self.assertEqual(article.creation_source, 'imported')
         for text in ['页头摘要保留', '步骤一', '0.10.2', '```bash', 'pip install', '结果图']:
             self.assertIn(text, article.content)
         for text in ['STYLE_SECRET', 'SCRIPT_SECRET', 'base64', '<style', 'odoc-material:']:

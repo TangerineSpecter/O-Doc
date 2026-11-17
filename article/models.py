@@ -16,8 +16,9 @@ from utils.id_generator import (
     generate_image_review_id,
 )
 
+from article.video_notes.models import VideoNoteJob  # noqa: F401 (Django model discovery)
 
-# Create your models here.
+
 class Article(models.Model):
     agent_post_category_ref = models.ForeignKey("system_settings.WorldCategory", null=True, blank=True, on_delete=models.PROTECT)
     agent_post_author_id = models.CharField(max_length=40, blank=True, default="")
@@ -36,6 +37,9 @@ class Article(models.Model):
         db_comment="文章唯一标识"
     )
 
+    creation_source = models.CharField(max_length=16, default='unknown', editable=False,
+                                       choices=[('manual', '手动新建'), ('imported', '导入文章'),
+                                                ('video_note', '视频笔记'), ('unknown', '来源未知')])
     # 标题
     content_format = models.CharField(max_length=10, choices=[('markdown', 'Markdown'), ('html', 'HTML')], default='markdown')
     # Converted notes retain note-level privacy without changing legacy Markdown access.

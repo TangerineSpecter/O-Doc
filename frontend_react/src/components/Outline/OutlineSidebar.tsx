@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {BookOpen, ChevronDown, ChevronRight, FileText, FileCode2, Globe, Plus, RefreshCw, Search, X, Loader2} from 'lucide-react';
+import {BookOpen, ChevronDown, ChevronRight, FileText, FileCode2, Film, Globe, Plus, RefreshCw, Search, X, Loader2} from 'lucide-react';
 import {ArticleNode} from '@/api/article.ts';
 
 interface OutlineSidebarProps {
@@ -12,6 +12,7 @@ interface OutlineSidebarProps {
     onToggleExpand: (e: React.MouseEvent, id: string) => void;
     onSelectDoc: (articleId: string) => void;
 
+    onVideoNote: () => void;
     onCreateDoc: () => void;       // 保留：新建文档
     onSaveWebpage: () => void;     // 新增：新建网页
 
@@ -31,6 +32,7 @@ export default function OutlineSidebar({
                                            onSearchChange,
                                            onToggleExpand,
                                            onSelectDoc,
+                                           onVideoNote,
                                            onCreateDoc,
                                            onSaveWebpage, // 解构新增的 prop
                                            onReset,
@@ -207,6 +209,12 @@ export default function OutlineSidebar({
                                         className="text-[10px] text-slate-400 scale-90 origin-left">支持网址、HTML 和 Markdown
                                     </div>
                                 </div>
+                            </button>
+                            <button onClick={() => { setIsCreateMenuOpen(false); onVideoNote(); }}
+                                className="w-full flex items-center gap-2 border-t border-slate-50 px-3 py-2.5 text-left text-xs text-slate-600 hover:bg-orange-50">
+                                <Film size={14} className="text-orange-500"/>
+                                <span><span className="block font-medium">视频笔记</span>
+                                    <span className="text-[10px] text-slate-400">从 B 站或抖音生成图文笔记</span></span>
                             </button>
                         </div>
                     )}

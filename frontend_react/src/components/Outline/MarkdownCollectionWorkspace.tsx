@@ -1,3 +1,5 @@
+import {useState} from 'react';
+import VideoNoteModal from './VideoNoteModal';
 import { ListTree, Menu } from "lucide-react";
 
 import Article from "../../views/Article";
@@ -14,7 +16,8 @@ import type { CollectionWorkspaceProps } from '../../types/articleWorkspace';
 import { useMarkdownWorkspaceData } from '../../hooks/useMarkdownWorkspaceData';
 export default function MarkdownCollectionWorkspace(props: CollectionWorkspaceProps) {
     const {title, anthologyInfo, onNavigate} = props;
-    const {isAuthenticated, filteredDocs, flatDocs, loading, expandedIds, searchQuery, setSearchQuery, toggleExpand, activeDocId, isSidebarOpen, setIsSidebarOpen, isMobileTocOpen, setIsMobileTocOpen, hasArticleToc, isDeleteModalOpen, setIsDeleteModalOpen, isWebpageModalOpen, setIsWebpageModalOpen, articleDetail, articleLoading, isCollectionSyncing, handleSelectDoc, handleResetView, handleTocAvailabilityChange, handleCreateDoc, handleOpenWebpageModal, handleSaveWebpage, handleEditArticle, deleteDescription, handleDeleteArticle, confirmDelete, handleSyncCollection} = useMarkdownWorkspaceData(props);
+    const [videoOpen, setVideoOpen] = useState(false);
+    const {refreshTree, isAuthenticated, filteredDocs, flatDocs, loading, expandedIds, searchQuery, setSearchQuery, toggleExpand, activeDocId, isSidebarOpen, setIsSidebarOpen, isMobileTocOpen, setIsMobileTocOpen, hasArticleToc, isDeleteModalOpen, setIsDeleteModalOpen, isWebpageModalOpen, setIsWebpageModalOpen, articleDetail, articleLoading, isCollectionSyncing, handleSelectDoc, handleResetView, handleTocAvailabilityChange, handleCreateDoc, handleOpenWebpageModal, handleSaveWebpage, handleEditArticle, deleteDescription, handleDeleteArticle, confirmDelete, handleSyncCollection} = useMarkdownWorkspaceData(props);
     if (loading && flatDocs.length === 0) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#F9FAFB] flex-col">
@@ -57,7 +60,14 @@ export default function MarkdownCollectionWorkspace(props: CollectionWorkspacePr
                 />
             )}
 
+            {videoOpen && isAuthenticated && props.collId && <VideoNoteModal key={props.collId} collId={props.collId}
+                onClose={() => setVideoOpen(false)} onOpen={id => {
+                    setVideoOpen(false);
+                    void refreshTree();
+                    handleSelectDoc(id);
+                }}/>}
             <OutlineSidebar
+                onVideoNote={() => setVideoOpen(true)}
                 className={`
                     fixed inset-y-0 left-0 z-50 w-[min(82vw,20rem)] transform shadow-2xl transition-transform duration-300 ease-out
                     md:relative md:inset-auto md:z-auto md:w-72 md:translate-x-0 md:shadow-none
@@ -76,7 +86,7 @@ export default function MarkdownCollectionWorkspace(props: CollectionWorkspacePr
                 onReset={handleResetView}
                 onSyncCollection={handleSyncCollection}
                 isCollectionSyncing={isCollectionSyncing}
-                canManage={isAuthenticated}
+                canManage={isAuthenticated && anthologyInfo?.canManage !== false}
             />
 
             <main id="right-content-window"

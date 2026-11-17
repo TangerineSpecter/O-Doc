@@ -41,7 +41,7 @@ class SnapshotModels:
         for item in data_list:
             # Deployment diagnostics must also be ignored on import; excluding
             # exports alone would allow a supplied snapshot to overwrite policy.
-            if item.get('model') == 'system_settings.residentanalyticswork':
+            if item.get('model') in {'system_settings.residentanalyticswork', 'article.videonotejob'}:
                 continue
             if str(item.get('model', '')).startswith('system_performance.'):
                 continue

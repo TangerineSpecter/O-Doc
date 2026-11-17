@@ -250,6 +250,11 @@ class SnapshotRestorer:
             complete_quant_fields(data_list)
             self._fill_missing_snapshot_fields_from_local(data_list, model_map)
 
+        for item in data_list:
+            if item.get('model') == 'article.article':
+                fields = item['fields']
+                fields.setdefault('creation_source', 'imported' if fields.get('content_format') == 'html' else 'unknown')
+
         # PromptTemplate points at PromptResultImage, while the result image in
         # turn points at a usage/template. The normal serializer order writes
         # templates before result images, so persist this optional relation only

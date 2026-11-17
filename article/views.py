@@ -298,7 +298,7 @@ class ArticleCreateView(APIView):
             serializer.is_valid(raise_exception=True)
             if not can_manage_anthology(request, serializer.validated_data['coll_id'], 'article'):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
-            article = serializer.save()
+            article = serializer.save(creation_source='manual')
 
             # 更新统计
             refresh_anthology_stats(article.coll_id)

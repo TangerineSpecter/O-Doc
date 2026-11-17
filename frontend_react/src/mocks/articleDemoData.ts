@@ -148,28 +148,28 @@ export const articleTreeData = [
     articleId: 'simple-run',
     title: '简易运行',
     date: '2025-11-18',
-    type: 'doc'
+    creationSource: 'unknown', type: 'doc'
   },
   {
     id: '2',
     articleId: 'deployment-guide',
     title: '部署指南',
     date: '2022-06-24',
-    type: 'folder', // 标记为文件夹/父节点
+    creationSource: 'unknown', type: 'folder', // 标记为文件夹/父节点
     children: [
       {
         id: '2-1',
         articleId: 'docker-deployment',
         title: 'Docker 部署 MrDoc (推荐)',
         date: '2023-02-24',
-        type: 'folder',
+        creationSource: 'unknown', type: 'folder',
         children: [
-          { id: '2-1-1', articleId: 'docker-image-deployment', title: 'Docker 镜像部署', date: '2025-05-22', type: 'doc' },
-          { id: '2-1-2', articleId: 'docker-compose-deployment', title: 'Docker Compose 部署', date: '2025-03-11', type: 'doc' },
-          { id: '2-1-3', articleId: 'docker-container-management', title: '管理 Docker 容器', date: '2025-09-06', type: 'doc' },
+          { id: '2-1-1', articleId: 'docker-image-deployment', title: 'Docker 镜像部署', date: '2025-05-22', creationSource: 'unknown', type: 'doc' },
+          { id: '2-1-2', articleId: 'docker-compose-deployment', title: 'Docker Compose 部署', date: '2025-03-11', creationSource: 'unknown', type: 'doc' },
+          { id: '2-1-3', articleId: 'docker-container-management', title: '管理 Docker 容器', date: '2025-09-06', creationSource: 'unknown', type: 'doc' },
         ]
       },
-      { id: '2-7', articleId: 'native-to-docker', title: '原生部署转 Docker 部署', date: '2025-03-14', type: 'doc' },
+      { id: '2-7', articleId: 'native-to-docker', title: '原生部署转 Docker 部署', date: '2025-03-14', creationSource: 'unknown', type: 'doc' },
     ]
   },
   {
@@ -177,10 +177,10 @@ export const articleTreeData = [
     articleId: 'configuration-guide',
     title: '配置指南',
     date: '2025-07-31',
-    type: 'folder',
+    creationSource: 'unknown', type: 'folder',
     children: [
-      { id: '3-1', articleId: 'configuration-file', title: '配置文件说明', date: '2022-01-15', type: 'doc' },
-      { id: '3-2', articleId: 'custom-database-config', title: '自定义数据库配置', date: '2025-11-24', type: 'doc' },
+      { id: '3-1', articleId: 'configuration-file', title: '配置文件说明', date: '2022-01-15', creationSource: 'unknown', type: 'doc' },
+      { id: '3-2', articleId: 'custom-database-config', title: '自定义数据库配置', date: '2025-11-24', creationSource: 'unknown', type: 'doc' },
     ]
   }
 ];

@@ -236,5 +236,5 @@ export function useMarkdownWorkspaceData({collId, articleId, onNavigate}: Collec
             setIsCollectionSyncing(false);
         }
     };
-    return {isAuthenticated, filteredDocs, flatDocs, loading, expandedIds, searchQuery, setSearchQuery, toggleExpand, activeDocId, isSidebarOpen, setIsSidebarOpen, isMobileTocOpen, setIsMobileTocOpen, hasArticleToc, isDeleteModalOpen, setIsDeleteModalOpen, isWebpageModalOpen, setIsWebpageModalOpen, articleDetail, articleLoading, isCollectionSyncing, handleSelectDoc, handleResetView, handleTocAvailabilityChange, handleCreateDoc, handleOpenWebpageModal, handleSaveWebpage, handleEditArticle, deleteDescription, handleDeleteArticle, confirmDelete, handleSyncCollection};
+    return {refreshTree, isAuthenticated, filteredDocs, flatDocs, loading, expandedIds, searchQuery, setSearchQuery, toggleExpand, activeDocId, isSidebarOpen, setIsSidebarOpen, isMobileTocOpen, setIsMobileTocOpen, hasArticleToc, isDeleteModalOpen, setIsDeleteModalOpen, isWebpageModalOpen, setIsWebpageModalOpen, articleDetail, articleLoading, isCollectionSyncing, handleSelectDoc, handleResetView, handleTocAvailabilityChange, handleCreateDoc, handleOpenWebpageModal, handleSaveWebpage, handleEditArticle, deleteDescription, handleDeleteArticle, confirmDelete, handleSyncCollection};
 }

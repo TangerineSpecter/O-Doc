@@ -1,3 +1,4 @@
+export type ArticleCreationSource = 'manual' | 'imported' | 'video_note' | 'unknown';
 // 文章接口定义
 export interface MindMapNode {
     title: string;
@@ -5,6 +6,7 @@ export interface MindMapNode {
 }
 
 export interface Article {
+    creationSource?: ArticleCreationSource;
     contentFormat?: 'markdown' | 'html';
     previewUrl?: string;
     downloadUrl?: string;
@@ -52,6 +54,7 @@ export interface Article {
         url: string;
     }>;
     is_polishing?: boolean;
+    sourceUrl?: string;
     source_url?: string;
     isRagSynced?: boolean;
     lastRagSyncedAt?: string;
@@ -139,6 +142,7 @@ export interface ArticleItem {
 
 // 文章树形节点结构
 export interface ArticleNode {
+    creationSource?: ArticleCreationSource;
     contentFormat?: 'markdown' | 'html';
     id: string;
     articleId: string;

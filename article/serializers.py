@@ -278,7 +278,7 @@ class ArticleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Article
         fields = [
-            'article_id', 'title', 'content', 'coll_id', 'content_format',
+            'article_id', 'title', 'content', 'coll_id', 'content_format', 'creation_source',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
             'read_count', 'category_id', 'sort', 'parent_id', 'tags', 'assets',
             'tag_details', 'category_detail', 'parent_detail', 'attachments',
@@ -510,7 +510,7 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
             'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
             'read_count', 'category_id', 'sort', 'parent_id', 'children', 'date',
-            'word_count', 'read_time', 'content_format'
+            'word_count', 'read_time', 'content_format', 'creation_source'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'children', 'date', 'word_count',

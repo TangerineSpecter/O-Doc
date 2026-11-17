@@ -69,7 +69,7 @@ class HtmlConversionView(APIView):
             while Article.objects.filter(author=owner, coll_id=source.coll_id, title=title).exists():
                 i += 1
                 title = f'{base} ({i})'
-            copy = Article.objects.create(title=title, content=source.content, coll_id=source.coll_id, author=owner, category=source.category, parent=source.parent, permission=source.permission, enforce_note_privacy=True)
+            copy = Article.objects.create(title=title, creation_source=source.creation_source, content=source.content, coll_id=source.coll_id, author=owner, category=source.category, parent=source.parent, permission=source.permission, enforce_note_privacy=True)
             copy.tags.set(source.tags.all())
             from utils.resource_assets import extract_resource_ids_from_content
             content_assets = extract_resource_ids_from_content(source.content)
