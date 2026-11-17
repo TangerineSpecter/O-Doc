@@ -1,10 +1,8 @@
 import json
 import math
-import os
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 from utils.web_parser import _fetch_resource, WebParserError
 from .storage import MAX_DURATION, VideoError, check_space, runtime_root
@@ -66,15 +64,11 @@ def duration(path):
 
 
 def transcribe(path, work, length):
+    from .asr_models import resolved_model
     model_dir = runtime_root() / 'models'
-    model = os.environ.get('ODOC_VIDEO_ASR_MODEL', 'small')
-    try:
-        from faster_whisper.utils import download_model
-        cached = download_model(model, cache_dir=str(model_dir), local_files_only=True)
-        if not (Path(cached) / 'model.bin').is_file():
-            raise FileNotFoundError
-    except (ImportError, OSError, ValueError):
-        raise VideoError('本机转写模型尚未就绪，请管理员运行 prepare_video_asr 后重试') from None
+    model = resolved_model()
+    if not model:
+        raise VideoError('转写模型尚未就绪，请管理员到系统设置 → AI 模型接入下载视频转写模型后重试')
     check_space(work, int(length * 32000))
     wav = work / 'audio.wav'
     try:
@@ -88,7 +82,7 @@ def transcribe(path, work, length):
     except subprocess.CalledProcessError:
         raise VideoError('没有可读取的音轨，请检查上传的视频') from None
     if run.returncode == 2:
-        raise VideoError('本机转写模型尚未就绪，请管理员安装转写依赖并运行 prepare_video_asr 后重试')
+        raise VideoError('转写模型加载失败，请管理员在系统设置 → AI 模型接入检查模型状态和服务器依赖')
     if run.returncode:
         raise VideoError('本机转写失败，请检查模型与可用内存')
     return json.loads(run.stdout)

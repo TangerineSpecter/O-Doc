@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .agent_views import AgentRelationView
+from .video_asr_views import VideoASRModelView
 from .views import (
     AgentRunRecordViewSet,
     AgentActivityViewSet,
@@ -66,6 +67,7 @@ from .agent_world.publish_media_views import PostPhotoView
 from .agent_world.stamina_views import StaminaSettingsView
 
 urlpatterns = [
+    path('video-asr-model/', VideoASRModelView.as_view()),
     path('agent-world/tournaments/current/', TournamentView.as_view()),
     path('agent-world/tournaments/', TournamentView.as_view(section='list')),
     path('agent-world/tournaments/<str:identity>/', TournamentView.as_view()),

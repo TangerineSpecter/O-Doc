@@ -1,4 +1,5 @@
 import {clearVideoNoteMockData} from './videoNotes';
+import {clearVideoASRMockData} from './videoAsr';
 import {useState} from 'react';
 import {simulatePerformanceActivity} from './performance';
 import {clearQuantMockData} from './quant/state';
@@ -25,6 +26,6 @@ export default function LocalModeBar() {
             if (generated) window.dispatchEvent(new Event('odoc:performance-mock-updated'));
         }} className="rounded-full border border-orange-200 bg-white px-2 py-0.5">模拟新采集</button>}
         {notice && <span role="status">{notice}</span>}
-        <button type="button" onClick={() => {clearQuantMockData();clearVideoNoteMockData();location.reload();}} className="rounded-full border border-orange-200 bg-white px-2 py-0.5 hover:bg-orange-100">重置样例</button>
+        <button type="button" onClick={() => {clearQuantMockData();clearVideoNoteMockData();clearVideoASRMockData();location.reload();}} className="rounded-full border border-orange-200 bg-white px-2 py-0.5 hover:bg-orange-100">重置样例</button>
     </aside>;
 }

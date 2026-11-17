@@ -1,5 +1,6 @@
 import {useState, useEffect, useMemo} from 'react';
 import {DecisionSettings} from './DecisionSettings';
+import {VideoASRSettings} from './VideoASRSettings';
 import {CheckCircle2, Edit2, Eye, Globe, ImagePlus, Key, Layers, Loader2, Plus, Server, Trash2, Wifi, X, XCircle, Zap} from 'lucide-react';
 import {AIModel, AIModelConnectionResult, AIProvider, ModelType, SystemAIConfig, testAIModelConnection, fetchProviderFavicon} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
@@ -391,6 +392,7 @@ export const AISettings = ({
             </div>
 
             <DecisionSettings/>
+            <VideoASRSettings/>
 
             {/* 2. Provider Management */}
             <div className="space-y-4">

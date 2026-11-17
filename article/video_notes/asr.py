@@ -16,4 +16,8 @@ def main(model, cache, audio):
 
 
 if __name__ == '__main__':
+    if sys.argv[1:2] == ['--check']:
+        from faster_whisper import WhisperModel
+        WhisperModel(sys.argv[2], device='cpu', compute_type='int8', cpu_threads=4, local_files_only=True)
+        sys.exit(0)
     sys.exit(main(*sys.argv[1:]))

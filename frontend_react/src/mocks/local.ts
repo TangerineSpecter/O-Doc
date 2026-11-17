@@ -1,5 +1,6 @@
 import {resolveCreatedArticle} from './createdArticles';
 import {resolveVideoNote} from './videoNotes';
+import {resolveVideoASR} from './videoAsr';
 import {resolveMemoRoute} from './memos';
 import {resolvePerformanceRoute} from './performance';
 import {localStatistics, localReadDuration} from './statistics';
@@ -38,6 +39,9 @@ export const localHandlers = [
         const createdArticle = await resolveCreatedArticle(request.clone());
         if (createdArticle instanceof Response) return createdArticle;
         if (createdArticle !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: createdArticle});
+        const asrData = await resolveVideoASR(request.clone(), state);
+        if (asrData instanceof Response) return asrData;
+        if (asrData !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: asrData});
         const videoData = await resolveVideoNote(request.clone(), state);
         if (videoData instanceof Response) return videoData;
         if (videoData !== undefined) return HttpResponse.json({code: 200, msg: '本地样例', data: videoData});
