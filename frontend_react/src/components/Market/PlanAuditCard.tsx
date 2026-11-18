@@ -6,9 +6,11 @@ import {marketMoney} from './marketPresentation';
 export function PlanAuditCard({
     noBuy,
     ticks,
+    itemNames,
 }: {
     noBuy: MarketAutomationNoBuy[];
     ticks: MarketAutomationTick[];
+    itemNames: Record<string, string>;
 }) {
     return (
         <div className="grid gap-3.5 lg:grid-cols-2">
@@ -88,7 +90,7 @@ export function PlanAuditCard({
                 {/* 列表区：内部独立平滑滚动，高度与左侧严格对齐 */}
                 <div className="mt-2 flex-1 min-h-0 space-y-1.5 overflow-y-auto scrollbar-hide pr-0.5">
                     {ticks.length ? (
-                        ticks.map((tick, index) => <PlanTickRow key={tick.scheduledAt || index} tick={tick} isLatest={index === ticks.length - 1} />)
+                        ticks.map((tick, index) => <PlanTickRow key={tick.scheduledAt || index} tick={tick} isLatest={index === ticks.length - 1} itemNames={itemNames}/>)
                     ) : (
                         <div className="flex h-full flex-col items-center justify-center text-center">
                             <Clock className="h-5 w-5 text-slate-300" />

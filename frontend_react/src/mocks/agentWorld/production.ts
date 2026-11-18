@@ -16,6 +16,9 @@ export const inventory: InventoryItem[] = [...residents.flatMap(r => cropKinds.f
     kind: 'crop', name: farmRules.crops[kind].name, quantity: 5 + i, rarity: 'normal', value: String(farmRules.crops[kind].salePrice * stars),
     source: {sku: `crop.${kind}`, stars, quality: 'normal'}, iconUrl: '',
 })))), ...fishingInventory];
+const firstCropBatch = inventory[0];
+inventory.push({...firstCropBatch, id: 'local-inventory-traded-crop', quantity: 7,
+    value: '17.50', originActorId: residents[1].id, originActorName: residents[1].name});
 export const farms: FarmState[] = residents.map((r, i) => ({id: r.id, actorName: r.name, appearance: {style: i % 3, palette: i % 3},
     avatar: '', professionName: r.professionName, balance: r.money, planting: skill, farmBonus: {professionId: r.profession!, professionName: r.professionName!, percentage: '25'},
     revision: 1, serverTime: now.toISOString(), weather: i % 2 ? 'rain' : 'sun', hour: 14, currentAction: '照料作物，等待本轮成熟',
@@ -131,4 +134,11 @@ transactions.unshift(expiredTransaction);
 sessions.unshift({id: 'local-expired-session', actorId: residents[0].id, actorName: residents[0].name,
     status: 'closed', mode: 'archive', callCount: 0, createdAt: at(9), expiresAt: at(9), endedAt: at(9),
     reason: '挂牌到期自动下架，不消耗体力', calls: [], transactions: [expiredTransaction]});
-export const marketPlans: MarketAutomationPlan[] = residents.map((r, i) => createMarketPlanPreview(r, i));
+export const marketPlans: MarketAutomationPlan[] = residents.map((resident, index) => {
+    const plan = createMarketPlanPreview(resident, index);
+    if (index !== 1) return plan;
+    return {...plan, status: 'pending', budget: '0', spent: '0', goals: [], noBuy: [],
+        summary: '巡检仍会检查可独立回收的超量，混合处置等待采购计划生效。',
+        ticks: [{scheduledAt: at(14), status: 'skipped', reason: '当日采购计划不可用，本轮无可独立回收的超量',
+            hits: {}, sessionId: ''}]};
+});

@@ -6,6 +6,7 @@ from .inventory_policy import is_current
 from .inventory_protection import projection
 from .life_time import local_time
 from .market_listing_expiry import expired_return_trade_ids
+from .market_material_disposition import MATERIAL_PREFIX
 from .market_disposition import rows_for
 
 logger = logging.getLogger(__name__)
@@ -31,8 +32,16 @@ def policy_payload(policy, context=None, *, rows=None, expired_returns=None, pro
         row['protection'] = {k: v for k, v in state.items() if k != 'free_rows'}
         row['protection']['disposable'] = state['disposable'] if current else 0
         row['protection']['blocked_listing'] = blocked
-        row['protection']['blocked_reason'] = ('尚无完整用途策略，保留库存等待复核' if not current else
-            '已确认用途需求尚有缺口' if state['missing'] else '到期返还库存暂不能再次挂牌' if blocked else '')
+        if not current:
+            reason = '尚无完整用途策略，保留库存等待复核'
+        elif state['missing']:
+            reason = '已确认用途需求尚有缺口'
+        elif blocked:
+            reason = ('到期退回的超量材料将转入回收' if policy.sku.startswith(MATERIAL_PREFIX)
+                      else '到期返还库存暂不能再次挂牌')
+        else:
+            reason = ''
+        row['protection']['blocked_reason'] = reason
     except (ValueError, KeyError, TypeError):
         if not protection_error:
             logger.exception('库存保护投影失败 actor=%s sku=%s', policy.actor_id, policy.sku)

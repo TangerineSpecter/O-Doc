@@ -8,7 +8,7 @@ from utils.response_utils import success_result, valid_result
 from .farm_gate import farm_gate
 from .life_time import local_time, storage_time
 from .market_shop import shop_payload, config_for
-from .market_plan_models import MarketDisposition, MarketGoal, MarketNoBuy, MarketPlan, MarketTick
+from .market_plan_models import MarketGoal, MarketNoBuy, MarketPlan, MarketTick, plan_id
 from .market_queries import listings, history, sessions
 from .market_sessions import cleanup
 
@@ -60,23 +60,32 @@ class MarketAutomationView(APIView):
         owner = get_current_user_identifier(request)
         actor_id = request.query_params.get('actor_id', '')
         day = local_time(timezone.now()).date()
+        midnight = datetime.combine(day, time.min)
         plans = MarketPlan.objects.filter(owner_id=owner, plan_date=day)
+        today_ticks = MarketTick.objects.filter(owner_id=owner, hour__gte=storage_time(midnight),
+                                                hour__lt=storage_time(midnight + timedelta(days=1)))
         if actor_id:
             plans = plans.filter(actor_id=actor_id)
+            today_ticks = today_ticks.filter(actor_id=actor_id)
+        actors = list(plans.order_by().values_list('actor_id', flat=True).union(
+            today_ticks.order_by().values_list('actor_id', flat=True)).order_by('actor_id')[:20])
+        plans_by_actor = {plan.actor_id: plan for plan in plans.filter(actor_id__in=actors)}
+        from system_settings.models import Agent
+        from .market_policy_queries import policies_payload
+        missing_names = dict(Agent.objects.filter(pk__in=set(actors) - plans_by_actor.keys()).values_list('pk', 'name'))
         result = []
-        for plan in plans.order_by('actor_id')[:20]:
+        for actor in actors:
+            plan = plans_by_actor.get(actor) or MarketPlan(
+                id=plan_id(owner, actor, day), actor_id=actor, actor_name=missing_names.get(actor, ''),
+                status='pending', summary='巡检仍会检查可独立回收的超量，混合处置等待采购计划生效。')
             goals = list(MarketGoal.objects.filter(plan=plan).values(
                 'id', 'kind', 'sku', 'slot', 'min_stars', 'quantity', 'filled_quantity',
-                'max_unit_price', 'status', 'reason'))
-            from .market_policy_queries import policies_payload
+                'max_unit_price', 'status', 'reason')) if actor in plans_by_actor else []
             dispositions = policies_payload(owner, plan.actor_id)
             no_buy = list(MarketNoBuy.objects.filter(
                 owner_id=owner, actor_id=plan.actor_id).values(
                 'equipment_id', 'price', 'reason', 'decided_at')[:50])
-            ticks = list(MarketTick.objects.filter(
-                owner_id=owner, actor_id=plan.actor_id,
-                hour__gte=storage_time(datetime.combine(day, time.min)),
-                hour__lt=storage_time(datetime.combine(day, time.min) + timedelta(days=1))).values(
+            ticks = list(today_ticks.filter(actor_id=actor).values(
                 'scheduled_at', 'status', 'reason', 'hits', 'session_id'))
             for row in goals + dispositions + no_buy:
                 for key in ('max_unit_price', 'list_price_ratio', 'price'):

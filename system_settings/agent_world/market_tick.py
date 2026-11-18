@@ -12,7 +12,7 @@ from .life_models import LifeConfig
 from .life_time import local_time, storage_time
 from .market_batch import build_actions, execute
 from .market_plan_models import MarketPlan, MarketTick, tick_id
-from .market_sessions import MarketResidentBusy
+from .market_sessions import COST, MarketResidentBusy
 from .life_commitments import ResourceProtected
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,8 @@ def _summary(actions: dict) -> dict:
             'goals': len(actions.get('goals', [])),
             'reprices': len(actions.get('reprices', [])),
             'withdraws': len(actions.get('withdraws', [])),
-            'equipment': len(actions.get('equipment', []))}
+            'equipment': len(actions.get('equipment', [])),
+            'stock_disposition': actions.get('stock_disposition', [])}
 
 
 def run(now=None, limit: int = 3) -> dict:
@@ -106,46 +107,34 @@ def run(now=None, limit: int = 3) -> dict:
             result['skipped'] += 1
             continue
         plan = MarketPlan.objects.filter(owner_id=tick.owner_id, actor_id=tick.actor_id,
-                                         plan_date=local_time(now).date()).first()
-        if not plan or plan.status != 'active':
-            tick.status = 'skipped'
-            tick.reason = '当日市场计划未生成或已失败'
-            tick.save(update_fields=['status', 'reason', 'updated_at'])
-            result['skipped'] += 1
-            continue
+                                         plan_date=local_time(now).date(), status='active').first()
         # Claim before any decision call so concurrent scheduler polls cannot ask twice.
         if not MarketTick.objects.filter(pk=tick.pk, status='pending').update(status='entered'):
             continue
         try:
-            # 当天种植队列出现新缺口时先补采购目标；缺口变了才写入，不重复建目标。
-            from .market_planning import refresh_queue_needs, retire_equipment_goals
-            retire_equipment_goals(plan)
-            try:
-                refresh_queue_needs(tick.owner_id, tick.actor_id, now)
-            except Exception:  # noqa: BLE001 - 补目标失败不应跳过本小时其他动作
-                logger.exception('农场队列缺口刷新失败 actor=%s', tick.actor_id)
-            plan.refresh_from_db()
-            from .market_bait_refresh import refresh_bait_needs
-            try:
-                refresh_bait_needs(tick.owner_id, agent, plan, now)
-            except Exception:  # noqa: BLE001 - 鱼饵决策故障不能阻断其他买卖
-                logger.exception('小时鱼饵补购失败 actor=%s', tick.actor_id)
-            plan.refresh_from_db()
+            if plan is not None:
+                _refresh_purchase_goals(tick, agent, plan, now)
             actions = build_actions(tick.owner_id, tick.actor_id, plan, now, agent=agent)
             from .market_equipment_candidates import equipment_candidates, equipment_summary
             from .market_equipment_shopping import decide_entry
             from .market_batch import equipment_funds
-            candidates = equipment_candidates(tick.owner_id, agent.pk)
+            candidates = equipment_candidates(tick.owner_id, agent.pk) if plan is not None else []
             actions['equipment_listings'] = [row['listing_id'] for row in candidates]
-            if not candidates and not any(actions.get(key) for key in ('dispositions', 'goals', 'reprices', 'withdraws', 'equipment')):
+            # 降价只搭已有会话，不独立触发入场。
+            planned = any(actions.get(key) for key in ('dispositions', 'goals', 'withdraws', 'equipment'))
+            if not candidates and not planned:
                 tick.status = 'skipped'
-                tick.reason = '本轮没有可执行的买卖'
+                if plan is None:
+                    tick.reason = '当日采购计划不可用，本轮无可独立回收的超量'
+                elif actions.get('reprices'):
+                    tick.reason = '本轮仅有待改价挂牌，等下次进场处理'
+                else:
+                    tick.reason = '本轮没有可执行的买卖'
                 tick.hits = {**(tick.hits or {}), **_summary(actions)}
                 tick.save(update_fields=['status', 'reason', 'hits', 'updated_at'])
                 result['skipped'] += 1
                 continue
             # 已确认的购物和处置计划不再重复询问是否进场；仅装备发现保留原判断。
-            planned = any(actions.get(key) for key in ('dispositions', 'goals', 'reprices', 'withdraws', 'equipment'))
             if deferred and not planned and (tick.hits or {}).get('entry_basis') == 'planned':
                 tick.status = 'skipped'
                 tick.reason = '等待期间计划交易机会已失效'
@@ -163,20 +152,21 @@ def run(now=None, limit: int = 3) -> dict:
                 tick.save(update_fields=['status', 'reason', 'hits', 'updated_at'])
                 result['skipped'] += 1
                 continue
-            tick.hits['stamina_cost'] = 5
             outcome = execute(tick.owner_id, agent, plan, tick, actions, now)
             tick.session_id = outcome.get('session_id', '')
+            if tick.session_id:
+                tick.hits['stamina_cost'] = COST
             tick.status = 'done' if outcome.get('ok') else 'failed'
-            tick.reason = (f"完成 {len(outcome.get('done', []))} 笔，"
+            tick.reason = outcome.get('reason') or (f"完成 {len(outcome.get('done', []))} 笔，"
                            f"跳过 {len(outcome.get('skipped', []))} 笔，"
                            f"失败 {len(outcome.get('failed', []))} 笔")
             tick.hits = {**tick.hits, 'outcome': outcome}
             tick.save(update_fields=['status', 'reason', 'hits', 'session_id', 'updated_at'])
-            if deferred:
+            if deferred and tick.session_id:
                 MarketTick.objects.filter(owner_id=tick.owner_id, actor_id=tick.actor_id,
                     hour=current_hour, status='pending').exclude(pk=tick.pk).update(
                         status='skipped', reason='已在活动结束后执行市场机会')
-            result['entered'] += 1
+            result['entered'] += bool(tick.session_id)
         except MarketResidentBusy as exc:
             tick.status = 'pending'
             tick.reason = f'{exc}，活动结束后重新检查市场'
@@ -195,3 +185,20 @@ def run(now=None, limit: int = 3) -> dict:
             tick.save(update_fields=['status', 'reason', 'updated_at'])
             result['failed'] += 1
     return result
+
+
+def _refresh_purchase_goals(tick: MarketTick, agent: Agent, plan: MarketPlan, now) -> None:
+    from .market_planning import refresh_queue_needs, retire_equipment_goals
+    from .market_bait_refresh import refresh_bait_needs
+
+    try:
+        retire_equipment_goals(plan)
+        refresh_queue_needs(tick.owner_id, tick.actor_id, now)
+    except Exception:
+        logger.exception('日采购目标刷新失败 actor=%s', tick.actor_id)
+    plan.refresh_from_db()
+    try:
+        refresh_bait_needs(tick.owner_id, agent, plan, now)
+    except Exception:
+        logger.exception('小时鱼饵补购失败 actor=%s', tick.actor_id)
+    plan.refresh_from_db()

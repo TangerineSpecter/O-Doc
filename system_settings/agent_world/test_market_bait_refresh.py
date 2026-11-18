@@ -128,7 +128,8 @@ class HourlyBaitTests(TestCase):
         self.assertEqual(self.plan.budget, 8)
 
     def test_hourly_runner_adds_goal_before_building_actions(self):
-        with patch('system_settings.agent_world.market_tick.execute', return_value={'ok': True, 'done': []}) as execute_mock:
+        with patch('system_settings.agent_world.market_tick.execute',
+                   return_value={'ok': True, 'done': [], 'session_id': 'bait-market'}) as execute_mock:
             result = run(self.now, limit=5)
         self.assertEqual(result['entered'], 1)
         actions = execute_mock.call_args.args[4]

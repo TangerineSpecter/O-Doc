@@ -1,7 +1,9 @@
 import {hasItemStars} from '../../utils/itemQuality';
 import {farmItemIcon} from '../Farm/assets';
-import type {CSSProperties} from 'react';
+import {useState, type CSSProperties} from 'react';
 import {
+    ChevronLeft,
+    ChevronRight,
     X,
     Coins,
     Package,
@@ -13,11 +15,16 @@ import {
     ShieldCheck,
     Tag,
 } from 'lucide-react';
-import type {InventoryItem} from '../../types/api/travel';
 import {inventoryRarities} from './inventoryRarities';
 import {InventoryItemIcon} from './InventoryItemIcon';
+import type {InventoryStack} from './inventoryStacks';
 
-export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onClose: () => void}) {
+export function InventoryItemDetails({stack, onClose}: {stack: InventoryStack; onClose: () => void}) {
+    const [selectedBatch, setSelectedBatch] = useState(0);
+    const batchCount = stack.batches.length;
+    const batchIndex = Math.min(selectedBatch, batchCount - 1);
+    const item = stack.batches[batchIndex];
+    const moveBatch = (step: number) => setSelectedBatch((batchIndex + step + batchCount) % batchCount);
     const isDish = Boolean(item.source.sku?.startsWith('dish.'));
     const isCombat = Boolean(item.source.sku?.startsWith('combat.'));
     const isElixir = Boolean(item.source.sku?.startsWith('elixir.'));
@@ -94,6 +101,12 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 </div>
             </div>
 
+            {batchCount > 1 && <div className="inventory-item-batches" role="group" aria-label="库存批次">
+                <button type="button" onClick={() => moveBatch(-1)} aria-label="上一批"><ChevronLeft size={14}/></button>
+                <span>批次 {batchIndex + 1} / {batchCount}</span>
+                <button type="button" onClick={() => moveBatch(1)} aria-label="下一批"><ChevronRight size={14}/></button>
+            </div>}
+
             {/* 公会参考估价券 */}
             <div className="inventory-item-valuation-card">
                 <div className="relic-val-label-group">
@@ -127,11 +140,11 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="relic-dossier-row">
                     <dt className="relic-dossier-key">
                         <Package size={12} />
-                        <span>持有数量</span>
+                        <span>{batchCount > 1 ? '本批 / 合计' : '持有数量'}</span>
                     </dt>
                     <span className="relic-dossier-line" aria-hidden="true" />
                     <dd className="relic-dossier-value relic-dossier-pill-val">
-                        {item.quantity} 件
+                        {batchCount > 1 ? `${item.quantity} / ${stack.quantity}` : item.quantity} 件
                     </dd>
                 </div>
 

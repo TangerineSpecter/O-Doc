@@ -18,10 +18,11 @@ from .market_models import MarketSession, MarketListing, MarketTransaction, Mark
 from .market_sessions import check_mcp
 from .market_shop import current_batch
 from .market_inventory import split_item, split_escrow, deliver
+from . import market_material_disposition as materials
 
 
 def quantity(value):
-    if type(value) is not int or not 1 <= value <= 1000000:
+    if type(value) is not int or not 1 <= value <= materials.TRADE_LIMIT:
         raise ValueError('数量必须为 1 至 1000000 的整数')
     return value
 
@@ -97,7 +98,9 @@ def withdraw_listing(listing, agent, key):
 
 @guarded
 @transaction.atomic
-def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None, *, protect_goals=False, retention_sku=None, retention_revision=None) -> dict:
+def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None, *,
+          protect_goals=False, retention_sku=None, retention_revision=None,
+          material_recovery_only: bool | None = None) -> dict:
     if not isinstance(operation,dict) or not isinstance(operation.get('kind'),str):raise ValueError('交易操作格式无效')
     check_mcp()
     at = now or timezone.now()
@@ -115,7 +118,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
     retention_free = None
     if retention_sku is not None:
         from .inventory_policy import RetentionChanged
-        from .market_disposition import surplus_plan
+        from .market_disposition import rows_for, surplus_plan
         live = surplus_plan(owner, agent.pk, retention_sku)
         count = quantity(operation.get('quantity'))
         if not live or live['revision'] != retention_revision or count > live['surplus']:
@@ -131,7 +134,19 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             from .market_listing_expiry import expired_return_trade_ids
             if expired_return_trade_ids(owner, agent.pk, [item]):
                 raise RetentionChanged('到期返还库存不能直接重复挂牌')
+            if retention_sku.startswith(materials.MATERIAL_PREFIX):
+                room = materials.listing_room(owner, agent.pk, at, sku=retention_sku)
+                if count > room.get(retention_sku, materials.LISTING_LIMIT):
+                    raise RetentionChanged('该材料的在售数量已达上限')
         retention_free = live['free_rows']
+        if kind == 'sell_combat_material' and material_recovery_only is not None:
+            room = None if material_recovery_only else materials.listing_room(
+                owner, agent.pk, at, sku=retention_sku).get(retention_sku, materials.LISTING_LIMIT)
+            eligible, _, _ = materials.plan(owner, agent.pk, rows_for(owner, agent.pk, retention_sku),
+                                             live, room, sale_limit=count)
+            if count > sum(eligible.values()):
+                raise RetentionChanged('材料可回收数量已变化，留待重新预检')
+            retention_free = eligible
     result = {'kind': kind}
     deltas = []
     if kind == 'list_combat_equipment':
@@ -225,7 +240,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         count = quantity(operation.get('quantity'))
         if kind == 'sell' and not item.source.get('sku','').startswith(('crop.','product.','dish.','fish.')):
             raise ValueError('商店仅回收农作物、畜产品、美食及鱼类')
-        if item.source.get('sku', '').startswith('combat.material.'):
+        if retention_free is None and item.source.get('sku', '').startswith(materials.MATERIAL_PREFIX):
             from .crafting_materials import available_pool
             free = {row['inventory_id']: row['quantity'] for row in available_pool(
                 owner, agent.pk, protect_goals=protect_goals)}

@@ -54,6 +54,11 @@ createRoot(document.getElementById('root')!).render(<BrowserRouter><MarketDialog
                 expect(page.get_by_text('部分失败', exact=True).first).to_be_visible()
                 page.get_by_text('查看 1 笔失败操作', exact=True).first.click()
                 expect(page.get_by_text('库存价格批次不一致，未提交本笔交易', exact=True).first).to_be_visible()
+                stock_details = page.get_by_text('查看库存处置明细', exact=True).first
+                stock_details.click()
+                expect(page.get_by_text('拟回收 545 件 · 拟挂牌 0 件', exact=True).first).to_be_visible()
+                expect(page.get_by_text('已回收 4 件 · 已挂牌 0 件', exact=True).first).to_be_visible()
+                expect(page.get_by_text('到期退回无法自动重挂 8 件', exact=True).first).to_be_visible()
                 page.screenshot(path=str(output / f'failures-{width}.png'))
                 button = page.get_by_role('button', name=re.compile('全屏|放大|展开.*看板'))
                 if button.count():
@@ -64,6 +69,14 @@ createRoot(document.getElementById('root')!).render(<BrowserRouter><MarketDialog
                     page.screenshot(path=str(output / f'details-{width}.png'))
                     page.keyboard.press('Escape')
                     page.wait_for_timeout(350)
+                pending = page.locator('section').filter(
+                    has=page.get_by_role('heading', name='林芽', exact=True)).filter(
+                    has=page.get_by_text('采购计划未生成', exact=True)).last
+                expect(pending.get_by_text('巡检仍会检查可独立回收的超量，混合处置等待采购计划生效。', exact=True)).to_be_visible()
+                expect(pending.get_by_text('当日采购计划不可用，本轮无可独立回收的超量', exact=False)).to_be_visible()
+                pending.get_by_role('button', name=re.compile('全屏')).click()
+                expect(page.get_by_role('dialog').last.get_by_text('采购计划未生成', exact=True)).to_be_visible()
+                page.keyboard.press('Escape')
                 assert not page.evaluate('document.documentElement.scrollWidth > innerWidth'), width
                 go('empty')
                 expect(page.get_by_text('今天还没有市场规划', exact=True)).to_be_visible()

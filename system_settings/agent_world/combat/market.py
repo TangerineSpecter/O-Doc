@@ -29,9 +29,11 @@ def transact(owner,agent,key,operation,change_money,at,*,protect_goals=False,ret
     if kind=='sell_combat_material':
         row=catalog.row('materials',operation.get('material_id'))
         from ..crafting_materials import available_pool
-        from ..alchemy_materials import allocate, consume
-        pool = available_pool(owner, agent.pk, protect_goals=protect_goals)
-        if retention_free_rows is not None:
+        from ..alchemy_materials import allocate, consume, material_pool
+        if retention_free_rows is None:
+            pool = available_pool(owner, agent.pk, protect_goals=protect_goals)
+        else:
+            pool = material_pool(agent.pk, owner)
             for item in pool:
                 item['quantity'] = min(item['quantity'], retention_free_rows.get(item['inventory_id'], 0))
         materials = allocate(pool, [{'sku': 'combat.' + row['id'], 'quantity': count}])

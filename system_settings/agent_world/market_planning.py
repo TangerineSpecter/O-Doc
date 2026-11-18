@@ -526,9 +526,6 @@ def ensure_plan(owner: str, actor_id: str, now=None) -> MarketPlan | None:
                               'equipment_signature': facts['signature'],
                               'needs_signature': needs_signature(facts['needs']),
                               'fallback': fallback}, now)
-        # 待复核策略重新入队，由标记 worker 补问。
-        from .market_disposition_worker import enqueue_review
-        enqueue_review(owner, actor_id)
     except Exception as exc:  # noqa: BLE001 - 日规划失败不能阻断生活日程
         logger.exception('每日市场规划失败 owner=%s actor=%s', owner, actor_id)
         plan.refresh_from_db()
@@ -537,4 +534,10 @@ def ensure_plan(owner: str, actor_id: str, now=None) -> MarketPlan | None:
         plan.budget = Decimal('0')
         plan.spent = Decimal('0')
         plan.save(update_fields=['status', 'summary', 'budget', 'spent', 'updated_at'])
+    else:
+        from .market_disposition_worker import enqueue_review
+        try:
+            enqueue_review(owner, actor_id)
+        except Exception:
+            logger.exception('库存复核入队失败，由维护轮询重试 actor=%s', actor_id)
     return plan

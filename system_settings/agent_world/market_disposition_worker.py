@@ -7,15 +7,19 @@ import logging
 import time
 from datetime import timedelta
 
+from django.db.models import Count, Sum
 from django.utils import timezone
 
 from system_settings.decision.routing import choose_scene
 from system_settings.models import Agent
 
+from .inventory_policy import is_current
 from .market_disposition import (aggregate, can_list, can_shop_sell,
                                  reserved_quantity)
 from .market_plan_models import MarketDisposition, MarketDispositionTask
 from .market_models import MarketListing
+from .market_expiry_index import visible_listings
+from .market_policy_queries import policy_payload
 
 QUESTION_LIMIT = 20
 RUN_SECONDS = 60
@@ -88,10 +92,17 @@ def _state(owner: str, actor_id: str, sku: str) -> dict:
     entry = next((row for row in aggregate(owner, actor_id) if row['sku'] == sku), None)
     total = entry['quantity'] if entry else 0
     reserved = min(total, reserved_quantity(owner, actor_id, sku))
-    listings = MarketListing.objects.filter(owner_id=owner, status='active',
-                                            item__source__sku=sku)
-    prices = [str(row.unit_price) for row in listings[:20]]
+    listings = visible_listings(owner, MarketListing.objects.filter(
+        owner_id=owner, seller_id=actor_id, status='active', remaining_quantity__gt=0,
+        item__source__sku=sku), timezone.now())
+    listing_summary = listings.aggregate(count=Count('pk'), quantity=Sum('remaining_quantity', default=0))
+    prices = [str(price) for price in listings.order_by('unit_price', 'id').values_list('unit_price', flat=True)[:20]]
     disposition = MarketDisposition.objects.filter(owner_id=owner, actor_id=actor_id, sku=sku).first()
+    protection = None
+    if is_current(disposition):
+        projection = policy_payload(disposition)['protection']
+        if projection['protected'] is not None:
+            protection = {key: projection[key] for key in ('protected', 'disposable', 'blocked_listing')}
     forge_goals = []
     if sku.startswith('combat.material.'):
         from .blacksmith_goals import summary as forge_summary
@@ -107,11 +118,12 @@ def _state(owner: str, actor_id: str, sku: str) -> dict:
         'value': str(entry['value']) if entry else '0',
         'stars': {str(k): v for k, v in (entry['stars'].items() if entry else [])},
         'channels': [name for name, allowed in (('sell', can_shop_sell(sku)), ('list', can_list(sku))) if allowed],
-        'own_active_listings': {'count': listings.count(), 'prices': prices},
+        'own_active_listings': {**listing_summary, 'prices': prices},
         'current_policy': ({'target_hold': disposition.target_hold,
                             'sell_ratio': disposition.sell_ratio,
                             'list_ratio': disposition.list_ratio,
                             'star_order': disposition.star_order, 'strategy': disposition.strategy} if disposition else None),
+        'current_policy_stock': protection,
         'forge_goals': forge_goals,
     }
 
@@ -196,7 +208,6 @@ def enqueue_review(owner: str, actor_id: str) -> int:
     """Daily review covers all stock and live commitments, not just fallback policies."""
     from .inventory_protection import commitments
     from .market_disposition import enqueue, disposable
-    from .inventory_policy import is_current
     from .life_time import local_time
     day = local_time(timezone.now()).date().isoformat()
     skus = {entry['sku'] for entry in aggregate(owner, actor_id)}

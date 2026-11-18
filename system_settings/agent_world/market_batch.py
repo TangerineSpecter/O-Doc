@@ -19,7 +19,8 @@ from .life_models import LifeItem
 from .life_schedule import OPEN
 from .life_time import storage_time
 
-from .market_disposition import select_rows, surplus_plan
+from .market_disposition import rows_for, select_rows, surplus_plan
+from . import market_material_disposition as materials
 from .market_models import MarketListing, MarketTransaction
 from .market_plan_models import MarketGoal, MarketPlan
 from .market_plan_candidates import craftable_after_purchase, crafting_input_domain
@@ -46,19 +47,8 @@ def _unit_price(operation: dict) -> Decimal:
 
 
 def _sell_operation(owner: str, actor_id: str, sku: str, quantity: int, star_order: str, *, context=None) -> list[dict]:
-    operations = []
-    if sku.startswith('combat.material.'):
-        from .combat.store import current
-        from .combat.models import CombatProfile
-        profile = CombatProfile.objects.filter(pk=actor_id, owner_id=owner).first()
-        # 材料目录 ID 形如 material.moss_cave.1，库存 sku 只是多了 combat. 前缀。
-        material_id = sku[len('combat.'):]
-        catalog = current(profile.catalog_id if profile else None)
-        catalog.row('materials', material_id)
-        return [{'kind': 'sell_combat_material', 'material_id': material_id, 'quantity': quantity}]
-    for row, take in select_rows(owner, actor_id, sku, quantity, star_order, context=context):
-        operations.append({'kind': 'sell', 'item_id': row.pk, 'quantity': take})
-    return operations
+    return [{'kind': 'sell', 'item_id': row.pk, 'quantity': take}
+            for row, take in select_rows(owner, actor_id, sku, quantity, star_order, context=context)]
 
 
 def _list_operations(owner: str, actor_id: str, sku: str, quantity: int, star_order: str,
@@ -203,7 +193,7 @@ def equipment_funds(owner: str, actor_id: str, plan: MarketPlan) -> Decimal:
     return max(Decimal(0), balance - reserved - max(Decimal(0), plan.budget - plan.spent))
 
 
-def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) -> dict:
+def execute(owner: str, agent, plan: MarketPlan | None, tick, actions: dict, now=None) -> dict:
     """actions: {'dispositions':[...], 'goals':[...], 'reprices':[...], 'equipment':[...]}"""
     from .life_config import task_for
     task = task_for(owner, agent, 'market')
@@ -212,7 +202,8 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
     now = now or timezone.now()
     session = enter(owner, agent, f'batch:{tick.pk}'[:64], task=task, mode='batch', now=now,
                     clear_fish=True)
-    result = {'ok': True, 'session_id': session.pk, 'done': [], 'skipped': [], 'failed': []}
+    result = {'ok': True, 'session_id': session.pk, 'done': [], 'skipped': [], 'failed': [],
+              'stock_settled': []}
     fish_sale = getattr(session, 'fish_sale', None)
     if fish_sale and fish_sale['sold']:
         result['fish_sale'] = fish_sale
@@ -226,11 +217,17 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
             except Exception as exc:  # noqa: BLE001
                 result['failed'].append({'operation': operation, 'reason': str(exc)[:300]})
         for row in actions.get('dispositions', []):
+            settled = {'sku': row['sku'], 'sold': 0, 'listed': 0}
+            result['stock_settled'].append(settled)
             for operation in row.get('operations', []):
                 key = _key(tick.pk, operation)
                 try:
-                    trade(session, agent, key, operation, now, protect_goals=True,
-                          retention_sku=row['sku'], retention_revision=row['revision'])
+                    material_options = ({'material_recovery_only': plan is None}
+                                        if operation['kind'] == 'sell_combat_material' else {})
+                    receipt = trade(session, agent, key, operation, now, protect_goals=True,
+                                    retention_sku=row['sku'], retention_revision=row['revision'], **material_options)
+                    field = 'listed' if operation['kind'] == 'list' else 'sold'
+                    settled[field] += receipt['quantity']
                     result['done'].append(operation)
                 except RetentionChanged as exc:
                     result['skipped'].append({'operation': operation, 'reason': str(exc)[:300]})
@@ -273,31 +270,59 @@ def execute(owner: str, agent, plan: MarketPlan, tick, actions: dict, now=None) 
     return result
 
 
-def build_actions(owner: str, agent_id: str, plan: MarketPlan, now=None, agent=None) -> dict:
+def _stock_actions(owner: str, actor_id: str, sku: str, state: dict, context: dict,
+                   room: int | None, allow_listing: bool) -> tuple[list[dict], dict]:
+    if sku.startswith(materials.MATERIAL_PREFIX):
+        sale, listing, expired = materials.plan(owner, actor_id, rows_for(owner, actor_id, sku), state, room)
+        sold = sum(sale.values())
+        operations = ([{'kind': 'sell_combat_material', 'material_id': sku.removeprefix('combat.'),
+                        'quantity': sold}] if sold else [])
+        operations.extend({'kind': 'list', 'item_id': identity, 'quantity': count,
+                           'unit_price': str(state['unit_price'])} for identity, count in listing.items())
+        listed, blocked = sum(listing.values()), 0
+    else:
+        sold = state['sell'] if allow_listing or state['sell_ratio'] == 100 else 0
+        expired = 0
+        operations = (_sell_operation(owner, actor_id, sku, sold, state['star_order'], context=context)
+                      if sold else [])
+        listings = (_list_operations(owner, actor_id, sku, state['list'], state['star_order'],
+                                     state['unit_price'], skip=sold, context=context)
+                    if allow_listing and state['list'] else [])
+        operations.extend(listings)
+        listed = sum(row['quantity'] for row in listings)
+        blocked = state['list'] - listed if allow_listing else 0
+    return operations, {'sku': sku, 'sell': sold, 'list': listed,
+                        'expired_return': expired, 'blocked_listing': blocked}
+
+
+def build_actions(owner: str, agent_id: str, plan: MarketPlan | None, now=None, agent=None) -> dict:
     """根据策略与目标生成可执行动作；不做模型调用。"""
     now = now or timezone.now()
     from .market_preparation_equipment import pending_actions
-    actions = {'dispositions': [], 'goals': [], 'reprices': [], 'withdraws': [],
-               'equipment': pending_actions(owner, agent_id)}
+    actions = {'dispositions': [], 'goals': [], 'reprices': [], 'withdraws': [], 'stock_disposition': [],
+               'equipment': pending_actions(owner, agent_id) if plan is not None else []}
     from .market_plan_models import MarketDisposition
     from .inventory_protection import read_context
     protection_context = read_context(owner, agent_id)
-    for disposition in MarketDisposition.objects.filter(owner_id=owner, actor_id=agent_id, status='active'):
+    policies = list(MarketDisposition.objects.filter(owner_id=owner, actor_id=agent_id, status='active'))
+    listing_rooms = (materials.listing_room(owner, agent_id, now) if plan is not None and
+                     any(policy.sku.startswith(materials.MATERIAL_PREFIX) for policy in policies) else {})
+    for disposition in policies:
         # 鱼在进场时统一回收，不再按处置策略生成出售或上架动作。
         if disposition.sku.startswith('fish.'):
             continue
         state = surplus_plan(owner, agent_id, disposition.sku, context=protection_context)
-        if not state:
+        if not state or not state['surplus']:
             continue
-        operations = []
-        if state['sell'] > 0:
-            operations.extend(_sell_operation(owner, agent_id, disposition.sku, state['sell'], state['star_order'], context=protection_context))
-        if state['list'] > 0:
-            operations.extend(_list_operations(owner, agent_id, disposition.sku, state['list'],
-                                               state['star_order'], state['unit_price'], skip=state['sell'], context=protection_context))
+        room = listing_rooms.get(disposition.sku, materials.LISTING_LIMIT) if plan is not None else None
+        operations, counts = _stock_actions(owner, agent_id, disposition.sku, state, protection_context,
+                                            room, plan is not None)
+        if operations or counts['blocked_listing']:
+            actions['stock_disposition'].append(counts)
         if operations:
-            actions['dispositions'].append({'sku': disposition.sku, 'operations': operations,
-                                             'sell': state['sell'], 'list': state['list'], 'revision': state['revision']})
+            actions['dispositions'].append({**counts, 'operations': operations, 'revision': state['revision']})
+    if plan is None:
+        return actions
     # 仅在本轮只读预检中复用；下一轮重新读取库存和计划预留。
     crafting_facts = {}
     for goal in plan.goals.filter(status='open'):

@@ -146,6 +146,79 @@ class RetentionIntegrationTests(TestCase):
         from .combat.models import CombatFact
         self.assertEqual(CombatFact.objects.filter(actor_id=self.agent.pk, kind='trade').count(), 1)
 
+    def test_material_recovery_prioritizes_expiry_and_limits_visible_listings(self):
+        from datetime import timedelta
+        from system_settings.models import SystemSetting, WorldAction
+        from . import market_batch
+        from .inventory_policy import RetentionChanged
+        from .inventory_stock import add_stock
+        from .market_disposition_worker import _state
+        from .market_models import MarketListing, MarketSession, MarketTransaction
+        from .market_plan_models import MarketPlan
+        from .market_service import trade
+        from .travel_models import AgentInventoryItem
+
+        owner = 'retention-test'
+        now = timezone.now()
+        SystemSetting.objects.create(key='system_mcp_config', value={'enabled': True})
+        policy = self.policy(sell_ratio=50, list_ratio=50)
+        session = MarketSession.objects.create(pk='material-session', owner_id=owner, actor_id=self.agent.pk,
+                                               actor_name=self.agent.name, expires_at=now + timedelta(minutes=5))
+        MarketTransaction.objects.create(pk='returned-material', owner_id=owner, actor_id=self.agent.pk,
+                                         actor_name=self.agent.name, session=session,
+                                         operation={'kind': 'withdraw', 'reason': 'listing_expired'})
+        fresh = add_stock(self.agent.pk, owner, self.agent.name, self.sku, 32, '孢子', 'combat_material', '14')
+        returned = AgentInventoryItem.objects.create(pk='return', owner_id=owner, actor_id=self.agent.pk,
+            name='孢子', kind='combat_material', quantity=100, value=14, created_at=now + timedelta(seconds=1),
+            source={'sku': self.sku, 'market_trade_id': 'returned-material'})
+        for key, seller, amount, age in (('live', self.agent.pk, 3, 0), ('expired', self.agent.pk, 50, 3),
+                                         ('other', 'other-resident', 40, 0)):
+            MarketListing.objects.create(pk=key, owner_id=owner, seller_id=seller, seller_name='居民',
+                item={'source': {'sku': self.sku}}, initial_quantity=amount, remaining_quantity=amount,
+                unit_price=14, created_at=now - timedelta(days=age))
+
+        self.assertEqual(_state(owner, self.agent.pk, self.sku)['own_active_listings'],
+                         {'count': 1, 'quantity': 3, 'prices': ['14.00']})
+        recovery_only = market_batch.build_actions(owner, self.agent.pk, None, now)
+        self.assertEqual(recovery_only['stock_disposition'], [
+            {'sku': self.sku, 'sell': 100, 'list': 0, 'expired_return': 100, 'blocked_listing': 0},
+        ])
+        plan = MarketPlan.objects.create(pk='material-plan', owner_id=owner, actor_id=self.agent.pk,
+                                         plan_date=local_time(now).date())
+        actions = market_batch.build_actions(owner, self.agent.pk, plan, now)
+        self.assertEqual(actions['stock_disposition'], [
+            {'sku': self.sku, 'sell': 110, 'list': 2, 'expired_return': 100, 'blocked_listing': 0},
+        ])
+        sale, listing = actions['dispositions'][0]['operations']
+        with patch('system_settings.agent_world.market_service.check_session'), self.assertRaises(RetentionChanged):
+            trade(session, self.agent, 'mixed-material-sale-without-plan', sale, now, retention_sku=self.sku,
+                  retention_revision=policy.revision, material_recovery_only=True)
+        reservation = WorldAction.objects.create(pk='new-frozen-material', actor_id=self.agent.pk,
+            snapshot={'owner_id': owner, 'alchemy': True, 'plan': [{'recipe_id': 'regen',
+                'rule': {'materials': [{'inventory_id': returned.pk, 'sku': self.sku, 'quantity': 30}]}}]})
+        with patch('system_settings.agent_world.market_service.check_session'), self.assertRaises(RetentionChanged):
+            trade(session, self.agent, 'stale-material-sale', sale, now, retention_sku=self.sku,
+                  retention_revision=policy.revision, material_recovery_only=False)
+        reservation.status = 'success'
+        reservation.save(update_fields=['status'])
+        concurrent = MarketListing.objects.create(pk='new-live', owner_id=owner, seller_id=self.agent.pk,
+            seller_name=self.agent.name, item={'source': {'sku': self.sku}}, initial_quantity=2,
+            remaining_quantity=2, unit_price=14, created_at=now)
+        with patch('system_settings.agent_world.market_service.check_session'), self.assertRaises(RetentionChanged):
+            trade(session, self.agent, 'stale-material-list', listing, now,
+                  retention_sku=self.sku, retention_revision=policy.revision)
+        concurrent.delete()
+        with patch.object(market_batch, 'enter', return_value=session), patch.object(market_batch, 'close_session'), \
+             patch('system_settings.agent_world.market_service.check_session'), \
+             patch('system_settings.agent_world.life_config.task_for', return_value=SimpleNamespace(pk='market')):
+            result = market_batch.execute(owner, self.agent, plan, SimpleNamespace(pk='material-tick'), actions, now)
+        self.assertEqual(result['failed'], [])
+        self.assertEqual(result['skipped'], [])
+        self.assertEqual(result['stock_settled'], [{'sku': self.sku, 'sold': 110, 'listed': 2}])
+        self.assertFalse(AgentInventoryItem.objects.filter(pk=returned.pk).exists())
+        fresh.refresh_from_db()
+        self.assertEqual(fresh.quantity, 20)
+
     def test_running_plan_protects_exact_stock_and_tops_up_target(self):
         from system_settings.models import WorldAction
         from .inventory_stock import add_stock
@@ -245,6 +318,43 @@ class RetentionIntegrationTests(TestCase):
             run(owner='retention-test')
         policy.refresh_from_db()
         self.assertEqual(policy.strategy['reviewed_date'], local_time(timezone.now()).date().isoformat())
+
+    def test_daily_review_sees_expired_returns_after_protecting_stock(self):
+        from datetime import timedelta
+        from .inventory_stock import add_stock, stock_quantity
+        from .market_disposition import enqueue
+        from .market_disposition_worker import run
+        from .market_models import MarketSession, MarketTransaction
+
+        owner = 'retention-test'
+        previous_day = local_time(timezone.now()).date() - timedelta(days=1)
+        policy = self.policy(strategy={**strategy(), 'reviewed_date': previous_day.isoformat()},
+                             sell_ratio=0, list_ratio=100)
+        session = MarketSession.objects.create(pk='expired-session', owner_id=owner, actor_id=self.agent.pk,
+                                               actor_name=self.agent.name, expires_at=timezone.now())
+        MarketTransaction.objects.create(pk='expired-trade', owner_id=owner, actor_id=self.agent.pk, session=session,
+                                         actor_name=self.agent.name,
+                                         operation={'kind': 'withdraw', 'reason': 'listing_expired'})
+        row = add_stock(self.agent.pk, owner, self.agent.name, self.sku, 100, '孢子', 'combat_material', '14', 'stock')
+        row.source = {**row.source, 'market_trade_id': 'expired-trade'}
+        row.save(update_fields=['source'])
+        enqueue(owner, self.agent.pk, self.sku, 0)
+
+        def choose(_owner, _agent, _scene, state, choices, *, question_id, instructions, **_):
+            question = question_id.rsplit(':', 1)[-1]
+            if question in ('review', 'channel'):
+                self.assertEqual(state['current_policy_stock'], {
+                    'protected': 20, 'disposable': 80, 'blocked_listing': 80,
+                })
+                self.assertIn('无法自动重挂', instructions)
+                return 'change' if question == 'review' else 'sell'
+            return '20' if '20' in choices else next(iter(choices))
+
+        with patch('system_settings.agent_world.market_disposition_worker.choose_scene', side_effect=choose):
+            run(owner=owner)
+        policy.refresh_from_db()
+        self.assertEqual((policy.sell_ratio, policy.list_ratio), (100, 0))
+        self.assertEqual(stock_quantity(self.agent.pk, owner, self.sku), 100)
 
     def test_api_projection_includes_unreviewed_inventory_without_writing_policy(self):
         from .inventory_stock import add_stock

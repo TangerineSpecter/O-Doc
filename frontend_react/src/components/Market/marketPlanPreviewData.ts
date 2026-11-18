@@ -64,8 +64,19 @@ export function createMarketPlanPreview(actor?: {id: string; name: string}, vari
             {equipmentId: 'preview-equipment-05', price: '109.00', reason: '同位置已有更高属性装备', decidedAt: '2026-10-21T13:31:00+08:00'},
         ],
         ticks: [
-            {scheduledAt: '2026-10-26T17:17:00+08:00', status: 'done', reason: '完成1笔，失败1笔', hits: {outcome: {failed: [{operation: {kind: 'sell_combat_material', materialId: 'material.moss_cave.1', quantity: 545}, reason: '库存价格批次不一致，未提交本笔交易'}]}, equipmentCandidates: [{type: 'mage_staff', name: '法杖', count: 2}], entryChoice: 'enter'}, sessionId: 'preview-equipment-session'},
-            {scheduledAt: '2026-10-26T18:48:00+08:00', status: 'skipped', reason: '本轮没有可执行的买卖', hits: {equipmentCandidates: []}, sessionId: ''},
+            {scheduledAt: '2026-10-26T17:17:00+08:00', status: 'done', reason: '完成1笔，失败1笔', hits: {
+                stockDisposition: [
+                    {sku: 'combat.material.moss_cave.1', sell: 545, list: 0, expiredReturn: 500, blockedListing: 0},
+                    {sku: 'crop.sunflower', sell: 4, list: 0, expiredReturn: 0, blockedListing: 8},
+                ],
+                outcome: {
+                    stockSettled: [{sku: 'crop.sunflower', sold: 4, listed: 0}],
+                    failed: [{operation: {kind: 'sell_combat_material', materialId: 'material.moss_cave.1', quantity: 545},
+                        reason: '库存价格批次不一致，未提交本笔交易'}],
+                },
+                equipmentCandidates: [{type: 'mage_staff', name: '法杖', count: 2}], entryChoice: 'enter',
+            }, sessionId: 'preview-equipment-session'},
+            {scheduledAt: '2026-10-26T18:48:00+08:00', status: 'skipped', reason: '本轮仅有待改价挂牌，等下次进场处理', hits: {equipmentCandidates: []}, sessionId: ''},
             {scheduledAt: '2026-10-21T21:39:00+08:00', status: 'skipped', reason: '本机自动执行已关闭', hits: {}, sessionId: ''},
             {scheduledAt: '2026-10-21T22:15:00+08:00', status: 'skipped', reason: '本机自动执行已关闭', hits: {}, sessionId: ''},
         ],

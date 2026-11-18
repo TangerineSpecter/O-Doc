@@ -42,7 +42,7 @@ function PlanCard({
             </div>
 
             {/* 决策风控与整点巡检 */}
-            <PlanAuditCard noBuy={plan.noBuy || []} ticks={plan.ticks || []} />
+            <PlanAuditCard noBuy={plan.noBuy || []} ticks={plan.ticks || []} itemNames={itemNames}/>
         </section>
     );
 }

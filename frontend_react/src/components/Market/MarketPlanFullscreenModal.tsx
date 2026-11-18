@@ -210,7 +210,7 @@ export function MarketPlanFullscreenModal({
 
                         <div className="mt-3.5 space-y-2">
                             {ticks.length ? (
-                                ticks.map((tick, index) => <PlanTickRow key={tick.scheduledAt || index} tick={tick} isLatest={index === ticks.length - 1} variant="full" />)
+                                ticks.map((tick, index) => <PlanTickRow key={tick.scheduledAt || index} tick={tick} isLatest={index === ticks.length - 1} itemNames={itemNames} variant="full"/>)
                             ) : (
                                 <p className="py-6 text-center text-xs text-slate-400">
                                     尚未生成整点巡检记录

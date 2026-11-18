@@ -34,7 +34,7 @@ export function PlanDispositionItem({row, itemNames, variant = 'compact'}: Props
         {strategy ? <div className="mt-2 space-y-1 text-[11px] text-slate-600">
             <p>目标 {Object.entries(strategy.targets).map(([purpose, n]) => `${purposeLabels[purpose as InventoryPurpose]} ${n} 件`).join(' · ')}</p>
             {!row.sku.startsWith('combat.material.') && <p>保留{strategy.retainOrder === 'high' ? '高' : '低'}星优先 · 超量{row.starOrder === 'high' ? '高' : '低'}星优先</p>}
-            <p>超量出售 {row.sellRatio}% · 挂牌 {row.listRatio}%{row.listRatio > 0 ? ` · 基准价 × ${row.listPriceRatio}` : ''}</p>
+            <p>{row.sku.startsWith('combat.material.') ? '常规超量' : '超量'}出售 {row.sellRatio}% · 挂牌 {row.listRatio}%{row.listRatio > 0 ? ` · 基准价 × ${row.listPriceRatio}` : ''}</p>
         </div> : <p className="mt-2 text-[11px] text-slate-500">旧标记等待制定用途目标，期间保留库存。</p>}
         {(state?.blockedReason || row.reason && pending) && <p role="note" className="mt-2 break-words rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">
             {state?.blockedReason || row.reason}{state?.blockedListing ? `（${state.blockedListing} 件）` : ''}

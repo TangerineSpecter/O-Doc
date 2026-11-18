@@ -1,12 +1,14 @@
-import {marketTickIssues} from './marketTickDetails';
+import {marketTickIssues, marketTickStock} from './marketTickDetails';
 import {PlanTickFailures} from './PlanTickFailures';
+import {PlanTickStock} from './PlanTickStock';
 import type {MarketAutomationTick} from '../../types/api/market';
 import {marketTickStatusLabels} from './marketPresentation';
 
-type Props = {tick: MarketAutomationTick; isLatest: boolean; variant?: 'compact' | 'full'};
+type Props = {tick: MarketAutomationTick; isLatest: boolean; itemNames: Record<string, string>; variant?: 'compact' | 'full'};
 
-export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
+export function PlanTickRow({tick, isLatest, itemNames, variant = 'compact'}: Props) {
     const issues = marketTickIssues(tick);
+    const stock = marketTickStock(tick);
     const partial = tick.status === 'done' && issues.length > 0;
     const isDone = tick.status === 'done' && !partial;
     const isFailed = tick.status === 'failed' || partial;
@@ -64,6 +66,7 @@ export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
                 </span>
             )}
             <PlanTickFailures issues={issues}/>
+            <PlanTickStock rows={stock} itemNames={itemNames}/>
         </div>
     );
     return (
@@ -119,6 +122,7 @@ export function PlanTickRow({tick, isLatest, variant = 'compact'}: Props) {
                 </span>
             )}
             <PlanTickFailures issues={issues}/>
+            <PlanTickStock rows={stock} itemNames={itemNames}/>
         </div>
     );
 }

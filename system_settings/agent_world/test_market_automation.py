@@ -176,10 +176,14 @@ class MarketAutomationTests(TestCase):
         self.assertTrue(inventory_items(self.a.pk, 'admin').exists())
 
     def test_combat_material_sale_uses_catalog_id(self):
-        add_stock(self.a.pk, 'admin', 'A', 'combat.material.moss_cave.1', 3, '黏液',
+        sku = 'combat.material.moss_cave.1'
+        add_stock(self.a.pk, 'admin', 'A', sku, 3, '黏液',
                   'combat_material', '1.04', 'loot', stars=1)
-        operations = market_batch._sell_operation(
-            'admin', self.a.pk, 'combat.material.moss_cave.1', 2, 'low')
+        MarketDisposition.objects.create(owner_id='admin', actor_id=self.a.pk, sku=sku,
+            strategy={'version': 1, 'targets': {'alchemy': 1}, 'retain_order': 'low',
+                      'reviewed_date': local_time(self.now).date().isoformat()},
+            sell_ratio=100, list_ratio=0)
+        operations = market_batch.build_actions('admin', self.a.pk, None, self.now)['dispositions'][0]['operations']
         self.assertEqual(operations, [{'kind': 'sell_combat_material',
                                        'material_id': 'material.moss_cave.1',
                                        'quantity': 2}])
@@ -741,6 +745,84 @@ class MarketAutomationTests(TestCase):
         tick.refresh_from_db()
         self.assertEqual(tick.status, 'skipped')
         self.assertIn('没有可执行', tick.reason)
+
+    def test_tick_can_recover_without_a_purchase_plan_and_remains_visible(self):
+        from rest_framework.test import APIRequestFactory, force_authenticate
+        from .life_models import LifeConfig
+        from .market_views import MarketAutomationView
+
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        self.stock()
+        MarketDisposition.objects.create(owner_id='admin', actor_id=self.a.pk, sku='dish.stew',
+            strategy={'version': 1, 'targets': {'self_use': 2},
+                      'retain_order': 'high', 'reviewed_date': self.now.date().isoformat()},
+            sell_ratio=100, list_ratio=0)
+        tick = self.tick(None)
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.life_commitments.require_energy'), \
+             patch('system_settings.agent_world.market_sessions.stamina', return_value=100):
+            self.assertEqual(run_ticks(timezone.now())['entered'], 1)
+        tick.refresh_from_db()
+        self.assertEqual(tick.hits['outcome']['stock_settled'], [{'sku': 'dish.stew', 'sold': 8, 'listed': 0}])
+        self.assertFalse(MarketPlan.objects.exists())
+        request = APIRequestFactory().get('/api/settings/agent-world/market/automation/')
+        force_authenticate(request, user=self.user)
+        response = MarketAutomationView.as_view()(request)
+        plan = response.data['data']['plans'][0]
+        self.assertEqual((plan['actor_id'], plan['status'], plan['ticks'][0]['status']), (self.a.pk, 'pending', 'done'))
+
+    def test_repricing_alone_does_not_trigger_entry(self):
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        tick = self.tick(self.plan())
+        MarketListing.objects.create(pk='discount', owner_id='admin', seller_id=self.a.pk, seller_name='A',
+            item={'name': '炖菜', 'value': '10', 'source': {'sku': 'dish.stew'}},
+            initial_quantity=2, remaining_quantity=2, unit_price=12, created_at=self.now - timedelta(hours=25))
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), patch.object(market_batch, 'enter') as enter:
+            self.assertEqual(run_ticks(timezone.now())['skipped'], 1)
+            enter.assert_not_called()
+        tick.refresh_from_db()
+        self.assertEqual(tick.hits['reprices'], 1)
+        self.assertIn('仅有待改价', tick.reason)
+
+    def test_failed_purchase_plan_defers_mixed_inventory_each_hour(self):
+        from .life_models import LifeConfig
+        self.now = storage_time(local_time(self.now).replace(hour=10, minute=0, second=0, microsecond=0))
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        self.stock(quantity=100)
+        MarketDisposition.objects.create(owner_id='admin', actor_id=self.a.pk, sku='dish.stew',
+            strategy={'version': 1, 'targets': {'self_use': 0}, 'retain_order': 'high',
+                      'reviewed_date': local_time(self.now).date().isoformat()},
+            sell_ratio=50, list_ratio=50)
+        plan = self.plan()
+        plan.status = 'failed'
+        plan.save(update_fields=['status'])
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), patch.object(market_batch, 'enter') as enter:
+            for offset in range(2):
+                hour = self.now + timedelta(hours=offset)
+                MarketTick.objects.create(pk=f'mixed-{offset}', owner_id='admin', actor_id=self.a.pk,
+                                          hour=hour, scheduled_at=hour)
+                self.assertEqual(run_ticks(hour)['skipped'], 1)
+            enter.assert_not_called()
+        self.assertEqual(inventory_items(self.a.pk, 'admin').get().quantity, 100)
+        self.assertEqual(MarketTransaction.objects.count(), 0)
+        plan.status = 'active'
+        plan.save(update_fields=['status'])
+        actions = market_batch.build_actions('admin', self.a.pk, plan, self.now + timedelta(hours=2))
+        self.assertEqual([(row['sell'], row['list']) for row in actions['dispositions']], [(50, 50)])
+
+    def test_tick_preserves_missing_market_task_reason_without_charge(self):
+        from .life_models import LifeConfig
+        LifeConfig.objects.create(pk='admin', migrated=True, settings={'market_automation_v2': True})
+        plan = self.plan()
+        self.purchase_actions(plan)
+        tick = self.tick(plan)
+        with patch('system_settings.agent_world.market_tick.ensure_ticks'), \
+             patch('system_settings.agent_world.life_config.task_for', return_value=None):
+            self.assertEqual(run_ticks(timezone.now())['entered'], 0)
+        tick.refresh_from_db()
+        self.assertEqual(tick.reason, '没有可用的市场任务')
+        self.assertNotIn('stamina_cost', tick.hits)
 
     def test_batch_executor_orders_actions_and_keeps_partial_failures(self):
         plan = self.plan()

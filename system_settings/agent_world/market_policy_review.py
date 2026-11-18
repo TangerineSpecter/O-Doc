@@ -34,6 +34,7 @@ def decide(owner, agent, task, budget, state, ask):
     from .market_policy_facts import facts
     from .market_disposition_worker import ModelUnavailable
     from .market_disposition import can_shop_sell
+    from .market_material_disposition import LISTING_LIMIT, MATERIAL_PREFIX
     from .market_shop import config_for
     day = local_time(timezone.now()).date()
     with farm_gate(), transaction.atomic():
@@ -62,8 +63,21 @@ def decide(owner, agent, task, budget, state, ask):
         return ask(owner, agent, progress, budget, key, state, choices, instruction)
 
     try:
+        return_note = ''
+        if task.sku.startswith(MATERIAL_PREFIX):
+            return_note = (
+                ' current_policy_stock.blocked_listing 表示超量材料中到期退回的件数，'
+                '无法自动重挂，系统按回收价处理。'
+                f' 策略比例用于其余可处置库存，每个居民每种材料最多自动补挂到 {LISTING_LIMIT} 件，'
+                '挂不下的超量也按回收价处理。'
+            )
+        elif (state.get('current_policy_stock') or {}).get('blocked_listing'):
+            return_note = (
+                ' current_policy_stock.blocked_listing 是现行用途保护之外、到期退回而无法自动重挂的件数。'
+                '如果物品支持回收，可选择回收或分配部分回收来处理这些退回件。'
+            )
         keep = is_current(current) and choose('review', {'keep': '沿用完整策略', 'change': '重新制定策略'},
-                                               '复核今天的用途保留目标与超量处理策略。') == 'keep'
+                                               '复核今天的用途保留目标与超量处理策略。' + return_note) == 'keep'
         if keep:
             strategy = {**current.strategy, 'reviewed_date': day.isoformat()}
             sell, listed, order, price = current.sell_ratio, current.list_ratio, current.star_order, str(current.list_price_ratio)
@@ -82,7 +96,7 @@ def decide(owner, agent, task, budget, state, ask):
             channels = {'list': '超量全部挂牌'}
             if can_shop_sell(task.sku):
                 channels = {'sell': '超量全部出售', **channels, 'split': '超量分别出售和挂牌'}
-            channel = choose('channel', channels, '即使现在没有超量，也要决定今后超量的处理渠道。')
+            channel = choose('channel', channels, '即使现在没有超量，也要决定今后超量的处理渠道。' + return_note)
             sell = (int(choose('ratio', {'25': '出售25%，挂牌75%', '50': '各一半', '75': '出售75%，挂牌25%'},
                                '分配超量数量，合计100%。')) if channel == 'split' else 100 if channel == 'sell' else 0)
             listed = 100 - sell

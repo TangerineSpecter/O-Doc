@@ -9,6 +9,16 @@ const statusConfig: Record<string, {label: string; badgeClass: string; dotClass:
         badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
         dotClass: 'bg-emerald-500 animate-pulse',
     },
+    pending: {
+        label: '采购计划未生成',
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/80',
+        dotClass: 'bg-amber-500',
+    },
+    planning: {
+        label: '正在生成采购计划',
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/80',
+        dotClass: 'bg-amber-500',
+    },
     failed: {
         label: '规划失败',
         badgeClass: 'bg-red-50 text-red-700 border-red-200/80',
@@ -41,6 +51,8 @@ export function PlanResidentHeader({
     const spent = Number(plan.spent || 0);
     const remaining = Math.max(0, budget - spent);
     const ratio = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+    const pending = plan.status === 'pending';
+    const summary = plan.summary || (pending ? '巡检仍会检查可独立回收的超量，混合处置等待采购计划生效。' : '');
     const currentStatus = statusConfig[plan.status] || {
         label: '状态未知',
         badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -128,12 +140,12 @@ export function PlanResidentHeader({
             </div>
 
             {/* 经营方针便签 */}
-            {plan.summary && (
+            {summary && (
                 <div className="flex items-start gap-2 rounded-xl border border-amber-200/70 bg-gradient-to-r from-amber-50/80 via-orange-50/40 to-amber-50/20 px-3 py-2 text-xs text-amber-900/90 shadow-2xs">
                     <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
                     <div className="min-w-0">
-                        <span className="font-bold mr-1 text-amber-800">今日经营方针:</span>
-                        <span className="leading-relaxed">{plan.summary}</span>
+                        <span className="font-bold mr-1 text-amber-800">{pending ? '巡检说明' : '今日经营方针'}</span>
+                        <span className="leading-relaxed">{summary}</span>
                     </div>
                 </div>
             )}

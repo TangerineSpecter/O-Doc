@@ -8,7 +8,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from .inventory_stock import inventory_items
+from .inventory_stock import inventory_items, stock_rows
 from .market_plan_models import (MarketDisposition, MarketDispositionTask,
                                  disposition_task_id)
 
@@ -61,8 +61,7 @@ def enqueue(owner: str, actor_id: str, sku: str, quantity: int = 1, *,
 
 
 def rows_for(owner: str, actor_id: str, sku: str):
-    return [row for row in inventory_items(actor_id, owner)
-            if (row.source or {}).get('sku') == sku]
+    return list(stock_rows(actor_id, owner, sku))
 
 
 def aggregate(owner: str, actor_id: str) -> list[dict]:
@@ -118,6 +117,7 @@ def surplus_plan(owner: str, actor_id: str, sku: str, *, context=None) -> dict |
             'target_hold': sum(disposition.strategy['targets'].values()), 'surplus': surplus,
             'sell': sell, 'list': surplus - sell, 'keep': state['total'] - surplus,
             'revision': disposition.revision, 'star_order': disposition.star_order,
+            'sell_ratio': disposition.sell_ratio,
             'unit_price': listing_price(disposition, sku, owner, actor_id)}
 
 
