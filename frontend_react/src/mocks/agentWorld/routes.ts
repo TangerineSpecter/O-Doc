@@ -4,6 +4,7 @@ import {projectArticleList} from '../articleProjection';
 import {reservationItems} from './reservations';
 import {bardProfiles,bardSnapshot,bardParty} from './bardSamples';
 import type {AgentTaskConfig} from '../../types/api/setting';
+import type {InvestmentResident} from '../../types/api/investment';
 import type {LotteryConfig} from '../../types/api/lottery';
 import {blacksmithActivities, blacksmithFacts, blacksmithLifeItems, resolveBlacksmithRoute, runMockBlacksmith} from './blacksmith';
 import {observationRoute, observationRequests, observationMetrics, observationFacts, addBlacksmithObservation} from './tokenUsage';
@@ -287,8 +288,15 @@ export async function resolveLocalRoute(request: Request): Promise<unknown> {
     if (path === `${base}/lottery/rounds/`) return page([lotteryRound, previousRound], url);
     if (path.includes('/lottery/rounds/')) return path.endsWith('/tickets/') ? page(tickets, url) : {...lottery, config: (resource.get(`${base}/lottery/config/`) as LotteryConfig | undefined) ?? lottery.config, round: path.includes(previousRound.id) ? previousRound : lotteryRound};
     if (path.startsWith(`${base}/investment/`)) {
-        if (path.endsWith('/accounts/')) return list(residents.map(r => ({id: r.id, name: r.name, positionCount: 2})));
-        if (path.endsWith('/overview/')) return {...investmentOverview(actor(url)), ...(emptyScenario() ? {positions: page([], url), positionCount: 0, marketValue: '0', unrealizedProfit: '0'} : {})};
+        if (path.endsWith('/accounts/')) return list(residents.map<InvestmentResident>(r => ({id: r.id, name: r.name, positionCount: 2})));
+        if (path.endsWith('/overview/')) {
+            const scenario = new URLSearchParams(location.search).get('mockState');
+            if (scenario === 'investment-slow') await new Promise(resolve => setTimeout(resolve, 1500));
+            if (scenario === 'investment-error') {
+                return Response.json({code: 503, msg: '投资账户暂不可用，请刷新重试', data: null}, {status: 503});
+            }
+            return {...investmentOverview(actor(url)), ...(emptyScenario() ? {positions: page([], url), positionCount: 0, marketValue: '0', unrealizedProfit: '0'} : {})};
+        }
         if (path.endsWith('/positions/')) return page(positions, url);
         if (path.endsWith('/trades/')) return page(trades, url);
         if (path.endsWith('/decisions/')) return page(investmentDecisions, url);

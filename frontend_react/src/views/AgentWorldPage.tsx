@@ -1,5 +1,5 @@
 import WorldDialogSuspense from '../components/AgentWorld/WorldDialogSuspense';
-import {lazy, useCallback, useEffect, useState} from 'react';
+import {lazy, useCallback, useEffect, useRef, useState} from 'react';
 import WorldOrbitLoader from '../components/AgentWorld/WorldOrbitLoader';
 import {Activity, ArrowLeft, BarChart3, Bot, BookOpenText, CalendarDays, ClipboardList, Fish, MessageCircle, MessagesSquare, Settings, Sprout, Store, TrendingUp, Ticket, Trophy} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
@@ -15,6 +15,7 @@ import {useAgentWorld} from '../hooks/useAgentWorld';
 import {useSocialTheatreLatest} from '../hooks/useSocialTheatreLatest';
 import type {WorldCatalogSection} from '../components/AgentWorld/WorldCatalogDialog';
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
+import type {InvestmentSnapshot} from '../hooks/useInvestment';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
 const AgentManagementDialog = lazy(() => import('../components/AgentWorld/AgentManagementDialog'));
@@ -64,6 +65,7 @@ export default function AgentWorldPage() {
     const [investmentOpen, setInvestmentOpen] = useState(false);
     const [feedViewKey, setFeedViewKey] = useState(0);
     const [investmentActorId, setInvestmentActorId] = useState('');
+    const investmentCache = useRef<InvestmentSnapshot | null>(null);
     const closeInvestment = useCallback(() => {
         setInvestmentOpen(false);
         setInvestmentActorId('');
@@ -363,7 +365,7 @@ export default function AgentWorldPage() {
                 />
             ) : null}
             {usageOpen && <WorldDialogSuspense title="用量统计" onClose={closeUsage} size="extra-wide" fallback={<WorldOrbitLoader title="正在打开用量统计"/>}><TokenUsageDialog onClose={closeUsage}/></WorldDialogSuspense>}
-            {investmentOpen && <WorldDialogSuspense title="股票投资" onClose={closeInvestment} size="extra-wide" fallback={<WorldOrbitLoader title="正在打开投资账户" subtitle="读取模拟盘行情 · 同步持仓与盈亏"/>}><InvestmentDialog onClose={closeInvestment} initialActorId={investmentActorId}/></WorldDialogSuspense>}
+            {investmentOpen && <WorldDialogSuspense title="股票投资" onClose={closeInvestment} size="extra-wide" fallback={<WorldOrbitLoader title="正在打开投资账户" subtitle="读取持仓与盈亏"/>}><InvestmentDialog onClose={closeInvestment} initialActorId={investmentActorId} cache={investmentCache}/></WorldDialogSuspense>}
             {travelArchiveId && <WorldDialogSuspense title="旅行详情" onClose={closeTravel} manageFocus={false} fallback={<WorldOrbitLoader title="正在调取旅行档案" subtitle="还原行程图层 · 加载旅途见闻与照片"/>}><TravelJourneyDialog key={travelArchiveId} journeyId={travelArchiveId} onClose={closeTravel} onChanged={() => setFeedRefreshToken(value => value + 1)}/></WorldDialogSuspense>}
             {marketOpen && <WorldDialogSuspense title="世界市场 · 集市大厅" onClose={closeMarket} size="wide" fallback={<WorldOrbitLoader title="正在连接世界市场" subtitle="检索集市货架 · 实时计算商品供需物价"/>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></WorldDialogSuspense>}
             {farmOpen && <WorldDialogSuspense title="像素农场" onClose={closeFarm} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></WorldDialogSuspense>}

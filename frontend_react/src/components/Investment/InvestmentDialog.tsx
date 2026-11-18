@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useState, type RefObject} from 'react';
 import {
     BarChart2,
     Coins,
@@ -9,7 +9,7 @@ import {
     Wallet,
     Brain,
 } from 'lucide-react';
-import {useInvestment} from '../../hooks/useInvestment';
+import {useInvestment, type InvestmentSnapshot} from '../../hooks/useInvestment';
 import type {InvestmentTab} from '../../types/api/investment';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {Select} from '../common/Select';
@@ -27,11 +27,13 @@ const tabs: Array<{value: InvestmentTab; label: string; icon: React.ElementType}
 export default function InvestmentDialog({
     onClose,
     initialActorId,
+    cache,
 }: {
     onClose: () => void;
     initialActorId?: string;
+    cache: RefObject<InvestmentSnapshot | null>;
 }) {
-    const investment = useInvestment(initialActorId);
+    const investment = useInvestment(cache, initialActorId);
     const [detail, setDetail] = useState<string | null>(null);
     const [showRule, setShowRule] = useState(false);
 
@@ -262,7 +264,7 @@ export default function InvestmentDialog({
                                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
                                 <span className="mt-2">正在加载投资账户…</span>
                             </div>
-                        ) : !current?.items.length ? (
+                        ) : !current && investment.error ? null : !current?.items.length ? (
                             <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-center text-xs text-slate-400">
                                 {!investment.residents.length
                                     ? '请先在任务配置中为居民开启「A 股投资」'

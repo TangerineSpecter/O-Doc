@@ -43,6 +43,11 @@ def overview(owner, actor):
     account = InvestmentAccount.objects.filter(pk=actor,owner_id=owner).first()
     if not account:
         raise ValueError('当前账号没有该居民的投资账户，请先配置投资任务')
+    return account_overview(account)
+
+
+def account_overview(account):
+    owner, actor = account.owner_id, account.pk
     rows = positions(account)
     agent = Agent.objects.filter(pk=actor).first()
     realized = sum((Decimal(str(profit)) for profit in InvestmentTrade.objects.filter(actor_id=actor,owner_id=owner).values_list('result__realized_profit',flat=True)),Decimal(0))

@@ -88,18 +88,34 @@ class InvestmentAccountListTests(SimpleTestCase):
     def test_account_list_reports_current_position_count(self):
         client = APIClient()
         client.force_authenticate(User(username='admin', is_superuser=True))
-        account = SimpleNamespace(pk='resident', actor_name='小橘', positions={})
         with patch('system_settings.agent_world.investment_views.get_current_user_identifier', return_value='admin'), \
-             patch('system_settings.agent_world.investment_views.InvestmentAccount.objects.filter') as accounts:
-            accounts.return_value.order_by.return_value = [account]
+             patch('system_settings.agent_world.investment_views.InvestmentAccount.objects.filter') as accounts, \
+             patch('system_settings.agent_world.investment_views.farm_gate') as gate:
+            projection = accounts.return_value.order_by.return_value.values_list
             for holdings, expected in (({}, 0), ({'000001': {'quantity': 10}}, 1),
                                        ({'000001': {'quantity': 10}, '600011': {'quantity': 400}}, 2), ({}, 0)):
-                account.positions = holdings
+                projection.return_value = [('resident', '小橘', holdings)]
                 response = client.get('/api/settings/agent-world/investment/accounts/')
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.data['data'], [{'id': 'resident', 'name': '小橘', 'position_count': expected}])
                 self.assertEqual(response.json()['data'][0]['positionCount'], expected)
+                self.assertIn('lock_wait;dur=0.00, query;dur=', response['Server-Timing'])
                 accounts.assert_called_with(owner_id='admin')
+            gate.assert_not_called()
+
+    def test_overview_times_locked_read_and_reuses_owned_account(self):
+        client = APIClient()
+        client.force_authenticate(User(username='admin', is_superuser=True))
+        with patch('system_settings.agent_world.investment_views.get_current_user_identifier', return_value='admin'), \
+             patch('system_settings.agent_world.investment_views.InvestmentAccount.objects.filter') as accounts, \
+             patch('system_settings.agent_world.investment_views.farm_gate') as gate, \
+             patch('system_settings.agent_world.investment_views.account_overview', return_value={'actor_id': 'resident'}) as overview:
+            response = client.get('/api/settings/agent-world/investment/overview/', {'actor_id': 'resident'})
+            self.assertEqual(response.json()['data'], {'actorId': 'resident'})
+            self.assertRegex(response['Server-Timing'], r'^lock_wait;dur=[\d.]+, query;dur=[\d.]+, total;dur=[\d.]+$')
+            accounts.assert_called_once_with(pk='resident', owner_id='admin')
+            gate.return_value.__enter__.assert_called_once()
+            overview.assert_called_once_with(accounts.return_value.first.return_value)
 
 
 class InvestmentTests(TestCase):
