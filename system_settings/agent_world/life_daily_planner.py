@@ -1,6 +1,6 @@
 """Select a resident's whole day in one text request, then prepare domain plans."""
 import copy
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
@@ -15,6 +15,7 @@ from .life_models import LifeItem
 from .life_schedule import revise
 from .life_sequential_planner import prepare_targets
 from .life_time import local_time, storage_time
+from .lottery_service import LotteryPurchaseUnavailable
 
 INSTRUCTION = (
     '请一起安排目标日期所有slots中的日程，结合性格、兴趣、目标、当前资源和实际成果，'
@@ -60,7 +61,7 @@ def saved_choice(item) -> dict | None:
     return None
 
 
-def checkpoint(items: list, plans: list[dict], versions: dict) -> None:
+def checkpoint(items: list, plans: list[dict], versions: dict, *, lottery_block: str = '') -> None:
     from system_settings.agent_availability import require_active_agent
     with farm_gate(), transaction.atomic():
         rows = {row.pk: row for row in LifeItem.objects.select_for_update().filter(pk__in=versions)}
@@ -75,57 +76,83 @@ def checkpoint(items: list, plans: list[dict], versions: dict) -> None:
                 raise ValueError('日程在规划期间发生变化，请重新规划')
         for source, plan in zip(items, plans):
             row = rows[source.pk]
-            revise(row, '已确认整日活动意向，继续准备领域方案', context={**row.context, 'daily_choice': {
-                'time': local_time(row.scheduled_at).isoformat(), 'plan': plan}})
+            context = {**row.context, 'daily_choice': {'time': local_time(row.scheduled_at).isoformat(), 'plan': plan}}
+            if lottery_block:
+                for key in ('lottery_target', 'lottery_attempts', 'planning_retry_at'):
+                    context.pop(key, None)
+                revise(row, f'系统说明：{lottery_block}，已重新安排本时段', context=context, attempts=0, result={})
+            else:
+                revise(row, '已确认整日活动意向，继续准备领域方案', context=context)
             source.refresh_from_db()
 
 
-def select_day(config, agent, items: list, ask) -> None:
-    missing = [item for item in items if saved_choice(item) is None]
+def _limit_lottery_slots(context: dict, items: list, cash: Decimal) -> None:
+    if 'lottery' not in context:
+        return
+    if lottery := context['lottery']:
+        from .lottery_decision import target_round
+        saved_slots = sum(1 for item in items if not item.context.get('lottery_plan')
+                          and (choice := saved_choice(item)) and choice['activity'] == 'lottery'
+                          and target_round(item, choice) == lottery['round_id'])
+        capacity = min(lottery['limit'] - lottery['held'] - lottery['pending'], int(cash // Decimal(lottery['price'])))
+        if capacity > saved_slots:
+            lottery.update(maximum_purchase_slots=capacity - saved_slots, saved_purchase_slots=saved_slots)
+            return
+    for slot in context['slots']:
+        slot['allowed_activities'] = [kind for kind in slot['allowed_activities'] if kind != 'lottery']
+    context['activities'] = [row for row in context['activities'] if row['kind'] != 'lottery']
+    for field in ('requirements', 'activity_energy'):
+        context[field].pop('lottery', None)
+    context.pop('lottery')
+
+
+def select_day(config, agent, items: list, ask, *, lottery_block: str = '') -> None:
+    missing = items if lottery_block else [item for item in items if saved_choice(item) is None]
     if not missing:
         return
     agent.refresh_from_db()
     cash = available_cash(config.pk, agent.pk, exclude_ids=[i.pk for i in missing])
     saved_travel = sum((Decimal(choice['travel_plan']['budget'])
                         for item in items if (choice := saved_choice(item)) and choice.get('travel_plan')), Decimal(0))
+    cash = max(Decimal(0), cash - saved_travel)
     from .life_config import tasks_for
     from .life_models import LifeProfile
     from .travel_config import bound_skill
     from .life_scope import allowed
     travel_enabled = any(task.enabled and task.task_kind == 'travel' and allowed(task, agent.pk) for task in tasks_for(config.pk))
     preferences = LifeProfile.objects.filter(pk=agent.pk, owner_id=config.pk).values_list('preferences', 'direction').first() or ('', '')
-    quotes = prepare(config.pk, agent, max(Decimal(0), cash - saved_travel), '\n'.join(preferences)) if (
+    quotes = prepare(config.pk, agent, cash, '\n'.join(preferences)) if (
         travel_enabled and bound_skill(agent, 'odoc_travel_journal')) else {'candidates': []}
-    context = build(config.pk, agent, missing, quotes)
+    context = build(config.pk, agent, missing, quotes, include_lottery=not lottery_block)
     for candidate in quotes.get('candidates', []):
         candidate['required_budget'] = selected_plan(quotes, candidate['id'])['budget']
     if quotes.get('candidates') and 'travel' in context:
         context['travel']['candidates'] = quotes['candidates']
     from .combat.reservation_planning import intent_context
-    exploration_offer = intent_context(config, agent, local_time(missing[0].scheduled_at).date())
+    exploration_offer = None if lottery_block else intent_context(config, agent, local_time(missing[0].scheduled_at).date())
     context['exploration_offer'] = exploration_offer
     context['daily_planning'] = True
-    context['travel_budget_ceiling'] = str(max(Decimal(0), cash - saved_travel))
+    context['travel_budget_ceiling'] = str(cash)
+    _limit_lottery_slots(context, items, cash)
     versions = {item.pk: item.updated_at.isoformat() for item in missing}
     if any(slot['allowed_activities'] for slot in context['slots']) or (exploration_offer and exploration_offer['dungeons']):
-        result = ask(agent, INSTRUCTION, context, include_profile=False, include_memory=False)
-        from .life_output_validation import validate_life_output
-        validate_life_output(result, INSTRUCTION, context)
+        result = _ask_for_activities(agent, context, ask, lottery_block)
         indexed = {row['id']: row for row in result['plans']}
     else:
-        indexed = {item.pk: {'id': item.pk, 'activity': 'rest', 'reason': '系统检查后没有可执行活动'} for item in missing}
+        reason = (f'系统说明：{lottery_block}，本时段没有其他可执行活动' if lottery_block
+                  else '系统检查后没有可执行活动')
+        indexed = {item.pk: {'id': item.pk, 'activity': 'rest', 'reason': reason} for item in missing}
     plans = []
     for item in missing:
         choice = indexed[item.pk]
         plan = {key: choice[key] for key in ('id', 'activity', 'reason')}
         plan['offered_activities'] = next(slot['allowed_activities'] for slot in context['slots'] if slot['id'] == item.pk)
         if plan['activity'] == 'lottery':
-            from .lottery_service import current_round
-            plan['lottery_round_id'] = current_round(config.pk).pk
+            plan['lottery_round_id'] = context['lottery']['round_id']
         if plan['activity'] == 'travel':
             plan['travel_plan'] = selected_plan(quotes, choice['destination_id'])
         plans.append(plan)
-    checkpoint(missing, plans, versions)
+    checkpoint(missing, plans, versions, lottery_block=lottery_block)
     if exploration_offer is not None:
         from .combat.reservation_planning import save_intent
         intention = result.get('exploration_intent') if 'result' in locals() else None
@@ -135,7 +162,30 @@ def select_day(config, agent, items: list, ask) -> None:
             save_intent(config, agent, local_time(missing[0].scheduled_at).date(), intention, exploration_offer['dungeons'])
 
 
-def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
+def _ask_for_activities(agent, context: dict, ask, lottery_block: str) -> dict:
+    from system_settings.agent_availability import AgentUnavailableError
+    from system_settings.decision.routing import MODEL_ERRORS
+    from .life_output_validation import validate_life_output
+    instruction = INSTRUCTION
+    if lottery_block:
+        instruction += '\n购票已不可用。只为所给时段重新选择一个当前合法活动或休息。'
+    elif context.get('lottery'):
+        instruction += ('\nlottery.maximum_purchase_slots是这次最多能新增的大乐透时段数。'
+                        '每个新增时段和saved_purchase_slots中的每个已确认时段至少需要一张票的额度及票款。'
+                        '旅行和购票共用可用资金，扣除选中的旅行预算后仍须付得起这些票。')
+    try:
+        result = ask(agent, instruction, context, include_profile=False, include_memory=False)
+        return validate_life_output(result, instruction, context)
+    except AgentUnavailableError:
+        raise
+    except MODEL_ERRORS + (ValueError,):
+        if not lottery_block:
+            raise
+        return {'plans': [{'id': context['slots'][0]['id'], 'activity': 'rest',
+                           'reason': f'系统说明：{lottery_block}，未能选出其他安排，本时段休息'}]}
+
+
+def prepare_detail(config, agent, item, choice: dict, budget_state, *, leave_tickets: int = 0) -> dict:
     from .life_config import tasks_for
     from .life_choices import choose
     from .cooking_schedule_plan import planning_facts, decide_plan, recipe_options
@@ -145,9 +195,13 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
         return plan
     task = next((task for task in tasks_for(config.pk) if task.enabled and task.task_kind == activity), None)
     if not task:
+        if activity == 'lottery':
+            raise LotteryPurchaseUnavailable('大乐透任务当前不可用')
         raise ValueError('已选活动当前不可用，请重新规划')
-    reason = task_reason(config.pk, agent, task, local_time(item.scheduled_at))
+    reason = task_reason(config.pk, agent, task, local_time(item.scheduled_at), item_id=item.pk)
     if reason:
+        if activity == 'lottery':
+            raise LotteryPurchaseUnavailable(reason)
         from .publish_schedule import quota_skip
         if activity == 'post_publish' and quota_skip(reason):
             return {**plan, 'activity': 'rest', 'reason': '系统说明：' + reason + '，本时段不发帖'}
@@ -157,7 +211,7 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
         from .lottery_decision import prepare
         from .lottery_models import LotteryRound
         from .lottery_rules import price
-        plan['lottery_plan'] = prepare(item, agent)
+        plan['lottery_plan'] = prepare(item, agent, leave_tickets=leave_tickets)
         lottery_round = LotteryRound.objects.get(pk=plan['lottery_plan']['round_id'])
         plan['budget'] = str(price(lottery_round.rules) * plan['lottery_plan']['quantity'])
     elif activity == 'travel':
@@ -207,6 +261,53 @@ def prepare_detail(config, agent, item, choice: dict, budget_state) -> dict:
     return plan
 
 
+def _prepare_day(config, agent, daily: list, budget_state, apply, ask) -> list[dict]:
+    from .lottery_decision import LotteryDecisionUnavailable, defer, target_round
+    # Hold selected travel budgets first. Leave room for later purchase intentions of the same round.
+    ordered = sorted(daily, key=lambda row: (saved_choice(row)['activity'] != 'travel', row.scheduled_at, row.pk))
+    targets = {item.pk: target_round(item, choice) for item in ordered
+               if (choice := saved_choice(item))['activity'] == 'lottery'}
+    later = Counter(targets.values())
+    selected, blocked = [], []
+    for item in ordered:
+        item.refresh_from_db()
+        choice = saved_choice(item)
+        if choice is None or item.status not in ('pending', 'deferred'):
+            raise ValueError('日程已变化，请重新规划')
+        if item.pk in targets:
+            later[targets[item.pk]] -= 1
+        version = item.updated_at
+        try:
+            if choice['activity'] == 'lottery':
+                target = target_round(item, choice)
+                plan = prepare_detail(config, agent, item, choice, budget_state, leave_tickets=later[target])
+                version = item.updated_at  # Quantity preparation pins the target round.
+            else:
+                plan = prepare_detail(config, agent, item, choice, budget_state)
+            _apply_detail(config, agent, item, plan, version, budget_state, apply)
+        except LotteryDecisionUnavailable as exc:
+            defer(item, exc)
+            continue
+        except LotteryPurchaseUnavailable as exc:
+            blocked.append((item, str(exc)))
+            continue
+        selected.append(plan)
+    for item, reason in blocked:
+        select_day(config, agent, [item], ask, lottery_block=reason)
+        version = item.updated_at
+        plan = prepare_detail(config, agent, item, saved_choice(item), budget_state)
+        _apply_detail(config, agent, item, plan, version, budget_state, apply)
+        selected.append(plan)
+    return selected
+
+
+def _apply_detail(config, agent, item, plan: dict, version, budget_state, apply) -> None:
+    apply(config.pk, agent, [item], {'plans': [plan], '_automatic_rest': plan['activity'] == 'rest',
+                                   '_expected_versions': {item.pk: version.isoformat()}})
+    if option := plan.pop('_budget_option', None):
+        budget_state.accept(option)
+
+
 def plan_days(config, agent, items: list, *, apply, ask, ask_detail) -> list[dict]:
     from .life_activities import main_items, is_interleaved
     if any(is_interleaved(item) or item.owner_id != config.pk or item.actor_id != agent.pk or item.activity == 'market_prepare' for item in items):
@@ -234,24 +335,5 @@ def plan_days(config, agent, items: list, *, apply, ask, ask_detail) -> list[dic
         from .life_budget_choices import BudgetChoices
         agent.refresh_from_db()
         budget_state = BudgetChoices(agent.money)
-        # Reserve selected trips first so later investment budgets cannot spend their money.
-        for item in sorted(daily, key=lambda row: (saved_choice(row)['activity'] != 'travel', row.scheduled_at, row.pk)):
-            item.refresh_from_db()
-            choice = saved_choice(item)
-            if choice is None or item.status not in ('pending', 'deferred'):
-                raise ValueError('日程已变化，请重新规划')
-            version = item.updated_at.isoformat()
-            from .lottery_decision import LotteryDecisionUnavailable, defer
-            try:
-                plan = prepare_detail(config, agent, item, choice, budget_state)
-            except LotteryDecisionUnavailable as exc:
-                defer(item, exc)
-                continue
-            if choice['activity'] == 'lottery':
-                version = item.updated_at.isoformat()
-            apply(config.pk, agent, [item], {'plans': [plan], '_automatic_rest': plan['activity'] == 'rest',
-                                           '_expected_versions': {item.pk: version}})
-            if option := plan.pop('_budget_option', None):
-                budget_state.accept(option)
-            selected.append(plan)
+        selected.extend(_prepare_day(config, agent, daily, budget_state, apply, ask))
     return selected

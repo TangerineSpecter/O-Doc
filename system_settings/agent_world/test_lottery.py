@@ -537,6 +537,118 @@ class LotteryTests(TestCase):
         self.assertEqual(ask.call_count, 1)
         item.refresh_from_db(); self.assertEqual(item.context['lottery_plan']['quantity'], 1)
 
+    def unplanned(self, key, hours):
+        at = NOW + timedelta(hours=hours)
+        return LifeItem.objects.create(pk=key, owner_id='admin', actor_id=self.agent.pk,
+                                       activity='unplanned', original_at=at, scheduled_at=at)
+
+    def test_day_limits_cash_and_leaves_one_ticket_for_each_accepted_slot(self):
+        from .life_planner import plan_items
+        Agent.objects.filter(pk=self.agent.pk).update(money=150)
+        slots = [self.unplanned(f'lottery-{hours}', hours) for hours in range(1, 5)]
+
+        def daily(agent, instruction, context, **kwargs):
+            self.assertEqual(context['lottery']['maximum_purchase_slots'], 3)
+            return {'plans': [{'id': row.pk, 'activity': 'lottery', 'reason': '试试手气'} for row in reversed(slots)]}
+
+        with patch('system_settings.agent_world.lottery_decision.enabled', return_value=True), \
+             patch('system_settings.agent_world.lottery_decision.choose_scene', return_value='1') as choose, \
+             patch('system_settings.agent_world.life_planner.ask', side_effect=daily) as ask:
+            plan_items(LifeConfig.objects.get(pk='admin'), self.agent, slots)
+        ask.assert_called_once()
+        self.assertEqual([call.args[4] for call in choose.call_args_list], [{'1': 1}] * 3)
+        for item in slots:
+            item.refresh_from_db()
+            self.assertEqual(item.attempts, 0)
+        self.assertEqual([(item.activity, item.budget) for item in slots],
+                         [('lottery', 50), ('lottery', 50), ('lottery', 50), ('rest', 0)])
+        self.assertIn('可用资金不足', slots[-1].intent)
+        self.assertFalse(LotteryTicket.objects.exists())
+
+    def test_selected_travel_budget_counts_before_earlier_purchase_slots(self):
+        from .life_planner import plan_items
+        from .travel_models import TravelDestination
+        city = TravelDestination.objects.create(pk='city', country_code='CN', country='中国', city='测试城市', price=120)
+        AgentTask.objects.create(name='旅行', task_kind='travel', agent=self.agent,
+                                 travel_config={'owner_id': 'admin'}, enabled=True)
+        quotes = {'candidates': [{'id': city.pk, 'country_code': 'CN', 'country': '中国', 'city': city.city, 'price': '120'}],
+                  'budget': '150', 'available': '200', 'quoted_at': NOW.isoformat()}
+        first, second, travel = [self.unplanned(key, hours) for hours, key in enumerate(('first', 'second', 'travel'), 1)]
+        response = {'plans': [{'id': item.pk, 'activity': 'lottery', 'reason': '试试手气'} for item in (first, second)]
+                             + [{'id': travel.pk, 'activity': 'travel', 'reason': '想出门看看', 'destination_id': city.pk}]}
+        with patch('system_settings.agent_world.lottery_decision.enabled', return_value=True), \
+             patch('system_settings.agent_world.lottery_decision.choose_scene', return_value='1'), \
+             patch('system_settings.agent_world.travel_config.bound_skill', return_value=True), \
+             patch('system_settings.agent_world.life_daily_planner.prepare', return_value=quotes), \
+             patch('system_settings.agent_world.life_planner.ask', return_value=response) as ask:
+            plan_items(LifeConfig.objects.get(pk='admin'), self.agent, [first, second, travel])
+        ask.assert_called_once()
+        for item in (first, second, travel):
+            item.refresh_from_db()
+        self.assertEqual([(item.activity, item.budget) for item in (first, second, travel)],
+                         [('lottery', 50), ('rest', 0), ('travel', 150)])
+        self.assertIn('可用资金不足', second.intent)
+
+    def test_saved_purchase_at_quota_reselects_only_that_slot(self):
+        from .life_planner import plan_items
+        Agent.objects.filter(pk=self.agent.pk).update(money=1000)
+        reserved = self.item('reserved', 10)
+        item = self.unplanned('blocked', 1)
+        peer = self.unplanned('peer', 2)
+        for row, activity in [(item, 'lottery'), (peer, 'rest')]:
+            row.context = {'daily_choice': {'time': local_time(row.scheduled_at).isoformat(), 'plan': {
+                'id': row.pk, 'activity': activity, 'reason': '已确认'}}}
+            row.save()
+        item.context.update(lottery_target=self.round.pk, lottery_attempts=1)
+        item.status, item.attempts, item.result = 'deferred', 1, {'reason': '先前的规划失败'}
+        item.save()
+        AgentTask.objects.create(name='农场', task_kind='farm', agent=self.agent,
+                                 farm_config={'owner_id': 'admin'}, enabled=True)
+
+        def reselect(agent, instruction, context, **kwargs):
+            self.assertEqual([slot['id'] for slot in context['slots']], [item.pk])
+            self.assertEqual(context['slots'][0]['allowed_activities'], ['farm'])
+            self.assertIsNone(context['exploration_offer'])
+            return {'plans': [{'id': item.pk, 'activity': 'farm', 'reason': '改去农场'}]}
+
+        with patch('system_settings.agent_world.lottery_decision.enabled', return_value=True), \
+             patch('system_settings.agent_world.lottery_decision.choose_scene') as choose, \
+             patch('system_settings.agent_world.life_planner.ask', side_effect=reselect) as ask, \
+             patch('system_settings.agent_world.farm_queue_decision.decide_plan',
+                   return_value={'entries': [], 'procurement_limit': '0'}):
+            plan_items(LifeConfig.objects.get(pk='admin'), self.agent, [item, peer])
+        ask.assert_called_once()
+        choose.assert_not_called()
+        item.refresh_from_db()
+        peer.refresh_from_db()
+        reserved.refresh_from_db()
+        self.assertEqual((item.activity, item.attempts, item.result), ('farm', 0, {}))
+        self.assertFalse({'lottery_target', 'lottery_attempts', 'lottery_plan'} & item.context.keys())
+        self.assertEqual((peer.activity, peer.intent), ('rest', '已确认'))
+        self.assertEqual(reserved.context['lottery_plan']['quantity'], 10)
+
+    def test_balance_change_during_quantity_decision_rest_without_new_model_request(self):
+        from .life_planner import plan_items
+        existing = self.item('existing-reservation')
+        item = self.unplanned('balance-changed', 1)
+        response = {'plans': [{'id': item.pk, 'activity': 'lottery', 'reason': '试试手气'}]}
+
+        def change_balance(*args, **kwargs):
+            Agent.objects.filter(pk=self.agent.pk).update(money=0)
+            return '1'
+
+        with patch('system_settings.agent_world.lottery_decision.enabled', return_value=True), \
+             patch('system_settings.agent_world.lottery_decision.choose_scene', side_effect=change_balance), \
+             patch('system_settings.agent_world.life_planner.ask', return_value=response) as ask:
+            plan_items(LifeConfig.objects.get(pk='admin'), self.agent, [item])
+        ask.assert_called_once()
+        item.refresh_from_db()
+        self.assertEqual((item.activity, item.budget, item.attempts), ('rest', 0, 0))
+        self.assertIn('资金不足', item.intent)
+        self.assertNotIn('lottery_target', item.context)
+        existing.refresh_from_db()
+        self.assertEqual((existing.activity, existing.budget), ('lottery', 50))
+
     def test_merge_over_reserved_tickets_rejected(self):
         self.item('one', 6); self.item('two', 5)
         with self.assertRaises(SyncError): checkpoint_all()

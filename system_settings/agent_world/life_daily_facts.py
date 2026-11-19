@@ -127,7 +127,7 @@ def investment_summary(owner: str, agent) -> dict:
             'valuation_complete': complete}
 
 
-def task_reason(owner: str, agent, task, at, quota=None) -> str:
+def task_reason(owner: str, agent, task, at, quota=None, *, item_id: str = '') -> str:
     """Reuse authoritative predicates without initializing domain state or using providers."""
     from .execution import stamina
     from .life_scope import allowed
@@ -138,7 +138,7 @@ def task_reason(owner: str, agent, task, at, quota=None) -> str:
         return eligibility(owner, agent, at)
     if task.task_kind == 'lottery':
         from .lottery_decision import eligibility
-        return eligibility(owner, agent, at)
+        return eligibility(owner, agent, at, item_id=item_id)
     if task.task_kind == 'post_publish':
         from .publish_config import eligibility
         return eligibility(task, agent, quota=quota, preview=local_time(at) > local_time(), now=storage_time(at))
@@ -162,7 +162,7 @@ def task_reason(owner: str, agent, task, at, quota=None) -> str:
     return ''
 
 
-def build(owner: str, agent, items: list, quotes: dict) -> dict:
+def build(owner: str, agent, items: list, quotes: dict, *, include_lottery: bool = True) -> dict:
     from .life_context import build_planning_selection_context
     from .life_plan_proposal import selection_context
     from .life_models import LifeItem
@@ -205,6 +205,8 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
         allowed, _ = filter_activities(context, slot, tiers, None, farm_days, None)
         slot_allowed = []
         for kind in allowed:
+            if kind == 'lottery' and not include_lottery:
+                continue
             task = tasks[next(row['task_id'] for row in context['activities'] if row['kind'] == kind)]
             quota = None
             if task.task_kind == 'post_publish':
@@ -212,7 +214,7 @@ def build(owner: str, agent, items: list, quotes: dict) -> dict:
                 if key not in quotas:
                     quotas[key] = quota_usage(task, now=at)
                 quota = quotas[key]
-            if not task_reason(owner, agent, task, at, quota=quota):
+            if not task_reason(owner, agent, task, at, quota=quota, item_id=slot['id']):
                 slot_allowed.append(kind)
         slot['allowed_activities'] = slot_allowed
         allowed_kinds.update(slot_allowed)

@@ -11,6 +11,7 @@ from .life_config import tasks_for
 from .life_budget import money, future_allocations
 from .farm_gate import guarded
 from .life_time import local_time
+from .lottery_service import LotteryPurchaseUnavailable
 
 
 from system_settings.agent_availability import require_active_agent
@@ -67,9 +68,13 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
         if plan.get('_daily_plan') and activity != 'rest':
             from .life_daily_facts import task_reason
             if activity not in available:
+                if activity == 'lottery':
+                    raise LotteryPurchaseUnavailable('大乐透任务当前不可用')
                 raise ValueError('已选活动当前不可用，请重新规划')
-            unavailable = task_reason(owner, agent, available[activity], local_time(item.scheduled_at))
+            unavailable = task_reason(owner, agent, available[activity], local_time(item.scheduled_at), item_id=item.pk)
             if unavailable:
+                if activity == 'lottery':
+                    raise LotteryPurchaseUnavailable(unavailable)
                 raise ValueError(unavailable + '，请重新规划日程')
             if activity == 'investment' and local_time(item.scheduled_at).weekday() >= 5:
                 raise ValueError('周末不能安排投资')
@@ -104,7 +109,13 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
     adjustment_reason=proposal.get('budget_reason','')
     changes=future_allocations(other,proposal.get('budget_allocations',[]),adjustment_reason)
     reserve = sum((remaining_reservation(r, changes.get(r.pk)) for r in other),Decimal(0))
-    if reserve+sum((b-i.spent for i,_,_,b,_ in updates),Decimal(0)) > agent.money:
+    # An automatic rest releases its own reservation even if other plans already exceed the balance.
+    releasing_only = proposal.get('_automatic_rest') is True and not changes and all(
+        activity == 'rest' for _, activity, _, _, _ in updates
+    )
+    if not releasing_only and reserve+sum((b-i.spent for i,_,_,b,_ in updates),Decimal(0)) > agent.money:
+        if len(plans) == 1 and plans[0].get('_daily_plan') and plans[0]['activity'] == 'lottery':
+            raise LotteryPurchaseUnavailable('可用资金不足以预留已选大乐透票款')
         raise ValueError('计划费用总额超过真实余额')
     for row in other:
         if row.pk in changes and row.budget!=changes[row.pk]:revise(row,adjustment_reason,budget=changes[row.pk])
@@ -137,8 +148,11 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict, *, skip
             specification = copy.deepcopy(validate_plan(detail.get('lottery_plan')))
             lottery_round = LotteryRound.objects.select_for_update().get(pk=specification['round_id'])
             check_open(owner, lottery_round, item.scheduled_at)
-            if budget != price(lottery_round.rules) * specification['quantity'] or maximum(owner, agent.pk, lottery_round, agent.money - reserve, item.pk) < specification['quantity']:
-                raise ValueError('大乐透购票计划超出金额或本期额度')
+            check_open(owner, lottery_round)
+            if budget != price(lottery_round.rules) * specification['quantity']:
+                raise ValueError('大乐透购票预算与票价或张数不一致')
+            if maximum(owner, agent.pk, lottery_round, agent.money - reserve, item.pk) < specification['quantity']:
+                raise LotteryPurchaseUnavailable('本期购票额度或可用资金不足以预留已选张数')
             context['lottery_plan'] = specification
         else:
             for name in ('lottery_plan', 'lottery_target', 'lottery_numbers', 'lottery_attempts'):

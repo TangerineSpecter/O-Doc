@@ -19,6 +19,10 @@ from .models import WorldLedger
 logger = logging.getLogger(__name__)
 
 
+class LotteryPurchaseUnavailable(ValueError):
+    """The selected purchase has lost its eligibility or resources."""
+
+
 def current_round(owner: str) -> LotteryRound | None:
     return LotteryRound.objects.filter(owner_id=owner, status='open').order_by('sequence').first()
 
@@ -84,9 +88,13 @@ def reserved_tickets(owner: str, actor: str, round_id: str, exclude_id='') -> in
                if row.context.get('lottery_plan', {}).get('round_id') == round_id)
 
 
-def maximum(owner: str, actor: str, row, cash: Decimal, exclude_id='') -> int:
+def remaining_tickets(owner: str, actor: str, row: LotteryRound, exclude_id='') -> int:
     bought = LotteryTicket.objects.filter(round=row, actor_id=actor).count()
-    return max(0, min(10 - bought - reserved_tickets(owner, actor, row.pk, exclude_id), int(cash // price(row.rules))))
+    return max(0, 10 - bought - reserved_tickets(owner, actor, row.pk, exclude_id))
+
+
+def maximum(owner: str, actor: str, row, cash: Decimal, exclude_id='') -> int:
+    return max(0, min(remaining_tickets(owner, actor, row, exclude_id), int(cash // price(row.rules))))
 
 
 def carry_in(row: LotteryRound) -> Decimal:
@@ -101,9 +109,9 @@ def pool(row: LotteryRound) -> Decimal:
 def check_open(owner: str, row: LotteryRound | None, at: datetime | None = None) -> None:
     at = local_time(at)
     if not LotteryConfig.objects.filter(pk=owner, enabled=True).exists():
-        raise ValueError('大乐透尚未启用')
+        raise LotteryPurchaseUnavailable('大乐透尚未启用')
     if row is None or row.owner_id != owner or row.status != 'open' or not local_time(row.opens_at) <= at < local_time(row.closes_at):
-        raise ValueError('目标期次尚未开售或已经停售')
+        raise LotteryPurchaseUnavailable('目标期次尚未开售或已经停售')
 
 
 def validate_plan(plan: object) -> dict:

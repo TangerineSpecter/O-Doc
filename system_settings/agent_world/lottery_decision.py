@@ -12,7 +12,8 @@ from .life_schedule import revise
 from .life_time import local_time
 from .lottery_models import LotteryRound
 from .lottery_rules import numbers, price
-from .lottery_service import current_round, check_open, maximum, pool, reserved_tickets, validate_plan
+from .lottery_service import (LotteryPurchaseUnavailable, check_open, current_round, pool,
+                              remaining_tickets, reserved_tickets, validate_plan)
 
 
 class LotteryDecisionUnavailable(ValueError):
@@ -24,6 +25,16 @@ def enabled(owner):
     return all(jev_enabled(owner, scene) for scene in ('lottery_quantity', 'lottery_number')) and bool(attempt_plan(owner)[0])
 
 
+def _available_quantity(owner, actor, row, cash, item_id):
+    remaining = remaining_tickets(owner, actor, row, item_id)
+    if remaining == 0:
+        raise LotteryPurchaseUnavailable('本期购票额度已满')
+    affordable = int(cash // price(row.rules))
+    if affordable < 1:
+        raise LotteryPurchaseUnavailable('可用资金不足以购买一张大乐透')
+    return min(remaining, affordable)
+
+
 def eligibility(owner, agent, at, item_id='') -> str:
     if not enabled(owner):
         return '请先启用大乐透数量和选号的决策连接'
@@ -31,11 +42,10 @@ def eligibility(owner, agent, at, item_id='') -> str:
     try:
         check_open(owner, row, at)
         check_open(owner, row)
-    except ValueError as exc:
+        cash = available_cash(owner, agent.pk, exclude_ids=[item_id] if item_id else [])
+        _available_quantity(owner, agent.pk, row, cash, item_id)
+    except LotteryPurchaseUnavailable as exc:
         return str(exc)
-    cash = available_cash(owner, agent.pk, exclude_ids=[item_id] if item_id else [])
-    if maximum(owner, agent.pk, row, cash, item_id) < 1:
-        return '本期购票额度已满或没有可用购票资金'
     return ''
 
 
@@ -75,7 +85,7 @@ def summary(owner, actor):
     row = current_round(owner)
     if row is None:
         return None
-    context = {'pool': str(pool(row)), 'held': row.tickets.filter(actor_id=actor).count(),
+    context = {'round_id': row.pk, 'pool': str(pool(row)), 'held': row.tickets.filter(actor_id=actor).count(),
             'pending': reserved_tickets(owner, actor, row.pk), 'limit': 10,
             'price': str(price(row.rules)), 'draws_at': local_time(row.draws_at).isoformat()}
     if recent := recent_personal_results(owner, actor, row):
@@ -133,25 +143,28 @@ def choose(item, agent, scene, context, candidates):
     return candidates[value]
 
 
-def prepare(item, agent):
+def target_round(item, choice: dict) -> str | None:
+    return item.context.get('lottery_target') or choice.get('lottery_round_id')
+
+
+def prepare(item, agent, *, leave_tickets: int = 0):
     if existing := item.context.get('lottery_plan'):
         return copy.deepcopy(validate_plan(existing))
-    target = (item.context.get('lottery_target') or
-              item.context.get('daily_choice', {}).get('plan', {}).get('lottery_round_id'))
+    target = target_round(item, item.context.get('daily_choice', {}).get('plan', {}))
     row = LotteryRound.objects.filter(pk=target).first() if target else current_round(item.owner_id)
     check_open(item.owner_id, row, item.scheduled_at)
     check_open(item.owner_id, row)
     with farm_gate(), transaction.atomic():
         locked = LifeItem.objects.select_for_update().get(pk=item.pk)
-        if target and target != row.pk:
-            raise ValueError('购票目标期次已变化')
+        if locked.updated_at != item.updated_at or locked.status not in ('pending', 'deferred'):
+            raise ValueError('购票日程已变化，请重新规划')
+        cash = available_cash(item.owner_id, agent.pk, exclude_ids=[item.pk])
+        maximum_count = _available_quantity(item.owner_id, agent.pk, row, cash, item.pk)
         locked.context = {**locked.context, 'lottery_target': row.pk}
         locked.save(update_fields=['context', 'updated_at'])
     item.refresh_from_db()
-    cash = available_cash(item.owner_id, agent.pk, exclude_ids=[item.pk])
-    maximum_count = maximum(item.owner_id, agent.pk, row, cash, item.pk)
-    if maximum_count < 1:
-        raise ValueError('已无可用购票资金或张数额度')
+    # Each later accepted intention can use one ticket if resources still allow it.
+    maximum_count = max(1, maximum_count - leave_tickets)
     context = {**state(item, agent, row), 'budget': str(cash), 'maximum_quantity': maximum_count}
     version = item.updated_at
     count = choose(item, agent, 'lottery_quantity', context, {str(i): i for i in range(1, maximum_count + 1)})

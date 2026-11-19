@@ -5,6 +5,29 @@ from .life_plan_proposal import indexed_rows
 from .life_energy import Commitment, forecast
 
 
+def _repair_lottery_conflicts(rows, slots, context):
+    lottery = context.get('lottery')
+    if not lottery:
+        return
+    price = Decimal(lottery['price'])
+    cash = Decimal(context['travel_budget_ceiling'])
+    travel_prices = {q['id']: Decimal(q['required_budget']) for q in context.get('travel', {}).get('candidates', [])}
+    cash -= sum(travel_prices[row['destination_id']] for row in rows.values() if row['activity'] == 'travel')
+    saved_slots = lottery['saved_purchase_slots']
+    quota_left = lottery['limit'] - lottery['held'] - lottery['pending'] - saved_slots
+    affordable = int(max(Decimal(0), cash) // price) - saved_slots
+    for slot in slots:
+        row = rows[slot['id']]
+        if row['activity'] != 'lottery':
+            continue
+        if quota_left > 0 and affordable > 0:
+            quota_left -= 1
+            affordable -= 1
+        else:
+            reason = '本期剩余票额不足' if quota_left <= 0 else '可用资金不足以再安排购票'
+            row.update(activity='rest', reason=f'系统说明：{reason}，本时段休息')
+
+
 def repair_conflicts(value, context):
     rows = indexed_rows(value.get('plans'), {s['id'] for s in context['slots']}, '活动选择')
     farm_days = set(context.get('existing_farm_days', []))
@@ -20,7 +43,8 @@ def repair_conflicts(value, context):
     publishing = context.get('publishing', {})
     next_publish = datetime.fromisoformat(publishing['next_available_at']) if publishing.get('next_available_at') else None
     publish_left = publishing.get('remaining_quota')
-    for slot in sorted(context['slots'], key=lambda s: s['time']):
+    slots = sorted(context['slots'], key=lambda s: (s['time'], s['id']))
+    for slot in slots:
         row = rows[slot['id']]
         kind, reason, price = row.get('activity'), '', Decimal(0)
         if kind not in [*slot['allowed_activities'], 'rest']:
@@ -57,4 +81,5 @@ def repair_conflicts(value, context):
                 next_publish = datetime.fromisoformat(slot['time']) + timedelta(hours=publishing.get('cooldown_hours', 6))
                 if publish_left is not None:
                     publish_left -= 1
+    _repair_lottery_conflicts(rows, slots, context)
     return value
