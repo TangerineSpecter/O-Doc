@@ -76,20 +76,20 @@ class FirstPromotionSkillTests(unittest.TestCase):
         self.assertEqual(self.old.learned(priest, 30)['skill.player.012'], 2)
 
     def test_validator_rejects_wrong_schedule_for_each_catalog_version(self):
-        validate_tables(self.catalog.tables, expected_player_skills=98,
+        validate_tables(self.catalog.tables, expected_player_skills=99,
                         expected_promotion_level=50, catalog_version=self.catalog.version)
         for identity, value in (('skill.player.011.r3', '35'), ('skill.player.012.r2', '30'),
                                 ('skill.player.001.r3', '31')):
             tables = copy.deepcopy(self.catalog.tables)
             next(row for row in tables['skill_levels'] if row['id'] == identity)['required_level'] = value
             with self.subTest(identity=identity), self.assertRaisesRegex(ValueError, 'Skill growth schedule'):
-                validate_tables(tables, expected_player_skills=98,
+                validate_tables(tables, expected_player_skills=99,
                                 expected_promotion_level=50, catalog_version=self.catalog.version)
         with self.assertRaisesRegex(ValueError, 'Skill growth schedule'):
             validate_tables(self.old.tables, expected_player_skills=98,
                             expected_promotion_level=50, catalog_version=self.catalog.version)
         with self.assertRaisesRegex(ValueError, 'Skill growth schedule'):
-            validate_tables(self.catalog.tables, expected_player_skills=98,
+            validate_tables(self.catalog.tables, expected_player_skills=99,
                             expected_promotion_level=50, catalog_version=self.old.version)
 
     def test_earlier_active_rank_increases_actual_cost_without_changing_effects(self):

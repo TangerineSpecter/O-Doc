@@ -33,7 +33,7 @@ class SecondPromotionSkillTests(unittest.TestCase):
         cls.old = Catalog(old_tables, 'combat-1.0.37')
 
     def test_all_second_promotion_skills_reach_rank_three_by_level_50(self):
-        self.assertEqual((len(self.jobs), len(self.skills)), (10, 28))
+        self.assertEqual((len(self.jobs), len(self.skills)), (10, 29))
         groups = {(30, 'active'): [30, 40, 50], (30, 'passive'): [30, 40, 50],
                   (40, 'active'): [40, 45, 50], (35, 'passive'): [35, 40, 50]}
         for skill in self.skills:
@@ -77,20 +77,20 @@ class SecondPromotionSkillTests(unittest.TestCase):
         self.assertEqual(self.old.learned(job, 50)[passive], 1)
 
     def test_catalog_validator_rejects_wrong_or_mismatched_schedules(self):
-        validate_tables(self.catalog.tables, expected_player_skills=98,
+        validate_tables(self.catalog.tables, expected_player_skills=99,
                         expected_promotion_level=50, catalog_version=self.catalog.version)
         for identity, value in (('skill.player.014.r1', '45'), ('skill.player.014.r2', '45'),
                                 ('skill.player.082.r3', '60'), ('skill.player.013.r3', '51')):
             tables = copy.deepcopy(self.catalog.tables)
             next(row for row in tables['skill_levels'] if row['id'] == identity)['required_level'] = value
             with self.subTest(identity=identity), self.assertRaisesRegex(ValueError, 'Skill growth schedule'):
-                validate_tables(tables, expected_player_skills=98,
+                validate_tables(tables, expected_player_skills=99,
                                 expected_promotion_level=50, catalog_version=self.catalog.version)
         with self.assertRaisesRegex(ValueError, 'Skill growth schedule|Profession skill exceeds'):
             validate_tables(self.old.tables, expected_player_skills=98,
                             expected_promotion_level=50, catalog_version=self.catalog.version)
         with self.assertRaisesRegex(ValueError, 'Skill growth schedule'):
-            validate_tables(self.catalog.tables, expected_player_skills=98,
+            validate_tables(self.catalog.tables, expected_player_skills=99,
                             expected_promotion_level=50, catalog_version=self.old.version)
 
     def test_local_catalog_matches_skill_unlocks_and_rank_levels(self):

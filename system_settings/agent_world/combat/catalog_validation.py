@@ -90,7 +90,7 @@ def validate(directory: Path = DIRECTORY, *, expected_status: str = 'released') 
     # Promotion gates are catalog-versioned: historical catalogs keep their
     # original level-70 third promotion while combat-1.0.10 starts it at 50.
     promotion_level = 50 if manifest['version'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19', 'combat-1.0.20', 'combat-1.0.21', 'combat-1.0.22', 'combat-1.0.23', 'combat-1.0.24', 'combat-1.0.25', 'combat-1.0.26', 'combat-1.0.27', 'combat-1.0.28', 'combat-1.0.29', 'combat-1.0.30', 'combat-1.0.31', 'combat-1.0.32', 'combat-1.0.33', 'combat-1.0.34', 'combat-1.0.35', 'combat-1.0.36', 'combat-1.0.37', 'combat-1.0.38', 'combat-1.0.39', 'combat-1.0.40'} else 70
-    expected_skills = 98 if manifest['engine_schema'] >= 9 else 75 if manifest['engine_schema'] >= 6 else 74 if manifest['version'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19', 'combat-1.0.20', 'combat-1.0.21', 'combat-1.0.22', 'combat-1.0.23', 'combat-1.0.24', 'combat-1.0.25', 'combat-1.0.26', 'combat-1.0.27', 'combat-1.0.28', 'combat-1.0.29', 'combat-1.0.30', 'combat-1.0.31', 'combat-1.0.32', 'combat-1.0.33', 'combat-1.0.34', 'combat-1.0.35', 'combat-1.0.36', 'combat-1.0.37', 'combat-1.0.38', 'combat-1.0.39', 'combat-1.0.40'} else 73 if manifest['version'] in {'combat-1.0.11','combat-1.0.12'} else 71
+    expected_skills = 99 if combat_version_at_least(manifest['version'], (1, 0, 40)) else 98 if manifest['engine_schema'] >= 9 else 75 if manifest['engine_schema'] >= 6 else 74 if manifest['version'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16','combat-1.0.17','combat-1.0.18', 'combat-1.0.19', 'combat-1.0.20', 'combat-1.0.21', 'combat-1.0.22', 'combat-1.0.23', 'combat-1.0.24', 'combat-1.0.25', 'combat-1.0.26', 'combat-1.0.27', 'combat-1.0.28', 'combat-1.0.29', 'combat-1.0.30', 'combat-1.0.31', 'combat-1.0.32', 'combat-1.0.33', 'combat-1.0.34', 'combat-1.0.35', 'combat-1.0.36', 'combat-1.0.37', 'combat-1.0.38', 'combat-1.0.39'} else 73 if manifest['version'] in {'combat-1.0.11','combat-1.0.12'} else 71
     return validate_tables(tables, expected_player_skills=expected_skills,
                            expected_promotion_level=promotion_level, catalog_version=manifest['version'])
 
@@ -199,7 +199,7 @@ def validate_tables(tables, *, expected_player_skills: int | None = None,
         require(len(players) == expected_player_skills, 'Player skill count')
     else:
         # Synced profiles retain immutable catalogs used by older exploration facts.
-        require(len(players) in {60, 71, 73, 74, 75, 98}, 'Unsupported historical player skill count')
+        require(len(players) in {60, 71, 73, 74, 75, 98, 99}, 'Unsupported historical player skill count')
     for skill in tables['skills']:
         require(skill['kind'] in {'active', 'passive', 'monster'}, 'Skill kind')
         ordered = sorted(ranks[skill['id']], key=lambda r: int(r['rank']))

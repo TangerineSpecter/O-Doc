@@ -53068,7 +53068,7 @@
           "skillLevelId": "skill.player.022.r1",
           "code": "passive_percent",
           "stat": "physical_attack",
-          "value": "0.08",
+          "value": "0.06",
           "duration": "0",
           "target": "self",
           "damageType": "",
@@ -53096,7 +53096,7 @@
           "skillLevelId": "skill.player.022.r2",
           "code": "passive_percent",
           "stat": "physical_attack",
-          "value": "0.12",
+          "value": "0.09",
           "duration": "0",
           "target": "self",
           "damageType": "",
@@ -53124,7 +53124,7 @@
           "skillLevelId": "skill.player.022.r3",
           "code": "passive_percent",
           "stat": "physical_attack",
-          "value": "0.24",
+          "value": "0.18",
           "duration": "0",
           "target": "self",
           "damageType": "",
@@ -54154,6 +54154,48 @@
           "hits": "1",
           "chance": "1",
           "element": ""
+        },
+        {
+          "id": "skill.player.099.r1.e1",
+          "skillLevelId": "skill.player.099.r1",
+          "code": "passive_equipment_percent",
+          "stat": "weapon_attack",
+          "value": "0.1",
+          "duration": "0",
+          "target": "self",
+          "damageType": "",
+          "group": "bow",
+          "hits": "1",
+          "chance": "1",
+          "element": ""
+        },
+        {
+          "id": "skill.player.099.r2.e1",
+          "skillLevelId": "skill.player.099.r2",
+          "code": "passive_equipment_percent",
+          "stat": "weapon_attack",
+          "value": "0.15",
+          "duration": "0",
+          "target": "self",
+          "damageType": "",
+          "group": "bow",
+          "hits": "1",
+          "chance": "1",
+          "element": ""
+        },
+        {
+          "id": "skill.player.099.r3.e1",
+          "skillLevelId": "skill.player.099.r3",
+          "code": "passive_equipment_percent",
+          "stat": "weapon_attack",
+          "value": "0.2",
+          "duration": "0",
+          "target": "self",
+          "damageType": "",
+          "group": "bow",
+          "hits": "1",
+          "chance": "1",
+          "element": ""
         }
       ],
       "skillLevels": [
@@ -54985,7 +55027,7 @@
           "costPerLevel": "0",
           "costRankFactor": "1.0",
           "cooldownRounds": "0",
-          "description": "命中 +2 / 3 / 6 个百分点；风强化 +4% / 6% / 12%；物攻 +8% / 12% / 24%；暴击 +2 / 3 / 6 个百分点",
+          "description": "命中 +2 / 3 / 6 个百分点；风强化 +4% / 6% / 12%；物攻 +6% / 9% / 18%；暴击 +2 / 3 / 6 个百分点",
           "enabled": "1",
           "group": ""
         },
@@ -54998,7 +55040,7 @@
           "costPerLevel": "0",
           "costRankFactor": "1.15",
           "cooldownRounds": "0",
-          "description": "命中 +2 / 3 / 6 个百分点；风强化 +4% / 6% / 12%；物攻 +8% / 12% / 24%；暴击 +2 / 3 / 6 个百分点",
+          "description": "命中 +2 / 3 / 6 个百分点；风强化 +4% / 6% / 12%；物攻 +6% / 9% / 18%；暴击 +2 / 3 / 6 个百分点",
           "enabled": "1",
           "group": ""
         },
@@ -55011,7 +55053,7 @@
           "costPerLevel": "0",
           "costRankFactor": "1.3",
           "cooldownRounds": "0",
-          "description": "命中 +2 / 3 / 6 个百分点；风强化 +4% / 6% / 12%；物攻 +8% / 12% / 24%；暴击 +2 / 3 / 6 个百分点",
+          "description": "命中 +2 / 3 / 6 个百分点；风强化 +4% / 6% / 12%；物攻 +6% / 9% / 18%；暴击 +2 / 3 / 6 个百分点",
           "enabled": "1",
           "group": ""
         },
@@ -58381,6 +58423,45 @@
           "description": "",
           "enabled": "1",
           "group": "guard"
+        },
+        {
+          "id": "skill.player.099.r1",
+          "skillId": "skill.player.099",
+          "rank": "1",
+          "requiredLevel": "30",
+          "costBase": "0",
+          "costPerLevel": "0",
+          "costRankFactor": "1.0",
+          "cooldownRounds": "0",
+          "description": "装备长弓时武器物攻贡献 +10%",
+          "enabled": "1",
+          "group": ""
+        },
+        {
+          "id": "skill.player.099.r2",
+          "skillId": "skill.player.099",
+          "rank": "2",
+          "requiredLevel": "40",
+          "costBase": "0",
+          "costPerLevel": "0",
+          "costRankFactor": "1.15",
+          "cooldownRounds": "0",
+          "description": "装备长弓时武器物攻贡献 +15%",
+          "enabled": "1",
+          "group": ""
+        },
+        {
+          "id": "skill.player.099.r3",
+          "skillId": "skill.player.099",
+          "rank": "3",
+          "requiredLevel": "50",
+          "costBase": "0",
+          "costPerLevel": "0",
+          "costRankFactor": "1.3",
+          "cooldownRounds": "0",
+          "description": "装备长弓时武器物攻贡献 +20%",
+          "enabled": "1",
+          "group": ""
         }
       ],
       "skills": [
@@ -59414,6 +59495,14 @@
           "professionId": "",
           "learnLevel": "1",
           "kind": "monster",
+          "enabled": "1"
+        },
+        {
+          "id": "skill.player.099",
+          "name": "长弓精通",
+          "professionId": "job.archer",
+          "learnLevel": "30",
+          "kind": "passive",
           "enabled": "1"
         }
       ],

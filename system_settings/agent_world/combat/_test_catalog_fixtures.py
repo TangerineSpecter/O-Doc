@@ -6,6 +6,9 @@ from pathlib import Path
 def restore_second_promotion_1_0_38(tables):
     path = Path(__file__).resolve().parent / 'testdata/second_promotion_1_0_38.json'
     fixture = json.loads(path.read_text())
+    tables['skills'] = [row for row in tables['skills'] if row['id'] != 'skill.player.099']
+    tables['skill_levels'] = [row for row in tables['skill_levels'] if row['skill_id'] != 'skill.player.099']
+    tables['skill_effects'] = [row for row in tables['skill_effects'] if not row['skill_level_id'].startswith('skill.player.099.')]
     for row in tables['skill_levels']:
         if row['skill_id'] in fixture['descriptions']:
             row['description'] = fixture['descriptions'][row['skill_id']]

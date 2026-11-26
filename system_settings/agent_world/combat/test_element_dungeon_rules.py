@@ -63,11 +63,11 @@ class ElementDungeonRulesTests(unittest.TestCase):
         tables['equipment_templates'].append(staff)
         staff.update(element='', element_power='0.08')
         with self.assertRaisesRegex(ValueError, 'Intrinsic element power requires a staff'):
-            validate_tables(tables, expected_player_skills=98, expected_promotion_level=50,
+            validate_tables(tables, expected_player_skills=99, expected_promotion_level=50,
                             catalog_version=self.current.version)
         staff.update(element='water', element_power='nan')
         with self.assertRaisesRegex(ValueError, 'Invalid intrinsic element power'):
-            validate_tables(tables, expected_player_skills=98, expected_promotion_level=50,
+            validate_tables(tables, expected_player_skills=99, expected_promotion_level=50,
                             catalog_version=self.current.version)
 
     def test_elemental_damage_over_time_uses_caps_and_poison_remains_untyped(self):
@@ -99,7 +99,7 @@ class ElementDungeonRulesTests(unittest.TestCase):
         axe = next(row for row in tables['equipment_pools'] if row['pool_id'] == sword['pool_id'] and row['equipment_id'] == 'equip.axe')
         sword['variant_group'] = axe['variant_group'] = 'bad'
         with self.assertRaisesRegex(ValueError, 'Equipment variants must have matching types and levels'):
-            validate_tables(tables, expected_player_skills=98, expected_promotion_level=50,
+            validate_tables(tables, expected_player_skills=99, expected_promotion_level=50,
                             catalog_version=self.current.version)
 
     def test_water_pool_and_loot_respect_released_level_limits(self):

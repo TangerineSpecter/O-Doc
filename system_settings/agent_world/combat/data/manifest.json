@@ -88,16 +88,16 @@
       "rows": 75
     },
     "skill_effects.csv": {
-      "sha256": "911274e76f747612da5546aab58f7f360a2a2ba8ba4fa199bb02ab0a2ced0ddb",
-      "rows": 608
+      "sha256": "b0a94597e83830517a87533db22ca2f4955a690ae44b8287425f980f7e651966",
+      "rows": 611
     },
     "skill_levels.csv": {
-      "sha256": "d2664a29a7dff351ac61de25c764e925806d004d21bc040ac1d93e4b3afc4570",
-      "rows": 325
+      "sha256": "b34db04ef478227c9e8a7d6c23549cf55bd6cbd07fa5e1188b21163f04ee1cb7",
+      "rows": 328
     },
     "skills.csv": {
-      "sha256": "b769ced1ebb55dc8d98a49abb3bc0e90628e186962922cbbed491445dd06ce8f",
-      "rows": 129
+      "sha256": "56cbc96f640387a712d5511ed73a37b217beb019f74c5a2444dee39b7f5319db",
+      "rows": 130
     },
     "styles.csv": {
       "sha256": "f968485b63dc30463a2a63baec1df112c96c9e38219c3344db05cfed9e249894",

@@ -16,7 +16,7 @@ RANK_TWO = {
     'skill.player.016.r2.e1': '.075', 'skill.player.016.r2.e2': '.12', 'skill.player.016.r2.e3': '.06', 'skill.player.016.r2.e4': '.06',
     'skill.player.018.r2.e1': '.075', 'skill.player.018.r2.e2': '.0375', 'skill.player.018.r2.e3': '.0375',
     'skill.player.020.r2.e1': '.075', 'skill.player.020.r2.e2': '.105', 'skill.player.020.r2.e3': '.105',
-    'skill.player.022.r2.e1': '.03', 'skill.player.022.r2.e2': '.06', 'skill.player.022.r2.e3': '.12', 'skill.player.022.r2.e4': '.03',
+    'skill.player.022.r2.e1': '.03', 'skill.player.022.r2.e2': '.06', 'skill.player.022.r2.e3': '.09', 'skill.player.022.r2.e4': '.03',
     'skill.player.024.r2.e1': '.15', 'skill.player.024.r2.e2': '.105', 'skill.player.024.r2.e3': '.045',
     'skill.player.026.r2.e1': '.075', 'skill.player.026.r2.e2': '.12', 'skill.player.026.r2.e3': '.06',
     'skill.player.028.r2.e1': '.075', 'skill.player.028.r2.e2': '.105', 'skill.player.028.r2.e3': '.075', 'skill.player.028.r2.e4': '.075',

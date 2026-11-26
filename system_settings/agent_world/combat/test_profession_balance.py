@@ -130,6 +130,32 @@ class ProfessionBalanceTests(unittest.TestCase):
         events = duel_action(dcat, summoner, foe, 1, FixedRandom())
         self.assertTrue(any(e['kind'] == 'damage' for e in events))
 
+    def test_archer_bow_mastery_scales_bow_weapon_attack_only_and_keeps_ranger_bow_permission(self):
+        from . import equipment
+        self.assertEqual(self.catalog.learned('job.archer', 29).get('skill.player.099'), None)
+        self.assertEqual(self.catalog.learned('job.archer', 30).get('skill.player.099'), 1)
+        self.assertEqual(self.catalog.learned('job.archer', 40).get('skill.player.099'), 2)
+        self.assertEqual(self.catalog.learned('job.archer', 50).get('skill.player.099'), 3)
+        self.assertEqual(self.catalog.learned('job.sharpshooter', 50).get('skill.player.099'), 3)
+        self.assertEqual(self.catalog.learned('job.hunter', 50).get('skill.player.099'), 3)
+        # Ordinary bows stay usable by level-10 rangers without mastery gate.
+        self.assertTrue(equipment.allowed(self.catalog, 'equip.bow', 'job.ranger', 10, 10))
+
+        base_progress = attributes.initial()
+        base_progress.update(job='job.archer', level=50, skills={})
+        mastery_progress = {**base_progress, 'skills': {'skill.player.099': 3}}
+        bow = [{'slot': 'weapon', 'equipment_type': 'bow', 'stats': {'physical_attack': 200}}]
+        dagger = [{'slot': 'weapon', 'equipment_type': 'dagger', 'stats': {'physical_attack': 200}}]
+        self.assertEqual(
+            attributes.attributes(self.catalog, mastery_progress, bow)['physical_attack'] -
+            attributes.attributes(self.catalog, base_progress, bow)['physical_attack'],
+            40,
+        )
+        self.assertEqual(
+            attributes.attributes(self.catalog, mastery_progress, dagger)['physical_attack'],
+            attributes.attributes(self.catalog, base_progress, dagger)['physical_attack'],
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

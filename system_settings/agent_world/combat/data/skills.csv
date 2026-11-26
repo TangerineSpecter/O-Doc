@@ -128,3 +128,4 @@ skill.monster.element.fire.embers,炭壳余温,,1,monster,1
 skill.monster.element.fire.trace,熔角灼痕,,1,monster,1
 skill.monster.element.fire.feather,焰羽迸落,,1,monster,1
 skill.monster.element.fire.guard,灰烬护羽,,1,monster,1
+skill.player.099,长弓精通,job.archer,30,passive,1
