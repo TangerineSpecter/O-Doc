@@ -217,17 +217,20 @@ def _reflect_damage(catalog: Catalog, bearer: dict, attacker: dict, raw_by_type:
                     rng) -> list[dict]:
     if bearer['hp'] <= 0 or attacker['hp'] <= 0 or not raw_by_type:
         return []
-    reflect = max((float(state['value']) for state in bearer['states']
-                   if state['code'] == 'reflect' and state['expires'] > tick), default=0)
+    reflect_states = [state for state in bearer['states']
+                      if state['code'] == 'reflect' and state['expires'] > tick]
+    strongest = max(reflect_states, key=lambda state: float(state['value']), default=None)
+    reflect = float(strongest['value']) if strongest else 0
     if reflect <= 0:
         return []
+    reflect_action = f"{strongest['name']}·反伤" if strongest and strongest.get('name') else '盾墙·反伤'
     events = []
     # One retaliation per incoming action. Multi-hit raw damage is accumulated by type;
     # it is then mitigated by the attacker's matching defense, without crit or recursion.
     for kind, raw in raw_by_type.items():
         amount = damage(raw * reflect, kind, bearer['level'], attacker)
         taken, absorbed, broken, paid = hurt(attacker, amount)
-        event = {'actor': bearer['name'], 'target': attacker['name'], 'actor_id':bearer.get('id'), 'target_id':attacker.get('id'), 'action': '盾墙·反伤',
+        event = {'actor': bearer['name'], 'target': attacker['name'], 'actor_id':bearer.get('id'), 'target_id':attacker.get('id'), 'action': reflect_action,
                  'kind': 'damage', 'damage': taken, 'absorbed': absorbed,
                  'hit': True, 'critical': False}
         if paid:

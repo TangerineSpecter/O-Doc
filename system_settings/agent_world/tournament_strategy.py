@@ -8,6 +8,7 @@ class DuelCatalog:
     """Keep the combat catalog intact while suppressing healing in overtime."""
     def __init__(self, catalog, overtime=False):
         self.catalog, self.overtime = catalog, overtime
+        self.version = getattr(catalog, 'version', '')
         self.rules, self.tables = catalog.rules, catalog.tables
 
     def row(self, *args):

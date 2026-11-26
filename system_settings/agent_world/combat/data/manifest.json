@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.39",
+  "version": "combat-1.0.40",
   "status": "released",
   "engine_schema": 11,
   "files": {
@@ -88,11 +88,11 @@
       "rows": 75
     },
     "skill_effects.csv": {
-      "sha256": "37232ef0fe0aafce941d3e5fcfc46a1128a7d43cd676223845aa0c38ad107ee3",
-      "rows": 515
+      "sha256": "911274e76f747612da5546aab58f7f360a2a2ba8ba4fa199bb02ab0a2ced0ddb",
+      "rows": 608
     },
     "skill_levels.csv": {
-      "sha256": "8491dd637c79e9d68a20d2ade3d69956a640b1ec81c9636acdbbdec7777ecab9",
+      "sha256": "d2664a29a7dff351ac61de25c764e925806d004d21bc040ac1d93e4b3afc4570",
       "rows": 325
     },
     "skills.csv": {

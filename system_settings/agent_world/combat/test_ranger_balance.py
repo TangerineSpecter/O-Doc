@@ -45,7 +45,7 @@ class RangerBalanceTests(SimpleTestCase):
                          ('弱点射击', 'job.ranger', 10, 'active'))
 
     def test_each_rank_trades_accuracy_for_critical(self):
-        for rank, (damage, critical) in enumerate(((1.5, .10), (1.7, .15), (2.0, .20)), 1):
+        for rank, (damage, critical) in enumerate(((1.7, .12), (1.9, .16), (2.15, .22)), 1):
             with self.subTest(rank=rank):
                 level, spell = self.catalog.skill('skill.player.007', rank)
                 codes = [fx['code'] for fx in spell]

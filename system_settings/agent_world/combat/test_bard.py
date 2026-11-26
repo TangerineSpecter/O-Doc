@@ -79,9 +79,9 @@ class BardTests(SimpleTestCase):
         a=self.unit('甲','job.battleconductor');b=self.unit('乙','job.musician');friends={'甲':a,'乙':b}
         self.cast(a,'087',friends=friends)
         self.cast(b,'081',friends=friends)
-        self.assertAlmostEqual(effects.value(a,'magic_attack'),136)
+        self.assertAlmostEqual(effects.value(a,'magic_attack'),160)
         self.cast(a,'082',tick=2,friends=friends)
-        self.assertAlmostEqual(effects.value(a,'magic_attack'),120)
+        self.assertAlmostEqual(effects.value(a,'magic_attack'),145)
         self.assertTrue(any(s.get('melody') and s.get('source_id')=='甲' and s['stat']=='reduction' for s in b['states']))
         self.assertEqual(a['bard']['melody']['skill_id'],'skill.player.082')
 

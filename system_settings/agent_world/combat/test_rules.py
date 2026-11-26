@@ -187,11 +187,11 @@ class RuleTests(SimpleTestCase):
         reflected=[event for event in events if event.get('action')=='盾墙·反伤']
         received=[event for event in events if event.get('action')=='多段攻击']
         self.assertEqual(len(reflected),1)
-        self.assertEqual(reflected[0]['damage'],20)
+        self.assertEqual(reflected[0]['damage'],36)
         self.assertFalse(reflected[0]['critical'])
         self.assertEqual(len(received),2)
         self.assertEqual([event['damage'] for event in received],[76,76])
-        self.assertEqual(enemy['hp'],1980)
+        self.assertEqual(enemy['hp'],1964)
 
     def test_element_factor_follows_channel_damage_and_stays_bounded(self):
         c = self.catalog

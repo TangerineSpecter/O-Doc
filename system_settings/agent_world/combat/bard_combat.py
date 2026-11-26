@@ -1,4 +1,5 @@
 """Music actions and persistent round state. Pure snapshots; no models or model calls."""
+import math
 from . import effects
 
 
@@ -109,6 +110,19 @@ def cast(catalog, caster, target, friends, enemies, sid, rank, tick, rng):
         for unit in targets:
             events.append(modifier(caster,unit,name,'reduction' if guard else 'attack',amount,
                                    'bard_guard' if guard else 'bard_attack_single' if action=='encourage' else 'bard_attack',tick+length,melody=action!='encourage'))
+        if guard:
+            for heal_fx in catalog.skill(sid, rank)[1]:
+                if heal_fx['code'] != 'heal':
+                    continue
+                ratio = float(heal_fx['value'])
+                for unit in targets:
+                    if unit['hp'] <= 0 or unit['hp'] >= unit['stats']['hp_max']:
+                        continue
+                    base = unit['stats']['hp_max'] if heal_fx['stat'] == 'hp_max' else effects.value(caster, heal_fx['stat'])
+                    restored = min(unit['stats']['hp_max'] - unit['hp'], max(1, math.floor(base * ratio)))
+                    if restored > 0:
+                        unit['hp'] += restored
+                        events.append(event(caster, unit, name, kind='heal', healing=restored))
         return events
     if action == 'requiem':
         for unit in living(enemies):
